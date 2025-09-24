@@ -1,101 +1,64 @@
-import Link from "next/link";
+// src/app/browse/page.tsx
 import { prisma } from "@/lib/db";
-import { ListingStatus } from "@prisma/client";
+import Link from "next/link";
 
-type PageProps = {
-  // Next 15 passes searchParams as an async prop; await it once
-  searchParams: Promise<{ q?: string; page?: string }>;
-};
+const PAGE_SIZE = 24;
 
-export default async function BrowsePage({ searchParams }: PageProps) {
-  const sp = await searchParams;
-  const q = (sp?.q ?? "").toString().trim();
-  const page = Math.max(1, Number(sp?.page ?? 1) || 1);
-  const PAGE_SIZE = 12;
-
-  const where = {
-    status: ListingStatus.ACTIVE,
-    ...(q
-      ? {
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { description: { contains: q, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-  };
-
-  const [total, listings] = await Promise.all([
-    prisma.listing.count({ where }),
+export default async function BrowsePage() {
+  const [listings, total] = await Promise.all([
     prisma.listing.findMany({
-      where,
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE,
-      skip: (page - 1) * PAGE_SIZE,
       include: {
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        seller: { include: { user: true } }, // 👈 pull seller + user for the chip
       },
     }),
+    prisma.listing.count(),
   ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
-  // helpers to build Prev/Next links
-  const buildQS = (p: number) => {
-    const qs = new URLSearchParams();
-    if (q) qs.set("q", q);
-    qs.set("page", String(p));
-    return qs.toString();
-  };
 
   return (
     <main className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Browse</h1>
-
-      <form className="mb-6">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="Search listings…"
-          className="w-full max-w-md border rounded px-3 py-2"
-        />
-      </form>
+      <header className="mb-6 flex items-end justify-between">
+        <h1 className="text-2xl font-semibold">Browse</h1>
+        <div className="text-sm text-neutral-500">{total} item{total === 1 ? "" : "s"}</div>
+      </header>
 
       <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
         {listings.map((l) => {
           const img = l.photos[0]?.url ?? "/favicon.ico";
+          const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Seller";
+          const sellerHref = `/seller/${l.sellerId}`; // Listing.sellerId references SellerProfile.id
+
           return (
             <li key={l.id} className="border rounded-xl overflow-hidden">
               <Link href={`/listing/${l.id}`} className="block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img alt={l.title} src={img} className="w-full h-48 object-cover" />
-                <div className="p-4">
-                  <div className="font-medium">{l.title}</div>
-                  <div className="opacity-70">${(l.priceCents / 100).toFixed(2)}</div>
+                <div className="p-4 space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <div className="font-medium">{l.title}</div>
+                    <div className="opacity-70">
+                      ${(l.priceCents / 100).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
               </Link>
+
+              {/* Seller chip (separate link so you can click straight to the profile) */}
+              <div className="px-4 pb-4">
+                <Link
+                  href={sellerHref}
+                  className="inline-flex items-center text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
+                >
+                  {sellerName}
+                </Link>
+              </div>
             </li>
           );
         })}
       </ul>
-
-      <div className="flex items-center gap-3 mt-8">
-        <Link
-          href={`/browse?${buildQS(Math.max(1, page - 1))}`}
-          className={`border rounded px-3 py-1 ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-        >
-          ← Prev
-        </Link>
-        <span className="text-sm opacity-70">
-          Page {page} of {totalPages}
-        </span>
-        <Link
-          href={`/browse?${buildQS(Math.min(totalPages, page + 1))}`}
-          className={`border rounded px-3 py-1 ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
-        >
-          Next →
-        </Link>
-      </div>
     </main>
   );
 }
+
