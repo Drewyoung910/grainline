@@ -1,17 +1,20 @@
 // src/app/listing/[id]/page.tsx
 import { prisma } from "@/lib/db";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export default async function ListingPage({ params }: { params: { id: string } }) {
+export default async function ListingPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params; // ✅ await params
+
   const listing = await prisma.listing.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
-      seller: {
-        include: { user: true }, // pulls SellerProfile.user
-      },
+      seller: { include: { user: true } },
     },
   });
 
@@ -21,21 +24,29 @@ export default async function ListingPage({ params }: { params: { id: string } }
 
   return (
     <main className="p-8 max-w-4xl mx-auto space-y-6">
-      <Link href="/browse" className="text-sm underline">&larr; Back to Browse</Link>
+      <Link href="/browse" className="text-sm underline">
+        &larr; Back to Browse
+      </Link>
+
       <div className="grid md:grid-cols-2 gap-6">
         <div className="relative w-full aspect-square overflow-hidden rounded-xl border">
-          {/* Using img to keep it simple */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={hero} alt={listing.title} className="w-full h-full object-cover" />
         </div>
+
         <div className="space-y-4">
           <h1 className="text-2xl font-semibold">{listing.title}</h1>
           <div className="text-lg">${(listing.priceCents / 100).toFixed(2)}</div>
           <p className="text-sm opacity-80">{listing.description}</p>
+
           <div className="text-sm">
-            Seller: <span className="font-medium">
+            Seller:{" "}
+            <Link
+              href={`/seller/${listing.seller.id}`}
+              className="font-medium underline hover:no-underline"
+            >
               {listing.seller.displayName ?? listing.seller.user?.email}
-            </span>
+            </Link>
           </div>
         </div>
       </div>
@@ -53,3 +64,4 @@ export default async function ListingPage({ params }: { params: { id: string } }
     </main>
   );
 }
+
