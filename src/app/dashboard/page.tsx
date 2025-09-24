@@ -23,13 +23,21 @@ export default async function DashboardPage() {
         <h1 className="text-4xl font-bold">Welcome, {me.name ?? me.email.split("@")[0]} 👋</h1>
         <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
 
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/dashboard/listings/new"
             className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm hover:bg-neutral-50"
           >
             + Create listing
           </Link>
+
+          <Link
+            href="/dashboard/seller"
+            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Edit seller profile
+          </Link>
+
           <Link
             href="/browse"
             className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
@@ -84,6 +92,7 @@ export default async function DashboardPage() {
     </main>
   );
 }
+
 
 
 
