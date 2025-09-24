@@ -15,6 +15,7 @@ export default function Header() {
             <Link href="/sign-in">Sign in</Link>
           </SignedOut>
           <SignedIn>
+            <Link href="/dashboard/profile">Profile</Link>
             <Link href="/dashboard">Dashboard</Link>
             <UserButton afterSignOutUrl="/" />
           </SignedIn>
@@ -23,3 +24,4 @@ export default function Header() {
     </header>
   );
 }
+
