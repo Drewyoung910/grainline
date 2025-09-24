@@ -1,14 +1,20 @@
 // src/lib/ensureUser.ts
 import { currentUser } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db"; // <-- named import
+import { prisma } from "@/lib/db";
 
 export async function ensureUser() {
   const u = await currentUser();
   if (!u) return null;
 
-  const email = u.emailAddresses?.[0]?.emailAddress ?? null;
+  const email =
+    u.emailAddresses?.[0]?.emailAddress ??
+    `${u.id}@placeholder.invalid`; // fallback to satisfy non-null constraint
+
   const name =
-    u.fullName ?? ([u.firstName, u.lastName].filter(Boolean).join(" ") || null);
+    u.fullName ||
+    [u.firstName, u.lastName].filter(Boolean).join(" ") ||
+    null;
+
   const imageUrl = u.imageUrl ?? null;
 
   const me = await prisma.user.upsert({
@@ -19,4 +25,5 @@ export async function ensureUser() {
 
   return me;
 }
+
 
