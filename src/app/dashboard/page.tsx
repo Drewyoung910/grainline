@@ -81,12 +81,22 @@ export default async function DashboardPage() {
           >
             + Create listing
           </Link>
+
           <Link
             href="/dashboard/seller"
             className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
           >
             Edit seller profile
           </Link>
+
+          {/* NEW: Saved items entry point */}
+          <Link
+            href="/dashboard/saved"
+            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Saved items
+          </Link>
+
           <Link
             href="/browse"
             className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
@@ -180,6 +190,7 @@ export default async function DashboardPage() {
     </main>
   );
 }
+
 
 
 
