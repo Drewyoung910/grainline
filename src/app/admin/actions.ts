@@ -1,0 +1,49 @@
+"use server";
+
+import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/db";
+
+async function requireAdmin() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { role: true },
+  });
+  if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) {
+    throw new Error("Forbidden");
+  }
+}
+
+export async function markReviewed(orderId: string) {
+  await requireAdmin();
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { reviewNeeded: false },
+  });
+  revalidatePath(`/admin/orders/${orderId}`);
+  revalidatePath("/admin/flagged");
+  revalidatePath("/admin/orders");
+}
+
+export async function appendNote(orderId: string, formData: FormData) {
+  await requireAdmin();
+  const note = String(formData.get("note") ?? "").trim();
+  if (!note) return;
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { reviewNote: true },
+  });
+
+  const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  const existing = order?.reviewNote ?? "";
+  const updated = existing ? `${existing}\n\n[${timestamp}]\n${note}` : `[${timestamp}]\n${note}`;
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { reviewNote: updated },
+  });
+  revalidatePath(`/admin/orders/${orderId}`);
+}

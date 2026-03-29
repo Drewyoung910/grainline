@@ -1,28 +1,44 @@
-import { currentUser } from "@clerk/nextjs/server";
+// src/lib/ensureSeller.ts
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
 export async function ensureSeller() {
-  const u = await currentUser();
-  if (!u) throw new Error("Not signed in");
+  const { userId } = await auth();
+  if (!userId) throw new Error("Not signed in");
 
-  const email = u.emailAddresses?.[0]?.emailAddress ?? "";
-  const name =
-    [u.firstName, u.lastName].filter(Boolean).join(" ") ||
-    u.username ||
-    email.split("@")[0];
+  // 1) Ensure we have a local User row
+  let me = await prisma.user.findUnique({ where: { clerkId: userId } });
 
-  const me = await prisma.user.upsert({
-    where: { clerkId: u.id },
-    update: { email, name, imageUrl: u.imageUrl ?? null },
-    create: { clerkId: u.id, email, name, imageUrl: u.imageUrl ?? null },
-  });
+  if (!me) {
+    // Use currentUser first (cheap), fall back to clerkClient
+    const cu = await currentUser();
+    const u = cu ?? (await (await clerkClient()).users.getUser(userId));
 
-  const seller = await prisma.sellerProfile.upsert({
-    where: { userId: me.id },
-    update: { displayName: me.name ?? "Seller" },
-    create: { userId: me.id, displayName: me.name ?? "Seller" },
-  });
+    const email =
+      u?.emailAddresses?.find(e => e.id === u.primaryEmailAddressId)?.emailAddress ??
+      u?.emailAddresses?.[0]?.emailAddress ??
+      "";
+    const name = u?.fullName ?? null;
+    const imageUrl = u?.imageUrl ?? null;
+
+    me = await prisma.user.create({
+      data: { clerkId: userId, email, name, imageUrl },
+    });
+  }
+
+  // 2) Ensure we have a SellerProfile row
+  let seller = await prisma.sellerProfile.findUnique({ where: { userId: me.id } });
+  if (!seller) {
+    seller = await prisma.sellerProfile.create({
+      data: {
+        userId: me.id,
+        displayName: me.name ?? me.email.split("@")[0],
+      },
+    });
+  }
 
   return { me, seller };
 }
+
+
 

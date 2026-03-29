@@ -1,87 +1,334 @@
 // src/app/browse/page.tsx
 import Link from "next/link";
+import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { ListingStatus } from "@prisma/client";
+import { Category, ListingStatus, ListingType, Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import FavoriteButton from "@/components/FavoriteButton";
+import FilterSidebar from "@/components/FilterSidebar";
+import SaveSearchButton from "@/components/SaveSearchButton";
+import ClickTracker from "@/components/ClickTracker";
+import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import { Suspense } from "react";
+import RecentlyViewed from "@/components/RecentlyViewed";
 
 const PAGE_SIZE = 24;
 
 type Search = {
   q?: string;
   page?: string;
-  min?: string; // optional price min (USD)
-  max?: string; // optional price max (USD)
-  sort?: "newest" | "price_asc" | "price_desc";
+  min?: string;
+  max?: string;
+  sort?: string;
+  tag?: string | string[];
+  category?: string;
+  type?: string;
+  ships?: string;
+  rating?: string;
+  lat?: string;
+  lng?: string;
+  radius?: string;
+  view?: string;
 };
+
+function uniq<T>(arr: T[]): T[] {
+  return Array.from(new Set(arr));
+}
+
+function StarsInline({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(100, (value / 5) * 100));
+  return (
+    <span className="relative leading-none inline-block align-middle" aria-hidden>
+      <span className="text-neutral-300">★★★★★</span>
+      <span className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
+        <span className="text-amber-500">★★★★★</span>
+      </span>
+    </span>
+  );
+}
+
+async function getSellerRatingMap(sellerIds: string[]) {
+  if (sellerIds.length === 0) return new Map<string, { avg: number; count: number }>();
+
+  const listings = await prisma.listing.findMany({
+    where: { sellerId: { in: sellerIds } },
+    select: { id: true, sellerId: true },
+  });
+  const bySeller = new Map<string, string[]>();
+  for (const l of listings) {
+    const arr = bySeller.get(l.sellerId) ?? [];
+    arr.push(l.id);
+    bySeller.set(l.sellerId, arr);
+  }
+  const allListingIds = listings.map((l) => l.id);
+  if (allListingIds.length === 0) return new Map<string, { avg: number; count: number }>();
+
+  const perListing = await prisma.review.groupBy({
+    by: ["listingId"],
+    where: { listingId: { in: allListingIds } },
+    _avg: { ratingX2: true },
+    _count: { _all: true },
+  });
+  const perListingMap = new Map<string, { avgX2: number; count: number }>();
+  for (const row of perListing) {
+    const count = row._count._all;
+    const avgX2 = row._avg.ratingX2 ?? 0;
+    if (count > 0 && avgX2 > 0) perListingMap.set(row.listingId, { avgX2, count });
+  }
+
+  const result = new Map<string, { avg: number; count: number }>();
+  for (const [sellerId, ids] of bySeller.entries()) {
+    let totalCount = 0;
+    let sumX2TimesCount = 0;
+    for (const lid of ids) {
+      const agg = perListingMap.get(lid);
+      if (!agg) continue;
+      totalCount += agg.count;
+      sumX2TimesCount += agg.avgX2 * agg.count;
+    }
+    if (totalCount > 0) {
+      result.set(sellerId, { avg: (sumX2TimesCount / totalCount) / 2, count: totalCount });
+    }
+  }
+  return result;
+}
+
+type ListingWithIncludes = Awaited<ReturnType<typeof fetchListings>>[number];
+
+async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[], take: number, skip: number, withFavCount: boolean) {
+  return prisma.listing.findMany({
+    where,
+    orderBy,
+    take,
+    skip,
+    include: {
+      photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+      seller: { include: { user: true } },
+      ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
+    },
+  });
+}
+
+function scoreListings(listings: ListingWithIncludes[]) {
+  const now = Date.now();
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  return listings
+    .map((l) => {
+      let score = 1.0;
+      score += (l._count?.favorites ?? 0) * 0.3;
+      score += (l.viewCount ?? 0) * 0.1;
+      if (new Date(l.createdAt).getTime() > now - thirtyDaysMs) score += 0.2;
+      if (l.status === "SOLD_OUT") score -= 0.5;
+      return { listing: l, score };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  const q = sp.q?.trim() ?? "";
+  const categoryRaw = sp.category?.toUpperCase() ?? "";
+  const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
+
+  if (q) {
+    const title = `Search results for "${q}"`;
+    const description = `Find handmade woodworking items matching "${q}" on Grainline`;
+    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://grainline.co/browse?q=${encodeURIComponent(q)}` } };
+  }
+  if (categoryFilter) {
+    const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
+    const title = `${label} — Handmade Woodworking`;
+    const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
+    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://grainline.co/browse?category=${categoryFilter.toLowerCase()}` } };
+  }
+  return {
+    title: "Browse Handmade Woodworking",
+    description: "Browse thousands of unique handmade woodworking pieces from local artisans",
+    openGraph: {
+      title: "Browse Handmade Woodworking",
+      description: "Browse thousands of unique handmade woodworking pieces from local artisans",
+    },
+    alternates: { canonical: "https://grainline.co/browse" },
+  };
+}
 
 export default async function BrowsePage({
   searchParams,
 }: {
   searchParams: Promise<Search>;
 }) {
-  // Next 15: await the async searchParams
   const sp = await searchParams;
+
   const q = sp.q ?? "";
   const page = sp.page ?? "1";
   const min = sp.min ?? "";
   const max = sp.max ?? "";
-  const sort = (sp.sort as Search["sort"]) ?? "newest";
+  const sortRaw = sp.sort ?? "";
+  const sort = sortRaw || (q ? "relevant" : "newest");
+  const view = sp.view === "list" ? "list" : "grid";
+
+  const rawTag = sp.tag;
+  const selectedTags = rawTag == null
+    ? []
+    : Array.isArray(rawTag)
+    ? uniq(rawTag.filter(Boolean).map((t) => t.trim()).slice(0, 10))
+    : [rawTag.trim()].filter(Boolean);
 
   const pageNumRaw = Number.parseInt(page || "1", 10);
   const pageNum = Number.isFinite(pageNumRaw) && pageNumRaw > 0 ? pageNumRaw : 1;
 
-  // Build price filter safely (ignore if blank/invalid)
+  // New filters
+  const categoryRaw = sp.category?.toUpperCase() ?? "";
+  const categoryFilter = CATEGORY_VALUES.includes(categoryRaw)
+    ? (categoryRaw as Category)
+    : null;
+  const typeFilter = sp.type === "IN_STOCK" ? ListingType.IN_STOCK
+    : sp.type === "MADE_TO_ORDER" ? ListingType.MADE_TO_ORDER
+    : null;
+  const shipsRaw = sp.ships ? Number(sp.ships) : null;
+  const shipsFilter = shipsRaw != null && Number.isFinite(shipsRaw) ? Math.max(1, shipsRaw) : null;
+  const ratingRaw = sp.rating ? Number(sp.rating) : null;
+  const ratingFilter = ratingRaw != null && Number.isFinite(ratingRaw) ? Math.max(1, Math.min(5, ratingRaw)) : null;
+  const latRaw = sp.lat ? Number(sp.lat) : null;
+  const latFilter = latRaw != null && Number.isFinite(latRaw) ? latRaw : null;
+  const lngRaw = sp.lng ? Number(sp.lng) : null;
+  const lngFilter = lngRaw != null && Number.isFinite(lngRaw) ? lngRaw : null;
+  const radiusRaw = sp.radius ? Number(sp.radius) : null;
+  const radiusFilter = radiusRaw != null && Number.isFinite(radiusRaw) ? Math.max(1, radiusRaw) : null;
+  const hasLocationFilter = latFilter !== null && lngFilter !== null && radiusFilter !== null;
+
+  // Price filter
   const priceFilter: { gte?: number; lte?: number } = {};
   const minNum = Number(min);
   const maxNum = Number(max);
   if (Number.isFinite(minNum) && min !== "") priceFilter.gte = Math.round(minNum * 100);
   if (Number.isFinite(maxNum) && max !== "") priceFilter.lte = Math.round(maxNum * 100);
 
-  // WHERE
-  const where: any = {
-    status: ListingStatus.ACTIVE,
-  };
+  // Pre-pass: collect seller ID constraints from rating + location filters
+  const sellerIdFilters: string[][] = [];
+
+  if (ratingFilter && Number.isFinite(ratingFilter)) {
+    const rows = await prisma.$queryRaw<Array<{ sellerId: string }>>`
+      SELECT l."sellerId"
+      FROM "Review" r
+      JOIN "Listing" l ON r."listingId" = l.id
+      GROUP BY l."sellerId"
+      HAVING (SUM(r."ratingX2"::float) / COUNT(r.id)) / 2 >= ${ratingFilter}
+    `;
+    sellerIdFilters.push(rows.map((r) => r.sellerId));
+  }
+
+  if (hasLocationFilter) {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id
+      FROM "SellerProfile"
+      WHERE lat IS NOT NULL AND lng IS NOT NULL
+      AND (
+        6371 * 2 * asin(sqrt(
+          pow(sin(radians((lat::float - ${latFilter!}) / 2)), 2) +
+          cos(radians(${latFilter!})) * cos(radians(lat::float)) *
+          pow(sin(radians((lng::float - ${lngFilter!}) / 2)), 2)
+        ))
+      ) <= ${radiusFilter! * 1.60934}
+    `;
+    sellerIdFilters.push(rows.map((r) => r.id));
+  }
+
+  // Partial tag matches via unnest
+  let partialTagMatches: string[] = [];
+  if (q) {
+    const rows = await prisma.$queryRaw<Array<{ tag: string }>>`
+      SELECT DISTINCT tag
+      FROM "Listing", unnest(tags) as tag
+      WHERE status = 'ACTIVE' AND "isPrivate" = false AND tag ILIKE ${`%${q}%`}
+      LIMIT 20
+    `;
+    partialTagMatches = rows.map((r) => r.tag);
+  }
+
+  // Build WHERE
+  const where: Prisma.ListingWhereInput = { status: ListingStatus.ACTIVE, isPrivate: false };
+
   if (q) {
     where.OR = [
       { title: { contains: q, mode: "insensitive" as const } },
       { description: { contains: q, mode: "insensitive" as const } },
+      { tags: { has: q.toLowerCase() } },
+      ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
+      { seller: { displayName: { contains: q, mode: "insensitive" as const } } },
     ];
   }
-  if (Object.keys(priceFilter).length > 0) {
-    where.priceCents = priceFilter;
+  if (Object.keys(priceFilter).length > 0) where.priceCents = priceFilter;
+  if (selectedTags.length > 0) where.tags = { hasSome: selectedTags.map((t) => t.toLowerCase()) };
+  if (categoryFilter) where.category = categoryFilter;
+  if (typeFilter) where.listingType = typeFilter;
+  if (shipsFilter && Number.isFinite(shipsFilter)) {
+    where.listingType = ListingType.IN_STOCK;
+    where.shipsWithinDays = { lte: shipsFilter };
+  }
+
+  // Apply intersected seller ID constraints
+  if (sellerIdFilters.length === 1) {
+    where.sellerId = { in: sellerIdFilters[0] };
+  } else if (sellerIdFilters.length > 1) {
+    const bSet = new Set(sellerIdFilters[1]);
+    where.sellerId = { in: sellerIdFilters[0].filter((id) => bSet.has(id)) };
   }
 
   // ORDER BY
   const orderBy =
-    sort === "price_asc"
-      ? { priceCents: "asc" as const }
-      : sort === "price_desc"
-      ? { priceCents: "desc" as const }
-      : { createdAt: "desc" as const }; // "newest" default
+    sort === "price_asc" ? { priceCents: "asc" as const }
+    : sort === "price_desc" ? { priceCents: "desc" as const }
+    : sort === "popular" ? { favorites: { _count: "desc" as const } }
+    : { createdAt: "desc" as const };
 
-  const [listings, total] = await Promise.all([
-    prisma.listing.findMany({
-      where,
-      orderBy,
-      take: PAGE_SIZE,
-      skip: (pageNum - 1) * PAGE_SIZE,
-      include: {
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        seller: { include: { user: true } },
-      },
-    }),
-    prisma.listing.count({ where }),
-  ]);
+  // Fetch listings
+  let listings: ListingWithIncludes[];
+  let total: number;
 
-  // Which are saved by the current user?
+  if (sort === "relevant" && q) {
+    // Fetch up to 200, score in JS, paginate
+    const all = await fetchListings(where, { createdAt: "desc" }, 200, 0, true);
+    const scored = scoreListings(all);
+    total = scored.length;
+    listings = scored
+      .slice((pageNum - 1) * PAGE_SIZE, pageNum * PAGE_SIZE)
+      .map((s) => s.listing);
+  } else {
+    [listings, total] = await Promise.all([
+      fetchListings(where, orderBy, PAGE_SIZE, (pageNum - 1) * PAGE_SIZE, false),
+      prisma.listing.count({ where }),
+    ]);
+  }
+
+  // Popular tags (always from all active listings)
+  const tagRows = await prisma.listing.findMany({
+    where: { status: ListingStatus.ACTIVE, isPrivate: false },
+    select: { tags: true },
+    take: 500,
+    orderBy: { createdAt: "desc" },
+  });
+  const tagCounts = new Map<string, number>();
+  for (const row of tagRows) {
+    for (const t of row.tags || []) {
+      const k = t.toLowerCase();
+      tagCounts.set(k, (tagCounts.get(k) ?? 0) + 1);
+    }
+  }
+  const popularTags = Array.from(tagCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([name]) => name);
+
+  // Saved set for current user
   const { userId } = await auth();
   let savedSet = new Set<string>();
   if (userId && listings.length) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     if (me) {
       const favs = await prisma.favorite.findMany({
         where: { userId: me.id, listingId: { in: listings.map((l) => l.id) } },
@@ -91,222 +338,374 @@ export default async function BrowsePage({
     }
   }
 
-  // Paging helpers
+  // Seller ratings for display
+  const sellerIds = Array.from(new Set(listings.map((l) => l.sellerId)));
+  const sellerRatings = await getSellerRatingMap(sellerIds);
+
+  // Pagination
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const clampedPage = Math.min(Math.max(pageNum, 1), totalPages);
   const from = total === 0 ? 0 : (clampedPage - 1) * PAGE_SIZE + 1;
   const to = Math.min(total, clampedPage * PAGE_SIZE);
 
-  const buildParams = (overrides: Partial<Search> = {}) => {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (min) params.set("min", min);
-    if (max) params.set("max", max);
-    if (sort && sort !== "newest") params.set("sort", sort);
-    if (overrides.q != null) {
-      if (overrides.q) params.set("q", overrides.q);
-      else params.delete("q");
-    }
-    if (overrides.min != null) {
-      if (overrides.min) params.set("min", overrides.min);
-      else params.delete("min");
-    }
-    if (overrides.max != null) {
-      if (overrides.max) params.set("max", overrides.max);
-      else params.delete("max");
-    }
-    if (overrides.sort != null) {
-      if (overrides.sort && overrides.sort !== "newest") params.set("sort", overrides.sort);
-      else params.delete("sort");
-    }
-    if (overrides.page != null) params.set("page", overrides.page);
-    return params;
-  };
-
-  const makeHref = (n: number) => `/browse?${buildParams({ page: String(n) }).toString()}`;
-
-  const resetHref = (() => {
+  // URL helpers
+  function makePageHref(n: number) {
     const p = new URLSearchParams();
-    if (q) p.set("q", q); // keep search but clear price/sort
+    if (q) p.set("q", q);
+    if (min) p.set("min", min);
+    if (max) p.set("max", max);
+    if (sort && sort !== (q ? "relevant" : "newest")) p.set("sort", sort);
+    if (categoryFilter) p.set("category", categoryFilter);
+    if (typeFilter) p.set("type", typeFilter);
+    if (shipsFilter) p.set("ships", String(shipsFilter));
+    if (ratingFilter) p.set("rating", String(ratingFilter));
+    if (hasLocationFilter) {
+      p.set("lat", String(latFilter));
+      p.set("lng", String(lngFilter));
+      p.set("radius", String(radiusFilter));
+    }
+    for (const t of selectedTags) p.append("tag", t);
+    if (view !== "grid") p.set("view", view);
+    p.set("page", String(n));
     return `/browse?${p.toString()}`;
-  })();
+  }
 
-  return (
-    <main className="p-8 max-w-6xl mx-auto">
-      {/* Title + count + pager */}
-      <header className="mb-6 space-y-4">
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Browse</h1>
-            {q ? (
-              <p className="text-sm text-neutral-500 mt-1">
-                Showing <span className="font-medium">{from}-{to}</span> of {total} results for{" "}
-                <span className="font-medium">“{q}”</span>
+  function viewToggleHref(v: string) {
+    const p = new URLSearchParams(
+      Object.fromEntries(
+        [
+          ["q", q], ["min", min], ["max", max],
+          ["sort", sort !== (q ? "relevant" : "newest") ? sort : ""],
+          ["category", categoryFilter ?? ""], ["type", typeFilter ?? ""],
+          ["ships", shipsFilter ? String(shipsFilter) : ""],
+          ["rating", ratingFilter ? String(ratingFilter) : ""],
+        ].filter(([, val]) => val)
+      )
+    );
+    for (const t of selectedTags) p.append("tag", t);
+    if (hasLocationFilter) { p.set("lat", String(latFilter)); p.set("lng", String(lngFilter)); p.set("radius", String(radiusFilter)); }
+    p.set("view", v);
+    return `/browse?${p.toString()}`;
+  }
+
+  // ── No results experience ──────────────────────────────────────────────────
+  if (total === 0) {
+    const featured = await prisma.listing.findMany({
+      where: { status: ListingStatus.ACTIVE, isPrivate: false },
+      orderBy: { favorites: { _count: "desc" } },
+      take: 4,
+      include: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
+    });
+
+    return (
+      <main className="p-8 max-w-6xl mx-auto">
+        <div className="flex gap-6 items-start">
+          <FilterSidebar popularTags={popularTags} />
+          <div className="flex-1 min-w-0 space-y-8">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold">
+                {q ? `No pieces found for "${q}"` : "No pieces found"}
+              </h1>
+              <p className="text-neutral-500 text-sm">
+                Try broadening your search or browse all makers.
               </p>
-            ) : (
-              <p className="text-sm text-neutral-500 mt-1">
-                Showing <span className="font-medium">{from}-{to}</span> of {total} items
-              </p>
+            </div>
+
+            {popularTags.length > 0 && (
+              <div>
+                <div className="font-medium mb-2">Try searching for:</div>
+                <div className="flex flex-wrap gap-2">
+                  {popularTags.slice(0, 3).map((t) => (
+                    <Link
+                      key={t}
+                      href={`/browse?q=${encodeURIComponent(t)}`}
+                      className="rounded-full border px-3 py-1 text-sm hover:bg-neutral-50"
+                    >
+                      #{t}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {featured.length > 0 && (
+              <div>
+                <div className="font-medium mb-3">Featured listings</div>
+                <ul className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {featured.map((l) => (
+                    <li key={l.id} className="border border-neutral-200 overflow-hidden">
+                      <Link href={`/listing/${l.id}`} className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={l.photos[0]?.url ?? "/favicon.ico"} alt={l.title} className="h-36 w-full object-cover" />
+                        <div className="p-2 text-sm font-medium truncate">{l.title}</div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Link href="/browse" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50">
+              Browse all listings
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Pager component ────────────────────────────────────────────────────────
+  const Pager = () => (
+    <nav className="flex items-center gap-2 text-sm">
+      {clampedPage > 1 ? (
+        <Link href={makePageHref(clampedPage - 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">← Prev</Link>
+      ) : (
+        <span className="rounded border px-3 py-1 text-neutral-400">← Prev</span>
+      )}
+      {totalPages > 1 && (
+        <span className="px-2 text-neutral-500">
+          Page <span className="font-medium">{clampedPage}</span> of {totalPages}
+        </span>
+      )}
+      {clampedPage < totalPages ? (
+        <Link href={makePageHref(clampedPage + 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">Next →</Link>
+      ) : (
+        <span className="rounded border px-3 py-1 text-neutral-400">Next →</span>
+      )}
+    </nav>
+  );
+
+  // ── Grid card renderer ─────────────────────────────────────────────────────
+  function GridCard({ l }: { l: ListingWithIncludes }) {
+    const img = l.photos[0]?.url ?? "/favicon.ico";
+    const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Seller";
+    const sellerAvatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
+    const initials = (sellerName || "S").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "S";
+    const shop = sellerRatings.get(l.sellerId);
+
+    return (
+      <>
+        <div className="relative">
+          <Link href={`/listing/${l.id}`} className="block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img alt={l.title} src={img} className="w-full h-48 object-cover" />
+          </Link>
+          <div className="absolute top-2 right-2">
+            <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+          </div>
+        </div>
+
+        <Link href={`/listing/${l.id}`} className="block">
+          <div className="p-4 space-y-1 bg-stone-50">
+            <div className="flex items-baseline justify-between">
+              <div className="font-medium truncate">{l.title}</div>
+              <div className="opacity-70 shrink-0 ml-2">${(l.priceCents / 100).toFixed(2)}</div>
+            </div>
+            {shop && shop.count > 0 && (
+              <div className="flex items-center gap-2 text-xs text-neutral-600">
+                <StarsInline value={shop.avg} />
+                <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
+                <span className="text-neutral-400">({shop.count})</span>
+              </div>
             )}
           </div>
+        </Link>
 
-          <nav className="flex items-center gap-2 text-sm">
-            {clampedPage > 1 ? (
-              <Link href={makeHref(clampedPage - 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">
-                ← Prev
-              </Link>
+        <div className="px-4 pb-4 bg-stone-50">
+          {l.tags?.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {l.tags.slice(0, 4).map((t) => (
+                <Link
+                  key={t}
+                  href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
+                  className="rounded-full border px-2 py-0.5 text-[11px] hover:bg-neutral-50"
+                >
+                  #{t}
+                </Link>
+              ))}
+            </div>
+          )}
+          <Link
+            href={`/seller/${l.sellerId}`}
+            className="inline-flex items-center gap-2 text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
+          >
+            {sellerAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={sellerAvatar} alt={sellerName} className="h-5 w-5 rounded-full object-cover" />
             ) : (
-              <span className="rounded border px-3 py-1 text-neutral-400">← Prev</span>
+              <div className="h-5 w-5 rounded-full bg-neutral-200 flex items-center justify-center">
+                <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
+              </div>
             )}
+            <span>{sellerName}</span>
+          </Link>
+          {l.seller.acceptingNewOrders === false && (
+            <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+              Not accepting new orders
+            </span>
+          )}
+        </div>
+      </>
+    );
+  }
 
-            {totalPages > 1 && (
-              <span className="px-2 text-neutral-500">
-                Page <span className="font-medium">{clampedPage}</span> of {totalPages}
+  // ── List card renderer ─────────────────────────────────────────────────────
+  function ListCard({ l }: { l: ListingWithIncludes }) {
+    const img = l.photos[0]?.url ?? "/favicon.ico";
+    const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Seller";
+    const shop = sellerRatings.get(l.sellerId);
+    const isInStock = l.listingType === "IN_STOCK";
+    const outOfStock = l.status === "SOLD_OUT" || (isInStock && (l.stockQuantity ?? 0) <= 0);
+
+    return (
+      <div className="flex gap-4">
+        <Link href={`/listing/${l.id}`} className="shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt={l.title} src={img} className="w-28 h-28 object-cover border border-neutral-200" />
+        </Link>
+        <div className="flex-1 min-w-0 py-1">
+          <div className="flex items-start justify-between gap-3">
+            <Link href={`/listing/${l.id}`} className="font-medium hover:underline leading-snug">
+              {l.title}
+            </Link>
+            <div className="shrink-0 font-medium">${(l.priceCents / 100).toFixed(2)}</div>
+          </div>
+
+          <Link href={`/seller/${l.sellerId}`} className="text-xs text-neutral-500 hover:underline mt-0.5 block">
+            {sellerName}
+          </Link>
+          {l.seller.acceptingNewOrders === false && (
+            <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-1 inline-block">
+              Not accepting new orders
+            </span>
+          )}
+
+          {shop && shop.count > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-neutral-600 mt-1">
+              <StarsInline value={shop.avg} />
+              <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
+              <span className="text-neutral-400">({shop.count})</span>
+            </div>
+          )}
+
+          <div className="mt-1.5 text-xs text-neutral-500">
+            {isInStock ? (
+              outOfStock ? (
+                <span className="text-red-600">Out of Stock</span>
+              ) : (
+                <span className="text-green-700">
+                  In Stock{l.stockQuantity != null ? ` (${l.stockQuantity})` : ""}
+                  {l.shipsWithinDays != null ? ` · ships in ${l.shipsWithinDays}d` : ""}
+                </span>
+              )
+            ) : (
+              <span>
+                Made to order
+                {l.processingTimeMaxDays != null
+                  ? ` · ${l.processingTimeMinDays ?? 1}–${l.processingTimeMaxDays}d`
+                  : ""}
               </span>
             )}
+          </div>
 
-            {clampedPage < totalPages ? (
-              <Link href={makeHref(clampedPage + 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">
-                Next →
-              </Link>
-            ) : (
-              <span className="rounded border px-3 py-1 text-neutral-400">Next →</span>
-            )}
-          </nav>
+          <div className="mt-1">
+            <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+          </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Price + Sort filters (preserve q); safe if left blank */}
-        <form method="get" className="flex flex-wrap items-end gap-3">
-          {q && <input type="hidden" name="q" value={q} />}
+  // ── Page render ────────────────────────────────────────────────────────────
+  const activeFilterCount = [
+    categoryFilter, typeFilter, shipsFilter, ratingFilter, hasLocationFilter ? "loc" : null,
+    min, max, ...selectedTags,
+  ].filter(Boolean).length;
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-neutral-600">Min</label>
-            <input
-              name="min"
-              defaultValue={min}
-              inputMode="decimal"
-              placeholder="0"
-              className="w-24 rounded border px-3 py-1"
-            />
-          </div>
+  return (
+    <main className="p-6 max-w-6xl mx-auto">
+      <div className="flex gap-6 items-start">
+        {/* Left sidebar */}
+        <FilterSidebar popularTags={popularTags} />
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-neutral-600">Max</label>
-            <input
-              name="max"
-              defaultValue={max}
-              inputMode="decimal"
-              placeholder="1000"
-              className="w-24 rounded border px-3 py-1"
-            />
-          </div>
+        {/* Main content */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {/* Top bar: result count, view toggle, save search, pager */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-semibold">
+                {q ? (
+                  <>Results for <span className="italic">&quot;{q}&quot;</span></>
+                ) : categoryFilter ? (
+                  CATEGORY_LABELS[categoryFilter] ?? "Browse"
+                ) : (
+                  "Browse"
+                )}
+              </h1>
+              <p className="text-sm text-neutral-500 mt-0.5">
+                {total} {total === 1 ? "result" : "results"}
+                {activeFilterCount > 0 && (
+                  <> · {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""} active</>
+                )}
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-neutral-600">Sort</label>
-            <select name="sort" defaultValue={sort} className="rounded border px-3 py-1">
-              <option value="newest">Newest</option>
-              <option value="price_asc">Price: Low to High</option>
-              <option value="price_desc">Price: High to Low</option>
-            </select>
-          </div>
-
-          <button className="rounded border px-3 py-1 hover:bg-neutral-50">Apply</button>
-          <Link href={resetHref} className="text-sm underline">
-            Reset
-          </Link>
-        </form>
-      </header>
-
-      {/* Grid */}
-      <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {listings.map((l) => {
-          const img = l.photos[0]?.url ?? "/favicon.ico";
-          const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Seller";
-          const sellerHref = `/seller/${l.sellerId}`;
-          const sellerAvatar = l.seller.user?.imageUrl ?? null;
-
-          const initials =
-            (sellerName || "S")
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((w) => w[0]?.toUpperCase() ?? "")
-              .join("") || "S";
-
-          return (
-            <li key={l.id} className="border rounded-xl overflow-hidden">
-              {/* Image + heart (not inside the link) */}
-              <div className="relative">
-                <Link href={`/listing/${l.id}`} className="block">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img alt={l.title} src={img} className="w-full h-48 object-cover" />
-                </Link>
-                <div className="absolute top-2 right-2">
-                  <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-                </div>
-              </div>
-
-              {/* Title/price */}
-              <Link href={`/listing/${l.id}`} className="block">
-                <div className="p-4 space-y-2">
-                  <div className="flex items-baseline justify-between">
-                    <div className="font-medium">{l.title}</div>
-                    <div className="opacity-70">${(l.priceCents / 100).toFixed(2)}</div>
-                  </div>
-                </div>
-              </Link>
-
-              {/* Seller chip */}
-              <div className="px-4 pb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* View toggle */}
+              <div className="flex rounded border overflow-hidden text-sm">
                 <Link
-                  href={sellerHref}
-                  className="inline-flex items-center gap-2 text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
+                  href={viewToggleHref("grid")}
+                  className={`px-3 py-1.5 ${view === "grid" ? "bg-neutral-900 text-white" : "hover:bg-neutral-50"}`}
                 >
-                  {sellerAvatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={sellerAvatar} alt={sellerName} className="h-5 w-5 rounded-full object-cover" />
-                  ) : (
-                    <div className="h-5 w-5 rounded-full bg-neutral-200 flex items-center justify-center">
-                      <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
-                    </div>
-                  )}
-                  <span>{sellerName}</span>
+                  Grid
+                </Link>
+                <Link
+                  href={viewToggleHref("list")}
+                  className={`px-3 py-1.5 ${view === "list" ? "bg-neutral-900 text-white" : "hover:bg-neutral-50"}`}
+                >
+                  List
                 </Link>
               </div>
-            </li>
-          );
-        })}
-      </ul>
 
-      {/* Bottom pager mirrors the top */}
-      {totalPages > 1 && (
-        <div className="mt-8 flex items-center justify-center gap-2 text-sm">
-          {clampedPage > 1 ? (
-            <Link href={makeHref(clampedPage - 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">
-              ← Prev
-            </Link>
+              <SaveSearchButton signedIn={!!userId} />
+              <Pager />
+            </div>
+          </div>
+
+          {/* Listings */}
+          {view === "grid" ? (
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {listings.map((l) => (
+                <ClickTracker key={l.id} listingId={l.id} className="border border-neutral-200 overflow-hidden">
+                  <GridCard l={l} />
+                </ClickTracker>
+              ))}
+            </ul>
           ) : (
-            <span className="rounded border px-3 py-1 text-neutral-400">← Prev</span>
+            <ul className="space-y-4">
+              {listings.map((l) => (
+                <ClickTracker key={l.id} listingId={l.id} className="border border-neutral-200 p-4">
+                  <ListCard l={l} />
+                </ClickTracker>
+              ))}
+            </ul>
           )}
-          <span className="px-2 text-neutral-500">
-            Page <span className="font-medium">{clampedPage}</span> of {totalPages}
-          </span>
-          {clampedPage < totalPages ? (
-            <Link href={makeHref(clampedPage + 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">
-              Next →
-            </Link>
-          ) : (
-            <span className="rounded border px-3 py-1 text-neutral-400">Next →</span>
+
+          {/* Bottom pager */}
+          {totalPages > 1 && (
+            <div className="pt-4 flex justify-center">
+              <Pager />
+            </div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* Recently Viewed */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+        <Suspense>
+          <RecentlyViewed />
+        </Suspense>
+      </div>
     </main>
   );
 }
-
-
-
-
-
-
-

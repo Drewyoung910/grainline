@@ -39,8 +39,7 @@ export default function ImageUploadField({
         onClientUploadComplete={(res) => {
           const file = res?.[0];
           // v7 returns ufsUrl; some setups still expose url — handle both
-          // @ts-ignore
-          setUrl(file?.ufsUrl ?? file?.url ?? "");
+          setUrl((file as { ufsUrl?: string })?.ufsUrl ?? "");
         }}
         onUploadError={(e) => alert(e.message)}
       />

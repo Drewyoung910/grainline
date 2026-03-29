@@ -6,13 +6,38 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooled (runtime)
-  directUrl = env("DIRECT_URL") // direct (migrations)
+  directUrl = env("DIRECT_URL")   // direct (migrations)
+}
+
+enum Role {
+  USER
+  EMPLOYEE
+  ADMIN
+}
+
+enum ListingType {
+  MADE_TO_ORDER
+  IN_STOCK
+}
+
+enum Category {
+  FURNITURE
+  KITCHEN
+  DECOR
+  TOOLS
+  TOYS
+  JEWELRY
+  ART
+  OUTDOOR
+  STORAGE
+  OTHER
 }
 
 enum ListingStatus {
   DRAFT
   ACTIVE
   SOLD
+  SOLD_OUT
   HIDDEN
 }
 
@@ -22,30 +47,127 @@ model User {
   email     String   @unique
   name      String?
   imageUrl  String?
+  role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // back-relations
+  conversationsAsA Conversation[] @relation("ConvoA")
+  conversationsAsB Conversation[] @relation("ConvoB")
+  messagesSent     Message[]      @relation("MessagesFromUser")
+  messagesReceived Message[]      @relation("MessagesToUser")
+
   sellerProfile SellerProfile?
   favorites     Favorite[]
   reviews       Review[]
+
+  // Orders & review votes
+  orders      Order[]      @relation("OrdersByBuyer")
+  reviewVotes ReviewVote[]
+
+  // Cart
+  cart        Cart?
+
+  // Cases
+  casesAsBuyer   Case[]        @relation("CasesByBuyer")
+  casesAsSeller  Case[]        @relation("CasesBySeller")
+  casesResolved  Case[]        @relation("CasesResolvedBy")
+  caseMessages   CaseMessage[] @relation("CaseMessages")
+
+  savedSearches  SavedSearch[]
+  stockNotifications StockNotification[]
+
+  reservedListings      Listing[]             @relation("ReservedListings")
+  verificationReviews   MakerVerification[]   @relation("VerificationReviews")
+  blogPosts             BlogPost[]            @relation("BlogPostsAuthored")
+  blogComments          BlogComment[]         @relation("BlogCommentsAuthored")
+  notifications         Notification[]
 }
 
 model SellerProfile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName String
-  bio         String?
-  city        String?
-  state       String?
-  lat         Float?
-  lng         Float?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName      String
+  bio              String?
+  city             String?
+  state            String?
+  lat              Float?
+  lng              Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  radiusMeters     Int?
+  publicMapOptIn   Boolean  @default(false)
 
-  listings Listing[]
+  // Stripe Connect
+  stripeAccountId  String?  @unique
+
+  // Flat-rate shipping (legacy/simple fallback)
+  shippingFlatRate Float?
+  freeShippingOver Float?
+  allowLocalPickup Boolean @default(false)
+
+  // 🆕 Ship-from address (used for live-rate quoting/labels)
+  shipFromName     String?
+  shipFromLine1    String?
+  shipFromLine2    String?
+  shipFromCity     String?
+  shipFromState    String?
+  shipFromPostal   String?
+  shipFromCountry  String?  @default("US")
+
+  // 🆕 Default package (used when listings don’t specify packaged dims)
+  defaultPkgWeightGrams Int?
+  defaultPkgLengthCm    Float?
+  defaultPkgWidthCm     Float?
+  defaultPkgHeightCm    Float?
+
+  // Use live carrier rates (Shippo) instead of flat rate by default
+  useCalculatedShipping Boolean @default(false)
+
+  // Rich profile / personalization
+  tagline                   String?
+  bannerImageUrl            String?
+  avatarImageUrl            String?
+  workshopImageUrl          String?
+  storyTitle                String?
+  storyBody                 String?
+  instagramUrl              String?
+  facebookUrl               String?
+  pinterestUrl              String?
+  tiktokUrl                 String?
+  websiteUrl                String?
+  yearsInBusiness           Int?
+  acceptsCustomOrders       Boolean  @default(false)
+  acceptingNewOrders        Boolean  @default(true)
+  customOrderTurnaroundDays Int?
+  offersGiftWrapping        Boolean  @default(false)
+  giftWrappingPriceCents    Int?
+  returnPolicy              String?
+  customOrderPolicy         String?
+  shippingPolicy            String?
+  featuredListingIds        String[] @default([])
+  galleryImageUrls          String[] @default([])
+  isVerifiedMaker           Boolean  @default(false)
+  verifiedAt                DateTime?
+
+  listings             Listing[]
+  faqs                 SellerFaq[]
+  makerVerification    MakerVerification?
+  blogPosts            BlogPost[]
 }
+
+model SellerFaq {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  question        String
+  answer          String
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@index([sellerProfileId, sortOrder])
+}
+
 
 model Listing {
   id          String        @id @default(cuid())
@@ -56,15 +178,60 @@ model Listing {
   priceCents  Int
   currency    String        @default("usd")
   status      ListingStatus @default(ACTIVE)
+  videoUrl    String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  photos    Photo[]
-  favorites Favorite[]
-  reviews   Review[]
+  // Processing time
+  processingTimeMinDays Int?
+  processingTimeMaxDays Int?
+
+  // Listing type & inventory
+  listingType   ListingType @default(MADE_TO_ORDER)
+  stockQuantity Int?
+
+  // Category & analytics
+  category   Category?
+  viewCount  Int       @default(0)
+  clickCount Int       @default(0)
+
+  // SEO/browse tags
+  tags String[] @default([])
+
+  // Ships-within days (IN_STOCK only; used instead of processingTimeMaxDays for delivery estimate)
+  shipsWithinDays Int?
+
+  photos      Photo[]
+  favorites   Favorite[]
+  reviews     Review[]
+
+  // purchases
+  orderItems  OrderItem[]
+
+  // Cart back-rel
+  cartItems   CartItem[]
+
+  // 🆕 Packaged dimensions/weight (final, ready-to-ship per unit)
+  packagedWeightGrams Int?
+  packagedLengthCm    Float?
+  packagedWidthCm     Float?
+  packagedHeightCm    Float?
+
+  contextConversations Conversation[] @relation("ConversationContextListing")
+  stockNotifications   StockNotification[]
+
+  // Custom order fields
+  isPrivate                 Boolean  @default(false)
+  reservedForUserId         String?
+  reservedForUser           User?    @relation("ReservedListings", fields: [reservedForUserId], references: [id])
+  customOrderConversationId String?
 
   @@index([sellerId, status])
   @@index([status, createdAt])
+  @@index([title])
+  @@index([category, status])
+  @@index([viewCount])
+  @@index([clickCount])
 }
 
 model Photo {
@@ -89,15 +256,459 @@ model Favorite {
 }
 
 model Review {
-  id         String   @id @default(cuid())
-  listingId  String
-  reviewerId String
-  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  reviewer   User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
-  rating     Int // 1–5
-  comment    String?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reviewerId  String
+  reviewer    User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  ratingX2    Int
+  comment     String?
+  verified    Boolean  @default(false)
+  helpfulCount Int     @default(0)
+  sellerReply String?
+  sellerReplyAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  photos ReviewPhoto[]
+  votes  ReviewVote[]
+
+  @@unique([listingId, reviewerId])
   @@index([listingId])
   @@index([reviewerId])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userAId   String
+  userBId   String
+  userA     User      @relation("ConvoA", fields: [userAId], references: [id])
+  userB     User      @relation("ConvoB", fields: [userBId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  contextListingId String?
+  contextListing   Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id])
+  archivedAAt      DateTime?
+  archivedBAt      DateTime?
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String
+  sender         User         @relation("MessagesFromUser", fields: [senderId], references: [id])
+  recipientId    String
+  recipient      User         @relation("MessagesToUser", fields: [recipientId], references: [id])
+  body           String
+  kind           String?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([recipientId, readAt])
+}
+
+model ReviewPhoto {
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([reviewId, sortOrder])
+}
+
+model ReviewVote {
+  reviewId  String
+  userId    String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  value     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@id([reviewId, userId])
+}
+
+enum LabelStatus {
+  PURCHASED
+  EXPIRED
+  VOIDED
+}
+
+model Order {
+  id        String    @id @default(cuid())
+  buyerId   String
+  buyer     User      @relation("OrdersByBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  // Stripe idempotency
+  stripeSessionId String? @unique
+
+  // What Stripe actually charged / decided
+  currency             String  @default("usd")
+  itemsSubtotalCents   Int     @default(0)  // items subtotal (excl. shipping & tax)
+  shippingTitle        String?
+  shippingAmountCents  Int     @default(0)
+  taxAmountCents       Int     @default(0)
+
+  // Buyer snapshot
+  buyerEmail       String?
+  buyerName        String?
+  shipToLine1      String?
+  shipToLine2      String?
+  shipToCity       String?
+  shipToState      String?
+  shipToPostalCode String?
+  shipToCountry    String?
+
+  // Stripe references
+  stripePaymentIntentId   String?
+  stripeChargeId          String?
+  stripeApplicationFeeId  String?
+  stripeTransferId        String?
+
+  // 🆕 Fulfillment
+  fulfillmentMethod  FulfillmentMethod?
+  fulfillmentStatus  FulfillmentStatus @default(PENDING)
+  trackingCarrier    String?
+  trackingNumber     String?
+  pickupReadyAt      DateTime?
+  pickedUpAt         DateTime?
+  shippedAt          DateTime?
+  deliveredAt        DateTime?
+  sellerNotes        String?
+
+  items OrderItem[]
+
+  // Delivery estimate fields
+  estimatedDeliveryDate DateTime?  // processing + transit shown to buyer
+  processingDeadline    DateTime?  // when seller should ship by
+
+  // Case back-relation
+  case  Case?
+
+  @@index([buyerId])
+
+  // Snapshot of the *selected* shipping service
+  shippingCarrier  String?    // e.g., "UPS"
+  shippingService  String?    // e.g., "Ground"
+  shippingEta      DateTime?  // carrier ETA if provided
+
+  /// What we quoted *before* Checkout (from your site/UI)
+  quotedShippingAmountCents Int?
+
+  /// Flag when Checkout address/rate doesn’t match our quote
+  reviewNeeded  Boolean  @default(false)
+  reviewNote    String?
+
+    // 👇 NEW: what the buyer typed on your site (used for mismatch detection)
+  
+  quotedToLine1                String?
+  quotedToLine2                String?
+  quotedToCity                 String?
+  quotedToState                String?
+  quotedToPostalCode           String?
+  quotedToCountry              String?
+  quotedAt                     DateTime?
+  quotedUseCalculatedShipping  Boolean?  // what path we used
+
+  // Seller-initiated refund
+  sellerRefundId          String?
+  sellerRefundAmountCents Int?
+
+  // Shippo label
+  shippoShipmentId    String?
+  shippoRateObjectId  String?
+  shippoTransactionId String?
+  labelUrl            String?
+  labelCarrier        String?
+  labelTrackingNumber String?
+  labelPurchasedAt    DateTime?
+  labelCostCents      Int?
+  labelStatus         LabelStatus?
+
+  // Gift options
+  giftNote                String?
+  giftWrapping            Boolean  @default(false)
+  giftWrappingPriceCents  Int?
+}
+
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  priceCents Int
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@index([listingId])
+  @@index([listingId, orderId])
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  priceCents Int
+  createdAt  DateTime @default(now())
+
+  @@unique([cartId, listingId])
+  @@index([cartId])
+}
+
+
+model SiteConfig {
+  id                    Int @id @default(1)
+  fallbackShippingCents Int @default(1500)
+}
+
+enum FulfillmentMethod {
+  PICKUP
+  SHIPPING
+}
+
+enum FulfillmentStatus {
+  PENDING           // default after payment
+  READY_FOR_PICKUP  // seller marked ready (pickup flow)
+  PICKED_UP         // buyer received (pickup flow)
+  SHIPPED           // label purchased / handed to carrier
+  DELIVERED         // delivered confirmation
+}
+
+enum CaseReason {
+  NOT_RECEIVED
+  NOT_AS_DESCRIBED
+  DAMAGED
+  WRONG_ITEM
+  OTHER
+}
+
+enum CaseStatus {
+  OPEN
+  IN_DISCUSSION
+  PENDING_CLOSE
+  UNDER_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum CaseResolution {
+  REFUND_FULL
+  REFUND_PARTIAL
+  DISMISSED
+}
+
+model Case {
+  id                String          @id @default(cuid())
+  orderId           String          @unique
+  order             Order           @relation(fields: [orderId], references: [id])
+  buyerId           String
+  buyer             User            @relation("CasesByBuyer", fields: [buyerId], references: [id])
+  sellerId          String
+  seller            User            @relation("CasesBySeller", fields: [sellerId], references: [id])
+  reason            CaseReason
+  description       String
+  status            CaseStatus      @default(OPEN)
+  resolution        CaseResolution?
+  refundAmountCents Int?
+  stripeRefundId    String?
+  sellerRespondBy       DateTime
+  discussionStartedAt   DateTime?
+  escalateUnlocksAt     DateTime?
+  buyerMarkedResolved   Boolean         @default(false)
+  sellerMarkedResolved  Boolean         @default(false)
+  resolvedAt            DateTime?
+  resolvedById          String?
+  resolvedBy            User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id])
+  messages              CaseMessage[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model CaseMessage {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  authorId  String
+  author    User     @relation("CaseMessages", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model SavedSearch {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query       String?
+  category    Category?
+  minPrice    Int?
+  maxPrice    Int?
+  tags        String[]  @default([])
+  notifyEmail Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+}
+
+model StockNotification {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([listingId, userId])
+  @@index([listingId])
+  @@index([userId])
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model MakerVerification {
+  id               String             @id @default(cuid())
+  sellerProfileId  String             @unique
+  sellerProfile    SellerProfile      @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  craftDescription String
+  yearsExperience  Int
+  portfolioUrl     String?
+  status           VerificationStatus @default(PENDING)
+  reviewedById     String?
+  reviewedBy       User?              @relation("VerificationReviews", fields: [reviewedById], references: [id])
+  reviewNotes      String?
+  appliedAt        DateTime           @default(now())
+  reviewedAt       DateTime?
+}
+
+enum BlogPostType {
+  STANDARD
+  MAKER_SPOTLIGHT
+  BEHIND_THE_BUILD
+  GIFT_GUIDE
+  WOOD_EDUCATION
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BlogAuthorType {
+  STAFF
+  MAKER
+}
+
+model BlogPost {
+  id                 String         @id @default(cuid())
+  slug               String         @unique
+  title              String
+  excerpt            String?
+  body               String
+  coverImageUrl      String?
+  videoUrl           String?
+  authorId           String
+  author             User           @relation("BlogPostsAuthored", fields: [authorId], references: [id])
+  authorType         BlogAuthorType
+  sellerProfileId    String?
+  sellerProfile      SellerProfile? @relation(fields: [sellerProfileId], references: [id])
+  type               BlogPostType   @default(STANDARD)
+  status             BlogPostStatus @default(DRAFT)
+  featuredListingIds String[]       @default([])
+  tags               String[]       @default([])
+  metaDescription    String?
+  readingTimeMinutes Int?
+  publishedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  comments           BlogComment[]
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([sellerProfileId])
+}
+
+model BlogComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("BlogCommentsAuthored", fields: [authorId], references: [id])
+  body      String
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+model NewsletterSubscriber {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  subscribedAt DateTime @default(now())
+  active       Boolean  @default(true)
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  NEW_ORDER
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  CASE_OPENED
+  CASE_MESSAGE
+  CASE_RESOLVED
+  CUSTOM_ORDER_REQUEST
+  CUSTOM_ORDER_LINK
+  VERIFICATION_APPROVED
+  VERIFICATION_REJECTED
+  BACK_IN_STOCK
+  NEW_REVIEW
+  LOW_STOCK
+  NEW_FAVORITE
+  NEW_BLOG_COMMENT
+  BLOG_COMMENT_REPLY
+  NEW_FOLLOWER
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }

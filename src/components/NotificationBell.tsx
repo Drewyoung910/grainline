@@ -1,0 +1,260 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Bell,
+  Package,
+  MessageCircle,
+  Heart,
+  Wrench,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Star,
+  Edit,
+  User,
+} from "@/components/icons";
+
+type NotificationType =
+  | "NEW_MESSAGE"
+  | "NEW_ORDER"
+  | "ORDER_SHIPPED"
+  | "ORDER_DELIVERED"
+  | "CASE_OPENED"
+  | "CASE_MESSAGE"
+  | "CASE_RESOLVED"
+  | "CUSTOM_ORDER_REQUEST"
+  | "CUSTOM_ORDER_LINK"
+  | "VERIFICATION_APPROVED"
+  | "VERIFICATION_REJECTED"
+  | "BACK_IN_STOCK"
+  | "NEW_REVIEW"
+  | "LOW_STOCK"
+  | "NEW_FAVORITE"
+  | "NEW_BLOG_COMMENT"
+  | "BLOG_COMMENT_REPLY"
+  | "NEW_FOLLOWER";
+
+type NotificationItem = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  createdAt: string;
+};
+
+function typeIcon(type: NotificationType) {
+  switch (type) {
+    case "NEW_ORDER":
+    case "ORDER_SHIPPED":
+    case "ORDER_DELIVERED":
+      return { Icon: Package, color: "text-green-600" };
+    case "NEW_MESSAGE":
+    case "CASE_MESSAGE":
+      return { Icon: MessageCircle, color: "text-blue-600" };
+    case "NEW_FAVORITE":
+      return { Icon: Heart, color: "text-red-500" };
+    case "CUSTOM_ORDER_REQUEST":
+    case "CUSTOM_ORDER_LINK":
+      return { Icon: Wrench, color: "text-amber-600" };
+    case "CASE_OPENED":
+    case "CASE_RESOLVED":
+      return { Icon: AlertTriangle, color: "text-amber-500" };
+    case "VERIFICATION_APPROVED":
+      return { Icon: CheckCircle, color: "text-green-600" };
+    case "VERIFICATION_REJECTED":
+      return { Icon: XCircle, color: "text-red-500" };
+    case "BACK_IN_STOCK":
+    case "LOW_STOCK":
+      return { Icon: Bell, color: "text-neutral-500" };
+    case "NEW_REVIEW":
+      return { Icon: Star, color: "text-amber-500" };
+    case "NEW_BLOG_COMMENT":
+    case "BLOG_COMMENT_REPLY":
+      return { Icon: Edit, color: "text-neutral-500" };
+    case "NEW_FOLLOWER":
+      return { Icon: User, color: "text-neutral-500" };
+    default:
+      return { Icon: Bell, color: "text-neutral-500" };
+  }
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+export default function NotificationBell({
+  initialUnreadCount,
+}: {
+  initialUnreadCount: number;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount);
+  const [loaded, setLoaded] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setNotifications(data.notifications ?? []);
+      setUnreadCount(data.unreadCount ?? 0);
+      setLoaded(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Open dropdown + load
+  const handleOpen = React.useCallback(() => {
+    setOpen((prev) => !prev);
+    if (!loaded) fetchNotifications();
+  }, [loaded, fetchNotifications]);
+
+  // Fetch on mount to populate unread count immediately
+  React.useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Poll every 30s
+  React.useEffect(() => {
+    const id = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(id);
+  }, [fetchNotifications]);
+
+  // Close on Escape
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Close on outside click
+  React.useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const markAllRead = async () => {
+    await fetch("/api/notifications/read-all", { method: "POST" });
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  const markRead = async (n: NotificationItem) => {
+    if (!n.read) {
+      await fetch(`/api/notifications/${n.id}/read`, { method: "POST" });
+      setNotifications((prev) =>
+        prev.map((x) => (x.id === n.id ? { ...x, read: true } : x))
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+    if (n.link) {
+      setOpen(false);
+      router.push(n.link);
+    }
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        onClick={handleOpen}
+        className="relative inline-flex items-center text-neutral-800 hover:text-neutral-600"
+        aria-label="Notifications"
+        title="Notifications"
+      >
+        <Bell size={20} />
+        {unreadCount > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-80 rounded-xl border bg-white shadow-lg">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <span className="text-sm font-semibold">Notifications</span>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {/* List */}
+          <ul className="max-h-96 overflow-y-auto divide-y">
+            {!loaded ? (
+              <li className="px-4 py-6 text-center text-sm text-neutral-400">Loading…</li>
+            ) : notifications.length === 0 ? (
+              <li className="px-4 py-6 text-center text-sm text-neutral-400">
+                No notifications yet
+              </li>
+            ) : (
+              notifications.map((n) => {
+                const { Icon, color } = typeIcon(n.type);
+                return (
+                  <li key={n.id}>
+                    <button
+                      onClick={() => markRead(n)}
+                      className={`w-full text-left flex gap-3 px-4 py-3 hover:bg-neutral-50 ${
+                        !n.read ? "bg-amber-50" : ""
+                      }`}
+                    >
+                      <Icon size={16} className={`mt-0.5 shrink-0 ${color}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium leading-tight">{n.title}</p>
+                        <p className="text-xs text-neutral-500 mt-0.5 truncate">
+                          {n.body.slice(0, 60)}
+                        </p>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          {timeAgo(n.createdAt)}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+
+          {/* Footer */}
+          <div className="border-t px-4 py-2">
+            <Link
+              href="/dashboard/notifications"
+              onClick={() => setOpen(false)}
+              className="block text-center text-xs text-blue-600 hover:underline"
+            >
+              See all notifications
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

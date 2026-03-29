@@ -4,6 +4,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { revalidatePath } from "next/cache";
+import LocationPicker from "@/components/LocationPicker";
+
+function toNull(v: unknown) {
+  const s = typeof v === "string" ? v.trim() : v;
+  return s === "" || s === undefined ? null : s;
+}
+function toFloat(v: unknown) {
+  const s = typeof v === "string" ? v.trim() : v;
+  if (s === "" || s === undefined) return null;
+  const n = parseFloat(String(s));
+  return Number.isFinite(n) ? n : null;
+}
 
 async function updateSellerProfile(formData: FormData) {
   "use server";
@@ -14,22 +26,87 @@ async function updateSellerProfile(formData: FormData) {
   const { seller } = await ensureSeller();
 
   const displayName = String(formData.get("displayName") ?? "").trim();
-  const city = String(formData.get("city") ?? "").trim() || null;
-  const state = String(formData.get("state") ?? "").trim() || null;
-  const bio = String(formData.get("bio") ?? "").trim() || null;
+  const city = toNull(formData.get("city"));
+  const state = toNull(formData.get("state"));
+  const bio = toNull(formData.get("bio"));
 
-  if (!displayName) {
-    throw new Error("Display name is required.");
+  // Location (for pickup map)
+  const lat = toFloat(formData.get("lat"));
+  const lng = toFloat(formData.get("lng"));
+  let radiusMeters = toFloat(formData.get("radiusMeters"));
+  const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
+
+  // Shipping/tax in dollars
+  const shippingFlatRate = toFloat(formData.get("shippingFlatRate"));
+  const freeShippingOver = toFloat(formData.get("freeShippingOver"));
+  const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
+  const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on"; // 👈 NEW
+
+  if (!displayName) throw new Error("Display name is required.");
+  if (publicMapOptIn) {
+    if (!(Number.isFinite(lat as number) && Number.isFinite(lng as number))) {
+      throw new Error("To appear on the public map, set an exact pin location.");
+    }
+    // exact pin for public map
+    radiusMeters = 0;
   }
+
+  // Ship-from address
+  const shipFromName = toNull(formData.get("shipFromName"));
+  const shipFromLine1 = toNull(formData.get("shipFromLine1"));
+  const shipFromLine2 = toNull(formData.get("shipFromLine2"));
+  const shipFromCity = toNull(formData.get("shipFromCity"));
+  const shipFromState = toNull(formData.get("shipFromState"));
+  const shipFromPostal = toNull(formData.get("shipFromPostal"));
+  const shipFromCountry = toNull(formData.get("shipFromCountry")) ?? "US";
+
+  // Default package (cm / g)
+  const defaultPkgLengthCm = toFloat(formData.get("defaultPkgLengthCm"));
+  const defaultPkgWidthCm = toFloat(formData.get("defaultPkgWidthCm"));
+  const defaultPkgHeightCm = toFloat(formData.get("defaultPkgHeightCm"));
+  const defaultPkgWeightGrams = (() => {
+    const v = formData.get("defaultPkgWeightGrams");
+    if (v === null || v === undefined || String(v).trim() === "") return null;
+    const n = parseInt(String(v), 10);
+    return Number.isFinite(n) ? n : null;
+  })();
 
   await prisma.sellerProfile.update({
     where: { id: seller.id },
-    data: { displayName, city, state, bio },
+    data: {
+      displayName,
+      city,
+      state,
+      bio,
+      lat: lat as number | null,
+      lng: lng as number | null,
+      radiusMeters: radiusMeters as number | null,
+      publicMapOptIn,
+
+      // shipping prefs
+      shippingFlatRate,
+      freeShippingOver,
+      allowLocalPickup,
+      useCalculatedShipping, // 👈 NEW
+
+      // ship-from
+      shipFromName,
+      shipFromLine1,
+      shipFromLine2,
+      shipFromCity,
+      shipFromState,
+      shipFromPostal,
+      shipFromCountry,
+
+      // defaults
+      defaultPkgLengthCm,
+      defaultPkgWidthCm,
+      defaultPkgHeightCm,
+      defaultPkgWeightGrams,
+    },
   });
 
-  // Make sure the public seller page reflects changes
   revalidatePath(`/seller/${seller.id}`);
-  // Back to public profile
   redirect(`/seller/${seller.id}`);
 }
 
@@ -38,17 +115,13 @@ export default async function SellerSettingsPage() {
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/seller");
 
   const { seller } = await ensureSeller();
-
-  // Refresh the latest row for default values
-  const row = await prisma.sellerProfile.findUnique({
-    where: { id: seller.id },
-  });
+  const row = await prisma.sellerProfile.findUnique({ where: { id: seller.id } });
 
   return (
     <main className="max-w-2xl mx-auto p-8 space-y-6">
       <h1 className="text-2xl font-semibold">Seller profile</h1>
 
-      <form action={updateSellerProfile} className="space-y-4">
+      <form action={updateSellerProfile} className="space-y-6">
         <div>
           <label className="block text-sm mb-1">Display name</label>
           <input
@@ -78,6 +151,123 @@ export default async function SellerSettingsPage() {
           </div>
         </div>
 
+        {/* Location picker */}
+        <div>
+          <label className="block text-sm mb-2">Pickup location</label>
+          <LocationPicker
+            defaultLat={row?.lat != null ? Number(row.lat) : null}
+            defaultLng={row?.lng != null ? Number(row.lng) : null}
+            defaultRadiusMeters={row?.radiusMeters ?? null}
+          />
+          <p className="mt-2 text-xs text-neutral-500">
+            Drag the pin or click the map to set your pickup spot.
+          </p>
+          <div className="flex items-center gap-2 mt-3">
+            <input
+              id="publicMapOptIn"
+              name="publicMapOptIn"
+              type="checkbox"
+              defaultChecked={row?.publicMapOptIn ?? false}
+            />
+            <label htmlFor="publicMapOptIn" className="text-sm">
+              Show me on the public makers map
+            </label>
+          </div>
+        </div>
+
+        {/* 🚚 Shipping & Tax Settings */}
+        <div className="border-t pt-4 space-y-4">
+          <h2 className="text-lg font-medium">Shipping & Tax</h2>
+
+          <div>
+            <label className="block text-sm mb-1">Flat shipping rate ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              name="shippingFlatRate"
+              defaultValue={row?.shippingFlatRate ?? ""}
+              className="w-full border rounded px-3 py-2"
+              placeholder="e.g. 7.00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm mb-1">Free shipping over ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              name="freeShippingOver"
+              defaultValue={row?.freeShippingOver ?? ""}
+              className="w-full border rounded px-3 py-2"
+              placeholder="e.g. 50.00"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="allowLocalPickup"
+              name="allowLocalPickup"
+              type="checkbox"
+              defaultChecked={row?.allowLocalPickup ?? false}
+            />
+            <label htmlFor="allowLocalPickup" className="text-sm">
+              Allow local pickup
+            </label>
+          </div>
+
+          {/* 👇 NEW: Calculated shipping toggle */}
+          <div className="flex items-center gap-2">
+            <input
+              id="useCalculatedShipping"
+              name="useCalculatedShipping"
+              type="checkbox"
+              defaultChecked={row?.useCalculatedShipping ?? false}
+            />
+            <label htmlFor="useCalculatedShipping" className="text-sm">
+              Use calculated shipping (Shippo)
+            </label>
+          </div>
+        </div>
+
+        {/* 🏷️ Ship-from address */}
+        <div className="border-t pt-4 space-y-3">
+          <h2 className="text-lg font-medium">Ship from address</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input name="shipFromName" placeholder="Sender name"
+                   defaultValue={row?.shipFromName ?? ""} className="rounded border px-3 py-2" />
+            <input name="shipFromLine1" placeholder="Address line 1 *"
+                   defaultValue={row?.shipFromLine1 ?? ""} className="rounded border px-3 py-2 md:col-span-2" />
+            <input name="shipFromLine2" placeholder="Address line 2"
+                   defaultValue={row?.shipFromLine2 ?? ""} className="rounded border px-3 py-2 md:col-span-2" />
+            <input name="shipFromCity" placeholder="City *"
+                   defaultValue={row?.shipFromCity ?? ""} className="rounded border px-3 py-2" />
+            <input name="shipFromState" placeholder="State * (e.g., TX)"
+                   defaultValue={row?.shipFromState ?? ""} className="rounded border px-3 py-2" />
+            <input name="shipFromPostal" placeholder="Postal code *"
+                   defaultValue={row?.shipFromPostal ?? ""} className="rounded border px-3 py-2" />
+            <input name="shipFromCountry" placeholder="Country *"
+                   defaultValue={row?.shipFromCountry ?? "US"} className="rounded border px-3 py-2" />
+          </div>
+        </div>
+
+        {/* 📦 Default package (cm / g) */}
+        <div className="border-t pt-4 space-y-3">
+          <h2 className="text-lg font-medium">Default package (cm / g)</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <input name="defaultPkgLengthCm" type="number" step="0.1" placeholder="Length (cm)"
+                   defaultValue={row?.defaultPkgLengthCm ?? ""} className="rounded border px-3 py-2" />
+            <input name="defaultPkgWidthCm" type="number" step="0.1" placeholder="Width (cm)"
+                   defaultValue={row?.defaultPkgWidthCm ?? ""} className="rounded border px-3 py-2" />
+            <input name="defaultPkgHeightCm" type="number" step="0.1" placeholder="Height (cm)"
+                   defaultValue={row?.defaultPkgHeightCm ?? ""} className="rounded border px-3 py-2" />
+            <input name="defaultPkgWeightGrams" type="number" step="1" placeholder="Weight (g)"
+                   defaultValue={row?.defaultPkgWeightGrams ?? ""} className="rounded border px-3 py-2" />
+          </div>
+          <p className="text-xs text-neutral-500">
+            These defaults are used for live carrier quotes when a listing doesn’t specify its own packaged size/weight.
+          </p>
+        </div>
+
         <div>
           <label className="block text-sm mb-1">Bio</label>
           <textarea
@@ -95,3 +285,7 @@ export default async function SellerSettingsPage() {
     </main>
   );
 }
+
+
+
+

@@ -4,7 +4,20 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
+import { sendFirstListingCongrats } from "@/lib/email";
 import ImagesUploader from "@/components/ImagesUploader";
+import TagsInput from "@/components/TagsInput";
+import ListingTypeFields from "@/components/ListingTypeFields";
+import type { Category, ListingType } from "@prisma/client";
+import { CATEGORY_VALUES } from "@/lib/categories";
+
+function normalizeTag(input: string) {
+  return input.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "").slice(0, 24);
+}
+
+// unit converters
+const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
+const lbToG  = (v: number) => Math.round(v * 453.59237);
 
 async function createListing(formData: FormData) {
   "use server";
@@ -19,8 +32,67 @@ async function createListing(formData: FormData) {
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
-  // Gather up to 8 image URLs that the client component posted
-  const imageUrls = formData.getAll("imageUrls").map(String).slice(0, 8);
+  // Photos
+  let imageUrls: string[] = [];
+  const json = formData.get("imageUrlsJson");
+  if (typeof json === "string" && json.length) {
+    try { imageUrls = (JSON.parse(json) as string[]).filter(Boolean); } catch {}
+  }
+  if (imageUrls.length === 0) {
+    imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
+  }
+  imageUrls = imageUrls.slice(0, 8);
+
+  // Tags
+  let tags: string[] = [];
+  const tagsJson = formData.get("tagsJson");
+  if (typeof tagsJson === "string" && tagsJson.length) {
+    try {
+      const arr = JSON.parse(tagsJson);
+      if (Array.isArray(arr)) {
+        const set = new Set<string>();
+        for (const raw of arr) {
+          if (typeof raw !== "string") continue;
+          const t = normalizeTag(raw);
+          if (!t) continue;
+          if (set.size >= 10) break;
+          set.add(t);
+        }
+        tags = Array.from(set);
+      }
+    } catch {}
+  }
+
+  // Packaged dims/weight (entered in inches & pounds; stored as cm & grams)
+  const lenIn = Number(String(formData.get("pkgLengthIn") ?? "").trim());
+  const widIn = Number(String(formData.get("pkgWidthIn") ?? "").trim());
+  const hgtIn = Number(String(formData.get("pkgHeightIn") ?? "").trim());
+  const wtLb  = Number(String(formData.get("pkgWeightLb") ?? "").trim());
+
+  const packagedLengthCm  = Number.isFinite(lenIn) && lenIn > 0 ? inToCm(lenIn) : null;
+  const packagedWidthCm   = Number.isFinite(widIn) && widIn > 0 ? inToCm(widIn) : null;
+  const packagedHeightCm  = Number.isFinite(hgtIn) && hgtIn > 0 ? inToCm(hgtIn) : null;
+  const packagedWeightGrams = Number.isFinite(wtLb) && wtLb > 0 ? lbToG(wtLb) : null;
+
+  // Category
+  const categoryRaw = String(formData.get("category") ?? "").trim().toUpperCase();
+  const category: Category | null = CATEGORY_VALUES.includes(categoryRaw) ? (categoryRaw as Category) : null;
+
+  // Listing type & inventory
+  const listingTypeRaw = String(formData.get("listingType") ?? "MADE_TO_ORDER");
+  const listingType: ListingType = listingTypeRaw === "IN_STOCK" ? "IN_STOCK" : "MADE_TO_ORDER";
+  const stockQuantityRaw = parseInt(String(formData.get("stockQuantity") ?? ""), 10);
+  const stockQuantity = listingType === "IN_STOCK" && Number.isFinite(stockQuantityRaw) && stockQuantityRaw > 0
+    ? stockQuantityRaw : null;
+  const shipsWithinDaysRaw = parseInt(String(formData.get("shipsWithinDays") ?? ""), 10);
+  const shipsWithinDays = listingType === "IN_STOCK" && Number.isFinite(shipsWithinDaysRaw) && shipsWithinDaysRaw > 0
+    ? shipsWithinDaysRaw : null;
+
+  // Processing time (only for MADE_TO_ORDER)
+  const minDaysRaw = parseInt(String(formData.get("processingTimeMinDays") ?? ""), 10);
+  const maxDaysRaw = parseInt(String(formData.get("processingTimeMaxDays") ?? ""), 10);
+  const processingTimeMinDays = listingType === "MADE_TO_ORDER" && Number.isFinite(minDaysRaw) && minDaysRaw > 0 ? minDaysRaw : null;
+  const processingTimeMaxDays = listingType === "MADE_TO_ORDER" && Number.isFinite(maxDaysRaw) && maxDaysRaw > 0 ? maxDaysRaw : null;
 
   if (!title || !imageUrls.length || !Number.isFinite(priceCents) || priceCents <= 0) {
     throw new Error("Please fill title, price, and upload at least one photo.");
@@ -32,12 +104,40 @@ async function createListing(formData: FormData) {
       title,
       description,
       priceCents,
+      tags,
+      packagedLengthCm,
+      packagedWidthCm,
+      packagedHeightCm,
+      packagedWeightGrams,
+      category,
+      listingType,
+      stockQuantity,
+      shipsWithinDays,
+      processingTimeMinDays,
+      processingTimeMaxDays,
       photos: { create: imageUrls.map((url, i) => ({ url, sortOrder: i })) },
     },
   });
 
   revalidatePath("/browse");
   revalidatePath("/dashboard");
+
+  try {
+    const listingCount = await prisma.listing.count({ where: { sellerId: seller.id } });
+    if (listingCount === 1) {
+      const sellerWithUser = await prisma.sellerProfile.findUnique({
+        where: { id: seller.id },
+        select: { displayName: true, user: { select: { email: true } } },
+      });
+      if (sellerWithUser?.user?.email) {
+        await sendFirstListingCongrats({
+          seller: { displayName: sellerWithUser.displayName, email: sellerWithUser.user.email },
+          listing: { id: created.id, title: created.title, priceCents: created.priceCents },
+        });
+      }
+    }
+  } catch { /* non-fatal */ }
+
   redirect(`/listing/${created.id}`);
 }
 
@@ -63,11 +163,44 @@ export default async function NewListingPage() {
         <div>
           <label className="block text-sm mb-1">Photos</label>
           <ImagesUploader max={8} fieldName="imageUrls" />
+          <p className="mt-1 text-xs text-neutral-500">
+            Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
+          </p>
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Description</label>
-          <textarea name="description" rows={4} className="w-full border rounded px-3 py-2" />
+          <label className="block text-sm mb-1">Tags</label>
+          <TagsInput />
+        </div>
+
+        <div className="border rounded p-3">
+          <div className="font-medium mb-2">Listing type</div>
+          <ListingTypeFields />
+        </div>
+
+        <div className="border rounded p-3">
+          <div className="font-medium mb-2">Packaged size &amp; weight (for calculated shipping)</div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-sm">
+              <div className="mb-1">Length (in)</div>
+              <input name="pkgLengthIn" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 24" />
+            </label>
+            <label className="text-sm">
+              <div className="mb-1">Width (in)</div>
+              <input name="pkgWidthIn" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 12" />
+            </label>
+            <label className="text-sm">
+              <div className="mb-1">Height (in)</div>
+              <input name="pkgHeightIn" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 8" />
+            </label>
+            <label className="text-sm">
+              <div className="mb-1">Weight (lb)</div>
+              <input name="pkgWeightLb" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 5.5" />
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-neutral-500">
+            Enter the dimensions/weight of the packaged item (ready to ship). We’ll convert to cm/grams internally.
+          </p>
         </div>
 
         <button type="submit" className="rounded px-4 py-2 bg-black text-white">Create</button>
@@ -75,6 +208,9 @@ export default async function NewListingPage() {
     </div>
   );
 }
+
+
+
 
 
 

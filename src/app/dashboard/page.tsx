@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
+import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell } from "@/components/icons";
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(listingId: string, nextStatus: ListingStatus) {
@@ -54,17 +55,38 @@ async function deleteListing(listingId: string) {
   revalidatePath("/browse");
 }
 
+async function deleteSavedSearch(searchId: string) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  if (!me) return;
+  await prisma.savedSearch.deleteMany({ where: { id: searchId, userId: me.id } });
+  revalidatePath("/dashboard");
+}
+
 export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard");
 
   const { me, seller } = await ensureSeller();
 
-  const listings = await prisma.listing.findMany({
-    where: { sellerId: seller.id },
-    include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [listings, savedSearches, verification, notifUnreadCount] = await Promise.all([
+    prisma.listing.findMany({
+      where: { sellerId: seller.id },
+      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      orderBy: { updatedAt: "desc" },
+    }),
+    prisma.savedSearch.findMany({
+      where: { userId: me.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.makerVerification.findUnique({
+      where: { sellerProfileId: seller.id },
+      select: { status: true },
+    }),
+    prisma.notification.count({ where: { userId: me.id, read: false } }),
+  ]);
 
   return (
     <main className="max-w-6xl mx-auto p-8">
@@ -74,25 +96,66 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
 
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/dashboard/listings/new"
-            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm hover:bg-neutral-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm hover:bg-neutral-50"
           >
-            + Create listing
+            <Store size={16} />
+            Create listing
+          </Link>
+
+          <Link
+            href="/dashboard/profile"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <User size={16} />
+            Shop Profile
           </Link>
 
           <Link
             href="/dashboard/seller"
-            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
           >
-            Edit seller profile
+            <Package size={16} />
+            Shipping &amp; Settings
           </Link>
 
-          {/* NEW: Saved items entry point */}
+          <Link
+            href="/dashboard/orders"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <Package size={16} />
+            My orders
+          </Link>
+
+          <Link
+            href="/dashboard/sales"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <Tag size={16} />
+            My sales
+          </Link>
+
+          <Link
+            href="/dashboard/inventory"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <Grid size={16} />
+            Inventory
+          </Link>
+
+          <Link
+            href="/messages"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <MessageCircle size={16} />
+            Messages
+          </Link>
+
           <Link
             href="/dashboard/saved"
-            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
           >
             Saved items
           </Link>
@@ -103,6 +166,45 @@ export default async function DashboardPage() {
           >
             Browse
           </Link>
+
+          <Link
+            href="/dashboard/blog"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <Edit size={16} />
+            My Blog
+          </Link>
+
+          <Link
+            href="/dashboard/notifications"
+            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            <Bell size={16} />
+            Notifications
+            {notifUnreadCount > 0 && (
+              <span className="ml-1 inline-flex items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white">
+                {notifUnreadCount}
+              </span>
+            )}
+          </Link>
+
+          {seller.isVerifiedMaker ? (
+            <Link
+              href="/dashboard/verification"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-800 hover:bg-green-100"
+            >
+              <Sparkles size={16} />
+              Verified Maker
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard/verification"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            >
+              <Sparkles size={16} />
+              {verification?.status === "PENDING" ? "Badge Application Pending" : "Apply for Verified Badge"}
+            </Link>
+          )}
         </div>
       </header>
 
@@ -111,8 +213,7 @@ export default async function DashboardPage() {
 
         {listings.length === 0 ? (
           <div className="rounded-xl border p-8 text-neutral-600">
-            You don’t have any listings yet. Click <b>Create listing</b> to get
-            started.
+            Your workshop is empty — list your first piece and start selling.
           </div>
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -187,9 +288,69 @@ export default async function DashboardPage() {
           </ul>
         )}
       </section>
+
+      {/* Saved Searches */}
+      <section className="mt-10">
+        <h2 className="text-xl font-semibold mb-4">Saved Searches</h2>
+        {savedSearches.length === 0 ? (
+          <div className="rounded-xl border p-6 text-neutral-600 text-sm">
+            No saved searches yet.{" "}
+            <Link href="/browse" className="underline">Browse listings</Link> and click &quot;Save search&quot; to save a search.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {savedSearches.map((s) => {
+              const parts: string[] = [];
+              if (s.query) parts.push(`"${s.query}"`);
+              if (s.category) parts.push(s.category.charAt(0) + s.category.slice(1).toLowerCase());
+              if (s.minPrice != null) parts.push(`$${(s.minPrice / 100).toFixed(0)}+`);
+              if (s.maxPrice != null) parts.push(`up to $${(s.maxPrice / 100).toFixed(0)}`);
+              if (s.tags.length > 0) parts.push(s.tags.map((t) => `#${t}`).join(" "));
+
+              const href = (() => {
+                const p = new URLSearchParams();
+                if (s.query) p.set("q", s.query);
+                if (s.category) p.set("category", s.category);
+                if (s.minPrice != null) p.set("min", (s.minPrice / 100).toFixed(2));
+                if (s.maxPrice != null) p.set("max", (s.maxPrice / 100).toFixed(2));
+                for (const t of s.tags) p.append("tag", t);
+                return `/browse?${p.toString()}`;
+              })();
+
+              return (
+                <li key={s.id} className="flex items-center justify-between rounded-xl border px-4 py-3">
+                  <div className="min-w-0">
+                    <Link href={href} className="text-sm font-medium hover:underline">
+                      {parts.length > 0 ? parts.join(" · ") : "All listings"}
+                    </Link>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      Saved {new Date(s.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Link
+                      href={href}
+                      className="rounded border px-3 py-1 text-xs hover:bg-neutral-50"
+                    >
+                      Browse
+                    </Link>
+                    <form action={deleteSavedSearch.bind(null, s.id)}>
+                      <button className="rounded border px-3 py-1 text-xs text-red-600 border-red-200 hover:bg-red-50">
+                        Delete
+                      </button>
+                    </form>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }
+
+
 
 
 

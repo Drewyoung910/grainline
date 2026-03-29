@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { UploadButton } from "uploadthing/react";
+import { UploadButton } from "@/utils/uploadthing";
 
 export default function VideoUploader({ name = "videoUrl" }: { name?: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -14,7 +14,7 @@ export default function VideoUploader({ name = "videoUrl" }: { name?: string }) 
         onUploadProgress={() => setBusy(true)}
         onClientUploadComplete={(files) => {
           setBusy(false);
-          const u = files?.[0]?.url ?? null;
+          const u = files?.[0]?.ufsUrl ?? null;
           setUrl(u);
         }}
         onUploadError={(e) => {

@@ -1,0 +1,174 @@
+// src/app/api/cases/[id]/resolve/route.ts
+import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { createNotification } from "@/lib/notifications";
+import { sendCaseResolved } from "@/lib/email";
+import type { CaseResolution } from "@prisma/client";
+
+export const runtime = "nodejs";
+
+const VALID_RESOLUTIONS: CaseResolution[] = ["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"];
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const me = await ensureUserByClerkId(userId);
+
+    if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    }
+
+    let body: Record<string, unknown> = {};
+    try { body = await req.json(); } catch { /* empty body */ }
+
+    const resolutionRaw = body?.resolution ? String(body.resolution) : "";
+    const refundAmountCents =
+      body?.refundAmountCents != null ? Number(body.refundAmountCents) : null;
+
+    if (!VALID_RESOLUTIONS.includes(resolutionRaw as CaseResolution)) {
+      return NextResponse.json(
+        { error: `Invalid resolution. Must be one of: ${VALID_RESOLUTIONS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const resolution = resolutionRaw as CaseResolution;
+
+    if (
+      resolution === "REFUND_PARTIAL" &&
+      (refundAmountCents == null || !Number.isFinite(refundAmountCents) || refundAmountCents <= 0)
+    ) {
+      return NextResponse.json(
+        { error: "refundAmountCents is required and must be positive for REFUND_PARTIAL." },
+        { status: 400 }
+      );
+    }
+
+    const caseRecord = await prisma.case.findUnique({
+      where: { id },
+      include: {
+        order: {
+          include: {
+            items: {
+              include: {
+                listing: { select: { id: true, listingType: true, stockQuantity: true, status: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+
+    if (caseRecord.status === "RESOLVED" || caseRecord.status === "CLOSED") {
+      return NextResponse.json({ error: "Case is already resolved." }, { status: 400 });
+    }
+
+    let stripeRefundId: string | null = null;
+
+    if (resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL") {
+      const paymentIntentId = caseRecord.order.stripePaymentIntentId;
+      if (!paymentIntentId) {
+        return NextResponse.json(
+          { error: "Order has no Stripe payment intent ID. Refund must be processed manually." },
+          { status: 400 }
+        );
+      }
+
+      const refund = await stripe.refunds.create(
+        resolution === "REFUND_FULL"
+          ? { payment_intent: paymentIntentId, reason: "fraudulent" }
+          : { payment_intent: paymentIntentId, amount: refundAmountCents! }
+      );
+      stripeRefundId = refund.id;
+    }
+
+    const now = new Date();
+    const resolutionNote = [
+      `Case resolved: ${resolution}`,
+      refundAmountCents ? `(refund: $${(refundAmountCents / 100).toFixed(2)})` : null,
+      `by ${me.name ?? me.email} at ${now.toISOString()}`,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const stockRestoreOps =
+      resolution !== "DISMISSED"
+        ? caseRecord.order.items
+            .filter((it) => it.listing.listingType === "IN_STOCK")
+            .map((it) => {
+              const restored = (it.listing.stockQuantity ?? 0) + it.quantity;
+              return prisma.listing.update({
+                where: { id: it.listingId },
+                data: {
+                  stockQuantity: restored,
+                  ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
+                },
+              });
+            })
+        : [];
+
+    const [updatedCase] = await prisma.$transaction([
+      prisma.case.update({
+        where: { id },
+        data: {
+          status: "RESOLVED",
+          resolution,
+          refundAmountCents: refundAmountCents ?? null,
+          stripeRefundId,
+          resolvedAt: now,
+          resolvedById: me.id,
+        },
+        include: { messages: true, order: true },
+      }),
+      prisma.order.update({
+        where: { id: caseRecord.orderId },
+        data: { reviewNeeded: true, reviewNote: resolutionNote },
+      }),
+      ...stockRestoreOps,
+    ]);
+
+    const resolutionLabel =
+      resolution === "REFUND_FULL"
+        ? "Full refund issued"
+        : resolution === "REFUND_PARTIAL"
+        ? `Partial refund of $${((refundAmountCents ?? 0) / 100).toFixed(2)}`
+        : "Case dismissed";
+
+    await createNotification({
+      userId: caseRecord.buyerId,
+      type: "CASE_RESOLVED",
+      title: "Your case has been resolved",
+      body: resolutionLabel,
+      link: `/dashboard/orders/${caseRecord.orderId}`,
+    });
+
+    try {
+      const buyerUser = await prisma.user.findUnique({
+        where: { id: caseRecord.buyerId },
+        select: { name: true, email: true },
+      });
+      if (buyerUser?.email) {
+        await sendCaseResolved({
+          orderId: caseRecord.orderId,
+          buyer: { name: buyerUser.name, email: buyerUser.email },
+          resolution,
+          refundAmountCents: refundAmountCents ?? null,
+        });
+      }
+    } catch { /* non-fatal */ }
+
+    return NextResponse.json(updatedCase);
+  } catch (err) {
+    console.error("POST /api/cases/[id]/resolve error:", err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
