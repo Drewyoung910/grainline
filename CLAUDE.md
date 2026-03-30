@@ -13,6 +13,7 @@ A woodworking marketplace built with Next.js, similar to Etsy/Amazon but focused
 - **Maps**: Leaflet / React-Leaflet
 - **Email**: Resend
 - **Shipping**: Shippo API (live rate quotes and label generation)
+- **Error Tracking**: Sentry (error tracking + performance monitoring)
 
 ## Project Structure
 
@@ -678,6 +679,31 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 - **Rate limiting** — Add `@upstash/ratelimit` on high-volume public routes (`/api/search/suggestions`, `/api/listings/[id]/view`, `/api/listings/[id]/click`) and auth-sensitive routes (`/api/reviews`)
 - **Security headers** — Add `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` in `next.config.ts`
 - **Input validation** — Add Zod schemas to validate and sanitize API request bodies (currently relies on manual type assertions and `.slice()` guards)
+
+## Sentry Error Tracking (complete)
+
+Installed via Sentry wizard. Session replay disabled (bundle size trade-off).
+
+### Files created by wizard
+- `sentry.client.config.ts` — browser-side Sentry init
+- `sentry.server.config.ts` — Node.js server-side Sentry init
+- `sentry.edge.config.ts` — Edge runtime Sentry init
+- `src/instrumentation.ts` — Next.js instrumentation hook (imports server/edge configs)
+- `src/instrumentation-client.ts` — Next.js client instrumentation hook
+- `src/app/global-error.tsx` — top-level error boundary that reports to Sentry
+
+### Features enabled
+- Error tracking (unhandled exceptions + manual `Sentry.captureException`)
+- Tracing / performance monitoring
+- Logs integration
+
+### Environment variables
+- `NEXT_PUBLIC_SENTRY_DSN` — public DSN, set in Vercel
+- `SENTRY_AUTH_TOKEN` — build-time source map upload token, set in Vercel
+- `.env.sentry-build-plugin` — local auth token file (gitignored)
+
+### Tooling
+- Sentry MCP configured for Claude Code and VS Code — enables AI-assisted error investigation directly from the Sentry dashboard
 
 ## Remaining Work
 
