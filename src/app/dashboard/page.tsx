@@ -108,6 +108,18 @@ export default async function DashboardPage() {
 
   const { me, seller } = await ensureSeller();
 
+  // Check if this user actually has an existing seller profile (ensureSeller creates one if absent,
+  // so we check onboardingComplete to distinguish first-time sellers from pure buyers who stumbled here).
+  const sellerProfile = await prisma.sellerProfile.findUnique({
+    where: { id: seller.id },
+    select: { onboardingComplete: true },
+  });
+
+  // Redirect new sellers (onboardingComplete = false) to the setup wizard
+  if (sellerProfile && !sellerProfile.onboardingComplete) {
+    redirect("/dashboard/onboarding");
+  }
+
   const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id },
@@ -134,7 +146,7 @@ export default async function DashboardPage() {
     <main className="max-w-6xl mx-auto p-8">
       <header className="mb-10">
         <h1 className="text-4xl font-bold">
-          Welcome, {me.name ?? me.email.split("@")[0]} 👋
+          Workshop — {me.name ?? me.email.split("@")[0]} 👋
         </h1>
         <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
 

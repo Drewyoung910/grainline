@@ -11,6 +11,8 @@ const isPublic = createRouteMatcher([
   "/listing(.*)",
   "/seller(.*)",          // public seller profiles
   "/sellers(.*)",         // sellers directory
+  "/blog(.*)",            // blog — public viewing; writing/commenting handled in API routes
+  "/map(.*)",             // all-sellers map — public
   "/terms",               // Terms of Service — public legal page
   "/privacy",             // Privacy Policy — public legal page
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
@@ -19,6 +21,8 @@ const isPublic = createRouteMatcher([
   "/api/whoami",
   "/api/me",
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
+  "/api/blog(.*)",        // blog API — public GET; POST auth handled in route
+  "/api/search(.*)",      // search suggestions — public
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);

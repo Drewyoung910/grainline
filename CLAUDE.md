@@ -30,6 +30,8 @@ src/
     map/             # All-sellers map view
     seller/[id]/     # Public seller profile
     sellers/         # Sellers directory
+    account/         # Buyer account page (orders, saved items, settings)
+    account/orders/  # Paginated full order history
   components/        # Reusable React components
   lib/               # Utility modules (db, stripe, shippo, email, etc.)
 prisma/
@@ -40,7 +42,7 @@ prisma/
 ## Key Data Models
 
 - **User** — authenticated account (linked to Clerk user ID); `role`: `USER | EMPLOYEE | ADMIN` (used for admin panel access control)
-- **SellerProfile** — seller info, location (lat/lng for map), Stripe Connect account, shipping config
+- **SellerProfile** — seller info, location (lat/lng for map), Stripe Connect account, shipping config; `onboardingStep Int @default(0)`, `onboardingComplete Boolean @default(false)` track wizard progress
 - **Listing** — product for sale; status: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN`; `listingType`: `MADE_TO_ORDER | IN_STOCK`; includes `processingTimeMinDays`, `processingTimeMaxDays` (MADE_TO_ORDER only), `stockQuantity Int?` and `shipsWithinDays Int?` (IN_STOCK only); `isReadyToShip` fully removed. Also has `category Category?`, `viewCount Int @default(0)`, `clickCount Int @default(0)`. Stock is decremented at checkout (Stripe webhook) and restored on case refund resolution. Custom order fields: `isPrivate Boolean @default(false)`, `reservedForUserId String?` (back-relation `reservedForUser User? @relation("ReservedListings")`), `customOrderConversationId String?`.
 - **Order** — purchase transaction with Stripe refs, shipping/tax amounts, fulfillment tracking, quoted address snapshot (`quotedTo*` fields), mismatch detection flag (`reviewNeeded`), Shippo label fields, `estimatedDeliveryDate`, and `processingDeadline` (see below)
 - **OrderItem** — line items in an order
@@ -792,17 +794,17 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 
 ## Logo & Branding (complete)
 
-- **`public/logo.svg`** — full wordmark logo (cream SVG, user-provided); used in header and footer with `style={{ filter: 'brightness(0)' }}` to render as pure black on light backgrounds
-- **`public/logo-mark.svg`** — grain lines swoosh mark only (4 curved fanning lines); used for Guild Master badge and other compact branding contexts; `fill="currentColor"` so color is controlled by parent
-- **Header** (`src/components/Header.tsx`): desktop logo `h-7`, mobile logo `h-6`, hamburger drawer logo `h-6` — all using `<img src='/logo.svg' alt='Grainline' style={{ filter: 'brightness(0)' }}`
+- **`public/logo.svg`** — real vector wordmark logo from designer; transparent background, cream fill `#F2E6D8`; used in header and footer with `style={{ filter: 'brightness(0)' }}` to render as pure black on white background
+- **`public/logo-mark.svg`** — grain lines swoosh mark only (4 curved fanning paths, `fill="currentColor"`); for use in Guild Master wax seal badge and other compact branding contexts
+- **Header** (`src/components/Header.tsx`): desktop logo `h-7`, mobile logo `h-6`, hamburger drawer logo `h-6` — all `<img src='/logo.svg' alt='Grainline' style={{ filter: 'brightness(0)' }}`
 - **Footer** (`src/app/layout.tsx`): `h-5` logo centered above Terms/Privacy links with `opacity: 0.4`
-- **Note**: `public/logo.svg` must be placed by the user — all `<img>` tags are wired and ready
 
 ## Rate Limiting (complete)
 
 `src/lib/ratelimit.ts` — Upstash Redis sliding-window rate limiters via `@upstash/ratelimit`. All limiters have `analytics: true` (viewable in Upstash console).
 
-**Required env vars**: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (set in Vercel + `.env.local`)
+**Upstash database**: `major-toad-67912.upstash.io`
+**Required env vars**: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (set in Vercel production + preview + development + `.env.local`)
 
 | Route | Limiter | Key | Limit |
 |---|---|---|---|
@@ -815,6 +817,39 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 | `GET /api/messages/[id]/stream` | `messageRatelimit` | User ID | 30 / 60s |
 
 IP-keyed routes use `getIP(request)` (reads `x-forwarded-for`, falls back to `127.0.0.1`). User-keyed routes use Clerk `userId` directly. All return HTTP 429 on limit exceeded.
+
+## Seller Onboarding Flow (complete)
+
+A 5-step guided wizard at `/dashboard/onboarding` that walks new makers through shop setup.
+
+### Schema additions (migration `20260330222832_seller_onboarding`)
+- **`SellerProfile.onboardingStep Int @default(0)`** — tracks the wizard step the seller is on (0–5)
+- **`SellerProfile.onboardingComplete Boolean @default(false)`** — when `true`, the wizard is skipped; all existing sellers were backfilled to `true` in the migration
+
+### Auto-redirect
+`src/app/dashboard/page.tsx` fetches `onboardingComplete` and `onboardingStep` alongside the `guildLevel` query. If `!onboardingComplete`, redirects to `/dashboard/onboarding` before rendering.
+
+### Onboarding page (`/dashboard/onboarding`)
+Server component (`src/app/dashboard/onboarding/page.tsx`) — calls `ensureSeller()`, queries full seller fields, redirects back to `/dashboard` if already complete, then renders `<OnboardingWizard>` with props.
+
+### Wizard steps
+- **Step 0 — Welcome**: greeting with maker name, "Get Started →" button
+- **Step 1 — Your Profile (20%)**: display name, tagline, bio, avatar upload (uses `ProfileAvatarUploader`)
+- **Step 2 — Your Shop (40%)**: city, state, years in business, return policy, shipping policy, accepts custom orders toggle
+- **Step 3 — Get Paid (60%)**: Stripe Connect button (green checkmark if already connected); "Connect Stripe →" calls `/api/stripe/connect/create` with `{ returnUrl: "/dashboard/onboarding" }` so user returns to step 4 after Stripe onboarding
+- **Step 4 — Your First Listing (80%)**: "Create a Listing →" link to `/dashboard/listings/new`; shows green checkmark if listings already exist
+- **Step 5 — Done! (100%)**: checklist summary of completed vs skipped steps; "Go to My Dashboard →" calls `completeOnboarding()` which sets `onboardingComplete = true` and redirects to `/dashboard`
+
+### Files
+- `src/app/dashboard/onboarding/actions.ts` — `saveStep1`, `saveStep2`, `advanceStep(targetStep)`, `completeOnboarding`
+- `src/app/dashboard/onboarding/OnboardingWizard.tsx` — `"use client"` wizard; local `step` state starts at `initialStep`; each step uses `onSubmit` handlers calling server actions
+- `src/app/dashboard/onboarding/page.tsx` — server component wrapper
+
+### Stripe connect route update
+`POST /api/stripe/connect/create` now accepts optional `{ returnUrl: "/path" }` in the request body (relative paths only for security). Falls back to `/seller/payouts?onboarded=1` if not provided.
+
+### Progress persistence
+Each "Save & Continue" or "Skip" calls `advanceStep(n)` which writes `onboardingStep` to the DB. If the seller navigates away and returns to `/dashboard/onboarding`, they resume at their saved step.
 
 ## Sentry Error Tracking (complete)
 
@@ -871,6 +906,47 @@ Key sections:
 
 UptimeRobot configured to ping thegrainline.com every 5 minutes. Alerts on downtime.
 
+## UX Restructuring (complete — 2026-03-30)
+
+### Navigation changes
+- **"Dashboard" → "Workshop"** in all nav links and the dashboard page heading
+- **Workshop link** only shown in header for users with a seller profile (`hasSeller` flag from `GET /api/me`)
+- **"My Account" link** added to both desktop and mobile nav for all signed-in users → `/account`
+- **Cart icon** always visible (signed-out users go to `/cart` which shows a sign-in prompt)
+- **`GET /api/me`** now returns `{ role, hasSeller }` — `hasSeller` is `true` if the user has a `SellerProfile` row
+
+### Mobile drawer fixes
+- **X close button** — added `relative z-[60]` so it sits above the backdrop overlay
+- **Messages row** — replaced the complex div/MessageIconLink combo with a single `<Link href="/messages">` wrapping a `MessageCircle` icon + "Messages" text. The unread badge is still available on the desktop `MessageIconLink` icon
+
+### Blog now public
+- `/blog` and `/blog/(.*)` added to `isPublic` in `src/middleware.ts`
+- `/api/blog(.*)` and `/api/search(.*)` also added as public — blog viewing + search suggestions require no auth
+- Writing requires `ensureSeller()` (unchanged); commenting requires auth (handled in API route, unchanged)
+
+### Onboarding redirect fix
+- `dashboard/page.tsx` redirect to `/dashboard/onboarding` now only fires when `sellerProfile` exists AND `onboardingComplete === false`
+- Pure buyers who land on `/dashboard` (which calls `ensureSeller()` and creates a profile) will still be redirected to onboarding — the fix prevents any edge case where `guildSeller` is null from triggering a redirect
+
+### Stripe Connect — real account status check
+- `dashboard/onboarding/page.tsx` now calls `stripe.accounts.retrieve(stripeAccountId)` when a Stripe account ID exists
+- Passes `hasStripeAccount: boolean` and `chargesEnabled: boolean` to `OnboardingWizard`
+- Wizard Step 3 now shows three states:
+  1. **No account** → "Connect Stripe →" button
+  2. **Account exists but `charges_enabled = false`** → amber warning card + "Continue Stripe Setup →" button
+  3. **Account fully connected (`charges_enabled = true`)** → green "Stripe Connected ✓" banner
+
+### `/account` page (new)
+`src/app/account/page.tsx` — server component for all signed-in users:
+- **Header** — avatar, name, email
+- **My Orders** — 5 most recent orders with thumbnail, title, total, status badge, "View" link; "View all orders →" to `/account/orders`
+- **Saved Items** — horizontal scroll row of 6 most recently favorited listings
+- **Account Settings** — shows name/email with note to update via Clerk
+- **Your Workshop** (sellers only) — active listing count, completed order count, links to `/dashboard`, `/dashboard/blog`, `/dashboard/blog/new`
+
+### `/account/orders` page (new)
+`src/app/account/orders/page.tsx` — paginated full order history (20/page) with order items, totals, tracking numbers, status badges, and per-order detail links.
+
 ## Remaining Work
 
 ### Mobile audit round 3 (complete — deployed 2026-03-29)
@@ -897,7 +973,7 @@ All items done:
 14. ~~**Guild verification rebuild**~~ — Phases 1, 2, 3 complete (see Guild Verification Program section)
 15. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`; will reuse `SellerMetrics` model from Guild Phase 2
 16. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
-17. **Seller onboarding flow** — guided first-time setup: set location, add first listing, connect Stripe
+17. ~~**Seller onboarding flow**~~ — complete, see "Seller Onboarding Flow" section
 
 ### Discovery & community
 
@@ -928,7 +1004,7 @@ All items done:
 
 ## Auth & Middleware
 
-Clerk v7 handles auth. Public routes (no login required): `/`, `/browse`, `/listing/*`, `/seller/*`, `/sellers/*`, `/map/*`, `/sign-in`, `/sign-up`, `/api/whoami`, `/api/me`, `/api/reviews`, `/api/stripe/webhook` (called by Stripe servers — no Clerk session), `/api/clerk/webhook` (called by Clerk servers — no Clerk session), `/api/uploadthing` (UploadThing callback). Everything else (dashboard, cart, checkout, messages, orders) requires authentication.
+Clerk v7 handles auth. Public routes (no login required): `/`, `/browse`, `/listing/*`, `/seller/*`, `/sellers/*`, `/map/*`, `/blog/*`, `/sign-in`, `/sign-up`, `/api/whoami`, `/api/me`, `/api/reviews`, `/api/blog/*`, `/api/search/*`, `/api/stripe/webhook` (called by Stripe servers — no Clerk session), `/api/clerk/webhook` (called by Clerk servers — no Clerk session), `/api/uploadthing` (UploadThing callback). Protected routes (auth required): `/account`, `/account/orders`, `/dashboard/*`, `/cart`, `/checkout/*`, `/messages/*`, `/orders/*`. Everything else requires authentication.
 
 **Clerk v7 component API** — `SignedIn`/`SignedOut` no longer exist; use `<Show when="signed-in">` / `<Show when="signed-out">` from `@clerk/nextjs`. The `fallback` prop on `Show` replaces paired `SignedOut` blocks. `afterSignOutUrl` is set on `<ClerkProvider>`, not `<UserButton>`. Any component using `useSearchParams()` must be inside a `<Suspense>` boundary.
 

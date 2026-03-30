@@ -4,12 +4,18 @@ import { prisma } from "@/lib/db";
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return Response.json({ role: null });
+  if (!userId) return Response.json({ role: null, hasSeller: false });
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { role: true },
+    select: {
+      role: true,
+      sellerProfile: { select: { id: true } },
+    },
   });
 
-  return Response.json({ role: user?.role ?? null });
+  return Response.json({
+    role: user?.role ?? null,
+    hasSeller: !!user?.sellerProfile,
+  });
 }

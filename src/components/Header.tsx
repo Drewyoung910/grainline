@@ -8,7 +8,7 @@ import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
-import { MessageCircle, ShoppingBag, Menu, X, Search } from "@/components/icons";
+import { MessageCircle, ShoppingBag, Menu, X, Search, User } from "@/components/icons";
 
 export default function Header() {
   const pathname = usePathname();
@@ -17,6 +17,7 @@ export default function Header() {
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
+  const [hasSeller, setHasSeller] = React.useState(false);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
@@ -50,6 +51,10 @@ export default function Header() {
   const loadCartCount = React.useCallback(async () => {
     try {
       const res = await fetch("/api/cart", { cache: "no-store" });
+      if (!res.ok) {
+        setCartCount(0);
+        return;
+      }
       const data = await res.json().catch(() => ({ items: [] as Array<{ quantity?: number }> }));
       const items: Array<{ quantity?: number }> = data?.items ?? [];
       const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
@@ -59,13 +64,15 @@ export default function Header() {
     }
   }, []);
 
-  const loadRole = React.useCallback(async () => {
+  const loadMe = React.useCallback(async () => {
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
-      const data = await res.json().catch(() => ({ role: null }));
+      const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
       setRole(data?.role ?? null);
+      setHasSeller(data?.hasSeller ?? false);
     } catch {
       setRole(null);
+      setHasSeller(false);
     }
   }, []);
 
@@ -82,7 +89,7 @@ export default function Header() {
 
   React.useEffect(() => {
     loadCartCount();
-    loadRole();
+    loadMe();
     loadNotifCount();
     const onUpdated = () => loadCartCount();
     window.addEventListener("cart:updated", onUpdated);
@@ -118,6 +125,12 @@ export default function Header() {
           </Link>
 
           <Show when="signed-in">
+            <Link href="/account" className="text-neutral-800">
+              My Account
+            </Link>
+          </Show>
+
+          <Show when="signed-in">
             <NotificationBell initialUnreadCount={0} />
           </Show>
 
@@ -137,33 +150,20 @@ export default function Header() {
             <MessageIconLink />
           </Show>
 
-          <Show
-            when="signed-in"
-            fallback={
-              <Link
-                href="/sign-in?redirect_url=/cart"
-                className="relative inline-flex items-center justify-center p-1 text-neutral-800"
-                aria-label="Cart (sign in)"
-                title="Cart"
-              >
-                <ShoppingBag size={20} />
-              </Link>
-            }
+          {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
+          <Link
+            href="/cart"
+            className="relative inline-flex items-center justify-center p-1 text-neutral-800"
+            aria-label="Cart"
+            title="Cart"
           >
-            <Link
-              href="/cart"
-              className="relative inline-flex items-center justify-center p-1 text-neutral-800"
-              aria-label="Cart"
-              title="Cart"
-            >
-              <ShoppingBag size={20} />
-              {cartCount != null && cartCount > 0 && (
-                <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 text-[11px] font-medium leading-5 text-white text-center">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-          </Show>
+            <ShoppingBag size={20} />
+            {cartCount != null && cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 text-[11px] font-medium leading-5 text-white text-center">
+                {cartCount}
+              </span>
+            )}
+          </Link>
 
           <Show
             when="signed-in"
@@ -178,9 +178,11 @@ export default function Header() {
                 Admin
               </Link>
             )}
-            <Link href="/dashboard" className="text-neutral-800">
-              Dashboard
-            </Link>
+            {hasSeller && (
+              <Link href="/dashboard" className="text-neutral-800">
+                Workshop
+              </Link>
+            )}
             <UserButton />
           </Show>
         </div>
@@ -203,21 +205,19 @@ export default function Header() {
             </span>
           </Show>
 
-          {/* Cart */}
-          <Show when="signed-in">
-            <Link
-              href="/cart"
-              className="relative inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
-              aria-label="Cart"
-            >
-              <ShoppingBag size={20} />
-              {cartCount != null && cartCount > 0 && (
-                <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-          </Show>
+          {/* Cart — always visible */}
+          <Link
+            href="/cart"
+            className="relative inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            aria-label="Cart"
+          >
+            <ShoppingBag size={20} />
+            {cartCount != null && cartCount > 0 && (
+              <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
+                {cartCount}
+              </span>
+            )}
+          </Link>
 
           {/* Hamburger */}
           <button
@@ -267,10 +267,11 @@ export default function Header() {
               >
                 <img src="/logo.svg" alt="Grainline" className="h-6 w-auto" style={{ filter: "brightness(0)" }} />
               </Link>
+              {/* X button: relative z-[60] ensures it's above the fixed backdrop */}
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
-                className="inline-flex items-center justify-center p-2 text-neutral-600 min-h-[44px] min-w-[44px]"
+                className="relative z-[60] inline-flex items-center justify-center p-2 text-neutral-600 min-h-[44px] min-w-[44px]"
               >
                 <X size={20} />
               </button>
@@ -294,28 +295,40 @@ export default function Header() {
               </Link>
 
               <Show when="signed-in">
-                {/* Messages — icon (with unread badge) + text label both navigate */}
-                <div className="flex items-center min-h-[44px] hover:bg-neutral-50">
-                  <div className="pl-4" onClick={() => setDrawerOpen(false)}>
-                    <MessageIconLink />
-                  </div>
-                  <Link
-                    href="/messages"
-                    className="flex-1 px-3 py-3 text-neutral-800"
-                    onClick={() => setDrawerOpen(false)}
-                  >
-                    Messages
-                  </Link>
-                </div>
-
-                {/* Dashboard */}
+                {/* My Account */}
                 <Link
-                  href="/dashboard"
+                  href="/account"
                   className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
                   onClick={() => setDrawerOpen(false)}
                 >
-                  Dashboard
+                  <User size={18} />
+                  My Account
                 </Link>
+
+                {/* Messages — single Link wrapping icon + text */}
+                <Link
+                  href="/messages"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  <span className="relative inline-flex items-center">
+                    <MessageCircle size={18} />
+                    {/* Unread badge is shown by UnreadBadge in the desktop MessageIconLink;
+                        for the drawer we keep it simple with just the icon */}
+                  </span>
+                  Messages
+                </Link>
+
+                {/* Workshop — only for sellers */}
+                {hasSeller && (
+                  <Link
+                    href="/dashboard"
+                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    Workshop
+                  </Link>
+                )}
 
                 {/* Admin (role-gated) */}
                 {(role === "EMPLOYEE" || role === "ADMIN") && (

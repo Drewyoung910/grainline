@@ -161,6 +161,10 @@ model SellerProfile {
   metricWarningSentAt          DateTime?
   listingsBelowThresholdSince  DateTime?
 
+  // Seller onboarding wizard
+  onboardingStep     Int     @default(0)
+  onboardingComplete Boolean @default(false)
+
   listings             Listing[]
   faqs                 SellerFaq[]
   makerVerification    MakerVerification?
