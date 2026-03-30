@@ -450,11 +450,11 @@ export default async function HomePage() {
           )}
         </ScrollSection>
 
-        {/* ── Collector Favorites ───────────────────────────────────────────── */}
+        {/* ── Buyer Favorites ───────────────────────────────────────────── */}
         {topSaved.length > 0 && (
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Collector Favorites ❤️</h2>
+              <h2 className="text-xl font-semibold">Buyer Favorites ❤️</h2>
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">

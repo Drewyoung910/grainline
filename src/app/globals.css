@@ -14,5 +14,39 @@ html, body {
 .btn-brand { display:inline-flex; align-items:center; justify-content:center; border-radius:9999px; padding:.5rem 1rem; background:#059669; color:#fff; }
 .btn-brand:hover { background:#047857; }
 
+/* Prevent iOS from auto-zooming form inputs on focus */
+input, textarea, select {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-size: max(16px, 1em);
+}
+
+/* Mobile drawer slide-in animation */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Mobile filter bottom sheet slide-up animation */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Search dropdown slide-down animation */
+@keyframes slide-down {
+  from { transform: translateY(-8px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.animate-slide-down {
+  animation: slide-down 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 
 

@@ -20,6 +20,9 @@ export async function POST(req: Request) {
       include: { seller: true, photos: true },
     });
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+    if (listing.status !== "ACTIVE") return NextResponse.json({ error: "Listing not available" }, { status: 400 });
+    if (listing.isPrivate && listing.reservedForUserId !== me.id) return NextResponse.json({ error: "Listing not available" }, { status: 400 });
+    if (listing.seller.userId === me.id) return NextResponse.json({ error: "Cannot purchase your own listing" }, { status: 400 });
 
     const priceCents = listing.priceCents ?? 0;
     const currency = (listing.currency || "usd").toLowerCase();

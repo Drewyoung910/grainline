@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import MapCard from "@/components/MapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
+import FavoriteButton from "@/components/FavoriteButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icons";
 
@@ -140,6 +141,17 @@ export default async function SellerPublicPage({
 
   // ── Seller-wide rating (across ALL their listings) ─────────────────────────
   const listingIds = listings.map((l) => l.id);
+
+  // Saved set for current viewer
+  let savedSet = new Set<string>();
+  if (meId && listingIds.length > 0) {
+    const favs = await prisma.favorite.findMany({
+      where: { userId: meId, listingId: { in: listingIds } },
+      select: { listingId: true },
+    });
+    for (const f of favs) savedSet.add(f.listingId);
+  }
+
   let shopRating: { avg: number; count: number } | null = null;
   if (listingIds.length > 0) {
     const perListing = await prisma.review.groupBy({
@@ -326,33 +338,36 @@ export default async function SellerPublicPage({
         {featuredListings.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold mb-3">Featured Work</h2>
-            <ul className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
               {featuredListings.map((l) => {
                 const thumb = l.photos[0]?.url ?? "/favicon.ico";
                 return (
-                  <li key={l.id} className="overflow-hidden rounded-xl border">
-                    <Link href={`/listing/${l.id}`} className="block">
-                      <div className="relative">
-                        <span className="absolute top-2 left-2 z-10 rounded-full bg-amber-400 text-amber-900 text-xs font-medium px-2 py-0.5">
-                          Featured
-                        </span>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={thumb}
-                          alt={l.title}
-                          className="h-48 w-full object-cover"
-                        />
-                      </div>
-                      <div className="p-3">
-                        <div className="font-medium text-sm">{l.title}</div>
-                        <div className="text-sm text-neutral-500">
-                          {(l.priceCents / 100).toLocaleString(undefined, {
-                            style: "currency",
-                            currency: l.currency,
-                          })}
+                  <li key={l.id} className="overflow-hidden rounded-xl border min-w-[200px] flex-none snap-start md:min-w-0">
+                    <div className="relative">
+                      <Link href={`/listing/${l.id}`} className="block">
+                        <div className="relative">
+                          <span className="absolute top-2 left-2 z-10 rounded-full bg-amber-400 text-amber-900 text-xs font-medium px-2 py-0.5">
+                            Featured
+                          </span>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={thumb}
+                            alt={l.title}
+                            className="h-48 w-full object-cover"
+                          />
                         </div>
-                      </div>
-                    </Link>
+                        <div className="p-3">
+                          <div className="font-medium text-sm">{l.title}</div>
+                          <div className="text-sm text-neutral-500">
+                            {(l.priceCents / 100).toLocaleString(undefined, {
+                              style: "currency",
+                              currency: l.currency,
+                            })}
+                          </div>
+                        </div>
+                      </Link>
+                      <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+                    </div>
                   </li>
                 );
               })}
@@ -489,9 +504,9 @@ export default async function SellerPublicPage({
         {sellerBlogPosts.length > 0 && (
           <section className="mb-8">
             <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
-            <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
               {sellerBlogPosts.map((p) => (
-                <li key={p.slug} className="rounded-xl border overflow-hidden hover:shadow-sm transition-shadow">
+                <li key={p.slug} className="rounded-xl border overflow-hidden hover:shadow-sm transition-shadow min-w-[200px] flex-none snap-start sm:min-w-0">
                   <Link href={`/blog/${p.slug}`} className="block">
                     <div className="h-36 bg-neutral-100 overflow-hidden">
                       {p.coverImageUrl ? (
@@ -522,38 +537,61 @@ export default async function SellerPublicPage({
 
         {/* ── All Listings ───────────────────────────────────────────────── */}
         <section>
-          <h2 className="text-lg font-semibold mb-3">All Listings</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">All Listings</h2>
+            {listings.length > 0 && (
+              <Link
+                href={`/seller/${id}/shop`}
+                className="text-sm text-neutral-600 underline hover:text-neutral-900"
+              >
+                See all {listings.length} {listings.length === 1 ? "piece" : "pieces"} →
+              </Link>
+            )}
+          </div>
           {listings.length === 0 ? (
             <div className="rounded-xl border p-6 text-neutral-600">
               No listings yet.
             </div>
           ) : (
-            <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {listings.map((l) => {
+            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
+              {listings.slice(0, 8).map((l) => {
                 const thumb = l.photos[0]?.url ?? "/favicon.ico";
                 return (
-                  <li key={l.id} className="overflow-hidden rounded-xl border">
-                    <Link href={`/listing/${l.id}`} className="block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={thumb}
-                        alt={l.title}
-                        className="h-48 w-full object-cover"
-                      />
-                      <div className="p-4">
-                        <div className="font-medium">{l.title}</div>
-                        <div className="text-sm text-neutral-500">
-                          {(l.priceCents / 100).toLocaleString(undefined, {
-                            style: "currency",
-                            currency: l.currency,
-                          })}
+                  <li key={l.id} className="overflow-hidden rounded-xl border min-w-[220px] flex-none snap-start sm:min-w-0">
+                    <div className="relative">
+                      <Link href={`/listing/${l.id}`} className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumb}
+                          alt={l.title}
+                          className="h-48 w-full object-cover"
+                        />
+                        <div className="p-4">
+                          <div className="font-medium">{l.title}</div>
+                          <div className="text-sm text-neutral-500">
+                            {(l.priceCents / 100).toLocaleString(undefined, {
+                              style: "currency",
+                              currency: l.currency,
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    </Link>
+                      </Link>
+                      <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+                    </div>
                   </li>
                 );
               })}
             </ul>
+          )}
+          {listings.length > 8 && (
+            <div className="mt-4 text-center">
+              <Link
+                href={`/seller/${id}/shop`}
+                className="inline-block rounded border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
+              >
+                See all {listings.length} pieces →
+              </Link>
+            </div>
           )}
         </section>
       </div>

@@ -96,93 +96,104 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
 
-        <div className="mt-6 flex flex-wrap gap-3">
+        {/* ── Dashboard nav buttons ── */}
+        {/* Mobile: 2-column icon+label grid; desktop: flex-wrap row */}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
           <Link
             href="/dashboard/listings/new"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium shadow-sm hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Store size={16} />
+            <Store size={20} className="sm:hidden shrink-0" />
+            <Store size={16} className="hidden sm:block shrink-0" />
             Create listing
           </Link>
 
           <Link
             href="/dashboard/profile"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <User size={16} />
+            <User size={20} className="sm:hidden shrink-0" />
+            <User size={16} className="hidden sm:block shrink-0" />
             Shop Profile
           </Link>
 
           <Link
             href="/dashboard/seller"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Package size={16} />
+            <Package size={20} className="sm:hidden shrink-0" />
+            <Package size={16} className="hidden sm:block shrink-0" />
             Shipping &amp; Settings
           </Link>
 
           <Link
             href="/dashboard/orders"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Package size={16} />
+            <Package size={20} className="sm:hidden shrink-0" />
+            <Package size={16} className="hidden sm:block shrink-0" />
             My orders
           </Link>
 
           <Link
             href="/dashboard/sales"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Tag size={16} />
+            <Tag size={20} className="sm:hidden shrink-0" />
+            <Tag size={16} className="hidden sm:block shrink-0" />
             My sales
           </Link>
 
           <Link
             href="/dashboard/inventory"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Grid size={16} />
+            <Grid size={20} className="sm:hidden shrink-0" />
+            <Grid size={16} className="hidden sm:block shrink-0" />
             Inventory
           </Link>
 
           <Link
             href="/messages"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <MessageCircle size={16} />
+            <MessageCircle size={20} className="sm:hidden shrink-0" />
+            <MessageCircle size={16} className="hidden sm:block shrink-0" />
             Messages
           </Link>
 
           <Link
             href="/dashboard/saved"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
             Saved items
           </Link>
 
           <Link
             href="/browse"
-            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
             Browse
           </Link>
 
           <Link
             href="/dashboard/blog"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Edit size={16} />
+            <Edit size={20} className="sm:hidden shrink-0" />
+            <Edit size={16} className="hidden sm:block shrink-0" />
             My Blog
           </Link>
 
           <Link
             href="/dashboard/notifications"
-            className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
-            <Bell size={16} />
+            <Bell size={20} className="sm:hidden shrink-0" />
+            <Bell size={16} className="hidden sm:block shrink-0" />
             Notifications
             {notifUnreadCount > 0 && (
-              <span className="ml-1 inline-flex items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white">
+              <span className="inline-flex items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white">
                 {notifUnreadCount}
               </span>
             )}
@@ -191,32 +202,42 @@ export default async function DashboardPage() {
           {seller.isVerifiedMaker ? (
             <Link
               href="/dashboard/verification"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-800 hover:bg-green-100"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-green-300 bg-green-50 px-4 py-3 sm:py-2 text-sm font-medium text-green-800 hover:bg-green-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
-              <Sparkles size={16} />
+              <Sparkles size={20} className="sm:hidden shrink-0" />
+              <Sparkles size={16} className="hidden sm:block shrink-0" />
               Verified Maker
             </Link>
           ) : (
             <Link
               href="/dashboard/verification"
-              className="inline-flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
-              <Sparkles size={16} />
-              {verification?.status === "PENDING" ? "Badge Application Pending" : "Apply for Verified Badge"}
+              <Sparkles size={20} className="sm:hidden shrink-0" />
+              <Sparkles size={16} className="hidden sm:block shrink-0" />
+              {verification?.status === "PENDING" ? "Badge Pending" : "Verified Badge"}
             </Link>
           )}
         </div>
       </header>
 
       <section>
-        <h2 className="text-xl font-semibold mb-4">My Listings</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">My Listings</h2>
+          <Link
+            href={`/seller/${seller.id}/shop`}
+            className="text-sm text-neutral-600 underline hover:text-neutral-900"
+          >
+            View My Shop →
+          </Link>
+        </div>
 
         {listings.length === 0 ? (
           <div className="rounded-xl border p-8 text-neutral-600">
             Your workshop is empty — list your first piece and start selling.
           </div>
         ) : (
-          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
             {listings.map((l) => {
               const thumb = l.photos[0]?.url;
               const hideAction =
@@ -225,7 +246,7 @@ export default async function DashboardPage() {
                   : setStatus.bind(null, l.id, ListingStatus.HIDDEN);
 
               return (
-                <li key={l.id} className="overflow-hidden rounded-xl border">
+                <li key={l.id} className="overflow-hidden rounded-xl border min-w-[220px] flex-none snap-start sm:min-w-0">
                   {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

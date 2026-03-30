@@ -126,7 +126,7 @@ export async function POST(
         userId: updated.buyerId,
         type: "ORDER_DELIVERED",
         title: "Your piece has been delivered!",
-        body: "Enjoy your new piece — leave a review to help other collectors",
+        body: "Enjoy your new piece — leave a review to help other buyers",
         link: `/dashboard/orders/${id}`,
       });
     }

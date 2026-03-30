@@ -165,7 +165,7 @@ export default function ThreadMessages({
       className="rounded-xl border bg-white p-4 overflow-y-auto"
       style={{ height: boxHeight }}
     >
-      <ul className="space-y-3">
+      <ul className="space-y-3 pb-4">
         {msgs.map((m) => {
           const mine = m.senderId === meId;
           const body = (m.body ?? "").toString().trim();
@@ -327,7 +327,7 @@ export default function ThreadMessages({
           }
 
           return (
-            <li key={m.id} className={`max-w-[80%] ${mine ? "ml-auto text-right" : ""}`}>
+            <li key={m.id} className={`max-w-[85%] sm:max-w-[70%] ${mine ? "ml-auto text-right" : ""}`}>
               <div className={`inline-block rounded-2xl px-3 py-2 ${bubbleClass}`}>
                 {bubble}
               </div>

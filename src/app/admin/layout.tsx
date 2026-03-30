@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { Package, AlertTriangle, Shield, Edit } from "@/components/icons";
+import AdminMobileNav from "@/components/AdminMobileNav";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -24,8 +25,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
 
   return (
-    <div className="flex min-h-screen bg-neutral-100">
-      <aside className="w-52 shrink-0 border-r border-neutral-200 bg-white px-3 py-8">
+    <div className="flex flex-col md:flex-row min-h-screen bg-neutral-100">
+      {/* ── Mobile tab strip (< md) ── */}
+      <AdminMobileNav
+        openCaseCount={openCaseCount}
+        pendingVerificationCount={pendingVerificationCount}
+        pendingCommentCount={pendingCommentCount}
+      />
+
+      {/* ── Desktop sidebar (md+) ── */}
+      <aside className="hidden md:block w-52 shrink-0 border-r border-neutral-200 bg-white px-3 py-8">
         <div className="px-2 mb-5">
           <span className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
             Admin
@@ -90,7 +99,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
         </nav>
       </aside>
-      <div className="flex-1 overflow-auto p-8">{children}</div>
+
+      <div className="flex-1 overflow-auto p-4 md:p-8">{children}</div>
     </div>
   );
 }

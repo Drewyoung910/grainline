@@ -159,7 +159,7 @@ export default async function SellerOrderDetailPage({
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
         {status === "PENDING" && "New order — time to get crafting! 🪵"}
         {status === "SHIPPED" && "Shipped — nice work!"}
-        {status === "DELIVERED" && "Delivered — another happy collector!"}
+        {status === "DELIVERED" && "Delivered — another happy buyer!"}
         {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
         {status === "PICKED_UP" && "Picked up — great work!"}
       </div>

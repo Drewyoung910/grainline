@@ -54,7 +54,7 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="sticky bottom-0 rounded-xl border bg-white p-3">
+    <div className="sticky bottom-0 bg-white border-t px-3 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]">
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((a) => (
@@ -164,16 +164,22 @@ export default function MessageComposer({
         />
 
         {canSend ? (
-          <SubmitButton className="rounded-full bg-black px-4 py-2 text-white disabled:opacity-50">
-            Send
+          <SubmitButton className="rounded-full bg-black px-3 sm:px-4 py-2 text-white disabled:opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center">
+            <span className="hidden sm:inline">Send</span>
+            <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
           </SubmitButton>
         ) : (
           <button
             type="button"
             disabled
-            className="cursor-not-allowed rounded-full bg-black/60 px-4 py-2 text-white opacity-50"
+            className="cursor-not-allowed rounded-full bg-black/60 px-3 sm:px-4 py-2 text-white opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center"
           >
-            Send
+            <span className="hidden sm:inline">Send</span>
+            <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
           </button>
         )}
       </div>

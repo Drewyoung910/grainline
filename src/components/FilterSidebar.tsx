@@ -3,6 +3,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import { Filter } from "@/components/icons";
 
 export default function FilterSidebar({ popularTags }: { popularTags: string[] }) {
   const searchParams = useSearchParams();
@@ -41,11 +42,30 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     return `/browse?${p.toString()}`;
   }
 
-  // Re-sync geo state when URL changes (e.g. back navigation)
+  // Re-sync geo state and close mobile sheet when URL changes (e.g. after Apply)
   React.useEffect(() => {
     setGeoLat(searchParams.get("lat") ?? "");
     setGeoLng(searchParams.get("lng") ?? "");
+    setMobileOpen(false);
   }, [searchParams]);
+
+  // Close bottom sheet on Escape
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  // Lock body scroll when bottom sheet is open
+  React.useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   const currentCategory = searchParams.get("category") ?? "";
   const currentType = searchParams.get("type") ?? "";
@@ -55,6 +75,18 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const currentMax = searchParams.get("max") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const currentRadius = searchParams.get("radius") ?? "";
+
+  // Count active filters for badge
+  const activeFilterCount = [
+    currentCategory,
+    currentType,
+    currentShips,
+    currentRating,
+    geoLat && geoLng ? "loc" : null,
+    currentMin,
+    currentMax,
+    ...selectedTags,
+  ].filter(Boolean).length;
 
   const form = (
     <form
@@ -99,7 +131,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             { value: "IN_STOCK", label: "In Stock" },
             { value: "MADE_TO_ORDER", label: "Made to Order" },
           ].map(({ value, label }) => (
-            <label key={value} className="flex items-center gap-2 cursor-pointer">
+            <label key={value} className="flex items-center gap-2 cursor-pointer min-h-[44px]">
               <input
                 type="radio"
                 name="type"
@@ -189,7 +221,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           <button
             type="button"
             onClick={detectLocation}
-            className="rounded border px-2.5 py-1 text-xs hover:bg-neutral-50"
+            className="rounded border px-2.5 py-1 text-xs hover:bg-neutral-50 min-h-[44px]"
           >
             {locating ? "Detecting…" : "Use my location"}
           </button>
@@ -212,13 +244,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
       <div className="flex gap-2">
         <button
           type="submit"
-          className="flex-1 rounded border px-3 py-1.5 font-medium hover:bg-neutral-50"
+          className="flex-1 rounded border px-3 py-1.5 font-medium hover:bg-neutral-50 min-h-[44px]"
         >
           Apply
         </button>
         <Link
           href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
-          className="rounded border px-3 py-1.5 text-neutral-600 hover:bg-neutral-50"
+          className="rounded border px-3 py-1.5 text-neutral-600 hover:bg-neutral-50 min-h-[44px] flex items-center"
         >
           Reset
         </Link>
@@ -264,27 +296,66 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
   return (
     <>
-      {/* Mobile toggle */}
-      <div className="md:hidden mb-4">
+      {/* ── Mobile: sticky filter trigger button ── */}
+      <div className="md:hidden">
         <button
-          onClick={() => setMobileOpen((o) => !o)}
-          className="rounded border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          onClick={() => setMobileOpen(true)}
+          className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
         >
-          {mobileOpen ? "Hide filters ↑" : "Filters ↓"}
+          <Filter size={16} />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="inline-flex items-center rounded-full bg-neutral-900 text-white px-1.5 py-0.5 text-[11px] font-medium leading-none">
+              {activeFilterCount}
+            </span>
+          )}
         </button>
       </div>
 
-      {/* Sidebar — hidden on mobile until toggled, always visible on md+ */}
-      <aside
-        className={`${
-          mobileOpen ? "block" : "hidden"
-        } md:block w-full md:w-52 lg:w-56 shrink-0`}
-      >
+      {/* ── Desktop sidebar (md+) ── */}
+      <aside className="hidden md:block w-52 lg:w-56 shrink-0">
         <div className="rounded-xl border p-4 sticky top-4">
           {form}
           {tagsSection}
         </div>
       </aside>
+
+      {/* ── Mobile bottom sheet ── */}
+      {mobileOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Sheet panel */}
+          <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl">
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-2 shrink-0">
+              <div className="h-1 w-10 rounded-full bg-neutral-300" />
+            </div>
+
+            {/* Header row */}
+            <div className="flex items-center justify-between px-4 pb-3 border-b shrink-0">
+              <span className="font-semibold text-sm">Filters</span>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="rounded border px-3 py-1 text-sm hover:bg-neutral-50 min-h-[44px]"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="overflow-y-auto flex-1 px-4 py-4">
+              {form}
+              {tagsSection}
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

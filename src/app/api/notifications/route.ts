@@ -11,6 +11,12 @@ export async function GET() {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Prune read notifications older than 90 days (fire-and-forget, non-blocking)
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  prisma.notification
+    .deleteMany({ where: { userId: me.id, read: true, createdAt: { lt: cutoff } } })
+    .catch(() => {});
+
   const [notifications, unreadCount] = await Promise.all([
     prisma.notification.findMany({
       where: { userId: me.id },

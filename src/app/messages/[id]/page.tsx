@@ -200,7 +200,7 @@ export default async function ThreadPage({
     (convo.userAId === me.id ? convo.archivedAAt : convo.archivedBAt) ?? null;
 
   return (
-    <main className="max-w-3xl mx-auto p-8 space-y-6">
+    <main className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
       <MarkReadClient id={id} />
 
       <header className="flex items-center justify-between">

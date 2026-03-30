@@ -8,33 +8,57 @@ import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
-import { MessageCircle, ShoppingBag } from "@/components/icons";
+import { MessageCircle, ShoppingBag, Menu, X, Search } from "@/components/icons";
 
 export default function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const showSearch = pathname === "/" || pathname.startsWith("/browse");
 
-  // ⬇️ Cart count state
   const [cartCount, setCartCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
 
-  // Fetch cart count (sum of quantities)
+  // Close drawer and search on navigation
+  React.useEffect(() => {
+    setDrawerOpen(false);
+    setSearchOpen(false);
+  }, [pathname, searchParams]);
+
+  // Escape closes both drawer and search
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDrawerOpen(false);
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Lock body scroll when drawer is open
+  React.useEffect(() => {
+    document.body.style.overflow = drawerOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [drawerOpen]);
+
   const loadCartCount = React.useCallback(async () => {
     try {
       const res = await fetch("/api/cart", { cache: "no-store" });
-      // When signed out, our API returns { items: [] }
       const data = await res.json().catch(() => ({ items: [] as Array<{ quantity?: number }> }));
       const items: Array<{ quantity?: number }> = data?.items ?? [];
       const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
       setCartCount(total);
     } catch {
-      // If it fails (e.g., not signed in), show 0
       setCartCount(0);
     }
   }, []);
 
-  // Fetch user role (for admin link)
   const loadRole = React.useCallback(async () => {
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
@@ -45,30 +69,44 @@ export default function Header() {
     }
   }, []);
 
-  // Load on mount + when URL changes (navigate/search)
+  const loadNotifCount = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setUnreadNotifCount(data.unreadCount ?? 0);
+    } catch {
+      // signed out or error — leave at 0
+    }
+  }, []);
+
   React.useEffect(() => {
     loadCartCount();
     loadRole();
-    // Listen for manual refresh events from the app (optional)
+    loadNotifCount();
     const onUpdated = () => loadCartCount();
     window.addEventListener("cart:updated", onUpdated);
     return () => window.removeEventListener("cart:updated", onUpdated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, searchParams]); // re-run on page/nav changes
+  }, [pathname, searchParams]);
 
   return (
-    <header className="border-b bg-white">
+    <header className="border-b bg-white relative z-30">
       <nav className="mx-auto max-w-6xl p-4 flex items-center gap-4">
-        {/* Left: logo */}
-        <Link href="/" className="font-semibold text-neutral-900">
+        {/* Logo */}
+        <Link href="/" className="font-semibold text-neutral-900 shrink-0 flex items-center min-h-[44px]">
           Grainline
         </Link>
 
-        {/* Middle: search (Home + Browse) */}
-        {showSearch && <SearchBar />}
+        {/* Search bar — desktop only (home + browse) */}
+        {showSearch && (
+          <span className="hidden md:flex flex-1">
+            <SearchBar />
+          </span>
+        )}
 
-        {/* Right: links / auth */}
-        <div className="ml-auto flex items-center gap-4">
+        {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
+        <div className="ml-auto hidden md:flex items-center gap-4">
           <Link href="/browse" className="text-neutral-800">
             Browse
           </Link>
@@ -76,12 +114,10 @@ export default function Header() {
             Blog
           </Link>
 
-          {/* Notifications */}
           <Show when="signed-in">
             <NotificationBell initialUnreadCount={0} />
           </Show>
 
-          {/* Messages entry */}
           <Show
             when="signed-in"
             fallback={
@@ -98,38 +134,34 @@ export default function Header() {
             <MessageIconLink />
           </Show>
 
-          {/* Cart */}
           <Show
             when="signed-in"
             fallback={
               <Link
                 href="/sign-in?redirect_url=/cart"
-                className="relative inline-flex items-center gap-1 text-neutral-800"
+                className="relative inline-flex items-center justify-center p-1 text-neutral-800"
                 aria-label="Cart (sign in)"
                 title="Cart"
               >
                 <ShoppingBag size={20} />
-                <span className="text-sm">Cart</span>
               </Link>
             }
           >
             <Link
               href="/cart"
-              className="relative inline-flex items-center gap-1 text-neutral-800"
+              className="relative inline-flex items-center justify-center p-1 text-neutral-800"
               aria-label="Cart"
               title="Cart"
             >
               <ShoppingBag size={20} />
-              <span className="text-sm">Cart</span>
               {cartCount != null && cartCount > 0 && (
-                <span className="absolute -right-2 -top-2 min-w-[18px] rounded-full bg-red-600 px-1.5 text-[11px] font-medium leading-5 text-white text-center">
+                <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 text-[11px] font-medium leading-5 text-white text-center">
                   {cartCount}
                 </span>
               )}
             </Link>
           </Show>
 
-          {/* Auth */}
           <Show
             when="signed-in"
             fallback={
@@ -149,13 +181,170 @@ export default function Header() {
             <UserButton />
           </Show>
         </div>
+
+        {/* ── Mobile right: search | bell | cart | hamburger (< md) ──────── */}
+        <div className="ml-auto flex items-center gap-1 md:hidden">
+          {/* Search toggle */}
+          <button
+            onClick={() => setSearchOpen((o) => !o)}
+            aria-label={searchOpen ? "Close search" : "Search"}
+            className="inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+          >
+            {searchOpen ? <X size={20} /> : <Search size={20} />}
+          </button>
+
+          {/* Notification bell */}
+          <Show when="signed-in">
+            <span className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]">
+              <NotificationBell initialUnreadCount={unreadNotifCount} />
+            </span>
+          </Show>
+
+          {/* Cart */}
+          <Show when="signed-in">
+            <Link
+              href="/cart"
+              className="relative inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+              aria-label="Cart"
+            >
+              <ShoppingBag size={20} />
+              {cartCount != null && cartCount > 0 && (
+                <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          </Show>
+
+          {/* Hamburger */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            className="inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+          >
+            <Menu size={24} />
+          </button>
+        </div>
       </nav>
+
+      {/* ── Mobile search dropdown ─────────────────────────────────────── */}
+      {searchOpen && (
+        <>
+          {/* Transparent backdrop — click outside closes the bar */}
+          <div
+            className="fixed inset-0 z-40 md:hidden"
+            onClick={() => setSearchOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute top-full left-0 right-0 bg-white border-b shadow-sm p-3 z-50 md:hidden animate-slide-down">
+            <SearchBar />
+          </div>
+        </>
+      )}
+
+      {/* ── Mobile drawer ─────────────────────────────────────────────── */}
+      {drawerOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Panel */}
+          <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right">
+            {/* Header row */}
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <Link
+                href="/"
+                className="font-semibold text-neutral-900"
+                onClick={() => setDrawerOpen(false)}
+              >
+                Grainline
+              </Link>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                aria-label="Close menu"
+                className="inline-flex items-center justify-center p-2 text-neutral-600 min-h-[44px] min-w-[44px]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Nav links */}
+            <div className="flex-1 overflow-y-auto py-2">
+              <Link
+                href="/browse"
+                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                onClick={() => setDrawerOpen(false)}
+              >
+                Browse
+              </Link>
+              <Link
+                href="/blog"
+                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                onClick={() => setDrawerOpen(false)}
+              >
+                Blog
+              </Link>
+
+              <Show when="signed-in">
+                {/* Messages — icon (with unread badge) + text label both navigate */}
+                <div className="flex items-center min-h-[44px] hover:bg-neutral-50">
+                  <div className="pl-4" onClick={() => setDrawerOpen(false)}>
+                    <MessageIconLink />
+                  </div>
+                  <Link
+                    href="/messages"
+                    className="flex-1 px-3 py-3 text-neutral-800"
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    Messages
+                  </Link>
+                </div>
+
+                {/* Dashboard */}
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Dashboard
+                </Link>
+
+                {/* Admin (role-gated) */}
+                {(role === "EMPLOYEE" || role === "ADMIN") && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    Admin
+                  </Link>
+                )}
+              </Show>
+
+              <Show when="signed-out">
+                <Link
+                  href="/sign-in"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Sign in
+                </Link>
+              </Show>
+            </div>
+
+            {/* UserButton at bottom */}
+            <Show when="signed-in">
+              <div className="border-t px-4 py-4">
+                <UserButton />
+              </div>
+            </Show>
+          </div>
+        </>
+      )}
     </header>
   );
 }
-
-
-
-
-
-

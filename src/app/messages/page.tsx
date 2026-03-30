@@ -321,7 +321,7 @@ export default async function MessagesPage({
                           <img src={ctxThumb} alt="" className="h-full w-full object-cover" />
                         </div>
                       ) : null}
-                      <div className="whitespace-nowrap text-xs text-neutral-500">{when}</div>
+                      <div className="hidden sm:block whitespace-nowrap text-xs text-neutral-500">{when}</div>
                     </div>
                   </div>
                 </Link>

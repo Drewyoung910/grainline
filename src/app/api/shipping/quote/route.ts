@@ -1,5 +1,6 @@
 // src/app/api/shipping/quote/route.ts
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { shippoRequest } from "@/lib/shippo";
 
@@ -17,6 +18,13 @@ export const runtime = "nodejs";
  */
 export async function POST(req: Request) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Resolve DB user for cart ownership check
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await req.json().catch(() => ({}));
     const mode = String(body.mode || "cart");
     const currency = String(body.currency || "usd").toLowerCase();
@@ -67,6 +75,10 @@ export async function POST(req: Request) {
       });
       if (!cart || cart.items.length === 0) {
         return NextResponse.json({ rates: [] });
+      }
+      // Verify the cart belongs to the requesting user
+      if (cart.userId !== me.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       sellerId = cart.items[0].listing.sellerId;
 

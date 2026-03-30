@@ -38,12 +38,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  const sellerRoutes: MetadataRoute.Sitemap = sellers.map((s) => ({
-    url: `${BASE_URL}/seller/${s.id}`,
-    lastModified: s.updatedAt,
-    changeFrequency: "monthly",
-    priority: 0.6,
-  }));
+  const sellerRoutes: MetadataRoute.Sitemap = sellers.flatMap((s) => [
+    {
+      url: `${BASE_URL}/seller/${s.id}`,
+      lastModified: s.updatedAt,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    },
+    {
+      url: `${BASE_URL}/seller/${s.id}/shop`,
+      lastModified: s.updatedAt,
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    },
+  ]);
 
   const blogRoutes: MetadataRoute.Sitemap = blogPosts.map((p) => ({
     url: `${BASE_URL}/blog/${p.slug}`,

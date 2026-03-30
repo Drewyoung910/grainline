@@ -307,9 +307,9 @@ export default async function ListingPage({
             <div className="text-sm text-neutral-600">Made to order</div>
           )}
 
-          {/* Price + rating + actions */}
+          {/* Price + rating */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="text-lg">${(listing.priceCents / 100).toFixed(2)}</div>
+            <div className="text-2xl font-semibold">${(listing.priceCents / 100).toFixed(2)}</div>
 
             {stars && (
               <a
@@ -332,40 +332,40 @@ export default async function ListingPage({
                 </div>
               </a>
             )}
-
-            {/* ⬇️ Add to cart + Buy now */}
-            {isActive && !isOwnListing && isOutOfStock && (
-              <div className="ml-auto">
-                <span className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700">
-                  Out of stock
-                </span>
-              </div>
-            )}
-            {canBuy && (
-              <div className="ml-auto flex items-center gap-2">
-                <AddToCartButton
-                  listingId={id}
-                  signedIn={!!userId}
-                  className="rounded border px-3 py-1.5 text-sm"
-                />
-                {userId ? (
-                  <BuyNowButton
-                    listingId={id}
-                    className="rounded bg-neutral-900 px-3 py-1.5 text-white text-sm"
-                  >
-                    Buy now
-                  </BuyNowButton>
-                ) : (
-                  <Link
-                    href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
-                    className="rounded bg-neutral-900 px-3 py-1.5 text-white text-sm"
-                  >
-                    Sign in to buy
-                  </Link>
-                )}
-              </div>
-            )}
           </div>
+
+          {/* ⬇️ Add to cart + Buy now — full width on mobile */}
+          {isActive && !isOwnListing && isOutOfStock && (
+            <div>
+              <span className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700">
+                Out of stock
+              </span>
+            </div>
+          )}
+          {canBuy && (
+            <div className="flex flex-col sm:flex-row gap-2">
+              <AddToCartButton
+                listingId={id}
+                signedIn={!!userId}
+                className="w-full sm:w-auto rounded border px-4 py-3 sm:py-1.5 text-sm min-h-[44px]"
+              />
+              {userId ? (
+                <BuyNowButton
+                  listingId={id}
+                  className="w-full sm:w-auto rounded bg-neutral-900 px-4 py-3 sm:py-1.5 text-white text-sm min-h-[44px]"
+                >
+                  Buy now
+                </BuyNowButton>
+              ) : (
+                <Link
+                  href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
+                  className="w-full sm:w-auto rounded bg-neutral-900 px-4 py-3 sm:py-1.5 text-white text-sm text-center min-h-[44px] flex items-center justify-center"
+                >
+                  Sign in to buy
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* Custom order request — below buy buttons */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (
@@ -467,9 +467,10 @@ export default async function ListingPage({
       </div>
 
       {listing.photos.length > 1 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+        /* Mobile: horizontal scroll; desktop: grid */
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
           {listing.photos.slice(1).map((p) => (
-            <div key={p.id} className="relative aspect-square overflow-hidden rounded-lg border">
+            <div key={p.id} className="relative w-32 h-32 sm:w-auto sm:h-auto sm:aspect-square shrink-0 sm:shrink overflow-hidden rounded-lg border snap-start">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.url} alt="" className="w-full h-full object-cover" />
             </div>

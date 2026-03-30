@@ -533,6 +533,71 @@ URL: `/dashboard/listings/custom?conversationId=[id]&buyerId=[id]`
 1. Add `CLERK_WEBHOOK_SECRET` to Vercel environment variables
 2. Clerk Dashboard → **Production** → Developers → Webhooks → Add Endpoint → `https://thegrainline.com/api/clerk/webhook` → events: `user.created`, `user.updated` → copy Signing Secret → paste as `CLERK_WEBHOOK_SECRET`
 
+## Mobile Audit Round 2 (complete)
+
+Second mobile fix pass (2026-03-29). Zero TypeScript errors.
+
+### FilterSidebar (`src/components/FilterSidebar.tsx`)
+- **Apply button fixed** — removed `onClick={() => setMobileOpen(false)}` from the submit button; the premature state update was unmounting the form before the browser could process the `method="get"` submission. Sheet now closes via the existing `searchParams` useEffect when the URL updates after navigation.
+- Reset link's `onClick` also removed for the same reason.
+
+### Header (`src/components/Header.tsx`)
+- **Logo tap target** — added `flex items-center min-h-[44px]` to the logo `<Link>` for a proper 44px touch target on mobile.
+- **Messages drawer row fixed** — the "Messages" text span was not navigable (only the `MessageIconLink` icon was a link). Restructured: `MessageIconLink` (icon + unread badge) stays as the icon, a sibling `<Link href="/messages">` covers the text label. Both elements are now independently navigable.
+
+### Notifications API (`src/app/api/notifications/route.ts`)
+- **Auto-cleanup** — on every `GET /api/notifications`, fire-and-forget `deleteMany` removes `read: true` notifications older than 90 days for the requesting user. Only read notifications are pruned; unread are never deleted.
+
+### Dashboard listings (`src/app/dashboard/page.tsx`)
+- "My Listings" section: `flex overflow-x-auto snap-x snap-mandatory` on mobile → `sm:grid sm:grid-cols-2 lg:grid-cols-3` on desktop. Each card gets `min-w-[220px] flex-none snap-start sm:min-w-0`.
+
+### Seller profile (`src/app/seller/[id]/page.tsx`)
+- **Featured Work**, **All Listings**, and **From the Workshop** (blog posts) sections all converted to the same pattern: horizontal scroll row on mobile (`flex overflow-x-auto snap-x snap-mandatory pb-4`), grid on tablet/desktop (`sm:grid` or `md:grid`). Min-width per card: 200–220px.
+
+### Message interface
+- **`src/components/MessageComposer.tsx`** — outer container changed to `sticky bottom-0 bg-white border-t` with `[padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]` for iPhone home-bar clearance. Send button: icon-only on mobile (paper-plane SVG), text label on `sm+`.
+- **`src/components/ThreadMessages.tsx`** — message bubble max-width changed to `max-w-[85%] sm:max-w-[70%]`. Added `pb-4` to inner `<ul>`.
+- **`src/app/messages/[id]/page.tsx`** — reduced padding: `p-4 sm:p-8`, `space-y-4 sm:space-y-6`.
+- **`src/app/messages/page.tsx`** — conversation list timestamp hidden on mobile (`hidden sm:block`).
+
+## Mobile Audit (complete)
+
+Full responsive audit and fix pass across all key pages (2026-03-29). Zero TypeScript errors.
+
+### Header (`src/components/Header.tsx`)
+- Mobile (< `md`): shows logo + cart icon + hamburger only
+- Hamburger opens a right-slide drawer (`animate-slide-in-right`, `w-72 max-w-[85vw]`): search bar (home/browse only), Browse, Blog, Messages (with `MessageIconLink` unread badge), Notifications link (with count fetched in Header state), Cart with count, Dashboard, Admin (role-gated), `UserButton` at bottom
+- Drawer closes on Escape, backdrop click, or navigation (`pathname`/`searchParams` effect)
+- Body scroll locked while drawer open
+
+### Filter Sidebar (`src/components/FilterSidebar.tsx`)
+- Mobile: sidebar hidden; sticky "Filters (N)" button with `Filter` icon and active-filter count badge
+- Clicking opens bottom sheet (`animate-slide-up`, `max-h-[85vh]`, drag handle, Apply/Close buttons)
+- Active filter count computed from all current URL params
+- Desktop: sidebar unchanged
+
+### Browse page (`src/app/browse/page.tsx`)
+- Both main and no-results layouts changed from `flex` row to `flex flex-col md:flex-row` so the filter button stacks above listings on mobile
+
+### Admin panel (`src/app/admin/layout.tsx` + `src/components/AdminMobileNav.tsx`)
+- Mobile: sidebar hidden; new `AdminMobileNav` client component renders a horizontal scrollable tab strip above content
+- Tabs: Orders, Cases, Flagged, Verify, Blog — active tab highlighted via `usePathname`; amber badge dots for counts
+- Layout changed to `flex-col md:flex-row`; content padding `p-4 md:p-8`
+
+### Dashboard nav (`src/app/dashboard/page.tsx`)
+- Button container: `grid grid-cols-2 sm:flex sm:flex-wrap`
+- Each button: `flex-col sm:flex-row`, larger icon (20px) on mobile, smaller (16px) on desktop, `min-h-[56px]` on mobile for 44px+ tap targets
+
+### Listing detail (`src/app/listing/[id]/page.tsx`)
+- Price: bumped to `text-2xl font-semibold`
+- Buy buttons: own row, `w-full` on mobile with `py-3 min-h-[44px]`, `sm:w-auto` on desktop
+- Additional photo thumbnails: `flex overflow-x-auto snap-x snap-mandatory` on mobile → `sm:grid sm:grid-cols-4` on desktop
+
+### globals.css (`src/app/globals.css`)
+- `text-size-adjust: 100%; font-size: max(16px, 1em)` on all `input`, `textarea`, `select` — prevents iOS auto-zoom on focus
+- `@keyframes slide-in-right` → `.animate-slide-in-right` for header drawer
+- `@keyframes slide-up` → `.animate-slide-up` for filter bottom sheet
+
 ## Listing Card Design (complete)
 
 All listing cards share a consistent sharp-edged design:
@@ -542,20 +607,116 @@ All listing cards share a consistent sharp-edged design:
 
 Applied in:
 - `src/app/browse/page.tsx` — `GridCard` (container + info/seller divs), `ListCard` (container + thumbnail), no-results featured items
-- `src/app/page.tsx` — Fresh from the Workshop + Collector Favorites horizontal scroll cards; blog post cards
+- `src/app/page.tsx` — Fresh from the Workshop + Buyer Favorites horizontal scroll cards; blog post cards
 - `src/components/SimilarItems.tsx` — card list items + skeleton placeholders
+
+## FavoriteButton Coverage (complete)
+
+`FavoriteButton` is present on every listing card surface. Sign-out is handled: clicking while unauthenticated receives a 401 and redirects to `/sign-in?redirect_url=<current-path>`.
+
+| Surface | File | `initialSaved` source |
+|---|---|---|
+| Browse grid + list | `src/app/browse/page.tsx` | `savedSet` (server query) |
+| Homepage Fresh / Buyer Favorites | `src/app/page.tsx` | `saved` Set (server query) |
+| Seller profile — Featured Work | `src/app/seller/[id]/page.tsx` | `savedSet` (server query via `meId`) |
+| Seller profile — All Listings | `src/app/seller/[id]/page.tsx` | `savedSet` (server query via `meId`) |
+| Similar Items | `src/components/SimilarItems.tsx` | `false` (client component, no server query) |
+
+Card containers use `<div className="relative">` wrapping the photo Link; `FavoriteButton` sits outside the Link to avoid nested-interactive-element violation. The button's own `absolute right-3 top-3 z-10` handles positioning.
+
+## Seller Shop Page (complete)
+
+`/seller/[id]/shop` — dedicated paginated listing grid for a seller's shop. Deployed 2026-03-29.
+
+- **Files**: `src/app/seller/[id]/shop/page.tsx` (server component), `src/app/seller/[id]/shop/SortSelect.tsx` ("use client" dropdown)
+- **URL params**: `?category=` (filter by Category enum), `?sort=newest|price_asc|price_desc|popular`, `?page=` (1-based, 20/page)
+- **Category tabs** — "All" + one pill per category the seller actually has ACTIVE listings in (via `groupBy`); active tab is filled `bg-neutral-900 text-white`; horizontal scroll on mobile
+- **Sort dropdown** (`SortSelect.tsx`) — client component; on change, pushes new URL preserving current category; options: Newest / Price: Low to High / Price: High to Low / Most Popular
+- **Grid** — `grid-cols-2 md:grid-cols-3 lg:grid-cols-4`; cards: `border border-neutral-200`, `bg-stone-50` info section, `FavoriteButton` with `savedSet` server query
+- **Pagination** — Prev / `Page X of Y` / Next links; only shown when `totalPages > 1`
+- **Empty state** — category-aware message when no listings match
+- **Header bar** — seller avatar + name + "← Back to profile" link + Verified Maker badge
+- **`generateMetadata`** — canonical URL, title, description
+- **Entry points**:
+  - `src/app/seller/[id]/page.tsx` All Listings section: shows first 8, "See all N pieces →" link in header; "See all N pieces →" button below when >8
+  - `src/app/dashboard/page.tsx` My Listings section: "View My Shop →" link next to heading
+- **Sitemap** — seller profiles now use `flatMap` to emit both `/seller/[id]` and `/seller/[id]/shop` at priority 0.6 monthly
+- **FavoriteButton** covered: `savedSet` server query for signed-in users; `initialSaved={false}` fallback for signed-out (401 → redirect)
+
+## Security Audit (complete — 2026-03-30)
+
+Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed and deployed.
+
+### Fixes applied
+
+**`/api/shipping/quote` (POST)** — Added `auth()` + cart ownership verification
+- Previously: no authentication required; cart looked up by opaque UUID with no ownership check
+- Fix: `auth()` returns 401 for unauthenticated callers; in cart mode, added `if (cart.userId !== me.id) return 403`
+- Risk mitigated: unauthenticated Shippo API abuse (cost), and theoretically reading another user's cart-linked data
+
+**`/api/checkout` (POST)** — Added three missing guards on the legacy direct-checkout route
+- `listing.status !== "ACTIVE"` → 400 (blocked buying drafts, sold, hidden listings)
+- `listing.isPrivate && listing.reservedForUserId !== me.id` → 400 (private/reserved listings only for intended buyer)
+- `listing.seller.userId === me.id` → 400 (blocked self-purchase, a Stripe ToS violation and fraud vector)
+- Note: the main cart checkout routes (`/api/cart/checkout`, `/api/cart/checkout/single`) already had these checks
+
+### Security posture
+
+| Layer | Status |
+|---|---|
+| Authentication | ✅ Clerk on all sensitive routes; 401 before any data access |
+| Authorization / ownership | ✅ All user-scoped mutations verify DB `userId` match; IDOR not possible |
+| SQL injection | ✅ Prisma ORM — parameterized queries throughout; raw SQL only for analytics aggregations (read-only, no user input in table names) |
+| Webhook integrity | ✅ Stripe HMAC signature verification; Clerk Svix signature verification |
+| Role-based access | ✅ `EMPLOYEE | ADMIN` required for case resolution and admin panel; checked against DB role, not cookie |
+| HTTPS | ✅ Enforced by Vercel / Cloudflare |
+| Dev-only routes | ✅ `/api/dev/make-order` returns 403 in production (`NODE_ENV === "production"`) |
+| File uploads | ✅ All UploadThing endpoints require auth via middleware (throws if no Clerk userId) |
+
+### Remaining security improvements (not urgent)
+
+- **Rate limiting** — Add `@upstash/ratelimit` on high-volume public routes (`/api/search/suggestions`, `/api/listings/[id]/view`, `/api/listings/[id]/click`) and auth-sensitive routes (`/api/reviews`)
+- **Security headers** — Add `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` in `next.config.ts`
+- **Input validation** — Add Zod schemas to validate and sanitize API request bodies (currently relies on manual type assertions and `.slice()` guards)
 
 ## Remaining Work
 
-Priority order:
+### Mobile audit round 3 (complete — deployed 2026-03-29)
 
-1. **Map missing for new sellers** — listing detail pages show no map until the seller sets their location in `/dashboard/seller`; add a prompt or default state
-2. **Clerk webhook production setup** — see "Deployment steps" in Clerk User Sync Webhook section above
-3. **Stripe live mode webhook** — register in Stripe live mode after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel
-4. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`
-5. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
-6. **Commission / wanted board** — public board where buyers post custom piece requests; sellers respond
-7. **Mobile audit** — responsive layout review and polish across all pages
+All items done:
+1. Search icon in mobile header → slide-down dropdown with transparent backdrop + `animate-slide-down`
+2. `NotificationBell` added to mobile header (inside `<Show when="signed-in">`, `flex items-center` wrapper for vertical alignment)
+3. Cart icon added to mobile header; cart row removed from hamburger drawer
+4. Notifications link removed from hamburger drawer (bell now in header)
+5. Bell vertical alignment fixed — `inline-flex items-center justify-center min-h-[44px] min-w-[44px]` wrapper
+6. "Cart" text removed from desktop header — icon-only (badge preserved)
+7. "Collectors" → "Buyers" rename in all user-facing copy (`page.tsx`, `sales/[orderId]/page.tsx`, `fulfillment/route.ts`)
+8. "Browse all" categories tile confirmed correct — `href="/browse"` with no category param
+
+### Infrastructure / legal
+
+10. **Terms of service page** — `/terms` static page
+11. **Privacy policy page** — `/privacy` static page
+12. **Clerk webhook production setup** — see "Deployment steps" in Clerk User Sync Webhook section above
+13. **Stripe live mode webhook** — register in Stripe live mode after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel
+
+### Seller tools
+
+14. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`
+15. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
+16. **Seller onboarding flow** — guided first-time setup: set location, add first listing, connect Stripe
+
+### Discovery & community
+
+17. **Commission / wanted board** — public board where buyers post custom piece requests; sellers respond
+18. **Following system** — buyers follow sellers; `NEW_FOLLOWER` notification type already in schema
+19. **Blog subscriptions** — subscribe to a seller's blog; get notified on new posts
+20. **Blog search** — search within blog posts
+21. **Save / bookmark blog posts** — heart or bookmark a post for later
+
+### Platform
+
+22. **PWA setup** — `manifest.json`, service worker, offline fallback, home-screen install prompt; map `apple-touch-icon`
 
 **TypeScript: zero `tsc --noEmit` errors** (all pre-existing errors resolved as of current codebase)
 
