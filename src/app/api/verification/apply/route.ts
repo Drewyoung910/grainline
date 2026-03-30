@@ -5,6 +5,10 @@ import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
+const REQUIRED_LISTINGS = 5;
+const REQUIRED_SALES_CENTS = 25000; // $250
+const REQUIRED_ACCOUNT_DAYS = 30;
+
 export async function POST(req: Request) {
   try {
     const { seller } = await ensureSeller();
@@ -21,6 +25,68 @@ export async function POST(req: Request) {
     }
     if (yearsExperience === null || !Number.isFinite(yearsExperience)) {
       return NextResponse.json({ error: "yearsExperience must be a non-negative integer" }, { status: 400 });
+    }
+
+    // ── Server-side eligibility check ─────────────────────────────────────
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+    const sellerData = await prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: { userId: true, user: { select: { createdAt: true } } },
+    });
+
+    if (!sellerData) {
+      return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
+    }
+
+    const [activeListings, salesResult, longCaseCount] = await Promise.all([
+      prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE" } }),
+      prisma.orderItem.aggregate({
+        where: {
+          listing: { sellerId: seller.id },
+          order: { fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] } },
+        },
+        _sum: { priceCents: true },
+      }),
+      prisma.case.count({
+        where: {
+          sellerId: sellerData.userId,
+          status: { notIn: ["RESOLVED", "CLOSED"] },
+          createdAt: { lt: sixtyDaysAgo },
+        },
+      }),
+    ]);
+
+    const totalSalesCents = salesResult._sum.priceCents ?? 0;
+    const accountAgeDays = sellerData.user?.createdAt
+      ? Math.floor((Date.now() - new Date(sellerData.user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    if (activeListings < REQUIRED_LISTINGS) {
+      return NextResponse.json(
+        { error: `You need at least ${REQUIRED_LISTINGS} active listings. You currently have ${activeListings}.` },
+        { status: 400 }
+      );
+    }
+    if (totalSalesCents < REQUIRED_SALES_CENTS) {
+      const needed = ((REQUIRED_SALES_CENTS - totalSalesCents) / 100).toFixed(2);
+      return NextResponse.json(
+        { error: `You need $250 in completed sales. You need $${needed} more.` },
+        { status: 400 }
+      );
+    }
+    if (accountAgeDays < REQUIRED_ACCOUNT_DAYS) {
+      const remaining = REQUIRED_ACCOUNT_DAYS - accountAgeDays;
+      return NextResponse.json(
+        { error: `Your account must be at least ${REQUIRED_ACCOUNT_DAYS} days old. ${remaining} days remaining.` },
+        { status: 400 }
+      );
+    }
+    if (longCaseCount > 0) {
+      return NextResponse.json(
+        { error: `You have ${longCaseCount} unresolved case${longCaseCount !== 1 ? "s" : ""} open longer than 60 days. Resolve them before applying.` },
+        { status: 400 }
+      );
     }
 
     const record = await prisma.makerVerification.upsert({

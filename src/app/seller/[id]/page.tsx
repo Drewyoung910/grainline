@@ -9,6 +9,7 @@ import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import FavoriteButton from "@/components/FavoriteButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icons";
+import GuildBadge from "@/components/GuildBadge";
 
 export async function generateMetadata({
   params,
@@ -250,11 +251,7 @@ export default async function SellerPublicPage({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold">{seller.displayName}</h1>
-                {seller.isVerifiedMaker && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                    ✓ Verified Maker
-                  </span>
-                )}
+                <GuildBadge level={seller.guildLevel} showLabel={true} size={20} />
               </div>
               {seller.tagline && (
                 <p className="text-sm text-neutral-600 mt-0.5">{seller.tagline}</p>

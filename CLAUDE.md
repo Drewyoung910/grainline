@@ -351,14 +351,87 @@ URL: `/dashboard/listings/custom?conversationId=[id]&buyerId=[id]`
 - Listing detail page: `reservedForOther` hides buy buttons and shows "custom piece reserved for another buyer" notice; `reservedForMe` shows "🎨 This piece was made just for you!" amber banner and buy buttons display normally
 - `/api/listings/[id]/stock` PATCH: private listings are not promoted to `ACTIVE` when restocked
 
-## Verified Maker Badge System (complete)
+## Guild Verification Program (Phase 1 complete — Phase 2–3 pending)
 
-- **`MakerVerification` model** — `VerificationStatus` enum (`PENDING | APPROVED | REJECTED`); seller can apply (or reapply after rejection) via upsert; migration `20260327212938_add_maker_verification`
-- **Seller application** — `src/app/dashboard/verification/page.tsx`: three states: green "You are a Verified Maker ✓" banner (already verified), amber "under review" banner (PENDING), application form (not applied or REJECTED). Form fields: craft description (max 500), years of experience, portfolio URL, handmade confirmation checkbox. Server action upserts `MakerVerification` with `PENDING` status and resets review fields on reapply.
-- **`POST /api/verification/apply`** — auth + `ensureSeller`; upserts record; returns created/updated record
-- **Admin queue** — `src/app/admin/verification/page.tsx`: PENDING applications sorted oldest-first; shows seller name, craft description, years, portfolio URL (clickable); Approve button uses `$transaction` to set `status = APPROVED` + `SellerProfile.isVerifiedMaker = true` + `verifiedAt = now()`; Reject form accepts optional review notes
-- **Admin sidebar** — `src/app/admin/layout.tsx`: "Verification" link with amber pending-count badge (parallel query alongside cases count)
-- **Dashboard nav** — `src/app/dashboard/page.tsx`: "✓ Verified Maker" green pill if verified; "Badge Application Pending" if PENDING; "Apply for Verified Badge" otherwise
+Two-tier badge system replacing the old single "Verified Maker" badge.
+
+### Schema additions
+- **`GuildLevel` enum** — `NONE | GUILD_MEMBER | GUILD_MASTER`
+- **`VerificationStatus` additions** — `GUILD_MASTER_PENDING | GUILD_MASTER_APPROVED | GUILD_MASTER_REJECTED` (keeping existing `PENDING | APPROVED | REJECTED` for Guild Member)
+- **`SellerProfile` additions**: `guildLevel GuildLevel @default(NONE)`, `guildMemberApprovedAt DateTime?`, `guildMasterApprovedAt DateTime?`, `guildMasterAppliedAt DateTime?`, `guildMasterReviewNotes String?`
+- Migration: `20260330181203_add_guild_levels`
+- `isVerifiedMaker` boolean retained on SellerProfile for legacy compatibility; set to `true` on Guild Member approval
+
+### `GuildBadge` component (`src/components/GuildBadge.tsx`)
+- `"use client"` — accepts `level: GuildLevelValue`, `showLabel?: boolean` (default `false`), `size?: number` (default `18`)
+- Returns `null` if level is `"NONE"`
+- **Guild Member** — `LaurelWreathIcon`: amber/gold two-branch wreath SVG (40×44 viewBox, ellipse leaves, ribbon tie, star dot at top)
+- **Guild Master** — `HammerChiselIcon`: indigo crossed hammer + chisel SVG (40×40 viewBox)
+- **Popup**: `createPortal`-based — renders at `document.body` to avoid `overflow:hidden` clipping; positioned below the badge button using `getBoundingClientRect()` + scroll offsets, clamped to viewport width; closes on outside click or Escape; "Learn more about Guild Verification →" link to `/terms#guild-verification-program`
+- `showLabel={false}` → icon only (used on listing cards); `showLabel={true}` → icon + label text (used on profile/detail pages)
+- `GuildLevelValue` type exported from the file
+
+### Badge placement with props
+| Surface | `showLabel` | `size` |
+|---|---|---|
+| Browse GridCard + ListCard seller chip | `false` | `16` |
+| Homepage Fresh + Favorites cards | `false` | `16` |
+| `SimilarItems` seller chip | `false` | `16` |
+| Listing detail seller section | `true` | `18` |
+| Seller profile header | `true` | `20` |
+| Seller shop header | `true` | `20` |
+| Dashboard verification page (section headers) | `false` | `20` |
+
+### Seller dashboard (`/dashboard/verification`)
+Two sections:
+- **Section A (Guild Member)**: Active (green) if `guildLevel !== NONE`; Under Review (amber) if `status === PENDING`; **eligibility checklist** otherwise showing ✓/✗ for each requirement (active listings ≥ 5, completed sales ≥ $250, account age ≥ 30 days, no cases open > 60 days) + profile completeness as ○ recommendation; application form shown only when all 4 criteria met
+- **Section B (Guild Master)**: Only shown if `isMemberActive`; Active (indigo) if `guildLevel === GUILD_MASTER`; Under Review if `status === GUILD_MASTER_PENDING`; application form otherwise (business description, portfolio, standards checkbox)
+- `applyForGuildMaster` server action updates `MakerVerification.status = GUILD_MASTER_PENDING` and `SellerProfile.guildMasterAppliedAt` in a `$transaction`
+
+### Admin queue (`/admin/verification`)
+Four sections:
+1. **Guild Member Applications** (PENDING) — visual 8-item review checklist (profile photo, bio, listings, policies, no red flags, craft description authenticity, portfolio check, sales requirement); functional **admin override checkbox** ("Override $250 sales requirement"); `approveGuildMember(formData)` reads `verificationId` + `adminOverride` from form; when override checked, sets `reviewNotes = "Admin override: $250 sales requirement waived"` on approval; Reject with notes
+2. **Guild Master Applications** (GUILD_MASTER_PENDING) — Approve (sets `guildLevel = GUILD_MASTER`, `guildMasterApprovedAt`) / Reject (sets `guildMasterReviewNotes`)
+3. **Active Guild Members** — Revoke Badge (sets `guildLevel = NONE`, `isVerifiedMaker = false`)
+4. **Active Guild Masters** — Revoke Guild Master (sets `guildLevel = GUILD_MEMBER`)
+- All approve/reject send `VERIFICATION_APPROVED` / `VERIFICATION_REJECTED` notifications and emails
+
+### API route (`/api/verification/apply`)
+Server-side eligibility enforcement mirrors dashboard check — returns 400 with specific error messages if any of the 4 criteria fail (e.g. "You need $X more in sales").
+
+### Terms page Section 19.2
+Updated to remove "identity verification" language; now lists: completed profile, ≥5 active listings, $250 in completed sales, good account standing, reviewed by Grainline staff.
+
+### Dashboard nav (`/dashboard`)
+- `guildLevel === GUILD_MASTER` → indigo "Guild Master" pill
+- `guildLevel === GUILD_MEMBER` → amber "Guild Member" pill
+- `status === PENDING` → "Guild Badge Pending"
+- Otherwise → "Apply for Guild Badge"
+
+### Build fix
+`package.json` build script updated to `"prisma generate && next build"` so Vercel always regenerates the Prisma client before compiling TypeScript.
+
+### Phase 1 — still needed
+- **Badge icons**: user will provide custom images for laurel wreath (Guild Member, gold) and wax seal (Guild Master, indigo). Two options for wax seal: (A) shop initials monogram stamp — unique per seller, stored as `guildStampStyle` field on `SellerProfile`; (B) Grainline guild logo. Leaning toward (A).
+- **Monogram stamp style picker**: serif / block / script / ornate — to be added to Guild Master application form; `guildStampStyle String?` field needed on `SellerProfile`
+
+### Phase 2 — not started
+Metrics-driven Guild Master gating:
+- Add `shippedAt DateTime?` to `Order` model (tracks when label purchased = shipped)
+- Add `firstResponseAt` tracking to `Conversation` model for response rate calculation
+- **`SellerMetrics` model**: `sellerProfileId`, `calculatedAt`, `periodMonths(3)`, `averageRating`, `reviewCount`, `onTimeShippingRate`, `responseRate`, `totalSalesCents`, `completedOrderCount`, `activeCaseCount`, `accountAgeDays`
+- **`calculateSellerMetrics()`** function in `src/lib/metrics.ts`
+- Guild Master application page shows live metrics vs requirements (4.5+ stars, 25+ reviews, 95% on-time shipping, 90% response rate, 6 months old, $1000 sales, no disputes in 3 months); blocks application if not met
+- Admin Guild Master queue shows full metrics dashboard per applicant
+
+### Phase 3 — not started
+Auto-maintenance and revocation:
+- Monthly cron job to recalculate all seller metrics
+- Auto-revoke Guild Master if metrics fail for 2 consecutive months
+- Warning notification 30 days before potential revocation
+- Grace period logic: fail month 1 = warning, fail month 2 = revoke
+- Auto-revoke Guild Member if: drops below 5 listings for 30 days, case unresolved 90 days, ToS violation
+- Connect `SellerMetrics` to seller analytics dashboard (Phase 2 metrics reused here)
 
 ## Similar Items (complete)
 
@@ -705,6 +778,36 @@ Installed via Sentry wizard. Session replay disabled (bundle size trade-off).
 ### Tooling
 - Sentry MCP configured for Claude Code and VS Code — enables AI-assisted error investigation directly from the Sentry dashboard
 
+## Legal Pages (complete)
+
+`/terms` and `/privacy` — both server components, publicly accessible (added to middleware public matcher), linked in site footer (`src/app/layout.tsx`). Both display a red **DRAFT — Under Attorney Review** banner. Both have a Table of Contents with anchor links and are mobile responsive / print-friendly.
+
+### Terms of Service (`/terms`) — 21 sections
+
+Key sections beyond boilerplate:
+- **Section 4** (Maker Terms) — 18 subsections including: listing accuracy with no-guarantee-of-authenticity clause (4.4), listing removal rights (4.16), off-platform transaction prohibition (4.17), product liability (4.18), gift wrapping, independent contractor status, custom orders, response/shipping requirements
+- **Section 6.4** — Marketplace facilitator sales tax: Texas Tax Code §151.0242 + all-states compliance; written certification to Makers that Grainline collects/remits on their behalf; 1099-K disclosure; Stripe Tax
+- **Section 8** — Returns/refunds rewritten with 8.1–8.6 including seller-initiated refunds and "Grainline is not the seller" disclaimer
+- **Section 9** — Case System rewritten with 30-day window, 48h seller response, $10k escalation note, binding arbitration cross-reference
+- **Section 10** — Prohibited Activities: 24 items including fake accounts/bots for metric manipulation, coordinated rating inflation, off-platform solicitation, false product safety info
+- **Section 13** — Disclaimers: 13.1 As-Is, 13.2 No Warranty for Listings, 13.3 No Warranty of Authenticity (all-caps), 13.4 Limitation of Liability (12-month fees / $100 cap)
+- **Section 15** — Texas governing law, AAA binding arbitration, class action waiver, 30-day opt-out
+- **Section 19** — Guild Verification Program: Guild Member + Guild Master badges, FTC disclosure, revocation policy
+- **Section 20** — Force Majeure
+- **Section 21** — Accessibility (WCAG 2.1 AA)
+
+### Privacy Policy (`/privacy`) — 13 sections
+
+Key sections:
+- **Section 2** — 11 subsections: account, profile, transaction, communications, usage, device, location (EXIF stripping disclosed), photo metadata, newsletter, cookies, third-party data
+- **Section 4** — Sharing: Stripe, Clerk, Shippo, Resend, UploadThing, Sentry; tax authority sharing (marketplace facilitator); buyer-maker data restrictions; no sale/sharing for ads
+- **Section 6** — Retention schedule: account (active + 30d), transactions (7yr), sales tax records (4yr per Texas Comptroller), 1099-K (7yr), messages (3yr), notifications (90d read)
+- **Section 7** — Rights: universal rights + 7.2 California CCPA/CPRA, 7.3 Texas TDPSA (appeal right, 45-day response), 7.4 EU/EEA/UK GDPR (legal basis: contract + legitimate interests + consent; SCCs for US transfers)
+
+## UptimeRobot Monitoring (complete)
+
+UptimeRobot configured to ping thegrainline.com every 5 minutes. Alerts on downtime.
+
 ## Remaining Work
 
 ### Mobile audit round 3 (complete — deployed 2026-03-29)
@@ -721,28 +824,30 @@ All items done:
 
 ### Infrastructure / legal
 
-10. **Terms of service page** — `/terms` static page
-11. **Privacy policy page** — `/privacy` static page
+10. ~~**Terms of service page**~~ — complete, see "Legal Pages" section below
+11. ~~**Privacy policy page**~~ — complete, see "Legal Pages" section below
 12. **Clerk webhook production setup** — see "Deployment steps" in Clerk User Sync Webhook section above
 13. **Stripe live mode webhook** — register in Stripe live mode after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel
 
 ### Seller tools
 
-14. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`
-15. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
-16. **Seller onboarding flow** — guided first-time setup: set location, add first listing, connect Stripe
+14. ~~**Guild verification rebuild**~~ — Phase 1 complete (see Guild Verification Program section); Phase 2–3 pending
+15. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`; will reuse `SellerMetrics` model from Guild Phase 2
+16. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
+17. **Seller onboarding flow** — guided first-time setup: set location, add first listing, connect Stripe
 
 ### Discovery & community
 
-17. **Commission / wanted board** — public board where buyers post custom piece requests; sellers respond
 18. **Following system** — buyers follow sellers; `NEW_FOLLOWER` notification type already in schema
-19. **Blog subscriptions** — subscribe to a seller's blog; get notified on new posts
-20. **Blog search** — search within blog posts
-21. **Save / bookmark blog posts** — heart or bookmark a post for later
+19. **Commission / wanted board** — public board where buyers post custom piece requests; sellers respond
+20. **Blog subscriptions** — subscribe to a seller's blog; get notified on new posts
+21. **Blog search** — search within blog posts
+22. **Save / bookmark blog posts** — heart or bookmark a post for later
 
 ### Platform
 
-22. **PWA setup** — `manifest.json`, service worker, offline fallback, home-screen install prompt; map `apple-touch-icon`
+23. **Rate limiting** — `@upstash/ratelimit` on high-volume public routes and auth-sensitive routes
+24. **PWA setup** — `manifest.json`, service worker, offline fallback, home-screen install prompt; map `apple-touch-icon`
 
 **TypeScript: zero `tsc --noEmit` errors** (all pre-existing errors resolved as of current codebase)
 

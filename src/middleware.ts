@@ -11,6 +11,8 @@ const isPublic = createRouteMatcher([
   "/listing(.*)",
   "/seller(.*)",          // public seller profiles
   "/sellers(.*)",         // sellers directory
+  "/terms",               // Terms of Service — public legal page
+  "/privacy",             // Privacy Policy — public legal page
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
   "/api/uploadthing(.*)",  // UploadThing callback must be public (no Clerk session)

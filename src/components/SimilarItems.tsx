@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
+import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
 
 type SimilarListing = {
   id: string;
@@ -11,6 +12,7 @@ type SimilarListing = {
   photoUrl: string | null;
   sellerDisplayName: string;
   sellerAvatarImageUrl: string | null;
+  sellerGuildLevel?: string | null;
 };
 
 export default function SimilarItems({ listingId }: { listingId: string }) {
@@ -70,7 +72,7 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                       currency: l.currency,
                     })}
                   </div>
-                  <div className="flex items-center gap-1.5 pt-1">
+                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
                     {l.sellerAvatarImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -82,6 +84,9 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                       <div className="h-4 w-4 rounded-full bg-neutral-300" />
                     )}
                     <span className="text-xs text-neutral-500">{l.sellerDisplayName}</span>
+                    {l.sellerGuildLevel && l.sellerGuildLevel !== "NONE" && (
+                      <GuildBadge level={l.sellerGuildLevel as GuildLevelValue} showLabel={false} size={16} />
+                    )}
                   </div>
                 </div>
               </Link>

@@ -149,6 +149,11 @@ model SellerProfile {
   galleryImageUrls          String[] @default([])
   isVerifiedMaker           Boolean  @default(false)
   verifiedAt                DateTime?
+  guildLevel                GuildLevel @default(NONE)
+  guildMemberApprovedAt     DateTime?
+  guildMasterApprovedAt     DateTime?
+  guildMasterAppliedAt      DateTime?
+  guildMasterReviewNotes    String?
 
   listings             Listing[]
   faqs                 SellerFaq[]
@@ -591,6 +596,15 @@ enum VerificationStatus {
   PENDING
   APPROVED
   REJECTED
+  GUILD_MASTER_PENDING
+  GUILD_MASTER_APPROVED
+  GUILD_MASTER_REJECTED
+}
+
+enum GuildLevel {
+  NONE
+  GUILD_MEMBER
+  GUILD_MASTER
 }
 
 model MakerVerification {

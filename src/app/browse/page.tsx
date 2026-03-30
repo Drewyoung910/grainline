@@ -11,6 +11,7 @@ import ClickTracker from "@/components/ClickTracker";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
 import RecentlyViewed from "@/components/RecentlyViewed";
+import GuildBadge from "@/components/GuildBadge";
 
 const PAGE_SIZE = 24;
 
@@ -525,20 +526,23 @@ export default async function BrowsePage({
               ))}
             </div>
           )}
-          <Link
-            href={`/seller/${l.sellerId}`}
-            className="inline-flex items-center gap-2 text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
-          >
-            {sellerAvatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={sellerAvatar} alt={sellerName} className="h-5 w-5 rounded-full object-cover" />
-            ) : (
-              <div className="h-5 w-5 rounded-full bg-neutral-200 flex items-center justify-center">
-                <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
-              </div>
-            )}
-            <span>{sellerName}</span>
-          </Link>
+          <div className="flex items-center flex-wrap gap-1.5">
+            <Link
+              href={`/seller/${l.sellerId}`}
+              className="inline-flex items-center gap-2 text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
+            >
+              {sellerAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={sellerAvatar} alt={sellerName} className="h-5 w-5 rounded-full object-cover" />
+              ) : (
+                <div className="h-5 w-5 rounded-full bg-neutral-200 flex items-center justify-center">
+                  <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
+                </div>
+              )}
+              <span>{sellerName}</span>
+            </Link>
+            <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
+          </div>
           {l.seller.acceptingNewOrders === false && (
             <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
               Not accepting new orders
@@ -571,9 +575,12 @@ export default async function BrowsePage({
             <div className="shrink-0 font-medium">${(l.priceCents / 100).toFixed(2)}</div>
           </div>
 
-          <Link href={`/seller/${l.sellerId}`} className="text-xs text-neutral-500 hover:underline mt-0.5 block">
-            {sellerName}
-          </Link>
+          <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+            <Link href={`/seller/${l.sellerId}`} className="text-xs text-neutral-500 hover:underline">
+              {sellerName}
+            </Link>
+            <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
+          </div>
           {l.seller.acceptingNewOrders === false && (
             <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-1 inline-block">
               Not accepting new orders

@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import { Providers } from "@/components/Providers";
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://grainline.co"),
@@ -45,6 +46,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Header />
           </Suspense>
           {children}
+          <footer className="border-t border-neutral-200 mt-16 py-6 px-6 text-center text-xs text-neutral-400">
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link href="/terms" className="hover:text-neutral-600 hover:underline">Terms of Service</Link>
+              <Link href="/privacy" className="hover:text-neutral-600 hover:underline">Privacy Policy</Link>
+            </div>
+            <p className="mt-2">&copy; {new Date().getFullYear()} Grainline. All rights reserved.</p>
+          </footer>
         </Providers>
       </body>
     </html>

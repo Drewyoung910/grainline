@@ -71,7 +71,7 @@ export default async function DashboardPage() {
 
   const { me, seller } = await ensureSeller();
 
-  const [listings, savedSearches, verification, notifUnreadCount] = await Promise.all([
+  const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id },
       include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
@@ -86,7 +86,12 @@ export default async function DashboardPage() {
       select: { status: true },
     }),
     prisma.notification.count({ where: { userId: me.id, read: false } }),
+    prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: { guildLevel: true },
+    }),
   ]);
+  const guildLevel = guildSeller?.guildLevel ?? "NONE";
 
   return (
     <main className="max-w-6xl mx-auto p-8">
@@ -199,14 +204,23 @@ export default async function DashboardPage() {
             )}
           </Link>
 
-          {seller.isVerifiedMaker ? (
+          {guildLevel === "GUILD_MASTER" ? (
             <Link
               href="/dashboard/verification"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-green-300 bg-green-50 px-4 py-3 sm:py-2 text-sm font-medium text-green-800 hover:bg-green-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Sparkles size={20} className="sm:hidden shrink-0" />
               <Sparkles size={16} className="hidden sm:block shrink-0" />
-              Verified Maker
+              Guild Master
+            </Link>
+          ) : guildLevel === "GUILD_MEMBER" ? (
+            <Link
+              href="/dashboard/verification"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Sparkles size={20} className="sm:hidden shrink-0" />
+              <Sparkles size={16} className="hidden sm:block shrink-0" />
+              Guild Member
             </Link>
           ) : (
             <Link
@@ -215,7 +229,7 @@ export default async function DashboardPage() {
             >
               <Sparkles size={20} className="sm:hidden shrink-0" />
               <Sparkles size={16} className="hidden sm:block shrink-0" />
-              {verification?.status === "PENDING" ? "Badge Pending" : "Verified Badge"}
+              {verification?.status === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
             </Link>
           )}
         </div>

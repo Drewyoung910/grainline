@@ -9,6 +9,7 @@ import MakersMapSection from "@/components/MakersMapSection";
 import SearchBar from "@/components/SearchBar";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { ScrollSection } from "@/components/ScrollSection";
+import GuildBadge from "@/components/GuildBadge";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -430,17 +431,20 @@ export default async function HomePage() {
                         </div>
                       </Link>
                       <div className="px-3 pb-3 bg-stone-50">
-                        <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50">
-                          {sellerAvatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
-                          ) : (
-                            <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
-                              <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
-                            </div>
-                          )}
-                          <span className="truncate max-w-[80px]">{sellerName}</span>
-                        </Link>
+                        <div className="flex items-center flex-wrap gap-1">
+                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50">
+                            {sellerAvatar ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
+                            ) : (
+                              <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
+                                <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
+                              </div>
+                            )}
+                            <span className="truncate max-w-[80px]">{sellerName}</span>
+                          </Link>
+                          <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
+                        </div>
                       </div>
                     </li>
                   );
@@ -492,17 +496,20 @@ export default async function HomePage() {
                         </div>
                       </Link>
                       <div className="px-3 pb-3 bg-stone-50">
-                        <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50">
-                          {sellerAvatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
-                          ) : (
-                            <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
-                              <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
-                            </div>
-                          )}
-                          <span className="truncate max-w-[80px]">{sellerName}</span>
-                        </Link>
+                        <div className="flex items-center flex-wrap gap-1">
+                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50">
+                            {sellerAvatar ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
+                            ) : (
+                              <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
+                                <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
+                              </div>
+                            )}
+                            <span className="truncate max-w-[80px]">{sellerName}</span>
+                          </Link>
+                          <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
+                        </div>
                       </div>
                     </li>
                   );

@@ -15,6 +15,7 @@ import { CATEGORY_LABELS } from "@/lib/categories";
 import NotifyMeButton from "@/components/NotifyMeButton";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
+import GuildBadge from "@/components/GuildBadge";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -434,6 +435,8 @@ export default async function ListingPage({
                 )}
                 <span>{sellerName}</span>
               </Link>
+
+              <GuildBadge level={listing.seller.guildLevel} showLabel={true} size={18} />
 
               {sellerUserId && !hideMessage && (
                 <Link

@@ -12,6 +12,7 @@ type SimilarRow = {
   photoUrl: string | null;
   sellerDisplayName: string;
   sellerAvatarImageUrl: string | null;
+  sellerGuildLevel: string | null;
   overlapCount: bigint;
 };
 
@@ -43,6 +44,7 @@ export async function GET(
           (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
           sp."displayName" AS "sellerDisplayName",
           sp."avatarImageUrl" AS "sellerAvatarImageUrl",
+          sp."guildLevel"::text AS "sellerGuildLevel",
           (SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})) AS "overlapCount"
         FROM "Listing" l
         JOIN "SellerProfile" sp ON sp.id = l."sellerId"
@@ -68,6 +70,7 @@ export async function GET(
             photoUrl: r.photoUrl,
             sellerDisplayName: r.sellerDisplayName,
             sellerAvatarImageUrl: r.sellerAvatarImageUrl,
+            sellerGuildLevel: r.sellerGuildLevel,
           })),
         });
       }
@@ -84,6 +87,7 @@ export async function GET(
           (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
           sp."displayName" AS "sellerDisplayName",
           sp."avatarImageUrl" AS "sellerAvatarImageUrl",
+          sp."guildLevel"::text AS "sellerGuildLevel",
           (SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})) AS "overlapCount"
         FROM "Listing" l
         JOIN "SellerProfile" sp ON sp.id = l."sellerId"
@@ -108,6 +112,7 @@ export async function GET(
             photoUrl: r.photoUrl,
             sellerDisplayName: r.sellerDisplayName,
             sellerAvatarImageUrl: r.sellerAvatarImageUrl,
+            sellerGuildLevel: r.sellerGuildLevel,
           })),
         });
       }
@@ -130,7 +135,7 @@ export async function GET(
         priceCents: true,
         currency: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        seller: { select: { displayName: true, avatarImageUrl: true } },
+        seller: { select: { displayName: true, avatarImageUrl: true, guildLevel: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 6,
@@ -145,6 +150,7 @@ export async function GET(
         photoUrl: l.photos[0]?.url ?? null,
         sellerDisplayName: l.seller.displayName,
         sellerAvatarImageUrl: l.seller.avatarImageUrl,
+        sellerGuildLevel: l.seller.guildLevel,
       })),
     });
   } catch (err) {

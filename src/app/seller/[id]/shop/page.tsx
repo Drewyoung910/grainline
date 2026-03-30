@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import FavoriteButton from "@/components/FavoriteButton";
+import GuildBadge from "@/components/GuildBadge";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 
@@ -61,7 +62,7 @@ export default async function SellerShopPage({
       id: true,
       displayName: true,
       avatarImageUrl: true,
-      isVerifiedMaker: true,
+      guildLevel: true,
       user: { select: { imageUrl: true } },
     },
   });
@@ -167,11 +168,7 @@ export default async function SellerShopPage({
             <h1 className="text-xl font-semibold">
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
-            {seller.isVerifiedMaker && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                ✓ Verified Maker
-              </span>
-            )}
+            <GuildBadge level={seller.guildLevel} showLabel={true} size={20} />
           </div>
         </div>
 
