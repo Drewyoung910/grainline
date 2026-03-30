@@ -28,6 +28,9 @@ export default async function VerificationPage() {
       guildMasterApprovedAt: true,
       guildMasterAppliedAt: true,
       guildMasterReviewNotes: true,
+      consecutiveMetricFailures: true,
+      lastMetricCheckAt: true,
+      metricWarningSentAt: true,
       makerVerification: true,
       user: { select: { createdAt: true } },
     },
@@ -459,22 +462,59 @@ export default async function VerificationPage() {
           )}
 
           {isMasterActive && (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-4">
-              <div className="flex items-center gap-2 text-indigo-800 font-semibold">
-                <span>◆</span>
-                <span>Active — Guild Master</span>
+            <>
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-6 py-4">
+                <div className="flex items-center gap-2 text-indigo-800 font-semibold">
+                  <span>◆</span>
+                  <span>Active — Guild Master</span>
+                </div>
+                {fullSeller.guildMasterApprovedAt && (
+                  <p className="text-indigo-700 text-xs mt-1">
+                    Approved on{" "}
+                    {new Date(fullSeller.guildMasterApprovedAt).toLocaleDateString(undefined, {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
+                )}
               </div>
-              {fullSeller.guildMasterApprovedAt && (
-                <p className="text-indigo-700 text-xs mt-1">
-                  Approved on{" "}
-                  {new Date(fullSeller.guildMasterApprovedAt).toLocaleDateString(undefined, {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </p>
+
+              {/* ── Metrics warning banner (shown if first failure recorded) ── */}
+              {fullSeller.metricWarningSentAt && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 space-y-1">
+                  <p className="text-amber-900 font-semibold text-sm">⚠ Your Guild Master metrics are below requirements</p>
+                  <p className="text-amber-800 text-xs">
+                    Improve your metrics before{" "}
+                    <strong>
+                      {new Date(
+                        new Date(fullSeller.metricWarningSentAt).getTime() + 30 * 24 * 60 * 60 * 1000
+                      ).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                    </strong>{" "}
+                    to maintain your badge. If metrics remain below standard at the next monthly review your Guild Master status will be revoked (Guild Member remains active).
+                  </p>
+                </div>
               )}
-            </div>
+
+              {/* ── Last check / next check info ── */}
+              <div className="rounded-xl border px-5 py-3 text-xs text-neutral-500 space-y-1">
+                {fullSeller.lastMetricCheckAt ? (
+                  <p>
+                    Last metrics check:{" "}
+                    <span className="text-neutral-700 font-medium">
+                      {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString(undefined, {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </p>
+                ) : (
+                  <p>Metrics have not yet been checked — first check runs on the 1st of next month.</p>
+                )}
+                <p>Next scheduled check: <span className="text-neutral-700 font-medium">1st of next month</span></p>
+              </div>
+            </>
           )}
 
           {isMasterPending && (
@@ -486,6 +526,21 @@ export default async function VerificationPage() {
               <p className="text-amber-700 text-sm mt-1">
                 Your Guild Master application is under review.
               </p>
+            </div>
+          )}
+
+          {/* ── Last check info (for Guild Members not yet Guild Master) ── */}
+          {!isMasterActive && fullSeller.lastMetricCheckAt && (
+            <div className="rounded-xl border px-5 py-3 text-xs text-neutral-500">
+              Last metrics check:{" "}
+              <span className="text-neutral-700 font-medium">
+                {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString(undefined, {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+              {" "}· Next check: <span className="text-neutral-700 font-medium">1st of next month</span>
             </div>
           )}
 

@@ -155,6 +155,12 @@ model SellerProfile {
   guildMasterAppliedAt      DateTime?
   guildMasterReviewNotes    String?
 
+  // Guild Phase 3 — revoke tracking
+  consecutiveMetricFailures    Int       @default(0)
+  lastMetricCheckAt            DateTime?
+  metricWarningSentAt          DateTime?
+  listingsBelowThresholdSince  DateTime?
+
   listings             Listing[]
   faqs                 SellerFaq[]
   makerVerification    MakerVerification?

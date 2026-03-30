@@ -351,7 +351,7 @@ URL: `/dashboard/listings/custom?conversationId=[id]&buyerId=[id]`
 - Listing detail page: `reservedForOther` hides buy buttons and shows "custom piece reserved for another buyer" notice; `reservedForMe` shows "🎨 This piece was made just for you!" amber banner and buy buttons display normally
 - `/api/listings/[id]/stock` PATCH: private listings are not promoted to `ACTIVE` when restocked
 
-## Guild Verification Program (Phase 1 complete — Phase 2–3 pending)
+## Guild Verification Program (Phases 1, 2, 3 complete)
 
 Two-tier badge system replacing the old single "Verified Maker" badge.
 
@@ -411,9 +411,9 @@ Updated to remove "identity verification" language; now lists: completed profile
 ### Build fix
 `package.json` build script updated to `"prisma generate && next build"` so Vercel always regenerates the Prisma client before compiling TypeScript.
 
-### Phase 1 — still needed
-- **Final badge icons**: user providing custom images for laurel wreath (Guild Member, gold) and wax seal (Guild Master, indigo)
-- **Monogram stamp picker**: `guildStampStyle String?` field on `SellerProfile`; style options serif / block / script / ornate added to Guild Master application form; unique wax-seal stamp rendered per seller using their shop initials + chosen style
+### Phase 1 — complete (badge icon images still pending)
+- Badge icons are functional SVGs (laurel wreath for Guild Member, hammer+chisel for Guild Master) — user may provide custom image replacements later
+- Monogram stamp picker not yet built (see "Still unbuilt" under Phase 3)
 
 ### Phase 2 — complete
 
@@ -427,15 +427,48 @@ Migration: `20260330195257_seller_metrics_and_first_response`
 - **Dashboard verification** (`/dashboard/verification`) — Section B now calls `calculateSellerMetrics()` on load when seller is Guild Member and hasn't been approved yet; shows live metrics vs requirements checklist (✓/✗ per criterion); application form only rendered when `masterCriteria.allMet === true`; falls back to static requirements list if metrics unavailable
 - **Admin verification** (`/admin/verification`) — Guild Master Applications section fetches live metrics for each pending applicant via `Promise.allSettled`; each card shows an indigo "Live Metrics" panel with 8 metrics (avg rating, reviews, on-time shipping, response rate, account age, total sales, open cases, orders) with ✓/✗ indicators and "All requirements met" / "Some requirements not met" header badge
 
-### Phase 3 — not started
-Auto-maintenance and revocation:
-- Monthly cron job to recalculate all seller metrics (calls `calculateSellerMetrics` for every active seller, persists results)
-- Auto-revoke Guild Master if metrics fail for 2 consecutive months:
-  - Fail month 1 → send warning `VERIFICATION_REJECTED`-style notification ("Your Guild Master status is at risk — metrics below standard")
-  - Fail month 2 → revoke: set `guildLevel = GUILD_MEMBER`, send notification
-- Warning notification 30 days before potential revocation (grace period month 1)
-- Auto-revoke Guild Member triggers: drops below 5 active listings for 30 consecutive days; case unresolved 90+ days; ToS violation (manual admin action)
-- Connect `SellerMetrics` to seller analytics dashboard (Phase 3 reuses Phase 2 model — no additional schema changes needed)
+### Phase 3 — complete
+
+Migration: `20260330201226_guild_phase3_revoke_tracking`
+
+**Schema additions** on `SellerProfile`: `consecutiveMetricFailures Int @default(0)`, `lastMetricCheckAt DateTime?`, `metricWarningSentAt DateTime?`, `listingsBelowThresholdSince DateTime?`
+
+**`vercel.json`** — two crons registered:
+- `GET /api/cron/guild-metrics` — `0 9 1 * *` (monthly, 1st at 9am UTC)
+- `GET /api/cron/guild-member-check` — `0 8 * * *` (daily, 8am UTC)
+
+Both routes protected by `Authorization: Bearer CRON_SECRET` header.
+
+**`src/app/api/cron/guild-metrics/route.ts`** — monthly Guild Master revocation:
+- Fetches all `GUILD_MEMBER` + `GUILD_MASTER` sellers
+- Processes in batches of 10 via `Promise.all`
+- Guild Master pass: resets `consecutiveMetricFailures = 0`, clears `metricWarningSentAt`
+- Guild Master fail (1st time): increments `consecutiveMetricFailures = 1`, sets `metricWarningSentAt`, sends `VERIFICATION_REJECTED` notification + `sendGuildMasterWarningEmail` listing which criteria failed
+- Guild Master fail (2nd consecutive): revokes to `GUILD_MEMBER`, resets counters, sends notification + `sendGuildMasterRevokedEmail`
+- Guild Member sellers: just updates `lastMetricCheckAt` (revocation handled by daily cron)
+- Returns `{ processed, warned, revokedMaster, errors[] }`
+
+**`src/app/api/cron/guild-member-check/route.ts`** — daily Guild Member revocation:
+- Two checks per seller: (1) case `OPEN | IN_DISCUSSION | PENDING_CLOSE` with `createdAt < 90 days ago`; (2) `listingsBelowThresholdSince < 30 days ago`
+- On revocation: sets `guildLevel = NONE`, `isVerifiedMaker = false`, sends notification + `sendGuildMemberRevokedEmail` with reason
+- Returns `{ revokedMember, errors[] }`
+
+**`listingsBelowThresholdSince` tracking** — set/cleared in three places:
+- `api/listings/[id]/stock/route.ts` — after quantity update (via `syncListingsThreshold` helper)
+- `dashboard/page.tsx` `setStatus()` — after hide/unhide
+- `dashboard/page.tsx` `deleteListing()` — after delete
+
+**Email functions** added to `src/lib/email.ts`: `sendGuildMasterWarningEmail` (lists failed criteria), `sendGuildMasterRevokedEmail`, `sendGuildMemberRevokedEmail` (includes reason string)
+
+**Dashboard verification** (`/dashboard/verification`) — Guild Master section now shows:
+- Amber warning banner with 30-day deadline if `metricWarningSentAt` is set
+- Last check date + "Next check: 1st of next month" info block (shown for both Guild Member and Guild Master)
+
+**Remaining infrastructure step:** Add `CRON_SECRET` env var to Vercel (generate with `openssl rand -hex 32`). Both cron routes return 401 without it.
+
+**Still unbuilt (separate from Phases 1–3):**
+- Seller analytics dashboard — reuses `SellerMetrics` model, no schema changes needed
+- Monogram stamp picker (Phase 1 cosmetic): `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); unique wax-seal stamp per Guild Master using shop initials + chosen style
 
 ## Similar Items (complete)
 
@@ -835,7 +868,7 @@ All items done:
 
 ### Seller tools
 
-14. ~~**Guild verification rebuild**~~ — Phase 1 complete (see Guild Verification Program section); Phase 2–3 pending
+14. ~~**Guild verification rebuild**~~ — Phases 1, 2, 3 complete (see Guild Verification Program section)
 15. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`; will reuse `SellerMetrics` model from Guild Phase 2
 16. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
 17. **Seller onboarding flow** — guided first-time setup: set location, add first listing, connect Stripe

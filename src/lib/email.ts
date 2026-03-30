@@ -516,6 +516,77 @@ export async function sendFirstSaleCongrats(opts: {
   await send(seller.email, "You made your first sale! 🎉", baseTemplate("First Sale!", body));
 }
 
+// ─── Guild verification emails ────────────────────────────────────────────────
+
+export async function sendGuildMasterWarningEmail(opts: {
+  seller: { displayName?: string | null; email: string };
+  failedCriteria: string[];
+}) {
+  const { seller, failedCriteria } = opts;
+  const name = seller.displayName || "there";
+  const dashUrl = `${APP_URL}/dashboard/verification`;
+
+  const failedList = failedCriteria
+    .map((c) => `<li style="margin-bottom:4px;">${esc(c)}</li>`)
+    .join("");
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Master metrics have fallen below our required standards.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;"><strong>Criteria not currently met:</strong></p>
+    <ul style="font-size:14px;line-height:1.8;color:#6B6A66;margin:0 0 20px;padding-left:20px;">${failedList}</ul>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">You have until next month's review to bring your metrics back up. If they remain below standard for a second consecutive month, your Guild Master badge will be revoked (your Guild Member badge will remain active).</p>
+    ${btn("Check your metrics", dashUrl)}
+  `;
+
+  await send(
+    seller.email,
+    "Your Guild Master status is at risk — Grainline",
+    baseTemplate("Guild Master Status at Risk", body)
+  );
+}
+
+export async function sendGuildMasterRevokedEmail(opts: {
+  seller: { displayName?: string | null; email: string };
+}) {
+  const { seller } = opts;
+  const name = seller.displayName || "there";
+  const dashUrl = `${APP_URL}/dashboard/verification`;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Master badge has been revoked.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong> — you can reapply for Guild Master once your metrics are back above the required thresholds.</p>
+    ${btn("View your verification status", dashUrl)}
+  `;
+
+  await send(
+    seller.email,
+    "Guild Master badge update — Grainline",
+    baseTemplate("Guild Master Badge Revoked", body)
+  );
+}
+
+export async function sendGuildMemberRevokedEmail(opts: {
+  seller: { displayName?: string | null; email: string };
+  reason: string;
+}) {
+  const { seller, reason } = opts;
+  const name = seller.displayName || "there";
+  const dashUrl = `${APP_URL}/dashboard/verification`;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Member badge has been revoked.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;"><strong>Reason:</strong> ${esc(reason)}</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">You may reapply for the Guild Member badge once the issue has been resolved.</p>
+    ${btn("View verification requirements", dashUrl)}
+  `;
+
+  await send(
+    seller.email,
+    "Guild Member badge update — Grainline",
+    baseTemplate("Guild Member Badge Revoked", body)
+  );
+}
+
 // ─── Legacy (kept for backwards compatibility) ───────────────────────────────
 
 export async function sendNewMessageEmail(opts: {

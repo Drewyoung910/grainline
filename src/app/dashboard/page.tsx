@@ -30,6 +30,28 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
     data: { status: nextStatus },
   });
 
+  // Update listingsBelowThresholdSince for Guild Member revocation tracking
+  const activeCount = await prisma.listing.count({
+    where: { sellerId: listing.sellerId, status: "ACTIVE" },
+  });
+  const sp = await prisma.sellerProfile.findUnique({
+    where: { id: listing.sellerId },
+    select: { listingsBelowThresholdSince: true },
+  });
+  if (sp) {
+    if (activeCount < 5 && !sp.listingsBelowThresholdSince) {
+      await prisma.sellerProfile.update({
+        where: { id: listing.sellerId },
+        data: { listingsBelowThresholdSince: new Date() },
+      });
+    } else if (activeCount >= 5 && sp.listingsBelowThresholdSince) {
+      await prisma.sellerProfile.update({
+        where: { id: listing.sellerId },
+        data: { listingsBelowThresholdSince: null },
+      });
+    }
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/browse");
 }
@@ -50,6 +72,21 @@ async function deleteListing(listingId: string) {
   if (!listing || listing.seller.userId !== me.id) return;
 
   await prisma.listing.delete({ where: { id: listingId } });
+
+  // Deleting a listing may drop active count below 5
+  const activeCount = await prisma.listing.count({
+    where: { sellerId: listing.sellerId, status: "ACTIVE" },
+  });
+  const sp = await prisma.sellerProfile.findUnique({
+    where: { id: listing.sellerId },
+    select: { listingsBelowThresholdSince: true },
+  });
+  if (sp && activeCount < 5 && !sp.listingsBelowThresholdSince) {
+    await prisma.sellerProfile.update({
+      where: { id: listing.sellerId },
+      data: { listingsBelowThresholdSince: new Date() },
+    });
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");

@@ -7,6 +7,28 @@ import { sendBackInStock } from "@/lib/email";
 
 export const runtime = "nodejs";
 
+async function syncListingsThreshold(sellerProfileId: string) {
+  const [activeCount, sp] = await Promise.all([
+    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE" } }),
+    prisma.sellerProfile.findUnique({
+      where: { id: sellerProfileId },
+      select: { listingsBelowThresholdSince: true },
+    }),
+  ]);
+  if (!sp) return;
+  if (activeCount < 5 && !sp.listingsBelowThresholdSince) {
+    await prisma.sellerProfile.update({
+      where: { id: sellerProfileId },
+      data: { listingsBelowThresholdSince: new Date() },
+    });
+  } else if (activeCount >= 5 && sp.listingsBelowThresholdSince) {
+    await prisma.sellerProfile.update({
+      where: { id: sellerProfileId },
+      data: { listingsBelowThresholdSince: null },
+    });
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -27,7 +49,7 @@ export async function PATCH(
     // Ownership check
     const listing = await prisma.listing.findFirst({
       where: { id, seller: { user: { clerkId: userId } } },
-      select: { id: true, listingType: true, status: true, isPrivate: true, seller: { select: { userId: true } } },
+      select: { id: true, listingType: true, status: true, isPrivate: true, seller: { select: { id: true, userId: true } } },
     });
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (listing.listingType !== "IN_STOCK") {
@@ -46,6 +68,9 @@ export async function PATCH(
       data: { stockQuantity: quantity, status: newStatus },
       select: { id: true, title: true, stockQuantity: true, status: true },
     });
+
+    // Track listingsBelowThresholdSince for Guild Member revocation check
+    await syncListingsThreshold(listing.seller.id);
 
     // If stock is low (1–2), notify the seller
     if (updated.stockQuantity !== null && updated.stockQuantity > 0 && updated.stockQuantity <= 2) {
