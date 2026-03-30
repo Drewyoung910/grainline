@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
+import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
 
 const REQUIRED_LISTINGS = 5;
 const REQUIRED_SALES_CENTS = 25000; // $250
@@ -47,6 +48,18 @@ export default async function VerificationPage() {
   const isMasterPending = !isMasterActive && verification?.status === "GUILD_MASTER_PENDING";
   const isMasterRejected =
     !isMasterActive && !isMasterPending && verification?.status === "GUILD_MASTER_REJECTED";
+
+  // ── Guild Master metrics (only fetch when section B is visible) ───────────
+  let masterMetrics = null;
+  let masterCriteria = null;
+  if (showSectionB && !isMasterActive) {
+    try {
+      masterMetrics = await calculateSellerMetrics(seller.id);
+      masterCriteria = meetsGuildMasterRequirements(masterMetrics);
+    } catch {
+      // metrics unavailable — don't block rendering
+    }
+  }
 
   // ── Eligibility criteria (only needed when not already active/pending) ────
   let activeListings = 0;
@@ -356,8 +369,81 @@ export default async function VerificationPage() {
             Our highest tier — awarded for sustained performance, ratings, and responsiveness.
           </p>
 
-          {/* Requirements callout */}
-          {!isMasterActive && (
+          {/* Requirements + live metrics */}
+          {!isMasterActive && masterMetrics && masterCriteria && (
+            <div className="rounded-xl border p-5 space-y-3">
+              <p className="text-sm font-semibold text-neutral-800">Requirements</p>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.ratingMet ? "text-green-600" : "text-red-500"}>{masterCriteria.ratingMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.ratingMet ? "text-green-800" : "text-neutral-700"}>
+                    Average rating:{" "}
+                    <span className="font-medium">{masterMetrics.averageRating.toFixed(1)} ★</span>
+                    {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.averageRating}+ required</span>
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.reviewsMet ? "text-green-600" : "text-red-500"}>{masterCriteria.reviewsMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.reviewsMet ? "text-green-800" : "text-neutral-700"}>
+                    Reviews:{" "}
+                    <span className="font-medium">{masterMetrics.reviewCount}</span>
+                    {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.reviewCount}+ required</span>
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.shippingMet ? "text-green-600" : "text-red-500"}>{masterCriteria.shippingMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.shippingMet ? "text-green-800" : "text-neutral-700"}>
+                    On-time shipping:{" "}
+                    <span className="font-medium">{(masterMetrics.onTimeShippingRate * 100).toFixed(0)}%</span>
+                    {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%+ required</span>
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.responseMet ? "text-green-600" : "text-red-500"}>{masterCriteria.responseMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.responseMet ? "text-green-800" : "text-neutral-700"}>
+                    Response rate:{" "}
+                    <span className="font-medium">{(masterMetrics.responseRate * 100).toFixed(0)}%</span>
+                    {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.responseRate * 100}%+ required</span>
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.ageMet ? "text-green-600" : "text-red-500"}>{masterCriteria.ageMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.ageMet ? "text-green-800" : "text-neutral-700"}>
+                    Account age:{" "}
+                    <span className="font-medium">{masterMetrics.accountAgeDays} days</span>
+                    {" "}/ <span className="text-neutral-500">{GUILD_MASTER_REQUIREMENTS.accountAgeDays} days required</span>
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.salesMet ? "text-green-600" : "text-red-500"}>{masterCriteria.salesMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.salesMet ? "text-green-800" : "text-neutral-700"}>
+                    Completed sales:{" "}
+                    <span className="font-medium">
+                      {(masterMetrics.totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                    </span>
+                    {" "}/ <span className="text-neutral-500">$1,000 required</span>
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className={masterCriteria.casesMet ? "text-green-600" : "text-red-500"}>{masterCriteria.casesMet ? "✓" : "✗"}</span>
+                  <span className={masterCriteria.casesMet ? "text-green-800" : "text-neutral-700"}>
+                    {masterCriteria.casesMet
+                      ? "No open disputes"
+                      : `${masterMetrics.activeCaseCount} unresolved dispute${masterMetrics.activeCaseCount !== 1 ? "s" : ""}`}
+                  </span>
+                </li>
+              </ul>
+              {!masterCriteria.allMet && (
+                <p className="text-xs text-neutral-500 border-t pt-3">
+                  Meet all requirements above to unlock the Guild Master application.
+                </p>
+              )}
+              <p className="text-xs text-indigo-700 border-t pt-3">
+                Guild Master status is subject to ongoing review and may be revoked if standards are not maintained.
+              </p>
+            </div>
+          )}
+          {!isMasterActive && !masterMetrics && (
             <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4 text-sm space-y-2">
               <p className="font-medium text-indigo-900">Requirements</p>
               <ul className="text-indigo-800 space-y-1 text-xs list-disc list-inside">
@@ -366,11 +452,9 @@ export default async function VerificationPage() {
                 <li>95% on-time shipping</li>
                 <li>90% message response rate</li>
                 <li>6+ months on the platform</li>
-                <li>No unresolved disputes in the past 6 months</li>
+                <li>$1,000 in completed sales</li>
+                <li>No open disputes</li>
               </ul>
-              <p className="text-xs text-indigo-700 mt-2">
-                Guild Master status is subject to ongoing review and may be revoked if standards are not maintained.
-              </p>
             </div>
           )}
 
@@ -414,6 +498,9 @@ export default async function VerificationPage() {
                 </div>
               )}
 
+              {masterCriteria && !masterCriteria.allMet && null /* form hidden until requirements met */}
+
+              {(!masterCriteria || masterCriteria.allMet) && (
               <form action={applyForGuildMaster} className="space-y-5 rounded-xl border p-6">
                 <div className="space-y-1.5">
                   <label htmlFor="craftBusiness" className="block text-sm font-medium">
@@ -459,6 +546,7 @@ export default async function VerificationPage() {
                   Apply for Guild Master Badge
                 </button>
               </form>
+              )}
             </>
           )}
         </section>

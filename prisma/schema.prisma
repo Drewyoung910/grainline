@@ -159,6 +159,7 @@ model SellerProfile {
   faqs                 SellerFaq[]
   makerVerification    MakerVerification?
   blogPosts            BlogPost[]
+  sellerMetrics        SellerMetrics?
 }
 
 model SellerFaq {
@@ -297,6 +298,7 @@ model Conversation {
   contextListing   Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id])
   archivedAAt      DateTime?
   archivedBAt      DateTime?
+  firstResponseAt  DateTime?
 
   @@unique([userAId, userBId])
   @@index([userAId])
@@ -689,6 +691,22 @@ model NewsletterSubscriber {
   name         String?
   subscribedAt DateTime @default(now())
   active       Boolean  @default(true)
+}
+
+model SellerMetrics {
+  id                  String        @id @default(cuid())
+  sellerProfileId     String        @unique
+  sellerProfile       SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  calculatedAt        DateTime      @default(now())
+  periodMonths        Int           @default(3)
+  averageRating       Float         @default(0)
+  reviewCount         Int           @default(0)
+  onTimeShippingRate  Float         @default(0)
+  responseRate        Float         @default(0)
+  totalSalesCents     Int           @default(0)
+  completedOrderCount Int           @default(0)
+  activeCaseCount     Int           @default(0)
+  accountAgeDays      Int           @default(0)
 }
 
 enum NotificationType {

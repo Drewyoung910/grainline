@@ -412,26 +412,30 @@ Updated to remove "identity verification" language; now lists: completed profile
 `package.json` build script updated to `"prisma generate && next build"` so Vercel always regenerates the Prisma client before compiling TypeScript.
 
 ### Phase 1 — still needed
-- **Badge icons**: user will provide custom images for laurel wreath (Guild Member, gold) and wax seal (Guild Master, indigo). Two options for wax seal: (A) shop initials monogram stamp — unique per seller, stored as `guildStampStyle` field on `SellerProfile`; (B) Grainline guild logo. Leaning toward (A).
-- **Monogram stamp style picker**: serif / block / script / ornate — to be added to Guild Master application form; `guildStampStyle String?` field needed on `SellerProfile`
+- **Final badge icons**: user providing custom images for laurel wreath (Guild Member, gold) and wax seal (Guild Master, indigo)
+- **Monogram stamp picker**: `guildStampStyle String?` field on `SellerProfile`; style options serif / block / script / ornate added to Guild Master application form; unique wax-seal stamp rendered per seller using their shop initials + chosen style
 
-### Phase 2 — not started
-Metrics-driven Guild Master gating:
-- Add `shippedAt DateTime?` to `Order` model (tracks when label purchased = shipped)
-- Add `firstResponseAt` tracking to `Conversation` model for response rate calculation
-- **`SellerMetrics` model**: `sellerProfileId`, `calculatedAt`, `periodMonths(3)`, `averageRating`, `reviewCount`, `onTimeShippingRate`, `responseRate`, `totalSalesCents`, `completedOrderCount`, `activeCaseCount`, `accountAgeDays`
-- **`calculateSellerMetrics()`** function in `src/lib/metrics.ts`
-- Guild Master application page shows live metrics vs requirements (4.5+ stars, 25+ reviews, 95% on-time shipping, 90% response rate, 6 months old, $1000 sales, no disputes in 3 months); blocks application if not met
-- Admin Guild Master queue shows full metrics dashboard per applicant
+### Phase 2 — complete
+
+Migration: `20260330195257_seller_metrics_and_first_response`
+
+- **`shippedAt DateTime?`** on `Order` — was already present from fulfillment work; set in both label route and fulfillment route when order ships
+- **`firstResponseAt DateTime?`** on `Conversation` — set in `sendMessage` server action (`messages/[id]/page.tsx`) when the first reply is sent in a conversation where the other person sent the opening message
+- **`SellerMetrics` model** — `id`, `sellerProfileId` (unique → SellerProfile cascade), `calculatedAt`, `periodMonths @default(3)`, `averageRating`, `reviewCount`, `onTimeShippingRate`, `responseRate`, `totalSalesCents`, `completedOrderCount`, `activeCaseCount`, `accountAgeDays`; back-relation `sellerMetrics SellerMetrics?` on `SellerProfile`
+- **`calculateSellerMetrics(sellerProfileId, periodMonths=3)`** in `src/lib/metrics.ts` — computes all 9 metrics in parallel Prisma queries, upserts to `SellerMetrics`; also exports `meetsGuildMasterRequirements(metrics)` returning per-criteria booleans + `allMet`, and `GUILD_MASTER_REQUIREMENTS` constants
+- **Guild Master requirements**: averageRating ≥ 4.5, reviewCount ≥ 25, onTimeShippingRate ≥ 95%, responseRate ≥ 90%, accountAgeDays ≥ 180, totalSalesCents ≥ $1,000, activeCaseCount = 0
+- **Dashboard verification** (`/dashboard/verification`) — Section B now calls `calculateSellerMetrics()` on load when seller is Guild Member and hasn't been approved yet; shows live metrics vs requirements checklist (✓/✗ per criterion); application form only rendered when `masterCriteria.allMet === true`; falls back to static requirements list if metrics unavailable
+- **Admin verification** (`/admin/verification`) — Guild Master Applications section fetches live metrics for each pending applicant via `Promise.allSettled`; each card shows an indigo "Live Metrics" panel with 8 metrics (avg rating, reviews, on-time shipping, response rate, account age, total sales, open cases, orders) with ✓/✗ indicators and "All requirements met" / "Some requirements not met" header badge
 
 ### Phase 3 — not started
 Auto-maintenance and revocation:
-- Monthly cron job to recalculate all seller metrics
-- Auto-revoke Guild Master if metrics fail for 2 consecutive months
-- Warning notification 30 days before potential revocation
-- Grace period logic: fail month 1 = warning, fail month 2 = revoke
-- Auto-revoke Guild Member if: drops below 5 listings for 30 days, case unresolved 90 days, ToS violation
-- Connect `SellerMetrics` to seller analytics dashboard (Phase 2 metrics reused here)
+- Monthly cron job to recalculate all seller metrics (calls `calculateSellerMetrics` for every active seller, persists results)
+- Auto-revoke Guild Master if metrics fail for 2 consecutive months:
+  - Fail month 1 → send warning `VERIFICATION_REJECTED`-style notification ("Your Guild Master status is at risk — metrics below standard")
+  - Fail month 2 → revoke: set `guildLevel = GUILD_MEMBER`, send notification
+- Warning notification 30 days before potential revocation (grace period month 1)
+- Auto-revoke Guild Member triggers: drops below 5 active listings for 30 consecutive days; case unresolved 90+ days; ToS violation (manual admin action)
+- Connect `SellerMetrics` to seller analytics dashboard (Phase 3 reuses Phase 2 model — no additional schema changes needed)
 
 ## Similar Items (complete)
 

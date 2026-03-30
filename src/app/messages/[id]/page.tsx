@@ -98,7 +98,7 @@ export default async function ThreadPage({
     // Validate participation
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-      select: { id: true, userAId: true, userBId: true },
+      select: { id: true, userAId: true, userBId: true, firstResponseAt: true },
     });
     if (!c) return { ok: false };
 
@@ -125,10 +125,21 @@ export default async function ThreadPage({
       });
     }
 
-    // bump thread
+    // bump thread; set firstResponseAt if this is the first reply from the other side
+    const conversationUpdate: Record<string, unknown> = { updatedAt: new Date() };
+    if (!c.firstResponseAt && (atts.length > 0 || body)) {
+      // Check if the other person has sent a prior message (this is a response, not an opener)
+      const priorFromOther = await prisma.message.findFirst({
+        where: { conversationId: id, senderId: { not: me.id } },
+        select: { id: true },
+      });
+      if (priorFromOther) {
+        conversationUpdate.firstResponseAt = new Date();
+      }
+    }
     await prisma.conversation.update({
       where: { id },
-      data: { updatedAt: new Date() },
+      data: conversationUpdate,
     });
 
     // Notify recipient

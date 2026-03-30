@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createNotification } from "@/lib/notifications";
 import { sendVerificationApproved, sendVerificationRejected } from "@/lib/email";
+import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
 
 // ── Shared auth helper ──────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -260,6 +261,17 @@ export default async function AdminVerificationPage() {
     }),
   ]);
 
+  // Fetch live metrics for each Guild Master applicant
+  const masterMetricsMap = new Map<string, SellerMetricsResult>();
+  await Promise.allSettled(
+    masterPending.map(async (v) => {
+      try {
+        const m = await calculateSellerMetrics(v.sellerProfile.id);
+        masterMetricsMap.set(v.id, m);
+      } catch { /* non-fatal */ }
+    })
+  );
+
   return (
     <div className="space-y-10">
       <div>
@@ -388,7 +400,10 @@ export default async function AdminVerificationPage() {
           <div className="rounded-xl border p-6 text-neutral-500 text-sm">No pending Guild Master applications.</div>
         ) : (
           <div className="space-y-4">
-            {masterPending.map((v) => (
+            {masterPending.map((v) => {
+              const m = masterMetricsMap.get(v.id);
+              const mc = m ? meetsGuildMasterRequirements(m) : null;
+              return (
               <div key={v.id} className="rounded-xl border bg-white p-6 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -425,6 +440,38 @@ export default async function AdminVerificationPage() {
                   )}
                 </div>
 
+                {/* ── Live metrics dashboard ── */}
+                {m && mc && (
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide">Live Metrics</p>
+                      {mc.allMet
+                        ? <span className="text-xs text-green-700 font-medium">✓ All requirements met</span>
+                        : <span className="text-xs text-amber-700 font-medium">⚠ Some requirements not met</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                      {[
+                        { label: "Avg Rating", value: `${m.averageRating.toFixed(1)} ★`, req: `≥${GUILD_MASTER_REQUIREMENTS.averageRating}`, met: mc.ratingMet },
+                        { label: "Reviews", value: String(m.reviewCount), req: `≥${GUILD_MASTER_REQUIREMENTS.reviewCount}`, met: mc.reviewsMet },
+                        { label: "On-Time Shipping", value: `${(m.onTimeShippingRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%`, met: mc.shippingMet },
+                        { label: "Response Rate", value: `${(m.responseRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%`, met: mc.responseMet },
+                        { label: "Account Age", value: `${m.accountAgeDays}d`, req: `≥${GUILD_MASTER_REQUIREMENTS.accountAgeDays}d`, met: mc.ageMet },
+                        { label: "Total Sales", value: (m.totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" }), req: "≥$1,000", met: mc.salesMet },
+                        { label: "Open Cases", value: String(m.activeCaseCount), req: "0", met: mc.casesMet },
+                        { label: "Orders", value: String(m.completedOrderCount), req: "—", met: true },
+                      ].map(({ label, value, req, met }) => (
+                        <div key={label} className="flex items-center gap-1.5">
+                          <span className={met ? "text-green-600" : "text-red-500"}>{met ? "✓" : "✗"}</span>
+                          <span className="text-indigo-900 font-medium">{label}:</span>
+                          <span className={met ? "text-green-700" : "text-red-600"}>{value}</span>
+                          <span className="text-indigo-400">({req})</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-indigo-500 pt-1">Metrics calculated {m.calculatedAt.toLocaleDateString()} · {m.periodMonths}-month period</p>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-start gap-3 pt-2 border-t">
                   <form action={approveGuildMaster.bind(null, v.id)}>
                     <button type="submit" className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600">
@@ -445,7 +492,8 @@ export default async function AdminVerificationPage() {
                   </form>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
