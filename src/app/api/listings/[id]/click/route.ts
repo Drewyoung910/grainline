@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
+import { clickRatelimit, getIP } from "@/lib/ratelimit";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { success } = await clickRatelimit.limit(getIP(req));
+  if (!success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
   const { id } = await params;
   const cookieStore = await cookies();
   const cookieName = `clicked_${id}`;

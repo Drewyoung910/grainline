@@ -786,9 +786,35 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 
 ### Remaining security improvements (not urgent)
 
-- **Rate limiting** — Add `@upstash/ratelimit` on high-volume public routes (`/api/search/suggestions`, `/api/listings/[id]/view`, `/api/listings/[id]/click`) and auth-sensitive routes (`/api/reviews`)
+- **Rate limiting** — ✅ Complete — `@upstash/ratelimit` with sliding window on 7 routes (see Rate Limiting section below)
 - **Security headers** — Add `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` in `next.config.ts`
 - **Input validation** — Add Zod schemas to validate and sanitize API request bodies (currently relies on manual type assertions and `.slice()` guards)
+
+## Logo & Branding (complete)
+
+- **`public/logo.svg`** — full wordmark logo (cream SVG, user-provided); used in header and footer with `style={{ filter: 'brightness(0)' }}` to render as pure black on light backgrounds
+- **`public/logo-mark.svg`** — grain lines swoosh mark only (4 curved fanning lines); used for Guild Master badge and other compact branding contexts; `fill="currentColor"` so color is controlled by parent
+- **Header** (`src/components/Header.tsx`): desktop logo `h-7`, mobile logo `h-6`, hamburger drawer logo `h-6` — all using `<img src='/logo.svg' alt='Grainline' style={{ filter: 'brightness(0)' }}`
+- **Footer** (`src/app/layout.tsx`): `h-5` logo centered above Terms/Privacy links with `opacity: 0.4`
+- **Note**: `public/logo.svg` must be placed by the user — all `<img>` tags are wired and ready
+
+## Rate Limiting (complete)
+
+`src/lib/ratelimit.ts` — Upstash Redis sliding-window rate limiters via `@upstash/ratelimit`. All limiters have `analytics: true` (viewable in Upstash console).
+
+**Required env vars**: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (set in Vercel + `.env.local`)
+
+| Route | Limiter | Key | Limit |
+|---|---|---|---|
+| `GET /api/search/suggestions` | `searchRatelimit` | IP | 30 / 10s |
+| `POST /api/listings/[id]/view` | `viewRatelimit` | IP | 20 / 60s |
+| `POST /api/listings/[id]/click` | `clickRatelimit` | IP | 20 / 60s |
+| `POST /api/reviews` | `reviewRatelimit` | User ID | 5 / 60s |
+| `POST /api/cart/checkout` | `checkoutRatelimit` | User ID | 10 / 60s |
+| `POST /api/cart/checkout/single` | `checkoutRatelimit` | User ID | 10 / 60s |
+| `GET /api/messages/[id]/stream` | `messageRatelimit` | User ID | 30 / 60s |
+
+IP-keyed routes use `getIP(request)` (reads `x-forwarded-for`, falls back to `127.0.0.1`). User-keyed routes use Clerk `userId` directly. All return HTTP 429 on limit exceeded.
 
 ## Sentry Error Tracking (complete)
 
@@ -883,7 +909,7 @@ All items done:
 
 ### Platform
 
-23. **Rate limiting** — `@upstash/ratelimit` on high-volume public routes and auth-sensitive routes
+23. ~~**Rate limiting**~~ — complete (see Rate Limiting section)
 24. **PWA setup** — `manifest.json`, service worker, offline fallback, home-screen install prompt; map `apple-touch-icon`
 
 **TypeScript: zero `tsc --noEmit` errors** (all pre-existing errors resolved as of current codebase)

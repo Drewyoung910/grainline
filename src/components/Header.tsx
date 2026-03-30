@@ -94,8 +94,11 @@ export default function Header() {
     <header className="border-b bg-white relative z-30">
       <nav className="mx-auto max-w-6xl p-4 flex items-center gap-4">
         {/* Logo */}
-        <Link href="/" className="font-semibold text-neutral-900 shrink-0 flex items-center min-h-[44px]">
-          Grainline
+        <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
+          {/* Mobile */}
+          <img src="/logo.svg" alt="Grainline" className="h-6 w-auto md:hidden" style={{ filter: "brightness(0)" }} />
+          {/* Desktop */}
+          <img src="/logo.svg" alt="Grainline" className="h-7 w-auto hidden md:block" style={{ filter: "brightness(0)" }} />
         </Link>
 
         {/* Search bar — desktop only (home + browse) */}
@@ -258,10 +261,11 @@ export default function Header() {
             <div className="flex items-center justify-between border-b px-4 py-3">
               <Link
                 href="/"
-                className="font-semibold text-neutral-900"
+                className="flex items-center"
+                aria-label="Grainline"
                 onClick={() => setDrawerOpen(false)}
               >
-                Grainline
+                <img src="/logo.svg" alt="Grainline" className="h-6 w-auto" style={{ filter: "brightness(0)" }} />
               </Link>
               <button
                 onClick={() => setDrawerOpen(false)}

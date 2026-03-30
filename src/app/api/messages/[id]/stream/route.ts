@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { messageRatelimit } from "@/lib/ratelimit";
 
 export async function GET(
   req: Request,
@@ -8,6 +9,9 @@ export async function GET(
   const { id } = await params;
   const { userId } = await auth();
   if (!userId) return new Response("unauthorized", { status: 401 });
+
+  const { success } = await messageRatelimit.limit(userId);
+  if (!success) return new Response("Too many requests", { status: 429 });
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) return new Response("unauthorized", { status: 401 });

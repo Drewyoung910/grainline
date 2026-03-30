@@ -47,6 +47,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </Suspense>
           {children}
           <footer className="border-t border-neutral-200 mt-16 py-6 px-6 text-center text-xs text-neutral-400">
+            <div className="flex justify-center mb-3">
+              <img src="/logo.svg" alt="Grainline" className="h-5 w-auto" style={{ filter: "brightness(0)", opacity: 0.4 }} />
+            </div>
             <div className="flex flex-wrap justify-center gap-4">
               <Link href="/terms" className="hover:text-neutral-600 hover:underline">Terms of Service</Link>
               <Link href="/privacy" className="hover:text-neutral-600 hover:underline">Privacy Policy</Link>

@@ -1,14 +1,20 @@
 // src/app/api/reviews/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { reviewRatelimit } from "@/lib/ratelimit";
 
 const REVIEW_WINDOW_DAYS = 90;
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success } = await reviewRatelimit.limit(userId);
+  if (!success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
 
   const { listingId, ratingX2, comment, photoUrls } = (await req.json()) as {
     listingId: string;

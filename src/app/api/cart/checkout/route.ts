@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { checkoutRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,11 @@ export async function POST() {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    }
+
+    const { success } = await checkoutRatelimit.limit(userId);
+    if (!success) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
     const me = await prisma.user.findUnique({ where: { clerkId: userId } });
