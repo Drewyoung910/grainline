@@ -980,16 +980,38 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 - **`/seller/[id]`** — amber banner above the banner image when `seller.vacationMode === true`; shows return date and vacation message if set; "Browse other makers →" link
 - **`/seller/[id]/shop`** — same amber banner above the header bar
 
-## Seller Analytics Dashboard (complete — 2026-03-31, rewritten 2026-03-31)
+## Seller Analytics Dashboard (complete — 2026-03-31, per-day tracking added 2026-03-31)
 
 `/dashboard/analytics` — **client component** (`"use client"`). Fetches data from `GET /api/seller/analytics?range=` on mount and on range change. Shows loading skeletons while fetching.
 
 ### Schema addition
 - **`SellerProfile.profileViews Int @default(0)`** — incremented fire-and-forget on every `GET /seller/[id]` page load; migration `20260331010407_seller_profile_views`
 
+### Schema addition (migration `20260331022628_listing_view_daily`)
+- **`ListingViewDaily`** — `id`, `listingId` → `Listing`, `sellerProfileId` → `SellerProfile`, `date DateTime` (midnight UTC), `views Int @default(0)`, `clicks Int @default(0)`; `@@unique([listingId, date])`, `@@index([sellerProfileId, date])`, `@@index([date])`; back-relations `viewDailies ListingViewDaily[]` on both `Listing` and `SellerProfile`
+
+### View/click tracking (updated)
+- **`POST /api/listings/[id]/view`** — after incrementing `listing.viewCount`, fire-and-forgets an upsert on `ListingViewDaily` for today's bucket (increment `views`)
+- **`POST /api/listings/[id]/click`** — same pattern for `clicks`
+- Both routes first `findUnique` to get `sellerId` (needed for `sellerProfileId` on create)
+
 ### API routes
-- **`GET /api/seller/analytics`** — accepts `?range=today|yesterday|week|month|last30|year|last365|alltime`; returns full analytics JSON including overview, engagement, chart data (with all time buckets), top listings, rating over time, guild metrics; `chartGrouping` is `'hour'` for today/yesterday, `'day'` for week/month/last30, `'month'` for year/last365/alltime; all DB queries use raw SQL for bucketing; guild metrics auto-recalculated if stale (>24h). Rating-over-time SQL uses `AVG(r."ratingX2") / 2.0` (Review stores `ratingX2` not `rating`)
+- **`GET /api/seller/analytics`** — accepts `?range=today|yesterday|week|last7|month|last30|year|last365|alltime`; returns full analytics JSON including overview, engagement, chart data (with all time buckets), top listings, rating over time, guild metrics; `chartGrouping` is `'hour'` for today/yesterday, `'day'` for week/last7/month/last30, `'month'` for year/last365, `'year'` for alltime; all DB queries use raw SQL for bucketing; guild metrics auto-recalculated if stale (>24h). Rating-over-time SQL uses `AVG(r."ratingX2") / 2.0` (Review stores `ratingX2` not `rating`). `alltime` start date uses seller's `createdAt` so year buckets are accurate.
+- Engagement stats (Listing Views, Conversion) are **range-aware** — uses `ListingViewDaily.aggregate` with `date: { gte, lte }`; CTR and Clicks cards removed from UI
+- Cart abandonment is range-aware: Prisma `cartItem.findMany` + `orderItem.findMany` in the same date range; listings purchased in range are excluded from abandonment count
+- Chart `views` buckets populated from real `ListingViewDaily` data: day grouping by YYYY-MM-DD; month grouping by YYYY-MM; year grouping by YYYY; hour grouping distributes daily total evenly across elapsed hours (today: hours 0–currentHour; yesterday: all 24)
 - **`GET /api/seller/analytics/recent-sales`** — returns last 10 paid orders for this seller's items (split from main route to keep range-change responses fast)
+
+### Data retention
+- Monthly guild-metrics cron (`/api/cron/guild-metrics`) deletes `ListingViewDaily` records older than 2 years at the end of each run
+
+### Bucket generation (API)
+- **`generateHourBuckets`** — always generates all 24 hours (0–23); views/clicks distributed evenly across elapsed hours (today: currentHour+1; yesterday: 24)
+- **`generateWeekBuckets`** — "week" range only; always 7 buckets Mon–Sun with labels 'Mon', 'Tue', …, 'Sun'
+- **`generateDayBuckets`** — used for last7/month/last30; uses actual date range with 'Mar 15' style labels
+- **`generateMonthBuckets`** — short month labels only ('Jan', 'Feb', etc.) — used for year/last365
+- **`generateYearBuckets`** — used for alltime; yields one bucket per calendar year labeled '2025', '2026', etc.
+- All bucket generators produce the full set of buckets first, then merge DB results in — zero values fill gaps
 
 ### Analytics nav
 - "Analytics" button in Workshop nav (BarChart icon, links to `/dashboard/analytics`)
@@ -998,11 +1020,11 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 
 **A — Overview (4 stat cards)**: Total Revenue, Total Orders, Avg Order Value, Active Listings — all range-aware except Active Listings (always current)
 
-**B — Engagement (10 stat cards)**: Impressions, Clicks, Profile Visits (all-time cumulative, from `profileViews`), Click Rate (% views→clicks), Conversion Rate (orders÷views), Saved/Favorites, Watching (stock notification subscribers), Cart Abandoned, Repeat Buyer Rate (all-time), Avg Processing Time (order created → shipped)
+**B — Engagement (8 stat cards)**: Listing Views (range-aware, from `ListingViewDaily`, subtitle "updates daily"), Conversion Rate (orders÷listing views, range-aware), Profile Visits (all-time from `profileViews`), Cart Abandoned (range-aware — items added but not purchased in same period), Saved/Favorites, Watching (stock notification subscribers), Repeat Buyer Rate (all-time), Avg Processing Time (order created → shipped). Note: Clicks and CTR cards removed. Chart views populate going forward only — no historical data before `ListingViewDaily` was added.
 
-**C — Performance Chart**: CSS div-based bar chart (no external lib); 8 time range pill selectors (Today / Yesterday / This week / This month / Last 30 days / This year / Last 365 days / All time); metric selector tabs (Revenue / Orders / Views / Clicks); hover tooltip showing bucket label + value; X-axis label thinning when >14 buckets; Y-axis with 5 labels; colored by metric (amber=revenue, indigo=orders, teal=views, orange=clicks); always renders all time buckets (zero bars when no data)
+**C — Performance Chart**: SVG line chart (inline, no external lib); 9 time range pill selectors (Today / Yesterday / This week / Last 7 days / This month / Last 30 days / This year / Last 365 days / All time); metric selector tabs (Revenue / Orders / Views); colors: amber=revenue, indigo=orders, teal=views; area fill (10% opacity); dots shown for ≤20 points; invisible hit-target rects for >20 points; Y-axis uses `getYTicks(maxVal)` — no duplicates, whole numbers only, returns `[]` when maxVal=0; X-axis label thinning with rotation when >14 buckets; hover tooltip; "No data for this period" overlay when all values are zero
 
-**D — Top Listings (top 8 by all-time revenue, showing 5)**: photo (80×80) + title + revenue/units row + engagement row (👁 views · 🖱 clicks · ♥ favorites · 🔔 watching · $/day)
+**D — Top Listings (top 8 by all-time revenue, showing 5)**: photo (80×80) + title + revenue/units row (no avg price) + engagement row (👁 views · 🖱 clicks · ♥ favorites · 🔔 watching · $/day)
 
 **E — Guild Metrics**: range-independent metrics table (avg rating, on-time shipping, response rate, account age, open cases, completed sales); color-coded rates; Guild Master eligibility panel with human-readable failure descriptions
 
@@ -1013,18 +1035,6 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 ### Dashboard + inventory listing stats
 - **`/dashboard/page.tsx`** listings query: added `_count: { select: { favorites: true, stockNotifications: true } }` to include; each card shows `👁 X · 🖱 X · ♥ X · 🔔 X` below the status badge
 - **`/dashboard/inventory/page.tsx`** query: same `_count` addition; `InventoryRow.tsx` type extended with `viewCount`, `clickCount`, `_count`; stats row shown below price
-
-### Known chart issues to fix next session
-- Y-axis shows duplicate labels when max value is low (e.g. 0, 0, 1, 1 instead of 0, 1)
-- Click Rate can exceed 100% — clicks and views are tracked independently so their totals can differ in ways that make ratio > 100%
-- X-axis labels cut off or overlapping on dense ranges — thinning logic needs refinement
-- "Today" view only shows hours up to current time (correct) but the `endDate` guard clips too aggressively — shows only ~2 hours instead of all 24
-- "This week" / "This month" only renders buckets with data, not all 7 days / all days of month — bucket generation logic has an off-by-one on the end boundary
-- Month/year/alltime grouping needs review: month should group by days, year by months, alltime by years (currently month→days is correct, but year→months and alltime→months both use monthly grouping — alltime should use yearly buckets)
-- Bars too wide on single-day ranges (1–2 bars take full width)
-- Consider adding "Last 7 days" as a range option
-- Consider removing avg price from top listings cards (redundant with revenue/units)
-- Consider line chart vs bar chart for revenue over time
 
 ## Remaining Work
 

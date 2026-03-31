@@ -142,6 +142,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Clean up view daily records older than 2 years
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+  await prisma.listingViewDaily.deleteMany({ where: { date: { lt: twoYearsAgo } } }).catch(() => {});
+
   return NextResponse.json({ processed, warned, revokedMaster, errors });
 }
 

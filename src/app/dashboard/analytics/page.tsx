@@ -6,8 +6,17 @@ import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type RangeKey = "today" | "yesterday" | "week" | "month" | "last30" | "year" | "last365" | "alltime";
-type ChartMetric = "revenue" | "orders" | "views" | "clicks";
+type RangeKey =
+  | "today"
+  | "yesterday"
+  | "week"
+  | "last7"
+  | "month"
+  | "last30"
+  | "year"
+  | "last365"
+  | "alltime";
+type ChartMetric = "revenue" | "orders" | "views";
 
 type ChartBucket = {
   label: string;
@@ -47,7 +56,7 @@ type AnalyticsData = {
   range: RangeKey;
   startDate: string;
   endDate: string;
-  chartGrouping: "hour" | "day" | "month";
+  chartGrouping: "hour" | "day" | "month" | "year";
   overview: {
     totalRevenueCents: number;
     totalOrders: number;
@@ -77,7 +86,12 @@ type AnalyticsData = {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return (cents / 100).toLocaleString(undefined, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
 function fmtExact(cents: number, currency = "usd") {
@@ -94,15 +108,39 @@ function colorRate(val: number, greenThresh: number, amberThresh: number) {
   return "text-red-600";
 }
 
+// ── Y-axis tick calculation ────────────────────────────────────────────────────
+
+function getYTicks(maxVal: number): number[] {
+  if (maxVal === 0) return [];
+  if (maxVal <= 5) return Array.from({ length: maxVal + 1 }, (_, i) => i);
+  if (maxVal <= 20) {
+    const step = Math.ceil(maxVal / 4);
+    const ticks: number[] = [];
+    for (let i = 0; i <= maxVal; i += step) ticks.push(i);
+    if (ticks[ticks.length - 1] < maxVal) ticks.push(maxVal);
+    return ticks;
+  }
+  const step = Math.ceil(maxVal / 4 / 5) * 5;
+  const ticks: number[] = [];
+  for (let i = 0; i <= maxVal + step; i += step) ticks.push(i);
+  return ticks;
+}
+
 // ── Skeleton ────────────────────────────────────────────────────────────────────
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-neutral-200 ${className}`} />;
 }
 
-// ── Chart ───────────────────────────────────────────────────────────────────────
+// ── SVG Line Chart ─────────────────────────────────────────────────────────────
 
-function BarChartSection({
+const METRIC_COLORS: Record<ChartMetric, string> = {
+  revenue: "#B45309",
+  orders: "#4F46E5",
+  views: "#0D9488",
+};
+
+function LineChartSection({
   chartData,
   metric,
   onMetricChange,
@@ -111,34 +149,64 @@ function BarChartSection({
   metric: ChartMetric;
   onMetricChange: (m: ChartMetric) => void;
 }) {
-  const [tooltip, setTooltip] = useState<{ label: string; value: string; x: number; y: number } | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    label: string;
+    value: string;
+    xPct: number;
+    yPct: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const values = chartData.map((b) => b[metric]);
-  const maxVal = Math.max(...values, 1);
-  const hasData = values.some((v) => v > 0);
-  const manyBuckets = chartData.length > 14;
-
-  const metricColors: Record<ChartMetric, string> = {
-    revenue: "bg-amber-400 hover:bg-amber-500",
-    orders: "bg-indigo-400 hover:bg-indigo-500",
-    views: "bg-teal-400 hover:bg-teal-500",
-    clicks: "bg-orange-400 hover:bg-orange-500",
-  };
-
-  const yLabels = [maxVal, Math.round(maxVal * 0.75), Math.round(maxVal * 0.5), Math.round(maxVal * 0.25), 0];
-
-  function formatValue(v: number) {
-    if (metric === "revenue") return fmtExact(v);
-    return v.toLocaleString();
-  }
 
   const metrics: { key: ChartMetric; label: string }[] = [
     { key: "revenue", label: "Revenue" },
     { key: "orders", label: "Orders" },
     { key: "views", label: "Views" },
-    { key: "clicks", label: "Clicks" },
   ];
+
+  const values = chartData.map((d) => d[metric] as number);
+  const rawMax = Math.max(...values, 0);
+  const yTicks = getYTicks(rawMax);
+  const yMax = yTicks.length > 0 ? yTicks[yTicks.length - 1] : 1;
+  const hasData = values.some((v) => v > 0);
+  const color = METRIC_COLORS[metric];
+
+  const SVG_W = 800;
+  const SVG_H = 220;
+  const PAD_L = 58;
+  const PAD_R = 20;
+  const PAD_T = 20;
+  const PAD_B = 44; // room for X labels
+  const CW = SVG_W - PAD_L - PAD_R;
+  const CH = SVG_H - PAD_T - PAD_B;
+
+  const n = chartData.length;
+  const points = chartData.map((d, i) => ({
+    x: PAD_L + (n > 1 ? (i / (n - 1)) : 0.5) * CW,
+    y: PAD_T + CH - (hasData && yMax > 0 ? ((d[metric] as number) / yMax) * CH : 0),
+    value: d[metric] as number,
+    label: d.label,
+  }));
+
+  const pathD =
+    points.length > 1
+      ? points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ")
+      : "";
+  const areaD =
+    points.length > 1
+      ? pathD +
+        ` L ${points[points.length - 1].x.toFixed(1)} ${(PAD_T + CH).toFixed(1)}` +
+        ` L ${PAD_L} ${(PAD_T + CH).toFixed(1)} Z`
+      : "";
+
+  // X-axis: show every Nth label to avoid crowding
+  const xStep =
+    n > 20 ? Math.ceil(n / 8) : n > 14 ? Math.ceil(n / 7) : 1;
+  const shouldRotate = n > 14;
+
+  function formatValue(v: number) {
+    if (metric === "revenue") return fmtExact(v);
+    return v.toLocaleString();
+  }
 
   return (
     <section>
@@ -163,89 +231,150 @@ function BarChartSection({
 
       <div className="border border-neutral-200 p-4 relative" ref={containerRef}>
         {!hasData && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <p className="text-sm text-neutral-400">No data for this period</p>
           </div>
         )}
 
-        {/* Y axis + chart area */}
-        <div className="flex gap-2">
-          {/* Y axis labels */}
-          <div className="flex flex-col justify-between text-right shrink-0 w-12 text-[10px] text-neutral-400" style={{ height: 180 }}>
-            {yLabels.map((v, i) => (
-              <span key={i}>
-                {metric === "revenue" ? `$${Math.round(v / 100).toLocaleString()}` : v.toLocaleString()}
-              </span>
-            ))}
-          </div>
-
-          {/* Bars */}
-          <div className="flex-1 relative">
-            {/* Grid lines */}
-            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none" style={{ height: 180 }}>
-              {yLabels.map((_, i) => (
-                <div key={i} className="border-t border-neutral-100 w-full" />
-              ))}
-            </div>
-
-            {/* Bar columns */}
-            <div className="flex items-end gap-px overflow-x-auto" style={{ height: 180 }}>
-              {chartData.map((b) => {
-                const val = b[metric];
-                const heightPct = Math.max(val > 0 ? 4 : 0, Math.round((val / maxVal) * 100));
-                return (
-                  <div
-                    key={b.timestamp}
-                    className="flex-1 flex flex-col items-center justify-end min-w-[4px] cursor-pointer"
-                    style={{ height: "100%" }}
-                    onMouseEnter={(e) => {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      const containerRect = containerRef.current?.getBoundingClientRect();
-                      if (containerRect) {
-                        setTooltip({
-                          label: b.label,
-                          value: formatValue(val),
-                          x: rect.left - containerRect.left + rect.width / 2,
-                          y: rect.top - containerRect.top - 8,
-                        });
-                      }
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
-                  >
-                    <div
-                      className={`w-full transition-colors ${metricColors[metric]}`}
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* X axis labels */}
-        <div className="flex gap-px ml-14 mt-1 overflow-x-hidden">
-          {chartData.map((b, i) => {
-            const showEvery = manyBuckets ? Math.ceil(chartData.length / 14) : 1;
-            const show = i % showEvery === 0 || i === chartData.length - 1;
+        <svg
+          width="100%"
+          viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+          style={{ overflow: "visible", display: "block" }}
+        >
+          {/* Y-axis grid lines + labels */}
+          {yTicks.map((tick) => {
+            const y = PAD_T + CH - (yMax > 0 ? (tick / yMax) * CH : 0);
             return (
-              <div
-                key={b.timestamp}
-                className={`flex-1 min-w-[4px] text-center overflow-hidden ${manyBuckets ? "-rotate-45 origin-top-left" : ""}`}
-              >
-                {show && (
-                  <span className="text-[9px] text-neutral-400 whitespace-nowrap">{b.label}</span>
-                )}
-              </div>
+              <g key={tick}>
+                <line
+                  x1={PAD_L}
+                  x2={SVG_W - PAD_R}
+                  y1={y}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth={0.5}
+                />
+                <text
+                  x={PAD_L - 8}
+                  y={y}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  fontSize={11}
+                  fill="#9ca3af"
+                >
+                  {metric === "revenue"
+                    ? `$${Math.round(tick / 100).toLocaleString()}`
+                    : tick.toLocaleString()}
+                </text>
+              </g>
             );
           })}
-        </div>
+
+          {/* Baseline (always shown) */}
+          <line
+            x1={PAD_L}
+            x2={SVG_W - PAD_R}
+            y1={PAD_T + CH}
+            y2={PAD_T + CH}
+            stroke="#e5e7eb"
+            strokeWidth={1}
+          />
+
+          {/* Area fill */}
+          {hasData && points.length > 1 && (
+            <path d={areaD} fill={color} fillOpacity={0.1} />
+          )}
+
+          {/* Line */}
+          {hasData && points.length > 1 && (
+            <path
+              d={pathD}
+              fill="none"
+              stroke={color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* Dots (≤20 points) */}
+          {hasData &&
+            n <= 20 &&
+            points.map((p, i) => (
+              <circle
+                key={i}
+                cx={p.x}
+                cy={p.y}
+                r={3}
+                fill={color}
+                style={{ cursor: "pointer" }}
+                onMouseEnter={() =>
+                  setTooltip({
+                    label: p.label,
+                    value: formatValue(p.value),
+                    xPct: (p.x / SVG_W) * 100,
+                    yPct: (p.y / SVG_H) * 100,
+                  })
+                }
+                onMouseLeave={() => setTooltip(null)}
+              />
+            ))}
+
+          {/* Invisible hit-targets (>20 points) */}
+          {hasData &&
+            n > 20 &&
+            points.map((p, i) => (
+              <rect
+                key={i}
+                x={p.x - CW / n / 2}
+                y={PAD_T}
+                width={CW / n}
+                height={CH}
+                fill="transparent"
+                style={{ cursor: "crosshair" }}
+                onMouseEnter={() =>
+                  setTooltip({
+                    label: p.label,
+                    value: formatValue(p.value),
+                    xPct: (p.x / SVG_W) * 100,
+                    yPct: (p.y / SVG_H) * 100,
+                  })
+                }
+                onMouseLeave={() => setTooltip(null)}
+              />
+            ))}
+
+          {/* X-axis labels */}
+          {points.map((p, i) => {
+            const show = i % xStep === 0 || i === n - 1;
+            if (!show) return null;
+            return (
+              <text
+                key={i}
+                x={p.x}
+                y={SVG_H - 6}
+                textAnchor={shouldRotate ? "end" : "middle"}
+                fontSize={11}
+                fill="#9ca3af"
+                transform={
+                  shouldRotate ? `rotate(-35, ${p.x.toFixed(1)}, ${(SVG_H - 6).toFixed(1)})` : undefined
+                }
+              >
+                {p.label}
+              </text>
+            );
+          })}
+        </svg>
 
         {/* Tooltip */}
         {tooltip && (
           <div
-            className="absolute z-10 pointer-events-none bg-neutral-900 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap"
-            style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -100%)" }}
+            className="absolute z-20 pointer-events-none bg-neutral-900 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap"
+            style={{
+              left: `${tooltip.xPct}%`,
+              top: `${tooltip.yPct}%`,
+              transform: "translate(-50%, -130%)",
+            }}
           >
             <div className="font-medium">{tooltip.label}</div>
             <div>{tooltip.value}</div>
@@ -262,6 +391,7 @@ const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "yesterday", label: "Yesterday" },
   { key: "week", label: "This week" },
+  { key: "last7", label: "Last 7 days" },
   { key: "month", label: "This month" },
   { key: "last30", label: "Last 30 days" },
   { key: "year", label: "This year" },
@@ -324,9 +454,7 @@ export default function AnalyticsPage() {
       </header>
 
       {error && (
-        <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
+        <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       {/* ── Section A: Overview ── */}
@@ -367,28 +495,57 @@ export default function AnalyticsPage() {
       <section>
         <h2 className="text-xl font-semibold mb-4">Engagement</h2>
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
           </div>
         ) : data ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div className="border border-neutral-200 p-3">
+              <p className="text-xl font-bold">{data.engagement.totalViews.toLocaleString()}</p>
+              <p className="text-xs font-medium text-neutral-700 mt-0.5">Listing Views</p>
+              <p className="text-[10px] text-neutral-400">times your listing page was opened · updates daily</p>
+            </div>
             {[
-              { label: "Impressions", value: data.engagement.totalViews.toLocaleString(), note: "total views on listings" },
-              { label: "Clicks", value: data.engagement.totalClicks.toLocaleString(), note: "listing card clicks" },
-              { label: "Profile Visits", value: data.engagement.profileVisits.toLocaleString(), note: "all-time" },
-              { label: "Click Rate", value: pct(data.engagement.viewToClickRatio), note: "views → clicks" },
-              { label: "Conversion", value: pct(data.engagement.conversionRate, 2), note: "orders ÷ views" },
-              { label: "Saved", value: data.engagement.favoritesCount.toLocaleString(), note: "total favorites" },
-              { label: "Watching", value: data.engagement.stockNotificationSubs.toLocaleString(), note: "stock alerts" },
-              { label: "Cart Abandoned", value: data.engagement.cartAbandonment.toLocaleString(), note: "added, not bought" },
-              { label: "Repeat Buyers", value: pct(data.repeatBuyerRate), note: "bought more than once" },
+              {
+                label: "Conversion",
+                value: pct(data.engagement.conversionRate, 2),
+                note: "orders ÷ listing views",
+              },
+              {
+                label: "Profile Visits",
+                value: data.engagement.profileVisits.toLocaleString(),
+                note: "all-time total",
+              },
+              {
+                label: "Cart Abandoned",
+                value: data.engagement.cartAbandonment.toLocaleString(),
+                note: "items added to cart but not purchased",
+              },
+              {
+                label: "Saved",
+                value: data.engagement.favoritesCount.toLocaleString(),
+                note: "total favorites",
+              },
+              {
+                label: "Watching",
+                value: data.engagement.stockNotificationSubs.toLocaleString(),
+                note: "stock alerts",
+              },
+              {
+                label: "Repeat Buyers",
+                value: pct(data.repeatBuyerRate),
+                note: "buyers who ordered more than once · all time",
+              },
               {
                 label: "Avg Processing",
-                value: data.avgProcessingHours != null
-                  ? data.avgProcessingHours >= 48
-                    ? `${(data.avgProcessingHours / 24).toFixed(1)} days`
-                    : `${data.avgProcessingHours.toFixed(1)} hrs`
-                  : "—",
+                value:
+                  data.avgProcessingHours != null
+                    ? data.avgProcessingHours >= 48
+                      ? `${(data.avgProcessingHours / 24).toFixed(1)} days`
+                      : `${data.avgProcessingHours.toFixed(1)} hrs`
+                    : "—",
                 note: "order to shipped",
               },
             ].map((stat) => (
@@ -405,9 +562,9 @@ export default function AnalyticsPage() {
       {/* ── Section C: Chart ── */}
       <section>
         {loading ? (
-          <Skeleton className="h-60 w-full" />
+          <Skeleton className="h-64 w-full" />
         ) : data ? (
-          <BarChartSection
+          <LineChartSection
             chartData={data.chartData}
             metric={chartMetric}
             onMetricChange={setChartMetric}
@@ -419,38 +576,60 @@ export default function AnalyticsPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Top Listings</h2>
-          <Link href="/dashboard/listings" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+          <Link
+            href="/dashboard/listings"
+            className="text-sm text-neutral-600 underline hover:text-neutral-900"
+          >
             View all →
           </Link>
         </div>
         {loading ? (
           <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16" />
+            ))}
           </div>
         ) : data ? (
           data.topListings.length === 0 ? (
-            <div className="border border-neutral-200 p-6 text-sm text-neutral-500">No sales data yet.</div>
+            <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
+              No sales data yet.
+            </div>
           ) : (
             <ul className="divide-y border border-neutral-200">
               {data.topListings.slice(0, 5).map((l) => (
                 <li key={l.id} className="flex items-center gap-4 p-3">
                   {l.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={l.imageUrl} alt="" className="h-20 w-20 object-cover border border-neutral-200 shrink-0" />
+                    <img
+                      src={l.imageUrl}
+                      alt=""
+                      className="h-20 w-20 object-cover border border-neutral-200 shrink-0"
+                    />
                   ) : (
                     <div className="h-20 w-20 bg-neutral-100 border border-neutral-200 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <Link href={`/listing/${l.id}`} className="text-sm font-medium hover:underline truncate block">
+                    <Link
+                      href={`/listing/${l.id}`}
+                      className="text-sm font-medium hover:underline truncate block"
+                    >
                       {l.title}
                     </Link>
                     <p className="text-xs text-neutral-600 mt-0.5">
-                      {fmtExact(l.totalRevenueCents)} total · {l.unitsSold} units · avg {fmt(l.avgPriceCents)}
+                      {fmtExact(l.totalRevenueCents)} total · {l.unitsSold} unit
+                      {l.unitsSold !== 1 ? "s" : ""}
                     </p>
                     <p className="text-xs text-neutral-400 mt-0.5">
-                      👁 {l.viewCount.toLocaleString()} · 🖱 {l.clickCount.toLocaleString()} · ♥ {l.favoritesCount} · 🔔 {l.stockNotificationCount}
+                      👁 {l.viewCount.toLocaleString()} · 🖱 {l.clickCount.toLocaleString()} · ♥{" "}
+                      {l.favoritesCount} · 🔔 {l.stockNotificationCount}
                       {l.revenuePerActiveDayCents > 0 && (
-                        <> · <span className="text-neutral-500">{fmtExact(l.revenuePerActiveDayCents)}/day</span></>
+                        <>
+                          {" "}
+                          ·{" "}
+                          <span className="text-neutral-500">
+                            {fmtExact(l.revenuePerActiveDayCents)}/day
+                          </span>
+                        </>
                       )}
                     </p>
                   </div>
@@ -476,20 +655,21 @@ export default function AnalyticsPage() {
               {[
                 {
                   label: "Average Rating",
-                  value: data.guildMetrics.reviewCount > 0
-                    ? `${data.guildMetrics.averageRating.toFixed(1)} ★ (${data.guildMetrics.reviewCount} reviews)`
-                    : "No reviews yet",
+                  value:
+                    data.guildMetrics.reviewCount > 0
+                      ? `${data.guildMetrics.averageRating.toFixed(1)} ★ (${data.guildMetrics.reviewCount} reviews)`
+                      : "No reviews yet",
                   className: "",
                 },
                 {
                   label: "On-Time Shipping",
                   value: pct(data.guildMetrics.onTimeShippingRate * 100),
-                  className: colorRate(data.guildMetrics.onTimeShippingRate, 0.95, 0.80),
+                  className: colorRate(data.guildMetrics.onTimeShippingRate, 0.95, 0.8),
                 },
                 {
                   label: "Response Rate",
                   value: pct(data.guildMetrics.responseRate * 100),
-                  className: colorRate(data.guildMetrics.responseRate, 0.90, 0.70),
+                  className: colorRate(data.guildMetrics.responseRate, 0.9, 0.7),
                 },
                 {
                   label: "Account Age",
@@ -499,7 +679,8 @@ export default function AnalyticsPage() {
                 {
                   label: "Open Cases",
                   value: String(data.guildMetrics.activeCaseCount),
-                  className: data.guildMetrics.activeCaseCount === 0 ? "text-green-700" : "text-red-600",
+                  className:
+                    data.guildMetrics.activeCaseCount === 0 ? "text-green-700" : "text-red-600",
                 },
                 {
                   label: "Completed Sales",
@@ -523,13 +704,18 @@ export default function AnalyticsPage() {
               {data.guildMasterMet ? (
                 <div className="border border-amber-300 bg-amber-50 px-5 py-3 flex items-center justify-between">
                   <p className="text-sm text-amber-900 font-medium">You qualify for Guild Master!</p>
-                  <Link href="/dashboard/verification" className="text-xs border border-amber-400 px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors">
+                  <Link
+                    href="/dashboard/verification"
+                    className="text-xs border border-amber-400 px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors"
+                  >
                     Apply →
                   </Link>
                 </div>
               ) : data.guildMasterFailures.length > 0 ? (
                 <div className="border border-neutral-200 px-5 py-3">
-                  <p className="text-sm font-medium text-neutral-700 mb-2">Guild Master criteria not yet met:</p>
+                  <p className="text-sm font-medium text-neutral-700 mb-2">
+                    Guild Master criteria not yet met:
+                  </p>
                   <ul className="space-y-1">
                     {data.guildMasterFailures.map((f) => (
                       <li key={f} className="text-xs text-neutral-600 flex gap-2">
@@ -555,7 +741,9 @@ export default function AnalyticsPage() {
                 <span className="text-neutral-600">{r.label}</span>
                 <span className="font-medium">
                   {r.avgRating.toFixed(1)} ★
-                  <span className="text-xs text-neutral-400 font-normal ml-1">({r.reviewCount} review{r.reviewCount !== 1 ? "s" : ""})</span>
+                  <span className="text-xs text-neutral-400 font-normal ml-1">
+                    ({r.reviewCount} review{r.reviewCount !== 1 ? "s" : ""})
+                  </span>
                 </span>
               </div>
             ))}
@@ -569,43 +757,62 @@ export default function AnalyticsPage() {
   );
 }
 
-// Recent sales is a separate sub-component to keep things clean
+// Recent sales is a separate sub-component (doesn't change with range)
 function RecentSales() {
-  const [sales, setSales] = useState<null | {
-    id: string;
-    createdAt: string;
-    itemsSubtotalCents: number;
-    shippingAmountCents: number;
-    taxAmountCents: number;
-    currency: string;
-    fulfillmentStatus: string | null;
-    buyer: { name: string | null } | null;
-    items: Array<{ listing: { title: string } }>;
-  }[]>(null);
+  const [sales, setSales] = useState<
+    | null
+    | {
+        id: string;
+        createdAt: string;
+        itemsSubtotalCents: number;
+        shippingAmountCents: number;
+        taxAmountCents: number;
+        currency: string;
+        fulfillmentStatus: string | null;
+        buyer: { name: string | null } | null;
+        items: Array<{ listing: { title: string } }>;
+      }[]
+  >(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/seller/analytics/recent-sales")
       .then((r) => r.json())
-      .then((d) => { setSales(d.sales ?? []); setLoading(false); })
-      .catch(() => { setSales([]); setLoading(false); });
+      .then((d) => {
+        setSales(d.sales ?? []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setSales([]);
+        setLoading(false);
+      });
   }, []);
 
   function statusLabel(s: string | null) {
     switch (s) {
-      case "PENDING": return "Processing";
-      case "READY_FOR_PICKUP": return "Ready";
-      case "PICKED_UP": return "Picked Up";
-      case "SHIPPED": return "Shipped";
-      case "DELIVERED": return "Delivered";
-      default: return "Processing";
+      case "PENDING":
+        return "Processing";
+      case "READY_FOR_PICKUP":
+        return "Ready";
+      case "PICKED_UP":
+        return "Picked Up";
+      case "SHIPPED":
+        return "Shipped";
+      case "DELIVERED":
+        return "Delivered";
+      default:
+        return "Processing";
     }
   }
   function statusColor(s: string | null) {
     switch (s) {
-      case "DELIVERED": case "PICKED_UP": return "bg-green-100 text-green-800";
-      case "SHIPPED": return "bg-blue-100 text-blue-800";
-      default: return "bg-neutral-100 text-neutral-700";
+      case "DELIVERED":
+      case "PICKED_UP":
+        return "bg-green-100 text-green-800";
+      case "SHIPPED":
+        return "bg-blue-100 text-blue-800";
+      default:
+        return "bg-neutral-100 text-neutral-700";
     }
   }
 
@@ -613,14 +820,19 @@ function RecentSales() {
     <section>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">Recent Sales</h2>
-        <Link href="/dashboard/sales" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+        <Link
+          href="/dashboard/sales"
+          className="text-sm text-neutral-600 underline hover:text-neutral-900"
+        >
           View all sales →
         </Link>
       </div>
       {loading ? (
         <Skeleton className="h-40 w-full" />
       ) : !sales || sales.length === 0 ? (
-        <div className="border border-neutral-200 p-6 text-sm text-neutral-500">No completed sales yet.</div>
+        <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
+          No completed sales yet.
+        </div>
       ) : (
         <div className="border border-neutral-200 overflow-x-auto">
           <table className="w-full text-sm">
@@ -628,14 +840,19 @@ function RecentSales() {
               <tr>
                 <th className="text-left px-4 py-2 font-medium text-neutral-600">Date</th>
                 <th className="text-left px-4 py-2 font-medium text-neutral-600">Item</th>
-                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden sm:table-cell">Buyer</th>
+                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden sm:table-cell">
+                  Buyer
+                </th>
                 <th className="text-right px-4 py-2 font-medium text-neutral-600">Amount</th>
-                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden md:table-cell">Status</th>
+                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden md:table-cell">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {sales.map((order) => {
-                const total = order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+                const total =
+                  order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
                 const title = order.items[0]?.listing.title ?? "Order";
                 const buyerFirstName = order.buyer?.name?.split(" ")[0] ?? "Buyer";
                 return (
@@ -644,16 +861,23 @@ function RecentSales() {
                       {new Date(order.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2 max-w-[180px] truncate">
-                      <Link href={`/dashboard/sales/${order.id}`} className="hover:underline">
+                      <Link
+                        href={`/dashboard/sales/${order.id}`}
+                        className="hover:underline"
+                      >
                         {title}
                       </Link>
                     </td>
-                    <td className="px-4 py-2 text-neutral-600 hidden sm:table-cell">{buyerFirstName}</td>
+                    <td className="px-4 py-2 text-neutral-600 hidden sm:table-cell">
+                      {buyerFirstName}
+                    </td>
                     <td className="px-4 py-2 text-right font-medium whitespace-nowrap">
                       {fmtExact(total, order.currency)}
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}
+                      >
                         {statusLabel(order.fulfillmentStatus)}
                       </span>
                     </td>

@@ -18,7 +18,18 @@ export async function POST(
     return NextResponse.json({ ok: true, skipped: true });
   }
 
+  const listing = await prisma.listing.findUnique({ where: { id }, select: { sellerId: true } });
   await prisma.listing.updateMany({ where: { id }, data: { clickCount: { increment: 1 } } });
+
+  if (listing) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    prisma.listingViewDaily.upsert({
+      where: { listingId_date: { listingId: id, date: today } },
+      create: { listingId: id, sellerProfileId: listing.sellerId, date: today, views: 0, clicks: 1 },
+      update: { clicks: { increment: 1 } },
+    }).catch(() => {});
+  }
 
   const res = NextResponse.json({ ok: true });
   res.cookies.set(cookieName, "1", {

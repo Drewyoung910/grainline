@@ -178,6 +178,7 @@ model SellerProfile {
   makerVerification    MakerVerification?
   blogPosts            BlogPost[]
   sellerMetrics        SellerMetrics?
+  viewDailies          ListingViewDaily[]
 }
 
 model SellerFaq {
@@ -243,6 +244,7 @@ model Listing {
 
   contextConversations Conversation[] @relation("ConversationContextListing")
   stockNotifications   StockNotification[]
+  viewDailies          ListingViewDaily[]
 
   // Custom order fields
   isPrivate                 Boolean  @default(false)
@@ -761,4 +763,19 @@ model Notification {
 
   @@index([userId, read])
   @@index([userId, createdAt])
+}
+
+model ListingViewDaily {
+  id              String        @id @default(cuid())
+  listingId       String
+  listing         Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  date            DateTime      // stored as midnight UTC of that day
+  views           Int           @default(0)
+  clicks          Int           @default(0)
+
+  @@unique([listingId, date])
+  @@index([sellerProfileId, date])
+  @@index([date])
 }
