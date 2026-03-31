@@ -63,6 +63,9 @@ export default async function SellerShopPage({
       displayName: true,
       avatarImageUrl: true,
       guildLevel: true,
+      vacationMode: true,
+      vacationReturnDate: true,
+      vacationMessage: true,
       user: { select: { imageUrl: true } },
     },
   });
@@ -150,6 +153,24 @@ export default async function SellerShopPage({
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-6">
+      {/* ── Vacation notice ──────────────────────────────────────────── */}
+      {seller.vacationMode && (
+        <div className="mb-6 border border-amber-300 bg-amber-50 px-5 py-4">
+          <p className="font-medium text-amber-900">This maker is currently on vacation and not accepting new orders.</p>
+          {seller.vacationReturnDate && (
+            <p className="text-amber-800 text-sm mt-0.5">
+              Expected return: {new Date(seller.vacationReturnDate).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+            </p>
+          )}
+          {seller.vacationMessage && (
+            <p className="text-amber-800 text-sm mt-0.5">{seller.vacationMessage}</p>
+          )}
+          <Link href="/browse" className="inline-block mt-2 text-sm text-amber-900 underline hover:text-amber-700">
+            Browse other makers →
+          </Link>
+        </div>
+      )}
+
       {/* ── Header bar ────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         {avatarSrc ? (

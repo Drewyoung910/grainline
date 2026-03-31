@@ -51,6 +51,14 @@ export async function POST() {
       );
     }
 
+    // Block checkout if the seller is on vacation
+    if (cart.items[0].listing.seller.vacationMode) {
+      return NextResponse.json(
+        { error: "One or more items in your cart are from a seller who is currently on vacation and not accepting new orders. Please remove these items to continue." },
+        { status: 400 }
+      );
+    }
+
     const currency = (cart.items[0].listing.currency || "usd").toLowerCase();
     const destination = cart.items[0].listing.seller.stripeAccountId || null;
 

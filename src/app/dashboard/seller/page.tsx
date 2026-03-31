@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { revalidatePath } from "next/cache";
 import LocationPicker from "@/components/LocationPicker";
+import VacationModeForm from "./VacationModeForm";
 
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -120,6 +121,14 @@ export default async function SellerSettingsPage() {
   return (
     <main className="max-w-2xl mx-auto p-8 space-y-6">
       <h1 className="text-2xl font-semibold">Seller profile</h1>
+
+      {/* Vacation Mode */}
+      <VacationModeForm
+        sellerId={seller.id}
+        vacationMode={row?.vacationMode ?? false}
+        vacationReturnDate={row?.vacationReturnDate ?? null}
+        vacationMessage={row?.vacationMessage ?? null}
+      />
 
       <form action={updateSellerProfile} className="space-y-6">
         <div>

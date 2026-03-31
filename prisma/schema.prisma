@@ -165,6 +165,11 @@ model SellerProfile {
   onboardingStep     Int     @default(0)
   onboardingComplete Boolean @default(false)
 
+  // Vacation mode
+  vacationMode       Boolean   @default(false)
+  vacationReturnDate DateTime?
+  vacationMessage    String?
+
   listings             Listing[]
   faqs                 SellerFaq[]
   makerVerification    MakerVerification?

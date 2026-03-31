@@ -32,6 +32,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You cannot add your own listing to cart." }, { status: 400 });
     }
 
+    // block adding items from a vacationing seller
+    if (listing.seller.vacationMode) {
+      return NextResponse.json({ error: "This seller is currently on vacation and not accepting new orders." }, { status: 400 });
+    }
+
     // ensure cart
     let cart = await prisma.cart.findUnique({ where: { userId: me.id } });
     if (!cart) cart = await prisma.cart.create({ data: { userId: me.id } });

@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
-import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell } from "@/components/icons";
+import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart } from "@/components/icons";
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(listingId: string, nextStatus: ListingStatus) {
@@ -137,10 +137,12 @@ export default async function DashboardPage() {
     prisma.notification.count({ where: { userId: me.id, read: false } }),
     prisma.sellerProfile.findUnique({
       where: { id: seller.id },
-      select: { guildLevel: true },
+      select: { guildLevel: true, vacationMode: true, vacationReturnDate: true },
     }),
   ]);
   const guildLevel = guildSeller?.guildLevel ?? "NONE";
+  const vacationMode = guildSeller?.vacationMode ?? false;
+  const vacationReturnDate = guildSeller?.vacationReturnDate ?? null;
 
   return (
     <main className="max-w-6xl mx-auto p-8">
@@ -240,6 +242,15 @@ export default async function DashboardPage() {
           </Link>
 
           <Link
+            href="/dashboard/analytics"
+            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+          >
+            <BarChart size={20} className="sm:hidden shrink-0" />
+            <BarChart size={16} className="hidden sm:block shrink-0" />
+            Analytics
+          </Link>
+
+          <Link
             href="/dashboard/notifications"
             className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
           >
@@ -283,6 +294,28 @@ export default async function DashboardPage() {
           )}
         </div>
       </header>
+
+      {/* Vacation mode active banner */}
+      {vacationMode && (
+        <div className="mb-8 border border-amber-300 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-medium text-amber-900 text-sm">Vacation mode is active</p>
+            <p className="text-amber-800 text-sm mt-0.5">
+              Your listings are hidden and new orders are blocked.
+              {vacationReturnDate && (
+                <> Return date: {new Date(vacationReturnDate).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}.</>
+              )}
+              {!vacationReturnDate && <> No return date set.</>}
+            </p>
+          </div>
+          <a
+            href="/dashboard/seller"
+            className="shrink-0 text-xs border border-amber-400 bg-white px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors"
+          >
+            Turn off vacation mode →
+          </a>
+        </div>
+      )}
 
       <section>
         <div className="flex items-center justify-between mb-4">

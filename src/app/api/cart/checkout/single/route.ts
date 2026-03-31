@@ -81,6 +81,7 @@ export async function POST(req: Request) {
           select: {
             userId: true,
             stripeAccountId: true,
+            vacationMode: true,
             shipFromName: true,
             shipFromLine1: true,
             shipFromLine2: true,
@@ -100,6 +101,13 @@ export async function POST(req: Request) {
 
     if (listing.seller.userId === me.id) {
       return NextResponse.json({ error: "You cannot buy your own listing." }, { status: 400 });
+    }
+
+    if (listing.seller.vacationMode) {
+      return NextResponse.json(
+        { error: "This seller is currently on vacation and not accepting new orders." },
+        { status: 400 }
+      );
     }
 
     const currency = (listing.currency || "usd").toLowerCase();

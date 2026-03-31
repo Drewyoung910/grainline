@@ -947,6 +947,73 @@ UptimeRobot configured to ping thegrainline.com every 5 minutes. Alerts on downt
 ### `/account/orders` page (new)
 `src/app/account/orders/page.tsx` — paginated full order history (20/page) with order items, totals, tracking numbers, status badges, and per-order detail links.
 
+## Vacation Mode (complete — 2026-03-31)
+
+Sellers can pause their shop while away. Migration: `20260331000843_vacation_mode`
+
+### Schema additions on `SellerProfile`
+- `vacationMode Boolean @default(false)` — whether vacation mode is currently active
+- `vacationReturnDate DateTime?` — optional expected return date shown to buyers
+- `vacationMessage String?` — optional message to buyers (max 200 chars)
+
+### Dashboard seller settings (`/dashboard/seller`)
+- New **Vacation Mode** card at top of page, rendered by `VacationModeForm` (`"use client"` component)
+- Toggle switch to enable/disable vacation mode
+- Enabling shows a warning banner (existing orders unaffected, buyers can still message you) with confirm/cancel
+- When ON: optional return date picker + optional vacation message textarea (200 char limit)
+- Save calls `POST /api/seller/vacation` which updates the three fields
+
+### Dashboard home (`/dashboard`)
+- Amber banner when vacation mode is active: "Your listings are hidden and new orders are blocked." + return date (if set) + "Turn off vacation mode →" link to `/dashboard/seller`
+
+### Listing suppression
+- **Browse** (`/browse`): `seller: { vacationMode: false }` added to main `where` clause
+- **Homepage** (`/`): added to both "Fresh from the Workshop" and "Collector Favorites" queries
+- **Similar items** (`/api/listings/[id]/similar`): `AND sp."vacationMode" = false` added to both raw SQL paths; `seller: { vacationMode: false }` added to Prisma fallback
+
+### Checkout + cart blocking
+- **`POST /api/cart/add`** — returns 400 if `listing.seller.vacationMode` is true
+- **`POST /api/cart/checkout`** — returns 400 if the seller is on vacation
+- **`POST /api/cart/checkout/single`** — returns 400 if the seller is on vacation
+
+### Public profile notices
+- **`/seller/[id]`** — amber banner above the banner image when `seller.vacationMode === true`; shows return date and vacation message if set; "Browse other makers →" link
+- **`/seller/[id]/shop`** — same amber banner above the header bar
+
+## Seller Analytics Dashboard (complete — 2026-03-31)
+
+`/dashboard/analytics` — server component. Fetches fresh metrics on load if stale (>24h or no record), otherwise reads from `SellerMetrics` table.
+
+### Analytics nav
+- "Analytics" button added to Workshop nav (BarChart icon, links to `/dashboard/analytics`)
+
+### Sections
+
+**Section A — Overview (4 stat cards)**
+- Total Revenue (all-time completed orders)
+- Total Orders (all-time completed orders)
+- Avg. Order Value
+- Active Listings (current count)
+
+**Section B — Guild Metrics**
+- Pulls from `SellerMetrics` (auto-recalculated on page load if stale)
+- Rows: Average Rating (★), On-Time Shipping Rate (color-coded green/amber/red), Response Rate (color-coded), Account Age, Open Cases
+- Guild Master eligibility panel: "You qualify for Guild Master! Apply →" if all criteria met; otherwise lists failing criteria with required vs current values
+
+**Section C — Recent Sales (last 10 orders)**
+- Table: Date, Item title (truncated, links to order detail), Buyer first name (privacy), Amount, Status badge
+- "View all sales →" link to `/dashboard/sales`
+
+**Section D — Top Listings**
+- Raw SQL: top 5 listings by revenue across all completed orders; shows photo thumbnail, title, units sold, average price, total revenue
+
+**Section E — Monthly Revenue (CSS bar chart)**
+- Raw SQL: monthly revenue grouped by YYYY-MM for last 6 months
+- CSS div-based bar chart, proportional height, month labels, revenue labels above each bar; no external charting library
+
+### Stale metrics refresh
+Page fetches `SellerMetrics.calculatedAt`; if missing or older than 24h, calls `calculateSellerMetrics(sellerProfileId)` before rendering so analytics are always fresh even before the monthly cron runs.
+
 ## Remaining Work
 
 ### Mobile audit round 3 (complete — deployed 2026-03-29)
@@ -971,8 +1038,8 @@ All items done:
 ### Seller tools
 
 14. ~~**Guild verification rebuild**~~ — Phases 1, 2, 3 complete (see Guild Verification Program section)
-15. **Seller analytics dashboard** — views, clicks, conversion, revenue charts for sellers; `viewCount` and `clickCount` already tracked on `Listing`; will reuse `SellerMetrics` model from Guild Phase 2
-16. **Vacation / workshop-closed mode** — seller can pause their shop with a banner shown on their profile and listings
+15. ~~**Seller analytics dashboard**~~ — complete, see "Seller Analytics Dashboard" section below
+16. ~~**Vacation / workshop-closed mode**~~ — complete, see "Vacation Mode" section below
 17. ~~**Seller onboarding flow**~~ — complete, see "Seller Onboarding Flow" section
 
 ### Discovery & community
