@@ -104,6 +104,7 @@ model SellerProfile {
 
   // Stripe Connect
   stripeAccountId  String?  @unique
+  chargesEnabled   Boolean  @default(false)
 
   // Flat-rate shipping (legacy/simple fallback)
   shippingFlatRate Float?

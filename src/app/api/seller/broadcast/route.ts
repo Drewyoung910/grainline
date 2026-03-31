@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { broadcastRatelimit } from "@/lib/ratelimit";
+import { broadcastRatelimit, rateLimitResponse } from "@/lib/ratelimit";
 import { sanitizeText } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
   });
   if (!seller) return NextResponse.json({ error: "No seller profile" }, { status: 403 });
 
-  const { success: rlOk } = await broadcastRatelimit.limit(seller.id);
-  if (!rlOk) return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+  const { success: rlOk, reset } = await broadcastRatelimit.limit(seller.id);
+  if (!rlOk) return rateLimitResponse(reset, "You can send one broadcast per week.");
 
   const body = await req.json() as { message?: string; imageUrl?: string; sellersOnly?: boolean };
   const message = typeof body.message === "string" ? sanitizeText(body.message.trim().slice(0, 500)) : "";

@@ -37,9 +37,20 @@ export async function POST(req: Request) {
     });
     await prisma.sellerProfile.update({
       where: { id: seller.id },
-      data: { stripeAccountId: account.id },
+      data: { stripeAccountId: account.id, chargesEnabled: false },
     });
     accountId = account.id;
+  } else {
+    // Refresh charges_enabled status from Stripe
+    try {
+      const account = await stripe.accounts.retrieve(accountId);
+      await prisma.sellerProfile.update({
+        where: { id: seller.id },
+        data: { chargesEnabled: account.charges_enabled ?? false },
+      });
+    } catch {
+      // Non-fatal — continue to return the account link
+    }
   }
 
   const refreshUrl = `${process.env.NEXT_PUBLIC_APP_URL}/seller/payouts`;

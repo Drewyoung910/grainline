@@ -4,7 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ensureUser } from "@/lib/ensureUser";
-import { followRatelimit } from "@/lib/ratelimit";
+import { followRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { logSecurityEvent } from "@/lib/security";
 
 async function getFollowerCount(sellerProfileId: string) {
   return prisma.follow.count({ where: { sellerProfileId } });
@@ -52,8 +53,8 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk } = await followRatelimit.limit(userId);
-  if (!rlOk) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  const { success: rlOk, reset } = await followRatelimit.limit(userId);
+  if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
   const me = await ensureUser();
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -66,6 +67,7 @@ export async function POST(
 
   // Cannot follow yourself
   if (sellerProfile.userId === me.id) {
+    logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/follow", reason: "self-follow attempt" });
     return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
   }
 
@@ -100,8 +102,8 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk } = await followRatelimit.limit(userId);
-  if (!rlOk) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  const { success: rlOk, reset } = await followRatelimit.limit(userId);
+  if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

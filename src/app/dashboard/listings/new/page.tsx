@@ -29,7 +29,7 @@ async function createListing(formData: FormData) {
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
   const { success: rlOk } = await listingCreateRatelimit.limit(userId);
-  if (!rlOk) throw new Error("You can create up to 10 listings per day. Try again tomorrow.");
+  if (!rlOk) throw new Error("You can create up to 20 listings per day. Try again tomorrow.");
 
   const { seller } = await ensureSeller();
 
@@ -103,6 +103,10 @@ async function createListing(formData: FormData) {
   if (!title || !imageUrls.length || !Number.isFinite(priceCents) || priceCents <= 0) {
     throw new Error("Please fill title, price, and upload at least one photo.");
   }
+  if (priceCents < 0) throw new Error("Price cannot be negative.");
+  if (priceCents > 10000000) throw new Error("Price cannot exceed $100,000.");
+  if (stockQuantity !== null && stockQuantity < 0) throw new Error("Stock quantity cannot be negative.");
+  if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) throw new Error("Processing time cannot exceed 365 days.");
 
   const created = await prisma.listing.create({
     data: {

@@ -1,5 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { NextResponse } from "next/server";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -85,7 +86,7 @@ export const commissionInterestRatelimit = new Ratelimit({
 // Listing creation — prevent listing spam
 export const listingCreateRatelimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(10, "24 h"),
+  limiter: Ratelimit.slidingWindow(20, "24 h"),
   analytics: true,
   prefix: "rl:listing_create",
 });
@@ -119,4 +120,32 @@ export function getIP(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
   return "127.0.0.1";
+}
+
+/**
+ * Returns a 429 JSON response with a human-readable retry time.
+ * Pass the `reset` field from Ratelimit.limit() — it is a Unix timestamp in milliseconds.
+ */
+export function rateLimitResponse(reset: number, customMessage?: string): Response {
+  const diffMs = reset - Date.now();
+  const diffMins = Math.ceil(diffMs / 60000);
+  const diffHours = Math.ceil(diffMs / 3600000);
+  const resetDate = new Date(reset);
+
+  let timeStr = "";
+  if (diffMins < 2) timeStr = "a moment";
+  else if (diffMins < 60) timeStr = `${diffMins} minutes`;
+  else if (diffHours < 24) timeStr = `${diffHours} hour${diffHours === 1 ? "" : "s"}`;
+  else timeStr = `tomorrow at ${resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+
+  return NextResponse.json(
+    { error: `${customMessage ?? "Too many requests."} Try again in ${timeStr}.` },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(Math.ceil(diffMs / 1000)),
+        "X-RateLimit-Reset": String(reset),
+      },
+    }
+  ) as Response;
 }

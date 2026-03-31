@@ -193,7 +193,7 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-8 z-50 w-80 rounded-xl border bg-white shadow-lg">
+        <div className="absolute right-0 top-8 z-50 w-80 max-w-[calc(100vw-1rem)] rounded-xl border bg-white shadow-lg overflow-y-auto max-h-[80vh]">
           {/* Header */}
           <div className="flex items-center justify-between border-b px-4 py-3">
             <span className="text-sm font-semibold">Notifications</span>
@@ -208,7 +208,7 @@ export default function NotificationBell({
           </div>
 
           {/* List */}
-          <ul className="max-h-96 overflow-y-auto divide-y">
+          <ul className="divide-y">
             {!loaded ? (
               <li className="px-4 py-6 text-center text-sm text-neutral-400">Loading…</li>
             ) : notifications.length === 0 ? (

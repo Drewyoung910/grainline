@@ -43,6 +43,11 @@ export default async function OnboardingPage() {
     try {
       const account = await stripe.accounts.retrieve(sp.stripeAccountId);
       chargesEnabled = account.charges_enabled ?? false;
+      // Persist charges_enabled status to DB
+      await prisma.sellerProfile.update({
+        where: { id: seller.id },
+        data: { chargesEnabled },
+      });
     } catch {
       // Stripe account may be invalid; treat as not connected
       hasStripeAccount = false;

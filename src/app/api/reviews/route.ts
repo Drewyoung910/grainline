@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { reviewRatelimit } from "@/lib/ratelimit";
+import { reviewRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText } from "@/lib/sanitize";
 
 const REVIEW_WINDOW_DAYS = 90;
@@ -12,9 +13,9 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success } = await reviewRatelimit.limit(userId);
+  const { success, reset } = await reviewRatelimit.limit(userId);
   if (!success) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return rateLimitResponse(reset, "Too many review submissions.");
   }
 
   const { listingId, ratingX2, comment, photoUrls } = (await req.json()) as {
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
     select: { seller: { select: { userId: true } } },
   });
   if (listingForOwnerCheck?.seller?.userId === me.id) {
+    logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/reviews", reason: "self-review attempt" });
     return NextResponse.json({ error: "Cannot review your own listing" }, { status: 403 });
   }
 

@@ -166,12 +166,13 @@ export default async function DashboardPage() {
     prisma.notification.count({ where: { userId: me.id, read: false } }),
     prisma.sellerProfile.findUnique({
       where: { id: seller.id },
-      select: { guildLevel: true, vacationMode: true, vacationReturnDate: true },
+      select: { guildLevel: true, vacationMode: true, vacationReturnDate: true, chargesEnabled: true },
     }),
   ]);
   const guildLevel = guildSeller?.guildLevel ?? "NONE";
   const vacationMode = guildSeller?.vacationMode ?? false;
   const vacationReturnDate = guildSeller?.vacationReturnDate ?? null;
+  const chargesEnabled = guildSeller?.chargesEnabled ?? false;
 
   return (
     <main className="max-w-6xl mx-auto p-8">
@@ -323,6 +324,19 @@ export default async function DashboardPage() {
           )}
         </div>
       </header>
+
+      {/* Stripe Connect banner */}
+      {!chargesEnabled && (
+        <div className="bg-amber-50 border border-amber-200 p-4 mb-6 flex items-center justify-between">
+          <div>
+            <p className="font-medium text-amber-900 text-sm">Your listings are not visible to buyers yet</p>
+            <p className="text-amber-700 text-xs mt-0.5">Connect Stripe to receive payments and make your listings public</p>
+          </div>
+          <a href="/seller/payouts" className="text-xs font-medium text-amber-900 underline whitespace-nowrap ml-4">
+            Connect Stripe →
+          </a>
+        </div>
+      )}
 
       {/* Vacation mode active banner */}
       {vacationMode && (

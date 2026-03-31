@@ -55,6 +55,7 @@ export async function GET(
           AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
           AND l.category = ${category}::"Category"
           AND sp."vacationMode" = false
+          AND sp."chargesEnabled" = true
         ORDER BY "overlapCount" DESC
         LIMIT 8
       `;
@@ -98,6 +99,7 @@ export async function GET(
           AND l."isPrivate" = false
           AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
           AND sp."vacationMode" = false
+          AND sp."chargesEnabled" = true
         ORDER BY "overlapCount" DESC
         LIMIT 8
       `;
@@ -130,7 +132,7 @@ export async function GET(
         isPrivate: false,
         category,
         priceCents: { gte: minPrice, lte: maxPrice },
-        seller: { vacationMode: false },
+        seller: { vacationMode: false, chargesEnabled: true },
       },
       select: {
         id: true,

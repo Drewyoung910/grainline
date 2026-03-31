@@ -104,11 +104,12 @@ export default async function SellerShopPage({
     .map((g) => g.category as Category)
     .sort();
 
-  // Build where clause
+  // Build where clause — only show listings from sellers with Stripe connected
   const where = {
     sellerId: id,
     status: "ACTIVE" as const,
     isPrivate: false,
+    seller: { chargesEnabled: true },
     ...(category ? { category } : {}),
   };
 

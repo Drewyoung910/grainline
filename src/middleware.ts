@@ -26,6 +26,7 @@ const isPublic = createRouteMatcher([
   "/api/follow(.*)",      // GET follow status — auth optional; POST/DELETE handled in route
   "/commission",          // Commission Room board — public
   "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
+  "/api/csp-report",           // CSP violation reports — no auth needed
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);

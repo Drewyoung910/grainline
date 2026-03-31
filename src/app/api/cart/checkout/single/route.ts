@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRatesMultiPiece } from "@/lib/shippo";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { checkoutRatelimit } from "@/lib/ratelimit";
+import { checkoutRatelimit, rateLimitResponse } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -51,8 +51,8 @@ export async function POST(req: Request) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-    const { success } = await checkoutRatelimit.limit(userId);
-    if (!success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    const { success, reset } = await checkoutRatelimit.limit(userId);
+    if (!success) return rateLimitResponse(reset, "Too many checkout attempts.");
 
     const me = await ensureUserByClerkId(userId);
 

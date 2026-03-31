@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { CommissionStatus, Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
-import { commissionCreateRatelimit } from "@/lib/ratelimit";
+import { commissionCreateRatelimit, rateLimitResponse } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
 export async function GET(req: NextRequest) {
@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk } = await commissionCreateRatelimit.limit(userId);
-  if (!rlOk) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  const { success: rlOk, reset } = await commissionCreateRatelimit.limit(userId);
+  if (!rlOk) return rateLimitResponse(reset, "You can post up to 5 commission requests per day.");
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
@@ -81,6 +81,9 @@ export async function POST(req: NextRequest) {
   const budgetMinCents = budgetMin ? Math.round(Number(budgetMin) * 100) : null;
   const budgetMaxCents = budgetMax ? Math.round(Number(budgetMax) * 100) : null;
   const images = Array.isArray(referenceImageUrls) ? referenceImageUrls.slice(0, 3) : [];
+
+  if (budgetMinCents !== null && budgetMinCents < 0) return NextResponse.json({ error: "Budget cannot be negative." }, { status: 400 });
+  if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return NextResponse.json({ error: "Maximum budget must be greater than minimum." }, { status: 400 });
 
   // Resolve location for local scope
   const wantsLocal = isNational === false || isNational === "false";

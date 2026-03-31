@@ -1317,6 +1317,11 @@ Nine bugs fixed across listing page, commission room, and seller profile.
 ### Mobile swipe support for lightboxes
 - Added `touchStartX` / `touchEndX` `useRef` + `onTouchStart`/`onTouchEnd` handlers to `ListingGallery`, `ImageLightbox`, and `SellerGallery`; minimum 50px swipe threshold
 
+### Main photo swipe — changes active index without opening lightbox
+- `ListingGallery` main photo container (`src/components/ListingGallery.tsx`): added separate `mainTouchStartX` ref + `mainSwiped` boolean ref
+- `handleMainTouchStart` / `handleMainTouchEnd` on the outer container: swipe ≥ 50px → changes `activeIndex` (prev/next photo); sets `mainSwiped = true`
+- `onClick` checks `mainSwiped.current` before opening lightbox — if a swipe just occurred, resets the flag and returns early; a tap (< 10px movement) lets the click fire normally and opens the lightbox
+
 ### Workshop/story section layout (seller profile)
 - Removed workshop image (`CoverLightbox`) from inside the story section
 - Story section now only contains `storyTitle` + `storyBody` text
@@ -1454,7 +1459,84 @@ All critical ownership checks were already present:
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 
-`Content-Security-Policy` intentionally omitted — requires careful tuning to avoid breaking Clerk, Stripe, Leaflet, UploadThing, etc.
+**CSP status**: `Content-Security-Policy-Report-Only` is now active (see "CSP Report-Only Mode" section below). A full `Content-Security-Policy` was added and immediately rolled back earlier because it broke Clerk UI components. The report-only header collects violations without blocking anything. See `src/app/api/csp-report/route.ts` for the violation endpoint wired to Sentry.
+
+**`experimental.serverActions.bodySizeLimit`**: Added then removed — not needed and can break certain Next.js 16 build configurations.
+
+## Security Hardening Round 2 (complete — 2026-03-31)
+
+### Rate limit responses with retry timing
+`src/lib/ratelimit.ts`: Added `rateLimitResponse(reset: number, customMessage?: string): Response` helper. Computes human-readable retry time from the Upstash `reset` timestamp (milliseconds): "a moment" / "N minutes" / "N hours" / "tomorrow at HH:MM AM". Returns 429 with `Retry-After` and `X-RateLimit-Reset` headers. All rate-limited routes updated to destructure `reset` from `ratelimit.limit()` and call `rateLimitResponse(reset, '...')`.
+
+Routes updated: `api/follow/[sellerId]` (POST+DELETE), `api/blog/[slug]/save` (POST+DELETE), `api/commission/[id]/interest`, `api/commission`, `api/seller/broadcast`, `api/search/suggestions`, `api/reviews`, `api/cart/checkout`, `api/cart/checkout/single`, `api/favorites`. View/click routes remain silent (no error response).
+
+### Listing creation rate limit
+Increased from `slidingWindow(10, "24 h")` to `slidingWindow(20, "24 h")`.
+
+### Stripe Connect required for public listings
+Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(false)` added to `SellerProfile`.
+
+`chargesEnabled` is set to `account.charges_enabled` in:
+- `api/stripe/connect/create/route.ts` — on account retrieve/create
+- `dashboard/onboarding/page.tsx` — on Stripe account status check
+
+`chargesEnabled: true` added to seller `where` filters in: `browse/page.tsx`, `page.tsx` (Fresh + Favorites), `api/listings/[id]/similar/route.ts` (both raw SQL paths + Prisma fallback), `seller/[id]/shop/page.tsx`.
+
+**Dashboard banner** — amber "Your listings are not visible to buyers yet / Connect Stripe →" shown in `dashboard/page.tsx` when `!sellerProfile.chargesEnabled`.
+
+### PWA icons fix
+`public/icon-192.png` and `public/icon-512.png` regenerated with `#1C1917` dark background and logo centered at 65% of icon size (visible on all backgrounds). `layout.tsx` updated to use `icons: { apple: "/icon-192.png" }`.
+
+### Mobile notification bell fix
+`NotificationBell.tsx`: dropdown now `right-0 max-w-[calc(100vw-1rem)] overflow-y-auto max-h-[80vh]` — no longer clipped on small screens.
+
+### Analytics listing views subtitle
+`dashboard/analytics/page.tsx`: Listing Views card now shows two-line subtitle: "times your listing page was opened" + smaller "each visitor counted once per day · updates daily".
+
+### Raw SQL injection audit (all clear)
+| File | Verdict |
+|---|---|
+| `api/seller/analytics/route.ts` | ✅ SAFE — all `$queryRaw` tagged templates |
+| `api/listings/[id]/similar/route.ts` | ✅ SAFE — all `$queryRaw` tagged templates |
+| `commission/page.tsx` | ✅ CONDITIONALLY SAFE — `$queryRawUnsafe` but `categoryFilter` validated via `CATEGORY_VALUES.includes()` before use |
+| `api/blog/search/route.ts` | ✅ SAFE — all `$queryRaw` tagged templates |
+
+### Numeric input validation
+Added guards (throw Error in server actions, 400 in API routes) for:
+- Price: must be ≥ $0, ≤ $100,000 — `listings/new`, `listings/[id]/edit`
+- Stock quantity: must be ≥ 0 — `listings/new`, `listings/[id]/edit`
+- Processing time: must be ≤ 365 days — `listings/new`, `listings/[id]/edit`
+- Commission budget: must be ≥ $0, max ≥ min — `api/commission` POST
+
+### Sentry security event tracking (`src/lib/security.ts`)
+`logSecurityEvent(event, details)` logs breadcrumb for all events; captures Sentry event for `ownership_violation` and `spam_attempt`. Wired in:
+- Self-follow attempt: `api/follow/[sellerId]` → `spam_attempt`
+- Self-review attempt: `api/reviews` → `spam_attempt`
+- Own-commission interest: `api/commission/[id]/interest` → `spam_attempt`
+
+## chargesEnabled Backfill (hotfix — 2026-03-31)
+
+The `chargesEnabled Boolean @default(false)` field added in the previous session caused all existing sellers to fail the new `chargesEnabled: true` filter, blanking the browse page and homepage listings.
+
+**Root cause**: The field was new with a `false` default, so all pre-existing sellers (who had already connected Stripe before the field existed) had `chargesEnabled = false`.
+
+**Fix (round 1)**: `scripts/backfill-charges-enabled.ts` — sets `chargesEnabled = true` for sellers with `stripeAccountId IS NOT NULL`. Updated 2 sellers.
+
+**Fix (round 2)**: Browse still showed 0 listings — the 19 active listings all belonged to sellers without Stripe (dev/seed accounts). Updated backfill to set `chargesEnabled = true` for ALL existing sellers (`updateMany` with no `where` clause). 7 sellers updated. Going forward, only brand-new sellers created after this date need to connect Stripe to appear publicly.
+
+**Going forward**: New sellers must complete Stripe Connect via `/api/stripe/connect/create` to get `chargesEnabled = true` set (that route calls `stripe.accounts.retrieve` and writes `account.charges_enabled`). The filter now correctly blocks sellers with no Stripe account from appearing publicly.
+
+**Known gap**: The Stripe webhook does not handle `account.updated` events, so if a seller's Stripe account is later suspended, `chargesEnabled` won't auto-flip to `false`. Future improvement: add `account.updated` handler in `api/stripe/webhook/route.ts`.
+
+## CSP Report-Only Mode (active — 2026-03-31)
+
+`Content-Security-Policy-Report-Only` header is active in `next.config.ts`. Violations are logged but nothing is blocked. Once enough real-world traffic has been observed with no violations, change the header key to `Content-Security-Policy` to enforce it.
+
+**Violation reporting**: `POST /api/csp-report` (`src/app/api/csp-report/route.ts`) — public route (in middleware `isPublic`); logs violations as Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; also logs to console in dev mode.
+
+**Allowed external domains**: Clerk (`*.clerk.com`, `*.clerk.accounts.dev`), Stripe (`js.stripe.com`, `hooks.stripe.com`, `api.stripe.com`), UploadThing (`*.uploadthing.com`, `utfs.io`), Sentry (`*.sentry.io`, `*.ingest.sentry.io`), Upstash (`major-toad-67912.upstash.io`), OpenStreetMap (`nominatim.openstreetmap.org`, `*.tile.openstreetmap.org`).
+
+**CSP maintenance**: When adding new third-party services, add their domains to the CSP value in `next.config.ts`. After observing zero violations in Sentry for 7+ days, switch to enforcement mode by renaming the header key to `Content-Security-Policy`. Do NOT add `unsafe-eval` to `script-src` in enforce mode without careful testing.
 
 ## Production Deployment
 

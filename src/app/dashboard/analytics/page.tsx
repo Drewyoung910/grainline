@@ -505,7 +505,8 @@ export default function AnalyticsPage() {
             <div className="border border-neutral-200 p-3">
               <p className="text-xl font-bold">{data.engagement.totalViews.toLocaleString()}</p>
               <p className="text-xs font-medium text-neutral-700 mt-0.5">Listing Views</p>
-              <p className="text-[10px] text-neutral-400">times your listing page was opened · updates daily</p>
+              <p className="text-[10px] text-neutral-400">times your listing page was opened</p>
+              <p className="text-[10px] text-neutral-400">each visitor counted once per day · updates daily</p>
             </div>
             {[
               {

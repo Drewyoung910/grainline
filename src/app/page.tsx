@@ -81,7 +81,7 @@ const CATEGORIES = [
 export default async function HomePage() {
   const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts] = await Promise.all([
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false } },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true } },
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
@@ -90,7 +90,7 @@ export default async function HomePage() {
       },
     }),
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, favorites: { some: {} }, seller: { vacationMode: false } },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false, favorites: { some: {} }, seller: { vacationMode: false, chargesEnabled: true } },
       orderBy: { favorites: { _count: "desc" } },
       take: 6,
       include: {

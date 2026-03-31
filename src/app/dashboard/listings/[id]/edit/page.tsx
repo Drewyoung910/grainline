@@ -95,7 +95,11 @@ async function updateListing(
 
   if (!title || !Number.isFinite(priceCents) || priceCents < 0) {
     return { ok: false, error: "Please provide a valid title and price." };
-    }
+  }
+  if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
+  if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
+  if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) return { ok: false, error: "Processing time cannot exceed 365 days." };
 
   // Guard ownership
   const listing = await prisma.listing.findFirst({

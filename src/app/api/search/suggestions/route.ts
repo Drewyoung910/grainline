@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ListingStatus } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
-import { searchRatelimit, getIP } from "@/lib/ratelimit";
+import { searchRatelimit, getIP, rateLimitResponse } from "@/lib/ratelimit";
 
 export async function GET(req: NextRequest) {
-  const { success } = await searchRatelimit.limit(getIP(req));
+  const { success, reset } = await searchRatelimit.limit(getIP(req));
   if (!success) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    return rateLimitResponse(reset, "Too many searches.");
   }
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ suggestions: [] });

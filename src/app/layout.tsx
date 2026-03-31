@@ -32,6 +32,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Grainline",
   },
+  icons: {
+    apple: "/icon-192.png",
+  },
   formatDetection: {
     telephone: false,
   },
