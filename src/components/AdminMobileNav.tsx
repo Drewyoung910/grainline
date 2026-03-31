@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package, AlertTriangle, Shield, Edit } from "@/components/icons";
+import { Package, AlertTriangle, Shield, Edit, Rss } from "@/components/icons";
 
 const NAV_ITEMS = [
   { href: "/admin/orders",       label: "Orders",     Icon: Package },
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/admin/flagged",      label: "Flagged",    Icon: AlertTriangle },
   { href: "/admin/verification", label: "Verify",     Icon: Shield, badgeKey: "pendingVerificationCount" as const },
   { href: "/admin/blog",         label: "Blog",       Icon: Edit, badgeKey: "pendingCommentCount" as const },
+  { href: "/admin/broadcasts",   label: "Broadcasts", Icon: Rss },
 ];
 
 type Counts = {

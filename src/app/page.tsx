@@ -170,18 +170,72 @@ export default async function HomePage() {
 
   const { userId } = await auth();
   let saved = new Set<string>();
-  if (userId && (fresh.length || topSaved.length)) {
+  type FromYourMakersItem =
+    | { kind: "listing"; id: string; title: string; priceCents: number; currency: string; photoUrl: string | null; sellerName: string; sellerProfileId: string }
+    | { kind: "blog"; slug: string; title: string; coverImageUrl: string | null; sellerName: string; sellerProfileId: string };
+  let fromYourMakers: FromYourMakersItem[] = [];
+
+  if (userId) {
     const me = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { id: true },
     });
     if (me) {
       const ids = [...fresh.map((f) => f.id), ...topSaved.map((t) => t.id)];
-      const favs = await prisma.favorite.findMany({
-        where: { userId: me.id, listingId: { in: ids } },
-        select: { listingId: true },
-      });
+      const [favs, follows] = await Promise.all([
+        prisma.favorite.findMany({
+          where: { userId: me.id, listingId: { in: ids } },
+          select: { listingId: true },
+        }),
+        prisma.follow.findMany({
+          where: { followerId: me.id },
+          select: { sellerProfileId: true },
+          take: 50,
+        }),
+      ]);
       saved = new Set(favs.map((f) => f.listingId));
+
+      if (follows.length >= 3) {
+        const followedIds = follows.map((f) => f.sellerProfileId);
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const [recentListings, recentPosts] = await Promise.all([
+          prisma.listing.findMany({
+            where: { sellerId: { in: followedIds }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff } },
+            orderBy: { createdAt: "desc" },
+            take: 6,
+            select: {
+              id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
+              seller: { select: { displayName: true } },
+              photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+            },
+          }),
+          prisma.blogPost.findMany({
+            where: { sellerProfileId: { in: followedIds }, status: "PUBLISHED", publishedAt: { gte: cutoff } },
+            orderBy: { publishedAt: "desc" },
+            take: 6,
+            select: {
+              slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
+              sellerProfile: { select: { displayName: true } },
+            },
+          }),
+        ]);
+
+        const merged: FromYourMakersItem[] = [
+          ...recentListings.map((l): FromYourMakersItem => ({
+            kind: "listing", id: l.id, title: l.title, priceCents: l.priceCents, currency: l.currency,
+            photoUrl: l.photos[0]?.url ?? null,
+            sellerName: l.seller.displayName ?? "Maker",
+            sellerProfileId: l.sellerId,
+          })),
+          ...recentPosts.map((p): FromYourMakersItem => ({
+            kind: "blog", slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
+            sellerName: p.sellerProfile?.displayName ?? "Maker",
+            sellerProfileId: p.sellerProfileId ?? "",
+          })),
+        ];
+        // Sort by recency (listings by createdAt, posts by publishedAt - both are within cutoff)
+        fromYourMakers = merged.slice(0, 6);
+      }
     }
   }
 
@@ -280,6 +334,61 @@ export default async function HomePage() {
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-16">
+
+        {/* ── From Your Makers ─────────────────────────────────────────────── */}
+        {fromYourMakers.length > 0 && (
+          <ScrollSection>
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-xl font-semibold">From Your Makers</h2>
+              <Link href="/account/feed" className="text-sm text-neutral-600 hover:underline">
+                See full feed →
+              </Link>
+            </div>
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-1 px-1">
+              {fromYourMakers.map((item) => (
+                item.kind === "listing" ? (
+                  <div key={item.id} className="w-44 flex-none snap-start border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+                    <Link href={`/listing/${item.id}`} className="block">
+                      <div className="h-36 bg-neutral-100 overflow-hidden">
+                        {item.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
+                        )}
+                      </div>
+                      <div className="p-2 bg-stone-50">
+                        <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
+                        <p className="text-xs text-neutral-500">
+                          {(item.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: item.currency })}
+                        </p>
+                        <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
+                      </div>
+                    </Link>
+                  </div>
+                ) : (
+                  <div key={item.slug} className="w-44 flex-none snap-start border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+                    <Link href={`/blog/${item.slug}`} className="block">
+                      <div className="h-36 bg-neutral-100 overflow-hidden">
+                        {item.coverImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.coverImageUrl} alt={item.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
+                        )}
+                      </div>
+                      <div className="p-2 bg-stone-50">
+                        <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
+                        <p className="text-xs text-amber-600">Blog post</p>
+                        <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
+                      </div>
+                    </Link>
+                  </div>
+                )
+              ))}
+            </div>
+          </ScrollSection>
+        )}
 
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>

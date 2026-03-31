@@ -2,9 +2,13 @@
 import "./globals.css";
 import Header from "@/components/Header";
 import { Providers } from "@/components/Providers";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
+
+export const viewport: Viewport = {
+  themeColor: "#1C1917",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://grainline.co"),
@@ -22,6 +26,15 @@ export const metadata: Metadata = {
     "wood furniture",
     "custom woodworking",
   ],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Grainline",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   openGraph: {
     type: "website",
     siteName: "Grainline",

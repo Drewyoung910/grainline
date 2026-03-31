@@ -367,3 +367,9 @@ export const Repeat = icon(<>
   <polyline points="7 23 3 19 7 15" />
   <path d="M21 13v2a4 4 0 0 1-4 4H3" />
 </>);
+
+export const Rss = icon(<>
+  <path d="M4 11a9 9 0 0 1 9 9" />
+  <path d="M4 4a16 16 0 0 1 16 16" />
+  <circle cx="5" cy="19" r="1" fill="currentColor" />
+</>);

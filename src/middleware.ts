@@ -23,6 +23,9 @@ const isPublic = createRouteMatcher([
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
   "/api/blog(.*)",        // blog API — public GET; POST auth handled in route
   "/api/search(.*)",      // search suggestions — public
+  "/api/follow(.*)",      // GET follow status — auth optional; POST/DELETE handled in route
+  "/commission",          // Commission Room board — public
+  "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);

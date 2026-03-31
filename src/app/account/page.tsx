@@ -17,7 +17,7 @@ export default async function AccountPage() {
   const me = await ensureUser();
   if (!me) redirect("/sign-in?redirect_url=/account");
 
-  const [recentOrders, savedItems, sellerProfile] = await Promise.all([
+  const [recentOrders, savedItems, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer
     prisma.order.findMany({
       where: { buyerId: me.id },
@@ -75,6 +75,9 @@ export default async function AccountPage() {
         },
       },
     }),
+
+    // Follow count
+    prisma.follow.count({ where: { followerId: me.id } }),
 
     // Seller profile stats (if they're a seller)
     prisma.sellerProfile.findUnique({
@@ -212,7 +215,7 @@ export default async function AccountPage() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Saved Items</h2>
-          <Link href="/dashboard/saved" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+          <Link href="/account/saved" className="text-sm text-neutral-600 underline hover:text-neutral-900">
             View all saved →
           </Link>
         </div>
@@ -253,7 +256,46 @@ export default async function AccountPage() {
         )}
       </section>
 
-      {/* ── Section 3: Account Settings ── */}
+      {/* ── Section 3: Following ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Following</h2>
+          <Link href="/account/feed" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+            View feed →
+          </Link>
+        </div>
+        <div className="border border-neutral-200 p-5 flex items-center justify-between">
+          <div>
+            <p className="text-2xl font-bold">{followCount}</p>
+            <p className="text-xs text-neutral-500">maker{followCount !== 1 ? "s" : ""} followed</p>
+          </div>
+          <Link
+            href="/account/following"
+            className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+          >
+            Manage →
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Section 4: Commission Requests ── */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Commission Requests</h2>
+        <div className="border border-neutral-200 p-4">
+          <p className="text-sm text-neutral-500 mb-3">Custom pieces you&apos;ve requested from makers</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/account/commissions" className="text-sm underline hover:text-neutral-900">
+              View my commission requests →
+            </Link>
+            <span className="text-sm text-neutral-400">or</span>
+            <Link href="/commission" className="text-sm underline hover:text-neutral-900">
+              Browse the Commission Room →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 5: Account Settings ── */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
         <div className="border border-neutral-200 p-5 space-y-3">
@@ -267,7 +309,7 @@ export default async function AccountPage() {
         </div>
       </section>
 
-      {/* ── Section 4: Workshop (sellers only) ── */}
+      {/* ── Section 6: Workshop (sellers only) ── */}
       {sellerProfile && (
         <section>
           <h2 className="text-xl font-semibold mb-4">Your Workshop</h2>

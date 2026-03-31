@@ -8,6 +8,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart } from "@/components/icons";
+import { createNotification } from "@/lib/notifications";
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(listingId: string, nextStatus: ListingStatus) {
@@ -50,6 +51,31 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
         data: { listingsBelowThresholdSince: null },
       });
     }
+  }
+
+  // Notify followers when a listing becomes active for the first time
+  if (nextStatus === "ACTIVE" && listing.status !== "ACTIVE") {
+    void (async () => {
+      try {
+        const followers = await prisma.follow.findMany({
+          where: { sellerProfileId: listing.sellerId },
+          select: { followerId: true },
+        });
+        if (followers.length > 0) {
+          await Promise.all(
+            followers.map((f) =>
+              createNotification({
+                userId: f.followerId,
+                type: "FOLLOWED_MAKER_NEW_LISTING",
+                title: `New listing from ${listing.seller.displayName}`,
+                body: listing.title,
+                link: `/listing/${listing.id}`,
+              })
+            )
+          );
+        }
+      } catch { /* non-fatal */ }
+    })();
   }
 
   revalidatePath("/dashboard");

@@ -1,0 +1,64 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+
+type Props = {
+  sellerProfileId: string;
+  sellerUserId: string;
+  initialFollowing: boolean;
+  initialCount: number;
+  size?: "sm" | "md";
+};
+
+export default function FollowButton({
+  sellerProfileId,
+  sellerUserId: _sellerUserId,
+  initialFollowing,
+  initialCount,
+  size = "md",
+}: Props) {
+  const router = useRouter();
+  const [following, setFollowing] = React.useState(initialFollowing);
+  const [count, setCount] = React.useState(initialCount);
+  const [loading, setLoading] = React.useState(false);
+
+  async function toggle() {
+    if (loading) return;
+    setLoading(true);
+
+    const method = following ? "DELETE" : "POST";
+    try {
+      const res = await fetch(`/api/follow/${sellerProfileId}`, { method });
+      if (res.status === 401) {
+        router.push(`/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setFollowing(data.following);
+        setCount(data.followerCount);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const base =
+    size === "sm"
+      ? "inline-flex items-center gap-1.5 border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60"
+      : "inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60";
+
+  const style = following
+    ? `${base} bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-700`
+    : `${base} bg-white text-neutral-800 border-neutral-300 hover:bg-neutral-50`;
+
+  return (
+    <button onClick={toggle} disabled={loading} className={style}>
+      {following ? "Following ✓" : "Follow"}
+      <span className="text-xs opacity-70">· {count.toLocaleString()}</span>
+    </button>
+  );
+}

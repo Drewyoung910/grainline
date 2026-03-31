@@ -6,6 +6,9 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { revalidatePath } from "next/cache";
 import LocationPicker from "@/components/LocationPicker";
 import VacationModeForm from "./VacationModeForm";
+import BroadcastComposer from "@/components/BroadcastComposer";
+import GalleryUploader from "@/components/GalleryUploader";
+import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -26,10 +29,11 @@ async function updateSellerProfile(formData: FormData) {
 
   const { seller } = await ensureSeller();
 
-  const displayName = String(formData.get("displayName") ?? "").trim();
+  const displayName = sanitizeText(String(formData.get("displayName") ?? "").trim());
   const city = toNull(formData.get("city"));
   const state = toNull(formData.get("state"));
-  const bio = toNull(formData.get("bio"));
+  const bioRaw = toNull(formData.get("bio"));
+  const bio = bioRaw ? sanitizeRichText(String(bioRaw)) : null;
 
   // Location (for pickup map)
   const lat = toFloat(formData.get("lat"));
@@ -60,6 +64,9 @@ async function updateSellerProfile(formData: FormData) {
   const shipFromState = toNull(formData.get("shipFromState"));
   const shipFromPostal = toNull(formData.get("shipFromPostal"));
   const shipFromCountry = toNull(formData.get("shipFromCountry")) ?? "US";
+
+  // Gallery images
+  const galleryImageUrls = formData.getAll("galleryImageUrls").map(String).filter(Boolean);
 
   // Default package (cm / g)
   const defaultPkgLengthCm = toFloat(formData.get("defaultPkgLengthCm"));
@@ -104,6 +111,9 @@ async function updateSellerProfile(formData: FormData) {
       defaultPkgWidthCm,
       defaultPkgHeightCm,
       defaultPkgWeightGrams,
+
+      // gallery
+      ...(galleryImageUrls.length > 0 ? { galleryImageUrls } : {}),
     },
   });
 
@@ -116,7 +126,10 @@ export default async function SellerSettingsPage() {
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/seller");
 
   const { seller } = await ensureSeller();
-  const row = await prisma.sellerProfile.findUnique({ where: { id: seller.id } });
+  const [row, followerCount] = await Promise.all([
+    prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
+    prisma.follow.count({ where: { sellerProfileId: seller.id } }),
+  ]);
 
   return (
     <main className="max-w-2xl mx-auto p-8 space-y-6">
@@ -287,10 +300,35 @@ export default async function SellerSettingsPage() {
           />
         </div>
 
+        {/* Workshop Gallery */}
+        <div className="border-t pt-4 space-y-3">
+          <div>
+            <h2 className="text-lg font-medium">Workshop Gallery</h2>
+            <p className="text-sm text-neutral-500 mt-0.5">
+              Show buyers your workspace and craftsmanship (up to 8 photos)
+            </p>
+          </div>
+          <GalleryUploader
+            initialUrls={row?.galleryImageUrls ?? []}
+            maxImages={8}
+          />
+        </div>
+
         <button type="submit" className="rounded px-4 py-2 bg-black text-white">
           Save
         </button>
       </form>
+
+      {/* Shop Updates / Broadcasts */}
+      <section className="rounded-xl border p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Shop Updates</h2>
+          <p className="text-sm text-neutral-500 mt-1">
+            Send a message to all your followers — new projects, restocks, events, or anything you want to share.
+          </p>
+        </div>
+        <BroadcastComposer followerCount={followerCount} />
+      </section>
     </main>
   );
 }

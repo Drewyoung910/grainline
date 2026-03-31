@@ -81,6 +81,10 @@ model User {
   blogPosts             BlogPost[]            @relation("BlogPostsAuthored")
   blogComments          BlogComment[]         @relation("BlogCommentsAuthored")
   notifications         Notification[]
+
+  follows           Follow[]        @relation("UserFollows")
+  savedBlogPosts    SavedBlogPost[]
+  commissionRequests CommissionRequest[] @relation("CommissionRequests")
 }
 
 model SellerProfile {
@@ -179,6 +183,9 @@ model SellerProfile {
   blogPosts            BlogPost[]
   sellerMetrics        SellerMetrics?
   viewDailies          ListingViewDaily[]
+  followers            Follow[]
+  broadcasts           SellerBroadcast[]
+  commissionInterests  CommissionInterest[]
 }
 
 model SellerFaq {
@@ -334,7 +341,8 @@ model Message {
   recipientId    String
   recipient      User         @relation("MessagesToUser", fields: [recipientId], references: [id])
   body           String
-  kind           String?
+  kind              String?
+  isSystemMessage   Boolean   @default(false)
   readAt         DateTime?
   createdAt      DateTime     @default(now())
 
@@ -686,10 +694,13 @@ model BlogPost {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
   comments           BlogComment[]
+  savedBy            SavedBlogPost[]
 
   @@index([status, publishedAt])
   @@index([authorId])
   @@index([sellerProfileId])
+  @@index([title])
+  @@index([tags])
 }
 
 model BlogComment {
@@ -748,6 +759,10 @@ enum NotificationType {
   NEW_BLOG_COMMENT
   BLOG_COMMENT_REPLY
   NEW_FOLLOWER
+  FOLLOWED_MAKER_NEW_LISTING
+  FOLLOWED_MAKER_NEW_BLOG
+  SELLER_BROADCAST
+  COMMISSION_INTEREST
 }
 
 model Notification {
@@ -778,4 +793,92 @@ model ListingViewDaily {
   @@unique([listingId, date])
   @@index([sellerProfileId, date])
   @@index([date])
+}
+
+model Follow {
+  id              String        @id @default(cuid())
+  followerId      String
+  follower        User          @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([followerId, sellerProfileId])
+  @@index([sellerProfileId])
+  @@index([followerId])
+}
+
+model SavedBlogPost {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blogPostId String
+  blogPost   BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, blogPostId])
+  @@index([userId])
+  @@index([blogPostId])
+}
+
+model SellerBroadcast {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  message         String
+  imageUrl        String?
+  sentAt          DateTime      @default(now())
+  recipientCount  Int           @default(0)
+
+  @@index([sellerProfileId])
+  @@index([sentAt])
+}
+
+enum CommissionStatus {
+  OPEN
+  IN_PROGRESS
+  FULFILLED
+  CLOSED
+  EXPIRED
+}
+
+model CommissionRequest {
+  id                 String           @id @default(cuid())
+  buyerId            String
+  buyer              User             @relation("CommissionRequests", fields: [buyerId], references: [id], onDelete: Cascade)
+  title              String
+  description        String
+  category           Category?
+  budgetMinCents     Int?
+  budgetMaxCents     Int?
+  timeline           String?
+  referenceImageUrls String[]         @default([])
+  status             CommissionStatus @default(OPEN)
+  interestedCount    Int              @default(0)
+  expiresAt          DateTime?
+  isNational         Boolean          @default(true)
+  lat                Float?
+  lng                Float?
+  radiusMeters       Int?             @default(80000)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  interests CommissionInterest[]
+
+  @@index([buyerId])
+  @@index([status, createdAt])
+  @@index([category])
+}
+
+model CommissionInterest {
+  id                  String            @id @default(cuid())
+  commissionRequestId String
+  commissionRequest   CommissionRequest @relation(fields: [commissionRequestId], references: [id], onDelete: Cascade)
+  sellerProfileId     String
+  sellerProfile       SellerProfile     @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  conversationId      String?
+  createdAt           DateTime          @default(now())
+
+  @@unique([commissionRequestId, sellerProfileId])
+  @@index([sellerProfileId])
 }

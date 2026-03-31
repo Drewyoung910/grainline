@@ -1,7 +1,7 @@
 // src/app/sitemap.ts
 import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
-import { ListingStatus } from "@prisma/client";
+import { ListingStatus, CommissionStatus } from "@prisma/client";
 
 const BASE_URL = "https://grainline.co";
 
@@ -9,9 +9,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/`, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
     { url: `${BASE_URL}/browse`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
+    { url: `${BASE_URL}/commission`, lastModified: new Date(), changeFrequency: "daily", priority: 0.7 },
   ];
 
-  const [listings, sellers, blogPosts] = await Promise.all([
+  const [listings, sellers, blogPosts, openCommissions] = await Promise.all([
     prisma.listing.findMany({
       where: { status: ListingStatus.ACTIVE },
       select: { id: true, updatedAt: true },
@@ -28,6 +29,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, publishedAt: true, updatedAt: true },
       orderBy: { publishedAt: "desc" },
       take: 2000,
+    }),
+    prisma.commissionRequest.findMany({
+      where: { status: CommissionStatus.OPEN },
+      select: { id: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 500,
     }),
   ]);
 
@@ -64,5 +71,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/blog`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
   ];
 
-  return [...staticRoutes, ...blogIndexRoute, ...listingRoutes, ...sellerRoutes, ...blogRoutes];
+  const commissionRoutes: MetadataRoute.Sitemap = openCommissions.map((c) => ({
+    url: `${BASE_URL}/commission/${c.id}`,
+    lastModified: c.updatedAt,
+    changeFrequency: "weekly" as const,
+    priority: 0.5,
+  }));
+
+  return [...staticRoutes, ...blogIndexRoute, ...listingRoutes, ...sellerRoutes, ...blogRoutes, ...commissionRoutes];
 }

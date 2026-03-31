@@ -8,12 +8,14 @@ import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
-import { MessageCircle, ShoppingBag, Menu, X, Search, User } from "@/components/icons";
+import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User } from "@/components/icons";
+
+// Set to false to hide Commission Room from nav
+const COMMISSION_ROOM_ENABLED = true;
 
 export default function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const showSearch = pathname === "/" || pathname.startsWith("/browse");
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
@@ -108,12 +110,10 @@ export default function Header() {
           <img src="/logo.svg" alt="Grainline" className="h-7 w-auto hidden md:block" style={{ filter: "brightness(0)" }} />
         </Link>
 
-        {/* Search bar — desktop only (home + browse) */}
-        {showSearch && (
-          <span className="hidden md:flex flex-1">
-            <SearchBar />
-          </span>
-        )}
+        {/* Search bar — desktop only, always visible */}
+        <span className="hidden md:flex flex-1 max-w-[400px]">
+          <SearchBar />
+        </span>
 
         {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
         <div className="ml-auto hidden md:flex items-center gap-4">
@@ -123,10 +123,26 @@ export default function Header() {
           <Link href="/blog" className="text-neutral-800">
             Blog
           </Link>
+          {COMMISSION_ROOM_ENABLED && (
+            <Link href="/commission" className="text-neutral-800">
+              Commission Room
+            </Link>
+          )}
 
           <Show when="signed-in">
             <Link href="/account" className="text-neutral-800">
               My Account
+            </Link>
+          </Show>
+
+          <Show when="signed-in">
+            <Link
+              href="/account/feed"
+              className="inline-flex items-center justify-center p-1 text-neutral-800"
+              aria-label="Your Feed"
+              title="Your Feed"
+            >
+              <Rss size={20} />
             </Link>
           </Show>
 
@@ -293,6 +309,15 @@ export default function Header() {
               >
                 Blog
               </Link>
+              {COMMISSION_ROOM_ENABLED && (
+                <Link
+                  href="/commission"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Commission Room
+                </Link>
+              )}
 
               <Show when="signed-in">
                 {/* My Account */}
@@ -317,6 +342,16 @@ export default function Header() {
                         for the drawer we keep it simple with just the icon */}
                   </span>
                   Messages
+                </Link>
+
+                {/* Feed */}
+                <Link
+                  href="/account/feed"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  <Rss size={18} />
+                  Your Feed
                 </Link>
 
                 {/* Workshop — only for sellers */}

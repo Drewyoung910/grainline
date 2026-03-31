@@ -10,6 +10,9 @@ import FavoriteButton from "@/components/FavoriteButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
+import FollowButton from "@/components/FollowButton";
+import SellerGallery from "@/components/SellerGallery";
+import CoverLightbox from "@/components/CoverLightbox";
 
 export async function generateMetadata({
   params,
@@ -104,6 +107,17 @@ export default async function SellerPublicPage({
     meId = me?.id ?? null;
   }
 
+  // Follow data
+  const [followerCount, isFollowing] = await Promise.all([
+    prisma.follow.count({ where: { sellerProfileId: seller.id } }),
+    meId
+      ? prisma.follow.findUnique({
+          where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: seller.id } },
+          select: { id: true },
+        }).then((r) => r !== null)
+      : Promise.resolve(false),
+  ]);
+
   // Ensure numbers (handle Prisma Decimal/null)
   const lat = seller.lat != null ? Number(seller.lat) : null;
   const lng = seller.lng != null ? Number(seller.lng) : null;
@@ -111,6 +125,16 @@ export default async function SellerPublicPage({
     seller.radiusMeters != null ? Number(seller.radiusMeters) : null;
 
   const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
+
+  // Fetch most recent broadcast (shown as "Latest Update" if < 30 days old)
+  const latestBroadcast = await prisma.sellerBroadcast.findFirst({
+    where: { sellerProfileId: seller.id },
+    orderBy: { sentAt: "desc" },
+    select: { message: true, sentAt: true, imageUrl: true },
+  });
+  const broadcastAgeDays = latestBroadcast
+    ? (Date.now() - latestBroadcast.sentAt.getTime()) / (1000 * 60 * 60 * 24)
+    : null;
 
   // Fetch published blog posts by this seller
   const sellerBlogPosts = await prisma.blogPost.findMany({
@@ -283,6 +307,17 @@ export default async function SellerPublicPage({
               {cityState && (
                 <p className="text-sm text-neutral-500 mt-0.5">{cityState}</p>
               )}
+              {meId !== seller.userId && (
+                <div className="mt-2">
+                  <FollowButton
+                    sellerProfileId={seller.id}
+                    sellerUserId={seller.userId}
+                    initialFollowing={isFollowing}
+                    initialCount={followerCount}
+                    size="sm"
+                  />
+                </div>
+              )}
             </div>
             <Link href="/browse" className="text-sm underline text-neutral-600 shrink-0 mt-1">
               &larr; Back to Browse
@@ -355,6 +390,21 @@ export default async function SellerPublicPage({
           </div>
         )}
 
+        {/* ── Latest Broadcast ───────────────────────────────────────────── */}
+        {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
+          <section className="mb-8 border border-teal-200 bg-teal-50 p-4">
+            <div className="text-xs text-teal-600 font-medium mb-1">
+              📢 Shop Update ·{" "}
+              {latestBroadcast.sentAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+            </div>
+            <p className="text-sm text-neutral-700 whitespace-pre-line">{latestBroadcast.message}</p>
+            {latestBroadcast.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={latestBroadcast.imageUrl} alt="Update" className="mt-3 w-full max-h-48 object-cover" />
+            )}
+          </section>
+        )}
+
         {/* ── Featured Listings ──────────────────────────────────────────── */}
         {featuredListings.length > 0 && (
           <section className="mb-8">
@@ -402,21 +452,11 @@ export default async function SellerPublicPage({
             {seller.storyTitle && (
               <h2 className="text-lg font-semibold mb-3">{seller.storyTitle}</h2>
             )}
-            <div className={seller.workshopImageUrl ? "md:flex gap-6 items-start" : undefined}>
-              {seller.storyBody && (
-                <p className="text-neutral-700 whitespace-pre-line flex-1">
-                  {seller.storyBody}
-                </p>
-              )}
-              {seller.workshopImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={seller.workshopImageUrl}
-                  alt="Workshop"
-                  className="mt-4 md:mt-0 w-full md:w-64 rounded-lg object-cover"
-                />
-              )}
-            </div>
+            {seller.storyBody && (
+              <p className="text-neutral-700 whitespace-pre-line">
+                {seller.storyBody}
+              </p>
+            )}
           </section>
         )}
 
@@ -447,21 +487,14 @@ export default async function SellerPublicPage({
           </section>
         )}
 
-        {/* ── Gallery ───────────────────────────────────────────────────── */}
-        {seller.galleryImageUrls && seller.galleryImageUrls.length > 0 && (
+        {/* ── Workshop Gallery ───────────────────────────────────────────── */}
+        {(seller.workshopImageUrl || (seller.galleryImageUrls && seller.galleryImageUrls.length > 0)) && (
           <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">Gallery</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {seller.galleryImageUrls.map((url, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={url}
-                  src={url}
-                  alt={`Gallery image ${i + 1}`}
-                  className="h-40 w-full object-cover rounded-lg border"
-                />
-              ))}
-            </div>
+            <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
+            <SellerGallery
+              workshopImageUrl={seller.workshopImageUrl}
+              images={seller.galleryImageUrls ?? []}
+            />
           </section>
         )}
 

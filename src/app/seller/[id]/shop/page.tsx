@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge from "@/components/GuildBadge";
+import FollowButton from "@/components/FollowButton";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 
@@ -60,6 +61,7 @@ export default async function SellerShopPage({
     where: { id },
     select: {
       id: true,
+      userId: true,
       displayName: true,
       avatarImageUrl: true,
       guildLevel: true,
@@ -79,6 +81,17 @@ export default async function SellerShopPage({
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
   }
+
+  // Follow data
+  const [followerCount, isFollowing] = await Promise.all([
+    prisma.follow.count({ where: { sellerProfileId: id } }),
+    meId
+      ? prisma.follow.findUnique({
+          where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: id } },
+          select: { id: true },
+        }).then((r) => r !== null)
+      : Promise.resolve(false),
+  ]);
 
   // Distinct categories this seller has active listings in
   const categoryGroups = await prisma.listing.groupBy({
@@ -191,6 +204,17 @@ export default async function SellerShopPage({
             </h1>
             <GuildBadge level={seller.guildLevel} showLabel={true} size={20} />
           </div>
+          {meId !== seller.userId && (
+            <div className="mt-1">
+              <FollowButton
+                sellerProfileId={seller.id}
+                sellerUserId={seller.userId}
+                initialFollowing={isFollowing}
+                initialCount={followerCount}
+                size="sm"
+              />
+            </div>
+          )}
         </div>
 
         <Link

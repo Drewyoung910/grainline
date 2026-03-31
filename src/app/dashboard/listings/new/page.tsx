@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { sendFirstListingCongrats } from "@/lib/email";
+import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "@/lib/email";
+import { createNotification } from "@/lib/notifications";
+import { listingCreateRatelimit } from "@/lib/ratelimit";
+import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import ImagesUploader from "@/components/ImagesUploader";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
@@ -25,10 +28,13 @@ async function createListing(formData: FormData) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
+  const { success: rlOk } = await listingCreateRatelimit.limit(userId);
+  if (!rlOk) throw new Error("You can create up to 10 listings per day. Try again tomorrow.");
+
   const { seller } = await ensureSeller();
 
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
+  const title = sanitizeText(String(formData.get("title") ?? "").trim());
+  const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
@@ -138,6 +144,43 @@ async function createListing(formData: FormData) {
     }
   } catch { /* non-fatal */ }
 
+  // Notify followers — fire-and-forget (don't await)
+  void (async () => {
+    try {
+      const followers = await prisma.follow.findMany({
+        where: { sellerProfileId: seller.id },
+        select: { followerId: true, follower: { select: { email: true, name: true } } },
+      });
+      const sellerDisplay = seller.displayName ?? "A maker you follow";
+      await Promise.all(
+        followers.map((f) =>
+          createNotification({
+            userId: f.followerId,
+            type: "FOLLOWED_MAKER_NEW_LISTING",
+            title: `New listing from ${sellerDisplay}`,
+            body: created.title,
+            link: `/listing/${created.id}`,
+          })
+        )
+      );
+      const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/listing/${created.id}`;
+      const listingPrice = `$${(created.priceCents / 100).toFixed(2)}`;
+      await Promise.allSettled(
+        followers.slice(0, 500)
+          .filter((f) => f.follower?.email)
+          .map((f) =>
+            sendNewListingFromFollowedMakerEmail({
+              to: f.follower.email!,
+              makerName: sellerDisplay,
+              listingTitle: created.title,
+              listingPrice,
+              listingUrl,
+            })
+          )
+      );
+    } catch { /* non-fatal */ }
+  })();
+
   redirect(`/listing/${created.id}`);
 }
 
@@ -153,6 +196,20 @@ export default async function NewListingPage() {
         <div>
           <label className="block text-sm mb-1">Title</label>
           <input name="title" required className="w-full border rounded px-3 py-2" />
+        </div>
+
+        <div>
+          <label className="block text-sm mb-1">
+            Description <span className="text-neutral-400 font-normal">(optional)</span>
+          </label>
+          <textarea
+            name="description"
+            rows={6}
+            maxLength={2000}
+            placeholder="Describe your piece — materials, dimensions, technique, story behind it..."
+            className="w-full border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-y"
+          />
+          <p className="text-xs text-neutral-400 mt-1">Up to 2,000 characters</p>
         </div>
 
         <div>

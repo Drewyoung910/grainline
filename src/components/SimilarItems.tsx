@@ -32,9 +32,7 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
   if (!loading && listings.length === 0) return null;
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">You Might Also Like</h2>
-
+    <div className="space-y-4">
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -95,6 +93,6 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
           ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }

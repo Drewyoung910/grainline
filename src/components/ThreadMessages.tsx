@@ -170,6 +170,56 @@ export default function ThreadMessages({
           const mine = m.senderId === meId;
           const body = (m.body ?? "").toString().trim();
 
+          // ── Commission interest card ────────────────────────────────────
+          if (m.kind === "commission_interest_card") {
+            let card: {
+              commissionId?: string;
+              commissionTitle?: string;
+              sellerName?: string;
+              budgetMinCents?: number | null;
+              budgetMaxCents?: number | null;
+              timeline?: string | null;
+            } = {};
+            try { card = JSON.parse(body); } catch {}
+            return (
+              <li key={m.id} className="max-w-[90%]">
+                <div className="border-l-4 border-teal-400 bg-neutral-50 p-4 space-y-2">
+                  <div className="text-xs font-semibold text-teal-700 uppercase tracking-wide">📋 Commission Interest</div>
+                  <p className="text-sm text-neutral-700">
+                    <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
+                  </p>
+                  {card.commissionTitle && (
+                    <p className="text-sm font-medium text-neutral-900">"{card.commissionTitle}"</p>
+                  )}
+                  {(card.budgetMinCents || card.budgetMaxCents) && (
+                    <p className="text-xs text-neutral-500">
+                      Budget:{" "}
+                      {card.budgetMinCents && card.budgetMaxCents
+                        ? `$${(card.budgetMinCents / 100).toFixed(0)}–$${(card.budgetMaxCents / 100).toFixed(0)}`
+                        : card.budgetMinCents
+                        ? `From $${(card.budgetMinCents / 100).toFixed(0)}`
+                        : `Up to $${(card.budgetMaxCents! / 100).toFixed(0)}`}
+                    </p>
+                  )}
+                  {card.timeline && (
+                    <p className="text-xs text-neutral-500">Timeline: {card.timeline}</p>
+                  )}
+                  {card.commissionId && (
+                    <a
+                      href={`/commission/${card.commissionId}`}
+                      className="inline-flex items-center gap-1 text-xs text-teal-700 underline hover:text-teal-900 mt-1"
+                    >
+                      View full request →
+                    </a>
+                  )}
+                </div>
+                <div className="mt-1 text-[11px] text-neutral-400">
+                  {new Date(m.createdAt).toLocaleString()}
+                </div>
+              </li>
+            );
+          }
+
           // ── Custom order request card ───────────────────────────────────
           if (m.kind === "custom_order_request") {
             let req: {

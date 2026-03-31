@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import ReviewComposer from "@/components/ReviewComposer";
 import { HelpfulButton, SellerReplyForm } from "@/components/ReviewItemClient";
 import Link from "next/link";
+import { ImageLightbox } from "@/components/ImageLightbox";
 
 function quarterRound(n: number) {
   return Math.min(5, Math.max(0, Math.round(n * 4) / 4));
@@ -189,13 +190,8 @@ export default async function ReviewsSection({
                   <p className="mt-2 text-sm whitespace-pre-wrap break-words">{mine.comment}</p>
                 )}
                 {mine.photos.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {mine.photos.map((p) => (
-                      <a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.url} alt="" className="h-16 w-16 rounded-lg object-cover border" />
-                      </a>
-                    ))}
+                  <div className="mt-2">
+                    <ImageLightbox images={mine.photos.map((p) => p.url)} />
                   </div>
                 )}
               </div>
@@ -275,13 +271,8 @@ export default async function ReviewsSection({
                     )}
 
                     {r.photos.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {r.photos.map((p) => (
-                          <a key={p.id} href={p.url} target="_blank" rel="noreferrer" className="block">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={p.url} alt="" className="h-16 w-16 rounded-lg object-cover border" />
-                          </a>
-                        ))}
+                      <div className="mt-2">
+                        <ImageLightbox images={r.photos.map((p) => p.url)} />
                       </div>
                     )}
 

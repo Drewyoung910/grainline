@@ -587,6 +587,33 @@ export async function sendGuildMemberRevokedEmail(opts: {
   );
 }
 
+// ─── Following ────────────────────────────────────────────────────────────────
+
+export async function sendNewListingFromFollowedMakerEmail(opts: {
+  to: string;
+  makerName: string;
+  listingTitle: string;
+  listingPrice: string;
+  listingUrl: string;
+  listingImageUrl?: string;
+}) {
+  const { to, makerName, listingTitle, listingPrice, listingUrl, listingImageUrl } = opts;
+
+  const imageSection = listingImageUrl
+    ? `<p style="margin:0 0 16px;"><img src="${listingImageUrl}" alt="${esc(listingTitle)}" style="max-width:100%;max-height:240px;display:block;" /></p>`
+    : "";
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} just posted a new piece on Grainline.</p>
+    ${imageSection}
+    <p style="font-size:17px;font-weight:600;color:#1C1C1A;margin:0 0 4px;">${esc(listingTitle)}</p>
+    <p style="font-size:15px;color:#6B6A66;margin:0 0 20px;">${esc(listingPrice)}</p>
+    ${btn("View Listing", listingUrl)}
+  `;
+
+  await send(to, `${makerName} just posted a new listing on Grainline`, baseTemplate("New Listing", body));
+}
+
 // ─── Legacy (kept for backwards compatibility) ───────────────────────────────
 
 export async function sendNewMessageEmail(opts: {

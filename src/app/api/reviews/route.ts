@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { reviewRatelimit } from "@/lib/ratelimit";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 const REVIEW_WINDOW_DAYS = 90;
 
@@ -30,6 +31,15 @@ export async function POST(req: NextRequest) {
   // Who am I?
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Prevent reviewing own listing
+  const listingForOwnerCheck = await prisma.listing.findUnique({
+    where: { id: listingId },
+    select: { seller: { select: { userId: true } } },
+  });
+  if (listingForOwnerCheck?.seller?.userId === me.id) {
+    return NextResponse.json({ error: "Cannot review your own listing" }, { status: 403 });
+  }
 
   // Ensure no duplicate review
   const exists = await prisma.review.findFirst({
@@ -63,7 +73,7 @@ export async function POST(req: NextRequest) {
         listingId,
         reviewerId: me.id,
         ratingX2,
-        comment: (comment ?? "").slice(0, 2000),
+        comment: sanitizeRichText((comment ?? "").slice(0, 2000)),
         verified: true,
       },
     });

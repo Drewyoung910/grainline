@@ -16,6 +16,9 @@ import NotifyMeButton from "@/components/NotifyMeButton";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
 import GuildBadge from "@/components/GuildBadge";
+import FollowButton from "@/components/FollowButton";
+import ListingGallery from "@/components/ListingGallery";
+import DescriptionExpander from "@/components/DescriptionExpander";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -38,14 +41,15 @@ export async function generateMetadata(
     },
   });
   if (!listing) return {};
-  const title = listing.title;
+  const sellerName = listing.seller.displayName ?? "Maker";
+  const title = `${listing.title} by ${sellerName}`;
   const desc = (listing.description ?? "").slice(0, 160);
   const img = listing.photos[0]?.url;
   const price = (listing.priceCents / 100).toFixed(2);
   const currency = (listing.currency || "usd").toUpperCase();
 
   return {
-    title,
+    title: { absolute: `${title} — Grainline` },
     description: desc,
     openGraph: {
       title,
@@ -71,6 +75,21 @@ function quarterRoundStars(n: number) {
   const q = Math.min(5, Math.max(0, Math.round(n * 4) / 4));
   const display = Math.round(n * 10) / 10;
   return { quarter: q, display };
+}
+
+function StarDisplay({ value, count }: { value: number; count: number }) {
+  const q = Math.min(5, Math.max(0, Math.round(value * 4) / 4));
+  return (
+    <div className="relative leading-none inline-block" aria-hidden>
+      <div className="text-neutral-300">★★★★★</div>
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{ width: `${(q / 5) * 100}%` }}
+      >
+        <div className="text-amber-500">★★★★★</div>
+      </div>
+    </div>
+  );
 }
 
 export default async function ListingPage({
@@ -102,16 +121,28 @@ export default async function ListingPage({
   });
   if (!listing) return notFound();
 
-  const ratingAgg = await prisma.review.aggregate({
-    where: { listingId: id },
-    _avg: { ratingX2: true },
-    _count: { _all: true },
-  });
+  const [ratingAgg, sellerRatingAgg] = await Promise.all([
+    prisma.review.aggregate({
+      where: { listingId: id },
+      _avg: { ratingX2: true },
+      _count: { _all: true },
+    }),
+    prisma.review.aggregate({
+      where: { listing: { sellerId: listing.sellerId } },
+      _avg: { ratingX2: true },
+      _count: { _all: true },
+    }),
+  ]);
+
   const avgStarsRaw = ratingAgg._avg.ratingX2 ? ratingAgg._avg.ratingX2 / 2 : null;
   const countReviews = ratingAgg._count._all || 0;
   const stars = avgStarsRaw != null ? quarterRoundStars(avgStarsRaw) : null;
 
-  const hero = listing.photos[0]?.url ?? "/favicon.ico";
+  const sellerAvgRaw = sellerRatingAgg._avg.ratingX2
+    ? sellerRatingAgg._avg.ratingX2 / 2
+    : null;
+  const sellerReviewCount = sellerRatingAgg._count._all || 0;
+  const sellerStars = sellerAvgRaw != null ? quarterRoundStars(sellerAvgRaw) : null;
 
   let isFavorited = false;
   if (meId) {
@@ -124,6 +155,23 @@ export default async function ListingPage({
   const isOutOfStock =
     listing.status === "SOLD_OUT" ||
     (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
+
+  const [sellerFollowerCount, isFollowingSeller] = await Promise.all([
+    prisma.follow.count({ where: { sellerProfileId: listing.sellerId } }),
+    meId
+      ? prisma.follow
+          .findUnique({
+            where: {
+              followerId_sellerProfileId: {
+                followerId: meId,
+                sellerProfileId: listing.sellerId,
+              },
+            },
+            select: { id: true },
+          })
+          .then((r) => r !== null)
+      : Promise.resolve(false),
+  ]);
 
   let isNotified = false;
   if (meId && isOutOfStock) {
@@ -163,16 +211,26 @@ export default async function ListingPage({
 
   const canReplyClerkId = userId && sellerClerkId === userId ? userId : null;
 
-  // ⬇️ BUY/ADD VISIBILITY
   const isActive = listing.status === "ACTIVE";
   const isOwnListing = !!meId && !!sellerUserId && meId === sellerUserId;
 
-  // Private / reserved listing logic
   const isPrivate = listing.isPrivate;
   const reservedForMe = isPrivate && !!meId && listing.reservedForUserId === meId;
   const reservedForOther = isPrivate && (!meId || listing.reservedForUserId !== meId);
 
   const canBuy = isActive && !isOwnListing && !isOutOfStock && !reservedForOther;
+
+  // Processing time label
+  let processingLabel: string | null = null;
+  if (listing.listingType === "IN_STOCK" && !isOutOfStock && listing.shipsWithinDays != null) {
+    processingLabel = `Ships within ${listing.shipsWithinDays} day${listing.shipsWithinDays !== 1 ? "s" : ""}`;
+  } else if (listing.listingType === "MADE_TO_ORDER") {
+    if (listing.processingTimeMinDays != null && listing.processingTimeMaxDays != null) {
+      processingLabel = `Ships in ${listing.processingTimeMinDays}–${listing.processingTimeMaxDays} days`;
+    } else if (listing.processingTimeMaxDays != null) {
+      processingLabel = `Ships in up to ${listing.processingTimeMaxDays} days`;
+    }
+  }
 
   const productLd: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -231,7 +289,7 @@ export default async function ListingPage({
   };
 
   return (
-    <main className="p-8 max-w-4xl mx-auto space-y-6">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 pt-6">
       <ListingViewTracker listingId={id} />
       <RecentlyViewedTracker listingId={id} />
       {/* JSON-LD */}
@@ -246,134 +304,143 @@ export default async function ListingPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
 
-      <Link href="/browse" className="text-sm underline">
-        &larr; Back to Browse
-      </Link>
+      {/* ── Breadcrumb ───────────────────────────────────────────────────── */}
+      <nav className="mb-4 text-sm text-neutral-500 flex items-center gap-1 flex-wrap">
+        <Link href="/browse" className="hover:underline">Browse</Link>
+        {listing.category && (
+          <>
+            <span>›</span>
+            <Link
+              href={`/browse?category=${listing.category}`}
+              className="hover:underline"
+            >
+              {CATEGORY_LABELS[listing.category] ?? listing.category}
+            </Link>
+          </>
+        )}
+        <span>›</span>
+        <span className="text-neutral-800 truncate max-w-[200px]">{listing.title}</span>
+      </nav>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="relative w-full aspect-square overflow-hidden rounded-xl border">
+      {/* ── Two-column layout ─────────────────────────────────────────────── */}
+      <div className="grid lg:grid-cols-2 gap-8 mb-10">
+        {/* Left: gallery */}
+        <div className="relative">
+          {/* Favorite button overlaid */}
           <div className="absolute right-3 top-3 z-10">
-            <FavoriteButton
-              listingId={id}
-              initialSaved={isFavorited}
-              size={24}
-            />
+            <FavoriteButton listingId={id} initialSaved={isFavorited} size={24} />
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={hero} alt={listing.title} className="w-full h-full object-cover" />
+          <ListingGallery photos={listing.photos} title={listing.title} />
         </div>
 
+        {/* Right: purchase panel */}
         <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">{listing.title}</h1>
+          <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
 
           {/* Private listing banners */}
           {reservedForMe && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 font-medium">
+            <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 font-medium">
               🎨 This piece was made just for you!
             </div>
           )}
           {reservedForOther && (
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            <div className="border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
               This is a custom piece reserved for another buyer.
             </div>
           )}
 
-          {/* Listing type / availability */}
-          {listing.listingType === "IN_STOCK" ? (
-            isOutOfStock ? (
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
-                Out of Stock
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-700">
-                  In Stock ({listing.stockQuantity} available)
-                </div>
-                {listing.shipsWithinDays != null && (
-                  <div className="text-sm text-neutral-600">
-                    Ships within{" "}
-                    <span className="font-medium">{listing.shipsWithinDays} day{listing.shipsWithinDays !== 1 ? "s" : ""}</span>
-                  </div>
-                )}
-              </div>
-            )
-          ) : listing.processingTimeMinDays != null || listing.processingTimeMaxDays != null ? (
-            <div className="text-sm text-neutral-600">
-              Made to order — ships in{" "}
-              <span className="font-medium">
-                {listing.processingTimeMinDays ?? 1}–{listing.processingTimeMaxDays ?? 7} days
-              </span>
-            </div>
-          ) : (
-            <div className="text-sm text-neutral-600">Made to order</div>
-          )}
-
-          {/* Price + rating */}
+          {/* Price */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="text-2xl font-semibold">${(listing.priceCents / 100).toFixed(2)}</div>
-
+            <div className="text-3xl font-semibold">${(listing.priceCents / 100).toFixed(2)}</div>
             {stars && (
               <a
                 href="#reviews"
-                className="flex items-center gap-2 group"
-                aria-label={`Jump to reviews (${stars.display.toFixed(1)} out of 5, ${countReviews} reviews)`}
+                className="flex items-center gap-1.5 group"
+                aria-label={`${stars.display.toFixed(1)} out of 5, ${countReviews} reviews`}
               >
-                <div className="relative leading-none" aria-hidden>
-                  <div className="text-neutral-300">★★★★★</div>
-                  <div
-                    className="absolute inset-0 overflow-hidden"
-                    style={{ width: `${(stars.quarter / 5) * 100}%` }}
-                  >
-                    <div className="text-amber-500">★★★★★</div>
-                  </div>
-                </div>
-                <div className="text-sm text-neutral-700 group-hover:underline underline-offset-2">
+                <StarDisplay value={stars.quarter} count={countReviews} />
+                <span className="text-sm text-neutral-700 group-hover:underline">
                   {stars.display.toFixed(1)}{" "}
                   <span className="text-neutral-400">({countReviews})</span>
-                </div>
+                </span>
               </a>
             )}
           </div>
 
-          {/* ⬇️ Add to cart + Buy now — full width on mobile */}
-          {isActive && !isOwnListing && isOutOfStock && (
-            <div>
-              <span className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700">
-                Out of stock
-              </span>
+          {/* Stock status */}
+          {listing.listingType === "IN_STOCK" ? (
+            isOutOfStock ? (
+              <div className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 px-3 py-1 text-sm font-medium text-red-700">
+                Out of Stock
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 px-3 py-1 text-sm font-medium text-green-700">
+                In Stock · {listing.stockQuantity} available
+              </div>
+            )
+          ) : (
+            <div className="inline-flex items-center gap-1.5 bg-neutral-100 border border-neutral-200 px-3 py-1 text-sm font-medium text-neutral-700">
+              Made to order
             </div>
           )}
+
+          {processingLabel && (
+            <p className="text-sm text-neutral-600">{processingLabel}</p>
+          )}
+
+          {/* Buy buttons */}
+          {isActive && !isOwnListing && isOutOfStock && (
+            <NotifyMeButton
+              listingId={id}
+              initialSubscribed={isNotified}
+              signedIn={!!userId}
+            />
+          )}
           {canBuy && (
-            <div className="flex flex-col sm:flex-row gap-2">
-              <AddToCartButton
-                listingId={id}
-                signedIn={!!userId}
-                className="w-full sm:w-auto rounded border px-4 py-3 sm:py-1.5 text-sm min-h-[44px]"
-              />
+            <div className="flex flex-col gap-2">
               {userId ? (
                 <BuyNowButton
                   listingId={id}
-                  className="w-full sm:w-auto rounded bg-neutral-900 px-4 py-3 sm:py-1.5 text-white text-sm min-h-[44px]"
+                  className="w-full bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
                 >
                   Buy now
                 </BuyNowButton>
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
-                  className="w-full sm:w-auto rounded bg-neutral-900 px-4 py-3 sm:py-1.5 text-white text-sm text-center min-h-[44px] flex items-center justify-center"
+                  className="w-full bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
                 >
                   Sign in to buy
                 </Link>
               )}
+              <AddToCartButton
+                listingId={id}
+                signedIn={!!userId}
+                className="w-full border border-neutral-300 px-4 py-3 text-sm font-medium min-h-[48px] hover:bg-neutral-50 transition-colors"
+              />
             </div>
           )}
 
-          {/* Custom order request — below buy buttons */}
+          {/* Seller offers gift wrapping */}
+          {listing.seller.offersGiftWrapping && canBuy && (
+            <p className="text-xs text-neutral-500">
+              🎁 Gift wrapping available
+              {listing.seller.giftWrappingPriceCents
+                ? ` · $${(listing.seller.giftWrappingPriceCents / 100).toFixed(2)}`
+                : ""}
+            </p>
+          )}
+
+          {/* Custom order */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (
-            <div className="rounded-xl border bg-neutral-50 p-4 space-y-2">
+            <div className="border border-neutral-200 bg-neutral-50 p-4 space-y-2">
               <div className="text-sm font-medium">Want something custom?</div>
               <p className="text-xs text-neutral-500">
-                Want this in a different size, wood, or finish? Ask the maker.
+                Want this in a different size, wood, or finish? Ask the maker. Or{" "}
+                <Link href="/commission" className="underline hover:text-neutral-700">
+                  post a request in the Commission Room
+                </Link>{" "}
+                to reach all makers at once.
               </p>
               {meId ? (
                 <CustomOrderRequestForm
@@ -382,12 +449,12 @@ export default async function ListingPage({
                   listingId={id}
                   listingTitle={listing.title}
                   triggerLabel="🔨 Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  triggerClassName="inline-flex items-center gap-2 border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
-                  className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  className="inline-flex items-center gap-2 border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 >
                   🔨 Request Something Similar
                 </Link>
@@ -395,94 +462,177 @@ export default async function ListingPage({
             </div>
           )}
 
-          {isOutOfStock && !isOwnListing && (
-            <NotifyMeButton
-              listingId={id}
-              initialSubscribed={isNotified}
-              signedIn={!!userId}
-            />
-          )}
+          {/* Seller profile card */}
+          <div className="border border-neutral-200 p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <Link href={sellerHref} className="shrink-0">
+                {sellerAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={sellerAvatar}
+                    alt={sellerName}
+                    className="h-14 w-14 rounded-full object-cover border border-neutral-200"
+                  />
+                ) : (
+                  <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center">
+                    <span className="text-sm font-medium text-neutral-700">{initials}</span>
+                  </div>
+                )}
+              </Link>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Link href={sellerHref} className="font-semibold text-sm hover:underline">
+                    {sellerName}
+                  </Link>
+                  <GuildBadge level={listing.seller.guildLevel} showLabel={false} size={16} />
+                </div>
+                {listing.seller.tagline && (
+                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>
+                )}
+                {sellerStars && sellerReviewCount > 0 && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <StarDisplay value={sellerStars.quarter} count={sellerReviewCount} />
+                    <span className="text-xs text-neutral-600">
+                      {sellerStars.display.toFixed(1)} ({sellerReviewCount})
+                    </span>
+                  </div>
+                )}
+                {cityState && (
+                  <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1">
+                    <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {cityState}
+                  </p>
+                )}
+              </div>
+            </div>
 
-          <p className="text-sm opacity-80">{listing.description}</p>
+            {listing.seller.acceptingNewOrders === false && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5">
+                Maker currently not accepting new orders
+              </p>
+            )}
 
+            {listing.seller.vacationMode && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5">
+                This maker is currently on vacation
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                href={sellerHref}
+                className="text-xs border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+              >
+                Visit Shop
+              </Link>
+              {!isOwnListing && sellerUserId && (
+                <FollowButton
+                  sellerProfileId={listing.sellerId}
+                  sellerUserId={sellerUserId}
+                  initialFollowing={isFollowingSeller}
+                  initialCount={sellerFollowerCount}
+                  size="sm"
+                />
+              )}
+              {sellerUserId && !hideMessage && (
+                <Link
+                  href={signedInMessageHref}
+                  className="text-xs border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                >
+                  Message maker
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Tags */}
           {listing.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {listing.tags.map((t) => (
                 <Link
                   key={t}
                   href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
-                  className="rounded-full border px-2 py-0.5 text-[11px] hover:bg-neutral-50"
+                  className="border px-2 py-0.5 text-[11px] text-neutral-600 hover:bg-neutral-50 transition-colors"
                 >
                   #{t}
                 </Link>
               ))}
             </div>
           )}
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <Link
-                href={sellerHref}
-                className="inline-flex items-center gap-2 text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
-              >
-                {sellerAvatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={sellerAvatar} alt={sellerName} className="h-5 w-5 rounded-full object-cover" />
-                ) : (
-                  <div className="h-5 w-5 rounded-full bg-neutral-200 flex items-center justify-center">
-                    <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
-                  </div>
-                )}
-                <span>{sellerName}</span>
-              </Link>
-
-              <GuildBadge level={listing.seller.guildLevel} showLabel={true} size={18} />
-
-              {sellerUserId && !hideMessage && (
-                <Link
-                  href={signedInMessageHref}
-                  className="text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
-                >
-                  Message maker
-                </Link>
-              )}
-            </div>
-
-            {listing.seller.acceptingNewOrders === false && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1 w-fit">
-                Maker currently not accepting new orders
-              </p>
-            )}
-          </div>
-
-          {lat != null && lng != null && (
-            <div className="pt-2">
-              <MapCard
-                lat={lat}
-                lng={lng}
-                radiusMeters={radius}
-                label={cityState || sellerName}
-                seed={listing.seller.id}
-              />
-            </div>
-          )}
         </div>
       </div>
 
-      {listing.photos.length > 1 && (
-        /* Mobile: horizontal scroll; desktop: grid */
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
-          {listing.photos.slice(1).map((p) => (
-            <div key={p.id} className="relative w-32 h-32 sm:w-auto sm:h-auto sm:aspect-square shrink-0 sm:shrink overflow-hidden rounded-lg border snap-start">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt="" className="w-full h-full object-cover" />
-            </div>
-          ))}
-        </div>
+      {/* ── About this piece ──────────────────────────────────────────────── */}
+      {listing.description && (
+        <section className="mb-10 max-w-2xl">
+          <h2 className="font-semibold text-neutral-900 mb-3">About this piece</h2>
+          <DescriptionExpander text={listing.description} />
+        </section>
       )}
 
-      <SimilarItems listingId={id} />
+      {/* ── Details ──────────────────────────────────────────────────────── */}
+      {(listing.category || cityState || processingLabel || listing.listingType) && (
+        <section className="mb-10 max-w-2xl">
+          <h2 className="font-semibold text-neutral-900 mb-3">Details</h2>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+            {listing.category && (
+              <>
+                <dt className="text-neutral-500 font-medium">Category</dt>
+                <dd>
+                  <Link
+                    href={`/browse?category=${listing.category}`}
+                    className="text-neutral-800 hover:underline"
+                  >
+                    {CATEGORY_LABELS[listing.category] ?? listing.category}
+                  </Link>
+                </dd>
+              </>
+            )}
+            <dt className="text-neutral-500 font-medium">Type</dt>
+            <dd className="text-neutral-800">
+              {listing.listingType === "IN_STOCK" ? "In stock" : "Made to order"}
+            </dd>
+            {processingLabel && (
+              <>
+                <dt className="text-neutral-500 font-medium">Processing</dt>
+                <dd className="text-neutral-800">{processingLabel}</dd>
+              </>
+            )}
+            {cityState && (
+              <>
+                <dt className="text-neutral-500 font-medium">Ships from</dt>
+                <dd className="text-neutral-800">{cityState}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+      )}
 
+      {/* ── Pickup area map ───────────────────────────────────────────────── */}
+      {lat != null && lng != null && (
+        <section className="mb-10 max-w-2xl">
+          <div style={{ position: "relative", zIndex: 0 }}>
+            <MapCard
+              lat={lat}
+              lng={lng}
+              radiusMeters={radius}
+              label={cityState || sellerName}
+              seed={listing.seller.id}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* ── Similar items ─────────────────────────────────────────────────── */}
+      <section className="mb-10">
+        <h2 className="font-semibold text-neutral-900 mb-4">You might also like</h2>
+        <SimilarItems listingId={id} />
+      </section>
+
+      {/* ── Reviews ───────────────────────────────────────────────────────── */}
       <section id="reviews">
         <ReviewsSection
           listingId={id}
@@ -495,19 +645,3 @@ export default async function ListingPage({
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -980,7 +980,7 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 - **`/seller/[id]`** — amber banner above the banner image when `seller.vacationMode === true`; shows return date and vacation message if set; "Browse other makers →" link
 - **`/seller/[id]/shop`** — same amber banner above the header bar
 
-## Seller Analytics Dashboard (complete — 2026-03-31, per-day tracking added 2026-03-31)
+## Seller Analytics Dashboard (complete — 2026-03-31, metrics cleanup 2026-03-31)
 
 `/dashboard/analytics` — **client component** (`"use client"`). Fetches data from `GET /api/seller/analytics?range=` on mount and on range change. Shows loading skeletons while fetching.
 
@@ -991,9 +991,10 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 - **`ListingViewDaily`** — `id`, `listingId` → `Listing`, `sellerProfileId` → `SellerProfile`, `date DateTime` (midnight UTC), `views Int @default(0)`, `clicks Int @default(0)`; `@@unique([listingId, date])`, `@@index([sellerProfileId, date])`, `@@index([date])`; back-relations `viewDailies ListingViewDaily[]` on both `Listing` and `SellerProfile`
 
 ### View/click tracking (updated)
-- **`POST /api/listings/[id]/view`** — after incrementing `listing.viewCount`, fire-and-forgets an upsert on `ListingViewDaily` for today's bucket (increment `views`)
-- **`POST /api/listings/[id]/click`** — same pattern for `clicks`
+- **`POST /api/listings/[id]/view`** — after incrementing `listing.viewCount`, fire-and-forgets an upsert on `ListingViewDaily` for today's bucket (increment `views`). **Listing views = times listing detail page was opened** (not card impressions).
+- **`POST /api/listings/[id]/click`** — same pattern for `clicks`; `clicks` field retained on `ListingViewDaily` for future use but no longer surfaced in analytics UI
 - Both routes first `findUnique` to get `sellerId` (needed for `sellerProfileId` on create)
+- **Impression tracking (Intersection Observer) intentionally deferred** — not worth the complexity until sellers request it
 
 ### API routes
 - **`GET /api/seller/analytics`** — accepts `?range=today|yesterday|week|last7|month|last30|year|last365|alltime`; returns full analytics JSON including overview, engagement, chart data (with all time buckets), top listings, rating over time, guild metrics; `chartGrouping` is `'hour'` for today/yesterday, `'day'` for week/last7/month/last30, `'month'` for year/last365, `'year'` for alltime; all DB queries use raw SQL for bucketing; guild metrics auto-recalculated if stale (>24h). Rating-over-time SQL uses `AVG(r."ratingX2") / 2.0` (Review stores `ratingX2` not `rating`). `alltime` start date uses seller's `createdAt` so year buckets are accurate.
@@ -1036,6 +1037,311 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 - **`/dashboard/page.tsx`** listings query: added `_count: { select: { favorites: true, stockNotifications: true } }` to include; each card shows `👁 X · 🖱 X · ♥ X · 🔔 X` below the status badge
 - **`/dashboard/inventory/page.tsx`** query: same `_count` addition; `InventoryRow.tsx` type extended with `viewCount`, `clickCount`, `_count`; stats row shown below price
 
+## Following System (complete — 2026-03-31)
+
+Migration: `20260331053935_following_system`
+
+### Schema additions
+- **`Follow`** — `id`, `followerId` → `User @relation("UserFollows")`, `sellerProfileId` → `SellerProfile`; `@@unique([followerId, sellerProfileId])`, `@@index([sellerProfileId])`, `@@index([followerId])`; back-relations `follows Follow[] @relation("UserFollows")` on `User`, `followers Follow[]` on `SellerProfile`
+- **`SavedBlogPost`** — `id`, `userId` → `User`, `blogPostId` → `BlogPost`; `@@unique([userId, blogPostId])`, `@@index([userId])`, `@@index([blogPostId])`; back-relations `savedBlogPosts SavedBlogPost[]` on `User`, `savedBy SavedBlogPost[]` on `BlogPost`
+- **`SellerBroadcast`** — `id`, `sellerProfileId` → `SellerProfile`, `message`, `imageUrl?`, `sentAt`, `recipientCount`; `@@index([sellerProfileId])`, `@@index([sentAt])`; back-relation `broadcasts SellerBroadcast[]` on `SellerProfile`
+- **`NotificationType` additions**: `FOLLOWED_MAKER_NEW_LISTING`, `FOLLOWED_MAKER_NEW_BLOG`, `SELLER_BROADCAST`
+
+### API routes
+- **`GET/POST/DELETE /api/follow/[sellerId]`** — GET: returns `{ following, followerCount }` (auth optional); POST: upserts Follow, sends `NEW_FOLLOWER` notification to seller, returns `{ following: true, followerCount }`; DELETE: removes Follow. Added to middleware public list for GET.
+- **`GET/POST /api/seller/broadcast`** — POST: creates `SellerBroadcast`, fire-and-forgets `SELLER_BROADCAST` notifications to all followers; GET: paginates the seller's broadcast history (10/page)
+- **`GET/POST/DELETE /api/blog/[slug]/save`** — GET: returns `{ saved }` (auth optional); POST/DELETE: upserts/deletes `SavedBlogPost`
+
+### Components
+- **`FollowButton`** (`src/components/FollowButton.tsx`) — `"use client"`; props: `sellerProfileId`, `sellerUserId`, `initialFollowing`, `initialCount`, `size?: 'sm'|'md'`; optimistic toggle; 401 → redirect to sign-in; shows "Follow · N" or "Following ✓ · N"
+- **`SaveBlogButton`** (`src/components/SaveBlogButton.tsx`) — `"use client"`; bookmark icon (filled amber when saved, outline when not); props: `slug`, `initialSaved`; 401 → redirect to sign-in
+- **`BroadcastComposer`** (`src/components/BroadcastComposer.tsx`) — `"use client"`; textarea + send button; fetches/displays past broadcasts on mount; shows follower count
+
+### FollowButton placement
+- `/seller/[id]` — in the maker's name row (hidden for own profile)
+- `/seller/[id]/shop` — in the shop header bar (`size="sm"`)
+- `/listing/[id]` — below the seller's acceptingNewOrders badge (hidden for own listing)
+- `/account/following` — on each followed-maker card (`size="sm"`)
+
+### SaveBlogButton placement
+- `/blog` — overlaid on each grid card (`absolute top-2 right-2 z-10`)
+- `/blog/[slug]` — next to the post title (`flex items-start gap-3`)
+- `/account/saved?tab=posts` — overlaid on each saved post card
+
+### Notifications sent
+- New listing from followed maker → `FOLLOWED_MAKER_NEW_LISTING` to all followers (fire-and-forget in `dashboard/listings/new/page.tsx`; first 500 followers also receive `sendNewListingFromFollowedMakerEmail`)
+- New published blog post from followed maker → `FOLLOWED_MAKER_NEW_BLOG` to all followers (fire-and-forget in `dashboard/blog/new/page.tsx`)
+- Seller broadcast → `SELLER_BROADCAST` to all followers (fire-and-forget in `/api/seller/broadcast`)
+
+### Pages
+- **`/account/feed`** — unified feed of listings, blog posts, and broadcasts from followed sellers (last 90 days); sorted newest-first; paginated 20/page; empty state with "Find Makers to Follow" CTA
+- **`/account/following`** — list of all followed makers with avatar, tagline, location, follower/listing counts, follow date, and inline `FollowButton` to unfollow
+- **`/account/saved`** — tabbed page (Listings | Blog Posts); replaces `/dashboard/saved` (which now redirects here); listings tab mirrors old saved page; posts tab shows `SavedBlogPost` records with `SaveBlogButton` for unsaving
+- **`/dashboard/seller`** — "Shop Updates" section at bottom with `BroadcastComposer`
+- **`/admin/broadcasts`** — paginated list of all broadcasts with text search, delete action, seller name/email, recipient count, timestamp
+
+### Homepage "From Your Makers"
+Shown only when the signed-in user follows ≥ 3 makers. Fetches up to 6 recent listings + blog posts from followed sellers (last 30 days). Horizontal scroll row identical to Fresh/Favorites sections. "See full feed →" link to `/account/feed`. Section renders before "Stories from the Workshop".
+
+### Nav additions
+- `Rss` icon added to `src/components/icons/index.tsx`
+- Desktop header: RSS icon link to `/account/feed` (signed-in only), between "My Account" and notification bell
+- Mobile drawer: "Your Feed" link with `Rss` icon between "Messages" and "Workshop"
+
+## Following System Bug Fixes (complete — 2026-03-31)
+
+Post-deployment bug fixes and gap fills:
+
+### Crash fix — `/account/feed`
+- Root cause: nested `<Link>` (anchor) elements inside listing/blog feed cards caused React 19 hydration errors ("something splintered")
+- Fix: restructured listing/blog cards — outer `<Link>` wraps photo only; title/price/date in a second sibling `<Link>`; seller chip is an independent `<Link>` (no nesting)
+- Broadcast cards were unaffected (already used a `<div>` wrapper)
+
+### `/account/page.tsx` additions
+- Added `followCount` to parallel `Promise.all` query
+- New "Following" section showing maker count + "View feed →" + "Manage →" links
+- "View all saved →" link corrected from `/dashboard/saved` to `/account/saved`
+- Sections renumbered 1–6
+
+### Broadcast rate limiting (`/api/seller/broadcast/route.ts`)
+- Added 7-day rate limit: returns 429 with "Next available: [date]" message if last broadcast < 7 days ago
+- Notification link changed from `/seller/[id]` to `/account/feed` (followers land on feed)
+- Added `sellersOnly` body param: filters `Follow` query to followers who have a `sellerProfile`
+
+### `BroadcastComposer.tsx` updates
+- Shows 429 rate limit error message with date
+- Added "Send to: All followers / Sellers only" radio toggle
+
+### `SaveBlogButton.tsx` — icon visibility
+- Both saved/unsaved states now use white icon with `drop-shadow(0 1px 2px rgba(0,0,0,0.5))` so bookmark is visible on dark cover images
+
+### Homepage "From Your Makers" position
+- Moved from before "Stories from the Workshop" to the TOP of the main content section (first item after the map, before Shop by Category)
+
+### Follower notifications on status change (`dashboard/page.tsx`)
+- `setStatus` now notifies followers via `FOLLOWED_MAKER_NEW_LISTING` when a listing transitions from non-ACTIVE → ACTIVE (fire-and-forget)
+- `createNotification` import added
+
+### Follower notifications on blog publish (`dashboard/blog/[id]/edit/page.tsx`)
+- `updateBlogPost` now notifies followers via `FOLLOWED_MAKER_NEW_BLOG` on first publish (non-PUBLISHED → PUBLISHED) for maker posts with a `sellerProfileId` (fire-and-forget)
+- `createNotification` import added
+
+### `/account/following/page.tsx` — latest listing
+- Added `listings` to Prisma select: top 1 ACTIVE non-private listing with photo, title, price
+- Renders a small thumbnail (40×40) + title + price below stats row; shows "No active listings" when empty
+
+### `/seller/[id]/page.tsx` — latest broadcast card
+- Queries `prisma.sellerBroadcast.findFirst` for most recent broadcast
+- Shows a teal "📢 Shop Update" card above Featured Work if broadcast is < 30 days old
+
+## Search Bar, Blog Search & Commission Room (complete — 2026-03-31)
+
+### Header search bar — always visible on desktop
+- Removed `showSearch` condition that limited the search bar to `/` and `/browse`
+- Now rendered with `hidden md:flex flex-1 max-w-[400px]` on every page in the desktop header
+- Mobile search icon dropdown unchanged
+
+### Blog Search System
+
+#### GIN full-text indexes (migration `20260331171540_blog_search_indexes`)
+- `@@index([title])` and `@@index([tags])` added to `BlogPost` schema (standard B-tree)
+- Raw SQL GIN indexes added manually to migration: `BlogPost_search_idx` on `to_tsvector('english', title || excerpt || body)` for `ts_rank` relevance sorting; `BlogPost_tags_gin_idx` on `tags` array (note: Prisma drops `BlogPost_tags_gin_idx` on subsequent migrations — only B-tree `BlogPost_tags_idx` survives; full-text GIN index stays since Prisma doesn't manage it)
+
+#### `GET /api/blog/search` (`src/app/api/blog/search/route.ts`)
+- Query params: `?q=`, `?type=`, `?tags=` (comma-separated), `?sort=newest|relevant|alpha`, `?page=`, `?limit=12`
+- When `q` + `sort=relevant`: raw SQL GIN `ts_rank` search returns ranked IDs, then Prisma fetches full records with type/tag filter; re-ordered by rank
+- Otherwise: standard Prisma `contains` + `hasSome` query; `publishedAt desc` or `title asc`
+- Returns `{ posts, total, page, totalPages, relatedTags }`
+
+#### `GET /api/blog/search/suggestions` (`src/app/api/blog/search/suggestions/route.ts`)
+- Three parallel queries: post titles via `similarity() > 0.2`, tags via `unnest ILIKE`, seller display names via `contains`
+- Returns `{ suggestions: Array<{ type: "post"|"tag"|"author", label, slug?, tag? }> }` up to 8 items
+
+#### `BlogSearchBar` component (`src/components/BlogSearchBar.tsx`)
+- `"use client"` — full-width search input with magnifying glass icon, 300ms debounce, dropdown with Post/Topic/Maker labels
+- Clicking a post suggestion navigates to `/blog/[slug]`; tag → `/blog?tags=...`; author → `/blog?q=...`
+- On submit: pushes `/blog?q=...&sort=relevant`; clear button when value non-empty
+
+#### `/blog` page rewrite (`src/app/blog/page.tsx`)
+- **searchParams**: now handles `q`, `type`, `tags` (comma-separated), `sort`, `page`
+- `BlogSearchBar` rendered inside hero section
+- **Sort tabs**: "Most Relevant" / "Newest" / "A–Z" shown only when `q` is active
+- **Active tag chips**: shown below tabs with × to remove individual tags
+- **Search results header**: "X results for 'oak' in Maker Spotlights" composite label
+- **"Browse by Topic" tag cloud**: shown below newsletter when no active search; 20 most-used tags via raw SQL `unnest`; 3 size tiers based on count ratio
+- **No results state**: shows fallback tag cloud for discovery
+- Featured post suppressed when searching
+
+#### Blog post detail — related posts (`src/app/blog/[slug]/page.tsx`)
+- **"More from the Workshop"** — 3-column grid of related posts (same type or overlapping tags, excluding current post); already implemented
+
+#### Main site search updated (`SearchBar.tsx` + `src/app/api/search/suggestions/route.ts`)
+- `/api/search/suggestions` now runs a 4th parallel query: blog title trigram similarity (`> 0.15`, limit 3); returns `{ suggestions: string[], blogs: [{slug, title}] }`
+- `SearchBar.tsx` updated: handles new response shape; renders blog results below a divider with amber **"Post"** badge; clicking navigates to `/blog/[slug]`
+
+### Commission Room (complete — nav-active as of 2026-03-31)
+
+#### Schema (migration `20260331172348_commission_room`)
+- **`CommissionStatus` enum**: `OPEN | IN_PROGRESS | FULFILLED | CLOSED | EXPIRED`
+- **`CommissionRequest`** — `id`, `buyerId` → `User @relation("CommissionRequests")`, `title`, `description`, `category Category?`, `budgetMinCents?`, `budgetMaxCents?`, `timeline?`, `referenceImageUrls String[]`, `status CommissionStatus @default(OPEN)`, `interestedCount`, `expiresAt?`, `createdAt`, `updatedAt`; `@@index([buyerId])`, `@@index([status, createdAt])`, `@@index([category])`
+- **`CommissionInterest`** — `id`, `commissionRequestId`, `sellerProfileId`, `conversationId?`, `createdAt`; `@@unique([commissionRequestId, sellerProfileId])`; `@@index([sellerProfileId])`
+- **`COMMISSION_INTEREST`** added to `NotificationType` enum
+- Back-relations: `commissionRequests CommissionRequest[] @relation("CommissionRequests")` on `User`; `commissionInterests CommissionInterest[]` on `SellerProfile`
+
+#### API routes
+- **`GET/POST /api/commission`** — GET: paginated OPEN requests with category filter; POST: auth required, creates request (validates title ≤100, description ≤1000)
+- **`GET/PATCH /api/commission/[id]`** — GET: full detail with interests; PATCH: owner-only status update to FULFILLED or CLOSED
+- **`POST /api/commission/[id]/interest`** — seller auth required; creates `CommissionInterest`, upserts conversation (canonical sort, race-safe), increments `interestedCount`, sends `COMMISSION_INTEREST` notification to buyer; returns `{ conversationId, alreadyInterested }`
+
+#### Pages
+- **`/commission`** — public board; category filter tabs; request cards with title, truncated description, budget, timeline, first reference image thumbnail, buyer first name + avatar, time ago, interest count; `CommissionInterestButton` for sellers; "Post a Request" button
+- **`/commission/new`** — client component; form: title (100 chars), description (1000 chars + counter), category dropdown, budget min/max dollar inputs, timeline text, reference image upload (UploadButton, up to 3); redirects to `/commission` on success
+- **`/commission/[id]`** — full description, reference images gallery, budget/timeline/category meta, buyer first name + avatar, interested makers list (avatar + name + GuildBadge + seller profile link), owner "Mark as Fulfilled" / "Close Request" buttons (via `MarkStatusButtons` client component); sign-in prompt for unsigned-out sellers
+- **`/account/commissions`** — buyer's requests list with status badges, interest counts, edit/view links; "Post a Request" CTA
+
+#### Client components
+- **`CommissionInterestButton`** — optimistic toggle; 401 → redirect sign-in; redirects to `/messages/[conversationId]` on success
+- **`MarkStatusButtons`** — owner-only FULFILLED / CLOSED buttons using PATCH API
+
+#### Navigation & discoverability
+- `COMMISSION_ROOM_ENABLED = true` in `Header.tsx`; nav links shown in both desktop nav and mobile drawer
+- **Middleware**: `/commission` and `/commission/((?!new)[^/]+)` added as public routes; `/commission/new` and `/account/commissions` require auth (default protected matcher)
+- **Sitemap**: `/commission` at priority 0.7 daily; individual open commission request pages at priority 0.5 weekly with `updatedAt`
+
+#### Improvements (2026-03-31)
+- **Explainer banner** always shown at top of commission board: "How the Commission Room works" (amber card)
+- **Better empty state**: heading + description + filled "Post a Request →" button
+- **`ImageLightbox` component** (`src/components/ImageLightbox.tsx`) — `"use client"`; thumbnail grid (96×96) + fullscreen modal with keyboard navigation (Arrow keys, Escape), body scroll lock, prev/next buttons, counter; used on commission detail page
+- **Interested seller notifications** — PATCH handler in `api/commission/[id]/route.ts` now notifies all sellers who expressed interest when buyer marks FULFILLED or CLOSED; uses `COMMISSION_INTEREST` notification type
+- **Interested seller avatars** — `/account/commissions` shows up to 3 stacked avatars + count on each request card
+- **Commission Room link** on listing detail page — inside the "Want something custom?" panel, adds "post a request in the Commission Room" link
+- **`/account/page.tsx`** — new "Commission Requests" section linking to `/account/commissions` and `/commission`
+- **`/account/commissions`** — query expanded to include up to 3 interested seller avatars per request
+
+## Feed Improvements (complete — 2026-03-31)
+
+Post-deployment round 2 fixes and enhancements:
+
+### `/admin/broadcasts` crash fix
+- Root cause: inline `onClick={(e) => { if (!confirm(...)) e.preventDefault() }}` on a `<button>` inside a server component — React 19 RSC cannot serialize inline event handler functions
+- Fix: extracted delete button into `src/app/admin/broadcasts/DeleteBroadcastButton.tsx` (`"use client"` component); receives `id` and `action` (server action) as props; `page.tsx` passes `deleteBroadcast` server action as a prop
+
+### `SaveBlogButton.tsx` — amber fill when saved
+- Saved state now uses amber fill (`fill="#F59E0B"`, `stroke="#D97706"`) with drop shadow — visually distinct from the white unsaved outline on any background
+- Unsaved state keeps white outline with drop shadow (unchanged)
+
+### `/account/feed` — infinite scroll with cursor-based API
+- **`src/app/api/account/feed/route.ts`** — new protected API route; cursor-based pagination (`?cursor=[ISO timestamp]&limit=20`, 20 items per batch); fetches listings + blog posts + broadcasts from followed sellers in parallel; merges and sorts by date desc; returns `{ items: FeedItem[], nextCursor: string | null, hasMore: boolean }`; 90-day cutoff on first load, cursor filter on subsequent pages; `guildLevel` included on listing/blog items; broadcasts mapped to `broadcastImageUrl` to avoid collision with listing `imageUrl`
+- **`src/app/account/feed/FeedClient.tsx`** — new `"use client"` component; `IntersectionObserver` with `rootMargin: "300px"` sentinel triggers next page load before user reaches bottom; skeleton loading state (5 animated placeholder cards); empty state with "Browse Makers →" CTA; error banner with retry; "You're all caught up!" end-of-feed message; `FeedCard` renders listing (amber "New Listing" badge), blog (indigo "New Post" badge), and broadcast (teal "📢 Shop Update") cards with `timeAgo()` relative timestamp helper
+- **`src/app/account/feed/page.tsx`** — rewritten as thin server auth wrapper; checks Clerk session, redirects to sign-in if unauthenticated, renders `<FeedClient />`; all data fetching moved client-side
+
+## Listing Page Overhaul (complete — 2026-03-31)
+
+Full redesign of `src/app/listing/[id]/page.tsx`. Zero TypeScript errors. Deployed.
+
+### Layout changes
+- **Breadcrumb** at top: Browse › Category › Title (each segment is a link)
+- **`max-w-6xl`** container (wider than before)
+- **`lg:grid-cols-2`** two-column layout (left = gallery, right = purchase panel)
+- **Description** moved below the two-column area into its own `"About this piece"` section
+- **Details table** below description: category (linked), listing type, processing, ships from
+- **Map** moved below details (still shows pickup area)
+- **"You might also like"** heading added above `SimilarItems`
+
+### `ListingGallery` component (`src/components/ListingGallery.tsx`)
+- `"use client"` — manages active photo index + lightbox state
+- Main photo: `height: 500px`, `cursor-zoom-in`, photo counter overlay (`1 / N`)
+- Click main photo → opens full lightbox with keyboard nav (Arrow keys + Escape)
+- Horizontal scrollable thumbnail row below main photo; active thumbnail has `border-neutral-900` highlight
+- Lightbox: prev/next buttons, close, counter
+
+### `DescriptionExpander` component (`src/components/DescriptionExpander.tsx`)
+- `"use client"` — desktop always shows full text; mobile truncates at 300 chars with "Read more" toggle
+
+### `SellerGallery` component (`src/components/SellerGallery.tsx`)
+- `"use client"` — keeps the existing grid layout on seller profile; adds click-to-open lightbox
+
+### `CoverLightbox` component (`src/components/CoverLightbox.tsx`)
+- `"use client"` — wraps any single image in a clickable button that opens a fullscreen lightbox; used on blog post cover and seller workshop image
+
+### Purchase panel improvements
+- **Price**: `text-3xl font-semibold`
+- **Stock status**: rectangular badge (not pill), `In Stock · N available` / `Out of Stock` / `Made to order`
+- **Buy buttons**: Buy Now first (full-width black), Add to Cart second (full-width bordered)
+- **Gift wrapping notice** shown if seller offers it
+- **Seller card**: 56px avatar, display name + Guild badge, tagline, seller star rating + count, city/state with pin icon, "Visit Shop" + Follow + Message buttons in a row
+
+### SEO
+- `generateMetadata` title: `{ absolute: "[Listing Title] by [Seller Name] — Grainline" }`
+
+### Image Lightbox — wired everywhere
+- **Review photos** (`ReviewsSection.tsx`) — `ImageLightbox` replaces `<a>` links for both "my review" and all other reviews
+- **Seller gallery** (`seller/[id]/page.tsx`) — `SellerGallery` component (grid layout preserved, click opens lightbox)
+- **Seller workshop image** (`seller/[id]/page.tsx`) — `CoverLightbox` component
+- **Blog post cover** (`blog/[slug]/page.tsx`) — `CoverLightbox` component
+
+## Commission System Improvements (complete — 2026-03-31)
+
+### Part 3: Commission Chat Card
+- **`Message.isSystemMessage Boolean @default(false)`** added to schema; migration `20260331182743_message_system_flag_commission_location`
+- **`/api/commission/[id]/interest/route.ts`** — after creating conversation, fire-and-forgets a system message with `kind: "commission_interest_card"` containing: `commissionId`, `commissionTitle`, `sellerName`, `budgetMinCents`, `budgetMaxCents`, `timeline`
+- **`ThreadMessages.tsx`** — renders `commission_interest_card` kind as a distinct card: gray left border in teal (`border-l-4 border-teal-400`), "📋 Commission Interest" header, seller name in bold, request title, budget, timeline, "View full request →" link
+
+### Part 4: Commission Location Features
+- **Schema** additions on `CommissionRequest`: `isNational Boolean @default(true)`, `lat Float?`, `lng Float?`, `radiusMeters Int? @default(80000)`; same migration as above
+- **`/commission/new`** — "Who can see this request?" radio toggle (All makers nationwide / Local makers only); sends `isNational` to API; local scope error shown if buyer has no location set
+- **`POST /api/commission`** — reads `isNational`; for local scope: fetches buyer's `sellerProfile.lat/lng`, returns 400 if not set, stores `lat`, `lng`, `isNational: false` on the record
+- **Commission board** (`/commission/page.tsx`):
+  - `?tab=near` URL param — "Near Me" tab only shown when viewer has location set (from their seller profile)
+  - Near Me tab: Haversine raw SQL query; local non-national requests sorted first, then nationals; 80km radius
+  - Distance badge on cards: `📍 X mi away` (green pill, shown when `!isNational && distanceMeters < 80000`)
+  - `buildHref` preserves the `tab` param across pagination/category changes
+  - Near Me SQL rewritten as `$queryRawUnsafe` with positional parameters ($1–$7) to fix crash from conditional SQL fragments in tagged template literal; `LEAST/GREATEST` clamps acos input to prevent NaN
+
+## Bug Fix Session (complete — 2026-03-31)
+
+Nine bugs fixed across listing page, commission room, and seller profile.
+
+### Listing Gallery — lightbox not opening on click
+- Root cause: hover overlay `div` (absolute inset-0) was intercepting click events before they reached the `img` tag (which had `onClick`)
+- Fix: moved `onClick` to the outer container `div` for reliable click handling; added `pointer-events-none` to the decorative hover overlay
+
+### Lightbox z-index — appears under Leaflet map
+- Leaflet tiles render at z-index 200+; lightbox was `z-[200]` causing map to overlap
+- Fix: all four lightbox components (`ListingGallery`, `ImageLightbox`, `SellerGallery`, `CoverLightbox`) updated to `z-[9999]`
+
+### Leaflet map z-index — listing page
+- Leaflet establishes a stacking context that can overlap other elements
+- Fix: map section in `listing/[id]/page.tsx` wrapped in `<div style={{ position: 'relative', zIndex: 0 }}>`
+
+### Mobile swipe support for lightboxes
+- Added `touchStartX` / `touchEndX` `useRef` + `onTouchStart`/`onTouchEnd` handlers to `ListingGallery`, `ImageLightbox`, and `SellerGallery`; minimum 50px swipe threshold
+
+### Workshop/story section layout (seller profile)
+- Removed workshop image (`CoverLightbox`) from inside the story section
+- Story section now only contains `storyTitle` + `storyBody` text
+- New "From the Workshop" gallery section renders both `workshopImageUrl` and `galleryImageUrls` via updated `SellerGallery` component
+
+### SellerGallery — combined images
+- Updated `SellerGallery` to accept `workshopImageUrl?: string | null` and `images?: string[]`; internally merges them: `[workshopImageUrl, ...images].filter(Boolean)`
+- All event handlers and lightbox state updated to use `allImages` length
+
+### Workshop Gallery — dashboard seller settings
+- New `GalleryUploader` client component (`src/components/GalleryUploader.tsx`) — shows existing images grid with remove buttons, UploadButton (galleryImage endpoint), hidden inputs per URL
+- Added gallery upload section to `dashboard/seller/page.tsx` with heading "Workshop Gallery" and 8-photo max
+- `updateSellerProfile` server action now reads `formData.getAll("galleryImageUrls")` and saves to `galleryImageUrls` field
+
+### Duplicate "You might also like" heading
+- `SimilarItems` component had its own `<h2>You Might Also Like</h2>` while listing page also had one
+- Fix: removed `<h2>` from inside `SimilarItems`; outer `<section>` in listing page retains the heading
+
+### Description field in new listing form
+- Added `<textarea name="description">` (6 rows, 2000 char max) between title and price fields in `dashboard/listings/new/page.tsx`; server action already read and saved the field
+
+### Commission Room Near Me crash
+- Root cause: `$queryRaw` tagged template literal treats `${}` expressions as SQL parameters; the conditional `${categoryValid ? \`AND cr.category = '${categoryFilter}'\` : \`\`}` was being passed as a bound parameter value instead of raw SQL, causing a PostgreSQL syntax error
+- Fix: rewrote both queries (data + count) using `$queryRawUnsafe` with positional parameters; added `LEAST(1.0, GREATEST(-1.0, ...))` clamping on `acos` arguments to prevent NaN
+
 ## Remaining Work
 
 ### Mobile audit round 3 (complete — deployed 2026-03-29)
@@ -1066,18 +1372,89 @@ All items done:
 
 ### Discovery & community
 
-18. **Following system** — buyers follow sellers; `NEW_FOLLOWER` notification type already in schema
-19. **Commission / wanted board** — public board where buyers post custom piece requests; sellers respond
-20. **Blog subscriptions** — subscribe to a seller's blog; get notified on new posts
+18. ~~**Following system**~~ — complete, see "Following System" section below
+19. ~~**Commission / wanted board**~~ — complete and live, see "Search Bar, Blog Search & Commission Room" section above
+20. ~~**Blog subscriptions**~~ — complete: `FOLLOWED_MAKER_NEW_BLOG` notification sent when a followed maker publishes
 21. **Blog search** — search within blog posts
-22. **Save / bookmark blog posts** — heart or bookmark a post for later
+22. ~~**Save / bookmark blog posts**~~ — complete, see "Following System" section below
 
 ### Platform
 
-23. ~~**Rate limiting**~~ — complete (see Rate Limiting section)
-24. **PWA setup** — `manifest.json`, service worker, offline fallback, home-screen install prompt; map `apple-touch-icon`
+23. ~~**Rate limiting**~~ — complete (see Rate Limiting section; expanded 2026-03-31)
+24. ~~**PWA setup**~~ — complete: manifest.json, icon-192.png, icon-512.png, offline page, metadata tags (see PWA section)
 
 **TypeScript: zero `tsc --noEmit` errors** (all pre-existing errors resolved as of current codebase)
+
+## Rate Limiting Expansion (complete — 2026-03-31)
+
+Eight new Upstash Redis sliding-window limiters added to `src/lib/ratelimit.ts`:
+
+| Limiter | Key | Limit | Applied to |
+|---|---|---|---|
+| `followRatelimit` | userId | 50 / 60 min | `POST/DELETE /api/follow/[sellerId]` |
+| `saveRatelimit` | userId | 100 / 60 min | `POST /api/favorites` |
+| `blogSaveRatelimit` | userId | 100 / 60 min | `POST/DELETE /api/blog/[slug]/save` |
+| `commissionInterestRatelimit` | userId | 20 / 24 h | `POST /api/commission/[id]/interest` |
+| `commissionCreateRatelimit` | userId | 5 / 24 h | `POST /api/commission` |
+| `listingCreateRatelimit` | userId | 10 / 24 h | `createListing` server action |
+| `profileViewRatelimit` | `${ip}:${listingId}` | 1 / 24 h | `POST /api/listings/[id]/view` (silent drop — no error returned) |
+| `broadcastRatelimit` | sellerId | 1 / 7 d | `POST /api/seller/broadcast` (in addition to DB 7-day check) |
+
+## Anti-Spam Guards (complete — 2026-03-31)
+
+Server-side abuse prevention beyond rate limiting:
+
+- **Self-follow blocked** — was already present in `api/follow/[sellerId]/route.ts`
+- **Duplicate commission interest blocked** — was already present in `api/commission/[id]/interest/route.ts`
+- **Self-review blocked** — **added** to `api/reviews/route.ts`: returns 400 if `listing.seller.userId === me.id`
+- **Commission self-interest + status check** — was already present
+- **Self-messaging blocked** — was already present in `messages/new/page.tsx` and `api/messages/custom-order-request/route.ts`
+
+### Input sanitization (`src/lib/sanitize.ts`)
+
+Two utilities created:
+- `sanitizeText(input)` — strips HTML tags, `javascript:` protocol, event handler attributes; used on short fields
+- `sanitizeRichText(input)` — strips `<script>`, `<iframe>`, `javascript:`, event handlers; used on long-form content
+
+Applied at the DB boundary in:
+- `dashboard/listings/new/page.tsx` — title (`sanitizeText`), description (`sanitizeRichText`)
+- `dashboard/listings/[id]/edit/page.tsx` — title (`sanitizeText`), description (`sanitizeRichText`)
+- `dashboard/seller/page.tsx` — displayName, tagline (`sanitizeText`); bio (`sanitizeRichText`)
+- `api/commission/route.ts` — title (`sanitizeText`), description (`sanitizeRichText`)
+- `api/reviews/route.ts` — comment text (`sanitizeRichText`)
+- `api/seller/broadcast/route.ts` — message (`sanitizeRichText`)
+
+### UploadThing file validation
+All endpoints already had `maxFileSize` and image type restrictions configured. No changes needed.
+
+### Ownership checks audit
+All critical ownership checks were already present:
+- Edit listing: Prisma query filters by `seller.user.clerkId === userId` (implicit ownership)
+- Commission PATCH: `buyerId !== me.id` check present
+- Messages: `other.id === me.id` self-message guard present
+- Delete listing: `seller.userId !== me.id` check present
+
+## PWA Setup (complete — 2026-03-31)
+
+- **`public/manifest.json`** — name, short_name, description, start_url, display: standalone, background_color `#FAFAF8`, theme_color `#1C1917`, shortcuts (Browse, My Account), categories (shopping, lifestyle)
+- **`public/icon-192.png`** and **`public/icon-512.png`** — generated from `public/logo.svg` via `sharp`
+- **`src/app/layout.tsx`** — added `manifest: '/manifest.json'`, `appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Grainline' }`, `formatDetection: { telephone: false }`, and a separate `viewport` export with `themeColor: '#1C1917'`
+- **`src/app/offline/page.tsx`** — server component; logo + "You're offline" heading + "Try again" link (`<a href="/">`)
+
+## Security Headers (complete — 2026-03-31)
+
+`next.config.ts` updated with `headers()` async function applying to all routes (`source: '/(.*)'`):
+
+| Header | Value |
+|---|---|
+| `X-DNS-Prefetch-Control` | `on` |
+| `X-Frame-Options` | `SAMEORIGIN` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
+
+`Content-Security-Policy` intentionally omitted — requires careful tuning to avoid breaking Clerk, Stripe, Leaflet, UploadThing, etc.
 
 ## Production Deployment
 

@@ -50,6 +50,70 @@ export const messageRatelimit = new Ratelimit({
   prefix: "rl:message",
 });
 
+// Follow/unfollow — prevent follow spam
+export const followRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(50, "60 m"),
+  analytics: true,
+  prefix: "rl:follow",
+});
+
+// Save/unsave (favorites) — prevent save spam
+export const saveRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(100, "60 m"),
+  analytics: true,
+  prefix: "rl:save",
+});
+
+// Blog save/unsave
+export const blogSaveRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(100, "60 m"),
+  analytics: true,
+  prefix: "rl:blog_save",
+});
+
+// Commission interest — prevent spam interest
+export const commissionInterestRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "24 h"),
+  analytics: true,
+  prefix: "rl:commission_interest",
+});
+
+// Listing creation — prevent listing spam
+export const listingCreateRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "24 h"),
+  analytics: true,
+  prefix: "rl:listing_create",
+});
+
+// Commission creation — prevent request spam
+export const commissionCreateRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "24 h"),
+  analytics: true,
+  prefix: "rl:commission_create",
+});
+
+// Profile view dedup — deduplicate by IP+listingId combo
+export const profileViewRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(1, "24 h"),
+  analytics: false,
+  prefix: "rl:profile_view",
+});
+
+// Broadcast — Redis layer on top of DB 7-day check
+export const broadcastRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(1, "7 d"),
+  analytics: true,
+  prefix: "rl:broadcast",
+});
+
 /** Returns the client IP from Vercel's x-forwarded-for header. */
 export function getIP(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");

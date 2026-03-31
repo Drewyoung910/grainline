@@ -9,6 +9,8 @@ import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import BlogCommentForm from "@/components/BlogCommentForm";
 import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
+import SaveBlogButton from "@/components/SaveBlogButton";
+import CoverLightbox from "@/components/CoverLightbox";
 
 export async function generateMetadata({
   params,
@@ -73,9 +75,17 @@ export default async function BlogPostPage({
   // Auth
   const { userId } = await auth();
   let meId: string | null = null;
+  let isSaved = false;
   if (userId) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
+    if (meId) {
+      const savedRow = await prisma.savedBlogPost.findUnique({
+        where: { userId_blogPostId: { userId: meId, blogPostId: post.id } },
+        select: { id: true },
+      });
+      isSaved = !!savedRow;
+    }
   }
 
   // Render markdown body
@@ -150,7 +160,10 @@ export default async function BlogPostPage({
       </div>
 
       {/* Title */}
-      <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 mb-6 leading-tight">{post.title}</h1>
+      <div className="flex items-start gap-3 mb-6">
+        <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 leading-tight flex-1">{post.title}</h1>
+        <SaveBlogButton slug={slug} initialSaved={isSaved} />
+      </div>
 
       {/* Author card */}
       <div className="flex items-center gap-3 mb-8 pb-6 border-b">
@@ -179,8 +192,11 @@ export default async function BlogPostPage({
       {/* Cover image */}
       {post.coverImageUrl && (
         <div className="mb-8 rounded-2xl overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={post.coverImageUrl} alt={post.title} className="w-full h-64 sm:h-96 object-cover" />
+          <CoverLightbox
+            src={post.coverImageUrl}
+            alt={post.title}
+            className="w-full h-64 sm:h-96 object-cover"
+          />
         </div>
       )}
 

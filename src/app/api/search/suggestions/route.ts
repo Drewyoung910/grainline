@@ -60,8 +60,19 @@ export async function GET(req: NextRequest) {
     CATEGORY_LABELS[v].toLowerCase().includes(qLower)
   ).map((v) => CATEGORY_LABELS[v]);
 
+  // Blog post title suggestions
+  const blogRows = await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
+    SELECT slug, title
+    FROM "BlogPost"
+    WHERE status = 'PUBLISHED'
+      AND similarity(title, ${q}) > 0.15
+    ORDER BY similarity(title, ${q}) DESC
+    LIMIT 3
+  `;
+
   const seen = new Set<string>();
   const suggestions: string[] = [];
+  const blogs: Array<{ slug: string; title: string }> = [];
 
   function add(s: string | null | undefined) {
     const trimmed = (s ?? "").trim();
@@ -76,5 +87,9 @@ export async function GET(req: NextRequest) {
   for (const seller of sellers) add(seller.displayName);
   for (const row of fuzzyRows) add(row.title);
 
-  return NextResponse.json({ suggestions: suggestions.slice(0, 8) });
+  for (const b of blogRows) {
+    blogs.push({ slug: b.slug, title: b.title });
+  }
+
+  return NextResponse.json({ suggestions: suggestions.slice(0, 8), blogs });
 }

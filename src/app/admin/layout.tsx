@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { Package, AlertTriangle, Shield, Edit } from "@/components/icons";
+import { Package, AlertTriangle, Shield, Edit, Rss } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -96,6 +96,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {pendingCommentCount}
               </span>
             )}
+          </Link>
+          <Link
+            href="/admin/broadcasts"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <Rss size={16} className="shrink-0 text-neutral-400" />
+            Broadcasts
           </Link>
         </nav>
       </aside>

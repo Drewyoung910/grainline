@@ -9,6 +9,7 @@ import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
+import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
 type SaveResult = { ok: boolean; error?: string };
 
@@ -43,8 +44,8 @@ async function updateListing(
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "Not signed in" };
 
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
+  const title = sanitizeText(String(formData.get("title") ?? "").trim());
+  const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 

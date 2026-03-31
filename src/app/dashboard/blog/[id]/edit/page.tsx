@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
+import { createNotification } from "@/lib/notifications";
 
 export default async function EditBlogPostPage({
   params,
@@ -80,7 +81,7 @@ export default async function EditBlogPostPage({
       publishedAt = null;
     }
 
-    await prisma.blogPost.update({
+    const updated = await prisma.blogPost.update({
       where: { id },
       data: {
         title,
@@ -96,7 +97,34 @@ export default async function EditBlogPostPage({
         readingTimeMinutes,
         ...(publishedAt !== undefined ? { publishedAt } : {}),
       },
+      select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true } } },
     });
+
+    // Notify followers when a maker blog post is first published
+    if (newStatus === "PUBLISHED" && existing.status !== "PUBLISHED" && updated.sellerProfileId) {
+      void (async () => {
+        try {
+          const followers = await prisma.follow.findMany({
+            where: { sellerProfileId: updated.sellerProfileId! },
+            select: { followerId: true },
+          });
+          if (followers.length > 0) {
+            const sellerName = updated.sellerProfile?.displayName ?? "A maker you follow";
+            await Promise.all(
+              followers.map((f) =>
+                createNotification({
+                  userId: f.followerId,
+                  type: "FOLLOWED_MAKER_NEW_BLOG",
+                  title: `New post from ${sellerName}`,
+                  body: title,
+                  link: `/blog/${updated.slug}`,
+                })
+              )
+            );
+          }
+        } catch { /* non-fatal */ }
+      })();
+    }
 
     redirect("/dashboard/blog");
   }
