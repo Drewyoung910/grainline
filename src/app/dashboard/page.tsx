@@ -123,7 +123,10 @@ export default async function DashboardPage() {
   const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id },
-      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      include: {
+        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+        _count: { select: { favorites: true, stockNotifications: true } },
+      },
       orderBy: { updatedAt: "desc" },
     }),
     prisma.savedSearch.findMany({
@@ -367,6 +370,10 @@ export default async function DashboardPage() {
 
                     <div className="text-xs uppercase tracking-wide text-neutral-500">
                       {l.status}
+                    </div>
+
+                    <div className="text-xs text-neutral-400">
+                      👁 {l.viewCount} · 🖱 {l.clickCount} · ♥ {l._count.favorites} · 🔔 {l._count.stockNotifications}
                     </div>
 
                     <div className="pt-3 flex flex-wrap gap-2">

@@ -208,6 +208,12 @@ export default async function SellerPublicPage({
     ] as (SocialLink | null)[]
   ).filter((x): x is SocialLink => x !== null);
 
+  // Fire-and-forget profile view increment (don't await — don't slow page load)
+  prisma.sellerProfile.update({
+    where: { id: seller.id },
+    data: { profileViews: { increment: 1 } },
+  }).catch(() => {});
+
   return (
     <main className="max-w-6xl mx-auto">
       {/* JSON-LD */}

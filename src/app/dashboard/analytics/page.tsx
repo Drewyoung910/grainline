@@ -1,150 +1,604 @@
+"use client";
 // src/app/dashboard/analytics/page.tsx
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { ensureSeller } from "@/lib/ensureSeller";
-import { calculateSellerMetrics, meetsGuildMasterRequirements } from "@/lib/metrics";
-import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Analytics",
+import React, { useEffect, useState, useRef } from "react";
+import Link from "next/link";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type RangeKey = "today" | "yesterday" | "week" | "month" | "last30" | "year" | "last365" | "alltime";
+type ChartMetric = "revenue" | "orders" | "views" | "clicks";
+
+type ChartBucket = {
+  label: string;
+  timestamp: string;
+  revenue: number;
+  orders: number;
+  views: number;
+  clicks: number;
 };
 
-function fmtCurrency(cents: number, currency = "usd") {
+type TopListing = {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  totalRevenueCents: number;
+  unitsSold: number;
+  avgPriceCents: number;
+  viewCount: number;
+  clickCount: number;
+  favoritesCount: number;
+  stockNotificationCount: number;
+  revenuePerActiveDayCents: number;
+};
+
+type GuildMetrics = {
+  averageRating: number;
+  reviewCount: number;
+  onTimeShippingRate: number;
+  responseRate: number;
+  accountAgeDays: number;
+  activeCaseCount: number;
+  totalSalesCents: number;
+  lastCalculatedAt: string | null;
+};
+
+type AnalyticsData = {
+  range: RangeKey;
+  startDate: string;
+  endDate: string;
+  chartGrouping: "hour" | "day" | "month";
+  overview: {
+    totalRevenueCents: number;
+    totalOrders: number;
+    avgOrderValueCents: number;
+    activeListings: number;
+  };
+  engagement: {
+    totalViews: number;
+    totalClicks: number;
+    profileVisits: number;
+    viewToClickRatio: number;
+    conversionRate: number;
+    cartAbandonment: number;
+    stockNotificationSubs: number;
+    favoritesCount: number;
+  };
+  repeatBuyerRate: number;
+  avgProcessingHours: number | null;
+  chartData: ChartBucket[];
+  topListings: TopListing[];
+  ratingOverTime: Array<{ label: string; avgRating: number; reviewCount: number }>;
+  guildMetrics: GuildMetrics;
+  guildMasterMet: boolean;
+  guildMasterFailures: string[];
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmt(cents: number, currency = "usd") {
+  return (cents / 100).toLocaleString(undefined, { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function fmtExact(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, { style: "currency", currency });
 }
 
-function pct(ratio: number) {
-  return (ratio * 100).toFixed(1) + "%";
+function pct(val: number, decimals = 1) {
+  return val.toFixed(decimals) + "%";
 }
 
-function colorRate(ratio: number, greenThreshold: number, amberThreshold: number) {
-  if (ratio >= greenThreshold) return "text-green-700";
-  if (ratio >= amberThreshold) return "text-amber-600";
+function colorRate(val: number, greenThresh: number, amberThresh: number) {
+  if (val >= greenThresh) return "text-green-700";
+  if (val >= amberThresh) return "text-amber-600";
   return "text-red-600";
 }
 
-export default async function AnalyticsPage() {
-  const { seller, me } = await ensureSeller();
+// ── Skeleton ────────────────────────────────────────────────────────────────────
 
-  // Check if SellerMetrics is stale (>24h) or missing — recalculate if so
-  const existingMetrics = await prisma.sellerMetrics.findUnique({
-    where: { sellerProfileId: seller.id },
-    select: { calculatedAt: true },
-  });
-  const isStale =
-    !existingMetrics ||
-    Date.now() - new Date(existingMetrics.calculatedAt).getTime() > 24 * 60 * 60 * 1000;
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-neutral-200 ${className}`} />;
+}
 
-  const metrics = isStale
-    ? await calculateSellerMetrics(seller.id)
-    : await prisma.sellerMetrics.findUnique({
-        where: { sellerProfileId: seller.id },
-      }).then((m) => m ?? calculateSellerMetrics(seller.id));
+// ── Chart ───────────────────────────────────────────────────────────────────────
 
-  // Fetch active listing count
-  const activeListingCount = await prisma.listing.count({
-    where: { sellerId: seller.id, status: "ACTIVE" },
-  });
+function BarChartSection({
+  chartData,
+  metric,
+  onMetricChange,
+}: {
+  chartData: ChartBucket[];
+  metric: ChartMetric;
+  onMetricChange: (m: ChartMetric) => void;
+}) {
+  const [tooltip, setTooltip] = useState<{ label: string; value: string; x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Revenue + order count (completed orders)
-  const avgOrderValue =
-    metrics.completedOrderCount > 0
-      ? Math.round(metrics.totalSalesCents / metrics.completedOrderCount)
-      : 0;
+  const values = chartData.map((b) => b[metric]);
+  const maxVal = Math.max(...values, 1);
+  const hasData = values.some((v) => v > 0);
+  const manyBuckets = chartData.length > 14;
 
-  // Recent 10 sales (completed orders with items)
-  const recentSales = await prisma.order.findMany({
-    where: {
-      items: { some: { listing: { sellerId: seller.id } } },
-      paidAt: { not: null },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-    select: {
-      id: true,
-      createdAt: true,
-      itemsSubtotalCents: true,
-      shippingAmountCents: true,
-      taxAmountCents: true,
-      currency: true,
-      fulfillmentStatus: true,
-      buyer: { select: { name: true } },
-      items: {
-        where: { listing: { sellerId: seller.id } },
-        take: 1,
-        select: {
-          listing: { select: { title: true } },
-        },
-      },
-    },
-  });
-
-  // Top 5 listings by revenue (all-time completed orders)
-  type TopListingRow = {
-    id: string;
-    title: string;
-    photoUrl: string | null;
-    unitsSold: bigint;
-    revenueCents: bigint;
-    avgPriceCents: bigint;
+  const metricColors: Record<ChartMetric, string> = {
+    revenue: "bg-amber-400 hover:bg-amber-500",
+    orders: "bg-indigo-400 hover:bg-indigo-500",
+    views: "bg-teal-400 hover:bg-teal-500",
+    clicks: "bg-orange-400 hover:bg-orange-500",
   };
 
-  const topListings = await prisma.$queryRaw<TopListingRow[]>`
-    SELECT
-      l.id,
-      l.title,
-      (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
-      SUM(oi.quantity) AS "unitsSold",
-      SUM(oi."priceCents" * oi.quantity) AS "revenueCents",
-      AVG(oi."priceCents") AS "avgPriceCents"
-    FROM "OrderItem" oi
-    JOIN "Listing" l ON l.id = oi."listingId"
-    JOIN "Order" o ON o.id = oi."orderId"
-    WHERE
-      l."sellerId" = ${seller.id}
-      AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
-    GROUP BY l.id, l.title
-    ORDER BY "revenueCents" DESC
-    LIMIT 5
-  `;
+  const yLabels = [maxVal, Math.round(maxVal * 0.75), Math.round(maxVal * 0.5), Math.round(maxVal * 0.25), 0];
 
-  // Monthly revenue for last 6 months (for bar chart)
-  type MonthlyRow = { month: string; revenueCents: bigint };
-  const monthlyRevenue = await prisma.$queryRaw<MonthlyRow[]>`
-    SELECT
-      TO_CHAR(o."createdAt", 'YYYY-MM') AS month,
-      SUM(oi."priceCents" * oi.quantity) AS "revenueCents"
-    FROM "OrderItem" oi
-    JOIN "Listing" l ON l.id = oi."listingId"
-    JOIN "Order" o ON o.id = oi."orderId"
-    WHERE
-      l."sellerId" = ${seller.id}
-      AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
-      AND o."createdAt" >= NOW() - INTERVAL '6 months'
-    GROUP BY month
-    ORDER BY month ASC
-  `;
+  function formatValue(v: number) {
+    if (metric === "revenue") return fmtExact(v);
+    return v.toLocaleString();
+  }
 
-  const guildCriteria = meetsGuildMasterRequirements(metrics);
-  const failingCriteria = Object.entries(guildCriteria)
-    .filter(([k, v]) => k !== "allMet" && !v)
-    .map(([k]) => k);
+  const metrics: { key: ChartMetric; label: string }[] = [
+    { key: "revenue", label: "Revenue" },
+    { key: "orders", label: "Orders" },
+    { key: "views", label: "Views" },
+    { key: "clicks", label: "Clicks" },
+  ];
 
-  const maxMonthly = monthlyRevenue.reduce(
-    (max, r) => Math.max(max, Number(r.revenueCents)),
-    1
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <h2 className="text-xl font-semibold">Performance Over Time</h2>
+        <div className="flex gap-2">
+          {metrics.map((m) => (
+            <button
+              key={m.key}
+              onClick={() => onMetricChange(m.key)}
+              className={`text-xs px-3 py-1.5 border font-medium transition-colors ${
+                metric === m.key
+                  ? "bg-neutral-900 text-white border-neutral-900"
+                  : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-neutral-200 p-4 relative" ref={containerRef}>
+        {!hasData && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-sm text-neutral-400">No data for this period</p>
+          </div>
+        )}
+
+        {/* Y axis + chart area */}
+        <div className="flex gap-2">
+          {/* Y axis labels */}
+          <div className="flex flex-col justify-between text-right shrink-0 w-12 text-[10px] text-neutral-400" style={{ height: 180 }}>
+            {yLabels.map((v, i) => (
+              <span key={i}>
+                {metric === "revenue" ? `$${Math.round(v / 100).toLocaleString()}` : v.toLocaleString()}
+              </span>
+            ))}
+          </div>
+
+          {/* Bars */}
+          <div className="flex-1 relative">
+            {/* Grid lines */}
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none" style={{ height: 180 }}>
+              {yLabels.map((_, i) => (
+                <div key={i} className="border-t border-neutral-100 w-full" />
+              ))}
+            </div>
+
+            {/* Bar columns */}
+            <div className="flex items-end gap-px overflow-x-auto" style={{ height: 180 }}>
+              {chartData.map((b) => {
+                const val = b[metric];
+                const heightPct = Math.max(val > 0 ? 4 : 0, Math.round((val / maxVal) * 100));
+                return (
+                  <div
+                    key={b.timestamp}
+                    className="flex-1 flex flex-col items-center justify-end min-w-[4px] cursor-pointer"
+                    style={{ height: "100%" }}
+                    onMouseEnter={(e) => {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const containerRect = containerRef.current?.getBoundingClientRect();
+                      if (containerRect) {
+                        setTooltip({
+                          label: b.label,
+                          value: formatValue(val),
+                          x: rect.left - containerRect.left + rect.width / 2,
+                          y: rect.top - containerRect.top - 8,
+                        });
+                      }
+                    }}
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    <div
+                      className={`w-full transition-colors ${metricColors[metric]}`}
+                      style={{ height: `${heightPct}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* X axis labels */}
+        <div className="flex gap-px ml-14 mt-1 overflow-x-hidden">
+          {chartData.map((b, i) => {
+            const showEvery = manyBuckets ? Math.ceil(chartData.length / 14) : 1;
+            const show = i % showEvery === 0 || i === chartData.length - 1;
+            return (
+              <div
+                key={b.timestamp}
+                className={`flex-1 min-w-[4px] text-center overflow-hidden ${manyBuckets ? "-rotate-45 origin-top-left" : ""}`}
+              >
+                {show && (
+                  <span className="text-[9px] text-neutral-400 whitespace-nowrap">{b.label}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Tooltip */}
+        {tooltip && (
+          <div
+            className="absolute z-10 pointer-events-none bg-neutral-900 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap"
+            style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -100%)" }}
+          >
+            <div className="font-medium">{tooltip.label}</div>
+            <div>{tooltip.value}</div>
+          </div>
+        )}
+      </div>
+    </section>
   );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
+const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "week", label: "This week" },
+  { key: "month", label: "This month" },
+  { key: "last30", label: "Last 30 days" },
+  { key: "year", label: "This year" },
+  { key: "last365", label: "Last 365 days" },
+  { key: "alltime", label: "All time" },
+];
+
+export default function AnalyticsPage() {
+  const [range, setRange] = useState<RangeKey>("last30");
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("revenue");
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch(`/api/seller/analytics?range=${range}`)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load analytics");
+        return r.json();
+      })
+      .then((d: AnalyticsData) => {
+        setData(d);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError((e as Error).message);
+        setLoading(false);
+      });
+  }, [range]);
+
+  return (
+    <main className="max-w-5xl mx-auto p-4 md:p-8 space-y-10">
+      {/* ── Header ── */}
+      <header>
+        <div className="flex items-center gap-4 mb-1">
+          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
+            ← Workshop
+          </Link>
+          <h1 className="text-3xl font-bold">Analytics</h1>
+        </div>
+
+        {/* Range selector */}
+        <div className="mt-4 flex overflow-x-auto gap-2 pb-1">
+          {RANGE_OPTIONS.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => setRange(r.key)}
+              className={`shrink-0 text-sm px-3 py-1.5 border font-medium transition-colors ${
+                range === r.key
+                  ? "bg-neutral-900 text-white border-neutral-900"
+                  : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {error && (
+        <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* ── Section A: Overview ── */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Overview</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {loading ? (
+            <>
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+              <Skeleton className="h-20" />
+            </>
+          ) : data ? (
+            <>
+              <div className="border border-neutral-200 p-5">
+                <p className="text-2xl font-bold">{fmt(data.overview.totalRevenueCents)}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Total Revenue</p>
+              </div>
+              <div className="border border-neutral-200 p-5">
+                <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString()}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Total Orders</p>
+              </div>
+              <div className="border border-neutral-200 p-5">
+                <p className="text-2xl font-bold">{fmt(data.overview.avgOrderValueCents)}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Avg. Order Value</p>
+              </div>
+              <div className="border border-neutral-200 p-5">
+                <p className="text-2xl font-bold">{data.overview.activeListings}</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Active Listings</p>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </section>
+
+      {/* ── Section B: Engagement ── */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Engagement</h2>
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+          </div>
+        ) : data ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {[
+              { label: "Impressions", value: data.engagement.totalViews.toLocaleString(), note: "total views on listings" },
+              { label: "Clicks", value: data.engagement.totalClicks.toLocaleString(), note: "listing card clicks" },
+              { label: "Profile Visits", value: data.engagement.profileVisits.toLocaleString(), note: "all-time" },
+              { label: "Click Rate", value: pct(data.engagement.viewToClickRatio), note: "views → clicks" },
+              { label: "Conversion", value: pct(data.engagement.conversionRate, 2), note: "orders ÷ views" },
+              { label: "Saved", value: data.engagement.favoritesCount.toLocaleString(), note: "total favorites" },
+              { label: "Watching", value: data.engagement.stockNotificationSubs.toLocaleString(), note: "stock alerts" },
+              { label: "Cart Abandoned", value: data.engagement.cartAbandonment.toLocaleString(), note: "added, not bought" },
+              { label: "Repeat Buyers", value: pct(data.repeatBuyerRate), note: "bought more than once" },
+              {
+                label: "Avg Processing",
+                value: data.avgProcessingHours != null
+                  ? data.avgProcessingHours >= 48
+                    ? `${(data.avgProcessingHours / 24).toFixed(1)} days`
+                    : `${data.avgProcessingHours.toFixed(1)} hrs`
+                  : "—",
+                note: "order to shipped",
+              },
+            ].map((stat) => (
+              <div key={stat.label} className="border border-neutral-200 p-3">
+                <p className="text-xl font-bold">{stat.value}</p>
+                <p className="text-xs font-medium text-neutral-700 mt-0.5">{stat.label}</p>
+                <p className="text-[10px] text-neutral-400">{stat.note}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      {/* ── Section C: Chart ── */}
+      <section>
+        {loading ? (
+          <Skeleton className="h-60 w-full" />
+        ) : data ? (
+          <BarChartSection
+            chartData={data.chartData}
+            metric={chartMetric}
+            onMetricChange={setChartMetric}
+          />
+        ) : null}
+      </section>
+
+      {/* ── Section D: Top Listings ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Top Listings</h2>
+          <Link href="/dashboard/listings" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+            View all →
+          </Link>
+        </div>
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+          </div>
+        ) : data ? (
+          data.topListings.length === 0 ? (
+            <div className="border border-neutral-200 p-6 text-sm text-neutral-500">No sales data yet.</div>
+          ) : (
+            <ul className="divide-y border border-neutral-200">
+              {data.topListings.slice(0, 5).map((l) => (
+                <li key={l.id} className="flex items-center gap-4 p-3">
+                  {l.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={l.imageUrl} alt="" className="h-20 w-20 object-cover border border-neutral-200 shrink-0" />
+                  ) : (
+                    <div className="h-20 w-20 bg-neutral-100 border border-neutral-200 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <Link href={`/listing/${l.id}`} className="text-sm font-medium hover:underline truncate block">
+                      {l.title}
+                    </Link>
+                    <p className="text-xs text-neutral-600 mt-0.5">
+                      {fmtExact(l.totalRevenueCents)} total · {l.unitsSold} units · avg {fmt(l.avgPriceCents)}
+                    </p>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      👁 {l.viewCount.toLocaleString()} · 🖱 {l.clickCount.toLocaleString()} · ♥ {l.favoritesCount} · 🔔 {l.stockNotificationCount}
+                      {l.revenuePerActiveDayCents > 0 && (
+                        <> · <span className="text-neutral-500">{fmtExact(l.revenuePerActiveDayCents)}/day</span></>
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold">{fmt(l.totalRevenueCents)}</p>
+                    <p className="text-xs text-neutral-400">revenue</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+      </section>
+
+      {/* ── Section E: Guild Metrics ── */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Guild Metrics</h2>
+        {loading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : data ? (
+          <>
+            <div className="border border-neutral-200 divide-y divide-neutral-100">
+              {[
+                {
+                  label: "Average Rating",
+                  value: data.guildMetrics.reviewCount > 0
+                    ? `${data.guildMetrics.averageRating.toFixed(1)} ★ (${data.guildMetrics.reviewCount} reviews)`
+                    : "No reviews yet",
+                  className: "",
+                },
+                {
+                  label: "On-Time Shipping",
+                  value: pct(data.guildMetrics.onTimeShippingRate * 100),
+                  className: colorRate(data.guildMetrics.onTimeShippingRate, 0.95, 0.80),
+                },
+                {
+                  label: "Response Rate",
+                  value: pct(data.guildMetrics.responseRate * 100),
+                  className: colorRate(data.guildMetrics.responseRate, 0.90, 0.70),
+                },
+                {
+                  label: "Account Age",
+                  value: `${data.guildMetrics.accountAgeDays} days`,
+                  className: "",
+                },
+                {
+                  label: "Open Cases",
+                  value: String(data.guildMetrics.activeCaseCount),
+                  className: data.guildMetrics.activeCaseCount === 0 ? "text-green-700" : "text-red-600",
+                },
+                {
+                  label: "Completed Sales",
+                  value: fmtExact(data.guildMetrics.totalSalesCents),
+                  className: "",
+                },
+              ].map((row) => (
+                <div key={row.label} className="flex items-center justify-between px-5 py-3">
+                  <span className="text-sm text-neutral-600">{row.label}</span>
+                  <span className={`font-semibold ${row.className}`}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+            {data.guildMetrics.lastCalculatedAt && (
+              <p className="text-xs text-neutral-400 mt-1">
+                Last updated: {new Date(data.guildMetrics.lastCalculatedAt).toLocaleString()}
+              </p>
+            )}
+
+            <div className="mt-3">
+              {data.guildMasterMet ? (
+                <div className="border border-amber-300 bg-amber-50 px-5 py-3 flex items-center justify-between">
+                  <p className="text-sm text-amber-900 font-medium">You qualify for Guild Master!</p>
+                  <Link href="/dashboard/verification" className="text-xs border border-amber-400 px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors">
+                    Apply →
+                  </Link>
+                </div>
+              ) : data.guildMasterFailures.length > 0 ? (
+                <div className="border border-neutral-200 px-5 py-3">
+                  <p className="text-sm font-medium text-neutral-700 mb-2">Guild Master criteria not yet met:</p>
+                  <ul className="space-y-1">
+                    {data.guildMasterFailures.map((f) => (
+                      <li key={f} className="text-xs text-neutral-600 flex gap-2">
+                        <span className="text-red-500">✗</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      {/* ── Section F: Rating Over Time ── */}
+      {!loading && data && data.ratingOverTime.length > 0 && (
+        <section>
+          <h2 className="text-xl font-semibold mb-4">Rating Over Time</h2>
+          <div className="border border-neutral-200 divide-y divide-neutral-100">
+            {data.ratingOverTime.map((r) => (
+              <div key={r.label} className="flex items-center justify-between px-5 py-2 text-sm">
+                <span className="text-neutral-600">{r.label}</span>
+                <span className="font-medium">
+                  {r.avgRating.toFixed(1)} ★
+                  <span className="text-xs text-neutral-400 font-normal ml-1">({r.reviewCount} review{r.reviewCount !== 1 ? "s" : ""})</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Section G: Recent Sales ── */}
+      <RecentSales />
+    </main>
+  );
+}
+
+// Recent sales is a separate sub-component to keep things clean
+function RecentSales() {
+  const [sales, setSales] = useState<null | {
+    id: string;
+    createdAt: string;
+    itemsSubtotalCents: number;
+    shippingAmountCents: number;
+    taxAmountCents: number;
+    currency: string;
+    fulfillmentStatus: string | null;
+    buyer: { name: string | null } | null;
+    items: Array<{ listing: { title: string } }>;
+  }[]>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/seller/analytics/recent-sales")
+      .then((r) => r.json())
+      .then((d) => { setSales(d.sales ?? []); setLoading(false); })
+      .catch(() => { setSales([]); setLoading(false); });
+  }, []);
 
   function statusLabel(s: string | null) {
-    if (!s) return "Processing";
     switch (s) {
       case "PENDING": return "Processing";
       case "READY_FOR_PICKUP": return "Ready";
       case "PICKED_UP": return "Picked Up";
       case "SHIPPED": return "Shipped";
       case "DELIVERED": return "Delivered";
-      default: return s;
+      default: return "Processing";
     }
   }
   function statusColor(s: string | null) {
@@ -155,245 +609,61 @@ export default async function AnalyticsPage() {
     }
   }
 
-  function criteriaLabel(k: string) {
-    switch (k) {
-      case "ratingMet": return `Average rating ≥ 4.5 (yours: ${metrics.averageRating.toFixed(1)})`;
-      case "reviewsMet": return `≥ 25 reviews (yours: ${metrics.reviewCount})`;
-      case "shippingMet": return `On-time shipping ≥ 95% (yours: ${pct(metrics.onTimeShippingRate)})`;
-      case "responseMet": return `Response rate ≥ 90% (yours: ${pct(metrics.responseRate)})`;
-      case "ageMet": return `Account age ≥ 180 days (yours: ${metrics.accountAgeDays} days)`;
-      case "salesMet": return `$1,000 in completed sales (yours: ${fmtCurrency(metrics.totalSalesCents)})`;
-      case "casesMet": return `No open cases (yours: ${metrics.activeCaseCount})`;
-      default: return k;
-    }
-  }
-
   return (
-    <main className="max-w-5xl mx-auto p-6 md:p-8 space-y-10">
-      {/* ── Header ── */}
-      <header>
-        <div className="flex items-center gap-4 mb-1">
-          <Link href="/dashboard" className="text-sm text-neutral-500 hover:text-neutral-700">
-            ← Workshop
-          </Link>
-          <h1 className="text-3xl font-bold">Analytics</h1>
-        </div>
-        <p className="text-sm text-neutral-500">
-          Last updated: {new Date(metrics.calculatedAt).toLocaleString()} · Metrics cover the last 3 months
-        </p>
-      </header>
-
-      {/* ── Section A: Overview stats ── */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Overview</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="border border-neutral-200 p-5">
-            <p className="text-2xl font-bold">{fmtCurrency(metrics.totalSalesCents)}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">Total Revenue</p>
-          </div>
-          <div className="border border-neutral-200 p-5">
-            <p className="text-2xl font-bold">{metrics.completedOrderCount}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">Total Orders</p>
-          </div>
-          <div className="border border-neutral-200 p-5">
-            <p className="text-2xl font-bold">{fmtCurrency(avgOrderValue)}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">Avg. Order Value</p>
-          </div>
-          <div className="border border-neutral-200 p-5">
-            <p className="text-2xl font-bold">{activeListingCount}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">Active Listings</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Section B: Guild Metrics ── */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Guild Metrics</h2>
-        <div className="border border-neutral-200 divide-y divide-neutral-100">
-          <div className="flex items-center justify-between px-5 py-3">
-            <span className="text-sm text-neutral-600">Average Rating</span>
-            <span className="font-semibold">
-              {metrics.reviewCount > 0 ? (
-                <>{metrics.averageRating.toFixed(1)} ★ <span className="text-xs text-neutral-400 font-normal">({metrics.reviewCount} reviews)</span></>
-              ) : (
-                <span className="text-neutral-400 text-sm">No reviews yet</span>
-              )}
-            </span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-3">
-            <span className="text-sm text-neutral-600">On-Time Shipping</span>
-            <span className={`font-semibold ${colorRate(metrics.onTimeShippingRate, 0.95, 0.80)}`}>
-              {pct(metrics.onTimeShippingRate)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-3">
-            <span className="text-sm text-neutral-600">Response Rate</span>
-            <span className={`font-semibold ${colorRate(metrics.responseRate, 0.90, 0.70)}`}>
-              {pct(metrics.responseRate)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-3">
-            <span className="text-sm text-neutral-600">Account Age</span>
-            <span className="font-semibold">{metrics.accountAgeDays} days</span>
-          </div>
-          <div className="flex items-center justify-between px-5 py-3">
-            <span className="text-sm text-neutral-600">Open Cases</span>
-            <span className={`font-semibold ${metrics.activeCaseCount === 0 ? "text-green-700" : "text-red-600"}`}>
-              {metrics.activeCaseCount}
-            </span>
-          </div>
-        </div>
-
-        {/* Guild Master eligibility */}
-        <div className="mt-4">
-          {guildCriteria.allMet ? (
-            <div className="border border-amber-300 bg-amber-50 px-5 py-3 flex items-center justify-between">
-              <p className="text-sm text-amber-900 font-medium">You qualify for Guild Master!</p>
-              <Link href="/dashboard/verification" className="text-xs border border-amber-400 px-3 py-1.5 text-amber-900 hover:bg-amber-100 transition-colors">
-                Apply →
-              </Link>
-            </div>
-          ) : failingCriteria.length > 0 ? (
-            <div className="border border-neutral-200 px-5 py-3">
-              <p className="text-sm font-medium text-neutral-700 mb-2">Guild Master criteria not yet met:</p>
-              <ul className="space-y-1">
-                {failingCriteria.map((k) => (
-                  <li key={k} className="text-xs text-neutral-600 flex gap-2">
-                    <span className="text-red-500">✗</span>
-                    {criteriaLabel(k)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      </section>
-
-      {/* ── Section C: Recent Sales ── */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Recent Sales</h2>
-          <Link href="/dashboard/sales" className="text-sm text-neutral-600 underline hover:text-neutral-900">
-            View all sales →
-          </Link>
-        </div>
-
-        {recentSales.length === 0 ? (
-          <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
-            No completed sales yet.
-          </div>
-        ) : (
-          <div className="border border-neutral-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-stone-50 border-b border-neutral-200">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium text-neutral-600">Date</th>
-                  <th className="text-left px-4 py-2 font-medium text-neutral-600">Item</th>
-                  <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden sm:table-cell">Buyer</th>
-                  <th className="text-right px-4 py-2 font-medium text-neutral-600">Amount</th>
-                  <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden md:table-cell">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {recentSales.map((order) => {
-                  const total = order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
-                  const title = order.items[0]?.listing.title ?? "Order";
-                  const buyerFirstName = order.buyer?.name?.split(" ")[0] ?? "Buyer";
-                  return (
-                    <tr key={order.id} className="hover:bg-neutral-50">
-                      <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-2 max-w-[180px] truncate">
-                        <Link href={`/dashboard/sales/${order.id}`} className="hover:underline">
-                          {title}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 text-neutral-600 hidden sm:table-cell">
-                        {buyerFirstName}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium whitespace-nowrap">
-                        {fmtCurrency(total, order.currency)}
-                      </td>
-                      <td className="px-4 py-2 hidden md:table-cell">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}>
-                          {statusLabel(order.fulfillmentStatus)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* ── Section D: Top Listings ── */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Top Listings</h2>
-        {topListings.length === 0 ? (
-          <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
-            No completed sales data yet.
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {topListings.map((l) => (
-              <li key={l.id} className="border border-neutral-200 flex items-center gap-4 p-3">
-                {l.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={l.photoUrl} alt="" className="h-12 w-12 object-cover border border-neutral-200 shrink-0" />
-                ) : (
-                  <div className="h-12 w-12 bg-neutral-100 border border-neutral-200 shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <Link href={`/listing/${l.id}`} className="text-sm font-medium hover:underline truncate block">
-                    {l.title}
-                  </Link>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    {Number(l.unitsSold)} units sold · avg {fmtCurrency(Number(l.avgPriceCents))}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold">{fmtCurrency(Number(l.revenueCents))}</p>
-                  <p className="text-xs text-neutral-400">revenue</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* ── Section E: Monthly Revenue ── */}
-      <section>
-        <h2 className="text-xl font-semibold mb-4">Sales Over Time</h2>
-        {monthlyRevenue.length === 0 ? (
-          <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
-            No sales data for the last 6 months.
-          </div>
-        ) : (
-          <div className="border border-neutral-200 p-5">
-            <div className="flex items-end gap-3 h-40">
-              {monthlyRevenue.map((r) => {
-                const height = Math.max(4, Math.round((Number(r.revenueCents) / maxMonthly) * 100));
-                const [year, monthNum] = r.month.split("-");
-                const monthLabel = new Date(Number(year), Number(monthNum) - 1, 1).toLocaleString(undefined, { month: "short" });
+    <section>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Recent Sales</h2>
+        <Link href="/dashboard/sales" className="text-sm text-neutral-600 underline hover:text-neutral-900">
+          View all sales →
+        </Link>
+      </div>
+      {loading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : !sales || sales.length === 0 ? (
+        <div className="border border-neutral-200 p-6 text-sm text-neutral-500">No completed sales yet.</div>
+      ) : (
+        <div className="border border-neutral-200 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 border-b border-neutral-200">
+              <tr>
+                <th className="text-left px-4 py-2 font-medium text-neutral-600">Date</th>
+                <th className="text-left px-4 py-2 font-medium text-neutral-600">Item</th>
+                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden sm:table-cell">Buyer</th>
+                <th className="text-right px-4 py-2 font-medium text-neutral-600">Amount</th>
+                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden md:table-cell">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {sales.map((order) => {
+                const total = order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+                const title = order.items[0]?.listing.title ?? "Order";
+                const buyerFirstName = order.buyer?.name?.split(" ")[0] ?? "Buyer";
                 return (
-                  <div key={r.month} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-                    <p className="text-xs text-neutral-500 whitespace-nowrap">{fmtCurrency(Number(r.revenueCents))}</p>
-                    <div
-                      className="w-full bg-amber-400 hover:bg-amber-500 transition-colors"
-                      style={{ height: `${height}%` }}
-                      title={`${monthLabel}: ${fmtCurrency(Number(r.revenueCents))}`}
-                    />
-                    <p className="text-xs text-neutral-500">{monthLabel}</p>
-                  </div>
+                  <tr key={order.id} className="hover:bg-neutral-50">
+                    <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">
+                      {new Date(order.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2 max-w-[180px] truncate">
+                      <Link href={`/dashboard/sales/${order.id}`} className="hover:underline">
+                        {title}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2 text-neutral-600 hidden sm:table-cell">{buyerFirstName}</td>
+                    <td className="px-4 py-2 text-right font-medium whitespace-nowrap">
+                      {fmtExact(total, order.currency)}
+                    </td>
+                    <td className="px-4 py-2 hidden md:table-cell">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}>
+                        {statusLabel(order.fulfillmentStatus)}
+                      </span>
+                    </td>
+                  </tr>
                 );
               })}
-            </div>
-          </div>
-        )}
-      </section>
-    </main>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

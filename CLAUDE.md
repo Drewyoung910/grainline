@@ -980,39 +980,51 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 - **`/seller/[id]`** — amber banner above the banner image when `seller.vacationMode === true`; shows return date and vacation message if set; "Browse other makers →" link
 - **`/seller/[id]/shop`** — same amber banner above the header bar
 
-## Seller Analytics Dashboard (complete — 2026-03-31)
+## Seller Analytics Dashboard (complete — 2026-03-31, rewritten 2026-03-31)
 
-`/dashboard/analytics` — server component. Fetches fresh metrics on load if stale (>24h or no record), otherwise reads from `SellerMetrics` table.
+`/dashboard/analytics` — **client component** (`"use client"`). Fetches data from `GET /api/seller/analytics?range=` on mount and on range change. Shows loading skeletons while fetching.
+
+### Schema addition
+- **`SellerProfile.profileViews Int @default(0)`** — incremented fire-and-forget on every `GET /seller/[id]` page load; migration `20260331010407_seller_profile_views`
+
+### API routes
+- **`GET /api/seller/analytics`** — accepts `?range=today|yesterday|week|month|last30|year|last365|alltime`; returns full analytics JSON including overview, engagement, chart data (with all time buckets), top listings, rating over time, guild metrics; `chartGrouping` is `'hour'` for today/yesterday, `'day'` for week/month/last30, `'month'` for year/last365/alltime; all DB queries use raw SQL for bucketing; guild metrics auto-recalculated if stale (>24h). Rating-over-time SQL uses `AVG(r."ratingX2") / 2.0` (Review stores `ratingX2` not `rating`)
+- **`GET /api/seller/analytics/recent-sales`** — returns last 10 paid orders for this seller's items (split from main route to keep range-change responses fast)
 
 ### Analytics nav
-- "Analytics" button added to Workshop nav (BarChart icon, links to `/dashboard/analytics`)
+- "Analytics" button in Workshop nav (BarChart icon, links to `/dashboard/analytics`)
 
-### Sections
+### Page sections (A–G)
 
-**Section A — Overview (4 stat cards)**
-- Total Revenue (all-time completed orders)
-- Total Orders (all-time completed orders)
-- Avg. Order Value
-- Active Listings (current count)
+**A — Overview (4 stat cards)**: Total Revenue, Total Orders, Avg Order Value, Active Listings — all range-aware except Active Listings (always current)
 
-**Section B — Guild Metrics**
-- Pulls from `SellerMetrics` (auto-recalculated on page load if stale)
-- Rows: Average Rating (★), On-Time Shipping Rate (color-coded green/amber/red), Response Rate (color-coded), Account Age, Open Cases
-- Guild Master eligibility panel: "You qualify for Guild Master! Apply →" if all criteria met; otherwise lists failing criteria with required vs current values
+**B — Engagement (10 stat cards)**: Impressions, Clicks, Profile Visits (all-time cumulative, from `profileViews`), Click Rate (% views→clicks), Conversion Rate (orders÷views), Saved/Favorites, Watching (stock notification subscribers), Cart Abandoned, Repeat Buyer Rate (all-time), Avg Processing Time (order created → shipped)
 
-**Section C — Recent Sales (last 10 orders)**
-- Table: Date, Item title (truncated, links to order detail), Buyer first name (privacy), Amount, Status badge
-- "View all sales →" link to `/dashboard/sales`
+**C — Performance Chart**: CSS div-based bar chart (no external lib); 8 time range pill selectors (Today / Yesterday / This week / This month / Last 30 days / This year / Last 365 days / All time); metric selector tabs (Revenue / Orders / Views / Clicks); hover tooltip showing bucket label + value; X-axis label thinning when >14 buckets; Y-axis with 5 labels; colored by metric (amber=revenue, indigo=orders, teal=views, orange=clicks); always renders all time buckets (zero bars when no data)
 
-**Section D — Top Listings**
-- Raw SQL: top 5 listings by revenue across all completed orders; shows photo thumbnail, title, units sold, average price, total revenue
+**D — Top Listings (top 8 by all-time revenue, showing 5)**: photo (80×80) + title + revenue/units row + engagement row (👁 views · 🖱 clicks · ♥ favorites · 🔔 watching · $/day)
 
-**Section E — Monthly Revenue (CSS bar chart)**
-- Raw SQL: monthly revenue grouped by YYYY-MM for last 6 months
-- CSS div-based bar chart, proportional height, month labels, revenue labels above each bar; no external charting library
+**E — Guild Metrics**: range-independent metrics table (avg rating, on-time shipping, response rate, account age, open cases, completed sales); color-coded rates; Guild Master eligibility panel with human-readable failure descriptions
 
-### Stale metrics refresh
-Page fetches `SellerMetrics.calculatedAt`; if missing or older than 24h, calls `calculateSellerMetrics(sellerProfileId)` before rendering so analytics are always fresh even before the monthly cron runs.
+**F — Rating Over Time** (only shown if data exists): monthly list — `"Nov 2025: 4.8 ★ (3 reviews)"`
+
+**G — Recent Sales**: last 10 paid orders table (date, item, buyer first name, amount, status badge); fetched from separate `/recent-sales` endpoint
+
+### Dashboard + inventory listing stats
+- **`/dashboard/page.tsx`** listings query: added `_count: { select: { favorites: true, stockNotifications: true } }` to include; each card shows `👁 X · 🖱 X · ♥ X · 🔔 X` below the status badge
+- **`/dashboard/inventory/page.tsx`** query: same `_count` addition; `InventoryRow.tsx` type extended with `viewCount`, `clickCount`, `_count`; stats row shown below price
+
+### Known chart issues to fix next session
+- Y-axis shows duplicate labels when max value is low (e.g. 0, 0, 1, 1 instead of 0, 1)
+- Click Rate can exceed 100% — clicks and views are tracked independently so their totals can differ in ways that make ratio > 100%
+- X-axis labels cut off or overlapping on dense ranges — thinning logic needs refinement
+- "Today" view only shows hours up to current time (correct) but the `endDate` guard clips too aggressively — shows only ~2 hours instead of all 24
+- "This week" / "This month" only renders buckets with data, not all 7 days / all days of month — bucket generation logic has an off-by-one on the end boundary
+- Month/year/alltime grouping needs review: month should group by days, year by months, alltime by years (currently month→days is correct, but year→months and alltime→months both use monthly grouping — alltime should use yearly buckets)
+- Bars too wide on single-day ranges (1–2 bars take full width)
+- Consider adding "Last 7 days" as a range option
+- Consider removing avg price from top listings cards (redundant with revenue/units)
+- Consider line chart vs bar chart for revenue over time
 
 ## Remaining Work
 

@@ -13,7 +13,10 @@ export default async function InventoryPage() {
 
   const listings = await prisma.listing.findMany({
     where: { sellerId: seller.id, listingType: "IN_STOCK" },
-    include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+    include: {
+      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+      _count: { select: { favorites: true, stockNotifications: true } },
+    },
     orderBy: { updatedAt: "desc" },
   });
 

@@ -170,6 +170,9 @@ model SellerProfile {
   vacationReturnDate DateTime?
   vacationMessage    String?
 
+  // Analytics
+  profileViews  Int  @default(0)
+
   listings             Listing[]
   faqs                 SellerFaq[]
   makerVerification    MakerVerification?

@@ -9,7 +9,10 @@ type Listing = {
   currency: string;
   status: string;
   stockQuantity: number | null;
+  viewCount: number;
+  clickCount: number;
   photos: Array<{ url: string }>;
+  _count: { favorites: number; stockNotifications: number };
 };
 
 export default function InventoryRow({ listing }: { listing: Listing }) {
@@ -74,6 +77,9 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
               Out of stock
             </span>
           )}
+        </div>
+        <div className="text-[11px] text-neutral-400 mt-0.5">
+          👁 {listing.viewCount} · 🖱 {listing.clickCount} · ♥ {listing._count.favorites} · 🔔 {listing._count.stockNotifications}
         </div>
       </div>
 
