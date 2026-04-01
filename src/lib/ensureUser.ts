@@ -80,7 +80,11 @@ export async function ensureUser() {
   const imageUrl = u.imageUrl ?? null;
 
   // Here we DO pass real fields so your DB stays accurate
-  return ensureUserByClerkId(u.id, { email, name, imageUrl });
+  const result = await ensureUserByClerkId(u.id, { email, name, imageUrl });
+  if (result && (result as { banned?: boolean }).banned) {
+    throw new Error('Your account has been suspended. Contact support@thegrainline.com');
+  }
+  return result;
 }
 
 

@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
+import { z } from "zod";
+
+const VacationSchema = z.object({
+  vacationMode: z.boolean(),
+  vacationReturnDate: z.string().datetime().optional().nullable(),
+  vacationMessage: z.string().max(200).optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
@@ -12,13 +19,18 @@ export async function POST(req: Request) {
 
     const { seller } = await ensureSeller();
 
-    const body = await req.json();
-    const vacationMode = Boolean(body.vacationMode);
-    const vacationReturnDate = body.vacationReturnDate ? new Date(body.vacationReturnDate) : null;
-    const vacationMessage =
-      typeof body.vacationMessage === "string" && body.vacationMessage.trim()
-        ? body.vacationMessage.trim().slice(0, 200)
-        : null;
+    let vacParsed;
+    try {
+      vacParsed = VacationSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const vacationMode = vacParsed.vacationMode;
+    const vacationReturnDate = vacParsed.vacationReturnDate ? new Date(vacParsed.vacationReturnDate) : null;
+    const vacationMessage = vacParsed.vacationMessage?.trim() || null;
 
     await prisma.sellerProfile.update({
       where: { id: seller.id },

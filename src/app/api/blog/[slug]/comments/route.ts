@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { createNotification } from "@/lib/notifications";
+import { z } from "zod";
+
+const CommentSchema = z.object({
+  body: z.string().min(1).max(2000),
+});
 
 export const runtime = "nodejs";
 
@@ -42,11 +47,16 @@ export async function POST(
   const post = await prisma.blogPost.findUnique({ where: { slug }, select: { id: true, authorId: true, title: true } });
   if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  let body: Record<string, unknown> = {};
-  try { body = await req.json(); } catch { /* empty */ }
-
-  const text = typeof body.body === "string" ? body.body.trim().slice(0, 2000) : "";
-  if (!text) return NextResponse.json({ error: "body required" }, { status: 400 });
+  let parsed;
+  try {
+    parsed = CommentSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const text = parsed.body.trim();
 
   const comment = await prisma.blogComment.create({
     data: { postId: post.id, authorId: me.id, body: text, approved: false },

@@ -4,6 +4,11 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendBackInStock } from "@/lib/email";
+import { z } from "zod";
+
+const StockPatchSchema = z.object({
+  quantity: z.number().int().min(0),
+});
 
 export const runtime = "nodejs";
 
@@ -38,13 +43,16 @@ export async function PATCH(
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty */ }
-
-    const quantity = typeof body.quantity === "number" ? Math.max(0, Math.floor(body.quantity)) : null;
-    if (quantity === null || !Number.isFinite(quantity)) {
-      return NextResponse.json({ error: "quantity must be a non-negative integer" }, { status: 400 });
+    let stockParsed;
+    try {
+      stockParsed = StockPatchSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
+    const quantity = Math.max(0, Math.floor(stockParsed.quantity));
 
     // Ownership check
     const listing = await prisma.listing.findFirst({

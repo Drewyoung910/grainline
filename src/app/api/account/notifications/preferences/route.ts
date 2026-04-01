@@ -4,15 +4,27 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const PreferencesSchema = z.object({
+  type: z.string().min(1).max(100),
+  enabled: z.boolean(),
+});
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { type, enabled } = await request.json();
-  if (!type || typeof enabled !== "boolean") {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  let body;
+  try {
+    body = PreferencesSchema.parse(await request.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  const { type, enabled } = body;
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },

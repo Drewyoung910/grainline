@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { z } from "zod";
+
+const CartUpdateSchema = z.object({
+  listingId: z.string().min(1),
+  quantity: z.number().int().min(0).max(99),
+});
 
 export const runtime = "nodejs";
 
@@ -11,14 +17,16 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
     const me = await ensureUserByClerkId(userId);
 
-    let body: Record<string, unknown> | null = null;
-    try { body = await req.json(); } catch {}
-    const listingId = String(body?.listingId || "");
-    const qtyRaw = body?.quantity;
-    if (!listingId || qtyRaw == null) {
-      return NextResponse.json({ error: "Missing listingId/quantity" }, { status: 400 });
+    let parsed;
+    try {
+      parsed = CartUpdateSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const quantity = Math.max(0, Math.min(99, Number(qtyRaw)));
+    const { listingId, quantity } = parsed;
 
     const cart = await prisma.cart.findUnique({ where: { userId: me.id } });
     if (!cart) return NextResponse.json({ error: "Cart not found" }, { status: 404 });

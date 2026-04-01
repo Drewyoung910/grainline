@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { z } from "zod";
+
+const ConnectCreateSchema = z.object({
+  returnUrl: z.string().min(1).max(500).optional().nullable(),
+});
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -17,8 +22,8 @@ export async function POST(req: Request) {
   // Optional custom return URL (used by onboarding wizard)
   let customReturnUrl: string | undefined;
   try {
-    const body = await req.json();
-    if (body?.returnUrl && typeof body.returnUrl === "string" && body.returnUrl.startsWith("/")) {
+    const body = ConnectCreateSchema.parse(await req.json());
+    if (body.returnUrl && body.returnUrl.startsWith("/")) {
       customReturnUrl = `${process.env.NEXT_PUBLIC_APP_URL}${body.returnUrl}`;
     }
   } catch {

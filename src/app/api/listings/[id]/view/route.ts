@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
-import { viewRatelimit, profileViewRatelimit, getIP } from "@/lib/ratelimit";
+import { viewRatelimit, profileViewRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ip = getIP(req);
-  const { success: globalOk } = await viewRatelimit.limit(ip);
+  const { success: globalOk } = await safeRateLimitOpen(viewRatelimit, ip);
   if (!globalOk) return NextResponse.json({ ok: true }); // silent drop
 
   const { id } = await params;
 
   // Per-IP+listing dedup (24h) — silently skip if already counted
-  const { success: dedupOk } = await profileViewRatelimit.limit(`${ip}:${id}`);
+  const { success: dedupOk } = await safeRateLimitOpen(profileViewRatelimit, `${ip}:${id}`);
   if (!dedupOk) return NextResponse.json({ ok: true, skipped: true });
 
   const cookieStore = await cookies();

@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { Package, AlertTriangle, Shield, Edit, Rss } from "@/components/icons";
+import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -16,12 +16,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   });
   if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
-  const [openCaseCount, pendingVerificationCount, pendingCommentCount] = await Promise.all([
+  const [openCaseCount, pendingVerificationCount, pendingCommentCount, pendingReviewCount] = await Promise.all([
     prisma.case.count({
       where: { status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] } },
     }),
     prisma.makerVerification.count({ where: { status: "PENDING" } }),
     prisma.blogComment.count({ where: { approved: false } }),
+    prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
   ]);
 
   return (
@@ -31,6 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         openCaseCount={openCaseCount}
         pendingVerificationCount={pendingVerificationCount}
         pendingCommentCount={pendingCommentCount}
+        pendingReviewCount={pendingReviewCount}
       />
 
       {/* ── Desktop sidebar (md+) ── */}
@@ -103,6 +105,34 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           >
             <Rss size={16} className="shrink-0 text-neutral-400" />
             Broadcasts
+          </Link>
+          <Link
+            href="/admin/review"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <div className="flex items-center gap-2">
+              <Eye size={16} className="shrink-0 text-neutral-400" />
+              Review Queue
+            </div>
+            {pendingReviewCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                {pendingReviewCount}
+              </span>
+            )}
+          </Link>
+          <Link
+            href="/admin/users"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <User size={16} className="shrink-0 text-neutral-400" />
+            Users
+          </Link>
+          <Link
+            href="/admin/audit"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <Shield size={16} className="shrink-0 text-neutral-400" />
+            Audit Log
           </Link>
         </nav>
       </aside>

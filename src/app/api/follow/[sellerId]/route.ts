@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ensureUser } from "@/lib/ensureUser";
-import { followRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { followRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 
 async function getFollowerCount(sellerProfileId: string) {
@@ -53,7 +53,7 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await followRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(followRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
   const me = await ensureUser();
@@ -102,7 +102,7 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await followRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(followRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });

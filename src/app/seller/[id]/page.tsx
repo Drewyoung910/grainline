@@ -92,12 +92,13 @@ export default async function SellerPublicPage({
   const seller = await prisma.sellerProfile.findUnique({
     where: { id },
     include: {
-      user: true,
+      user: { select: { id: true, clerkId: true, email: true, name: true, imageUrl: true, role: true, createdAt: true, updatedAt: true, banned: true, bannedAt: true, banReason: true, bannedBy: true, notificationPreferences: true } },
       faqs: { orderBy: { sortOrder: "asc" } },
     },
   });
 
   if (!seller) return notFound();
+  if (seller.user?.banned) return notFound();
 
   // Current viewer
   const { userId } = await auth();

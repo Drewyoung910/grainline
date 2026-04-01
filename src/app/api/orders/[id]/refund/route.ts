@@ -7,6 +7,12 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendRefundIssued } from "@/lib/email";
+import { z } from "zod";
+
+const RefundSchema = z.object({
+  type: z.enum(["FULL", "PARTIAL"]).optional(),
+  amountCents: z.number().int().positive().optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
@@ -21,13 +27,20 @@ export async function POST(
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const me = await ensureUserByClerkId(userId);
 
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty body */ }
+    let refundParsed;
+    try {
+      refundParsed = RefundSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-    const type: "FULL" | "PARTIAL" = body?.type === "PARTIAL" ? "PARTIAL" : "FULL";
-    const amountCents: number | null = body?.amountCents != null ? Number(body.amountCents) : null;
+    const type: "FULL" | "PARTIAL" = refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";
+    const amountCents: number | null = refundParsed.amountCents ?? null;
 
-    if (type === "PARTIAL" && (amountCents == null || !Number.isFinite(amountCents) || amountCents <= 0)) {
+    if (type === "PARTIAL" && (amountCents == null || amountCents <= 0)) {
       return NextResponse.json(
         { error: "amountCents is required and must be positive for PARTIAL refunds." },
         { status: 400 }

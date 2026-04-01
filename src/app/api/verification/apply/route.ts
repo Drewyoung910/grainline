@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
@@ -9,23 +10,29 @@ const REQUIRED_LISTINGS = 5;
 const REQUIRED_SALES_CENTS = 25000; // $250
 const REQUIRED_ACCOUNT_DAYS = 30;
 
+const VerificationApplySchema = z.object({
+  craftDescription: z.string().min(1).max(500),
+  yearsExperience: z.number().int().min(0).max(100),
+  portfolioUrl: z.string().min(1).max(500).optional().nullable(),
+});
+
 export async function POST(req: Request) {
   try {
     const { seller } = await ensureSeller();
 
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty */ }
-
-    const craftDescription = typeof body.craftDescription === "string" ? body.craftDescription.trim().slice(0, 500) : "";
-    const yearsExperience = typeof body.yearsExperience === "number" ? Math.max(0, Math.floor(body.yearsExperience)) : null;
-    const portfolioUrl = typeof body.portfolioUrl === "string" ? body.portfolioUrl.trim() || null : null;
-
-    if (!craftDescription) {
-      return NextResponse.json({ error: "craftDescription is required" }, { status: 400 });
+    let verParsed;
+    try {
+      verParsed = VerificationApplySchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    if (yearsExperience === null || !Number.isFinite(yearsExperience)) {
-      return NextResponse.json({ error: "yearsExperience must be a non-negative integer" }, { status: 400 });
-    }
+
+    const craftDescription = verParsed.craftDescription.trim().slice(0, 500);
+    const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
+    const portfolioUrl = verParsed.portfolioUrl?.trim() || null;
 
     // ── Server-side eligibility check ─────────────────────────────────────
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);

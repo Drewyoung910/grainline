@@ -4,6 +4,11 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
+import { z } from "zod";
+
+const CommissionPatchSchema = z.object({
+  status: z.enum(["FULFILLED", "CLOSED"]),
+});
 
 export async function GET(
   _req: NextRequest,
@@ -78,16 +83,16 @@ export async function PATCH(
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (request.buyerId !== me.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await req.json().catch(() => ({}));
-  const { status } = body;
-
-  const validTransitions: CommissionStatus[] = [
-    CommissionStatus.FULFILLED,
-    CommissionStatus.CLOSED,
-  ];
-  if (!status || !validTransitions.includes(status as CommissionStatus)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  let patchParsed;
+  try {
+    patchParsed = CommissionPatchSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  const { status } = patchParsed;
 
   const updated = await prisma.commissionRequest.update({
     where: { id },

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
+import { z } from "zod";
 
 const TIMELINE_LABELS: Record<string, string> = {
   no_rush: "No rush (2+ months)",
@@ -12,6 +13,16 @@ const TIMELINE_LABELS: Record<string, string> = {
   "2_weeks": "Within 2 weeks",
 };
 
+const CustomOrderRequestSchema = z.object({
+  sellerUserId: z.string().min(1),
+  description: z.string().min(1).max(500),
+  dimensions: z.string().max(200).optional().nullable(),
+  budget: z.number().positive().optional().nullable(),
+  timeline: z.string().max(50).optional().nullable(),
+  listingId: z.string().min(1).optional().nullable(),
+  listingTitle: z.string().max(200).optional().nullable(),
+});
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -19,29 +30,18 @@ export async function POST(req: Request) {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, name: true, email: true } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: unknown;
+  let parsed;
   try {
-    body = await req.json();
-  } catch {
+    parsed = CustomOrderRequestSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const {
-    sellerUserId,
-    description,
-    dimensions,
-    budget,
-    timeline,
-    listingId,
-    listingTitle,
-  } = body as Record<string, unknown>;
+  const { sellerUserId, description, dimensions, budget, timeline, listingId, listingTitle } = parsed;
 
-  if (!sellerUserId || typeof sellerUserId !== "string") {
-    return NextResponse.json({ error: "sellerUserId required" }, { status: 400 });
-  }
-  if (!description || typeof description !== "string" || !description.trim()) {
-    return NextResponse.json({ error: "description required" }, { status: 400 });
-  }
   if (me.id === sellerUserId) {
     return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 });
   }
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
         data: {
           userAId: a,
           userBId: b,
-          contextListingId: typeof listingId === "string" ? listingId : undefined,
+          contextListingId: listingId ?? undefined,
         },
       });
     } catch (e) {
@@ -76,27 +76,25 @@ export async function POST(req: Request) {
   if (!convo) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
 
   // Attach listing context if not already set
-  if (typeof listingId === "string" && listingId && !convo.contextListingId) {
+  if (listingId && !convo.contextListingId) {
     await prisma.conversation.update({
       where: { id: convo.id },
       data: { contextListingId: listingId },
     });
   }
 
-  const budgetNum =
-    typeof budget === "number" && Number.isFinite(budget) && budget > 0 ? budget : null;
-  const timelineStr = typeof timeline === "string" ? timeline : null;
+  const budgetNum = budget && budget > 0 ? budget : null;
+  const timelineStr = timeline ?? null;
   const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
 
   const messageBody = JSON.stringify({
-    description: String(description).trim().slice(0, 500),
-    dimensions:
-      typeof dimensions === "string" && dimensions.trim() ? dimensions.trim() : null,
+    description: description.trim().slice(0, 500),
+    dimensions: dimensions?.trim() || null,
     budget: budgetNum,
     timeline: timelineStr,
     timelineLabel,
-    listingId: typeof listingId === "string" ? listingId : null,
-    listingTitle: typeof listingTitle === "string" ? listingTitle : null,
+    listingId: listingId ?? null,
+    listingTitle: listingTitle ?? null,
   });
 
   await prisma.message.create({

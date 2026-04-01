@@ -4,6 +4,14 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
+import { z } from "zod";
+
+const FulfillmentSchema = z.object({
+  action: z.enum(["ready_for_pickup", "picked_up", "shipped", "delivered", "update_notes"]),
+  trackingCarrier: z.string().max(100).optional().nullable(),
+  trackingNumber: z.string().max(100).optional().nullable(),
+  sellerNotes: z.string().max(2000).optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
@@ -40,16 +48,26 @@ export async function POST(
     const authz = await ensureSellerOwnsOrder(userId, id);
     if (!authz) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    let payload: Record<string, unknown> = {};
+    let rawPayload: Record<string, unknown> = {};
     const contentType = req.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
-      payload = await req.json();
+      try { rawPayload = await req.json(); } catch { /* empty */ }
     } else {
       const form = await req.formData();
-      payload = Object.fromEntries(form.entries()) as Record<string, unknown>;
+      rawPayload = Object.fromEntries(form.entries()) as Record<string, unknown>;
     }
 
-    const action = String(payload.action || "").toLowerCase();
+    let payload;
+    try {
+      payload = FulfillmentSchema.parse(rawPayload);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+
+    const action = payload.action;
 
     const data: Record<string, unknown> = {};
     const now = new Date();
@@ -69,15 +87,15 @@ export async function POST(
         data.fulfillmentMethod = "SHIPPING";
         data.fulfillmentStatus = "SHIPPED";
         data.shippedAt = now;
-        if (payload.trackingCarrier) data.trackingCarrier = String(payload.trackingCarrier);
-        if (payload.trackingNumber) data.trackingNumber = String(payload.trackingNumber);
+        if (payload.trackingCarrier) data.trackingCarrier = payload.trackingCarrier;
+        if (payload.trackingNumber) data.trackingNumber = payload.trackingNumber;
         break;
       case "delivered":
         data.fulfillmentStatus = "DELIVERED";
         data.deliveredAt = now;
         break;
       case "update_notes":
-        data.sellerNotes = payload.sellerNotes ? String(payload.sellerNotes) : null;
+        data.sellerNotes = payload.sellerNotes ?? null;
         break;
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
@@ -100,8 +118,8 @@ export async function POST(
     const buyerEmail = updated.buyer?.email;
 
     if (action === "shipped") {
-      const carrier = payload.trackingCarrier ? String(payload.trackingCarrier) : null;
-      const trackingNumber = payload.trackingNumber ? String(payload.trackingNumber) : null;
+      const carrier = payload.trackingCarrier ?? null;
+      const trackingNumber = payload.trackingNumber ?? null;
       await createNotification({
         userId: updated.buyerId,
         type: "ORDER_SHIPPED",

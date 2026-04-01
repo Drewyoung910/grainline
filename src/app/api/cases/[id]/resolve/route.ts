@@ -6,11 +6,14 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
-import type { CaseResolution } from "@prisma/client";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
-const VALID_RESOLUTIONS: CaseResolution[] = ["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"];
+const CaseResolveSchema = z.object({
+  resolution: z.enum(["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"]),
+  refundAmountCents: z.number().int().positive().optional().nullable(),
+});
 
 export async function POST(
   req: Request,
@@ -27,24 +30,20 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty body */ }
-
-    const resolutionRaw = body?.resolution ? String(body.resolution) : "";
-    const refundAmountCents =
-      body?.refundAmountCents != null ? Number(body.refundAmountCents) : null;
-
-    if (!VALID_RESOLUTIONS.includes(resolutionRaw as CaseResolution)) {
-      return NextResponse.json(
-        { error: `Invalid resolution. Must be one of: ${VALID_RESOLUTIONS.join(", ")}` },
-        { status: 400 }
-      );
+    let parsed;
+    try {
+      parsed = CaseResolveSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const resolution = resolutionRaw as CaseResolution;
+    const { resolution, refundAmountCents } = parsed;
 
     if (
       resolution === "REFUND_PARTIAL" &&
-      (refundAmountCents == null || !Number.isFinite(refundAmountCents) || refundAmountCents <= 0)
+      (refundAmountCents == null || refundAmountCents <= 0)
     ) {
       return NextResponse.json(
         { error: "refundAmountCents is required and must be positive for REFUND_PARTIAL." },

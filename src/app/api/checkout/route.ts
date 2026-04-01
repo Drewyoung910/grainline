@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { z } from "zod";
+
+const CheckoutSchema = z.object({
+  listingId: z.string().min(1),
+  quantity: z.number().int().min(1).max(99).optional(),
+});
 
 export async function POST(req: Request) {
   try {
@@ -11,12 +17,19 @@ export async function POST(req: Request) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId } });
     if (!me) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    const { listingId, quantity: qtyRaw } = await req.json();
-    if (!listingId) return NextResponse.json({ error: "Missing listingId" }, { status: 400 });
-
-    const quantity = Math.max(1, Math.min(99, Number(qtyRaw || 1)));
+    let parsed;
+    try {
+      parsed = CheckoutSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const { listingId, quantity: qtyRaw } = parsed;
+    const quantity = Math.max(1, Math.min(99, qtyRaw ?? 1));
     const listing = await prisma.listing.findUnique({
-      where: { id: String(listingId) },
+      where: { id: listingId },
       include: { seller: true, photos: true },
     });
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });

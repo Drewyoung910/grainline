@@ -5,6 +5,19 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippoRatesMultiPiece } from "@/lib/shippo";
+import { z } from "zod";
+
+const CheckoutSellerSchema = z.object({
+  sellerId: z.string().min(1),
+  useCalculated: z.boolean().optional(),
+  toPostal: z.string().max(20).optional(),
+  toState: z.string().max(50).optional(),
+  toCity: z.string().max(100).optional(),
+  toCountry: z.string().max(2).optional(),
+  giftNote: z.string().max(200).optional(),
+  giftWrapping: z.boolean().optional(),
+  giftWrappingPriceCents: z.number().int().min(0).max(10000000).optional(),
+});
 
 export const runtime = "nodejs";
 
@@ -53,22 +66,28 @@ export async function POST(req: Request) {
     const me = await ensureUserByClerkId(userId);
 
     // Body: { sellerId, useCalculated?: boolean, toPostal?, toState?, toCity?, toCountry? }
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch {}
-    const sellerId = String(body?.sellerId || "");
-    if (!sellerId) return NextResponse.json({ error: "Missing sellerId" }, { status: 400 });
+    let body;
+    try {
+      body = CheckoutSellerSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const sellerId = body.sellerId;
 
-    const giftNote: string = body?.giftNote ? String(body.giftNote).slice(0, 200) : "";
-    const giftWrapping: boolean = body?.giftWrapping === true || body?.giftWrapping === "true";
-    const giftWrappingPriceCentsRaw = Number(body?.giftWrappingPriceCents ?? 0);
-    const giftWrappingPriceCents: number = Number.isFinite(giftWrappingPriceCentsRaw) && giftWrappingPriceCentsRaw > 0
-      ? Math.round(giftWrappingPriceCentsRaw)
-      : 0;
+    const giftNote: string = body.giftNote ?? "";
+    const giftWrapping: boolean = body.giftWrapping === true;
+    const giftWrappingPriceCents: number =
+      giftWrapping && Number.isFinite(body.giftWrappingPriceCents) && (body.giftWrappingPriceCents ?? 0) > 0
+        ? Math.round(body.giftWrappingPriceCents!)
+        : 0;
 
-    const toPostal  = body?.toPostal  ? String(body.toPostal)  : undefined;
-    const toState   = body?.toState   ? String(body.toState)   : undefined;
-    const toCity    = body?.toCity    ? String(body.toCity)    : undefined;
-    const toCountry = body?.toCountry ? String(body.toCountry) : "US";
+    const toPostal  = body.toPostal;
+    const toState   = body.toState;
+    const toCity    = body.toCity;
+    const toCountry = body.toCountry ?? "US";
 
     // Load cart (filter items to this seller)
     const cart = await prisma.cart.findUnique({
@@ -112,7 +131,7 @@ export async function POST(req: Request) {
     });
 
     const useCalculated =
-      typeof body?.useCalculated === "boolean"
+      typeof body.useCalculated === "boolean"
         ? body.useCalculated
         : !!sellerProfile?.useCalculatedShipping;
 

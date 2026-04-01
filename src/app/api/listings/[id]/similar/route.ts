@@ -56,6 +56,7 @@ export async function GET(
           AND l.category = ${category}::"Category"
           AND sp."vacationMode" = false
           AND sp."chargesEnabled" = true
+          AND EXISTS (SELECT 1 FROM "User" u WHERE u.id = sp."userId" AND u."banned" = false)
         ORDER BY "overlapCount" DESC
         LIMIT 8
       `;
@@ -100,6 +101,7 @@ export async function GET(
           AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
           AND sp."vacationMode" = false
           AND sp."chargesEnabled" = true
+          AND EXISTS (SELECT 1 FROM "User" u WHERE u.id = sp."userId" AND u."banned" = false)
         ORDER BY "overlapCount" DESC
         LIMIT 8
       `;
@@ -132,7 +134,7 @@ export async function GET(
         isPrivate: false,
         category,
         priceCents: { gte: minPrice, lte: maxPrice },
-        seller: { vacationMode: false, chargesEnabled: true },
+        seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
       },
       select: {
         id: true,

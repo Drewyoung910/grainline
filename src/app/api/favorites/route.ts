@@ -4,24 +4,29 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { createNotification } from "@/lib/notifications";
-import { saveRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { z } from "zod";
+
+const FavoriteSchema = z.object({
+  listingId: z.string().min(1),
+});
 
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await saveRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(saveRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
 
   let listingId: string;
   try {
-    const body = await req.json();
-    listingId = body?.listingId;
-  } catch {
+    const parsed = FavoriteSchema.parse(await req.json());
+    listingId = parsed.listingId;
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-  if (!listingId || typeof listingId !== "string") {
-    return NextResponse.json({ error: "listingId required" }, { status: 400 });
   }
 
   let me;

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
-import { listingCreateRatelimit } from "@/lib/ratelimit";
+import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import ImagesUploader from "@/components/ImagesUploader";
 import TagsInput from "@/components/TagsInput";
@@ -28,7 +28,7 @@ async function createListing(formData: FormData) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
-  const { success: rlOk } = await listingCreateRatelimit.limit(userId);
+  const { success: rlOk } = await safeRateLimit(listingCreateRatelimit, userId);
   if (!rlOk) throw new Error("You can create up to 20 listings per day. Try again tomorrow.");
 
   const { seller } = await ensureSeller();
@@ -145,6 +145,61 @@ async function createListing(formData: FormData) {
           listing: { id: created.id, title: created.title, priceCents: created.priceCents },
         });
       }
+    }
+  } catch { /* non-fatal */ }
+
+  // AI listing review + first-listing hold
+  try {
+    const sellerInfo = await prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: {
+        displayName: true,
+        _count: { select: { listings: true } }
+      }
+    })
+
+    const listingCount = sellerInfo?._count.listings ?? 0
+    const isFirstListing = listingCount <= 1
+
+    const { reviewListingWithAI } = await import('@/lib/ai-review')
+    const { logAdminAction: logAction } = await import('@/lib/audit')
+
+    const aiResult = await reviewListingWithAI({
+      title: created.title,
+      description: created.description,
+      priceCents: created.priceCents,
+      category: created.category ?? null,
+      tags: created.tags,
+      sellerName: sellerInfo?.displayName ?? 'Unknown',
+      listingCount,
+    }).catch(() => ({
+      approved: true,
+      flags: ['AI review error'],
+      confidence: 0.5,
+      reason: 'AI error — defaulting to approve'
+    }))
+
+    const shouldHold = isFirstListing || !aiResult.approved || aiResult.confidence < 0.7
+
+    if (shouldHold) {
+      await prisma.listing.update({
+        where: { id: created.id },
+        data: {
+          status: 'PENDING_REVIEW',
+          aiReviewFlags: aiResult.flags,
+          aiReviewScore: aiResult.confidence,
+        }
+      })
+      await logAction({
+        adminId: seller.userId,
+        action: 'AI_HOLD_LISTING',
+        targetType: 'LISTING',
+        targetId: created.id,
+        reason: isFirstListing
+          ? 'First listing from seller — requires admin review'
+          : `AI flagged: ${aiResult.reason}`,
+        metadata: { aiFlags: aiResult.flags, confidence: aiResult.confidence, isFirstListing },
+      }).catch(() => {})
     }
   } catch { /* non-fatal */ }
 

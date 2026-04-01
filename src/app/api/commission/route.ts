@@ -4,8 +4,20 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { CommissionStatus, Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
-import { commissionCreateRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { commissionCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { z } from "zod";
+
+const CommissionCreateSchema = z.object({
+  title: z.string().min(1).max(100),
+  description: z.string().min(1).max(1000),
+  category: z.string().optional().nullable(),
+  budgetMin: z.number().min(0).optional().nullable(),
+  budgetMax: z.number().min(0).optional().nullable(),
+  timeline: z.string().max(200).optional().nullable(),
+  referenceImageUrls: z.array(z.string().url()).max(3).optional(),
+  isNational: z.boolean().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -52,7 +64,7 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await commissionCreateRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(commissionCreateRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "You can post up to 5 commission requests per day.");
 
   const me = await prisma.user.findUnique({
@@ -61,32 +73,27 @@ export async function POST(req: NextRequest) {
   });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = body;
-
-  if (!title || typeof title !== "string" || !title.trim()) {
-    return NextResponse.json({ error: "Title required" }, { status: 400 });
+  let parsed;
+  try {
+    parsed = CommissionCreateSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  if (!description || typeof description !== "string" || !description.trim()) {
-    return NextResponse.json({ error: "Description required" }, { status: 400 });
-  }
-  if (title.trim().length > 100) {
-    return NextResponse.json({ error: "Title must be 100 chars or fewer" }, { status: 400 });
-  }
-  if (description.trim().length > 1000) {
-    return NextResponse.json({ error: "Description must be 1000 chars or fewer" }, { status: 400 });
-  }
+  const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = parsed;
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin ? Math.round(Number(budgetMin) * 100) : null;
   const budgetMaxCents = budgetMax ? Math.round(Number(budgetMax) * 100) : null;
-  const images = Array.isArray(referenceImageUrls) ? referenceImageUrls.slice(0, 3) : [];
+  const images = (referenceImageUrls ?? []).slice(0, 3);
 
   if (budgetMinCents !== null && budgetMinCents < 0) return NextResponse.json({ error: "Budget cannot be negative." }, { status: 400 });
   if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return NextResponse.json({ error: "Maximum budget must be greater than minimum." }, { status: 400 });
 
   // Resolve location for local scope
-  const wantsLocal = isNational === false || isNational === "false";
+  const wantsLocal = isNational === false;
   let reqLat: number | null = null;
   let reqLng: number | null = null;
   let reqIsNational = true;

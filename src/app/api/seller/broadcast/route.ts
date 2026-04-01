@@ -3,8 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { broadcastRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText } from "@/lib/sanitize";
+import { z } from "zod";
+
+const BroadcastSchema = z.object({
+  message: z.string().min(1).max(500),
+  imageUrl: z.string().min(1).optional().nullable(),
+  sellersOnly: z.boolean().optional(),
+});
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -19,13 +26,21 @@ export async function POST(req: NextRequest) {
   });
   if (!seller) return NextResponse.json({ error: "No seller profile" }, { status: 403 });
 
-  const { success: rlOk, reset } = await broadcastRatelimit.limit(seller.id);
+  const { success: rlOk, reset } = await safeRateLimit(broadcastRatelimit, seller.id);
   if (!rlOk) return rateLimitResponse(reset, "You can send one broadcast per week.");
 
-  const body = await req.json() as { message?: string; imageUrl?: string; sellersOnly?: boolean };
-  const message = typeof body.message === "string" ? sanitizeText(body.message.trim().slice(0, 500)) : "";
-  const imageUrl = typeof body.imageUrl === "string" ? body.imageUrl.trim() || null : null;
-  const sellersOnly = body.sellersOnly === true;
+  let broadcastParsed;
+  try {
+    broadcastParsed = BroadcastSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const message = sanitizeText(broadcastParsed.message.trim().slice(0, 500));
+  const imageUrl = broadcastParsed.imageUrl?.trim() || null;
+  const sellersOnly = broadcastParsed.sellersOnly === true;
 
   if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 

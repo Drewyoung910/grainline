@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
-import { commissionInterestRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { commissionInterestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 
 export async function POST(
@@ -15,7 +15,7 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await commissionInterestRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(commissionInterestRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many interest expressions today.");
 
   const me = await prisma.user.findUnique({

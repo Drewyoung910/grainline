@@ -252,7 +252,7 @@ export default async function BrowsePage({
   }
 
   // Build WHERE
-  const where: Prisma.ListingWhereInput = { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true } };
+  const where: Prisma.ListingWhereInput = { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } } };
 
   if (q) {
     where.OR = [

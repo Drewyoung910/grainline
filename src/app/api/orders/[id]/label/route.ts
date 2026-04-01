@@ -5,6 +5,11 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
 import type { FulfillmentStatus, LabelStatus } from "@prisma/client";
+import { z } from "zod";
+
+const LabelSchema = z.object({
+  rateObjectId: z.string().min(1).optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
@@ -107,9 +112,16 @@ export async function POST(
     const { order, seller } = authz;
 
     // Parse optional body — frontend may supply rateObjectId after a re-quote
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty body is fine */ }
-    const bodyRateObjectId: string | null = body?.rateObjectId ? String(body.rateObjectId) : null;
+    let labelParsed: { rateObjectId?: string | null | undefined } = {};
+    try {
+      labelParsed = LabelSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      // empty body is fine — treat as no rateObjectId
+    }
+    const bodyRateObjectId: string | null = labelParsed?.rateObjectId ?? null;
 
     // Guard rails
     if (order.labelStatus === ("PURCHASED" as LabelStatus)) {

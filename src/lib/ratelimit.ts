@@ -115,6 +115,42 @@ export const broadcastRatelimit = new Ratelimit({
   prefix: "rl:broadcast",
 });
 
+/**
+ * Fail CLOSED — if Redis is down, reject the request.
+ * Use for: checkout, follow, broadcast, commission create,
+ * commission interest, listing creation, reviews, blog save, favorites save
+ */
+export async function safeRateLimit(
+  limiter: Ratelimit,
+  key: string
+): Promise<{ success: boolean; reset: number }> {
+  try {
+    const result = await limiter.limit(key);
+    return { success: result.success, reset: result.reset };
+  } catch (error) {
+    console.error("Rate limit Redis error (fail closed):", error);
+    return { success: false, reset: Date.now() + 60000 };
+  }
+}
+
+/**
+ * Fail OPEN — if Redis is down, allow the request.
+ * Use ONLY for: view tracking, click tracking, search suggestions,
+ * profile view dedup — non-critical read-path routes
+ */
+export async function safeRateLimitOpen(
+  limiter: Ratelimit,
+  key: string
+): Promise<{ success: boolean; reset: number }> {
+  try {
+    const result = await limiter.limit(key);
+    return { success: result.success, reset: result.reset };
+  } catch (error) {
+    console.error("Rate limit Redis error (fail open):", error);
+    return { success: true, reset: Date.now() + 60000 };
+  }
+}
+
 /** Returns the client IP from Vercel's x-forwarded-for header. */
 export function getIP(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");

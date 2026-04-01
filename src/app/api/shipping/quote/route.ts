@@ -3,6 +3,20 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { shippoRequest } from "@/lib/shippo";
+import { z } from "zod";
+
+const ShippingQuoteSchema = z.object({
+  mode: z.enum(["cart", "single"]).optional(),
+  cartId: z.string().min(1).optional().nullable(),
+  sellerId: z.string().min(1).optional().nullable(),
+  listingId: z.string().min(1).optional().nullable(),
+  quantity: z.number().int().min(1).max(99).optional().nullable(),
+  currency: z.string().max(3).optional().nullable(),
+  toPostal: z.string().max(20).optional().nullable(),
+  toState: z.string().max(50).optional().nullable(),
+  toCity: z.string().max(100).optional().nullable(),
+  toCountry: z.string().max(2).optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
@@ -25,9 +39,17 @@ export async function POST(req: Request) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json().catch(() => ({}));
-    const mode = String(body.mode || "cart");
-    const currency = String(body.currency || "usd").toLowerCase();
+    let body;
+    try {
+      body = ShippingQuoteSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const mode = body.mode ?? "cart";
+    const currency = (body.currency ?? "usd").toLowerCase();
 
     let sellerId: string | null = null;
     let totalWeightGrams = 0;
@@ -63,12 +85,12 @@ export async function POST(req: Request) {
 
     if (mode === "cart") {
       const cart = await prisma.cart.findUnique({
-        where: { id: String(body.cartId || "") },
+        where: { id: body.cartId ?? "" },
         include: {
           items: {
             include: { listing: { include: { seller: true } } },
             where: body.sellerId
-              ? { listing: { sellerId: String(body.sellerId) } }
+              ? { listing: { sellerId: body.sellerId } }
               : undefined,
           },
         },
@@ -134,7 +156,7 @@ export async function POST(req: Request) {
       }
     } else if (mode === "single") {
       const listing = await prisma.listing.findUnique({
-        where: { id: String(body.listingId || "") },
+        where: { id: body.listingId ?? "" },
         include: { seller: true },
       });
       if (!listing) return NextResponse.json({ rates: [] });
@@ -176,7 +198,7 @@ export async function POST(req: Request) {
         },
       };
 
-      const qty = Math.max(1, Number(body.quantity || 1));
+      const qty = Math.max(1, body.quantity ?? 1);
       const w = listing.packagedWeightGrams ?? seller.defaultPkgWeightGrams ?? 0;
       const l = listing.packagedLengthCm ?? seller.defaultPkgLengthCm ?? 0;
       const wi = listing.packagedWidthCm ?? seller.defaultPkgWidthCm ?? 0;

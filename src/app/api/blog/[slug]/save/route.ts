@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { blogSaveRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { blogSaveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 async function getPost(slug: string) {
   return prisma.blogPost.findUnique({ where: { slug }, select: { id: true } });
@@ -40,7 +40,7 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await blogSaveRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(blogSaveRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
 
   const [me, post] = await Promise.all([getMe(userId), getPost(slug)]);
@@ -63,7 +63,7 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success: rlOk, reset } = await blogSaveRatelimit.limit(userId);
+  const { success: rlOk, reset } = await safeRateLimit(blogSaveRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
 
   const [me, post] = await Promise.all([getMe(userId), getPost(slug)]);

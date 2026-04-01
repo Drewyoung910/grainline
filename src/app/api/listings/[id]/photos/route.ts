@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+const PhotosSchema = z.object({
+  urls: z.array(z.string().min(1)).max(8).optional(),
+});
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
@@ -17,8 +22,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   });
   if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { urls } = (await req.json()) as { urls?: string[] };
-  const clean = (urls ?? []).filter(Boolean);
+  let parsed;
+  try {
+    parsed = PhotosSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const clean = (parsed.urls ?? []).filter(Boolean);
 
   if (clean.length === 0) {
     return NextResponse.json({ added: 0 });

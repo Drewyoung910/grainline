@@ -3,9 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { reviewRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { z } from "zod";
+
+const ReviewSchema = z.object({
+  listingId: z.string().min(1),
+  ratingX2: z.number().int().min(2).max(10),
+  comment: z.string().max(2000).optional().nullable(),
+  photoUrls: z.array(z.string().min(1)).max(6).optional(),
+});
 
 const REVIEW_WINDOW_DAYS = 90;
 
@@ -13,21 +21,21 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success, reset } = await reviewRatelimit.limit(userId);
+  const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
   if (!success) {
     return rateLimitResponse(reset, "Too many review submissions.");
   }
 
-  const { listingId, ratingX2, comment, photoUrls } = (await req.json()) as {
-    listingId: string;
-    ratingX2: number; // 2..10
-    comment?: string;
-    photoUrls?: string[];
-  };
-
-  if (!listingId || !Number.isInteger(ratingX2) || ratingX2 < 2 || ratingX2 > 10) {
-    return NextResponse.json({ error: "Bad input" }, { status: 400 });
+  let parsed;
+  try {
+    parsed = ReviewSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  const { listingId, ratingX2, comment, photoUrls } = parsed;
 
   // Who am I?
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });

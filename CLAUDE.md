@@ -819,6 +819,13 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 
 IP-keyed routes use `getIP(request)` (reads `x-forwarded-for`, falls back to `127.0.0.1`). User-keyed routes use Clerk `userId` directly. All return HTTP 429 on limit exceeded.
 
+### Redis failover strategy
+
+All `.limit()` calls are wrapped in one of two helpers from `src/lib/ratelimit.ts` — never the raw `.limit()` method directly:
+
+- **`safeRateLimit(limiter, key)`** — **fail closed**: if Redis is unavailable, the request is rejected (returns `{ success: false }`). Used for all state-mutating routes where abuse has real cost: checkout, reviews, favorites, blog save, follow/unfollow, commission create/interest, broadcast, listing creation, messages stream.
+- **`safeRateLimitOpen(limiter, key)`** — **fail open**: if Redis is unavailable, the request is allowed through. Used only for non-critical read-path analytics where a brief outage should not break the UX: view tracking (both global IP limiter and per-IP+listing dedup), click tracking, search suggestions.
+
 ## Seller Onboarding Flow (complete)
 
 A 5-step guided wizard at `/dashboard/onboarding` that walks new makers through shop setup.
@@ -1649,6 +1656,67 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 ### Preferences API (`/api/account/notifications/preferences`)
 - Auth required; reads current prefs JSON, sets `prefs[type] = enabled`, writes back via `prisma.user.update`
 
+## Input Validation — Zod (complete — 2026-04-01)
+
+All API route files that accept request bodies now use **Zod** for schema validation. Schemas are defined at the top of each route file (not in a shared file). Validation runs immediately after auth + rate-limit checks, before any database calls.
+
+**Pattern used in every route:**
+```ts
+import { z } from "zod";
+
+const MySchema = z.object({
+  field: z.string().min(1).max(200),
+  optionalField: z.number().positive().optional(),
+});
+
+export async function POST(request: Request) {
+  // 1. auth check
+  // 2. rate limit check
+  // 3. Zod parse
+  let body;
+  try {
+    body = MySchema.parse(await request.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.errors }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  // 4. database calls using body.field (typed and validated)
+}
+```
+
+**Standard constraints applied:**
+- Prices in cents: `z.number().int().min(0).max(10000000)` (max $100,000)
+- Text fields: `.max(N)` matching existing `.slice(0, N)` guards
+- Enums: `z.enum([...])` with literal values from the route's existing logic
+- IDs: `z.string().min(1)`
+- Booleans: `z.boolean()` (not strings)
+- Arrays: `z.array(...).max(N)` with reasonable limits
+
+**Skipped routes** (no request body parsing):
+- `src/app/api/stripe/webhook/route.ts` — reads raw body for HMAC verification
+- `src/app/api/clerk/webhook/route.ts` — reads raw body for svix verification
+- `src/app/api/csp-report/route.ts` — logging sink, no state mutation, body structure is browser-defined
+- `src/app/api/cart/checkout/route.ts` — POST accepts no body (reads cart from DB by session)
+
+## CSRF Audit (complete — 2026-04-01)
+
+All Next.js API routes are implicitly CSRF-safe for browser requests because Clerk's middleware enforces SameSite cookies and the App Router does not set CORS headers by default. Full audit documented in `src/lib/security.ts` (block comment at top of file).
+
+**Public POST/PATCH/DELETE routes (no `auth()` call) and why each is safe:**
+
+| Route | Reason safe |
+|---|---|
+| `POST /api/stripe/webhook` | Stripe-Signature HMAC verification; no session cookie |
+| `POST /api/clerk/webhook` | Svix signature verification; no session cookie |
+| `POST /api/csp-report` | Read-only logging sink; no state mutation |
+| `POST /api/newsletter` | Low-risk public subscription; email address upsert only |
+| `POST /api/listings/[id]/view` | Analytics-only increment; deduped via httpOnly cookie |
+| `POST /api/listings/[id]/click` | Analytics-only increment; no sensitive mutation |
+
+All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data access.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
@@ -1657,6 +1725,9 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 | Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
 | Geo-blocking | ✅ Complete — US + CA only via Vercel edge geo |
 | Notification preferences | ✅ Complete — `/account/settings` with toggles |
+| Zod input validation | ✅ Complete — all request-body API routes |
+| CSRF audit | ✅ Complete — documented in `src/lib/security.ts` |
+| Redis rate limit failover | ✅ Complete — `safeRateLimit` / `safeRateLimitOpen` wrappers |
 | Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
 
 ## Production Deployment

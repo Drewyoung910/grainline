@@ -5,6 +5,11 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
+import { z } from "zod";
+
+const CaseMessageSchema = z.object({
+  body: z.string().min(1).max(5000),
+});
 
 export const runtime = "nodejs";
 
@@ -19,9 +24,16 @@ export async function POST(
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const me = await ensureUserByClerkId(userId);
 
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty body */ }
-    const messageBody = body?.body ? String(body.body).trim() : "";
+    let parsed;
+    try {
+      parsed = CaseMessageSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const messageBody = parsed.body.trim();
     if (!messageBody) return NextResponse.json({ error: "body is required." }, { status: 400 });
 
     const caseRecord = await prisma.case.findUnique({ where: { id } });

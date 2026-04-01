@@ -2,6 +2,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const DevOrderSchema = z.object({
+  listingId: z.string().min(1),
+});
 
 export async function POST(req: Request) {
   if (process.env.NODE_ENV === "production") {
@@ -13,8 +18,16 @@ export async function POST(req: Request) {
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { listingId } = (await req.json()) as { listingId: string };
-  if (!listingId) return NextResponse.json({ error: "listingId required" }, { status: 400 });
+  let devParsed;
+  try {
+    devParsed = DevOrderSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const { listingId } = devParsed;
 
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
   if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });

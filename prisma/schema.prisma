@@ -37,6 +37,7 @@ enum ListingStatus {
   SOLD
   SOLD_OUT
   HIDDEN
+  PENDING_REVIEW
 }
 
 model User {
@@ -85,6 +86,12 @@ model User {
   commissionRequests CommissionRequest[] @relation("CommissionRequests")
 
   notificationPreferences Json @default("{}")
+
+  banned      Boolean   @default(false)
+  bannedAt    DateTime?
+  banReason   String?
+  bannedBy    String?
+  adminActions AdminAuditLog[] @relation("AdminActions")
 }
 
 model SellerProfile {
@@ -259,6 +266,12 @@ model Listing {
   reservedForUserId         String?
   reservedForUser           User?    @relation("ReservedListings", fields: [reservedForUserId], references: [id])
   customOrderConversationId String?
+
+  // AI review fields
+  aiReviewFlags   String[]  @default([])
+  aiReviewScore   Float?
+  reviewedByAdmin Boolean   @default(false)
+  reviewedAt      DateTime?
 
   @@index([sellerId, status])
   @@index([status, createdAt])
@@ -487,6 +500,7 @@ model OrderItem {
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   quantity   Int      @default(1)
   priceCents Int
+  listingSnapshot Json?
   createdAt  DateTime @default(now())
 
   @@index([orderId])
@@ -764,6 +778,8 @@ enum NotificationType {
   FOLLOWED_MAKER_NEW_BLOG
   SELLER_BROADCAST
   COMMISSION_INTEREST
+  LISTING_APPROVED
+  LISTING_REJECTED
 }
 
 model Notification {
@@ -882,4 +898,25 @@ model CommissionInterest {
 
   @@unique([commissionRequestId, sellerProfileId])
   @@index([sellerProfileId])
+}
+
+model AdminAuditLog {
+  id           String    @id @default(cuid())
+  adminId      String
+  admin        User      @relation("AdminActions", fields: [adminId], references: [id])
+  action       String
+  targetType   String
+  targetId     String
+  reason       String?
+  metadata     Json      @default("{}")
+  undone       Boolean   @default(false)
+  undoneAt     DateTime?
+  undoneBy     String?
+  undoneReason String?
+  createdAt    DateTime  @default(now())
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@index([undone])
 }

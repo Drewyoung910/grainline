@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+const ReviewPatchSchema = z.object({
+  ratingX2: z.number().int().min(2).max(10),
+  comment: z.string().max(2000).optional().nullable(),
+  photos: z.array(z.string().min(1)).max(6).optional(),
+});
 
 export async function PATCH(
   req: Request,
@@ -12,14 +19,16 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const ratingX2 = Number(body?.ratingX2);
-  const comment = typeof body?.comment === "string" ? body.comment.slice(0, 2000) : null;
-  const photos = Array.isArray(body?.photos) ? body.photos.filter((u: unknown) => typeof u === "string" && u) : [];
-
-  if (!Number.isFinite(ratingX2) || ratingX2 < 2 || ratingX2 > 10) {
-    return NextResponse.json({ error: "Invalid rating" }, { status: 400 });
+  let reviewPatchParsed;
+  try {
+    reviewPatchParsed = ReviewPatchSchema.parse(await req.json());
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  const { ratingX2, comment, photos = [] } = reviewPatchParsed;
 
   // ensure owner & editable
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
@@ -49,7 +58,7 @@ export async function PATCH(
     // Replace photos
     await tx.reviewPhoto.deleteMany({ where: { reviewId: id } });
     await tx.reviewPhoto.createMany({
-      data: photos.slice(0, 6).map((url: string, i: number) => ({
+      data: photos.slice(0, 6).map((url, i) => ({
         reviewId: id,
         url,
         sortOrder: i,

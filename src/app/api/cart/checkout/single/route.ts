@@ -4,7 +4,20 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRatesMultiPiece } from "@/lib/shippo";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { checkoutRatelimit, rateLimitResponse } from "@/lib/ratelimit";
+import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { z } from "zod";
+
+const CheckoutSingleSchema = z.object({
+  listingId: z.string().min(1),
+  quantity: z.number().int().min(1).max(99).optional(),
+  giftNote: z.string().max(200).optional().nullable(),
+  giftWrapping: z.boolean().optional(),
+  giftWrappingPriceCents: z.number().int().min(0).max(10000000).optional().nullable(),
+  toPostal: z.string().max(20).optional().nullable(),
+  toState: z.string().max(50).optional().nullable(),
+  toCity: z.string().max(100).optional().nullable(),
+  toCountry: z.string().max(2).optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
@@ -51,30 +64,37 @@ export async function POST(req: Request) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-    const { success, reset } = await checkoutRatelimit.limit(userId);
+    const { success, reset } = await safeRateLimit(checkoutRatelimit, userId);
     if (!success) return rateLimitResponse(reset, "Too many checkout attempts.");
 
     const me = await ensureUserByClerkId(userId);
 
-    const body = await req.json();
-    const { listingId, quantity: qtyRaw } = body;
-    if (!listingId) return NextResponse.json({ error: "Missing listingId" }, { status: 400 });
-    const quantity = Math.max(1, Math.min(99, Number(qtyRaw || 1)));
+    let singleParsed;
+    try {
+      singleParsed = CheckoutSingleSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const { listingId } = singleParsed;
+    const quantity = Math.max(1, Math.min(99, singleParsed.quantity ?? 1));
 
-    const giftNote: string = body?.giftNote ? String(body.giftNote).slice(0, 200) : "";
-    const giftWrapping: boolean = body?.giftWrapping === true || body?.giftWrapping === "true";
-    const giftWrappingPriceCentsRaw = Number(body?.giftWrappingPriceCents ?? 0);
-    const giftWrappingPriceCents: number = Number.isFinite(giftWrappingPriceCentsRaw) && giftWrappingPriceCentsRaw > 0
-      ? Math.round(giftWrappingPriceCentsRaw)
-      : 0;
+    const giftNote: string = singleParsed.giftNote?.slice(0, 200) ?? "";
+    const giftWrapping: boolean = singleParsed.giftWrapping === true;
+    const giftWrappingPriceCents: number =
+      singleParsed.giftWrappingPriceCents && singleParsed.giftWrappingPriceCents > 0
+        ? Math.round(singleParsed.giftWrappingPriceCents)
+        : 0;
 
-    const toPostal  = body?.toPostal  ? String(body.toPostal)  : undefined;
-    const toState   = body?.toState   ? String(body.toState)   : undefined;
-    const toCity    = body?.toCity    ? String(body.toCity)    : undefined;
-    const toCountry = body?.toCountry ? String(body.toCountry) : "US";
+    const toPostal  = singleParsed.toPostal  ?? undefined;
+    const toState   = singleParsed.toState   ?? undefined;
+    const toCity    = singleParsed.toCity    ?? undefined;
+    const toCountry = singleParsed.toCountry ?? "US";
 
     const listing = await prisma.listing.findUnique({
-      where: { id: String(listingId) },
+      where: { id: listingId },
       include: {
         photos: true,
         seller: {

@@ -1,16 +1,29 @@
 // src/app/api/newsletter/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { z } from "zod";
+
+const NewsletterSchema = z.object({
+  email: z.string().min(1).max(254),
+  name: z.string().max(200).optional().nullable(),
+});
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty */ }
+    let parsed;
+    try {
+      parsed = NewsletterSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    const name = typeof body.name === "string" ? body.name.trim() || null : null;
+    const email = parsed.email.trim().toLowerCase();
+    const name = parsed.name?.trim() || null;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });

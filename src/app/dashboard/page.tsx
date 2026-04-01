@@ -149,7 +149,18 @@ export default async function DashboardPage() {
   const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
     prisma.listing.findMany({
       where: { sellerId: seller.id },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        priceCents: true,
+        currency: true,
+        status: true,
+        viewCount: true,
+        clickCount: true,
+        aiReviewFlags: true,
+        reviewedByAdmin: true,
+        createdAt: true,
+        updatedAt: true,
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
         _count: { select: { favorites: true, stockNotifications: true } },
       },
@@ -371,6 +382,12 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
+        {listings.some((l) => l.status === "PENDING_REVIEW") && (
+          <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span className="font-medium">Some listings are under review.</span> Our team will approve them shortly. You&apos;ll be notified when they go live.
+          </div>
+        )}
+
         {listings.length === 0 ? (
           <div className="rounded-xl border p-8 text-neutral-600">
             Your workshop is empty — list your first piece and start selling.
@@ -409,7 +426,11 @@ export default async function DashboardPage() {
                     </div>
 
                     <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      {l.status}
+                      {l.status === "PENDING_REVIEW" ? (
+                        <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium normal-case">
+                          Under Review
+                        </span>
+                      ) : l.status}
                     </div>
 
                     <div className="text-xs text-neutral-400">

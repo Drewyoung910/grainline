@@ -29,7 +29,8 @@
     "resend": "^6.1.0",
     "stripe": "^19.0.0",
     "svix": "^1.89.0",
-    "uploadthing": "^7.7.4"
+    "uploadthing": "^7.7.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

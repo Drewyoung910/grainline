@@ -5,17 +5,15 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
-import type { CaseReason } from "@prisma/client";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
-const VALID_REASONS: CaseReason[] = [
-  "NOT_RECEIVED",
-  "NOT_AS_DESCRIBED",
-  "DAMAGED",
-  "WRONG_ITEM",
-  "OTHER",
-];
+const CaseCreateSchema = z.object({
+  orderId: z.string().min(1),
+  reason: z.enum(["NOT_RECEIVED", "NOT_AS_DESCRIBED", "DAMAGED", "WRONG_ITEM", "OTHER"]),
+  description: z.string().min(1).max(2000),
+});
 
 export async function POST(req: Request) {
   try {
@@ -23,26 +21,16 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const me = await ensureUserByClerkId(userId);
 
-    let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch { /* empty body */ }
-
-    const orderId = body?.orderId ? String(body.orderId) : "";
-    const reasonRaw = body?.reason ? String(body.reason) : "";
-    const description = body?.description ? String(body.description).trim() : "";
-
-    if (!orderId || !reasonRaw || !description) {
-      return NextResponse.json(
-        { error: "orderId, reason, and description are required." },
-        { status: 400 }
-      );
+    let parsed;
+    try {
+      parsed = CaseCreateSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    if (!VALID_REASONS.includes(reasonRaw as CaseReason)) {
-      return NextResponse.json(
-        { error: `Invalid reason. Must be one of: ${VALID_REASONS.join(", ")}` },
-        { status: 400 }
-      );
-    }
-    const reason = reasonRaw as CaseReason;
+    const { orderId, reason, description } = parsed;
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },

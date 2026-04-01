@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { z } from "zod";
+
+const CartAddSchema = z.object({
+  listingId: z.string().min(1),
+  quantity: z.number().int().min(1).max(99).optional(),
+});
 
 export const runtime = "nodejs";
 
@@ -12,14 +18,18 @@ export async function POST(req: Request) {
 
     const me = await ensureUserByClerkId(userId);
 
-    let body: Record<string, unknown> | null = null;
-    try { body = await req.json(); } catch {}
-    if (!body || !body.listingId) {
-      return NextResponse.json({ error: "Missing listingId" }, { status: 400 });
+    let parsed;
+    try {
+      parsed = CartAddSchema.parse(await req.json());
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      }
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const listingId = String(body.listingId);
-    const quantity = Math.max(1, Math.min(99, Number(body.quantity ?? 1)));
+    const listingId = parsed.listingId;
+    const quantity = parsed.quantity ?? 1;
 
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
