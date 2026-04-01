@@ -1390,60 +1390,75 @@ All items done:
 
 **TypeScript: zero `tsc --noEmit` errors** (all pre-existing errors resolved as of current codebase)
 
-## Rate Limiting Expansion (complete — 2026-03-31)
+## Security Hardening (complete — 2026-03-31)
 
-Eight new Upstash Redis sliding-window limiters added to `src/lib/ratelimit.ts`:
+### Rate limiting — 15 routes total
+
+All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 429 responses use `rateLimitResponse(reset, message)` helper — returns human-readable retry time ("a moment" / "N minutes" / "N hours" / "tomorrow at HH:MM AM") + `Retry-After` + `X-RateLimit-Reset` headers.
 
 | Limiter | Key | Limit | Applied to |
 |---|---|---|---|
+| `searchRatelimit` | IP | 30 / 10 s | `GET /api/search/suggestions` |
+| `viewRatelimit` | IP | 20 / 60 s | `POST /api/listings/[id]/view` |
+| `clickRatelimit` | IP | 20 / 60 s | `POST /api/listings/[id]/click` |
+| `reviewRatelimit` | userId | 5 / 60 s | `POST /api/reviews` |
+| `checkoutRatelimit` | userId | 10 / 60 s | `POST /api/cart/checkout`, `checkout/single` |
+| `messageRatelimit` | userId | 30 / 60 s | `GET /api/messages/[id]/stream` |
 | `followRatelimit` | userId | 50 / 60 min | `POST/DELETE /api/follow/[sellerId]` |
 | `saveRatelimit` | userId | 100 / 60 min | `POST /api/favorites` |
 | `blogSaveRatelimit` | userId | 100 / 60 min | `POST/DELETE /api/blog/[slug]/save` |
 | `commissionInterestRatelimit` | userId | 20 / 24 h | `POST /api/commission/[id]/interest` |
 | `commissionCreateRatelimit` | userId | 5 / 24 h | `POST /api/commission` |
-| `listingCreateRatelimit` | userId | 10 / 24 h | `createListing` server action |
-| `profileViewRatelimit` | `${ip}:${listingId}` | 1 / 24 h | `POST /api/listings/[id]/view` (silent drop — no error returned) |
+| `listingCreateRatelimit` | userId | 20 / 24 h | `createListing` server action |
+| `profileViewRatelimit` | `${ip}:${listingId}` | 1 / 24 h | `POST /api/listings/[id]/view` (silent drop — no 429 returned) |
 | `broadcastRatelimit` | sellerId | 1 / 7 d | `POST /api/seller/broadcast` (in addition to DB 7-day check) |
 
-## Anti-Spam Guards (complete — 2026-03-31)
+### Spam prevention guards
 
-Server-side abuse prevention beyond rate limiting:
+All blocked actions return 400; spam attempts for self-actions are also logged to Sentry via `logSecurityEvent()` in `src/lib/security.ts`.
 
-- **Self-follow blocked** — was already present in `api/follow/[sellerId]/route.ts`
-- **Duplicate commission interest blocked** — was already present in `api/commission/[id]/interest/route.ts`
-- **Self-review blocked** — **added** to `api/reviews/route.ts`: returns 400 if `listing.seller.userId === me.id`
-- **Commission self-interest + status check** — was already present
-- **Self-messaging blocked** — was already present in `messages/new/page.tsx` and `api/messages/custom-order-request/route.ts`
+| Guard | Where | Status |
+|---|---|---|
+| Self-review blocked | `api/reviews/route.ts` | Added + Sentry logged |
+| Self-follow blocked | `api/follow/[sellerId]/route.ts` | Present + Sentry logged |
+| Own-commission interest blocked | `api/commission/[id]/interest/route.ts` | Present + Sentry logged |
+| Duplicate commission interest blocked | DB `@@unique` constraint | Present |
+| Commission interest on non-OPEN request | `api/commission/[id]/interest/route.ts` | Present |
+| Self-messaging blocked | `messages/new/page.tsx`, `api/messages/custom-order-request` | Present |
+| Reviewing own listing blocked | `api/reviews/route.ts` | Present (same as self-review) |
 
 ### Input sanitization (`src/lib/sanitize.ts`)
 
-Two utilities created:
 - `sanitizeText(input)` — strips HTML tags, `javascript:` protocol, event handler attributes; used on short fields
 - `sanitizeRichText(input)` — strips `<script>`, `<iframe>`, `javascript:`, event handlers; used on long-form content
 
-Applied at the DB boundary in:
-- `dashboard/listings/new/page.tsx` — title (`sanitizeText`), description (`sanitizeRichText`)
-- `dashboard/listings/[id]/edit/page.tsx` — title (`sanitizeText`), description (`sanitizeRichText`)
-- `dashboard/seller/page.tsx` — displayName, tagline (`sanitizeText`); bio (`sanitizeRichText`)
-- `api/commission/route.ts` — title (`sanitizeText`), description (`sanitizeRichText`)
-- `api/reviews/route.ts` — comment text (`sanitizeRichText`)
-- `api/seller/broadcast/route.ts` — message (`sanitizeRichText`)
+Applied at DB boundary: listing title/description (new + edit), seller displayName/tagline/bio, commission title/description, review text, broadcast messages.
 
-### UploadThing file validation
-All endpoints already had `maxFileSize` and image type restrictions configured. No changes needed.
+### Numeric validation
 
-### Ownership checks audit
-All critical ownership checks were already present:
-- Edit listing: Prisma query filters by `seller.user.clerkId === userId` (implicit ownership)
-- Commission PATCH: `buyerId !== me.id` check present
-- Messages: `other.id === me.id` self-message guard present
-- Delete listing: `seller.userId !== me.id` check present
+Price: ≥ $0, ≤ $100,000 · Stock: non-negative · Processing time: ≤ 365 days · Commission budget: min ≤ max, non-negative.
+
+### Sentry security tracking (`src/lib/security.ts`)
+
+`logSecurityEvent(event, details)` — Sentry breadcrumb for all events; `captureEvent` for `ownership_violation` and `spam_attempt`.
+
+### Bot prevention — `chargesEnabled`
+
+Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(false)` on `SellerProfile`. Browse, homepage Fresh/Favorites, similar items, and seller shop all filter `seller.chargesEnabled: true`. Dashboard shows amber "Connect Stripe" warning when false. Stripe Connect callback (`api/stripe/connect/create`) sets `chargesEnabled = account.charges_enabled`. All 7 existing sellers backfilled to `true` via `scripts/backfill-charges-enabled.ts`.
+
+### Clerk security settings (configured in Clerk dashboard)
+
+- Bot protection via Cloudflare Turnstile — enabled
+- Disposable email blocking — enabled
+- Email subaddress blocking — enabled
+- Strict user enumeration protection — enabled
+- Account lockout policy — enabled
 
 ## PWA Setup (complete — 2026-03-31)
 
 - **`public/manifest.json`** — name, short_name, description, start_url, display: standalone, background_color `#FAFAF8`, theme_color `#1C1917`, shortcuts (Browse, My Account), categories (shopping, lifestyle)
-- **`public/icon-192.png`** and **`public/icon-512.png`** — generated from `public/logo.svg` via `sharp`
-- **`src/app/layout.tsx`** — added `manifest: '/manifest.json'`, `appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Grainline' }`, `formatDetection: { telephone: false }`, and a separate `viewport` export with `themeColor: '#1C1917'`
+- **`public/icon-192.png`** and **`public/icon-512.png`** — generated from `public/logo.svg` via `sharp`; regenerated with `#1C1917` dark background so logo is visible on all surfaces (192×192 and 512×512)
+- **`src/app/layout.tsx`** — added `manifest: '/manifest.json'`, `appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Grainline' }`, `formatDetection: { telephone: false }`, separate `viewport` export with `themeColor: '#1C1917'`, `icons: { apple: "/icon-192.png" }`
 - **`src/app/offline/page.tsx`** — server component; logo + "You're offline" heading + "Try again" link (`<a href="/">`)
 
 ## Security Headers (complete — 2026-03-31)
@@ -1459,74 +1474,15 @@ All critical ownership checks were already present:
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 
-**CSP status**: `Content-Security-Policy-Report-Only` is now active (see "CSP Report-Only Mode" section below). A full `Content-Security-Policy` was added and immediately rolled back earlier because it broke Clerk UI components. The report-only header collects violations without blocking anything. See `src/app/api/csp-report/route.ts` for the violation endpoint wired to Sentry.
-
-**`experimental.serverActions.bodySizeLimit`**: Added then removed — not needed and can break certain Next.js 16 build configurations.
-
-## Security Hardening Round 2 (complete — 2026-03-31)
-
-### Rate limit responses with retry timing
-`src/lib/ratelimit.ts`: Added `rateLimitResponse(reset: number, customMessage?: string): Response` helper. Computes human-readable retry time from the Upstash `reset` timestamp (milliseconds): "a moment" / "N minutes" / "N hours" / "tomorrow at HH:MM AM". Returns 429 with `Retry-After` and `X-RateLimit-Reset` headers. All rate-limited routes updated to destructure `reset` from `ratelimit.limit()` and call `rateLimitResponse(reset, '...')`.
-
-Routes updated: `api/follow/[sellerId]` (POST+DELETE), `api/blog/[slug]/save` (POST+DELETE), `api/commission/[id]/interest`, `api/commission`, `api/seller/broadcast`, `api/search/suggestions`, `api/reviews`, `api/cart/checkout`, `api/cart/checkout/single`, `api/favorites`. View/click routes remain silent (no error response).
-
-### Listing creation rate limit
-Increased from `slidingWindow(10, "24 h")` to `slidingWindow(20, "24 h")`.
-
-### Stripe Connect required for public listings
-Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(false)` added to `SellerProfile`.
-
-`chargesEnabled` is set to `account.charges_enabled` in:
-- `api/stripe/connect/create/route.ts` — on account retrieve/create
-- `dashboard/onboarding/page.tsx` — on Stripe account status check
-
-`chargesEnabled: true` added to seller `where` filters in: `browse/page.tsx`, `page.tsx` (Fresh + Favorites), `api/listings/[id]/similar/route.ts` (both raw SQL paths + Prisma fallback), `seller/[id]/shop/page.tsx`.
-
-**Dashboard banner** — amber "Your listings are not visible to buyers yet / Connect Stripe →" shown in `dashboard/page.tsx` when `!sellerProfile.chargesEnabled`.
-
-### PWA icons fix
-`public/icon-192.png` and `public/icon-512.png` regenerated with `#1C1917` dark background and logo centered at 65% of icon size (visible on all backgrounds). `layout.tsx` updated to use `icons: { apple: "/icon-192.png" }`.
-
-### Mobile notification bell fix
-`NotificationBell.tsx`: dropdown now `right-0 max-w-[calc(100vw-1rem)] overflow-y-auto max-h-[80vh]` — no longer clipped on small screens.
-
-### Analytics listing views subtitle
-`dashboard/analytics/page.tsx`: Listing Views card now shows two-line subtitle: "times your listing page was opened" + smaller "each visitor counted once per day · updates daily".
-
-### Raw SQL injection audit (all clear)
-| File | Verdict |
-|---|---|
-| `api/seller/analytics/route.ts` | ✅ SAFE — all `$queryRaw` tagged templates |
-| `api/listings/[id]/similar/route.ts` | ✅ SAFE — all `$queryRaw` tagged templates |
-| `commission/page.tsx` | ✅ CONDITIONALLY SAFE — `$queryRawUnsafe` but `categoryFilter` validated via `CATEGORY_VALUES.includes()` before use |
-| `api/blog/search/route.ts` | ✅ SAFE — all `$queryRaw` tagged templates |
-
-### Numeric input validation
-Added guards (throw Error in server actions, 400 in API routes) for:
-- Price: must be ≥ $0, ≤ $100,000 — `listings/new`, `listings/[id]/edit`
-- Stock quantity: must be ≥ 0 — `listings/new`, `listings/[id]/edit`
-- Processing time: must be ≤ 365 days — `listings/new`, `listings/[id]/edit`
-- Commission budget: must be ≥ $0, max ≥ min — `api/commission` POST
-
-### Sentry security event tracking (`src/lib/security.ts`)
-`logSecurityEvent(event, details)` logs breadcrumb for all events; captures Sentry event for `ownership_violation` and `spam_attempt`. Wired in:
-- Self-follow attempt: `api/follow/[sellerId]` → `spam_attempt`
-- Self-review attempt: `api/reviews` → `spam_attempt`
-- Own-commission interest: `api/commission/[id]/interest` → `spam_attempt`
+**CSP status**: `Content-Security-Policy-Report-Only` is now active (see "CSP Report-Only Mode" section). A full `Content-Security-Policy` was added and immediately rolled back because it broke Clerk UI components. Report-only mode collects violations without blocking. See `src/app/api/csp-report/route.ts` — violations reported to Sentry under tag `csp_violation`. After 1 week of monitoring with no violations, switch header key to `Content-Security-Policy` to enforce.
 
 ## chargesEnabled Backfill (hotfix — 2026-03-31)
 
-The `chargesEnabled Boolean @default(false)` field added in the previous session caused all existing sellers to fail the new `chargesEnabled: true` filter, blanking the browse page and homepage listings.
+The `chargesEnabled Boolean @default(false)` field caused all existing sellers to fail the new filter, blanking browse. Two rounds of backfill were needed:
+- **Round 1**: `scripts/backfill-charges-enabled.ts` — updated sellers with `stripeAccountId` (2 sellers). Browse still showed 0 — active listings belonged to dev sellers without Stripe.
+- **Round 2**: `updateMany` with no `where` clause — set all 7 existing sellers to `true`. Going forward, only brand-new sellers need to complete Stripe Connect to appear publicly.
 
-**Root cause**: The field was new with a `false` default, so all pre-existing sellers (who had already connected Stripe before the field existed) had `chargesEnabled = false`.
-
-**Fix (round 1)**: `scripts/backfill-charges-enabled.ts` — sets `chargesEnabled = true` for sellers with `stripeAccountId IS NOT NULL`. Updated 2 sellers.
-
-**Fix (round 2)**: Browse still showed 0 listings — the 19 active listings all belonged to sellers without Stripe (dev/seed accounts). Updated backfill to set `chargesEnabled = true` for ALL existing sellers (`updateMany` with no `where` clause). 7 sellers updated. Going forward, only brand-new sellers created after this date need to connect Stripe to appear publicly.
-
-**Going forward**: New sellers must complete Stripe Connect via `/api/stripe/connect/create` to get `chargesEnabled = true` set (that route calls `stripe.accounts.retrieve` and writes `account.charges_enabled`). The filter now correctly blocks sellers with no Stripe account from appearing publicly.
-
-**Known gap**: The Stripe webhook does not handle `account.updated` events, so if a seller's Stripe account is later suspended, `chargesEnabled` won't auto-flip to `false`. Future improvement: add `account.updated` handler in `api/stripe/webhook/route.ts`.
+**Stripe webhook now handles `account.updated`**: When Stripe notifies of a seller account status change, `chargesEnabled` is synced automatically. If a seller's account is disabled, Sentry is notified via `logSecurityEvent`. `account.application.deauthorized` clears `stripeAccountId` and sets `chargesEnabled = false` when a seller disconnects the platform.
 
 ## CSP Report-Only Mode (active — 2026-03-31)
 
@@ -1537,6 +1493,60 @@ The `chargesEnabled Boolean @default(false)` field added in the previous session
 **Allowed external domains**: Clerk (`*.clerk.com`, `*.clerk.accounts.dev`), Stripe (`js.stripe.com`, `hooks.stripe.com`, `api.stripe.com`), UploadThing (`*.uploadthing.com`, `utfs.io`), Sentry (`*.sentry.io`, `*.ingest.sentry.io`), Upstash (`major-toad-67912.upstash.io`), OpenStreetMap (`nominatim.openstreetmap.org`, `*.tile.openstreetmap.org`).
 
 **CSP maintenance**: When adding new third-party services, add their domains to the CSP value in `next.config.ts`. After observing zero violations in Sentry for 7+ days, switch to enforcement mode by renaming the header key to `Content-Security-Policy`. Do NOT add `unsafe-eval` to `script-src` in enforce mode without careful testing.
+
+## Business (2026-03-31)
+
+- **Texas LLC filed** ✅
+- **EIN**: get at irs.gov (free, ~10 min) — do this next
+- **Business bank account**: open after EIN received
+- **DMCA agent registration**: after LLC confirmed (~$6 at copyright.gov)
+- **Trademark Class 035 filing**: ~$350 when ready
+
+## Geo-Blocking (complete — 2026-04-01)
+
+US and Canada only. Implemented in `src/middleware.ts` at the top of the middleware function body, before auth checks.
+
+- Reads `request.geo?.country` (populated by Vercel edge in production; `undefined` in local dev — geo-blocking never fires locally)
+- Non-US/CA requests are redirected to `/not-available`
+- `/not-available` is in `isPublic` so the redirect doesn't loop through auth
+- Static assets (`/_next`, `/favicon`, `/logo`, `/icon`, `/manifest`, `/robots`, `/sitemap`) are allowed through without redirect
+- **`src/app/not-available/page.tsx`** — branded page with logo, "Not available in your region" heading, brief explanation, VPN note; `robots: { index: false }` metadata
+
+## Notification Preferences (complete — 2026-04-01)
+
+Sellers and buyers can control which in-site notifications they receive.
+
+### Schema
+- **`User.notificationPreferences Json @default("{}")`** — stores a `Record<string, boolean>` where `false` means opted out. Migration: `20260401003152_notification_preferences`
+
+### `createNotification` — preference check
+Before inserting a notification, fetches the recipient's `notificationPreferences` and returns `null` (skips create) if `prefs[type] === false`. Never throws — preference failures don't break the main flow.
+
+### Settings page (`/account/settings`)
+- Server component; auth required
+- Queries `notificationPreferences` + `sellerProfile` presence
+- Three groups of toggles:
+  - **From Makers You Follow**: `FOLLOWED_MAKER_NEW_LISTING`, `FOLLOWED_MAKER_NEW_BLOG`, `SELLER_BROADCAST`
+  - **Your Account**: `NEW_FOLLOWER` (sellers only), `COMMISSION_INTEREST`, `NEW_ORDER`
+  - **Your Shop** (sellers only): `NEW_REVIEW`, `NEW_MESSAGE`
+- Linked from Account Settings section on `/account` as "Notification preferences →"
+
+### `NotificationToggle` component (`src/components/NotificationToggle.tsx`)
+- `"use client"` — optimistic toggle (immediate UI update, revert on error)
+- Calls `POST /api/account/notifications/preferences` with `{ type, enabled }`
+
+### Preferences API (`/api/account/notifications/preferences`)
+- Auth required; reads current prefs JSON, sets `prefs[type] = enabled`, writes back via `prisma.user.update`
+
+## Remaining Security Gaps
+
+| Gap | Status |
+|---|---|
+| CSP not yet enforced (report-only) | Enforce after 1 week of clean violation logs |
+| Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
+| Geo-blocking | ✅ Complete — US + CA only via Vercel edge geo |
+| Notification preferences | ✅ Complete — `/account/settings` with toggles |
+| Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
 
 ## Production Deployment
 
@@ -1586,12 +1596,61 @@ Leaflet is used for all map views. Sellers with a set location appear as pins on
 
 UploadThing handles image (and video) uploads for listings and reviews. Config is in `src/app/api/uploadthing/`.
 
+## npm audit status (2026-03-31)
+
+**Before**: 14 vulnerabilities (4 moderate, 10 high). **After**: 4 high remaining.
+
+Fixed 10 via `npm audit fix`: ajv, brace-expansion, flatted, js-yaml, minimatch, picomatch, qs, tar and transitive deps. Prisma-side `effect` vulnerability resolved by Prisma 7 upgrade.
+
+**Remaining (4 high)**: All in uploadthing's internal `effect <3.20.0` dependency (`@uploadthing/shared`). uploadthing 7.7.4 is already the latest — upstream issue, not fixable on our end. Do NOT run `npm audit fix --force` (would downgrade uploadthing to v6, breaking change).
+
+## Prisma 7 Migration (complete — 2026-03-31)
+
+Upgraded from Prisma 6.16.2 → 7.6.0. Zero TypeScript errors; zero build errors.
+
+### Breaking changes in Prisma 7
+
+`url` and `directUrl` properties are no longer supported in the `datasource` block of `schema.prisma`. Database connection is now split:
+- **Migrations/introspection**: defined in `prisma.config.ts` via `defineConfig({ datasource: { url } })`
+- **Runtime client**: passed via a `@prisma/adapter-pg` driver adapter to `new PrismaClient({ adapter })`
+
+### Files changed
+
+**`prisma/schema.prisma`** — removed `url` and `directUrl` from datasource:
+```prisma
+datasource db {
+  provider = "postgresql"
+}
+```
+
+**`prisma.config.ts`** (new) — migration/introspection URL (uses `DIRECT_URL` for direct connection, falls back to `DATABASE_URL`):
+```ts
+import { defineConfig } from "prisma/config"
+export default defineConfig({
+  datasource: {
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? "",
+  },
+})
+```
+
+**`src/lib/db.ts`** — now creates a `PrismaPg` adapter with the pooled `DATABASE_URL` and passes it to `PrismaClient`:
+```ts
+import { PrismaPg } from "@prisma/adapter-pg"
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+export const prisma = new PrismaClient({ adapter, log: [...] })
+```
+
+**New package**: `@prisma/adapter-pg` + `pg` + `@types/pg` added to dependencies.
+
+### No query API changes
+`findUnique`, `findFirst`, `findMany` and all other query methods behave identically in Prisma 7. The 347 query call sites needed no changes.
+
 ## Commands
 
 ```bash
 npm run dev        # Start dev server
-npm run build      # Production build
+npm run build      # Production build (runs prisma generate first)
 npm run lint       # ESLint
-npx prisma migrate dev   # Apply a new migration
+npx prisma migrate dev   # Apply a new migration (uses prisma.config.ts for DB URL)
 npx prisma studio        # Open Prisma Studio
 ```

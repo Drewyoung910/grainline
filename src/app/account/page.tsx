@@ -306,6 +306,9 @@ export default async function AccountPage() {
           <p className="text-xs text-neutral-500">
             Update your name, email, and password through your account settings.
           </p>
+          <Link href="/account/settings" className="text-sm underline text-neutral-600 hover:text-neutral-900">
+            Notification preferences →
+          </Link>
         </div>
       </section>
 

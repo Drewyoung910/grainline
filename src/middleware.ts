@@ -15,6 +15,7 @@ const isPublic = createRouteMatcher([
   "/map(.*)",             // all-sellers map — public
   "/terms",               // Terms of Service — public legal page
   "/privacy",             // Privacy Policy — public legal page
+  "/not-available",       // geo-block landing page — no auth needed
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
   "/api/uploadthing(.*)",  // UploadThing callback must be public (no Clerk session)
@@ -32,6 +33,26 @@ const isPublic = createRouteMatcher([
 const isAdmin = createRouteMatcher(["/admin(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Geo-blocking — US and Canada only
+  // request.geo is populated by Vercel in production (undefined in local dev)
+  const country = (req as unknown as { geo?: { country?: string } }).geo?.country;
+  if (country && country !== "US" && country !== "CA") {
+    const pathname = req.nextUrl.pathname;
+    // Allow not-available page, static assets, and API routes needed for the page
+    const isAllowed =
+      pathname.startsWith("/not-available") ||
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/favicon") ||
+      pathname.startsWith("/logo") ||
+      pathname.startsWith("/icon") ||
+      pathname.startsWith("/manifest") ||
+      pathname.startsWith("/robots") ||
+      pathname.startsWith("/sitemap");
+    if (!isAllowed) {
+      return NextResponse.redirect(new URL("/not-available", req.url));
+    }
+  }
+
   // Enforce authentication on all non-public routes
   if (!isPublic(req)) {
     await auth.protect();

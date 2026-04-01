@@ -680,6 +680,54 @@ export async function POST(req: Request) {
       }
     }
 
+    if (event.type === "account.updated") {
+      const account = event.data.object as { id: string; charges_enabled?: boolean };
+      if (account.id) {
+        const seller = await prisma.sellerProfile.findFirst({
+          where: { stripeAccountId: account.id },
+          select: {
+            id: true,
+            chargesEnabled: true,
+            user: { select: { id: true } },
+          },
+        });
+
+        if (seller) {
+          const newChargesEnabled = account.charges_enabled ?? false;
+          if (seller.chargesEnabled !== newChargesEnabled) {
+            await prisma.sellerProfile.update({
+              where: { id: seller.id },
+              data: { chargesEnabled: newChargesEnabled },
+            });
+
+            if (!newChargesEnabled) {
+              const { logSecurityEvent } = await import("@/lib/security");
+              logSecurityEvent("ownership_violation", {
+                userId: seller.user.id,
+                route: "/api/stripe/webhook",
+                reason: `Seller Stripe account disabled by Stripe: ${account.id}`,
+              });
+            }
+          }
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "account.application.deauthorized") {
+      const deauthAccount = event.data.object as { id: string };
+      if (deauthAccount.id) {
+        await prisma.sellerProfile.updateMany({
+          where: { stripeAccountId: deauthAccount.id },
+          data: {
+            chargesEnabled: false,
+            stripeAccountId: null,
+          },
+        });
+      }
+      return NextResponse.json({ received: true });
+    }
+
     return NextResponse.json({ received: true });
   } catch (err) {
     console.error("Stripe webhook handler error:", err);
