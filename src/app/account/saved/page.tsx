@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import FavoriteButton from "@/components/FavoriteButton";
+import ClickTracker from "@/components/ClickTracker";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 
@@ -85,7 +86,7 @@ export default async function SavedPage({
                 const avatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
                 const isAvailable = l.status === "ACTIVE";
                 return (
-                  <li key={l.id} className="relative card-listing hover:shadow-md transition-shadow">
+                  <ClickTracker key={l.id} listingId={l.id} className="relative card-listing hover:shadow-md transition-shadow">
                     <div className="absolute top-2 right-2 z-10">
                       <FavoriteButton listingId={l.id} initialSaved={true} />
                     </div>
@@ -117,7 +118,7 @@ export default async function SavedPage({
                         </div>
                       </div>
                     </Link>
-                  </li>
+                  </ClickTracker>
                 );
               })}
             </ul>

@@ -156,6 +156,7 @@ function LineChartSection({
     xPct: number;
     yPct: number;
   } | null>(null);
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const metrics: { key: ChartMetric; label: string }[] = [
@@ -241,6 +242,7 @@ function LineChartSection({
           width="100%"
           viewBox={`0 0 ${SVG_W} ${SVG_H}`}
           style={{ overflow: "visible", display: "block" }}
+          onMouseLeave={() => { setActiveIdx(null); setTooltip(null); }}
         >
           {/* Gradient definition for area fill */}
           <defs>
@@ -322,15 +324,25 @@ function LineChartSection({
                 stroke={color}
                 strokeWidth={2}
                 style={{ cursor: "pointer" }}
-                onMouseEnter={() =>
+                onMouseEnter={() => {
+                  setActiveIdx(i);
                   setTooltip({
                     label: p.label,
                     value: formatValue(p.value),
                     xPct: (p.x / SVG_W) * 100,
                     yPct: (p.y / SVG_H) * 100,
-                  })
-                }
-                onMouseLeave={() => setTooltip(null)}
+                  });
+                }}
+                onMouseLeave={() => { setActiveIdx(null); setTooltip(null); }}
+                onClick={() => {
+                  setActiveIdx(i);
+                  setTooltip({
+                    label: p.label,
+                    value: formatValue(p.value),
+                    xPct: (p.x / SVG_W) * 100,
+                    yPct: (p.y / SVG_H) * 100,
+                  });
+                }}
               />
             ))}
 
@@ -346,17 +358,54 @@ function LineChartSection({
                 height={CH}
                 fill="transparent"
                 style={{ cursor: "crosshair" }}
-                onMouseEnter={() =>
+                onMouseEnter={() => {
+                  setActiveIdx(i);
                   setTooltip({
                     label: p.label,
                     value: formatValue(p.value),
                     xPct: (p.x / SVG_W) * 100,
                     yPct: (p.y / SVG_H) * 100,
-                  })
-                }
-                onMouseLeave={() => setTooltip(null)}
+                  });
+                }}
+                onMouseLeave={() => { setActiveIdx(null); setTooltip(null); }}
+                onClick={() => {
+                  setActiveIdx(i);
+                  setTooltip({
+                    label: p.label,
+                    value: formatValue(p.value),
+                    xPct: (p.x / SVG_W) * 100,
+                    yPct: (p.y / SVG_H) * 100,
+                  });
+                }}
               />
             ))}
+
+          {/* Active data point: vertical guide line + filled dot */}
+          {hasData && activeIdx !== null && points[activeIdx] && (() => {
+            const ap = points[activeIdx];
+            return (
+              <>
+                <line
+                  x1={ap.x}
+                  x2={ap.x}
+                  y1={PAD_T}
+                  y2={PAD_T + CH}
+                  stroke="#d6d3d1"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+                <circle
+                  cx={ap.x}
+                  cy={ap.y}
+                  r={6}
+                  fill="white"
+                  stroke={color}
+                  strokeWidth={2}
+                  style={{ pointerEvents: "none" }}
+                />
+              </>
+            );
+          })()}
 
           {/* X-axis labels */}
           {points.map((p, i) => {

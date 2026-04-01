@@ -10,7 +10,8 @@ import SearchBar from "@/components/SearchBar";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
-import { Armchair, Utensils, Candle, Toy, Wrench } from "@/components/icons";
+import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@/components/icons";
+import ClickTracker from "@/components/ClickTracker";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -72,11 +73,14 @@ async function getSellerRatingMap(sellerIds: string[]) {
 }
 
 const CATEGORIES = [
-  { key: "FURNITURE", label: "Furniture", Icon: Armchair },
-  { key: "KITCHEN",   label: "Kitchen",   Icon: Utensils },
-  { key: "DECOR",     label: "Decor",     Icon: Candle },
-  { key: "TOOLS",     label: "Tools",     Icon: Wrench },
-  { key: "TOYS",      label: "Toys",      Icon: Toy },
+  { key: "FURNITURE", label: "Furniture",     Icon: Armchair  },
+  { key: "KITCHEN",   label: "Kitchen",       Icon: Utensils  },
+  { key: "DECOR",     label: "Decor",         Icon: Candle    },
+  { key: "TOOLS",     label: "Home & Office", Icon: Box       },
+  { key: "TOYS",      label: "Toys",          Icon: Toy       },
+  { key: "ART",       label: "Art",           Icon: Palette   },
+  { key: "OUTDOOR",   label: "Outdoor",       Icon: TreePine  },
+  { key: "STORAGE",   label: "Gifts",         Icon: Gift      },
 ];
 
 export default async function HomePage() {
@@ -372,10 +376,10 @@ export default async function HomePage() {
                 See full feed →
               </Link>
             </div>
-            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-0 -mx-1 px-1">
+            <ul className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-0 -mx-1 px-1 bg-white">
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <div key={item.id} className="w-44 flex-none snap-start card-listing">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start card-listing">
                     <Link href={`/listing/${item.id}`} className="block">
                       <div className="h-36 bg-neutral-100 overflow-hidden">
                         {item.photoUrl ? (
@@ -393,9 +397,9 @@ export default async function HomePage() {
                         <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
                       </div>
                     </Link>
-                  </div>
+                  </ClickTracker>
                 ) : (
-                  <div key={item.slug} className="w-44 flex-none snap-start card-listing">
+                  <li key={item.slug} className="w-44 flex-none snap-start card-listing">
                     <Link href={`/blog/${item.slug}`} className="block">
                       <div className="h-36 bg-neutral-100 overflow-hidden">
                         {item.coverImageUrl ? (
@@ -411,10 +415,10 @@ export default async function HomePage() {
                         <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
                       </div>
                     </Link>
-                  </div>
+                  </li>
                 )
               ))}
-            </div>
+            </ul>
           </ScrollSection>
         )}
 
@@ -423,7 +427,7 @@ export default async function HomePage() {
           <h2 className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
           {/* Mobile: horizontal scroll; Desktop: 6-col flex */}
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex sm:grid sm:grid-cols-6 gap-3" style={{ minWidth: 340 }}>
+            <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
@@ -447,7 +451,7 @@ export default async function HomePage() {
 
         {/* ── Meet a Maker ─────────────────────────────────────────────────── */}
         {featuredMaker && (
-          <ScrollSection>
+          <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
             <div className="mb-5 space-y-0.5">
               <h2 className="text-xl font-semibold font-display">Meet a Maker</h2>
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
@@ -531,7 +535,7 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0 bg-white" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   const img = l.photos[0]?.url ?? "/favicon.ico";
                   const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
@@ -541,7 +545,7 @@ export default async function HomePage() {
                   const shop = sellerRatings.get(l.sellerId);
 
                   return (
-                    <li key={l.id} className="snap-start flex-none w-56 card-listing">
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56 card-listing">
                       <div className="relative">
                         <Link href={`/listing/${l.id}`} className="block">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -579,7 +583,7 @@ export default async function HomePage() {
                           <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
                         </div>
                       </div>
-                    </li>
+                    </ClickTracker>
                   );
                 })}
               </ul>
@@ -595,7 +599,7 @@ export default async function HomePage() {
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0 bg-white" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   const img = l.photos[0]?.url ?? "/favicon.ico";
                   const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
@@ -605,7 +609,7 @@ export default async function HomePage() {
                   const shop = sellerRatings.get(l.sellerId);
 
                   return (
-                    <li key={l.id} className="snap-start flex-none w-56 card-listing">
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56 card-listing">
                       <div className="relative">
                         <Link href={`/listing/${l.id}`} className="block">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -644,7 +648,7 @@ export default async function HomePage() {
                           <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
                         </div>
                       </div>
-                    </li>
+                    </ClickTracker>
                   );
                 })}
               </ul>
@@ -654,7 +658,7 @@ export default async function HomePage() {
 
         {/* ── Stories from the Workshop ────────────────────────────────────── */}
         {recentBlogPosts.length > 0 && (
-          <ScrollSection>
+          <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Stories from the Workshop</h2>
               <Link href="/blog" className="text-sm text-neutral-600 hover:underline">

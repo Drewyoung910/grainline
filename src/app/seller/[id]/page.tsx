@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import MapCard from "@/components/MapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import FavoriteButton from "@/components/FavoriteButton";
+import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
@@ -416,7 +417,7 @@ export default async function SellerPublicPage({
               {featuredListings.map((l) => {
                 const thumb = l.photos[0]?.url ?? "/favicon.ico";
                 return (
-                  <li key={l.id} className="card-listing min-w-[200px] flex-none snap-start md:min-w-0">
+                  <ClickTracker key={l.id} listingId={l.id} className="card-listing min-w-[200px] flex-none snap-start md:min-w-0">
                     <div className="relative">
                       <Link href={`/listing/${l.id}`} className="block">
                         <div className="relative">
@@ -442,7 +443,7 @@ export default async function SellerPublicPage({
                       </Link>
                       <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
                     </div>
-                  </li>
+                  </ClickTracker>
                 );
               })}
             </ul>
@@ -626,7 +627,7 @@ export default async function SellerPublicPage({
               {listings.slice(0, 8).map((l) => {
                 const thumb = l.photos[0]?.url ?? "/favicon.ico";
                 return (
-                  <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
+                  <ClickTracker key={l.id} listingId={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
                     <div className="relative">
                       <Link href={`/listing/${l.id}`} className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -647,7 +648,7 @@ export default async function SellerPublicPage({
                       </Link>
                       <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
                     </div>
-                  </li>
+                  </ClickTracker>
                 );
               })}
             </ul>

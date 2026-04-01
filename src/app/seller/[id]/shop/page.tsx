@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import FavoriteButton from "@/components/FavoriteButton";
+import ClickTracker from "@/components/ClickTracker";
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
@@ -276,7 +277,7 @@ export default async function SellerShopPage({
           {listings.map((l) => {
             const thumb = l.photos[0]?.url ?? null;
             return (
-              <li key={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+              <ClickTracker key={l.id} listingId={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
                 <Link href={`/listing/${l.id}`} className="block">
                   <div className="h-48 bg-neutral-100 overflow-hidden">
                     {thumb ? (
@@ -301,7 +302,7 @@ export default async function SellerShopPage({
                   </div>
                 </Link>
                 <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-              </li>
+              </ClickTracker>
             );
           })}
         </ul>

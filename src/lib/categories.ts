@@ -2,12 +2,12 @@ export const CATEGORY_LABELS: Record<string, string> = {
   FURNITURE: "Furniture",
   KITCHEN: "Kitchen & Dining",
   DECOR: "Decor",
-  TOOLS: "Tools",
+  TOOLS: "Home & Office",
   TOYS: "Toys",
   JEWELRY: "Jewelry",
   ART: "Art",
   OUTDOOR: "Outdoor",
-  STORAGE: "Storage",
+  STORAGE: "Gifts",
   OTHER: "Other",
 };
 

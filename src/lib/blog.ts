@@ -21,7 +21,7 @@ export const BLOG_TYPE_LABELS: Record<BlogPostType, string> = {
   MAKER_SPOTLIGHT: "Maker Spotlight",
   BEHIND_THE_BUILD: "Behind the Build",
   GIFT_GUIDE: "Gift Guide",
-  WOOD_EDUCATION: "Wood Education",
+  WOOD_EDUCATION: "Workshop Tips",
 };
 
 export const BLOG_TYPE_COLORS: Record<BlogPostType, string> = {

@@ -3,6 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
+import ClickTracker from "@/components/ClickTracker";
 
 type SimilarListing = {
   id: string;
@@ -48,7 +49,7 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {listings.map((l) => (
-            <li key={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+            <ClickTracker key={l.id} listingId={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
               <Link href={`/listing/${l.id}`} className="block">
                 <div className="h-48 bg-neutral-100 overflow-hidden">
                   {l.photoUrl ? (
@@ -89,7 +90,7 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                 </div>
               </Link>
               <FavoriteButton listingId={l.id} initialSaved={false} />
-            </li>
+            </ClickTracker>
           ))}
         </ul>
       )}

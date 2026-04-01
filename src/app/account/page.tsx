@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import type { Metadata } from "next";
+import ClickTracker from "@/components/ClickTracker";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -225,34 +226,32 @@ export default async function AccountPage() {
             No saved items yet. Heart pieces while browsing to save them here.
           </div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-0">
+          <ul className="flex gap-4 overflow-x-auto pb-0 bg-white">
             {savedItems.map(({ listing }) => {
               const thumb = listing.photos[0]?.url;
               return (
-                <Link
-                  key={listing.id}
-                  href={`/listing/${listing.id}`}
-                  className="card-listing shrink-0 w-40 transition-colors"
-                >
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt={listing.title} className="h-32 w-full object-cover" />
-                  ) : (
-                    <div className="h-32 w-full bg-neutral-100" />
-                  )}
-                  <div className="p-2 bg-white border-t border-neutral-100">
-                    <p className="text-xs font-medium truncate">{listing.title}</p>
-                    <p className="text-xs text-neutral-500">
-                      {(listing.priceCents / 100).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: listing.currency,
-                      })}
-                    </p>
-                  </div>
-                </Link>
+                <ClickTracker key={listing.id} listingId={listing.id} className="card-listing shrink-0 w-40 transition-colors">
+                  <Link href={`/listing/${listing.id}`} className="block">
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt={listing.title} className="h-32 w-full object-cover" />
+                    ) : (
+                      <div className="h-32 w-full bg-neutral-100" />
+                    )}
+                    <div className="p-2 bg-white border-t border-neutral-100">
+                      <p className="text-xs font-medium truncate">{listing.title}</p>
+                      <p className="text-xs text-neutral-500">
+                        {(listing.priceCents / 100).toLocaleString(undefined, {
+                          style: "currency",
+                          currency: listing.currency,
+                        })}
+                      </p>
+                    </div>
+                  </Link>
+                </ClickTracker>
               );
             })}
-          </div>
+          </ul>
         )}
       </section>
 

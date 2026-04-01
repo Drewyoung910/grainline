@@ -109,7 +109,7 @@ prisma/
 
 Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` (PENDING | READY_FOR_PICKUP | PICKED_UP | SHIPPED | DELIVERED)
 
-`Category` enum: `FURNITURE | KITCHEN | DECOR | TOOLS | TOYS | JEWELRY | ART | OUTDOOR | STORAGE | OTHER` — display labels in `src/lib/categories.ts` (`CATEGORY_LABELS`, `CATEGORY_VALUES`). **Always use `CATEGORY_VALUES.includes(raw)` to validate — never `Object.values(Category)` which crashes in RSC if Prisma enum is undefined at runtime.**
+`Category` enum: `FURNITURE | KITCHEN | DECOR | TOOLS | TOYS | JEWELRY | ART | OUTDOOR | STORAGE | OTHER` — display labels in `src/lib/categories.ts` (`CATEGORY_LABELS`, `CATEGORY_VALUES`). **Always use `CATEGORY_VALUES.includes(raw)` to validate — never `Object.values(Category)` which crashes in RSC if Prisma enum is undefined at runtime.** Current display labels: TOOLS → "Home & Office", STORAGE → "Gifts" (updated 2026-04-01).
 
 `ListingStatus` enum: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN`
 
@@ -225,7 +225,7 @@ The browse page (`src/app/browse/page.tsx`) is a full-featured search experience
 - **Standard sorts**: Prisma pagination; `popular` uses `{ favorites: { _count: 'desc' } }`
 - **No-results**: shows featured listings (most favorited), popular tag suggestions, browse-all link
 - **Layout**: two-column flex — `FilterSidebar` (sticky aside, mobile drawer) + main grid; grid/list toggle via `view` URL param
-- **ClickTracker** (`src/components/ClickTracker.tsx`) — "use client" `<li>` wrapper that fires `POST /api/listings/[id]/click` on click (fire-and-forget)
+- **ClickTracker** (`src/components/ClickTracker.tsx`) — "use client" `<li>` wrapper that fires `POST /api/listings/[id]/click` on click (fire-and-forget). Used on: browse grid/list cards, homepage Fresh from the Workshop cards, homepage Buyer Favorites cards, homepage From Your Makers listing cards, `SimilarItems`, seller profile Featured Work cards, seller profile All Listings cards, seller shop grid cards, account saved items scroll row, account/saved listings grid
 - **SaveSearchButton** (`src/components/SaveSearchButton.tsx`) — "use client", reads `useSearchParams`, POSTs to `/api/search/saved`; redirects to sign-in if not logged in
 - **FilterSidebar** (`src/components/FilterSidebar.tsx`) — "use client", reads `useSearchParams`, uses `key={searchParams.toString()}` form trick for `defaultValue` sync
 
@@ -244,7 +244,7 @@ Plus category label matches from `CATEGORY_VALUES`.
 ### Analytics fields
 
 - `viewCount` — incremented by `POST /api/listings/[id]/view` (24h `httpOnly` cookie deduplication). `ListingViewTracker` ("use client") fires this on mount from listing detail pages.
-- `clickCount` — incremented by `POST /api/listings/[id]/click` (same cookie pattern). `ClickTracker` fires this on card click in browse.
+- `clickCount` — incremented by `POST /api/listings/[id]/click` (same cookie pattern). `ClickTracker` fires this on card click in browse and all other listing card surfaces (see ClickTracker entry above).
 
 ### Saved Searches
 
@@ -541,7 +541,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ### Utilities (`src/lib/blog.ts`)
 - `generateSlug(title)` — lowercase, spaces→hyphens, strip special chars
 - `calculateReadingTime(body)` — word count ÷ 200, minimum 1
-- `BLOG_TYPE_LABELS` — human-readable labels per `BlogPostType`
+- `BLOG_TYPE_LABELS` — human-readable labels per `BlogPostType`; `WOOD_EDUCATION` label is "Workshop Tips" (updated 2026-04-01)
 - `BLOG_TYPE_COLORS` — Tailwind badge color classes per type
 
 ### APIs
@@ -1086,7 +1086,7 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 
 **B — Engagement (10 stat cards)**: Listing Views, Listing Clicks (range-aware), Click-through Rate (views÷clicks, "—" when null), Conversion Rate (orders÷views, "—" when null — null when view tracking wasn't yet active), Profile Visits (all-time from `profileViews`), Cart Abandoned (range-aware), Saved/Favorites, Watching (stock notification subscribers), Repeat Buyer Rate (all-time), Avg Processing Time (order created → shipped). Chart views populate going forward only — no historical data before `ListingViewDaily` was added.
 
-**C — Performance Chart**: SVG line chart (inline, no external lib); 9 time range pill selectors; metric selector tabs (Revenue / Orders / Views); colors: revenue `#D97706` (amber-600), orders `#4F46E5` (indigo-600), views `#0D9488` (teal-600); gradient area fill via `<linearGradient>` (15% → 0% opacity); dashed gridlines (`strokeDasharray="4 4"`, `opacity={0.5}`); hollow dots for ≤20 points (white fill, colored stroke, strokeWidth=2); invisible hit-target rects for >20 points; white card tooltip (`bg-white border border-stone-200/60 rounded-lg shadow-md`); Y-axis uses `getYTicks(maxVal)`; X-axis label thinning with rotation when >14 buckets; "No data for this period" overlay when all values are zero
+**C — Performance Chart**: SVG line chart (inline, no external lib); 9 time range pill selectors; metric selector tabs (Revenue / Orders / Views); colors: revenue `#D97706` (amber-600), orders `#4F46E5` (indigo-600), views `#0D9488` (teal-600); gradient area fill via `<linearGradient>` (15% → 0% opacity); dashed gridlines (`strokeDasharray="4 4"`, `opacity={0.5}`); hollow dots for ≤20 points (white fill, colored stroke, strokeWidth=2); invisible hit-target rects for >20 points; **interactive active data point**: on hover/tap, shows a vertical dashed guide line (stone-300, `strokeDasharray="3 3"`) + enlarged hollow dot (r=6, white fill, colored stroke) at the hovered point; mouse leave on SVG clears active state; both `onMouseEnter` and `onClick` on hit rects for mobile tap support; white card tooltip (`bg-white border border-stone-200/60 rounded-lg shadow-md`); Y-axis uses `getYTicks(maxVal)`; X-axis label thinning with rotation when >14 buckets; "No data for this period" overlay when all values are zero
 
 **D — Top Listings (top 8 by all-time revenue, showing 5)**: photo (80×80) + title + revenue/units row (no avg price) + engagement row (👁 views · 🖱 clicks · ♥ favorites · 🔔 watching · $/day)
 
@@ -1661,6 +1661,9 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 - Card info sections: `bg-stone-50` → `bg-white` on all horizontal scroll cards
 - Section spacing: `space-y-16` → `space-y-10` on main content container (eliminates oversized gaps)
 - "From Your Makers" scroll row: `pb-2` → `pb-0`
+- Scroll container `bg-white` added to Fresh from the Workshop `<ul>`, Buyer Favorites `<ul>`, and From Your Makers `<ul>` — prevents page cream background from showing through gaps between cards
+- **Alternating warm section backgrounds**: "Meet a Maker" and "Stories from the Workshop" `ScrollSection` wrappers get `bg-amber-50/30 rounded-xl px-4 py-6 -mx-4` for subtle warm tint (hero, stats bar, map, newsletter sections unchanged)
+- Category tiles updated: TOOLS → "Home & Office" (`Box` icon), STORAGE → "Gifts" (`Gift` icon), added ART (`Palette`), OUTDOOR (`TreePine`); removed OTHER; now 8 tiles + "Browse all" (9 total); grid updated to `sm:grid-cols-9`
 
 ### Browse (`src/app/browse/page.tsx`)
 - h1 "Browse": added `font-display`
@@ -1677,6 +1680,7 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 - Following/Commission/Settings/Workshop sections: `border border-neutral-200` → `card-section`
 - Saved items cards: `border border-neutral-200` → `card-listing`; info div: `bg-stone-50` → `bg-white`
 - Saved items scroll row: `pb-2` → `pb-0`
+- Saved items scroll container: `<div>` → `<ul>` with `bg-white`; cards wrapped in `ClickTracker`; Link moved inside ClickTracker to avoid nested-interactive violation
 
 ### Account saved (`src/app/account/saved/page.tsx`)
 - Listing card `<li>`: → `card-listing hover:shadow-md`
