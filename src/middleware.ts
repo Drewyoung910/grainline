@@ -41,6 +41,7 @@ export default clerkMiddleware(async (auth, req) => {
     // Allow not-available page, static assets, and API routes needed for the page
     const isAllowed =
       pathname.startsWith("/not-available") ||
+      pathname.startsWith("/api") ||          // API routes must never be geo-blocked (Stripe/Clerk webhooks, etc.)
       pathname.startsWith("/_next") ||
       pathname.startsWith("/favicon") ||
       pathname.startsWith("/logo") ||
