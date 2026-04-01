@@ -117,6 +117,17 @@ async function updateSellerProfile(formData: FormData) {
     },
   });
 
+  // Assign metro geography when lat/lng is set — non-fatal
+  if (lat != null && lng != null) {
+    try {
+      const { findOrCreateMetro } = await import("@/lib/geo-metro");
+      const { metroId, cityMetroId } = await findOrCreateMetro(lat, lng);
+      await prisma.sellerProfile.update({ where: { id: seller.id }, data: { metroId, cityMetroId } });
+    } catch (e) {
+      console.error("[geo-metro] Failed to assign metro to seller profile:", e);
+    }
+  }
+
   revalidatePath(`/seller/${seller.id}`);
   redirect(`/seller/${seller.id}`);
 }

@@ -139,8 +139,8 @@ async function createListing(formData: FormData) {
       select: { lat: true, lng: true },
     });
     if (sellerLocation?.lat != null && sellerLocation?.lng != null) {
-      const { mapToMetros } = await import("@/lib/geo-metro");
-      const { metroId, cityMetroId } = await mapToMetros(sellerLocation.lat, sellerLocation.lng);
+      const { findOrCreateMetro } = await import("@/lib/geo-metro");
+      const { metroId, cityMetroId } = await findOrCreateMetro(sellerLocation.lat, sellerLocation.lng);
       if (metroId || cityMetroId) {
         await prisma.listing.update({ where: { id: created.id }, data: { metroId, cityMetroId } });
       }

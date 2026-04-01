@@ -525,7 +525,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ## Icon Library (complete)
 
-`src/components/icons/index.tsx` — 55 named Feather-style outline SVG icon components. All icons accept `className?: string` and `size?: number` (default 20) props. Base SVG attrs: `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.5}`, `strokeLinecap="round"`.
+`src/components/icons/index.tsx` — 63 named Feather-style outline SVG icon components. All icons accept `className?: string` and `size?: number` (default 20) props. Base SVG attrs: `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.5}`, `strokeLinecap="round"`. **No emoji used in structural/navigational UI — all category tiles and section headers use SVG icons.**
 
 **Exports** (grouped):
 - Shopping/Commerce: `ShoppingBag`, `Tag`, `Gift`
@@ -547,6 +547,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - Search/Filter/View: `Search`, `Filter`, `Grid`, `List`
 - Media/Files: `Camera`, `Image`, `Video`, `File`
 - Special: `Sparkles`, `Repeat`
+- **Category icons** (new): `Armchair` (Furniture), `Utensils` (Kitchen), `Candle` (Decor), `Toy` (Toys), `TreePine` (Outdoor), `Palette` (Art), `Gem` (Jewelry), `Box` (Storage), `Logs` (Wood/Workshop section headers)
 
 **Used in:**
 - `Header.tsx` — `MessageCircle` (signed-out messages link), `ShoppingBag` (cart)
@@ -1494,15 +1495,22 @@ npx dotenv-cli -e .env -- npx ts-node --transpile-only prisma/seeds/metros.ts
 
 ### `src/lib/geo-metro.ts`
 - **`findNearestMetro(lat, lng)`** — checks child metros first (more specific), then majors; returns `{ cityMetro, majorMetro }` within radius
-- **`mapToMetros(lat, lng)`** — returns `{ metroId: string | null, cityMetroId: string | null }` for DB storage
-- **`isMetroSlug(slug)`** — returns `true` if slug matches `/^[a-z][a-z0-9-]+-[a-z]{2}$/`; used in future dynamic routes to distinguish metro slugs from CUIDs
+- **`mapToMetros(lat, lng)`** — returns `{ metroId: string | null, cityMetroId: string | null }` for DB storage (legacy; new code uses `findOrCreateMetro`)
+- **`findOrCreateMetro(lat, lng)`** — **primary mapping function**: calls `findNearestMetro` first; if no metro found within radius, calls `reverseGeocode` to get city/state, then `prisma.metro.upsert` to create a new metro at that location. Logs `[geo-metro] Auto-created metro: ${slug}` to stdout for Vercel logs. Returns `{ metroId, cityMetroId }` — always non-throwing.
+- **`isMetroSlug(slug)`** — returns `true` if slug matches `/^[a-z][a-z0-9-]+-[a-z]{2}$/`; used in dynamic routes to distinguish metro slugs from CUIDs
+
+### `src/lib/reverse-geocode.ts`
+- **`reverseGeocode(lat, lng)`** — calls Nominatim (OpenStreetMap) reverse geocoding API; `User-Agent: Grainline/1.0 (thegrainline.com)`; enforces ≥1.1s between requests (Nominatim policy); extracts city from `address.city|town|village|hamlet`; returns `{ city, state, stateCode }` or `null` on failure/non-US result
+- **Throttle**: module-level `lastRequestTime` variable; `throttledFetch` adds delay if < 1100ms has elapsed since last call
+- All 50 US state names → two-letter codes in `STATE_CODES` map
 
 ### Auto-mapping on create
-- **Listings** (`dashboard/listings/new/page.tsx`) — after `prisma.listing.create`, fetches seller's lat/lng, calls `mapToMetros`, updates listing. Non-fatal try/catch.
-- **Commission requests** (`api/commission/route.ts`) — after create, if `lat`/`lng` set (local scope requests), calls `mapToMetros`. Non-fatal try/catch.
+- **Listings** (`dashboard/listings/new/page.tsx`) — after `prisma.listing.create`, fetches seller's lat/lng, calls `findOrCreateMetro`, updates listing. Non-fatal try/catch.
+- **Commission requests** (`api/commission/route.ts`) — after create, if `lat`/`lng` set (local scope requests), calls `findOrCreateMetro`. Non-fatal try/catch.
+- **Seller profile settings** (`dashboard/seller/page.tsx`) — after `prisma.sellerProfile.update`, if lat/lng is set, calls `findOrCreateMetro` and updates `metroId`/`cityMetroId`. Non-fatal try/catch.
 
 ### Backfill script (`scripts/backfill-metros.ts`)
-One-time script — finds all existing listings, commissions, and seller profiles with coordinates but no `metroId`, resolves metros, updates records. Run with:
+One-time script — finds all existing listings, commissions, and seller profiles with coordinates but no `metroId`. For each coordinate, uses inline `resolveMetros` first; if nothing found, calls Nominatim and auto-creates the metro. Run with:
 ```
 npx dotenv-cli -e .env -- npx ts-node --transpile-only scripts/backfill-metros.ts
 ```

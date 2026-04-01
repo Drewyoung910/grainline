@@ -2,6 +2,7 @@
 // Geo-mapping utility for assigning metro areas to listings, commissions, and seller profiles.
 
 import { prisma } from "@/lib/db";
+import { reverseGeocode } from "@/lib/reverse-geocode";
 
 // ---------------------------------------------------------------------------
 // Haversine distance in miles between two lat/lng points
@@ -92,6 +93,60 @@ export async function mapToMetros(
     metroId: majorMetro?.id ?? null,
     cityMetroId: cityMetro?.id ?? null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// findOrCreateMetro
+// Like mapToMetros but auto-creates a metro via reverse geocoding when no
+// existing metro is found nearby.
+// ---------------------------------------------------------------------------
+export async function findOrCreateMetro(
+  lat: number,
+  lng: number
+): Promise<{ metroId: string | null; cityMetroId: string | null }> {
+  const { cityMetro, majorMetro } = await findNearestMetro(lat, lng);
+
+  if (majorMetro) {
+    return {
+      metroId: majorMetro.id,
+      cityMetroId: cityMetro?.id ?? null,
+    };
+  }
+
+  // No nearby metro — attempt to create one via reverse geocoding
+  try {
+    const geo = await reverseGeocode(lat, lng);
+    if (!geo) return { metroId: null, cityMetroId: null };
+
+    // Build slug: "city-name-st" (lowercase, spaces→hyphens)
+    const citySlug = geo.city
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const slug = `${citySlug}-${geo.stateCode}`;
+
+    const metro = await prisma.metro.upsert({
+      where: { slug },
+      update: {},
+      create: {
+        slug,
+        name: geo.city,
+        state: geo.state,
+        latitude: lat,
+        longitude: lng,
+        radiusMiles: 45,
+        isActive: true,
+      },
+    });
+
+    console.log(`[geo-metro] Auto-created metro: ${slug} (${geo.city}, ${geo.state})`);
+
+    return { metroId: metro.id, cityMetroId: null };
+  } catch {
+    return { metroId: null, cityMetroId: null };
+  }
 }
 
 // ---------------------------------------------------------------------------

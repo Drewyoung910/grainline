@@ -373,3 +373,73 @@ export const Rss = icon(<>
   <path d="M4 4a16 16 0 0 1 16 16" />
   <circle cx="5" cy="19" r="1" fill="currentColor" />
 </>);
+
+// ── Category icons ────────────────────────────────────────────────────────────
+
+// Furniture — armchair outline
+export const Armchair = icon(<>
+  <path d="M5 10V7a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3" />
+  <path d="M3 14a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3H3v-3z" />
+  <path d="M5 17v2m14-2v2" />
+  <path d="M5 12v-2" />
+  <path d="M19 12v-2" />
+</>);
+
+// Kitchen — crossed fork & knife
+export const Utensils = icon(<>
+  <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+  <path d="M7 2v20" />
+  <path d="M21 15V2a5 5 0 0 0-5 5v6c0 .6.4 1 1 1h3" />
+  <path d="M21 22v-7" />
+</>);
+
+// Decor — candle flame
+export const Candle = icon(<>
+  <path d="M12 2c0 0-2 2-2 5s2 4 2 4 2-1 2-4-2-5-2-5z" />
+  <rect x="9" y="11" width="6" height="11" rx="1" />
+  <path d="M9 22h6" />
+</>);
+
+// Toys — star / playful shape (simple 5-point star, unfilled)
+export const Toy = icon(<>
+  <polygon points="12 3 14.5 9 21 9.5 16 14 17.5 21 12 17.5 6.5 21 8 14 3 9.5 9.5 9 12 3" />
+</>);
+
+// Outdoor — tree
+export const TreePine = icon(<>
+  <path d="M12 3L4 18h16L12 3z" />
+  <path d="M12 18v3" />
+  <path d="M6 12h12" style={{ opacity: 0.4 }} />
+</>);
+
+// Art — palette
+export const Palette = icon(<>
+  <path d="M12 2C6.48 2 2 6.48 2 12c0 5.52 4.48 10 10 10 1.85 0 2-1.28 2-2 0-.53-.03-1.04-.03-1.55 0-.83.67-1.5 1.5-1.5H17c2.76 0 5-2.24 5-5 0-5.52-4.48-9-10-9z" />
+  <circle cx="6.5" cy="11.5" r="1.25" fill="currentColor" stroke="none" />
+  <circle cx="9.5" cy="7.5" r="1.25" fill="currentColor" stroke="none" />
+  <circle cx="14.5" cy="7.5" r="1.25" fill="currentColor" stroke="none" />
+  <circle cx="17.5" cy="11.5" r="1.25" fill="currentColor" stroke="none" />
+</>);
+
+// Jewelry — gem / diamond
+export const Gem = icon(<>
+  <polygon points="12 2 22 9 18 22 6 22 2 9 12 2" />
+  <line x1="2" y1="9" x2="22" y2="9" />
+  <line x1="12" y1="2" x2="6" y2="22" />
+  <line x1="12" y1="2" x2="18" y2="22" />
+</>);
+
+// Storage — box / open container
+export const Box = icon(<>
+  <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+  <line x1="12" y1="22.08" x2="12" y2="12" />
+</>);
+
+// Wood / Workshop — log / grain lines
+export const Logs = icon(<>
+  <ellipse cx="12" cy="12" rx="10" ry="6" />
+  <path d="M12 6v12" />
+  <path d="M7 7.5c1.5 1.5 1.5 5.5 0 7" />
+  <path d="M17 7.5c-1.5 1.5-1.5 5.5 0 7" />
+</>);

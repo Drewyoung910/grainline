@@ -12,6 +12,44 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = new PrismaClient({ adapter } as any);
 
+// State name → two-letter code map (inline to avoid src/ import issues)
+const STATE_CODES: Record<string, string> = {
+  Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
+  Colorado: "co", Connecticut: "ct", Delaware: "de", Florida: "fl", Georgia: "ga",
+  Hawaii: "hi", Idaho: "id", Illinois: "il", Indiana: "in", Iowa: "ia",
+  Kansas: "ks", Kentucky: "ky", Louisiana: "la", Maine: "me", Maryland: "md",
+  Massachusetts: "ma", Michigan: "mi", Minnesota: "mn", Mississippi: "ms",
+  Missouri: "mo", Montana: "mt", Nebraska: "ne", Nevada: "nv",
+  "New Hampshire": "nh", "New Jersey": "nj", "New Mexico": "nm", "New York": "ny",
+  "North Carolina": "nc", "North Dakota": "nd", Ohio: "oh", Oklahoma: "ok",
+  Oregon: "or", Pennsylvania: "pa", "Rhode Island": "ri", "South Carolina": "sc",
+  "South Dakota": "sd", Tennessee: "tn", Texas: "tx", Utah: "ut",
+  Vermont: "vt", Virginia: "va", Washington: "wa", "West Virginia": "wv",
+  Wisconsin: "wi", Wyoming: "wy",
+};
+
+let lastNominatimRequest = 0;
+async function nominatimReverse(lat: number, lng: number): Promise<{ city: string; state: string; stateCode: string } | null> {
+  try {
+    const elapsed = Date.now() - lastNominatimRequest;
+    if (elapsed < 1100) await new Promise((r) => setTimeout(r, 1100 - elapsed));
+    lastNominatimRequest = Date.now();
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { headers: { "User-Agent": "Grainline/1.0 (thegrainline.com)" } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const addr = data?.address;
+    if (!addr || addr.country_code !== "us") return null;
+    const city: string = addr.city || addr.town || addr.village || addr.hamlet || addr.county || "";
+    const stateName: string = addr.state || "";
+    const stateCode = STATE_CODES[stateName];
+    if (!city || !stateCode) return null;
+    return { city, state: stateName, stateCode };
+  } catch { return null; }
+}
+
 // Inline Haversine (avoid importing from src/ which requires Next.js module resolution)
 function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8;
@@ -82,6 +120,26 @@ async function main() {
   });
   console.log(`  ${metros.length} metros loaded.\n`);
 
+  // Helper: resolve or auto-create a metro for the given coordinates
+  async function resolveOrCreate(lat: number, lng: number): Promise<{ metroId: string | null; cityMetroId: string | null }> {
+    const result = resolveMetros(lat, lng, metros);
+    if (result.metroId || result.cityMetroId) return result;
+    // Auto-create via reverse geocoding
+    const geo = await nominatimReverse(lat, lng);
+    if (!geo) return { metroId: null, cityMetroId: null };
+    const citySlug = geo.city.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const slug = `${citySlug}-${geo.stateCode}`;
+    const metro = await prisma.metro.upsert({
+      where: { slug },
+      update: {},
+      create: { slug, name: geo.city, state: geo.state, latitude: lat, longitude: lng, radiusMiles: 45, isActive: true },
+    });
+    console.log(`  [auto-created metro] ${slug} (${geo.city}, ${geo.state})`);
+    // Refresh the in-memory list so subsequent points in the same metro are found
+    metros.push({ id: metro.id, slug: metro.slug, latitude: metro.latitude, longitude: metro.longitude, radiusMiles: metro.radiusMiles, parentMetroId: null });
+    return { metroId: metro.id, cityMetroId: null };
+  }
+
   // --- Seller profiles ---
   const sellers = await prisma.sellerProfile.findMany({
     where: { metroId: null, lat: { not: null }, lng: { not: null } },
@@ -91,7 +149,7 @@ async function main() {
   let sellerUpdated = 0;
   for (const s of sellers) {
     if (s.lat == null || s.lng == null) continue;
-    const { metroId, cityMetroId } = resolveMetros(s.lat, s.lng, metros);
+    const { metroId, cityMetroId } = await resolveOrCreate(s.lat, s.lng);
     if (metroId || cityMetroId) {
       await prisma.sellerProfile.update({ where: { id: s.id }, data: { metroId, cityMetroId } });
       sellerUpdated++;
@@ -110,7 +168,7 @@ async function main() {
     const lat = l.seller?.lat;
     const lng = l.seller?.lng;
     if (lat == null || lng == null) continue;
-    const { metroId, cityMetroId } = resolveMetros(lat, lng, metros);
+    const { metroId, cityMetroId } = await resolveOrCreate(lat, lng);
     if (metroId || cityMetroId) {
       await prisma.listing.update({ where: { id: l.id }, data: { metroId, cityMetroId } });
       listingUpdated++;
@@ -127,7 +185,7 @@ async function main() {
   let commissionUpdated = 0;
   for (const c of commissions) {
     if (c.lat == null || c.lng == null) continue;
-    const { metroId, cityMetroId } = resolveMetros(c.lat, c.lng, metros);
+    const { metroId, cityMetroId } = await resolveOrCreate(c.lat, c.lng);
     if (metroId || cityMetroId) {
       await prisma.commissionRequest.update({ where: { id: c.id }, data: { metroId, cityMetroId } });
       commissionUpdated++;

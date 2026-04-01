@@ -10,6 +10,7 @@ import SearchBar from "@/components/SearchBar";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
+import { Armchair, Utensils, Candle, Toy, Wrench, Logs, Heart } from "@/components/icons";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -71,11 +72,11 @@ async function getSellerRatingMap(sellerIds: string[]) {
 }
 
 const CATEGORIES = [
-  { key: "FURNITURE", label: "Furniture", emoji: "🪑", bg: "bg-amber-100" },
-  { key: "KITCHEN",   label: "Kitchen",   emoji: "🥣", bg: "bg-orange-100" },
-  { key: "DECOR",     label: "Decor",     emoji: "🕯️", bg: "bg-stone-100" },
-  { key: "TOOLS",     label: "Tools",     emoji: "🔨", bg: "bg-red-100" },
-  { key: "TOYS",      label: "Toys",      emoji: "🧸", bg: "bg-yellow-100" },
+  { key: "FURNITURE", label: "Furniture", Icon: Armchair, bg: "bg-amber-100" },
+  { key: "KITCHEN",   label: "Kitchen",   Icon: Utensils, bg: "bg-orange-100" },
+  { key: "DECOR",     label: "Decor",     Icon: Candle,   bg: "bg-stone-100" },
+  { key: "TOOLS",     label: "Tools",     Icon: Wrench,   bg: "bg-red-100" },
+  { key: "TOYS",      label: "Toys",      Icon: Toy,      bg: "bg-yellow-100" },
 ];
 
 export default async function HomePage() {
@@ -255,10 +256,10 @@ export default async function HomePage() {
       <section className="relative min-h-screen bg-gradient-to-br from-amber-50 via-stone-50 to-white border-b flex flex-col justify-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
           <h1 className="text-display text-neutral-900">
-            Handmade woodworking<br className="hidden sm:block" /> from makers near you.
+            The woodworking marketplace
           </h1>
           <p className="text-lg text-stone-500">
-            Custom furniture, decor &amp; more — crafted by hand in Texas.
+            Discover handmade pieces from local makers across the country.
           </p>
 
           <div className="max-w-xl mx-auto">
@@ -308,18 +309,20 @@ export default async function HomePage() {
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
       <div className="border-b bg-white">
-        <ScrollSection className="max-w-6xl mx-auto px-4 py-6 flex flex-wrap justify-center gap-x-10 gap-y-4 text-center">
-          <div className="flex flex-col items-center">
-            <span className="text-2xl sm:text-3xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
-            <span className="text-xs text-stone-500 uppercase tracking-wide mt-0.5">pieces listed</span>
+        <ScrollSection className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
+            <span className="text-xs text-stone-500 uppercase tracking-wide">pieces listed</span>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="text-2xl sm:text-3xl font-bold text-neutral-900">{sellersCount.toLocaleString()}</span>
-            <span className="text-xs text-stone-500 uppercase tracking-wide mt-0.5">active makers</span>
+          <span className="text-stone-300 self-center hidden sm:block">·</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString()}</span>
+            <span className="text-xs text-stone-500 uppercase tracking-wide">active makers</span>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="text-2xl sm:text-3xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
-            <span className="text-xs text-stone-500 uppercase tracking-wide mt-0.5">orders fulfilled</span>
+          <span className="text-stone-300 self-center hidden sm:block">·</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
+            <span className="text-xs text-stone-500 uppercase tracking-wide">orders fulfilled</span>
           </div>
         </ScrollSection>
       </div>
@@ -331,13 +334,11 @@ export default async function HomePage() {
           <p className="text-neutral-600 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="card-section">
-            <MakersMapSection
-              points={mapPoints}
-              heading="Explore the map"
-              subheading="Pin your location to find makers nearby — or browse the full map."
-            />
-          </div>
+          <MakersMapSection
+            points={mapPoints}
+            heading="Explore the map"
+            subheading="Pin your location to find makers nearby — or browse the full map."
+          />
         </div>
       </ScrollSection>
 
@@ -411,7 +412,7 @@ export default async function HomePage() {
                   href={`/browse?category=${c.key}`}
                   className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center hover:shadow-sm transition-shadow flex-none w-28 sm:w-auto ${c.bg}`}
                 >
-                  <span className="text-3xl">{c.emoji}</span>
+                  <c.Icon size={28} className="text-amber-700" />
                   <span className="text-xs font-medium text-neutral-700">{c.label}</span>
                 </Link>
               ))}
@@ -434,7 +435,7 @@ export default async function HomePage() {
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="card-section bg-gradient-to-br from-amber-50 to-stone-50">
+            <div className="rounded-3xl border bg-gradient-to-br from-amber-50 to-stone-50 overflow-hidden">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt="" className="h-36 w-full object-cover" />
@@ -506,7 +507,7 @@ export default async function HomePage() {
         {/* ── Fresh from the Workshop ───────────────────────────────────────── */}
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Fresh from the Workshop 🪵</h2>
+            <h2 className="text-xl font-semibold flex items-center gap-2">Fresh from the Workshop <Logs size={20} className="text-amber-700" /></h2>
             <Link href="/browse" className="text-sm text-neutral-600 hover:underline">Browse all</Link>
           </div>
 
@@ -576,7 +577,7 @@ export default async function HomePage() {
         {topSaved.length > 0 && (
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Buyer Favorites ❤️</h2>
+              <h2 className="text-xl font-semibold flex items-center gap-2">Buyer Favorites <Heart size={18} className="text-red-500" /></h2>
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">

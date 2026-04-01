@@ -131,8 +131,8 @@ export async function POST(req: NextRequest) {
   // Assign metro geography — non-fatal
   if (reqLat != null && reqLng != null) {
     try {
-      const { mapToMetros } = await import("@/lib/geo-metro");
-      const { metroId, cityMetroId } = await mapToMetros(reqLat, reqLng);
+      const { findOrCreateMetro } = await import("@/lib/geo-metro");
+      const { metroId, cityMetroId } = await findOrCreateMetro(reqLat, reqLng);
       if (metroId || cityMetroId) {
         await prisma.commissionRequest.update({ where: { id: request.id }, data: { metroId, cityMetroId } });
       }
