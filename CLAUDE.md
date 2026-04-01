@@ -1566,6 +1566,47 @@ All have `alternates.canonical` and OpenGraph tags.
 - City commission pages at priority 0.6 weekly
 - `BASE_URL` corrected from `grainline.co` → `thegrainline.com` across entire sitemap
 
+## City SEO — Sitemap, Map & Internal Linking (complete — 2026-04-01)
+
+Session 3 enhancements on top of the metro city pages from Session 2.
+
+### Sitemap overhaul (`src/app/sitemap.ts`)
+- **Priority by metro tier**: major metros (no `parentMetroId`) → browse 0.8 / makers 0.7; child metros → browse 0.6 / makers 0.5; commission metros → 0.7 / 0.5 respectively
+- **`/browse/[metroSlug]/[category]` routes**: added via `listing.groupBy({ by: ['metroId', 'category'] })` and `groupBy({ by: ['cityMetroId', 'category'] })`; lastmod = max `updatedAt` of any listing in that metro+category; priority 0.7 (major) / 0.5 (child)
+- **All metro routes content-gated**: only metros with at least 1 active listing/seller/commission appear in sitemap
+
+### Maker map integration
+- **`/makers/[metroSlug]`** — fetches `latitude`/`longitude` from Metro record; "View makers on map →" link to `/map?near={lat},{lng}&zoom=10` shown when coords available
+- **`/map`** — "Browse makers by city" section below the interactive map; queries metros with `chargesEnabled` sellers, groups child metros under their major parent, renders as a crawlable link list
+
+### Internal links from detail pages
+Three bidirectional links added — only shown when the record has a `metroId`/`cityMetroId` set:
+
+| Page | Link text | Destination | Field source |
+|---|---|---|---|
+| `/listing/[id]` | "More handmade pieces in [City], [State] →" | `/browse/[metroSlug]` | `listing.cityMetro ?? listing.metro` |
+| `/commission/[param]` (detail) | "More commissions in [City], [State] →" | `/commission/[metroSlug]` | `request.cityMetro ?? request.metro` |
+| `/seller/[id]` | "More makers in [City], [State] →" | `/makers/[metroSlug]` | `seller.cityMetro ?? seller.metro` |
+
+All three pages now include `metro` and `cityMetro` in their Prisma selects. Links use `cityMetro` first (more specific), falling back to `metro` (major area).
+
+### Search Console
+- TODO comment added in `src/app/layout.tsx` above `RootLayout` — Drew adds the verification meta tag manually from search.google.com/search-console
+
+### New Route / Metro Maintenance Checklist
+
+**When adding a new API route:**
+1. Add Zod validation for request body
+2. Decide public vs authenticated; if public, add to `isPublic` in `src/middleware.ts`
+3. Add rate limiting (`safeRateLimit` for mutations, `safeRateLimitOpen` for analytics)
+4. Log security events via `logSecurityEvent()` for self-action attempts
+
+**When adding a new page route:**
+- If publicly crawlable, add to `isPublic` in `src/middleware.ts`
+- If it should appear in sitemap, the sitemap generates dynamically — content-gated metros auto-appear when they get their first listing/commission/seller
+
+**Metro auto-discovery:** No manual sitemap work when a new metro gets its first content. The sitemap queries `prisma.metro.findMany({ where: { isActive: true, OR: [{ listings: ... }, ...] } })` dynamically on each request. New metros with content appear automatically within 1 sitemap crawl.
+
 ## Remaining Work
 
 ### Mobile audit round 3 (complete — deployed 2026-03-29)
