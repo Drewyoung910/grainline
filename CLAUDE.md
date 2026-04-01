@@ -1509,7 +1509,62 @@ npx dotenv-cli -e .env -- npx ts-node --transpile-only scripts/backfill-metros.t
 Result on first run: 4 sellers, 20 listings updated; 0 commissions (none had local coordinates).
 
 ### Metro slug format
-`<city-name>-<two-letter-state>` — all lowercase, hyphens for spaces (e.g. `the-woodlands-tx`). `isMetroSlug()` validates this format. Used in the next session to build `/makers/[metro]` and `/browse/[metro]` city pages.
+`<city-name>-<two-letter-state>` — all lowercase, hyphens for spaces (e.g. `the-woodlands-tx`). `isMetroSlug()` validates this format using `/^[a-z][a-z0-9-]+-[a-z]{2}$/`.
+
+## City SEO Pages (complete — 2026-04-01)
+
+Built on top of the metro geography infrastructure. All pages are public (middleware updated).
+
+### Route structure and conflict resolution
+
+| Route | File | Notes |
+|---|---|---|
+| `/browse/[metroSlug]` | `src/app/browse/[metroSlug]/page.tsx` | City listings grid |
+| `/browse/[metroSlug]/[category]` | `src/app/browse/[metroSlug]/[category]/page.tsx` | City + category filter |
+| `/commission/[param]` | `src/app/commission/[param]/page.tsx` | **Merged route** — see below |
+| `/makers/[metroSlug]` | `src/app/makers/[metroSlug]/page.tsx` | City sellers directory |
+
+**Commission route conflict resolution**: `/commission/[id]` (CUID) and `/commission/[metroSlug]` (metro slug) would be the same dynamic segment. Solution: single `[param]` route at `src/app/commission/[param]/page.tsx` that calls `isMetroSlug(param)` at the top. If true → renders metro commissions page. If false → renders existing commission detail page (original `[id]` logic). The old `src/app/commission/[id]/` directory was deleted; `MarkStatusButtons.tsx` was moved to `[param]/`.
+
+### Query logic
+- **Major metro** (no `parentMetroId`): queries by `metroId = metro.id` — captures all listings in the area including child cities
+- **Child metro**: queries by `cityMetroId = metro.id` — shows only items mapped to that specific city
+
+### generateStaticParams — content-gated
+Each route only generates static params for metros that have at least 1 active listing/seller/commission. Empty metros are excluded from static generation and the sitemap. If navigated to directly, the page renders an empty-city variant with a commission CTA.
+
+### Metadata per city page
+
+**Browse**: `Handmade Woodworking in [City], [State] | Grainline` — description pulls live listing/seller counts
+
+**Commission metro**: `Custom Woodworking Commissions in [City], [State] | Grainline`
+
+**Makers**: `Woodworkers & Furniture Makers in [City], [State] | Grainline`
+
+All have `alternates.canonical` and OpenGraph tags.
+
+### JSON-LD structured data
+- **Browse + commission metro**: `ItemList` schema with up to 10 `ListItem` entries (name, URL, image, offer price)
+- **Makers**: `ItemList` of `LocalBusiness` entries with address, description, and `knowsAbout: "Handmade Woodworking"`
+- **All city pages**: `BreadcrumbList` — Home → Browse/State → State → City
+
+### Unique intro copy
+- Browse with content: "Discover X handmade pieces from Y local makers in City, State. From custom furniture to kitchen accessories, connect directly with makers in the City area."
+- Browse empty: "Custom woodworking in City — makers coming soon. Post a commission request…"
+- Commission, Makers: similar dynamic patterns pulling live counts
+
+### Nearby areas internal linking
+- Major metro page: shows child metros that have content (e.g. Austin → Round Rock, Cedar Park…)
+- Child metro page: shows siblings (same parent) + parent metro
+- Only metros with active listings/sellers shown. Creates a crawlable geographic link network.
+
+### National browse page additions
+- **"Browse by city"** section added at the bottom of `/browse` — grouped by major metro with children listed under each. Only shows metros with active listings. Crawlable `<a>` links for Google discovery.
+
+### Sitemap
+- City browse + makers pages at priority 0.7/0.6 weekly/monthly
+- City commission pages at priority 0.6 weekly
+- `BASE_URL` corrected from `grainline.co` → `thegrainline.com` across entire sitemap
 
 ## Remaining Work
 

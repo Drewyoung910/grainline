@@ -11,6 +11,7 @@ const isPublic = createRouteMatcher([
   "/listing(.*)",
   "/seller(.*)",          // public seller profiles
   "/sellers(.*)",         // sellers directory
+  "/makers(.*)",          // city-level makers pages — public
   "/blog(.*)",            // blog — public viewing; writing/commenting handled in API routes
   "/map(.*)",             // all-sellers map — public
   "/terms",               // Terms of Service — public legal page

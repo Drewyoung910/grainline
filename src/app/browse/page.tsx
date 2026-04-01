@@ -713,6 +713,62 @@ export default async function BrowsePage({
           <RecentlyViewed />
         </Suspense>
       </div>
+
+      {/* Browse by city */}
+      <BrowseByCity />
     </main>
+  );
+}
+
+async function BrowseByCity() {
+  const metros = await prisma.metro.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { listings: { some: { status: ListingStatus.ACTIVE } } },
+        { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
+      ],
+    },
+    select: { id: true, slug: true, name: true, state: true, parentMetroId: true },
+    orderBy: { name: "asc" },
+  });
+
+  if (metros.length === 0) return null;
+
+  const majors = metros.filter((m) => !m.parentMetroId);
+  const children = metros.filter((m) => m.parentMetroId);
+
+  return (
+    <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10 border-t">
+      <h2 className="text-base font-semibold text-neutral-800 mb-4">Browse by city</h2>
+      <div className="space-y-4">
+        {majors.map((major) => {
+          const subs = children.filter((c) => c.parentMetroId === major.id);
+          return (
+            <div key={major.id}>
+              <Link
+                href={`/browse/${major.slug}`}
+                className="text-sm font-medium text-neutral-900 hover:underline"
+              >
+                {major.name}, {major.state}
+              </Link>
+              {subs.length > 0 && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                  {subs.map((sub) => (
+                    <Link
+                      key={sub.id}
+                      href={`/browse/${sub.slug}`}
+                      className="text-xs text-neutral-500 hover:underline"
+                    >
+                      {sub.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
