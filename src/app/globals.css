@@ -29,7 +29,7 @@ html, body {
   border-radius: 0.5rem; /* rounded-lg */
   border: 1px solid rgba(231, 229, 228, 0.6); /* stone-200 @ 60% */
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 8px 30px rgba(28, 25, 23, 0.04);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
 }

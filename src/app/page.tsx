@@ -256,7 +256,7 @@ export default async function HomePage() {
       <section className="relative min-h-screen bg-gradient-to-br from-amber-50 via-stone-50 to-white border-b flex flex-col justify-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
           <h1 className="text-display font-display text-neutral-900">
-            The woodworking marketplace
+            The Woodworking Marketplace
           </h1>
           <p className="text-lg text-stone-500">
             Discover handmade pieces from local makers across the country.
@@ -338,6 +338,7 @@ export default async function HomePage() {
             points={mapPoints}
             heading="Explore the map"
             subheading="Pin your location to find makers nearby — or browse the full map."
+            headingClassName="font-display"
           />
         </div>
       </ScrollSection>
@@ -349,7 +350,7 @@ export default async function HomePage() {
         {fromYourMakers.length > 0 && (
           <ScrollSection>
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">From Your Makers</h2>
+              <h2 className="text-xl font-semibold font-display">From Your Makers</h2>
               <Link href="/account/feed" className="text-sm text-neutral-600 hover:underline">
                 See full feed →
               </Link>
@@ -538,7 +539,7 @@ export default async function HomePage() {
                         </div>
                       </div>
                       <Link href={`/listing/${l.id}`} className="block">
-                        <div className="p-3 space-y-1 bg-stone-50">
+                        <div className="p-3 space-y-1 bg-white">
                           <div className="font-medium text-sm leading-snug line-clamp-2 text-neutral-900">{l.title}</div>
                           <div className="text-sm font-semibold text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
                           {shop && shop.count > 0 && (
@@ -549,7 +550,7 @@ export default async function HomePage() {
                           )}
                         </div>
                       </Link>
-                      <div className="px-3 pb-3 bg-stone-50">
+                      <div className="px-3 pb-3 bg-white">
                         <div className="flex items-center flex-wrap gap-1">
                           <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-stone-100">
                             {sellerAvatar ? (
@@ -602,7 +603,7 @@ export default async function HomePage() {
                         </div>
                       </div>
                       <Link href={`/listing/${l.id}`} className="block">
-                        <div className="p-3 space-y-1 bg-stone-50">
+                        <div className="p-3 space-y-1 bg-white">
                           <div className="font-medium text-sm leading-snug line-clamp-2 text-neutral-900">{l.title}</div>
                           <div className="text-sm font-semibold text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
                           {shop && shop.count > 0 && (
@@ -614,7 +615,7 @@ export default async function HomePage() {
                           <div className="text-xs text-stone-400">{l._count.favorites} saved</div>
                         </div>
                       </Link>
-                      <div className="px-3 pb-3 bg-stone-50">
+                      <div className="px-3 pb-3 bg-white">
                         <div className="flex items-center flex-wrap gap-1">
                           <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-stone-100">
                             {sellerAvatar ? (
@@ -662,7 +663,7 @@ export default async function HomePage() {
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-4 space-y-2 bg-stone-50">
+                      <div className="p-4 space-y-2 bg-white">
                         <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>
                         {p.excerpt && (
                           <p className="text-xs text-stone-500 line-clamp-2">{p.excerpt.slice(0, 100)}</p>

@@ -71,7 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en">
-      <body className="min-h-screen bg-white text-neutral-900">
+      <body className="min-h-screen bg-[#FAF9F6] text-neutral-900">
         <Providers>
           <Suspense fallback={null}>
             <Header />

@@ -497,7 +497,7 @@ export default async function BrowsePage({
         </div>
 
         <Link href={`/listing/${l.id}`} className="block">
-          <div className="p-4 space-y-1 bg-stone-50">
+          <div className="p-4 space-y-1 bg-white">
             <div className="font-medium text-sm text-neutral-900 line-clamp-1">{l.title}</div>
             <div className="font-semibold text-base text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
             {shop && shop.count > 0 && (
@@ -510,20 +510,7 @@ export default async function BrowsePage({
           </div>
         </Link>
 
-        <div className="px-4 pb-4 bg-stone-50">
-          {l.tags?.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1">
-              {l.tags.slice(0, 4).map((t) => (
-                <Link
-                  key={t}
-                  href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
-                  className="rounded-full border px-2 py-0.5 text-[11px] hover:bg-neutral-50"
-                >
-                  #{t}
-                </Link>
-              ))}
-            </div>
-          )}
+        <div className="px-4 pb-4 bg-white">
           <div className="flex items-center flex-wrap gap-1.5">
             <Link
               href={`/seller/${l.sellerId}`}

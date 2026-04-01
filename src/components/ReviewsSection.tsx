@@ -116,7 +116,7 @@ export default async function ReviewsSection({
   return (
     <section id="reviews" className="space-y-4 mt-8 scroll-mt-20">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Reviews</h2>
+        <h2 className="text-lg font-semibold font-display">Reviews</h2>
         {avgQuarter != null && (
           <div className="flex items-center gap-2 text-sm text-neutral-700">
             <Stars value={avgQuarter} />
@@ -128,7 +128,7 @@ export default async function ReviewsSection({
 
       {/* My review block */}
       {mine ? (
-        <div className="rounded-xl border bg-white p-4">
+        <div className="card-section px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
             <div className="font-medium">My review</div>
             {edit ? (
@@ -230,7 +230,7 @@ export default async function ReviewsSection({
 
       {/* Others */}
       {sorted.length === 0 ? (
-        <div className="rounded-xl border bg-white p-6 text-neutral-600">No reviews yet — be the first to share your experience.</div>
+        <div className="card-section px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
       ) : (
         <ul className="space-y-4">
           {sorted.map((r) => {
@@ -244,7 +244,7 @@ export default async function ReviewsSection({
                 .join("") || "U";
 
             return (
-              <li key={r.id} className="rounded-xl border bg-white p-4">
+              <li key={r.id} className="card-section px-4 py-3">
                 <div className="flex items-start gap-3">
                   <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}

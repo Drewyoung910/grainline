@@ -62,7 +62,7 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                     <div className="h-full w-full bg-neutral-200" />
                   )}
                 </div>
-                <div className="p-4 space-y-1 bg-stone-50">
+                <div className="p-4 space-y-1 bg-white">
                   <div className="font-medium text-sm line-clamp-2">{l.title}</div>
                   <div className="text-sm text-neutral-500">
                     {(l.priceCents / 100).toLocaleString(undefined, {

@@ -18,10 +18,12 @@ export default function MakersMapSection({
   points,
   heading,
   subheading,
+  headingClassName,
 }: {
   points: Point[];
   heading?: string;
   subheading?: string;
+  headingClassName?: string;
 }) {
   const [geoErr, setGeoErr] = useState<string | null>(null);
   const router = useRouter();
@@ -48,7 +50,7 @@ export default function MakersMapSection({
     <section className="mt-10 rounded-3xl border bg-white shadow-sm overflow-hidden">
       <div className="p-6 sm:p-8 flex flex-col lg:flex-row gap-6 lg:gap-10">
         <div className="lg:w-[38%]">
-          <h2 className="text-2xl font-semibold">{heading ?? "Find local artisans near you"}</h2>
+          <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
           <p className="mt-2 text-neutral-600">
             {subheading ?? "Explore makers in your area. Share your location to see who’s nearby—or browse the full map."}
           </p>
