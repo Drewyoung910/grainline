@@ -340,7 +340,7 @@ Seven sections with a single `updateSellerProfile` server action for fields A–
 2. **Stats bar** — thin `border-b` strip; makers count fixed to `prisma.sellerProfile.count({ where: { listings: { some: { status: ACTIVE } } } })` (only active-listing sellers); "X pieces listed · X active makers · X orders fulfilled"; wrapped in `ScrollSection` for fade-in
 3. **Find Makers Near You** — full-width `bg-stone-50 border-b` section; heading + subheading; `MakersMapSection` (now accepts optional `heading`/`subheading` props, falls back to defaults); replaces old "Made Near You" at bottom
 4. **Shop by Category** — 5 categories + "Browse all →" tile; `overflow-x-auto` horizontal scroll on mobile, `grid-cols-6` on desktop; `ScrollSection` fade-in
-5. **Meet a Maker spotlight** — queries `isVerifiedMaker = true` first; falls back to most-reviewed seller via raw SQL join; `ScrollSection` fade-in
+5. **Meet a Maker spotlight** — 3-tier selection: (1) manual override via `isVerifiedMaker = true`, (2) weekly deterministic rotation among all Guild Members/Masters (`Math.floor(Date.now() / (7d ms)) % guildSellers.length`), (3) most-reviewed seller fallback. Badge: `<GuildBadge level={guildLevel} showLabel={true} size={18} />` replaces old amber "Verified Maker" pill. `ScrollSection` fade-in
 6. **Fresh from the Workshop 🪵** — horizontal scroll row (`overflow-x-auto flex snap-x snap-mandatory`), 6 cards, `w-56 flex-none` per card; `ScrollSection` fade-in
 7. **Collector Favorites ❤️** — same horizontal scroll pattern, 6 cards; `ScrollSection` fade-in
 8. **Stories from the Workshop** — 3-col grid of blog post cards; `ScrollSection` fade-in
@@ -517,8 +517,11 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 **Remaining infrastructure step:** Add `CRON_SECRET` env var to Vercel (generate with `openssl rand -hex 32`). Both cron routes return 401 without it.
 
+**Guild system additions (complete — 2026-04-01):**
+- **Reapplication after revocation** — `dashboard/verification/page.tsx`: sellers with `guildLevel === "NONE"` and no pending application see the eligibility checklist and form (upsert action handles both first-time and re-applications). Guild Master: added rejection notice when `isMasterRejected && !guildMasterReviewNotes`.
+- **Admin reinstatement** — `admin/verification/page.tsx`: new `reinstateGuildMember` server action sets `guildLevel = "GUILD_MEMBER"`, `isVerifiedMaker = true`, logs `REINSTATE_GUILD_MEMBER` audit entry. New "Revoked Guild Members" section shows sellers with `guildMemberApprovedAt` set but `guildLevel = "NONE"`.
+
 **Still unbuilt (separate from Phases 1–3):**
-- Seller analytics dashboard — reuses `SellerMetrics` model, no schema changes needed
 - Monogram stamp picker (Phase 1 cosmetic): `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); unique wax-seal stamp per Guild Master using shop initials + chosen style
 
 ## Similar Items (complete)
@@ -1056,7 +1059,9 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 
 ### API routes
 - **`GET /api/seller/analytics`** — accepts `?range=today|yesterday|week|last7|month|last30|year|last365|alltime`; returns full analytics JSON including overview, engagement, chart data (with all time buckets), top listings, rating over time, guild metrics; `chartGrouping` is `'hour'` for today/yesterday, `'day'` for week/last7/month/last30, `'month'` for year/last365, `'year'` for alltime; all DB queries use raw SQL for bucketing; guild metrics auto-recalculated if stale (>24h). Rating-over-time SQL uses `AVG(r."ratingX2") / 2.0` (Review stores `ratingX2` not `rating`). `alltime` start date uses seller's `createdAt` so year buckets are accurate.
-- Engagement stats (Listing Views, Conversion) are **range-aware** — uses `ListingViewDaily.aggregate` with `date: { gte, lte }`; CTR and Clicks cards removed from UI
+- Engagement stats are **range-aware** — uses `ListingViewDaily.aggregate` with `date: { gte, lte }`; Listing Clicks + Click-through Rate (views/clicks, null when no click data) restored to UI
+- **Conversion rate**: `number | null` — `null` when `totalViews === 0` but orders exist (tracking wasn't active yet); capped at 100%; `0` when both are 0. Frontend displays "—" for null
+- **Click-through Rate** (CTR): views ÷ clicks — `null` when `totalClicks === 0`; capped at 100%; frontend displays "—" for null
 - Cart abandonment is range-aware: Prisma `cartItem.findMany` + `orderItem.findMany` in the same date range; listings purchased in range are excluded from abandonment count
 - Chart `views` buckets populated from real `ListingViewDaily` data: day grouping by YYYY-MM-DD; month grouping by YYYY-MM; year grouping by YYYY; hour grouping distributes daily total evenly across elapsed hours (today: hours 0–currentHour; yesterday: all 24)
 - **`GET /api/seller/analytics/recent-sales`** — returns last 10 paid orders for this seller's items (split from main route to keep range-change responses fast)
@@ -1079,9 +1084,9 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 
 **A — Overview (4 stat cards)**: Total Revenue, Total Orders, Avg Order Value, Active Listings — all range-aware except Active Listings (always current)
 
-**B — Engagement (8 stat cards)**: Listing Views (range-aware, from `ListingViewDaily`, subtitle "updates daily"), Conversion Rate (orders÷listing views, range-aware), Profile Visits (all-time from `profileViews`), Cart Abandoned (range-aware — items added but not purchased in same period), Saved/Favorites, Watching (stock notification subscribers), Repeat Buyer Rate (all-time), Avg Processing Time (order created → shipped). Note: Clicks and CTR cards removed. Chart views populate going forward only — no historical data before `ListingViewDaily` was added.
+**B — Engagement (10 stat cards)**: Listing Views, Listing Clicks (range-aware), Click-through Rate (views÷clicks, "—" when null), Conversion Rate (orders÷views, "—" when null — null when view tracking wasn't yet active), Profile Visits (all-time from `profileViews`), Cart Abandoned (range-aware), Saved/Favorites, Watching (stock notification subscribers), Repeat Buyer Rate (all-time), Avg Processing Time (order created → shipped). Chart views populate going forward only — no historical data before `ListingViewDaily` was added.
 
-**C — Performance Chart**: SVG line chart (inline, no external lib); 9 time range pill selectors (Today / Yesterday / This week / Last 7 days / This month / Last 30 days / This year / Last 365 days / All time); metric selector tabs (Revenue / Orders / Views); colors: amber=revenue, indigo=orders, teal=views; area fill (10% opacity); dots shown for ≤20 points; invisible hit-target rects for >20 points; Y-axis uses `getYTicks(maxVal)` — no duplicates, whole numbers only, returns `[]` when maxVal=0; X-axis label thinning with rotation when >14 buckets; hover tooltip; "No data for this period" overlay when all values are zero
+**C — Performance Chart**: SVG line chart (inline, no external lib); 9 time range pill selectors; metric selector tabs (Revenue / Orders / Views); colors: revenue `#D97706` (amber-600), orders `#4F46E5` (indigo-600), views `#0D9488` (teal-600); gradient area fill via `<linearGradient>` (15% → 0% opacity); dashed gridlines (`strokeDasharray="4 4"`, `opacity={0.5}`); hollow dots for ≤20 points (white fill, colored stroke, strokeWidth=2); invisible hit-target rects for >20 points; white card tooltip (`bg-white border border-stone-200/60 rounded-lg shadow-md`); Y-axis uses `getYTicks(maxVal)`; X-axis label thinning with rotation when >14 buckets; "No data for this period" overlay when all values are zero
 
 **D — Top Listings (top 8 by all-time revenue, showing 5)**: photo (80×80) + title + revenue/units row (no avg price) + engagement row (👁 views · 🖱 clicks · ♥ favorites · 🔔 watching · $/day)
 
@@ -1715,9 +1720,7 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 ### Platform features
 
-8. **Guild reapplication** — allow sellers with `guildLevel: NONE` + no pending `MakerVerification` to reapply; currently the apply route 400s if a previous rejected record exists
-9. **Meet a Maker spotlight** — change badge from "Verified Maker" to Guild Member/Master tier badge; add `featuredOnHomepage Boolean` to `SellerProfile` for manual override; random rotation among Guild Members each build
-10. **Wax seal stamp** (Guild Master exclusive, post-launch) — `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); monogram + `logo-mark.svg` — defer until post-launch
+8. **Wax seal stamp** (Guild Master exclusive, post-launch) — `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); monogram + `logo-mark.svg` — defer until post-launch
 
 ### Legal / business
 
@@ -1732,6 +1735,10 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 17. **Google Search Console** — verify domain ownership, submit `https://thegrainline.com/sitemap.xml`
 18. **`metadataBase`** currently set to `https://grainline.co` in `layout.tsx` — update to `https://thegrainline.com` (sitemap is already corrected but `metadataBase` drives OG image absolute URLs)
+
+### Process
+
+**Every Claude Code session must update CLAUDE.md at the end** — add or update sections for all features built, all bugs fixed, all schema/API/UI changes made. Keep CLAUDE.md as the authoritative reference for the current state of the codebase.
 
 ## Security Hardening (complete — 2026-03-31)
 

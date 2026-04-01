@@ -232,9 +232,32 @@ async function revokeMaster(sellerProfileId: string) {
   revalidatePath("/admin/verification");
 }
 
+async function reinstateGuildMember(formData: FormData) {
+  "use server";
+  const me = await requireAdmin();
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  if (!sellerProfileId) return;
+
+  await prisma.sellerProfile.update({
+    where: { id: sellerProfileId },
+    data: { guildLevel: "GUILD_MEMBER", isVerifiedMaker: true },
+  });
+
+  // Log the reinstatement
+  const { logAdminAction } = await import("@/lib/audit");
+  await logAdminAction({
+    adminId: me.id,
+    action: "REINSTATE_GUILD_MEMBER",
+    targetType: "SellerProfile",
+    targetId: sellerProfileId,
+  });
+
+  revalidatePath("/admin/verification");
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 export default async function AdminVerificationPage() {
-  const [memberPending, masterPending, memberActive, masterActive] = await Promise.all([
+  const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },
       orderBy: { appliedAt: "asc" },
@@ -258,6 +281,12 @@ export default async function AdminVerificationPage() {
       where: { guildLevel: "GUILD_MASTER" },
       select: { id: true, displayName: true, guildMasterApprovedAt: true },
       orderBy: { guildMasterApprovedAt: "desc" },
+    }),
+    prisma.sellerProfile.findMany({
+      where: { guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
+      select: { id: true, displayName: true, guildMemberApprovedAt: true },
+      orderBy: { guildMemberApprovedAt: "desc" },
+      take: 50,
     }),
   ]);
 
@@ -546,6 +575,34 @@ export default async function AdminVerificationPage() {
                 <form action={revokeMaster.bind(null, s.id)}>
                   <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
                     Revoke Guild Master
+                  </button>
+                </form>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {/* ── Revoked Guild Members (reinstateable) ── */}
+      {revokedMembers.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold border-b pb-2 text-neutral-600">
+            Revoked Guild Members ({revokedMembers.length})
+          </h2>
+          <div className="space-y-2">
+            {revokedMembers.map((s) => (
+              <div key={s.id} className="flex items-center justify-between rounded-xl border px-5 py-3">
+                <div>
+                  <div className="font-medium text-sm">{s.displayName}</div>
+                  {s.guildMemberApprovedAt && (
+                    <div className="text-xs text-neutral-500">
+                      Was approved {new Date(s.guildMemberApprovedAt).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+                <form action={reinstateGuildMember}>
+                  <input type="hidden" name="sellerProfileId" value={s.id} />
+                  <button type="submit" className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50">
+                    Reinstate
                   </button>
                 </form>
               </div>

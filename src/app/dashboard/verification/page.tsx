@@ -552,6 +552,11 @@ export default async function VerificationPage() {
                   {fullSeller.guildMasterReviewNotes}
                 </div>
               )}
+              {isMasterRejected && !fullSeller.guildMasterReviewNotes && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                  Your previous Guild Master application was not approved. You may reapply once you meet all requirements.
+                </div>
+              )}
 
               {masterCriteria && !masterCriteria.allMet && null /* form hidden until requirements met */}
 

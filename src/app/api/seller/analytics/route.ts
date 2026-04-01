@@ -188,8 +188,20 @@ export async function GET(req: Request) {
     ]);
     const totalViews = rangeViewAgg._sum.views ?? 0;
     const totalClicks = rangeViewAgg._sum.clicks ?? 0;
+    // viewToClickRatio kept for legacy, but surfaced as clickThroughRate below
     const viewToClickRatio = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
-    const conversionRate = totalViews > 0 ? (totalOrders / totalViews) * 100 : 0;
+    // Conversion rate: null when no view data but orders exist (ListingViewDaily tracking wasn't active yet)
+    // Cap at 100% to handle edge cases. Returns 0 when both are 0.
+    const conversionRate: number | null =
+      totalViews === 0
+        ? totalOrders === 0 ? 0 : null
+        : Math.min((totalOrders / totalViews) * 100, 100);
+    // Click-through rate: views / clicks (what % of card clickers viewed the full listing page)
+    // null when clicks are 0 (tracking may not be active)
+    const clickThroughRate: number | null =
+      totalClicks === 0
+        ? null
+        : Math.min((totalViews / totalClicks) * 100, 100);
 
     const [favoritesCount, stockNotificationSubs] = await Promise.all([
       listingIds.length > 0 ? prisma.favorite.count({ where: { listingId: { in: listingIds } } }) : 0,
@@ -554,7 +566,8 @@ export async function GET(req: Request) {
         totalClicks,
         profileVisits: sellerProfile.profileViews,
         viewToClickRatio: Math.round(viewToClickRatio * 10) / 10,
-        conversionRate: Math.round(conversionRate * 100) / 100,
+        conversionRate: conversionRate !== null ? Math.round(conversionRate * 100) / 100 : null,
+        clickThroughRate: clickThroughRate !== null ? Math.round(clickThroughRate * 10) / 10 : null,
         cartAbandonment,
         stockNotificationSubs,
         favoritesCount,

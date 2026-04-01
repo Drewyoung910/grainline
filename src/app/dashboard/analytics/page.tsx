@@ -68,7 +68,8 @@ type AnalyticsData = {
     totalClicks: number;
     profileVisits: number;
     viewToClickRatio: number;
-    conversionRate: number;
+    conversionRate: number | null;
+    clickThroughRate: number | null;
     cartAbandonment: number;
     stockNotificationSubs: number;
     favoritesCount: number;
@@ -135,7 +136,7 @@ function Skeleton({ className = "" }: { className?: string }) {
 // ── SVG Line Chart ─────────────────────────────────────────────────────────────
 
 const METRIC_COLORS: Record<ChartMetric, string> = {
-  revenue: "#B45309",
+  revenue: "#D97706",
   orders: "#4F46E5",
   views: "#0D9488",
 };
@@ -241,6 +242,14 @@ function LineChartSection({
           viewBox={`0 0 ${SVG_W} ${SVG_H}`}
           style={{ overflow: "visible", display: "block" }}
         >
+          {/* Gradient definition for area fill */}
+          <defs>
+            <linearGradient id={`areaGradient-${metric}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.15} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+
           {/* Y-axis grid lines + labels */}
           {yTicks.map((tick) => {
             const y = PAD_T + CH - (yMax > 0 ? (tick / yMax) * CH : 0);
@@ -251,8 +260,11 @@ function LineChartSection({
                   x2={SVG_W - PAD_R}
                   y1={y}
                   y2={y}
-                  stroke="#e5e7eb"
-                  strokeWidth={0.5}
+                  stroke="currentColor"
+                  className="text-stone-200"
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  opacity={0.5}
                 />
                 <text
                   x={PAD_L - 8}
@@ -282,7 +294,7 @@ function LineChartSection({
 
           {/* Area fill */}
           {hasData && points.length > 1 && (
-            <path d={areaD} fill={color} fillOpacity={0.1} />
+            <path d={areaD} fill={`url(#areaGradient-${metric})`} />
           )}
 
           {/* Line */}
@@ -297,7 +309,7 @@ function LineChartSection({
             />
           )}
 
-          {/* Dots (≤20 points) */}
+          {/* Dots (≤20 points) — hollow style */}
           {hasData &&
             n <= 20 &&
             points.map((p, i) => (
@@ -306,7 +318,9 @@ function LineChartSection({
                 cx={p.x}
                 cy={p.y}
                 r={3}
-                fill={color}
+                fill="white"
+                stroke={color}
+                strokeWidth={2}
                 style={{ cursor: "pointer" }}
                 onMouseEnter={() =>
                   setTooltip({
@@ -369,7 +383,7 @@ function LineChartSection({
         {/* Tooltip */}
         {tooltip && (
           <div
-            className="absolute z-20 pointer-events-none bg-neutral-900 text-white text-xs px-2 py-1 rounded shadow-md whitespace-nowrap"
+            className="absolute z-20 pointer-events-none bg-white text-neutral-900 text-sm px-3 py-2 rounded-lg shadow-md border border-stone-200/60 whitespace-nowrap"
             style={{
               left: `${tooltip.xPct}%`,
               top: `${tooltip.yPct}%`,
@@ -510,8 +524,18 @@ export default function AnalyticsPage() {
             </div>
             {[
               {
+                label: "Listing Clicks",
+                value: data.engagement.totalClicks.toLocaleString(),
+                note: "times a listing card was clicked in browse",
+              },
+              {
+                label: "Click-through Rate",
+                value: data.engagement.clickThroughRate !== null ? pct(data.engagement.clickThroughRate) : "—",
+                note: "card clicks → full listing view",
+              },
+              {
                 label: "Conversion",
-                value: pct(data.engagement.conversionRate, 2),
+                value: data.engagement.conversionRate !== null ? pct(data.engagement.conversionRate, 2) : "—",
                 note: "orders ÷ listing views",
               },
               {

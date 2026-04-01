@@ -148,11 +148,28 @@ export default async function HomePage() {
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
+  // Manual override: any seller with isVerifiedMaker = true shown first
   let featuredMaker = await prisma.sellerProfile.findFirst({
-    where: { isVerifiedMaker: true },
+    where: { isVerifiedMaker: true, chargesEnabled: true, vacationMode: false, user: { banned: false } },
     include: { user: true },
   });
+
   if (!featuredMaker) {
+    // Weekly rotation among Guild Members and Masters (deterministic — same for all visitors in same week)
+    const guildSellers = await prisma.sellerProfile.findMany({
+      where: { guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
+      orderBy: { id: "asc" },
+      include: { user: true },
+    });
+
+    if (guildSellers.length > 0) {
+      const weekNumber = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+      featuredMaker = guildSellers[weekNumber % guildSellers.length];
+    }
+  }
+
+  if (!featuredMaker) {
+    // Fall back to most-reviewed seller
     const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
       SELECT l."sellerId", COUNT(r.id) as review_count
       FROM "Listing" l
@@ -460,11 +477,7 @@ export default async function HomePage() {
                 <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-lg font-semibold">{featuredMaker.displayName}</span>
-                    {featuredMaker.isVerifiedMaker && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
-                        ✓ Verified Maker
-                      </span>
-                    )}
+                    <GuildBadge level={featuredMaker.guildLevel as import("@/components/GuildBadge").GuildLevelValue} showLabel={true} size={18} />
                   </div>
 
                   {featuredMaker.tagline && (
