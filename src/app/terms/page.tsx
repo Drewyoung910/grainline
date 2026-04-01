@@ -403,6 +403,14 @@ export default function TermsPage() {
             Makers Map. Only your approximate location (city/region level) is displayed on the map.
             You may remove your map pin at any time by clearing your location in your dashboard settings.
           </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.21 Intellectual Property Warranty</h3>
+          <p>
+            You represent and warrant that your listings, including the design, content, images, and
+            the items themselves, do not infringe any third-party intellectual property rights,
+            including patents, copyrights, trademarks, or trade secrets. You are solely responsible
+            for any claims of infringement arising from your listings or products.
+          </p>
         </section>
 
         {/* 5 */}
@@ -839,6 +847,11 @@ export default function TermsPage() {
             in connection with operating, promoting, and improving the Platform. This license
             survives removal of your listing but not deletion of your account.
           </p>
+          <p className="mt-3">
+            You represent that you have obtained all necessary rights, releases, and consents for
+            any content you upload, including the consent of any identifiable persons depicted in
+            your photos for the use of their likeness on the Platform.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">11.3 DMCA Takedown Notices</h3>
           <p>
@@ -871,6 +884,13 @@ export default function TermsPage() {
           <p>
             Grainline will suspend or terminate the accounts of users who are determined to be repeat
             infringers of intellectual property rights.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">11.6 Feedback and Suggestions</h3>
+          <p>
+            Any feedback, ideas, suggestions, or feature requests you voluntarily submit to Grainline
+            become the sole property of Grainline. Grainline may use, modify, and implement such
+            feedback without restriction, attribution, or compensation to you.
           </p>
         </section>
 
