@@ -31,6 +31,8 @@ const isPublic = createRouteMatcher([
   "/api/newsletter",           // newsletter signup — no auth needed
   "/api/listings/(.*)/view",   // listing view tracking — fire-and-forget analytics
   "/api/listings/(.*)/click",  // listing click tracking — fire-and-forget analytics
+  "/api/listings/(.*)/similar",       // similar listings — public
+  "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);
