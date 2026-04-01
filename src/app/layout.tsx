@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     title: "Grainline",
   },
   icons: {
-    icon: "/icon-192.png",
+    icon: "/favicon.png",
     apple: "/icon-192.png",
   },
   formatDetection: {

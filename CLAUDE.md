@@ -640,7 +640,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - `POST /api/notifications/mark-read` — auth required; body `{ ids?: string[] }` (omit to mark all read); updates `read = true`
 
 ### Components & pages
-- **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; polls `GET /api/notifications` every 30s; shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint)
+- **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; polls `GET /api/notifications` every 30s; shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
 - **`/dashboard/notifications`** (`src/app/dashboard/notifications/page.tsx`) — full paginated notification history; "Mark all read" server action; grouped by read/unread; links to relevant pages
 - **`UnreadBadge`** (`src/components/UnreadBadge.tsx`) — small red dot/count badge, reused by `NotificationBell`
 - `NotificationBell` rendered in `Header.tsx` inside `<Show when="signed-in">`, replacing the static bell placeholder
@@ -1812,7 +1812,8 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 
 - **`public/manifest.json`** — name, short_name, description, start_url, display: standalone, background_color `#FAFAF8`, theme_color `#1C1917`, shortcuts (Browse, My Account), categories (shopping, lifestyle)
 - **`public/icon-192.png`** and **`public/icon-512.png`** — generated from `public/logo.svg` via `sharp`; regenerated with `#1C1917` dark background so logo is visible on all surfaces (192×192 and 512×512)
-- **`src/app/layout.tsx`** — added `manifest: '/manifest.json'`, `appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Grainline' }`, `formatDetection: { telephone: false }`, separate `viewport` export with `themeColor: '#1C1917'`, `icons: { apple: "/icon-192.png" }`
+- **`public/favicon.png`** — copy of `icon-192.png`; used as the browser tab favicon (replaces `favicon.ico` which was the Vercel default triangle)
+- **`src/app/layout.tsx`** — `icons: { icon: "/favicon.png", apple: "/icon-192.png" }`; also has `manifest`, `appleWebApp`, `formatDetection`, `viewport` with `themeColor`
 - **`src/app/offline/page.tsx`** — server component; logo + "You're offline" heading + "Try again" link (`<a href="/">`)
 
 ## Security Headers (complete — 2026-03-31)

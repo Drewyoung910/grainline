@@ -575,7 +575,7 @@ export default function AnalyticsPage() {
               {
                 label: "Listing Clicks",
                 value: data.engagement.totalClicks.toLocaleString(),
-                note: "times a listing card was clicked in browse",
+                note: "times a listing card was clicked across the site",
               },
               {
                 label: "Click-through Rate",
