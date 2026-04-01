@@ -88,7 +88,7 @@ export default function FeedClient() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Your Feed</h1>
+        <h1 className="text-2xl font-bold font-display">Your Feed</h1>
         <Link href="/account/following" className="text-sm text-neutral-500 hover:underline">
           Manage following →
         </Link>
@@ -135,9 +135,9 @@ function FeedCard({ item }: { item: FeedItem }) {
 
   if (item.kind === "listing") {
     return (
-      <div className="border border-neutral-200 overflow-hidden">
+      <div className="card-listing">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
-          <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5">
+          <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
             New Listing
           </span>
           <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
@@ -148,9 +148,9 @@ function FeedCard({ item }: { item: FeedItem }) {
         <Link href={`/listing/${item.id}`} className="block">
           {item.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.imageUrl} alt={item.title ?? ""} className="w-full h-48 object-cover" />
+            <img src={item.imageUrl} alt={item.title ?? ""} className="w-full aspect-[4/3] object-cover" />
           )}
-          <div className="p-4 bg-stone-50">
+          <div className="p-4 bg-white">
             <p className="font-medium text-neutral-900">{item.title}</p>
             {item.priceCents != null && (
               <p className="text-sm text-neutral-600 mt-1">
@@ -168,9 +168,9 @@ function FeedCard({ item }: { item: FeedItem }) {
 
   if (item.kind === "blog") {
     return (
-      <div className="border border-neutral-200 overflow-hidden">
+      <div className="card-listing">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
-          <span className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5">
+          <span className="text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded">
             New Post
           </span>
           <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
@@ -181,9 +181,9 @@ function FeedCard({ item }: { item: FeedItem }) {
         <Link href={`/blog/${item.slug}`} className="block">
           {item.coverImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.coverImageUrl} alt={item.title ?? ""} className="w-full h-32 object-cover" />
+            <img src={item.coverImageUrl} alt={item.title ?? ""} className="w-full aspect-[4/3] object-cover" />
           )}
-          <div className="p-4 bg-stone-50">
+          <div className="p-4 bg-white">
             <p className="font-medium text-neutral-900">{item.title}</p>
             {item.excerpt && (
               <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{item.excerpt}</p>
@@ -196,13 +196,13 @@ function FeedCard({ item }: { item: FeedItem }) {
 
   if (item.kind === "broadcast") {
     return (
-      <div className="border border-teal-200 bg-teal-50 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-teal-100">
+      <div className="card-section">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
           <span className="text-xs font-medium text-teal-700">📢 Shop Update</span>
-          <Link href={sellerHref} className="text-xs text-teal-600 hover:underline">
+          <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
             {item.sellerName}
           </Link>
-          <span className="text-xs text-teal-400 ml-auto">{timeAgo(item.date)}</span>
+          <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
         <div className="p-4">
           <p className="text-sm text-neutral-700">{item.message}</p>
@@ -211,7 +211,7 @@ function FeedCard({ item }: { item: FeedItem }) {
             <img
               src={item.broadcastImageUrl}
               alt="Shop update"
-              className="mt-3 w-full h-40 object-cover"
+              className="mt-3 w-full aspect-[4/3] object-cover"
             />
           )}
         </div>

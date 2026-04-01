@@ -144,7 +144,7 @@ export default async function AccountPage() {
           />
         )}
         <div>
-          <h1 className="text-3xl font-bold">My Account</h1>
+          <h1 className="text-3xl font-bold font-display">My Account</h1>
           <p className="text-neutral-500 text-sm mt-0.5">{me.email}</p>
         </div>
       </header>
@@ -152,7 +152,7 @@ export default async function AccountPage() {
       {/* ── Section 1: Recent Orders ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">My Orders</h2>
+          <h2 className="text-xl font-semibold font-display">My Orders</h2>
           <Link href="/account/orders" className="text-sm text-neutral-600 underline hover:text-neutral-900">
             View all orders →
           </Link>
@@ -166,7 +166,7 @@ export default async function AccountPage() {
             </Link>
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="card-section divide-y divide-neutral-100">
             {recentOrders.map((order) => {
               const firstItem = order.items[0];
               const thumb = firstItem?.listing.photos[0]?.url;
@@ -174,7 +174,7 @@ export default async function AccountPage() {
                 order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
 
               return (
-                <li key={order.id} className="border border-neutral-200 flex items-center gap-4 p-3 hover:bg-neutral-50 transition-colors">
+                <li key={order.id} className="flex items-center gap-4 p-3 hover:bg-neutral-50 transition-colors">
                   {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={thumb} alt="" className="h-14 w-14 object-cover border border-neutral-200 shrink-0" />
@@ -214,7 +214,7 @@ export default async function AccountPage() {
       {/* ── Section 2: Saved Items ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Saved Items</h2>
+          <h2 className="text-xl font-semibold font-display">Saved Items</h2>
           <Link href="/account/saved" className="text-sm text-neutral-600 underline hover:text-neutral-900">
             View all saved →
           </Link>
@@ -232,7 +232,7 @@ export default async function AccountPage() {
                 <Link
                   key={listing.id}
                   href={`/listing/${listing.id}`}
-                  className="border border-neutral-200 hover:bg-neutral-50 shrink-0 w-40 transition-colors"
+                  className="card-listing shrink-0 w-40 transition-colors"
                 >
                   {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -240,7 +240,7 @@ export default async function AccountPage() {
                   ) : (
                     <div className="h-32 w-full bg-neutral-100" />
                   )}
-                  <div className="p-2 bg-stone-50 border-t border-neutral-200">
+                  <div className="p-2 bg-white border-t border-neutral-100">
                     <p className="text-xs font-medium truncate">{listing.title}</p>
                     <p className="text-xs text-neutral-500">
                       {(listing.priceCents / 100).toLocaleString(undefined, {
@@ -259,12 +259,12 @@ export default async function AccountPage() {
       {/* ── Section 3: Following ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Following</h2>
+          <h2 className="text-xl font-semibold font-display">Following</h2>
           <Link href="/account/feed" className="text-sm text-neutral-600 underline hover:text-neutral-900">
             View feed →
           </Link>
         </div>
-        <div className="border border-neutral-200 p-5 flex items-center justify-between">
+        <div className="card-section p-5 flex items-center justify-between">
           <div>
             <p className="text-2xl font-bold">{followCount}</p>
             <p className="text-xs text-neutral-500">maker{followCount !== 1 ? "s" : ""} followed</p>
@@ -280,8 +280,8 @@ export default async function AccountPage() {
 
       {/* ── Section 4: Commission Requests ── */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Commission Requests</h2>
-        <div className="border border-neutral-200 p-4">
+        <h2 className="text-xl font-semibold font-display mb-4">Commission Requests</h2>
+        <div className="card-section p-4">
           <p className="text-sm text-neutral-500 mb-3">Custom pieces you&apos;ve requested from makers</p>
           <div className="flex flex-wrap items-center gap-2">
             <Link href="/account/commissions" className="text-sm underline hover:text-neutral-900">
@@ -297,8 +297,8 @@ export default async function AccountPage() {
 
       {/* ── Section 5: Account Settings ── */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
-        <div className="border border-neutral-200 p-5 space-y-3">
+        <h2 className="text-xl font-semibold font-display mb-4">Account Settings</h2>
+        <div className="card-section p-5 space-y-3">
           <div className="text-sm space-y-1">
             <p className="font-medium">{me.name ?? "—"}</p>
             <p className="text-neutral-500">{me.email}</p>
@@ -315,8 +315,8 @@ export default async function AccountPage() {
       {/* ── Section 6: Workshop (sellers only) ── */}
       {sellerProfile && (
         <section>
-          <h2 className="text-xl font-semibold mb-4">Your Workshop</h2>
-          <div className="border border-neutral-200 p-5 space-y-4">
+          <h2 className="text-xl font-semibold font-display mb-4">Your Workshop</h2>
+          <div className="card-section p-5 space-y-4">
             <div className="flex gap-6 text-sm">
               <div>
                 <p className="text-2xl font-bold">{sellerProfile._count.listings}</p>

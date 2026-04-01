@@ -518,7 +518,7 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-3" style={{ width: "max-content" }}>
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   const img = l.photos[0]?.url ?? "/favicon.ico";
                   const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
@@ -582,7 +582,7 @@ export default async function HomePage() {
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-3" style={{ width: "max-content" }}>
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   const img = l.photos[0]?.url ?? "/favicon.ico";
                   const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";

@@ -188,7 +188,7 @@ export default async function DashboardPage() {
   return (
     <main className="max-w-6xl mx-auto p-8">
       <header className="mb-10">
-        <h1 className="text-4xl font-bold">
+        <h1 className="text-4xl font-bold font-display">
           Workshop — {me.name ?? me.email.split("@")[0]}
         </h1>
         <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
@@ -381,7 +381,7 @@ export default async function DashboardPage() {
 
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">My Listings</h2>
+          <h2 className="text-xl font-semibold font-display">My Listings</h2>
           <Link
             href={`/seller/${seller.id}/shop`}
             className="text-sm text-neutral-600 underline hover:text-neutral-900"
@@ -484,7 +484,7 @@ export default async function DashboardPage() {
 
       {/* Saved Searches */}
       <section className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">Saved Searches</h2>
+        <h2 className="text-xl font-semibold font-display mb-4">Saved Searches</h2>
         {savedSearches.length === 0 ? (
           <div className="rounded-xl border p-6 text-neutral-600 text-sm">
             No saved searches yet.{" "}

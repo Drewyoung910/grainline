@@ -249,7 +249,7 @@ export default async function CommissionPage({
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900">Commission Room</h1>
+          <h1 className="text-3xl font-bold font-display text-neutral-900">Commission Room</h1>
           <p className="text-neutral-500 mt-1 text-sm">
             Buyers post custom piece requests. Makers express interest to connect.
           </p>
@@ -289,7 +289,7 @@ export default async function CommissionPage({
       </div>
 
       {/* How it works explainer */}
-      <div className="bg-amber-50 border border-amber-200 p-4 mb-6">
+      <div className="bg-amber-50 border border-amber-200/60 rounded-lg p-4 mb-6">
         <h2 className="font-medium text-amber-900 mb-1">How the Commission Room works</h2>
         <p className="text-sm text-amber-800">
           Post a custom piece request describing what you need. Makers browse requests and express interest.

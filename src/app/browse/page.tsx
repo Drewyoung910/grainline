@@ -625,7 +625,7 @@ export default async function BrowsePage({
           {/* Top bar: result count, view toggle, save search, pager */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl font-semibold">
+              <h1 className="text-xl font-semibold font-display">
                 {q ? (
                   <>Results for <span className="italic">&quot;{q}&quot;</span></>
                 ) : categoryFilter ? (

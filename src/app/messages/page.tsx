@@ -51,6 +51,16 @@ function formatSnippet(body?: string | null) {
     return `📎 ${f.name ?? "Attachment"}`;
   }
 
+  // Detect structured message types by JSON shape
+  try {
+    const obj = JSON.parse(txt.trim());
+    if (obj && typeof obj === "object") {
+      if (obj.commissionId) return "Interested in your commission";
+      if (obj.description && (obj.timeline !== undefined || obj.budget !== undefined)) return "Custom order request";
+      if (obj.listingId && obj.priceCents !== undefined) return "Custom listing ready";
+    }
+  } catch {}
+
   if (isImageUrl(txt)) return "🖼 Photo";
   if (isPdfUrl(txt)) return "📄 PDF";
   return txt;
@@ -177,7 +187,7 @@ export default async function MessagesPage({
   return (
     <main className="mx-auto max-w-4xl p-8">
       <div className="mb-6 flex items-end justify-between">
-        <h1 className="text-2xl font-semibold">Messages</h1>
+        <h1 className="text-2xl font-semibold font-display">Messages</h1>
         <Link href="/browse" className="text-sm underline">
           Back to browse
         </Link>
