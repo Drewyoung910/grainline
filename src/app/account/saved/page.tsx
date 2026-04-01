@@ -85,20 +85,20 @@ export default async function SavedPage({
                 const avatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
                 const isAvailable = l.status === "ACTIVE";
                 return (
-                  <li key={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+                  <li key={l.id} className="relative card-listing hover:shadow-md transition-shadow">
                     <div className="absolute top-2 right-2 z-10">
                       <FavoriteButton listingId={l.id} initialSaved={true} />
                     </div>
                     <Link href={`/listing/${l.id}`} className="block">
-                      <div className="h-40 bg-neutral-100 overflow-hidden">
+                      <div className="bg-neutral-100 overflow-hidden">
                         {l.photos[0]?.url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={l.photos[0].url} alt={l.title} className="w-full h-full object-cover" />
+                          <img src={l.photos[0].url} alt={l.title} className="w-full aspect-[4/3] object-cover" />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
+                          <div className="w-full aspect-[4/3] bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-3 bg-stone-50 space-y-1">
+                      <div className="p-3 bg-white space-y-1">
                         <p className="font-medium text-neutral-900 text-sm truncate">{l.title}</p>
                         <p className="text-sm text-neutral-600">
                           {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}

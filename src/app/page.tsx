@@ -344,7 +344,7 @@ export default async function HomePage() {
       </ScrollSection>
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-10">
 
         {/* ── From Your Makers ─────────────────────────────────────────────── */}
         {fromYourMakers.length > 0 && (
@@ -355,7 +355,7 @@ export default async function HomePage() {
                 See full feed →
               </Link>
             </div>
-            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-1 px-1">
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-0 -mx-1 px-1">
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
                   <div key={item.id} className="w-44 flex-none snap-start card-listing">

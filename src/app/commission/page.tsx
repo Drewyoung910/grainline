@@ -256,7 +256,7 @@ export default async function CommissionPage({
         </div>
         <Link
           href="/commission/new"
-          className="bg-neutral-900 text-white text-sm px-4 py-2 hover:bg-neutral-700 transition-colors"
+          className="rounded-md bg-neutral-900 text-white text-sm px-4 py-2 hover:bg-neutral-700 transition-colors"
         >
           Post a Request
         </Link>
@@ -329,7 +329,7 @@ export default async function CommissionPage({
           </p>
           <Link
             href="/commission/new"
-            className="inline-block bg-neutral-900 text-white px-6 py-2 text-sm hover:bg-neutral-700"
+            className="inline-block rounded-md bg-neutral-900 text-white px-6 py-2 text-sm hover:bg-neutral-700"
           >
             Post a Request →
           </Link>
