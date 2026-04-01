@@ -72,11 +72,11 @@ async function getSellerRatingMap(sellerIds: string[]) {
 }
 
 const CATEGORIES = [
-  { key: "FURNITURE", label: "Furniture", Icon: Armchair, bg: "bg-amber-100" },
-  { key: "KITCHEN",   label: "Kitchen",   Icon: Utensils, bg: "bg-orange-100" },
-  { key: "DECOR",     label: "Decor",     Icon: Candle,   bg: "bg-stone-100" },
-  { key: "TOOLS",     label: "Tools",     Icon: Wrench,   bg: "bg-red-100" },
-  { key: "TOYS",      label: "Toys",      Icon: Toy,      bg: "bg-yellow-100" },
+  { key: "FURNITURE", label: "Furniture", Icon: Armchair },
+  { key: "KITCHEN",   label: "Kitchen",   Icon: Utensils },
+  { key: "DECOR",     label: "Decor",     Icon: Candle },
+  { key: "TOOLS",     label: "Tools",     Icon: Wrench },
+  { key: "TOYS",      label: "Toys",      Icon: Toy },
 ];
 
 export default async function HomePage() {
@@ -255,7 +255,7 @@ export default async function HomePage() {
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative min-h-screen bg-gradient-to-br from-amber-50 via-stone-50 to-white border-b flex flex-col justify-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
-          <h1 className="text-display text-neutral-900">
+          <h1 className="text-display font-display text-neutral-900">
             The woodworking marketplace
           </h1>
           <p className="text-lg text-stone-500">
@@ -312,17 +312,17 @@ export default async function HomePage() {
         <ScrollSection className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
-            <span className="text-xs text-stone-500 uppercase tracking-wide">pieces listed</span>
+            <span className="text-sm text-stone-500">pieces listed</span>
           </div>
           <span className="text-stone-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString()}</span>
-            <span className="text-xs text-stone-500 uppercase tracking-wide">active makers</span>
+            <span className="text-sm text-stone-500">active makers</span>
           </div>
           <span className="text-stone-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
-            <span className="text-xs text-stone-500 uppercase tracking-wide">orders fulfilled</span>
+            <span className="text-sm text-stone-500">orders fulfilled</span>
           </div>
         </ScrollSection>
       </div>
@@ -330,7 +330,7 @@ export default async function HomePage() {
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
       <ScrollSection className="bg-stone-50 border-b py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
-          <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900">Find Makers Near You</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold font-display text-neutral-900">Find Makers Near You</h2>
           <p className="text-neutral-600 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -402,7 +402,7 @@ export default async function HomePage() {
 
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>
-          <h2 className="text-xl font-semibold mb-5">Shop by Category</h2>
+          <h2 className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
           {/* Mobile: horizontal scroll; Desktop: 6-col flex */}
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <div className="flex sm:grid sm:grid-cols-6 gap-3" style={{ minWidth: 340 }}>
@@ -410,9 +410,9 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className={`flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center hover:shadow-sm transition-shadow flex-none w-28 sm:w-auto ${c.bg}`}
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center hover:shadow-sm transition-shadow flex-none w-28 sm:w-auto bg-stone-100"
                 >
-                  <c.Icon size={28} className="text-amber-700" />
+                  <c.Icon size={28} className="text-stone-600" />
                   <span className="text-xs font-medium text-neutral-700">{c.label}</span>
                 </Link>
               ))}
@@ -431,7 +431,7 @@ export default async function HomePage() {
         {featuredMaker && (
           <ScrollSection>
             <div className="mb-5 space-y-0.5">
-              <h2 className="text-xl font-semibold">Meet a Maker</h2>
+              <h2 className="text-xl font-semibold font-display">Meet a Maker</h2>
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
@@ -507,7 +507,7 @@ export default async function HomePage() {
         {/* ── Fresh from the Workshop ───────────────────────────────────────── */}
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold flex items-center gap-2">Fresh from the Workshop <Logs size={20} className="text-amber-700" /></h2>
+            <h2 className="text-xl font-semibold font-display flex items-center gap-2">Fresh from the Workshop <Logs size={20} className="text-amber-700" /></h2>
             <Link href="/browse" className="text-sm text-neutral-600 hover:underline">Browse all</Link>
           </div>
 
@@ -577,7 +577,7 @@ export default async function HomePage() {
         {topSaved.length > 0 && (
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold flex items-center gap-2">Buyer Favorites <Heart size={18} className="text-red-500" /></h2>
+              <h2 className="text-xl font-semibold font-display flex items-center gap-2">Buyer Favorites <Heart size={18} className="text-red-500" /></h2>
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
@@ -642,7 +642,7 @@ export default async function HomePage() {
         {recentBlogPosts.length > 0 && (
           <ScrollSection>
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Stories from the Workshop</h2>
+              <h2 className="text-xl font-semibold font-display">Stories from the Workshop</h2>
               <Link href="/blog" className="text-sm text-neutral-600 hover:underline">
                 Read more stories
               </Link>

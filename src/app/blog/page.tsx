@@ -184,7 +184,7 @@ export default async function BlogIndexPage({
     <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16">
       {/* Hero */}
       <section className="py-12 sm:py-16 text-center bg-gradient-to-b from-amber-50 to-white -mx-4 sm:-mx-6 px-4 sm:px-6 mb-8">
-        <h1 className="text-4xl sm:text-5xl font-bold text-neutral-900 mb-3">
+        <h1 className="text-4xl sm:text-5xl font-bold font-display text-neutral-900 mb-3">
           Stories from the Workshop
         </h1>
         <p className="text-lg text-neutral-600 max-w-xl mx-auto mb-6">
@@ -372,7 +372,7 @@ export default async function BlogIndexPage({
                   ? post.excerpt.slice(0, 120) + (post.excerpt.length > 120 ? "…" : "")
                   : null;
                 return (
-                  <li key={post.id} className="relative rounded-xl border overflow-hidden hover:shadow-sm transition-shadow">
+                  <li key={post.id} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">
                       <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
                     </div>

@@ -189,151 +189,159 @@ export default async function DashboardPage() {
     <main className="max-w-6xl mx-auto p-8">
       <header className="mb-10">
         <h1 className="text-4xl font-bold">
-          Workshop — {me.name ?? me.email.split("@")[0]} 👋
+          Workshop — {me.name ?? me.email.split("@")[0]}
         </h1>
         <p className="text-neutral-600 mt-2">Signed in as {me.email}</p>
 
-        {/* ── Dashboard nav buttons ── */}
-        {/* Mobile: 2-column icon+label grid; desktop: flex-wrap row */}
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-          <Link
-            href="/dashboard/listings/new"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium shadow-sm hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Store size={20} className="sm:hidden shrink-0" />
-            <Store size={16} className="hidden sm:block shrink-0" />
-            Create listing
-          </Link>
-
-          <Link
-            href="/dashboard/profile"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <User size={20} className="sm:hidden shrink-0" />
-            <User size={16} className="hidden sm:block shrink-0" />
-            Shop Profile
-          </Link>
-
-          <Link
-            href="/dashboard/seller"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Package size={20} className="sm:hidden shrink-0" />
-            <Package size={16} className="hidden sm:block shrink-0" />
-            Shipping &amp; Settings
-          </Link>
-
-          <Link
-            href="/dashboard/orders"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Package size={20} className="sm:hidden shrink-0" />
-            <Package size={16} className="hidden sm:block shrink-0" />
-            My orders
-          </Link>
-
-          <Link
-            href="/dashboard/sales"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Tag size={20} className="sm:hidden shrink-0" />
-            <Tag size={16} className="hidden sm:block shrink-0" />
-            My sales
-          </Link>
-
-          <Link
-            href="/dashboard/inventory"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Grid size={20} className="sm:hidden shrink-0" />
-            <Grid size={16} className="hidden sm:block shrink-0" />
-            Inventory
-          </Link>
-
-          <Link
-            href="/messages"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <MessageCircle size={20} className="sm:hidden shrink-0" />
-            <MessageCircle size={16} className="hidden sm:block shrink-0" />
-            Messages
-          </Link>
-
-          <Link
-            href="/dashboard/saved"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            Saved items
-          </Link>
-
-          <Link
-            href="/browse"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            Browse
-          </Link>
-
-          <Link
-            href="/dashboard/blog"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Edit size={20} className="sm:hidden shrink-0" />
-            <Edit size={16} className="hidden sm:block shrink-0" />
-            My Blog
-          </Link>
-
-          <Link
-            href="/dashboard/analytics"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <BarChart size={20} className="sm:hidden shrink-0" />
-            <BarChart size={16} className="hidden sm:block shrink-0" />
-            Analytics
-          </Link>
-
-          <Link
-            href="/dashboard/notifications"
-            className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-          >
-            <Bell size={20} className="sm:hidden shrink-0" />
-            <Bell size={16} className="hidden sm:block shrink-0" />
-            Notifications
-            {notifUnreadCount > 0 && (
-              <span className="inline-flex items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white">
-                {notifUnreadCount}
-              </span>
-            )}
-          </Link>
-
-          {guildLevel === "GUILD_MASTER" ? (
+        {/* ── Your Shop ── */}
+        <div className="mt-8">
+          <p className="text-sm font-medium text-stone-500 uppercase tracking-wide mb-3">Your Shop</p>
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <Link
-              href="/dashboard/verification"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              href="/dashboard/listings/new"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium shadow-sm hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
-              <Sparkles size={20} className="sm:hidden shrink-0" />
-              <Sparkles size={16} className="hidden sm:block shrink-0" />
-              Guild Master
+              <Store size={20} className="sm:hidden shrink-0" />
+              <Store size={16} className="hidden sm:block shrink-0" />
+              Create listing
             </Link>
-          ) : guildLevel === "GUILD_MEMBER" ? (
+
             <Link
-              href="/dashboard/verification"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
-            >
-              <Sparkles size={20} className="sm:hidden shrink-0" />
-              <Sparkles size={16} className="hidden sm:block shrink-0" />
-              Guild Member
-            </Link>
-          ) : (
-            <Link
-              href="/dashboard/verification"
+              href="/dashboard/profile"
               className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
-              <Sparkles size={20} className="sm:hidden shrink-0" />
-              <Sparkles size={16} className="hidden sm:block shrink-0" />
-              {verification?.status === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
+              <User size={20} className="sm:hidden shrink-0" />
+              <User size={16} className="hidden sm:block shrink-0" />
+              Shop Profile
             </Link>
-          )}
+
+            <Link
+              href="/dashboard/seller"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Package size={20} className="sm:hidden shrink-0" />
+              <Package size={16} className="hidden sm:block shrink-0" />
+              Shipping &amp; Settings
+            </Link>
+
+            <Link
+              href="/dashboard/sales"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Tag size={20} className="sm:hidden shrink-0" />
+              <Tag size={16} className="hidden sm:block shrink-0" />
+              My sales
+            </Link>
+
+            <Link
+              href="/dashboard/inventory"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Grid size={20} className="sm:hidden shrink-0" />
+              <Grid size={16} className="hidden sm:block shrink-0" />
+              Inventory
+            </Link>
+
+            <Link
+              href="/dashboard/analytics"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <BarChart size={20} className="sm:hidden shrink-0" />
+              <BarChart size={16} className="hidden sm:block shrink-0" />
+              Analytics
+            </Link>
+
+            <Link
+              href="/dashboard/blog"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Edit size={20} className="sm:hidden shrink-0" />
+              <Edit size={16} className="hidden sm:block shrink-0" />
+              My Blog
+            </Link>
+
+            {guildLevel === "GUILD_MASTER" ? (
+              <Link
+                href="/dashboard/verification"
+                className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              >
+                <Sparkles size={20} className="sm:hidden shrink-0" />
+                <Sparkles size={16} className="hidden sm:block shrink-0" />
+                Guild Master
+              </Link>
+            ) : guildLevel === "GUILD_MEMBER" ? (
+              <Link
+                href="/dashboard/verification"
+                className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              >
+                <Sparkles size={20} className="sm:hidden shrink-0" />
+                <Sparkles size={16} className="hidden sm:block shrink-0" />
+                Guild Member
+              </Link>
+            ) : (
+              <Link
+                href="/dashboard/verification"
+                className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              >
+                <Sparkles size={20} className="sm:hidden shrink-0" />
+                <Sparkles size={16} className="hidden sm:block shrink-0" />
+                {verification?.status === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
+              </Link>
+            )}
+          </div>
         </div>
+
+        {/* ── Divider ── */}
+        <div className="border-t border-stone-200/60 my-6" />
+
+        {/* ── Your Account ── */}
+        <div>
+          <p className="text-sm font-medium text-stone-500 uppercase tracking-wide mb-3">Your Account</p>
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+            <Link
+              href="/dashboard/orders"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Package size={20} className="sm:hidden shrink-0" />
+              <Package size={16} className="hidden sm:block shrink-0" />
+              My orders
+            </Link>
+
+            <Link
+              href="/messages"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <MessageCircle size={20} className="sm:hidden shrink-0" />
+              <MessageCircle size={16} className="hidden sm:block shrink-0" />
+              Messages
+            </Link>
+
+            <Link
+              href="/dashboard/notifications"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              <Bell size={20} className="sm:hidden shrink-0" />
+              <Bell size={16} className="hidden sm:block shrink-0" />
+              Notifications
+              {notifUnreadCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white">
+                  {notifUnreadCount}
+                </span>
+              )}
+            </Link>
+
+            <Link
+              href="/dashboard/saved"
+              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+            >
+              Saved items
+            </Link>
+          </div>
+        </div>
+
+        <p className="mt-4 text-sm text-stone-400">
+          <Link href="/browse" className="hover:text-stone-600 hover:underline">← Back to browsing</Link>
+        </p>
       </header>
 
       {/* Stripe Connect banner */}
@@ -402,7 +410,7 @@ export default async function DashboardPage() {
                   : setStatus.bind(null, l.id, ListingStatus.HIDDEN);
 
               return (
-                <li key={l.id} className="overflow-hidden rounded-xl border min-w-[220px] flex-none snap-start sm:min-w-0">
+                <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
                   {thumb ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -503,7 +511,7 @@ export default async function DashboardPage() {
               })();
 
               return (
-                <li key={s.id} className="flex items-center justify-between rounded-xl border px-4 py-3">
+                <li key={s.id} className="flex items-center justify-between card-section px-4 py-3">
                   <div className="min-w-0">
                     <Link href={href} className="text-sm font-medium hover:underline">
                       {parts.length > 0 ? parts.join(" · ") : "All listings"}

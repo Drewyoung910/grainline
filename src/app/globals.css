@@ -24,10 +24,12 @@ html, body {
   line-height: 1.15;
 }
 
-/* Listing/product cards — sharp edges, hover shadow */
+/* Listing/product cards */
 .card-listing {
-  border: 1px solid #e7e5e4; /* stone-200 */
+  border-radius: 0.5rem; /* rounded-lg */
+  border: 1px solid rgba(231, 229, 228, 0.6); /* stone-200 @ 60% */
   background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   transition: box-shadow 0.2s ease;
 }
@@ -37,10 +39,17 @@ html, body {
 
 /* Content/section cards — subtle shadow, no hover */
 .card-section {
-  border: 1px solid #e7e5e4; /* stone-200 */
+  border-radius: 0.5rem;
+  border: 1px solid rgba(231, 229, 228, 0.6);
   background: #ffffff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   overflow: hidden;
+}
+
+/* Serif display font for hero + section headings */
+.font-display {
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.025em;
 }
 
 /* Consistent section spacing */
