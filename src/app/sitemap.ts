@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
 import { ListingStatus, CommissionStatus } from "@prisma/client";
+import { CATEGORY_VALUES } from "@/lib/categories";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -38,33 +39,96 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
   ]);
 
+  // ---------------------------------------------------------------------------
   // Metro city pages — only include metros with content
-  const metrosWithListings = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { listings: { some: { status: ListingStatus.ACTIVE } } },
-        { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
-        { sellerProfiles: { some: { chargesEnabled: true } } },
-        { sellerCityProfiles: { some: { chargesEnabled: true } } },
-      ],
-    },
-    select: { slug: true, updatedAt: true, parentMetroId: true },
+  // Major metros (no parent) get higher priority than child metros
+  // ---------------------------------------------------------------------------
+  const [metrosWithListings, metrosWithCommissions] = await Promise.all([
+    prisma.metro.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { listings: { some: { status: ListingStatus.ACTIVE } } },
+          { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
+          { sellerProfiles: { some: { chargesEnabled: true } } },
+          { sellerCityProfiles: { some: { chargesEnabled: true } } },
+        ],
+      },
+      select: { slug: true, updatedAt: true, parentMetroId: true },
+    }),
+    prisma.metro.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { commissions: { some: { status: CommissionStatus.OPEN } } },
+          { commissionCityMetros: { some: { status: CommissionStatus.OPEN } } },
+        ],
+      },
+      select: { slug: true, updatedAt: true, parentMetroId: true },
+    }),
+  ]);
+
+  // Category pages: group active listings by metroId+category and cityMetroId+category
+  // We need metro slugs — build a map from id → {slug, parentMetroId, updatedAt}
+  const allMetros = await prisma.metro.findMany({
+    where: { isActive: true },
+    select: { id: true, slug: true, parentMetroId: true, updatedAt: true },
   });
+  const metroById = new Map(allMetros.map((m) => [m.id, m]));
 
-  const metrosWithCommissions = await prisma.metro.findMany({
-    where: {
-      isActive: true,
-      OR: [
-        { commissions: { some: { status: CommissionStatus.OPEN } } },
-        { commissionCityMetros: { some: { status: CommissionStatus.OPEN } } },
-      ],
-    },
-    select: { slug: true, updatedAt: true },
-  });
+  const [majorCatGroups, cityCatGroups] = await Promise.all([
+    prisma.listing.groupBy({
+      by: ["metroId", "category"],
+      where: {
+        status: ListingStatus.ACTIVE,
+        isPrivate: false,
+        metroId: { not: null },
+        category: { not: null },
+      },
+      _max: { updatedAt: true },
+      _count: { _all: true },
+    }),
+    prisma.listing.groupBy({
+      by: ["cityMetroId", "category"],
+      where: {
+        status: ListingStatus.ACTIVE,
+        isPrivate: false,
+        cityMetroId: { not: null },
+        category: { not: null },
+      },
+      _max: { updatedAt: true },
+      _count: { _all: true },
+    }),
+  ]);
 
-  const metroSlugsWithCommissions = new Set(metrosWithCommissions.map((m) => m.slug));
+  // Build category route set (slug+category → most recent updatedAt)
+  const categoryRouteMap = new Map<string, { updatedAt: Date; isMajor: boolean }>();
+  for (const g of majorCatGroups) {
+    if (!g.metroId || !g.category || !CATEGORY_VALUES.includes(g.category)) continue;
+    const metro = metroById.get(g.metroId);
+    if (!metro) continue;
+    const key = `${metro.slug}/${g.category.toLowerCase()}`;
+    const existing = categoryRouteMap.get(key);
+    const updatedAt = g._max.updatedAt ?? metro.updatedAt;
+    if (!existing || updatedAt > existing.updatedAt) {
+      categoryRouteMap.set(key, { updatedAt, isMajor: !metro.parentMetroId });
+    }
+  }
+  for (const g of cityCatGroups) {
+    if (!g.cityMetroId || !g.category || !CATEGORY_VALUES.includes(g.category)) continue;
+    const metro = metroById.get(g.cityMetroId);
+    if (!metro) continue;
+    const key = `${metro.slug}/${g.category.toLowerCase()}`;
+    const existing = categoryRouteMap.get(key);
+    const updatedAt = g._max.updatedAt ?? metro.updatedAt;
+    if (!existing || updatedAt > existing.updatedAt) {
+      categoryRouteMap.set(key, { updatedAt, isMajor: !metro.parentMetroId });
+    }
+  }
 
+  // ---------------------------------------------------------------------------
+  // Build route arrays
+  // ---------------------------------------------------------------------------
   const listingRoutes: MetadataRoute.Sitemap = listings.map((l) => ({
     url: `${BASE_URL}/listing/${l.id}`,
     lastModified: l.updatedAt,
@@ -105,38 +169,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }));
 
-  // City browse + makers pages
-  const metroRoutes: MetadataRoute.Sitemap = metrosWithListings.flatMap((m) => [
-    {
-      url: `${BASE_URL}/browse/${m.slug}`,
-      lastModified: m.updatedAt,
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/makers/${m.slug}`,
-      lastModified: m.updatedAt,
-      changeFrequency: "monthly" as const,
-      priority: 0.6,
-    },
-  ]);
+  // Metro browse + makers: major metro = 0.8/0.7, child metro = 0.6/0.5
+  const metroRoutes: MetadataRoute.Sitemap = metrosWithListings.flatMap((m) => {
+    const isMajor = !m.parentMetroId;
+    return [
+      {
+        url: `${BASE_URL}/browse/${m.slug}`,
+        lastModified: m.updatedAt,
+        changeFrequency: "weekly" as const,
+        priority: isMajor ? 0.8 : 0.6,
+      },
+      {
+        url: `${BASE_URL}/makers/${m.slug}`,
+        lastModified: m.updatedAt,
+        changeFrequency: "monthly" as const,
+        priority: isMajor ? 0.7 : 0.5,
+      },
+    ];
+  });
 
-  // City commission pages (only metros with open commissions)
+  // Metro category pages
+  const metroCategoryRoutes: MetadataRoute.Sitemap = Array.from(categoryRouteMap.entries()).map(
+    ([key, { updatedAt, isMajor }]) => ({
+      url: `${BASE_URL}/browse/${key}`,
+      lastModified: updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: isMajor ? 0.7 : 0.5,
+    })
+  );
+
+  // City commission pages
   const metroCommissionRoutes: MetadataRoute.Sitemap = metrosWithCommissions.map((m) => ({
     url: `${BASE_URL}/commission/${m.slug}`,
     lastModified: m.updatedAt,
     changeFrequency: "weekly" as const,
-    priority: 0.6,
+    priority: !m.parentMetroId ? 0.7 : 0.5,
   }));
-
-  // De-duplicate commission metro routes (a metro might appear in both lists)
-  const allCommissionMetroSlugs = new Set<string>();
-  const dedupedMetroCommissionRoutes = metroCommissionRoutes.filter((r) => {
-    const slug = r.url.split("/commission/")[1];
-    if (allCommissionMetroSlugs.has(slug)) return false;
-    allCommissionMetroSlugs.add(slug);
-    return !metroSlugsWithCommissions.has(slug) || true; // always include, set is used for dedup
-  });
 
   return [
     ...staticRoutes,
@@ -146,6 +214,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...blogRoutes,
     ...commissionRoutes,
     ...metroRoutes,
-    ...dedupedMetroCommissionRoutes,
+    ...metroCategoryRoutes,
+    ...metroCommissionRoutes,
   ];
 }

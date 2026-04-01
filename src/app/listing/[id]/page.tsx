@@ -117,6 +117,8 @@ export default async function ListingPage({
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
       seller: { include: { user: true } },
+      metro: { select: { slug: true, name: true, state: true } },
+      cityMetro: { select: { slug: true, name: true, state: true } },
     },
   });
   if (!listing) return notFound();
@@ -625,6 +627,21 @@ export default async function ListingPage({
           </div>
         </section>
       )}
+
+      {/* ── More in this city ─────────────────────────────────────────────── */}
+      {(listing.cityMetro ?? listing.metro) && (() => {
+        const m = listing.cityMetro ?? listing.metro!;
+        return (
+          <div className="mb-8">
+            <Link
+              href={`/browse/${m.slug}`}
+              className="text-sm text-neutral-600 hover:underline"
+            >
+              More handmade pieces in {m.name}, {m.state} →
+            </Link>
+          </div>
+        );
+      })()}
 
       {/* ── Similar items ─────────────────────────────────────────────────── */}
       <section className="mb-10">

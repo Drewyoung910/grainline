@@ -71,6 +71,8 @@ export default async function MakersMetroPage({
       id: true,
       name: true,
       state: true,
+      latitude: true,
+      longitude: true,
       parentMetroId: true,
       parentMetro: { select: { id: true, slug: true, name: true } },
       childMetros: { select: { id: true, slug: true, name: true } },
@@ -280,11 +282,19 @@ export default async function MakersMetroPage({
         </section>
       )}
 
-      {/* Browse listings link */}
-      <div className="border-t pt-8">
+      {/* Map + browse links */}
+      <div className="border-t pt-8 flex flex-col sm:flex-row sm:items-center gap-4">
         <Link href={`/browse/${metroSlug}`} className="text-sm text-neutral-600 hover:underline">
           Browse handmade pieces in {cityName} →
         </Link>
+        {metro.latitude != null && metro.longitude != null && (
+          <Link
+            href={`/map?near=${metro.latitude},${metro.longitude}&zoom=10`}
+            className="text-sm text-neutral-600 hover:underline"
+          >
+            View makers on map →
+          </Link>
+        )}
       </div>
     </main>
   );

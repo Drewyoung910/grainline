@@ -53,6 +53,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+// TODO: Add Google Search Console verification meta tag — Drew will add this manually from search.google.com/search-console
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

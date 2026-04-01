@@ -341,6 +341,10 @@ async function CommissionDetailPage({ id }: { id: string }) {
       isNational: true,
       createdAt: true,
       buyerId: true,
+      metroId: true,
+      cityMetroId: true,
+      metro: { select: { slug: true, name: true, state: true } },
+      cityMetro: { select: { slug: true, name: true, state: true } },
       buyer: { select: { name: true, imageUrl: true, sellerProfile: { select: { city: true, state: true } } } },
       interests: {
         orderBy: { createdAt: "asc" },
@@ -490,6 +494,16 @@ async function CommissionDetailPage({ id }: { id: string }) {
           )}
           <span className="text-sm text-neutral-700">{buyerName}</span>
         </div>
+        {(request.cityMetro ?? request.metro) && (() => {
+          const m = request.cityMetro ?? request.metro!;
+          return (
+            <div className="mt-3">
+              <Link href={`/commission/${m.slug}`} className="text-xs text-neutral-500 hover:underline">
+                More commissions in {m.name}, {m.state} →
+              </Link>
+            </div>
+          );
+        })()}
       </section>
 
       {request.interests.length > 0 && (

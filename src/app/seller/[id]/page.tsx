@@ -94,6 +94,8 @@ export default async function SellerPublicPage({
     include: {
       user: { select: { id: true, clerkId: true, email: true, name: true, imageUrl: true, role: true, createdAt: true, updatedAt: true, banned: true, bannedAt: true, banReason: true, bannedBy: true, notificationPreferences: true } },
       faqs: { orderBy: { sortOrder: "asc" } },
+      metro: { select: { slug: true, name: true, state: true } },
+      cityMetro: { select: { slug: true, name: true, state: true } },
     },
   });
 
@@ -487,6 +489,18 @@ export default async function SellerPublicPage({
             </p>
           </section>
         )}
+
+        {/* ── More makers in this city ──────────────────────────────────── */}
+        {(seller.cityMetro ?? seller.metro) && (() => {
+          const m = seller.cityMetro ?? seller.metro!;
+          return (
+            <div className="mb-8">
+              <Link href={`/makers/${m.slug}`} className="text-sm text-neutral-600 hover:underline">
+                More makers in {m.name}, {m.state} →
+              </Link>
+            </div>
+          );
+        })()}
 
         {/* ── Workshop Gallery ───────────────────────────────────────────── */}
         {(seller.workshopImageUrl || (seller.galleryImageUrls && seller.galleryImageUrls.length > 0)) && (
