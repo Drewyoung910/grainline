@@ -1592,7 +1592,7 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 
-**CSP status**: `Content-Security-Policy-Report-Only` is now active (see "CSP Report-Only Mode" section). A full `Content-Security-Policy` was added and immediately rolled back because it broke Clerk UI components. Report-only mode collects violations without blocking. See `src/app/api/csp-report/route.ts` — violations reported to Sentry under tag `csp_violation`. After 1 week of monitoring with no violations, switch header key to `Content-Security-Policy` to enforce.
+**CSP status**: `Content-Security-Policy` is **enforced** as of 2026-04-01 (switched from report-only). `report-uri /api/csp-report` remains active — any violations are logged to Sentry under tag `csp_violation`.
 
 ## chargesEnabled Backfill (hotfix — 2026-03-31)
 
@@ -1602,15 +1602,30 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **Stripe webhook now handles `account.updated`**: When Stripe notifies of a seller account status change, `chargesEnabled` is synced automatically. If a seller's account is disabled, Sentry is notified via `logSecurityEvent`. `account.application.deauthorized` clears `stripeAccountId` and sets `chargesEnabled = false` when a seller disconnects the platform.
 
-## CSP Report-Only Mode (active — 2026-03-31)
+## Content Security Policy (enforced — 2026-04-01)
 
-`Content-Security-Policy-Report-Only` header is active in `next.config.ts`. Violations are logged but nothing is blocked. Once enough real-world traffic has been observed with no violations, change the header key to `Content-Security-Policy` to enforce it.
+`Content-Security-Policy` is active in `next.config.ts`. Switched from report-only after clean violation logs.
 
-**Violation reporting**: `POST /api/csp-report` (`src/app/api/csp-report/route.ts`) — public route (in middleware `isPublic`); logs violations as Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; also logs to console in dev mode.
+**Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs to Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode.
 
-**Allowed external domains**: Clerk (`*.clerk.com`, `*.clerk.accounts.dev`), Stripe (`js.stripe.com`, `hooks.stripe.com`, `api.stripe.com`), UploadThing (`*.uploadthing.com`, `utfs.io`), Sentry (`*.sentry.io`, `*.ingest.sentry.io`), Upstash (`major-toad-67912.upstash.io`), OpenStreetMap (`nominatim.openstreetmap.org`, `*.tile.openstreetmap.org`).
+**Directives summary**:
 
-**CSP maintenance**: When adding new third-party services, add their domains to the CSP value in `next.config.ts`. After observing zero violations in Sentry for 7+ days, switch to enforcement mode by renaming the header key to `Content-Security-Policy`. Do NOT add `unsafe-eval` to `script-src` in enforce mode without careful testing.
+| Directive | Key allowed sources |
+|---|---|
+| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) |
+| `script-src-elem` | + `clerk.com *.clerk.accounts.dev *.clerk.com js.stripe.com cdnjs.cloudflare.com` |
+| `style-src` | `'self' 'unsafe-inline'` |
+| `img-src` | `'self' data: blob: https:` (HTTPS only — HTTP removed) |
+| `font-src` | `'self' data: fonts.gstatic.com` |
+| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks`), UploadThing, Sentry, Upstash, OpenStreetMap, `wss://*.clerk.*` |
+| `frame-src` | `'self'` + Stripe (`js` + `hooks`), Clerk |
+| `worker-src` | `'self' blob:` |
+| `media-src` | `'self'` |
+| `object-src` | `'none'` |
+| `form-action` | `'self'` + Clerk (`*.clerk.accounts.dev *.clerk.com`) |
+| `frame-ancestors` | `'self'` (equivalent to `X-Frame-Options: SAMEORIGIN`) |
+
+**CSP maintenance**: When adding new third-party services, add their domains to `next.config.ts` `securityHeaders`. Any violations in production appear in Sentry under tag `csp_violation`.
 
 ## Business (2026-03-31)
 
@@ -1721,7 +1736,7 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 
 | Gap | Status |
 |---|---|
-| CSP not yet enforced (report-only) | Enforce after 1 week of clean violation logs |
+| CSP enforcement | ✅ Complete — enforced as of 2026-04-01; report-uri still active |
 | Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
 | Geo-blocking | ✅ Complete — US + CA only via Vercel edge geo |
 | Notification preferences | ✅ Complete — `/account/settings` with toggles |

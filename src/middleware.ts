@@ -28,6 +28,9 @@ const isPublic = createRouteMatcher([
   "/commission",          // Commission Room board — public
   "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
   "/api/csp-report",           // CSP violation reports — no auth needed
+  "/api/newsletter",           // newsletter signup — no auth needed
+  "/api/listings/(.*)/view",   // listing view tracking — fire-and-forget analytics
+  "/api/listings/(.*)/click",  // listing click tracking — fire-and-forget analytics
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);
