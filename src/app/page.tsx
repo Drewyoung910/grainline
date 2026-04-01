@@ -10,7 +10,7 @@ import SearchBar from "@/components/SearchBar";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
-import { Armchair, Utensils, Candle, Toy, Wrench, Logs, Heart } from "@/components/icons";
+import { Armchair, Utensils, Candle, Toy, Wrench } from "@/components/icons";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -368,7 +368,7 @@ export default async function HomePage() {
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-2 bg-stone-50">
+                      <div className="p-2 bg-white">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
                         <p className="text-xs text-neutral-500">
                           {(item.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: item.currency })}
@@ -388,7 +388,7 @@ export default async function HomePage() {
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-2 bg-stone-50">
+                      <div className="p-2 bg-white">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
                         <p className="text-xs text-amber-600">Blog post</p>
                         <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
@@ -508,7 +508,7 @@ export default async function HomePage() {
         {/* ── Fresh from the Workshop ───────────────────────────────────────── */}
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display flex items-center gap-2">Fresh from the Workshop <Logs size={20} className="text-amber-700" /></h2>
+            <h2 className="text-xl font-semibold font-display">Fresh from the Workshop</h2>
             <Link href="/browse" className="text-sm text-neutral-600 hover:underline">Browse all</Link>
           </div>
 
@@ -578,7 +578,7 @@ export default async function HomePage() {
         {topSaved.length > 0 && (
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display flex items-center gap-2">Buyer Favorites <Heart size={18} className="text-red-500" /></h2>
+              <h2 className="text-xl font-semibold font-display">Buyer Favorites</h2>
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">

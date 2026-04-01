@@ -52,6 +52,11 @@ html, body {
   letter-spacing: -0.025em;
 }
 
+/* Base button rounding — Tailwind .rounded-* classes override via higher specificity */
+button {
+  border-radius: 0.375rem; /* rounded-md / 6px — overridden by .rounded-full etc. */
+}
+
 /* Consistent section spacing */
 .section-gap {
   padding-top: 4rem;

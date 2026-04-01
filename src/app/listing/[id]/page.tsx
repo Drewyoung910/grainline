@@ -403,14 +403,14 @@ export default async function ListingPage({
               {userId ? (
                 <BuyNowButton
                   listingId={id}
-                  className="w-full bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
+                  className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
                 >
                   Buy now
                 </BuyNowButton>
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
-                  className="w-full bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
+                  className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
                 >
                   Sign in to buy
                 </Link>
@@ -418,7 +418,7 @@ export default async function ListingPage({
               <AddToCartButton
                 listingId={id}
                 signedIn={!!userId}
-                className="w-full border border-neutral-300 px-4 py-3 text-sm font-medium min-h-[48px] hover:bg-neutral-50 transition-colors"
+                className="w-full rounded-md border border-neutral-300 px-4 py-3 text-sm font-medium min-h-[48px] hover:bg-neutral-50 transition-colors"
               />
             </div>
           )}
@@ -526,7 +526,7 @@ export default async function ListingPage({
             <div className="flex items-center gap-2 flex-wrap">
               <Link
                 href={sellerHref}
-                className="text-xs border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                className="text-xs rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
               >
                 Visit Shop
               </Link>
@@ -542,7 +542,7 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="text-xs border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                  className="text-xs rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
                 >
                   Message maker
                 </Link>
@@ -570,7 +570,7 @@ export default async function ListingPage({
       {/* ── About this piece ──────────────────────────────────────────────── */}
       {listing.description && (
         <section className="mb-10 max-w-2xl">
-          <h2 className="font-semibold text-neutral-900 mb-3">About this piece</h2>
+          <h2 className="font-semibold font-display text-neutral-900 mb-3">About this piece</h2>
           <DescriptionExpander text={listing.description} />
         </section>
       )}
@@ -578,7 +578,7 @@ export default async function ListingPage({
       {/* ── Details ──────────────────────────────────────────────────────── */}
       {(listing.category || cityState || processingLabel || listing.listingType) && (
         <section className="mb-10 max-w-2xl">
-          <h2 className="font-semibold text-neutral-900 mb-3">Details</h2>
+          <h2 className="font-semibold font-display text-neutral-900 mb-3">Details</h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             {listing.category && (
               <>
@@ -645,7 +645,7 @@ export default async function ListingPage({
 
       {/* ── Similar items ─────────────────────────────────────────────────── */}
       <section className="mb-10">
-        <h2 className="font-semibold text-neutral-900 mb-4">You might also like</h2>
+        <h2 className="font-semibold font-display text-neutral-900 mb-4">You might also like</h2>
         <SimilarItems listingId={id} />
       </section>
 

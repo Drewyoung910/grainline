@@ -2,6 +2,21 @@
 
 A woodworking marketplace built with Next.js, similar to Etsy/Amazon but focused on woodworking makers and their products. Sellers can list items, appear as pins on a local map, and receive payments via Stripe Connect.
 
+## Design System
+
+Visual standards for all UI work on this codebase. Do not deviate without explicit instruction.
+
+- **Page background**: `bg-[#F7F5F0]` (warm cream) — provides contrast against white cards
+- **Card rounding**: `rounded-lg` (8px) for listing and content cards, `rounded-md` (6px) for buttons and inputs, `rounded-full` for pill badges and tags only
+- **Card classes** (defined in `src/app/globals.css`):
+  - `.card-listing` — listing cards: white background, `border-stone-200/60`, warm shadow `0 8px 30px rgba(28,25,23,0.04)`, `hover:shadow-md`, `overflow:hidden`
+  - `.card-section` — content/info sections: white background, same border, subtle shadow, no hover
+- **Card info sections** (title/price/seller area below photos): always `bg-white` — never `bg-stone-50` or any grey
+- **Typography**: `.font-display` (Georgia serif, -0.025em tracking) applies to hero headings and section headings only. All other UI text (prices, nav, buttons, card text, metadata) stays system sans-serif.
+- **Category tiles**: uniform `bg-stone-100` background, `text-stone-600` SVG icons
+- **Icons**: SVG icon components from `src/components/icons/` for all structural/navigational UI — no emoji in headings or nav
+- **List card thumbnail**: full-height left column (`w-40 sm:w-48`, `absolute inset-0 h-full w-full object-cover`) — not a fixed square
+
 ## Tech Stack
 
 - **Framework**: Next.js 16.2.1 (App Router), React 19, TypeScript

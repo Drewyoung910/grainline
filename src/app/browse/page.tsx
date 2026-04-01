@@ -547,12 +547,12 @@ export default async function BrowsePage({
     const outOfStock = l.status === "SOLD_OUT" || (isInStock && (l.stockQuantity ?? 0) <= 0);
 
     return (
-      <div className="flex gap-4">
-        <Link href={`/listing/${l.id}`} className="shrink-0">
+      <div className="flex">
+        <Link href={`/listing/${l.id}`} className="relative shrink-0 w-40 sm:w-48 overflow-hidden bg-neutral-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={l.title} src={img} className="w-28 h-28 object-cover border border-stone-200" />
+          <img alt={l.title} src={img} className="absolute inset-0 h-full w-full object-cover" />
         </Link>
-        <div className="flex-1 min-w-0 py-1">
+        <div className="flex-1 min-w-0 p-4">
           <div className="flex items-start justify-between gap-3">
             <Link href={`/listing/${l.id}`} className="font-medium hover:underline leading-snug">
               {l.title}
@@ -676,7 +676,7 @@ export default async function BrowsePage({
           ) : (
             <ul className="space-y-4">
               {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="card-listing p-4">
+                <ClickTracker key={l.id} listingId={l.id} className="card-listing">
                   <ListCard l={l} />
                 </ClickTracker>
               ))}
