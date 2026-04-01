@@ -1465,6 +1465,52 @@ Review queue for `PENDING_REVIEW` listings. Oldest-first. "First listing" badge,
 - `Eye` icon used for Review Queue, `User` for Users, `Shield` for Audit Log (already imported)
 - `pendingReviewCount` added to parallel `Promise.all` in layout; passed to `AdminMobileNav`
 
+## Metro Geography Infrastructure (complete — 2026-04-01)
+
+Data layer for city-level SEO pages. No page routes yet — pages are built in the next session.
+
+### `Metro` model (`prisma/schema.prisma`)
+- `id`, `slug` (unique, e.g. `"austin-tx"`), `name`, `state`, `latitude`, `longitude`, `radiusMiles Int @default(45)`, `isActive Boolean @default(true)`, `createdAt`, `updatedAt`
+- **Self-relation**: `parentMetroId String?` → `Metro?` (child metros roll up to a parent major metro). A metro with no parent is a major metro.
+- Back-relations on `Listing`, `CommissionRequest`, and `SellerProfile` (both `metro` and `cityMetro` variants)
+- Migration: `20260401060322_add_metro_geography`
+
+### Two-tier structure
+- **Major metros** — no parent (e.g. `austin-tx`, `houston-tx`, `dallas-tx`)
+- **Child metros** — point to a parent (e.g. `katy-tx → houston-tx`, `round-rock-tx → austin-tx`)
+- A point matches a metro when it falls within that metro's `radiusMiles` radius (Haversine)
+
+### Fields added
+- `Listing`: `metroId String?` (major metro), `cityMetroId String?` (specific child metro)
+- `CommissionRequest`: same two fields
+- `SellerProfile`: same two fields
+- All set automatically on create; left null if outside all metro areas or if geo-mapping fails
+
+### Seed data (`prisma/seeds/metros.ts`)
+20 Texas metros: 7 major (Austin, Houston, Dallas, San Antonio, Fort Worth, College Station, Waco) + 13 children. Run with:
+```
+npx dotenv-cli -e .env -- npx ts-node --transpile-only prisma/seeds/metros.ts
+```
+
+### `src/lib/geo-metro.ts`
+- **`findNearestMetro(lat, lng)`** — checks child metros first (more specific), then majors; returns `{ cityMetro, majorMetro }` within radius
+- **`mapToMetros(lat, lng)`** — returns `{ metroId: string | null, cityMetroId: string | null }` for DB storage
+- **`isMetroSlug(slug)`** — returns `true` if slug matches `/^[a-z][a-z0-9-]+-[a-z]{2}$/`; used in future dynamic routes to distinguish metro slugs from CUIDs
+
+### Auto-mapping on create
+- **Listings** (`dashboard/listings/new/page.tsx`) — after `prisma.listing.create`, fetches seller's lat/lng, calls `mapToMetros`, updates listing. Non-fatal try/catch.
+- **Commission requests** (`api/commission/route.ts`) — after create, if `lat`/`lng` set (local scope requests), calls `mapToMetros`. Non-fatal try/catch.
+
+### Backfill script (`scripts/backfill-metros.ts`)
+One-time script — finds all existing listings, commissions, and seller profiles with coordinates but no `metroId`, resolves metros, updates records. Run with:
+```
+npx dotenv-cli -e .env -- npx ts-node --transpile-only scripts/backfill-metros.ts
+```
+Result on first run: 4 sellers, 20 listings updated; 0 commissions (none had local coordinates).
+
+### Metro slug format
+`<city-name>-<two-letter-state>` — all lowercase, hyphens for spaces (e.g. `the-woodlands-tx`). `isMetroSlug()` validates this format. Used in the next session to build `/makers/[metro]` and `/browse/[metro]` city pages.
+
 ## Remaining Work
 
 ### Mobile audit round 3 (complete — deployed 2026-03-29)

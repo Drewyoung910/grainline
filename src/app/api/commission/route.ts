@@ -128,5 +128,18 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Assign metro geography — non-fatal
+  if (reqLat != null && reqLng != null) {
+    try {
+      const { mapToMetros } = await import("@/lib/geo-metro");
+      const { metroId, cityMetroId } = await mapToMetros(reqLat, reqLng);
+      if (metroId || cityMetroId) {
+        await prisma.commissionRequest.update({ where: { id: request.id }, data: { metroId, cityMetroId } });
+      }
+    } catch (e) {
+      console.error("[geo-metro] Failed to assign metro to commission:", e);
+    }
+  }
+
   return NextResponse.json({ id: request.id });
 }

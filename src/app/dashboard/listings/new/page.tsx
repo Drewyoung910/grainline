@@ -132,6 +132,23 @@ async function createListing(formData: FormData) {
   revalidatePath("/browse");
   revalidatePath("/dashboard");
 
+  // Assign metro geography from seller's location — non-fatal
+  try {
+    const sellerLocation = await prisma.sellerProfile.findUnique({
+      where: { id: seller.id },
+      select: { lat: true, lng: true },
+    });
+    if (sellerLocation?.lat != null && sellerLocation?.lng != null) {
+      const { mapToMetros } = await import("@/lib/geo-metro");
+      const { metroId, cityMetroId } = await mapToMetros(sellerLocation.lat, sellerLocation.lng);
+      if (metroId || cityMetroId) {
+        await prisma.listing.update({ where: { id: created.id }, data: { metroId, cityMetroId } });
+      }
+    }
+  } catch (e) {
+    console.error("[geo-metro] Failed to assign metro to listing:", e);
+  }
+
   try {
     const listingCount = await prisma.listing.count({ where: { sellerId: seller.id } });
     if (listingCount === 1) {

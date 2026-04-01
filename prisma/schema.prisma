@@ -185,6 +185,12 @@ model SellerProfile {
   // Analytics
   profileViews  Int  @default(0)
 
+  // Metro geography (set automatically from lat/lng)
+  metroId     String?
+  metro       Metro?   @relation("SellerMetro", fields: [metroId], references: [id])
+  cityMetroId String?
+  cityMetro   Metro?   @relation("SellerCityMetro", fields: [cityMetroId], references: [id])
+
   listings             Listing[]
   faqs                 SellerFaq[]
   makerVerification    MakerVerification?
@@ -272,6 +278,12 @@ model Listing {
   aiReviewScore   Float?
   reviewedByAdmin Boolean   @default(false)
   reviewedAt      DateTime?
+
+  // Metro geography (set automatically on create/update from seller location)
+  metroId     String?
+  metro       Metro?   @relation("ListingMetro", fields: [metroId], references: [id])
+  cityMetroId String?
+  cityMetro   Metro?   @relation("ListingCityMetro", fields: [cityMetroId], references: [id])
 
   @@index([sellerId, status])
   @@index([status, createdAt])
@@ -882,6 +894,12 @@ model CommissionRequest {
 
   interests CommissionInterest[]
 
+  // Metro geography (set automatically on create from buyer location)
+  metroId     String?
+  metro       Metro?   @relation("CommissionMetro", fields: [metroId], references: [id])
+  cityMetroId String?
+  cityMetro   Metro?   @relation("CommissionCityMetro", fields: [cityMetroId], references: [id])
+
   @@index([buyerId])
   @@index([status, createdAt])
   @@index([category])
@@ -898,6 +916,36 @@ model CommissionInterest {
 
   @@unique([commissionRequestId, sellerProfileId])
   @@index([sellerProfileId])
+}
+
+model Metro {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  state        String
+  latitude     Float
+  longitude    Float
+  radiusMiles  Int      @default(45)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Self-relation: child metros roll up to a parent major metro
+  parentMetroId String?
+  parentMetro   Metro?   @relation("MetroChildren", fields: [parentMetroId], references: [id])
+  childMetros   Metro[]  @relation("MetroChildren")
+
+  // Back-relations
+  listings           Listing[]           @relation("ListingMetro")
+  listingCityMetros  Listing[]           @relation("ListingCityMetro")
+  commissions        CommissionRequest[] @relation("CommissionMetro")
+  commissionCityMetros CommissionRequest[] @relation("CommissionCityMetro")
+  sellerProfiles     SellerProfile[]     @relation("SellerMetro")
+  sellerCityProfiles SellerProfile[]     @relation("SellerCityMetro")
+
+  @@index([slug])
+  @@index([parentMetroId])
+  @@index([state, isActive])
 }
 
 model AdminAuditLog {
