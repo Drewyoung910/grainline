@@ -41,11 +41,12 @@ prisma/
 
 ## Key Data Models
 
-- **User** — authenticated account (linked to Clerk user ID); `role`: `USER | EMPLOYEE | ADMIN` (used for admin panel access control)
+- **User** — authenticated account (linked to Clerk user ID); `role`: `USER | EMPLOYEE | ADMIN` (used for admin panel access control); `banned Boolean @default(false)`, `bannedAt DateTime?`, `banReason String?`, `bannedBy String?` — ban fields set by admin
 - **SellerProfile** — seller info, location (lat/lng for map), Stripe Connect account, shipping config; `onboardingStep Int @default(0)`, `onboardingComplete Boolean @default(false)` track wizard progress
-- **Listing** — product for sale; status: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN`; `listingType`: `MADE_TO_ORDER | IN_STOCK`; includes `processingTimeMinDays`, `processingTimeMaxDays` (MADE_TO_ORDER only), `stockQuantity Int?` and `shipsWithinDays Int?` (IN_STOCK only); `isReadyToShip` fully removed. Also has `category Category?`, `viewCount Int @default(0)`, `clickCount Int @default(0)`. Stock is decremented at checkout (Stripe webhook) and restored on case refund resolution. Custom order fields: `isPrivate Boolean @default(false)`, `reservedForUserId String?` (back-relation `reservedForUser User? @relation("ReservedListings")`), `customOrderConversationId String?`.
+- **Listing** — product for sale; status: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN | PENDING_REVIEW`; `listingType`: `MADE_TO_ORDER | IN_STOCK`; includes `processingTimeMinDays`, `processingTimeMaxDays` (MADE_TO_ORDER only), `stockQuantity Int?` and `shipsWithinDays Int?` (IN_STOCK only); `isReadyToShip` fully removed. Also has `category Category?`, `viewCount Int @default(0)`, `clickCount Int @default(0)`. Stock is decremented at checkout (Stripe webhook) and restored on case refund resolution. Custom order fields: `isPrivate Boolean @default(false)`, `reservedForUserId String?` (back-relation `reservedForUser User? @relation("ReservedListings")`), `customOrderConversationId String?`.
 - **Order** — purchase transaction with Stripe refs, shipping/tax amounts, fulfillment tracking, quoted address snapshot (`quotedTo*` fields), mismatch detection flag (`reviewNeeded`), Shippo label fields, `estimatedDeliveryDate`, and `processingDeadline` (see below)
-- **OrderItem** — line items in an order
+- **OrderItem** — line items in an order; `listingSnapshot Json?` — snapshot of listing data captured at checkout (title, description, priceCents, imageUrls, category, tags, sellerName, capturedAt)
+- **AdminAuditLog** — `id`, `adminId` → `User @relation("AdminActions")`, `action`, `targetType`, `targetId`, `reason?`, `metadata Json @default("{}")`, `undone Boolean @default(false)`, `undoneAt?`, `undoneBy?`, `undoneReason?`, `createdAt`; `@@index([adminId])`, `@@index([targetType, targetId])`, `@@index([createdAt])`, `@@index([undone])`; back-relation `adminActions AdminAuditLog[] @relation("AdminActions")` on `User`. Migration: `20260401011017_ban_audit_ai_review_snapshot`
 - **Cart / CartItem** — per-user shopping cart
 - **Conversation / Message** — buyer-seller messaging, optionally tied to a listing; `Message` has `kind String?` for structured message types (`custom_order_request`, `custom_order_link`, `file`)
 - **Review / ReviewPhoto / ReviewVote** — reviews with photos, seller replies, helpfulness voting
@@ -74,7 +75,7 @@ Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` 
 
 `CaseResolution` enum: `REFUND_FULL | REFUND_PARTIAL | DISMISSED`
 
-`NotificationType` enum (18 values): `NEW_MESSAGE | NEW_ORDER | ORDER_SHIPPED | ORDER_DELIVERED | CASE_OPENED | CASE_MESSAGE | CASE_RESOLVED | CUSTOM_ORDER_REQUEST | CUSTOM_ORDER_LINK | VERIFICATION_APPROVED | VERIFICATION_REJECTED | BACK_IN_STOCK | NEW_REVIEW | LOW_STOCK | NEW_FAVORITE | NEW_BLOG_COMMENT | BLOG_COMMENT_REPLY | NEW_FOLLOWER`
+`NotificationType` enum (22 values): `NEW_MESSAGE | NEW_ORDER | ORDER_SHIPPED | ORDER_DELIVERED | CASE_OPENED | CASE_MESSAGE | CASE_RESOLVED | CUSTOM_ORDER_REQUEST | CUSTOM_ORDER_LINK | VERIFICATION_APPROVED | VERIFICATION_REJECTED | BACK_IN_STOCK | NEW_REVIEW | LOW_STOCK | NEW_FAVORITE | NEW_BLOG_COMMENT | BLOG_COMMENT_REPLY | NEW_FOLLOWER | FOLLOWED_MAKER_NEW_LISTING | FOLLOWED_MAKER_NEW_BLOG | SELLER_BROADCAST | COMMISSION_INTEREST | LISTING_APPROVED | LISTING_REJECTED`
 
 ### Order — delivery estimate fields
 
@@ -1208,6 +1209,15 @@ Post-deployment bug fixes and gap fills:
 - **Middleware**: `/commission` and `/commission/((?!new)[^/]+)` added as public routes; `/commission/new` and `/account/commissions` require auth (default protected matcher)
 - **Sitemap**: `/commission` at priority 0.7 daily; individual open commission request pages at priority 0.5 weekly with `updatedAt`
 
+#### SEO (complete — 2026-04-01)
+- **Commission index** (`/commission`): `metadata` updated to `title: "Custom Woodworking Commissions — Find a Maker | Grainline"` with a description mentioning posting requests and matching with local/national makers
+- **Commission detail** (`/commission/[id]`): `generateMetadata` updated with:
+  - Title pattern: `[Title] — [City, State] | Custom Woodworking Commission` (or "Ships Anywhere" for national requests)
+  - Description: first 120 chars of description + budget range + interested count (capped at 160 chars)
+  - `alternates.canonical` and OpenGraph tags
+  - JSON-LD `Service` schema injected via `<script type="application/ld+json">`: includes `name`, `description` (first 160 chars), `url`, `provider` (Grainline org), `areaServed` (city/state from buyer's seller profile, or "United States" for national), `category: "Custom Woodworking"`, `offers.@type: "AggregateOffer"` with `lowPrice`/`highPrice` (when set), `priceCurrency: "USD"`, `offerCount: interestedCount`
+- Main query now selects `isNational` and `buyer.sellerProfile.{ city, state }` for location resolution
+
 #### Improvements (2026-03-31)
 - **Explainer banner** always shown at top of commission board: "How the Commission Room works" (amber card)
 - **Better empty state**: heading + description + filled "Post a Request →" button
@@ -1346,6 +1356,107 @@ Nine bugs fixed across listing page, commission room, and seller profile.
 ### Commission Room Near Me crash
 - Root cause: `$queryRaw` tagged template literal treats `${}` expressions as SQL parameters; the conditional `${categoryValid ? \`AND cr.category = '${categoryFilter}'\` : \`\`}` was being passed as a bound parameter value instead of raw SQL, causing a PostgreSQL syntax error
 - Fix: rewrote both queries (data + count) using `$queryRawUnsafe` with positional parameters; added `LEAST(1.0, GREATEST(-1.0, ...))` clamping on `acos` arguments to prevent NaN
+
+## User Ban System (complete — 2026-04-01)
+
+### Schema additions on `User`
+- `banned Boolean @default(false)`, `bannedAt DateTime?`, `banReason String?`, `bannedBy String?` — set/cleared by admin ban actions
+- `adminActions AdminAuditLog[] @relation("AdminActions")` — back-relation
+
+### `AdminAuditLog` model
+Full audit trail for admin actions with 24-hour undo window. Fields: `action` (string enum like `BAN_USER`, `APPROVE_LISTING`, etc.), `targetType`, `targetId`, `reason?`, `metadata Json`, `undone Boolean`, `undoneAt?`, `undoneBy?`, `undoneReason?`. Migration: `20260401011017_ban_audit_ai_review_snapshot`.
+
+### Utilities (`src/lib/`)
+- **`audit.ts`** — `logAdminAction(...)` upserts an `AdminAuditLog` row; `undoAdminAction({ logId, adminId, reason })` validates 24h window, performs action-specific rollback (BAN_USER → unban + restore Stripe/vacation; REMOVE_LISTING/HOLD_LISTING → restore ACTIVE), marks log undone, creates `UNDO_*` audit entry
+- **`ban.ts`** — `banUser({ userId, adminId, reason })`: sets banned fields, calls `sellerProfile.updateMany({ chargesEnabled: false, vacationMode: true })`, closes open commission requests, logs `BAN_USER` action; `unbanUser(...)`: clears banned fields, restores Stripe if account exists, logs `UNBAN_USER`
+
+### API routes
+- `POST /api/admin/users/[id]/ban` — ADMIN only; bans user with reason; blocks self-ban and admin-to-admin ban
+- `DELETE /api/admin/users/[id]/ban` — ADMIN only; unbans user
+- `POST /api/admin/audit/[id]/undo` — ADMIN only; undoes action within 24h window
+- `PATCH /api/admin/listings/[id]/review` — ADMIN/EMPLOYEE; `action: "approve"` → ACTIVE + `LISTING_APPROVED` notification; `action: "reject"` → HIDDEN + `LISTING_REJECTED` notification + reason required
+
+### Enforcement
+- **Browse** (`/browse/page.tsx`): `seller: { user: { banned: false } }` added to main query
+- **Homepage** (`/page.tsx`): same filter on Fresh from Workshop + Collector Favorites
+- **Similar items** (`/api/listings/[id]/similar`): banned filter on both raw SQL paths + Prisma fallback
+- **Seller profile** (`/seller/[id]`): redirects to `/not-found` if `seller.user.banned`
+- **`ensureUser`**: throws `"Your account has been suspended. Contact support@thegrainline.com"` if user is banned (sign-in fails gracefully)
+- **`/banned` page** (`src/app/banned/page.tsx`): branded suspension page with support email; `robots: { index: false }`
+
+### Client components
+- **`BanUserButton`** — `window.prompt` for reason, optimistic toggle, POST/DELETE to ban route
+- **`UndoActionButton`** — shows "Undo" within 24h, "Expired" after; `window.prompt` for reason
+- **`ReviewListingButtons`** — Approve (no reason needed) / Reject (prompts for reason); calls `PATCH /api/admin/listings/[id]/review`; calls `router.refresh()` on success
+
+### `LISTING_APPROVED` and `LISTING_REJECTED` notification types
+Added to `NotificationType` enum. Sent to seller on admin approve/reject. `createNotification` preference check applies (type string `"LISTING_APPROVED"` / `"LISTING_REJECTED"`).
+
+## AI Listing Review (complete — 2026-04-01)
+
+### Schema additions on `Listing`
+- `aiReviewFlags String[] @default([])` — flags returned by AI review
+- `aiReviewScore Float?` — confidence score from AI (0.0–1.0)
+- `reviewedByAdmin Boolean @default(false)` — set to true on admin approve/reject
+- `reviewedAt DateTime?` — timestamp of admin review
+
+### `PENDING_REVIEW` listing status
+Added to `ListingStatus` enum. Listings in this state are hidden from browse, homepage, and similar items. Only visible to the seller in their dashboard (with amber "Under Review" badge) and to admins in `/admin/review`.
+
+### `reviewListingWithAI` (`src/lib/ai-review.ts`)
+- Uses `gpt-4o-mini` via OpenAI API; gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` is missing or API fails
+- Prompt instructs model to flag only clearly non-woodworking, prohibited, spam, or offensive content; lenient with new sellers
+- Returns `{ approved, flags, confidence, reason }`
+
+### Listing creation flow (`dashboard/listings/new/page.tsx`)
+After `prisma.listing.create()`, AI review runs async in a try/catch:
+1. Fetches seller's total listing count
+2. Calls `reviewListingWithAI()`
+3. `shouldHold = isFirstListing || !aiResult.approved || aiResult.confidence < 0.7`
+4. If hold: updates listing to `PENDING_REVIEW`, saves `aiReviewFlags` + `aiReviewScore`, logs `AI_HOLD_LISTING` audit entry
+5. If not held: listing stays `ACTIVE` (default from schema) — redirect proceeds normally
+
+Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
+
+### Admin review queue (`/admin/review`)
+- Shows all `PENDING_REVIEW` listings ordered oldest-first
+- Card shows thumbnail, title, seller name, price, date, "First listing" badge, AI flags list, confidence %
+- Approve → ACTIVE + seller notification; Reject → HIDDEN + seller notification + reason required
+- Count badge in admin sidebar and mobile nav
+
+## Listing Snapshot at Purchase (complete — 2026-04-01)
+
+**`OrderItem.listingSnapshot Json?`** — captured at checkout in both `/api/cart/checkout/route.ts` and `/api/cart/checkout/single/route.ts`. Contains:
+```json
+{
+  "title": "...",
+  "description": "...",
+  "priceCents": 4500,
+  "imageUrls": ["https://..."],
+  "category": "FURNITURE",
+  "tags": ["walnut", "handmade"],
+  "sellerName": "...",
+  "capturedAt": "2026-04-01T..."
+}
+```
+Useful for order history display, dispute resolution, and archival even if the listing is later edited or deleted.
+
+## Admin Pages (complete — 2026-04-01)
+
+### `/admin/users`
+Paginated user table with URL-param search (`?q=` by email or name). Shows name, email, role badge, join date, ban status (with reason and date). Ban/Unban button via `BanUserButton`. ADMIN-only access. 30 users/page.
+
+### `/admin/audit`
+Paginated audit log (30/page). Action column color-coded (BAN_USER=red, UNBAN_USER/APPROVE=green, HOLD/AI_HOLD=amber). Shows admin name/email, target type+ID, reason, timestamp. Undo button (within 24h) via `UndoActionButton`.
+
+### `/admin/review`
+Review queue for `PENDING_REVIEW` listings. Oldest-first. "First listing" badge, AI flags, confidence score. Approve/Reject via `ReviewListingButtons`. Count badge in sidebar + mobile nav. ADMIN or EMPLOYEE access.
+
+### Admin layout + mobile nav updates
+- Desktop sidebar: added Review Queue (with `pendingReviewCount` badge), Users, Audit Log links
+- Mobile nav: added same three tabs with badge support
+- `Eye` icon used for Review Queue, `User` for Users, `Shield` for Audit Log (already imported)
+- `pendingReviewCount` added to parallel `Promise.all` in layout; passed to `AdminMobileNav`
 
 ## Remaining Work
 
@@ -1573,6 +1684,14 @@ Helper utilities:
 ## Payments
 
 Stripe Connect is used so sellers receive payouts directly. Stripe webhook handler is at `src/app/api/stripe/webhook/route.ts`. The `stripe` client lives in `src/lib/stripe.ts`.
+
+**Platform fee: 5%** of item subtotal (excluding shipping and taxes), applied as `application_fee_amount` in all four checkout routes:
+- `src/app/api/checkout/route.ts` — `Math.floor(priceCents * quantity * 0.05)`
+- `src/app/api/cart/checkout/route.ts` — `Math.floor(itemsSubtotalCents * 0.05)`
+- `src/app/api/cart/checkout-seller/route.ts` — `Math.floor(itemsSubtotalCents * 0.05)`
+- `src/app/api/cart/checkout/single/route.ts` — `Math.floor(listing.priceCents * quantity * 0.05)`
+
+Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
 Cart checkout supports multi-seller orders (splits into separate Stripe sessions per seller) and single-item buy-now.
 

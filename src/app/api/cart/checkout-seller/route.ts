@@ -359,7 +359,7 @@ export async function POST(req: Request) {
     if (destination) {
       base.payment_intent_data = {
         transfer_data: { destination },
-        application_fee_amount: Math.floor(itemsSubtotalCents * 0.01),
+        application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
       };
     }
 

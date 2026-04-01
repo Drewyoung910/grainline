@@ -19,10 +19,51 @@ export async function generateMetadata({
   const { id } = await params;
   const req = await prisma.commissionRequest.findUnique({
     where: { id },
-    select: { title: true },
+    select: {
+      title: true,
+      description: true,
+      isNational: true,
+      budgetMinCents: true,
+      budgetMaxCents: true,
+      interestedCount: true,
+      buyer: { select: { sellerProfile: { select: { city: true, state: true } } } },
+    },
   });
   if (!req) return {};
-  return { title: req.title };
+
+  const location = req.isNational
+    ? "Ships Anywhere"
+    : [req.buyer.sellerProfile?.city, req.buyer.sellerProfile?.state].filter(Boolean).join(", ") || "Local";
+
+  const title = `${req.title} — ${location} | Custom Woodworking Commission`;
+
+  const budgetParts: string[] = [];
+  if (req.budgetMinCents || req.budgetMaxCents) {
+    if (req.budgetMinCents && req.budgetMaxCents) {
+      budgetParts.push(`Budget: $${(req.budgetMinCents / 100).toFixed(0)}–$${(req.budgetMaxCents / 100).toFixed(0)}`);
+    } else if (req.budgetMinCents) {
+      budgetParts.push(`Budget from $${(req.budgetMinCents / 100).toFixed(0)}`);
+    } else {
+      budgetParts.push(`Budget up to $${(req.budgetMaxCents! / 100).toFixed(0)}`);
+    }
+  }
+  const interested = req.interestedCount > 0 ? `${req.interestedCount} maker${req.interestedCount !== 1 ? "s" : ""} interested.` : "";
+  const description = [
+    req.description.slice(0, 120),
+    ...budgetParts,
+    interested,
+  ].filter(Boolean).join(" ").slice(0, 160);
+
+  return {
+    title,
+    description,
+    alternates: { canonical: `https://thegrainline.com/commission/${id}` },
+    openGraph: {
+      title,
+      description,
+      url: `https://thegrainline.com/commission/${id}`,
+    },
+  };
 }
 
 function timeAgo(dateStr: Date | string): string {
@@ -56,9 +97,10 @@ export default async function CommissionDetailPage({
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
+      isNational: true,
       createdAt: true,
       buyerId: true,
-      buyer: { select: { name: true, imageUrl: true } },
+      buyer: { select: { name: true, imageUrl: true, sellerProfile: { select: { city: true, state: true } } } },
       interests: {
         orderBy: { createdAt: "asc" },
         select: {
@@ -111,8 +153,43 @@ export default async function CommissionDetailPage({
   const isOwner = meId === request.buyerId;
   const buyerName = request.buyer.name?.split(" ")[0] ?? "Buyer";
 
+  const locationName = request.isNational
+    ? "United States"
+    : [request.buyer.sellerProfile?.city, request.buyer.sellerProfile?.state].filter(Boolean).join(", ") || "United States";
+
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": `${request.title} — Custom Woodworking Commission`,
+    "description": request.description.slice(0, 160),
+    "url": `https://thegrainline.com/commission/${request.id}`,
+    "provider": {
+      "@type": "Organization",
+      "name": "Grainline",
+      "url": "https://thegrainline.com",
+    },
+    "areaServed": {
+      "@type": "Place",
+      "name": locationName,
+    },
+    "category": "Custom Woodworking",
+  };
+
+  const offerData: Record<string, unknown> = {
+    "@type": "AggregateOffer",
+    "priceCurrency": "USD",
+    "offerCount": request.interestedCount,
+  };
+  if (request.budgetMinCents) offerData.lowPrice = (request.budgetMinCents / 100).toFixed(2);
+  if (request.budgetMaxCents) offerData.highPrice = (request.budgetMaxCents / 100).toFixed(2);
+  if (request.budgetMinCents || request.budgetMaxCents) jsonLd.offers = offerData;
+
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb */}
       <div className="mb-5 text-sm text-neutral-500">
         <Link href="/commission" className="hover:underline">Commission Room</Link>

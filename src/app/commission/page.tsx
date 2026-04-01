@@ -8,8 +8,8 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
 
 export const metadata: Metadata = {
-  title: "Commission Room",
-  description: "Post a custom piece request and connect with woodworking makers who can bring your vision to life.",
+  title: "Custom Woodworking Commissions — Find a Maker | Grainline",
+  description: "Post a custom woodworking commission request and get matched with skilled local and national makers. Describe your vision, set your budget, and let makers come to you.",
 };
 
 function timeAgo(dateStr: Date | string): string {

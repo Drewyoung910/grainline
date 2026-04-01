@@ -219,7 +219,7 @@ export default function TermsPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.5 Fees</h3>
           <p>
-            Grainline charges a platform fee of <strong>1% of the total transaction value</strong>{" "}
+            Grainline charges a platform fee of <strong>5% of the total transaction value</strong>{" "}
             (excluding shipping and taxes). This fee is deducted before your payout via Stripe Connect.
             Stripe&apos;s standard payment processing fees also apply. Grainline reserves the right to
             adjust its fee structure upon 30 days&apos; written notice.
@@ -413,7 +413,7 @@ export default function TermsPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">6.2 Platform Fee</h3>
           <p>
-            Grainline charges Makers a <strong>1% platform fee</strong> on each completed transaction
+            Grainline charges Makers a <strong>5% platform fee</strong> on each completed transaction
             (calculated on the item subtotal, excluding shipping and taxes). This fee is automatically
             deducted from the Maker&apos;s payout before transfer via Stripe Connect. Buyers are not
             charged this fee separately. Grainline reserves the right to change platform fees with

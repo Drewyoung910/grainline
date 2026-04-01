@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     // If the seller has connected Stripe, send destination & fee
     const destination = (listing.seller as { stripeAccountId?: string | null })?.stripeAccountId || null;
-    const platformFee = Math.floor(priceCents * quantity * 0.01); // 1% fee (tweak later)
+    const platformFee = Math.floor(priceCents * quantity * 0.05); // 5% platform fee
 
     const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl  = `${process.env.NEXT_PUBLIC_APP_URL}/listing/${listing.id}`;

@@ -233,7 +233,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const application_fee_amount = Math.floor(listing.priceCents * quantity * 0.01); // 1%
+    const application_fee_amount = Math.floor(listing.priceCents * quantity * 0.05); // 5% platform fee
 
     const success_url = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancel_url  = `${process.env.NEXT_PUBLIC_APP_URL}/listing/${listing.id}`;
