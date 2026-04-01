@@ -12,12 +12,12 @@ const TOC = [
   { id: "acceptance",         label: "1. Acceptance of Terms" },
   { id: "service",            label: "2. Description of Service" },
   { id: "accounts",           label: "3. User Accounts" },
-  { id: "maker-terms",        label: "4. Maker (Seller) Terms — 4.1–4.25 (incl. 4.21 IP Warranty, 4.22 Identity Verification, 4.23 Business Licenses, 4.24 Listing Content, 4.25 Seller Warranties)" },
-  { id: "buyer-terms",        label: "5. Buyer Terms — incl. 5.7 Cart and Inventory, 5.8 Chargeback Rights" },
-  { id: "payments",           label: "6. Payments and Fees — incl. 6.8 Payment Collection Agent, 6.9 Payment Reserves and Holds" },
-  { id: "shipping",           label: "7. Shipping and Delivery — incl. 7.10 Domestic Shipping Only, 7.11 Package Theft, 7.12 Hazardous Materials" },
+  { id: "maker-terms",        label: "4. Maker (Seller) Terms" },
+  { id: "buyer-terms",        label: "5. Buyer Terms" },
+  { id: "payments",           label: "6. Payments and Fees" },
+  { id: "shipping",           label: "7. Shipping and Delivery" },
   { id: "returns",            label: "8. Returns, Refunds, and Cancellations" },
-  { id: "disputes",           label: "9. Dispute Resolution (Cases) — incl. 9.8 Time Calculations" },
+  { id: "disputes",           label: "9. Dispute Resolution (Cases)" },
   { id: "prohibited",         label: "10. Prohibited Activities" },
   { id: "ip",                 label: "11. Intellectual Property" },
   { id: "privacy",            label: "12. Privacy" },
@@ -35,13 +35,13 @@ const TOC = [
   { id: "blog-content",       label: "24. Blog and Community Content" },
   { id: "ai-review",          label: "25. Automated Content Review" },
   { id: "vacation-mode",      label: "26. Vacation Mode" },
-  { id: "reviews-ratings",    label: "27. Reviews and Ratings — incl. 27.8 Reviews After Account Deletion" },
-  { id: "messaging",          label: "28. Messaging — incl. 28.6 Gift Notes" },
+  { id: "reviews-ratings",    label: "27. Reviews and Ratings" },
+  { id: "messaging",          label: "28. Messaging" },
   { id: "notifications",      label: "29. Notifications and Communication Preferences" },
   { id: "algorithmic",        label: "30. Algorithmic Features and Recommendations" },
   { id: "geo-restrictions",   label: "31. Geographic Restrictions" },
   { id: "private-listings",   label: "32. Private and Reserved Listings" },
-  { id: "general-provisions", label: "33. General Provisions — incl. 33.7 Notices, 33.8 Limitation Period, 33.9 Third-Party Beneficiaries, 33.10 Construction, 33.11 Feedback, 33.12 Arbitration Fees, 33.13 INFORM Consumers Act" },
+  { id: "general-provisions", label: "33. General Provisions" },
 ];
 
 export default function TermsPage() {
@@ -576,8 +576,7 @@ export default function TermsPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">6.3 Maker Payouts</h3>
           <p>
             Makers receive payouts via Stripe Connect after deduction of the platform fee and
-            Stripe&apos;s payment processing fees. Payout timing is governed by Stripe&apos;s standard
-            payout schedule. Payout timing is determined by Stripe&apos;s payout schedule, which may
+            Stripe&apos;s payment processing fees. Payout timing is determined by Stripe&apos;s payout schedule, which may
             change. Payouts are typically processed within <strong>2–7 business days</strong> after
             sale completion, depending on the Maker&apos;s Stripe account status and bank. See
             Stripe&apos;s Terms for current payout timing. Grainline is not responsible for changes to

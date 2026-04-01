@@ -12,10 +12,10 @@ const TOC = [
   { id: "introduction",  label: "1. Introduction" },
   { id: "information",   label: "2. Information We Collect" },
   { id: "use",           label: "3. How We Use Your Information" },
-  { id: "sharing",       label: "4. Information We Share — incl. 4.9 Data Visible Between Sellers" },
-  { id: "cookies",       label: "5. Cookies and Tracking — incl. 5.3 GPC and Do Not Track" },
+  { id: "sharing",       label: "4. Information We Share" },
+  { id: "cookies",       label: "5. Cookies and Tracking" },
   { id: "retention",     label: "6. Data Retention" },
-  { id: "rights",        label: "7. Your Rights — incl. 7.5 Additional US State Privacy Rights" },
+  { id: "rights",        label: "7. Your Rights" },
   { id: "children",      label: "8. Children's Privacy" },
   { id: "security",      label: "9. Security" },
   { id: "transfers",     label: "10. International Data Transfers" },
@@ -833,10 +833,6 @@ export default function PrivacyPage() {
             United States. If you access the Platform from outside the United States, your information
             will be transferred to, stored, and processed in the United States, where data protection
             laws may differ from those in your country.
-          </p>
-          <p className="mt-4">
-            By using the Platform, you consent to the transfer of your information to the United
-            States and its processing there in accordance with this Privacy Policy.
           </p>
           <p className="mt-4">
             If you access the Platform from outside the United States, you consent to the transfer and
