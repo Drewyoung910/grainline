@@ -12,10 +12,10 @@ const TOC = [
   { id: "introduction",  label: "1. Introduction" },
   { id: "information",   label: "2. Information We Collect" },
   { id: "use",           label: "3. How We Use Your Information" },
-  { id: "sharing",       label: "4. Information We Share" },
-  { id: "cookies",       label: "5. Cookies and Tracking" },
+  { id: "sharing",       label: "4. Information We Share — incl. 4.9 Data Visible Between Sellers" },
+  { id: "cookies",       label: "5. Cookies and Tracking — incl. 5.3 GPC and Do Not Track" },
   { id: "retention",     label: "6. Data Retention" },
-  { id: "rights",        label: "7. Your Rights" },
+  { id: "rights",        label: "7. Your Rights — incl. 7.5 Additional US State Privacy Rights" },
   { id: "children",      label: "8. Children's Privacy" },
   { id: "security",      label: "9. Security" },
   { id: "transfers",     label: "10. International Data Transfers" },
@@ -317,12 +317,20 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Shippo</strong> — Shipping label generation and carrier rate quotes. Shippo
-              receives sender and recipient name and address information for orders.{" "}
+              receives sender and recipient name and address information for orders. Shippo in turn
+              shares this information with shipping carriers (such as USPS, UPS, and FedEx) to fulfill
+              shipping label requests and facilitate delivery. Carriers&apos; use of this information
+              is governed by their respective privacy policies.{" "}
               <a href="https://goshippo.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">goshippo.com/privacy</a>
             </li>
             <li>
               <strong>Resend</strong> — Transactional and marketing email delivery. Resend receives
-              your email address and name for sending emails on our behalf.
+              your email address and name for sending emails on our behalf. Resend may use tracking
+              technologies including tracking pixels to measure email deliverability and engagement
+              (such as whether an email was opened or a link was clicked). This data is used to monitor
+              the health of our email delivery system. You may disable image loading in your email
+              client to prevent tracking pixel functionality. Resend&apos;s data practices are governed
+              by their privacy policy.
             </li>
             <li>
               <strong>UploadThing</strong> — Cloud storage for images and files you upload to the
@@ -411,13 +419,22 @@ export default function PrivacyPage() {
             is required by law, to protect our rights or the rights of others, to prevent fraud or
             illegal activity, or to respond to an emergency that threatens safety.
           </p>
+          <p className="mt-3">
+            When we receive a valid legal request for user data (such as a subpoena, court order, or
+            search warrant), we will comply as required by law. We may notify the affected user of the
+            request unless prohibited by law or court order from doing so, or unless we believe
+            notification would create a risk of harm. We retain the right to challenge legal requests
+            we believe are overly broad, vague, or otherwise improper.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.4 Business Transfers</h3>
           <p>
             If Grainline is involved in a merger, acquisition, financing, reorganization, bankruptcy,
             or sale of all or a portion of its assets, your information may be transferred as part of
-            that transaction. We will notify you via email and/or prominent notice on the Platform
-            before your information becomes subject to a different privacy policy.
+            that transaction. We will notify you via email and/or prominent notice on the Platform at
+            least 30 days before your information becomes subject to a different privacy policy. You
+            may request deletion of your account and personal data before the transfer takes effect by
+            contacting privacy@thegrainline.com during the notice period.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.5 Tax Authorities</h3>
@@ -452,6 +469,17 @@ export default function PrivacyPage() {
             <li>We do <strong>not</strong> share your data for third-party advertising.</li>
             <li>We do <strong>not</strong> use your data to build advertising profiles for external use.</li>
           </ul>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.9 Data Visible Between Sellers</h3>
+          <p>
+            Certain Maker information is visible to other Makers through normal Platform use. This
+            includes: your display name, profile information, and Guild badge status (visible when you
+            express interest in a Commission Request); your follower count (publicly visible on your
+            profile); and your shop&apos;s reviews, ratings, and active listings (publicly visible).
+            Additionally, if you purchase from another Maker, your name and review will be visible to
+            that Maker. Detailed seller analytics (views, clicks, conversion data) are visible only
+            to the individual Maker.
+          </p>
         </section>
 
         {/* 5 */}
@@ -494,6 +522,21 @@ export default function PrivacyPage() {
               and is governed by Stripe&apos;s Privacy Policy and Cookie Policy.
             </li>
           </ul>
+          <p className="mt-4">
+            For transparency, the following is a non-exhaustive list of specific cookies and similar
+            technologies currently used on the Platform:
+          </p>
+          <ul className="list-disc pl-6 mt-3 space-y-2">
+            <li><strong>Clerk authentication cookies:</strong> Session cookies set by our authentication provider to maintain your logged-in state. These are essential cookies that expire when your session ends or after the period configured by Clerk.</li>
+            <li><strong>Cloudflare security cookies (__cf_bm):</strong> Set by Cloudflare to distinguish humans from bots and protect against DDoS attacks. Expires after 30 minutes of inactivity.</li>
+            <li><strong>Stripe cookies:</strong> Set by Stripe&apos;s client-side library (Stripe.js) on pages with payment functionality for fraud prevention and payment processing. Governed by Stripe&apos;s Cookie Policy.</li>
+            <li><strong>Grainline rate-limiting cookies:</strong> httpOnly cookies set per listing and per IP address to prevent abuse of tracking endpoints. Contain no personally identifiable information. Expire within 24 hours.</li>
+            <li><strong>Grainline recently-viewed cookie:</strong> Client-side cookie containing listing IDs (up to 10) for your browsing history display. Expires after 30 days. Contains only listing identifiers — no personal information.</li>
+          </ul>
+          <p className="mt-3">
+            This list may change as we add or remove features. We will update this policy to reflect
+            material changes to our cookie usage.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">5.2 How to Disable Cookies</h3>
           <p>
@@ -503,12 +546,22 @@ export default function PrivacyPage() {
             prevent you from logging in and using most Platform features.
           </p>
 
-          <h3 className="text-base font-semibold mt-6 mb-2">5.3 Do Not Track</h3>
+          <h3 className="text-base font-semibold mt-6 mb-2">5.3 Do Not Track and Global Privacy Control</h3>
           <p>
-            Some browsers offer a &quot;Do Not Track&quot; (DNT) signal. There is no industry-standard
-            technology for recognizing or honoring DNT signals. We do not currently respond to DNT
-            signals. However, we do not engage in cross-site tracking, third-party behavioral
-            advertising, or sale of personal information regardless of DNT settings.
+            Some browsers offer a &quot;Do Not Track&quot; (DNT) signal. There is no
+            industry-standard technology for recognizing or honoring DNT signals, and we do not
+            currently respond to DNT signals.
+          </p>
+          <p className="mt-3">
+            Global Privacy Control (GPC) is a separate browser signal recognized by certain state
+            privacy laws, including those in Colorado, Maryland, and Minnesota. We honor GPC signals
+            as valid opt-out requests where required by applicable law. If we detect a GPC signal from
+            your browser, we will treat it as a request to opt out of any sale or sharing of personal
+            information, to the extent applicable.
+          </p>
+          <p className="mt-3">
+            Regardless of DNT or GPC settings, we do not engage in cross-site tracking, third-party
+            behavioral advertising, or sale of personal information.
           </p>
         </section>
 
@@ -598,7 +651,10 @@ export default function PrivacyPage() {
               commonly used, machine-readable format. Data export requests are processed manually and
               fulfilled within 30 days of a verified request. Exports typically include your account
               information, transaction history, messages, reviews, and listing data in JSON or CSV
-              format.
+              format. For Makers, data exports may also include listing data, order fulfillment
+              history, seller analytics (views, clicks, conversion data), and Guild program data.
+              Customer personal data (buyer names, addresses) is not included in seller data exports
+              except as required by applicable law.
             </li>
             <li>
               <strong>Opt out of marketing.</strong> Opt out of marketing emails at any time by
@@ -691,6 +747,20 @@ export default function PrivacyPage() {
             To exercise GDPR rights, contact{" "}
             <a href="mailto:privacy@thegrainline.com" className="underline">privacy@thegrainline.com</a>.
           </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.5 Additional US State Privacy Rights</h3>
+          <p>
+            In addition to the California and Texas rights described above, residents of other US
+            states — including Virginia, Colorado, Connecticut, Utah, Iowa, Tennessee, Montana,
+            Oregon, Delaware, Maryland, Minnesota, Nebraska, New Hampshire, New Jersey, Indiana,
+            Kentucky, and Rhode Island — may have similar rights under their respective state privacy
+            laws, including rights to access, correct, delete, and port personal data, and to opt out
+            of targeted advertising and data sales. We do not sell personal data or engage in targeted
+            advertising. To exercise any privacy right regardless of your state of residence, contact
+            us at privacy@thegrainline.com. We will respond within the timeframe required by your
+            applicable state law (typically 30–45 days). If we decline a request, you may have the
+            right to appeal — contact us for appeal instructions.
+          </p>
         </section>
 
         {/* 8 */}
@@ -747,9 +817,11 @@ export default function PrivacyPage() {
           </p>
           <p className="mt-4">
             <strong>Data breach notification.</strong> In the event of a data breach that affects
-            your personal information, we will notify you and applicable regulatory authorities
-            within <strong>72 hours</strong> of becoming aware of the breach, to the extent required
-            by applicable law.
+            your personal information, we will notify affected users and applicable regulatory
+            authorities as required by applicable law. Texas law requires notification &quot;as quickly
+            as possible.&quot; California requires notification to the Attorney General within 72 hours
+            if more than 500 residents are affected. We will comply with the most stringent applicable
+            notification timeline in each case.
           </p>
         </section>
 
@@ -757,18 +829,19 @@ export default function PrivacyPage() {
         <section id="transfers">
           <h2 className="text-xl font-semibold mb-4">10. International Data Transfers</h2>
           <p>
-            Grainline is based in the United States. If you use the Platform from outside the United
-            States, your information will be transferred to, stored, and processed in the United
-            States, where data protection laws may differ from those in your country.
+            Grainline is based in the United States. The Platform is intended for use within the
+            United States. If you access the Platform from outside the United States, your information
+            will be transferred to, stored, and processed in the United States, where data protection
+            laws may differ from those in your country.
           </p>
           <p className="mt-4">
             By using the Platform, you consent to the transfer of your information to the United
             States and its processing there in accordance with this Privacy Policy.
           </p>
           <p className="mt-4">
-            For transfers from the EU/EEA or UK, we rely on appropriate safeguards as required by
-            applicable law, including <strong>Standard Contractual Clauses</strong> with our service
-            providers where applicable.
+            If you access the Platform from outside the United States, you consent to the transfer and
+            processing of your data in the United States. We maintain appropriate safeguards with our
+            service providers as required by applicable law.
           </p>
         </section>
 

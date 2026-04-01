@@ -12,12 +12,12 @@ const TOC = [
   { id: "acceptance",         label: "1. Acceptance of Terms" },
   { id: "service",            label: "2. Description of Service" },
   { id: "accounts",           label: "3. User Accounts" },
-  { id: "maker-terms",        label: "4. Maker (Seller) Terms" },
-  { id: "buyer-terms",        label: "5. Buyer Terms" },
-  { id: "payments",           label: "6. Payments and Fees" },
-  { id: "shipping",           label: "7. Shipping and Delivery" },
+  { id: "maker-terms",        label: "4. Maker (Seller) Terms — 4.1–4.25 (incl. 4.21 IP Warranty, 4.22 Identity Verification, 4.23 Business Licenses, 4.24 Listing Content, 4.25 Seller Warranties)" },
+  { id: "buyer-terms",        label: "5. Buyer Terms — incl. 5.7 Cart and Inventory, 5.8 Chargeback Rights" },
+  { id: "payments",           label: "6. Payments and Fees — incl. 6.8 Payment Collection Agent, 6.9 Payment Reserves and Holds" },
+  { id: "shipping",           label: "7. Shipping and Delivery — incl. 7.10 Domestic Shipping Only, 7.11 Package Theft, 7.12 Hazardous Materials" },
   { id: "returns",            label: "8. Returns, Refunds, and Cancellations" },
-  { id: "disputes",           label: "9. Dispute Resolution (Cases)" },
+  { id: "disputes",           label: "9. Dispute Resolution (Cases) — incl. 9.8 Time Calculations" },
   { id: "prohibited",         label: "10. Prohibited Activities" },
   { id: "ip",                 label: "11. Intellectual Property" },
   { id: "privacy",            label: "12. Privacy" },
@@ -35,13 +35,13 @@ const TOC = [
   { id: "blog-content",       label: "24. Blog and Community Content" },
   { id: "ai-review",          label: "25. Automated Content Review" },
   { id: "vacation-mode",      label: "26. Vacation Mode" },
-  { id: "reviews-ratings",    label: "27. Reviews and Ratings" },
-  { id: "messaging",          label: "28. Messaging" },
+  { id: "reviews-ratings",    label: "27. Reviews and Ratings — incl. 27.8 Reviews After Account Deletion" },
+  { id: "messaging",          label: "28. Messaging — incl. 28.6 Gift Notes" },
   { id: "notifications",      label: "29. Notifications and Communication Preferences" },
   { id: "algorithmic",        label: "30. Algorithmic Features and Recommendations" },
   { id: "geo-restrictions",   label: "31. Geographic Restrictions" },
   { id: "private-listings",   label: "32. Private and Reserved Listings" },
-  { id: "general-provisions", label: "33. General Provisions" },
+  { id: "general-provisions", label: "33. General Provisions — incl. 33.7 Notices, 33.8 Limitation Period, 33.9 Third-Party Beneficiaries, 33.10 Construction, 33.11 Feedback, 33.12 Arbitration Fees, 33.13 INFORM Consumers Act" },
 ];
 
 export default function TermsPage() {
@@ -224,9 +224,12 @@ export default function TermsPage() {
             prohibited and may result in account suspension.
           </p>
           <p className="mt-3">
-            Grainline does not independently verify or guarantee that any item is handmade, authentic,
-            original, or accurately described. Buyers purchase items at their own risk. Any legal claim
-            related to item authenticity or accuracy must be brought directly against the Maker.
+            Grainline may review listings for policy compliance using automated tools and manual review
+            (see Section 25), but this review does not constitute verification of product claims,
+            authenticity, safety, or accuracy. Grainline makes no representations or warranties
+            regarding the quality, safety, legality, or accuracy of any listings or items. Buyers
+            purchase items at their own risk. Any legal claim related to item authenticity or accuracy
+            must be brought directly against the Maker.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.5 Fees</h3>
@@ -234,7 +237,9 @@ export default function TermsPage() {
             Grainline charges a platform fee of <strong>5% of the item subtotal</strong>{" "}
             (excluding shipping and taxes). This fee is deducted before your payout via Stripe Connect.
             Stripe&apos;s standard payment processing fees also apply. Grainline reserves the right to
-            adjust its fee structure upon 30 days&apos; written notice.
+            adjust its fee structure upon 30 days&apos; written notice. Fee changes apply to orders
+            placed after the effective date of the change. Orders placed before the effective date are
+            subject to the fee structure in effect at the time of purchase.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.6 Fulfillment and Customer Service</h3>
@@ -332,8 +337,9 @@ export default function TermsPage() {
             By posting listings on Grainline, you grant Grainline a non-exclusive, worldwide,
             royalty-free, sublicensable license to use, display, reproduce, and distribute your
             listing content (including photos, descriptions, and other materials) for the purpose of
-            operating, promoting, and improving the Platform. This license survives removal of your
-            listing but not deletion of your account.
+            operating, promoting (including in paid advertising, social media, email campaigns, and
+            third-party marketing channels), and improving the Platform. This license survives removal
+            of your listing but not deletion of your account.
           </p>
           <p className="mt-3">
             Notwithstanding the foregoing, listing data captured in order transaction records (listing
@@ -375,15 +381,32 @@ export default function TermsPage() {
             Makers are solely responsible for the safety, quality, and legality of their products.
             Makers are solely responsible for any injury, property damage, illness, or loss caused by
             their products. Makers who sell items that pose safety risks — including but not limited to
-            furniture, tools, children&apos;s items, and food-contact items — should carry appropriate
-            product liability insurance. Grainline expressly disclaims all liability for any harm
-            caused by Maker products to the fullest extent permitted by law.
+            furniture, tools, children&apos;s items, and food-contact items — must carry appropriate
+            product liability insurance if they list items in the Toys or Kitchen categories, and
+            should carry product liability insurance for all other categories. Grainline expressly
+            disclaims all liability for any harm caused by Maker products to the fullest extent
+            permitted by law.
           </p>
           <p className="mt-3">
             By listing an item on Grainline, Makers represent and warrant that their products comply
             with all applicable product safety laws and regulations, including but not limited to the
             Consumer Product Safety Act, applicable ASTM standards, and any other federal, state, or
             local regulations applicable to the item type.
+          </p>
+          <p className="mt-3">
+            Without limiting the generality of the foregoing:
+            Makers who list items in the Toys category that are designed or intended for children 12
+            years of age or younger must comply with the Consumer Product Safety Improvement Act
+            (CPSIA), including third-party testing and issuance of a Children&apos;s Product
+            Certificate (CPC) where required by law.
+            Makers who list food-contact items in the Kitchen category (such as cutting boards,
+            utensils, bowls, and serving pieces) must use food-safe finishes and must disclose the
+            type of finish used in the listing description.
+            Makers who ship products to California must comply with California Proposition 65 warning
+            requirements where applicable.
+            If you become aware of a safety defect or hazard in any product you have sold through the
+            Platform, you must immediately notify Grainline at legal@thegrainline.com and take
+            appropriate action to notify affected Buyers.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.19 Public Profile</h3>
@@ -406,10 +429,58 @@ export default function TermsPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.21 Intellectual Property Warranty</h3>
           <p>
-            You represent and warrant that your listings, including the design, content, images, and
-            the items themselves, do not infringe any third-party intellectual property rights,
-            including patents, copyrights, trademarks, or trade secrets. You are solely responsible
-            for any claims of infringement arising from your listings or products.
+            You represent and warrant that your listings — including the design, content, images, and
+            the items themselves — do not infringe any third-party intellectual property rights,
+            including patents, copyrights, trademarks, trade secrets, or rights of publicity. You
+            represent that you have obtained all necessary rights, releases, and consents for any
+            content you upload, including the consent of any identifiable persons depicted in your
+            photos for the use of their likeness on the Platform. You are solely responsible for any
+            claims of infringement arising from your listings or products.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.22 Identity Verification</h3>
+          <p>
+            Grainline reserves the right to verify your identity at registration and periodically
+            during your use of the Platform, including by using third-party verification services,
+            accessing public records, or requesting additional identification documents. Failure to
+            provide requested verification information within the timeframe specified by Grainline may
+            result in account suspension or termination. You represent that all identity and business
+            information you provide to Grainline and to Stripe is accurate, current, and complete.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.23 Business Licenses and Compliance</h3>
+          <p>
+            You are responsible for obtaining and maintaining all licenses, permits, and registrations
+            required to operate your business in your jurisdiction, including but not limited to
+            business licenses, home occupation permits, and sales tax permits for sales made outside
+            the Platform. You represent and warrant that your use of the Platform complies with all
+            applicable federal, state, and local laws and regulations.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.24 Listing Content Requirements</h3>
+          <p>
+            Listing photos must be your own original photographs of the actual item for sale. Stock
+            photos, photos taken from other sellers or websites, and AI-generated images that
+            misrepresent the actual item are prohibited. Listings must include at least one photo of
+            the item.
+          </p>
+          <p className="mt-3">
+            Origin claims such as &quot;Made in USA,&quot; &quot;Handmade in America,&quot; or
+            similar must comply with FTC Made in USA Labeling Rule requirements — an unqualified
+            &quot;Made in USA&quot; claim requires that the product be all or virtually all made in
+            the United States, including materials. Qualified claims (e.g., &quot;Made in USA from
+            domestic and imported materials&quot;) must be truthful and substantiated.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.25 Seller Warranties</h3>
+          <p>
+            If you offer a written warranty on any product sold through the Platform (e.g.,
+            &quot;lifetime guarantee,&quot; &quot;5-year warranty&quot;), you must comply with the
+            Magnuson-Moss Warranty Act (15 U.S.C. § 2301 et seq.), including making the full warranty
+            terms available to Buyers before purchase and designating the warranty as &quot;full&quot;
+            or &quot;limited.&quot; Grainline does not administer, endorse, or guarantee any Maker
+            warranty. Warranty disputes between Buyers and Makers are subject to the Case System
+            (Section 9) and applicable law.
           </p>
         </section>
 
@@ -447,11 +518,11 @@ export default function TermsPage() {
               displayed on each listing and Maker&apos;s shop profile.
             </li>
             <li>
-              <strong>Chargebacks and payment disputes.</strong> You agree to contact Grainline
-              through our Case System before initiating a chargeback with your bank or credit card
-              issuer. Initiating a chargeback without first using the Case System may result in
-              account suspension. Fraudulent chargebacks may result in permanent account termination
-              and referral to appropriate authorities.
+              <strong>Chargebacks and payment disputes.</strong> You agree to attempt resolution
+              through the Case System (Section 9) before initiating a chargeback. See Section 5.8 for
+              details on your rights under applicable consumer protection law. Initiating a chargeback
+              without first attempting resolution through the Case System may result in account
+              suspension.
             </li>
           </ul>
 
@@ -461,6 +532,15 @@ export default function TermsPage() {
             by other Buyers until checkout is completed. If an item becomes unavailable between the
             time you add it to your cart and the time you attempt to complete checkout, the transaction
             will not be processed.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">5.8 Chargeback Rights</h3>
+          <p>
+            You agree to attempt resolution of transaction disputes through the Case System (Section 9)
+            before initiating a chargeback with your bank or credit card issuer. However, nothing in
+            these Terms limits or waives any rights you may have under the Fair Credit Billing Act
+            (FCBA) or other applicable federal or state consumer protection laws, including the right
+            to dispute charges directly with your card issuer at any time.
           </p>
         </section>
 
@@ -497,10 +577,13 @@ export default function TermsPage() {
           <p>
             Makers receive payouts via Stripe Connect after deduction of the platform fee and
             Stripe&apos;s payment processing fees. Payout timing is governed by Stripe&apos;s standard
-            payout schedule, typically <strong>2–7 business days</strong> after sale completion,
-            depending on the Maker&apos;s Stripe account status and bank. Makers must maintain a valid,
-            active Stripe Connect account to receive payouts. Grainline is not responsible for payout
-            delays caused by Stripe, banking institutions, or incomplete Stripe account setup.
+            payout schedule. Payout timing is determined by Stripe&apos;s payout schedule, which may
+            change. Payouts are typically processed within <strong>2–7 business days</strong> after
+            sale completion, depending on the Maker&apos;s Stripe account status and bank. See
+            Stripe&apos;s Terms for current payout timing. Grainline is not responsible for changes to
+            Stripe&apos;s payout schedule. Makers must maintain a valid, active Stripe Connect account
+            to receive payouts. Grainline is not responsible for payout delays caused by Stripe,
+            banking institutions, or incomplete Stripe account setup.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">6.4 Sales Tax — Marketplace Facilitator</h3>
@@ -543,9 +626,11 @@ export default function TermsPage() {
             Grainline uses <strong>Stripe Tax</strong> to calculate applicable sales and use tax at
             checkout. Tax amounts are calculated based on the buyer&apos;s shipping address and
             applicable state and local rates, and are shown to buyers before completing purchase.
-            While Grainline uses commercially reasonable efforts to calculate tax accurately, tax
-            calculation is provided on a best-efforts basis. Grainline does not warrant the accuracy
-            of tax calculations in all jurisdictions.
+            Tax calculations are provided on a best-efforts basis using third-party tax services.
+            Grainline does not guarantee the accuracy of tax calculations in all jurisdictions and is
+            not liable for any tax underpayment, overpayment, penalties, or interest resulting from
+            errors in automated tax calculation. Makers and Buyers are encouraged to consult a
+            qualified tax professional for their specific situation.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">6.6 No Hidden Buyer Fees</h3>
@@ -559,6 +644,28 @@ export default function TermsPage() {
           <p>
             All transactions on Grainline are conducted in United States Dollars (USD) unless
             otherwise stated.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">6.8 Payment Collection Agent</h3>
+          <p>
+            Each Maker appoints Grainline, acting through its payment processor Stripe Connect, as
+            their limited payment collection agent for the sole purpose of receiving payments from
+            Buyers on the Maker&apos;s behalf. A Buyer&apos;s payment obligation to a Maker is
+            satisfied upon receipt of funds by Stripe on Grainline&apos;s behalf, regardless of when
+            or whether funds are subsequently disbursed to the Maker. Grainline&apos;s receipt of
+            payment on behalf of a Maker is considered the same as payment made directly to the Maker.
+            This appointment does not create any fiduciary obligation or trust relationship between
+            Grainline and the Maker beyond the obligation to remit funds in accordance with these Terms
+            and the Stripe Connected Account Agreement.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">6.9 Payment Reserves and Holds</h3>
+          <p>
+            Grainline and its payment processor reserve the right to delay, hold, or place reserves on
+            Maker payouts in cases of unusual order activity, elevated chargeback rates, new seller
+            onboarding periods, suspected fraud, pending dispute resolution, or as required by
+            applicable law or Stripe&apos;s risk policies. Grainline will make commercially reasonable
+            efforts to notify affected Makers of any payment holds and the reason for such holds.
           </p>
         </section>
 
@@ -628,12 +735,31 @@ export default function TermsPage() {
             labels may be voided subject to carrier policies.
           </p>
 
-          <h3 className="text-base font-semibold mt-6 mb-2">7.10 Cross-Border Orders</h3>
+          <h3 className="text-base font-semibold mt-6 mb-2">7.10 Domestic Shipping Only</h3>
           <p>
-            For orders shipped between the United States and Canada, the Buyer is responsible for any
-            applicable customs duties, import taxes, or brokerage fees assessed by the destination
-            country. Grainline does not collect customs duties at checkout. Makers are responsible for
-            accurately completing any required customs documentation.
+            The Platform currently supports shipping within the United States only. International
+            orders are not available at this time. Grainline reserves the right to expand shipping
+            availability in the future.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.11 Package Theft and Delivery Confirmation</h3>
+          <p>
+            When carrier tracking information confirms delivery, the Maker&apos;s shipping obligation
+            is considered fulfilled. If a Buyer reports that a package was not received despite carrier
+            confirmation of delivery, the Buyer may open a case through the Case System (Section 9).
+            Grainline will review available evidence, including tracking data, delivery confirmation,
+            and any additional documentation, and make a determination at its sole discretion. Neither
+            Grainline nor the Maker guarantees against package theft after carrier-confirmed delivery.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.12 Hazardous Materials in Shipping</h3>
+          <p>
+            Makers are solely responsible for compliance with all applicable shipping regulations,
+            including Department of Transportation (DOT) hazardous materials regulations (49 CFR).
+            Products containing or shipped with flammable, combustible, or otherwise regulated
+            materials (including certain wood finishes, stains, adhesives, and solvents) must be
+            packaged, labeled, and shipped in accordance with applicable carrier and regulatory
+            requirements.
           </p>
         </section>
 
@@ -683,7 +809,12 @@ export default function TermsPage() {
             including chargebacks initiated after a Case System resolution in Grainline&apos;s favor —
             may result in permanent account termination and referral to appropriate authorities.
             Grainline reserves the right to contest chargebacks where the Case System was not used
-            in good faith.
+            in good faith. When a chargeback is filed, the payment processor assesses a chargeback fee
+            (currently $15 per chargeback). If a chargeback is filed without good faith use of the
+            Case System, the chargeback fee may be deducted from the Maker&apos;s future payouts or,
+            if the chargeback is determined to be fraudulent, assessed against the Buyer&apos;s
+            account. Nothing in this section limits Buyers&apos; rights under applicable federal or
+            state consumer protection laws, including the Fair Credit Billing Act.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">8.5 Seller-Initiated Refunds</h3>
@@ -700,8 +831,10 @@ export default function TermsPage() {
             Grainline is a marketplace platform. When Buyers purchase from Makers on Grainline, the
             contract of sale is between the Buyer and the Maker — not Grainline. Grainline may
             facilitate dispute resolution but is not the seller of record and is not liable for item
-            quality, defects, or misrepresentation by Makers. Grainline&apos;s maximum liability in
-            connection with any transaction is limited to the transaction amount.
+            quality, defects, or misrepresentation by Makers. Grainline&apos;s role in any transaction
+            is limited to facilitating the marketplace as described in these Terms. Grainline&apos;s
+            aggregate liability in connection with any transaction is subject to the limitations set
+            forth in Section 13.4.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">8.7 Pre-Shipment Cancellations</h3>
@@ -760,7 +893,11 @@ export default function TermsPage() {
             <li>Issue a resolution: full refund, partial refund, or case dismissal</li>
           </ul>
           <p className="mt-3">
-            Grainline&apos;s case decisions are <strong>final and binding</strong> on both parties.
+            Grainline&apos;s case decisions are <strong>final</strong>. Either party may request a
+            one-time re-review of a case decision by emailing legal@thegrainline.com within 7 calendar
+            days of the decision, providing new evidence or information not previously considered.
+            Grainline will respond within 14 calendar days. The re-review decision is final and binding
+            on both parties.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">9.5 Case Abuse</h3>
@@ -782,6 +919,15 @@ export default function TermsPage() {
           <p>
             Disputes between users and Grainline that cannot be resolved through the Case System are
             subject to binding arbitration as described in Section 15.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">9.8 Time Calculations</h3>
+          <p>
+            Unless otherwise specified, all time periods in these Terms (including &quot;48 hours,&quot;
+            &quot;30 days,&quot; and similar references) are measured in calendar time, including
+            weekends and holidays. Where &quot;business days&quot; is specified, it means Monday
+            through Friday, excluding U.S. federal holidays. All server-side deadlines are calculated
+            in Coordinated Universal Time (UTC).
           </p>
         </section>
 
@@ -844,7 +990,8 @@ export default function TermsPage() {
             including listing photos, descriptions, messages, and blog posts. By submitting User
             Content, you grant Grainline a <strong>non-exclusive, worldwide, royalty-free,
             sublicensable license</strong> to use, display, reproduce, and distribute such content
-            in connection with operating, promoting, and improving the Platform. This license
+            in connection with operating, promoting (including in paid advertising, social media, email
+            campaigns, and third-party marketing channels), and improving the Platform. This license
             survives removal of your listing but not deletion of your account.
           </p>
           <p className="mt-3">
@@ -979,6 +1126,7 @@ export default function TermsPage() {
             <li>Any dispute between you and another user of the Platform</li>
             <li>Your failure to collect, report, or remit any taxes that are your responsibility</li>
             <li>Any Commission Request you post, any interest you express in a Commission Request, or any transaction arising from the Commission Room</li>
+            <li>Your misuse of Buyer personal data shared with you for order fulfillment, including any use beyond fulfilling the specific order for which the data was provided</li>
           </ul>
           <p className="mt-4">
             Grainline reserves the right, at its own expense, to assume the exclusive defense and
@@ -1014,6 +1162,11 @@ export default function TermsPage() {
             If a court or arbitrator finds this waiver unenforceable in any instance, then the entire
             arbitration agreement will be void as to that claim only.
           </p>
+          <p className="mt-3">
+            Nothing in this section prevents either party from seeking public injunctive relief in any
+            court of competent jurisdiction to the extent such a waiver is unenforceable under
+            applicable law.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">15.4 Small Claims Court Exception</h3>
           <p>
@@ -1038,7 +1191,11 @@ export default function TermsPage() {
           <p>
             <strong>By you.</strong> You may terminate your account at any time by contacting us at{" "}
             <a href="mailto:legal@thegrainline.com" className="underline">legal@thegrainline.com</a>.
-            Termination does not entitle you to a refund of any fees paid.
+            Termination does not entitle you to a refund of any fees paid. If you have pending orders
+            at the time of your deletion request, you must fulfill all outstanding orders before your
+            account is deactivated. Pending payouts will be processed according to Stripe&apos;s
+            standard schedule. Grainline may delay account deactivation until all pending orders are
+            fulfilled or refunded and all pending payouts are processed.
           </p>
           <p className="mt-4">
             <strong>By Grainline.</strong> Grainline may suspend or permanently terminate your account
@@ -1060,9 +1217,20 @@ export default function TermsPage() {
             suspended in error may contact{" "}
             <a href="mailto:legal@thegrainline.com" className="underline">legal@thegrainline.com</a>{" "}
             to request review. Grainline will respond within 30 days but is not obligated to reverse
-            any suspension decision. The following provisions survive termination: Sections 4.15, 6,
-            9, 10, 11, 13, 14, 15, 22.6, and all payment obligations that accrued prior to
-            termination.
+            any suspension decision. The following provisions survive termination: Sections 4.15,
+            4.21, 6, 9, 10, 11, 13, 14, 15, 20, 22.6, 25.5, 27.8, 33, and all payment obligations
+            that accrued prior to termination.
+          </p>
+          <p className="mt-4">
+            <strong>Account Dormancy.</strong> If your account has no login activity for 24 consecutive
+            months and has no pending orders, open cases, or unprocessed payouts, Grainline may
+            classify your account as dormant. Grainline will send a notice to your registered email
+            address 60 days before taking any dormancy action. If you do not respond or log in within
+            the 60-day notice period, Grainline may archive your listings (removing them from public
+            view), restrict account features, and eventually delete the account in accordance with our
+            Privacy Policy. Any unclaimed funds associated with a dormant account will be handled in
+            accordance with applicable state unclaimed property laws. You may reactivate a dormant
+            account by logging in during the notice period or by contacting legal@thegrainline.com.
           </p>
         </section>
 
@@ -1333,6 +1501,14 @@ export default function TermsPage() {
             without notice, for any reason including violation of these Terms, inappropriate content,
             or any other reason Grainline deems appropriate.
           </p>
+          <p className="mt-3">
+            Blog posts that reference, recommend, or review specific products, services, tools, or
+            materials must disclose any material connection between the author and the provider of
+            those products, services, tools, or materials, in compliance with FTC Endorsement Guides.
+            Material connections include but are not limited to free products, discounts, sponsorships,
+            affiliate relationships, or any other form of compensation. Failure to disclose material
+            connections may result in blog post removal and account suspension.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">24.2 Comments</h3>
           <p>
@@ -1461,9 +1637,10 @@ export default function TermsPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">27.6 Review Removal</h3>
           <p>
-            Grainline reserves the right to remove any review at its sole discretion for violation of
-            these Terms or for any other reason. Grainline is not obligated to remove reviews that a
-            Maker disagrees with, provided the review does not violate these Terms.
+            Grainline reserves the right to remove any review that violates these Terms, contains
+            prohibited content as described in Section 27.3, or is the subject of a valid legal
+            complaint. Grainline is not obligated to remove reviews that a Maker disagrees with,
+            provided the review does not violate these Terms.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">27.7 Aggregate Ratings</h3>
@@ -1526,6 +1703,14 @@ export default function TermsPage() {
             not routinely monitor private messages but reserves the right to do so to maintain
             Platform safety and integrity.
           </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">28.6 Gift Notes</h3>
+          <p>
+            Buyers may include a gift note with their order. Gift note content is passed to the Maker
+            for inclusion with the shipment. Gift notes are subject to the same content standards as
+            other Platform communications under Section 28.2. Grainline does not review or moderate
+            gift note content before it is shared with the Maker.
+          </p>
         </section>
 
         {/* 29 */}
@@ -1585,10 +1770,10 @@ export default function TermsPage() {
         <section id="geo-restrictions">
           <h2 className="text-xl font-semibold mb-4">31. Geographic Restrictions</h2>
           <p>
-            The Platform is currently available to users located in the United States and Canada.
-            Access from other countries may be restricted. Grainline reserves the right to modify
-            geographic availability at any time. Geographic restrictions are determined by IP address
-            and may not be circumvented using virtual private networks (VPNs) or similar tools.
+            The Platform is currently available to users located in the United States. Access from
+            other countries is restricted. Grainline reserves the right to modify geographic
+            availability at any time. Geographic restrictions are determined by IP address and may not
+            be circumvented using virtual private networks (VPNs) or similar tools.
           </p>
         </section>
 
@@ -1635,13 +1820,31 @@ export default function TermsPage() {
             of the parties and their respective successors and permitted assigns.
           </p>
 
-          <h3 className="text-base font-semibold mt-6 mb-2">33.4 Electronic Communications</h3>
+          <h3 className="text-base font-semibold mt-6 mb-2">33.4 Electronic Communications and Consent</h3>
           <p>
-            By creating an account on the Platform, you consent to receive communications from
-            Grainline electronically, including by email, in-app notifications, and notices posted on
-            the Platform. You agree that all agreements, notices, disclosures, and other communications
-            that Grainline provides to you electronically satisfy any legal requirement that such
-            communications be in writing.
+            By creating an account on the Platform, you affirmatively consent to receive communications
+            from Grainline electronically, including by email, in-app notifications, and notices posted
+            on the Platform. You agree that all agreements, notices, disclosures, and other
+            communications that Grainline provides to you electronically satisfy any legal requirement
+            that such communications be in writing.
+          </p>
+          <p className="mt-3">
+            To access and retain electronic communications, you need a device with internet access, a
+            current web browser that supports TLS encryption, and a valid email address. You are
+            responsible for maintaining access to the email address associated with your account.
+          </p>
+          <p className="mt-3">
+            You may withdraw your consent to receive electronic communications at any time by
+            contacting legal@thegrainline.com. However, because electronic communication is necessary
+            for Platform operation (including order confirmations, case notifications, and account
+            security alerts), withdrawal of consent may require closure of your account. Withdrawal of
+            consent does not affect the legal validity of any electronic communications you received
+            before withdrawal.
+          </p>
+          <p className="mt-3">
+            You have the right to receive any communication in non-electronic (paper) form. To request
+            a paper copy of any communication, contact legal@thegrainline.com. Paper copies are
+            provided free of charge.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">33.5 Headings</h3>
@@ -1655,6 +1858,74 @@ export default function TermsPage() {
             Nothing in these Terms shall be construed to create a partnership, joint venture,
             employment, or agency relationship between you and Grainline. You have no authority to
             bind Grainline in any respect.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.7 Notices</h3>
+          <p>
+            All legal notices to Grainline must be sent to legal@thegrainline.com to be effective.
+            Notices from Grainline to you will be sent to the email address associated with your
+            account and are considered received 24 hours after sending. You are responsible for keeping
+            your account email address current. Failure to receive a notice due to an outdated or
+            incorrect email address does not invalidate the notice. For purposes of legal process,
+            Grainline&apos;s mailing address is [YOUR ADDRESS].
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.8 Limitation Period</h3>
+          <p>
+            To the maximum extent permitted by applicable law, any claim arising out of or relating to
+            these Terms or your use of the Platform must be commenced within one (1) year after the
+            cause of action accrues, or such claim is permanently barred. This limitation period
+            applies regardless of whether the claim is based on contract, tort, statute, or any other
+            legal theory.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.9 Third-Party Beneficiaries</h3>
+          <p>
+            These Terms are for the sole benefit of you and Grainline. Nothing in these Terms, express
+            or implied, is intended to confer upon any person or entity other than you and Grainline
+            any rights, remedies, obligations, or liabilities.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.10 Construction</h3>
+          <p>
+            These Terms shall not be construed more strictly against either party regardless of which
+            party drafted or caused the drafting of any provision. The words &quot;include,&quot;
+            &quot;includes,&quot; and &quot;including&quot; are deemed to be followed by &quot;without
+            limitation.&quot; References to sections are to sections of these Terms unless otherwise
+            indicated.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.11 Feedback and Suggestions</h3>
+          <p>
+            Any feedback, ideas, suggestions, or feature requests you voluntarily submit to Grainline
+            — whether through the Platform, email, social media, or any other channel — become the
+            sole property of Grainline. Grainline may use, modify, and implement such feedback without
+            restriction, attribution, or compensation to you.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.12 Arbitration Fees</h3>
+          <p>
+            Arbitration filing fees, arbitrator compensation, and administrative costs shall be
+            allocated in accordance with the AAA Consumer Arbitration Rules fee schedule then in
+            effect. If the AAA determines that the costs of arbitration would be prohibitive compared
+            to the costs of litigation, Grainline will pay as much of the arbitration fees and costs
+            as the arbitrator deems necessary to prevent the arbitration from being cost-prohibitive.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.13 INFORM Consumers Act</h3>
+          <p>
+            Grainline complies with the Integrity, Notification, and Fairness in Online Retail
+            Marketplaces for Consumers Act (INFORM Consumers Act). Makers who meet the threshold of a
+            &quot;high-volume third party seller&quot; as defined by the Act (200 or more discrete
+            sales or transactions and $5,000 or more in gross revenues in any continuous 12-month
+            period) are required to provide Grainline with accurate identification, contact, and bank
+            account information as specified by the Act. Grainline will verify this information within
+            10 days of receipt and require annual recertification. Grainline will disclose seller
+            contact information on product listing pages as required by the Act for qualifying
+            high-volume sellers. Failure to provide or maintain accurate information may result in
+            account suspension. Consumers may report suspicious marketplace activity using the
+            reporting mechanism available on product listing pages or by contacting
+            legal@thegrainline.com.
           </p>
         </section>
 
