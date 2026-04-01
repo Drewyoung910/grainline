@@ -340,7 +340,7 @@ export default async function CommissionPage({
             const buyerName = r.buyer.name?.split(" ")[0] ?? "Buyer";
             const isOwn = r.buyer.name && meId ? false : false; // we don't expose buyer userId to avoid leakage
             return (
-              <div key={r.id} className="border border-neutral-200 p-5">
+              <div key={r.id} className="card-listing p-5">
                 <div className="flex items-start gap-4">
                   {/* Thumbnail */}
                   {r.referenceImageUrls[0] && (
@@ -349,40 +349,41 @@ export default async function CommissionPage({
                       <img
                         src={r.referenceImageUrls[0]}
                         alt="Reference"
-                        className="w-16 h-16 object-cover border border-neutral-100"
+                        className="w-16 h-16 object-cover border border-stone-200"
                       />
                     </Link>
                   )}
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <Link href={`/commission/${r.id}`} className="font-semibold text-neutral-900 hover:underline">
+                      <Link href={`/commission/${r.id}`} className="font-medium text-neutral-900 hover:underline">
                         {r.title}
                       </Link>
                       {r.category && (
-                        <span className="text-xs text-neutral-500 border border-neutral-200 rounded-full px-2 py-0.5 shrink-0">
+                        <span className="text-xs text-stone-500 border border-stone-200 rounded-full px-2 py-0.5 shrink-0">
                           {CATEGORY_LABELS[r.category]}
                         </span>
                       )}
                     </div>
 
-                    <p className="text-sm text-neutral-600 line-clamp-2 mb-2">
+                    {/* Budget — most prominent element */}
+                    {(r.budgetMinCents || r.budgetMaxCents) && (
+                      <div className="font-semibold text-lg text-amber-700 mb-1">
+                        {r.budgetMinCents && r.budgetMaxCents
+                          ? `$${(r.budgetMinCents / 100).toFixed(0)}–$${(r.budgetMaxCents / 100).toFixed(0)}`
+                          : r.budgetMinCents
+                          ? `From $${(r.budgetMinCents / 100).toFixed(0)}`
+                          : `Up to $${(r.budgetMaxCents! / 100).toFixed(0)}`}
+                      </div>
+                    )}
+
+                    <p className="text-sm text-stone-500 line-clamp-2 mb-2">
                       {r.description.slice(0, 200)}{r.description.length > 200 ? "…" : ""}
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-500">
-                      {/* Budget */}
-                      {(r.budgetMinCents || r.budgetMaxCents) && (
-                        <span>
-                          {r.budgetMinCents && r.budgetMaxCents
-                            ? `$${(r.budgetMinCents / 100).toFixed(0)}–$${(r.budgetMaxCents / 100).toFixed(0)}`
-                            : r.budgetMinCents
-                            ? `From $${(r.budgetMinCents / 100).toFixed(0)}`
-                            : `Up to $${(r.budgetMaxCents! / 100).toFixed(0)}`}
-                        </span>
-                      )}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-400">
                       {/* Timeline */}
-                      {r.timeline && <span>{r.timeline}</span>}
+                      {r.timeline && <span className="text-stone-500">{r.timeline}</span>}
                       {/* Buyer */}
                       <span className="flex items-center gap-1">
                         {r.buyer.imageUrl ? (

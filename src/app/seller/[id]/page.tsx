@@ -416,7 +416,7 @@ export default async function SellerPublicPage({
               {featuredListings.map((l) => {
                 const thumb = l.photos[0]?.url ?? "/favicon.ico";
                 return (
-                  <li key={l.id} className="overflow-hidden rounded-xl border min-w-[200px] flex-none snap-start md:min-w-0">
+                  <li key={l.id} className="card-listing min-w-[200px] flex-none snap-start md:min-w-0">
                     <div className="relative">
                       <Link href={`/listing/${l.id}`} className="block">
                         <div className="relative">
@@ -451,7 +451,7 @@ export default async function SellerPublicPage({
 
         {/* ── Story ─────────────────────────────────────────────────────── */}
         {(seller.storyTitle || seller.storyBody) && (
-          <section className="mb-8 rounded-xl border p-6">
+          <section className="mb-8 card-section p-6">
             {seller.storyTitle && (
               <h2 className="text-lg font-semibold mb-3">{seller.storyTitle}</h2>
             )}
@@ -465,7 +465,7 @@ export default async function SellerPublicPage({
 
         {/* ── Bio ───────────────────────────────────────────────────────── */}
         {seller.bio && !(seller.storyTitle || seller.storyBody) && (
-          <section className="mb-8 rounded-xl border p-6">
+          <section className="mb-8 card-section p-6">
             <h2 className="text-lg font-semibold mb-2">About</h2>
             <p className="text-neutral-700 whitespace-pre-line">{seller.bio}</p>
           </section>
@@ -473,7 +473,7 @@ export default async function SellerPublicPage({
 
         {/* ── Location / Map ────────────────────────────────────────────── */}
         {lat != null && lng != null && (
-          <section className="mb-8 rounded-xl border p-4 space-y-3">
+          <section className="mb-8 card-section p-4 space-y-3">
             <h2 className="text-lg font-medium">Pickup area</h2>
             <MapCard
               lat={lat}
@@ -515,7 +515,7 @@ export default async function SellerPublicPage({
 
         {/* ── Shop Policies ──────────────────────────────────────────────── */}
         {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
-          <section className="mb-8 rounded-xl border overflow-hidden">
+          <section className="mb-8 card-section">
             <h2 className="text-lg font-semibold px-6 py-4 border-b">Shop Policies</h2>
             {seller.returnPolicy && (
               <details className="border-b last:border-b-0">
@@ -552,7 +552,7 @@ export default async function SellerPublicPage({
 
         {/* ── FAQs ──────────────────────────────────────────────────────── */}
         {seller.faqs.length > 0 && (
-          <section className="mb-8 rounded-xl border overflow-hidden">
+          <section className="mb-8 card-section">
             <h2 className="text-lg font-semibold px-6 py-4 border-b">
               Frequently Asked Questions
             </h2>
@@ -575,7 +575,7 @@ export default async function SellerPublicPage({
             <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
             <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
               {sellerBlogPosts.map((p) => (
-                <li key={p.slug} className="rounded-xl border overflow-hidden hover:shadow-sm transition-shadow min-w-[200px] flex-none snap-start sm:min-w-0">
+                <li key={p.slug} className="card-listing min-w-[200px] flex-none snap-start sm:min-w-0">
                   <Link href={`/blog/${p.slug}`} className="block">
                     <div className="h-36 bg-neutral-100 overflow-hidden">
                       {p.coverImageUrl ? (
@@ -626,7 +626,7 @@ export default async function SellerPublicPage({
               {listings.slice(0, 8).map((l) => {
                 const thumb = l.photos[0]?.url ?? "/favicon.ico";
                 return (
-                  <li key={l.id} className="overflow-hidden rounded-xl border min-w-[220px] flex-none snap-start sm:min-w-0">
+                  <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
                     <div className="relative">
                       <Link href={`/listing/${l.id}`} className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}

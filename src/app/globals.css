@@ -14,6 +14,47 @@ html, body {
 .btn-brand { display:inline-flex; align-items:center; justify-content:center; border-radius:9999px; padding:.5rem 1rem; background:#059669; color:#fff; }
 .btn-brand:hover { background:#047857; }
 
+/* ── Design tokens ───────────────────────────────────────────────────────── */
+
+/* Large hero/section headings */
+.text-display {
+  font-size: clamp(1.875rem, 4vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+/* Listing/product cards — sharp edges, hover shadow */
+.card-listing {
+  border: 1px solid #e7e5e4; /* stone-200 */
+  background: #ffffff;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+.card-listing:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+/* Content/section cards — subtle shadow, no hover */
+.card-section {
+  border: 1px solid #e7e5e4; /* stone-200 */
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+/* Consistent section spacing */
+.section-gap {
+  padding-top: 4rem;
+  padding-bottom: 4rem;
+}
+@media (min-width: 640px) {
+  .section-gap {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+  }
+}
+
 /* Prevent iOS from auto-zooming form inputs on focus */
 input, textarea, select {
   -webkit-text-size-adjust: 100%;

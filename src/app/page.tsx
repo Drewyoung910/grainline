@@ -252,13 +252,13 @@ export default async function HomePage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen bg-gradient-to-br from-amber-50 to-stone-100 border-b flex flex-col justify-center">
+      <section className="relative min-h-screen bg-gradient-to-br from-amber-50 via-stone-50 to-white border-b flex flex-col justify-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 leading-tight">
-            Handmade with heart,<br className="hidden sm:block" /> shipped from your neighborhood.
+          <h1 className="text-display text-neutral-900">
+            Handmade woodworking<br className="hidden sm:block" /> from makers near you.
           </h1>
-          <p className="text-lg text-neutral-600">
-            Discover one-of-a-kind woodworking pieces from makers in your community.
+          <p className="text-lg text-stone-500">
+            Custom furniture, decor &amp; more — crafted by hand in Texas.
           </p>
 
           <div className="max-w-xl mx-auto">
@@ -308,12 +308,19 @@ export default async function HomePage() {
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
       <div className="border-b bg-white">
-        <ScrollSection className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-neutral-500 text-center">
-          <span><span className="font-semibold text-neutral-800">{activeListingsCount.toLocaleString()}</span> pieces listed</span>
-          <span className="text-neutral-300 select-none">·</span>
-          <span><span className="font-semibold text-neutral-800">{sellersCount.toLocaleString()}</span> active makers</span>
-          <span className="text-neutral-300 select-none">·</span>
-          <span><span className="font-semibold text-neutral-800">{ordersCount.toLocaleString()}</span> orders fulfilled</span>
+        <ScrollSection className="max-w-6xl mx-auto px-4 py-6 flex flex-wrap justify-center gap-x-10 gap-y-4 text-center">
+          <div className="flex flex-col items-center">
+            <span className="text-2xl sm:text-3xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
+            <span className="text-xs text-stone-500 uppercase tracking-wide mt-0.5">pieces listed</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-2xl sm:text-3xl font-bold text-neutral-900">{sellersCount.toLocaleString()}</span>
+            <span className="text-xs text-stone-500 uppercase tracking-wide mt-0.5">active makers</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-2xl sm:text-3xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
+            <span className="text-xs text-stone-500 uppercase tracking-wide mt-0.5">orders fulfilled</span>
+          </div>
         </ScrollSection>
       </div>
 
@@ -324,11 +331,13 @@ export default async function HomePage() {
           <p className="text-neutral-600 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <MakersMapSection
-            points={mapPoints}
-            heading="Explore the map"
-            subheading="Pin your location to find makers nearby — or browse the full map."
-          />
+          <div className="card-section">
+            <MakersMapSection
+              points={mapPoints}
+              heading="Explore the map"
+              subheading="Pin your location to find makers nearby — or browse the full map."
+            />
+          </div>
         </div>
       </ScrollSection>
 
@@ -347,7 +356,7 @@ export default async function HomePage() {
             <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-1 px-1">
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <div key={item.id} className="w-44 flex-none snap-start border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+                  <div key={item.id} className="w-44 flex-none snap-start card-listing">
                     <Link href={`/listing/${item.id}`} className="block">
                       <div className="h-36 bg-neutral-100 overflow-hidden">
                         {item.photoUrl ? (
@@ -367,7 +376,7 @@ export default async function HomePage() {
                     </Link>
                   </div>
                 ) : (
-                  <div key={item.slug} className="w-44 flex-none snap-start border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+                  <div key={item.slug} className="w-44 flex-none snap-start card-listing">
                     <Link href={`/blog/${item.slug}`} className="block">
                       <div className="h-36 bg-neutral-100 overflow-hidden">
                         {item.coverImageUrl ? (
@@ -425,7 +434,7 @@ export default async function HomePage() {
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="rounded-3xl border bg-gradient-to-br from-amber-50 to-stone-50 overflow-hidden">
+            <div className="card-section bg-gradient-to-br from-amber-50 to-stone-50">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt="" className="h-36 w-full object-cover" />
@@ -517,11 +526,11 @@ export default async function HomePage() {
                   const shop = sellerRatings.get(l.sellerId);
 
                   return (
-                    <li key={l.id} className="snap-start flex-none w-56 overflow-hidden border border-neutral-200 bg-white">
+                    <li key={l.id} className="snap-start flex-none w-56 card-listing">
                       <div className="relative">
                         <Link href={`/listing/${l.id}`} className="block">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img alt={l.title} src={img} className="h-44 w-full object-cover" />
+                          <img alt={l.title} src={img} className="w-full aspect-[4/3] object-cover" />
                         </Link>
                         <div className="absolute top-2 right-2">
                           <FavoriteButton listingId={l.id} initialSaved={saved.has(l.id)} />
@@ -529,10 +538,10 @@ export default async function HomePage() {
                       </div>
                       <Link href={`/listing/${l.id}`} className="block">
                         <div className="p-3 space-y-1 bg-stone-50">
-                          <div className="font-medium text-sm leading-snug line-clamp-2">{l.title}</div>
-                          <div className="text-sm text-neutral-500">${(l.priceCents / 100).toFixed(2)}</div>
+                          <div className="font-medium text-sm leading-snug line-clamp-2 text-neutral-900">{l.title}</div>
+                          <div className="text-sm font-semibold text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
                           {shop && shop.count > 0 && (
-                            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                            <div className="flex items-center gap-1.5 text-xs text-stone-500">
                               <StarsInline value={shop.avg} />
                               <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
                             </div>
@@ -541,7 +550,7 @@ export default async function HomePage() {
                       </Link>
                       <div className="px-3 pb-3 bg-stone-50">
                         <div className="flex items-center flex-wrap gap-1">
-                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50">
+                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-stone-100">
                             {sellerAvatar ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
@@ -550,7 +559,7 @@ export default async function HomePage() {
                                 <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
                               </div>
                             )}
-                            <span className="truncate max-w-[80px]">{sellerName}</span>
+                            <span className="truncate max-w-[80px] text-stone-500">{sellerName}</span>
                           </Link>
                           <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
                         </div>
@@ -581,11 +590,11 @@ export default async function HomePage() {
                   const shop = sellerRatings.get(l.sellerId);
 
                   return (
-                    <li key={l.id} className="snap-start flex-none w-56 overflow-hidden border border-neutral-200 bg-white">
+                    <li key={l.id} className="snap-start flex-none w-56 card-listing">
                       <div className="relative">
                         <Link href={`/listing/${l.id}`} className="block">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img alt={l.title} src={img} className="h-44 w-full object-cover" />
+                          <img alt={l.title} src={img} className="w-full aspect-[4/3] object-cover" />
                         </Link>
                         <div className="absolute top-2 right-2">
                           <FavoriteButton listingId={l.id} initialSaved={saved.has(l.id)} />
@@ -593,20 +602,20 @@ export default async function HomePage() {
                       </div>
                       <Link href={`/listing/${l.id}`} className="block">
                         <div className="p-3 space-y-1 bg-stone-50">
-                          <div className="font-medium text-sm leading-snug line-clamp-2">{l.title}</div>
-                          <div className="text-sm text-neutral-500">${(l.priceCents / 100).toFixed(2)}</div>
+                          <div className="font-medium text-sm leading-snug line-clamp-2 text-neutral-900">{l.title}</div>
+                          <div className="text-sm font-semibold text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
                           {shop && shop.count > 0 && (
-                            <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                            <div className="flex items-center gap-1.5 text-xs text-stone-500">
                               <StarsInline value={shop.avg} />
                               <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
                             </div>
                           )}
-                          <div className="text-xs text-neutral-400">{l._count.favorites} saved</div>
+                          <div className="text-xs text-stone-400">{l._count.favorites} saved</div>
                         </div>
                       </Link>
                       <div className="px-3 pb-3 bg-stone-50">
                         <div className="flex items-center flex-wrap gap-1">
-                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50">
+                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-stone-100">
                             {sellerAvatar ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
@@ -615,7 +624,7 @@ export default async function HomePage() {
                                 <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
                               </div>
                             )}
-                            <span className="truncate max-w-[80px]">{sellerName}</span>
+                            <span className="truncate max-w-[80px] text-stone-500">{sellerName}</span>
                           </Link>
                           <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
                         </div>
@@ -642,9 +651,9 @@ export default async function HomePage() {
                 const authorName = p.sellerProfile?.displayName ?? p.author.name ?? "Staff";
                 const authorAvatar = p.sellerProfile?.avatarImageUrl ?? p.author.imageUrl;
                 return (
-                  <li key={p.slug} className="border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
+                  <li key={p.slug} className="card-listing">
                     <Link href={`/blog/${p.slug}`} className="block">
-                      <div className="h-44 bg-neutral-100 overflow-hidden">
+                      <div className="aspect-[4/3] bg-stone-100 overflow-hidden">
                         {p.coverImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.coverImageUrl} alt={p.title} className="w-full h-full object-cover" />
@@ -652,10 +661,10 @@ export default async function HomePage() {
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-4 space-y-2">
-                        <h3 className="font-semibold text-neutral-900 line-clamp-2">{p.title}</h3>
+                      <div className="p-4 space-y-2 bg-stone-50">
+                        <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>
                         {p.excerpt && (
-                          <p className="text-sm text-neutral-500 line-clamp-2">{p.excerpt.slice(0, 100)}</p>
+                          <p className="text-xs text-stone-500 line-clamp-2">{p.excerpt.slice(0, 100)}</p>
                         )}
                         <div className="flex items-center gap-1.5">
                           {authorAvatar ? (
@@ -664,9 +673,9 @@ export default async function HomePage() {
                           ) : (
                             <div className="h-5 w-5 rounded-full bg-neutral-200" />
                           )}
-                          <span className="text-xs text-neutral-500">{authorName}</span>
+                          <span className="text-xs text-stone-500">{authorName}</span>
                           {p.publishedAt && (
-                            <span className="text-xs text-neutral-400 ml-auto">
+                            <span className="text-xs text-stone-400 ml-auto">
                               {new Date(p.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                             </span>
                           )}

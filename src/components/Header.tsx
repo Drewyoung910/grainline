@@ -297,14 +297,14 @@ export default function Header() {
             <div className="flex-1 overflow-y-auto py-2">
               <Link
                 href="/browse"
-                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                 onClick={() => setDrawerOpen(false)}
               >
                 Browse
               </Link>
               <Link
                 href="/blog"
-                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                 onClick={() => setDrawerOpen(false)}
               >
                 Blog
@@ -312,7 +312,7 @@ export default function Header() {
               {COMMISSION_ROOM_ENABLED && (
                 <Link
                   href="/commission"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                   onClick={() => setDrawerOpen(false)}
                 >
                   Commission Room
@@ -323,7 +323,7 @@ export default function Header() {
                 {/* My Account */}
                 <Link
                   href="/account"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                   onClick={() => setDrawerOpen(false)}
                 >
                   <User size={18} />
@@ -333,7 +333,7 @@ export default function Header() {
                 {/* Messages — single Link wrapping icon + text */}
                 <Link
                   href="/messages"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                   onClick={() => setDrawerOpen(false)}
                 >
                   <span className="relative inline-flex items-center">
@@ -347,7 +347,7 @@ export default function Header() {
                 {/* Feed */}
                 <Link
                   href="/account/feed"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                   onClick={() => setDrawerOpen(false)}
                 >
                   <Rss size={18} />
@@ -358,7 +358,7 @@ export default function Header() {
                 {hasSeller && (
                   <Link
                     href="/dashboard"
-                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                     onClick={() => setDrawerOpen(false)}
                   >
                     Workshop
@@ -369,7 +369,7 @@ export default function Header() {
                 {(role === "EMPLOYEE" || role === "ADMIN") && (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                    className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                     onClick={() => setDrawerOpen(false)}
                   >
                     Admin
@@ -380,7 +380,7 @@ export default function Header() {
               <Show when="signed-out">
                 <Link
                   href="/sign-in"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-neutral-50 min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
                   onClick={() => setDrawerOpen(false)}
                 >
                   Sign in

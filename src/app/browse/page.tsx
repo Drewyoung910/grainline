@@ -489,7 +489,7 @@ export default async function BrowsePage({
         <div className="relative">
           <Link href={`/listing/${l.id}`} className="block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt={l.title} src={img} className="w-full h-48 object-cover" />
+            <img alt={l.title} src={img} className="w-full aspect-[4/3] object-cover" />
           </Link>
           <div className="absolute top-2 right-2">
             <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
@@ -498,15 +498,13 @@ export default async function BrowsePage({
 
         <Link href={`/listing/${l.id}`} className="block">
           <div className="p-4 space-y-1 bg-stone-50">
-            <div className="flex items-baseline justify-between">
-              <div className="font-medium truncate">{l.title}</div>
-              <div className="opacity-70 shrink-0 ml-2">${(l.priceCents / 100).toFixed(2)}</div>
-            </div>
+            <div className="font-medium text-sm text-neutral-900 line-clamp-1">{l.title}</div>
+            <div className="font-semibold text-base text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
             {shop && shop.count > 0 && (
-              <div className="flex items-center gap-2 text-xs text-neutral-600">
+              <div className="flex items-center gap-2 text-xs text-stone-500">
                 <StarsInline value={shop.avg} />
                 <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-                <span className="text-neutral-400">({shop.count})</span>
+                <span className="text-stone-400">({shop.count})</span>
               </div>
             )}
           </div>
@@ -565,7 +563,7 @@ export default async function BrowsePage({
       <div className="flex gap-4">
         <Link href={`/listing/${l.id}`} className="shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={l.title} src={img} className="w-28 h-28 object-cover border border-neutral-200" />
+          <img alt={l.title} src={img} className="w-28 h-28 object-cover border border-stone-200" />
         </Link>
         <div className="flex-1 min-w-0 py-1">
           <div className="flex items-start justify-between gap-3">
@@ -683,7 +681,7 @@ export default async function BrowsePage({
           {view === "grid" ? (
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="border border-neutral-200 overflow-hidden">
+                <ClickTracker key={l.id} listingId={l.id} className="card-listing">
                   <GridCard l={l} />
                 </ClickTracker>
               ))}
@@ -691,7 +689,7 @@ export default async function BrowsePage({
           ) : (
             <ul className="space-y-4">
               {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="border border-neutral-200 p-4">
+                <ClickTracker key={l.id} listingId={l.id} className="card-listing p-4">
                   <ListCard l={l} />
                 </ClickTracker>
               ))}

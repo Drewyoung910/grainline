@@ -63,13 +63,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Header />
           </Suspense>
           {children}
-          <footer className="border-t border-neutral-200 mt-16 py-6 px-6 text-center text-xs text-neutral-400">
-            <div className="flex justify-center mb-3">
+          <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-400">
+            <div className="flex justify-center mb-4">
               <img src="/logo.svg" alt="Grainline" className="h-5 w-auto" style={{ filter: "brightness(0)", opacity: 0.4 }} />
             </div>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/terms" className="hover:text-neutral-600 hover:underline">Terms of Service</Link>
-              <Link href="/privacy" className="hover:text-neutral-600 hover:underline">Privacy Policy</Link>
+            {/* Browse by City */}
+            <div className="mb-4">
+              <p className="text-[11px] text-stone-400 uppercase tracking-wide mb-2">Browse by city</p>
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+                <Link href="/browse/austin-tx" className="hover:text-stone-600 hover:underline">Austin</Link>
+                <Link href="/browse/houston-tx" className="hover:text-stone-600 hover:underline">Houston</Link>
+                <Link href="/browse/dallas-tx" className="hover:text-stone-600 hover:underline">Dallas</Link>
+                <Link href="/browse/san-antonio-tx" className="hover:text-stone-600 hover:underline">San Antonio</Link>
+                <Link href="/browse/college-station-tx" className="hover:text-stone-600 hover:underline">College Station</Link>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-center gap-4 mb-2">
+              <Link href="/terms" className="hover:text-stone-600 hover:underline">Terms of Service</Link>
+              <Link href="/privacy" className="hover:text-stone-600 hover:underline">Privacy Policy</Link>
+              <Link href="/blog" className="hover:text-stone-600 hover:underline">Blog</Link>
+              <Link href="/commission" className="hover:text-stone-600 hover:underline">Commission Room</Link>
             </div>
             <p className="mt-2">&copy; {new Date().getFullYear()} Grainline. All rights reserved.</p>
           </footer>
