@@ -941,45 +941,44 @@ Installed via Sentry wizard. Session replay disabled (bundle size trade-off).
 
 `/terms` and `/privacy` — both server components, publicly accessible (added to middleware public matcher), linked in site footer (`src/app/layout.tsx`). Both display a red **DRAFT — Under Attorney Review** banner. Both have a Table of Contents with anchor links and are mobile responsive / print-friendly.
 
-### Terms of Service (`/terms`) — 33 sections
-
-Key sections beyond boilerplate:
-- **Section 4** (Maker Terms) — 20 subsections including: listing accuracy with no-guarantee-of-authenticity clause (4.4), listing removal rights (4.16), off-platform transaction prohibition (4.17), product liability (4.18), public profile disclosure (4.19), Makers Map (4.20), gift wrapping, independent contractor status, custom orders, response/shipping requirements
-- **Section 5** (Buyer Terms) — includes 5.7 Cart and Inventory (no-reserve policy)
-- **Section 6.4** — Marketplace facilitator sales tax: Texas Tax Code §151.0242 + all-states compliance; written certification to Makers that Grainline collects/remits on their behalf; 1099-K disclosure; Stripe Tax
-- **Section 7** — Shipping: 7.7 Estimated Delivery Dates, 7.8 Multi-Seller Orders, 7.9 Shipping Labels, 7.10 Cross-Border Orders added
-- **Section 8** — Returns/refunds with 8.1–8.7 including seller-initiated refunds, "Grainline is not the seller" disclaimer, and Pre-Shipment Cancellations (8.7)
-- **Section 9** — Case System rewritten with 30-day window (or order date if no tracking), 48h seller response, $10k escalation note, binding arbitration cross-reference
-- **Section 10** — Prohibited Activities: 25 items; new: accessing Platform after suspension/termination
-- **Section 13** — Disclaimers: 13.1 As-Is, 13.2 No Warranty for Listings, 13.3 No Warranty of Authenticity (all-caps), 13.4 Limitation of Liability (12-month fees / $100 cap)
-- **Section 14** — Indemnification: new bullet covering Commission Room activity
-- **Section 15** — Texas governing law, AAA binding arbitration, class action waiver, 30-day opt-out
-- **Section 16** — Termination: full suspension/termination effect description including listing hiding, Commission Request closure, Stripe fund access, 30-day review response; surviving sections list updated
-- **Section 19** — Guild Verification Program: Guild Member + Guild Master badges, FTC disclosure, revocation policy + reapplication right
-- **Section 20** — Force Majeure
-- **Section 21** — Accessibility (WCAG 2.1 AA)
-- **Section 22** — Commission Room: overview, request rules (non-binding), expressing interest, resulting transaction rules, local/national scope, disputes, content moderation
-- **Section 23** — Following System and Seller Broadcasts: following, broadcast limits (1/7 days), prohibited broadcast content, personalized feed (90-day retention)
-- **Section 24** — Blog and Community Content: blog posts, comment moderation, saved blog posts
-- **Section 25** — Automated Content Review: AI-assisted review, Pending Review status, approval/rejection process, no-guarantee disclaimer, liability limitation
-- **Section 26** — Vacation Mode: what is hidden, existing order obligations, Guild badge impact
-- **Section 27** — Reviews and Ratings: posting rules, review content, prohibited practices, seller replies, helpfulness voting, removal rights, aggregate ratings, post-deletion handling
-- **Section 28** — Messaging: platform messaging, permitted use, file attachments, system messages, message review
-- **Section 29** — Notifications and Communication Preferences: in-app, customizable, email, back-in-stock subscriptions
-- **Section 30** — Algorithmic Features and Recommendations: Similar Items, homepage sections, search ranking, feed; no external data/ad profiles
-- **Section 31** — Geographic Restrictions: US + Canada only, IP-based, no VPN circumvention
-- **Section 32** — Private and Reserved Listings: invisible to public, same ToS applies
-- **Section 33** — General Provisions: severability, waiver, assignment, electronic communications, headings, relationship of parties
-
-### Privacy Policy (`/privacy`) — 13 sections
+### Terms of Service (`/terms`) — 33+ sections (updated 2026-04-01)
 
 Key sections:
-- **Section 2** — 17 subsections (was 11): 2.12 Commission Room Data, 2.13 Following/Feed Data, 2.14 Back-in-Stock Subscriptions, 2.15 Seller Performance Metrics, 2.16 Listing Snapshots, 2.17 Saved Searches; 2.8 (Photo Metadata) softened from "strips" to "commercially reasonable efforts"
-- **Section 3** — How We Use: 3 new purposes added: Automated content review (AI/OpenAI), Seller performance evaluation, Algorithmic recommendations
-- **Section 4** — Sharing: 10 new service providers added to 4.1: OpenAI, Upstash, OpenStreetMap/Nominatim, OpenStreetMap Tile Servers, UptimeRobot, Vercel, Cloudflare, Neon, Video Providers (YouTube/Vimeo); 4.6 (Buyer-Maker Data) now includes gift note disclosure
-- **Section 5** — Cookies: 3 new types added: Rate limiting cookies, Recently viewed cookie, Payment processing cookies (Stripe.js); new 5.3 Do Not Track section
-- **Section 6** — Retention schedule: 4 new entries: Administrative action logs (permanent), Seller performance metrics (account lifetime + 2yr daily data), Commission Requests (lifetime + 1yr), Following data (deleted on account deletion)
-- **Section 7** — Rights: data portability bullet enhanced with 30-day fulfillment SLA and format details; 7.4 GDPR: new note about automated processing with human review requirement
+- **Section 4** (Maker Terms) — 25 subsections: 4.4 AI review (no authenticity guarantee), 4.5 fee grandfathering, 4.15/11.2 content license expanded to paid advertising, 4.18 product liability insurance mandate for Toys/Kitchen + CPSIA/Prop 65/food-safe/recall obligations, 4.19 public profile disclosure, 4.20 Makers Map, 4.21 likeness consent, **4.22 Identity Verification** (right to request, suspend, remove), **4.23 Business Licenses** (seller responsibility), **4.24 Listing Content Requirements** (FTC Made in USA, description accuracy, AI-generated disclosure), **4.25 Seller Warranties** (Magnuson-Moss implied warranty disclosure)
+- **Section 5** (Buyer Terms) — 5.7 Cart and Inventory (no-reserve), **5.8 Chargeback Rights** (FCBA acknowledgment, $15 chargeback fee, good-faith cooperation)
+- **Section 6.3** — Payout timing deferred to Stripe Connect agreement; **6.8 Payment Collection Agent** (Grainline as limited collection agent; payment to Grainline = payment to seller); **6.9 Payment Reserves** (right to hold up to 30 days for risk, high-chargeback, or new-seller scenarios)
+- **Section 6.4** — Marketplace facilitator sales tax (Texas §151.0242, all-states); 6.5 no warranty on tax accuracy, consult tax professional
+- **Section 7** — Shipping: 7.7 Estimated Delivery Dates, 7.8 Multi-Seller Orders, 7.9 Shipping Labels, **7.10 Domestic Shipping Only** (replaced Cross-Border; US-only, no international), **7.11 Package Theft** (seller obligation ends on carrier handoff), **7.12 Hazardous Materials** (prohibited unless DOT-compliant)
+- **Section 8** — Returns/refunds: 8.4 chargeback fee ($15) + FCBA rights; 8.6 cross-references 13.4 liability cap; 8.7 Pre-Shipment Cancellations
+- **Section 9** — Case System: 9.4 case re-review process (7-day request window, 14-day response, re-review decision final); **9.8 Time Calculations** (calendar days, UTC, business days defined)
+- **Section 13** — Disclaimers: 13.1 As-Is, 13.2 No Warranty for Listings, 13.3 No Warranty of Authenticity (all-caps), 13.4 Limitation of Liability (12-month fees / $100 cap)
+- **Section 14** — Indemnification: data protection misuse bullet added
+- **Section 15** — Texas governing law, AAA binding arbitration, class action waiver, 30-day opt-out; 15.3 injunctive relief carve-out
+- **Section 16** — Termination: voluntary deletion pending obligations clarified; surviving sections updated to "4.15, 4.21, 6, 9, 10, 11, 13, 14, 15, 20, 22.6, 25.5, 27.8, 33"; **Account Dormancy** (24-month inactivity → 60-day notice → closure + unclaimed property law)
+- **Section 19** — Guild Verification Program
+- **Section 24.1** — FTC Endorsement Guides disclosure required for all blog posts with material connections
+- **Section 27.6** — CRFA-compliant review removal (removed "any other reason" language)
+- **Section 28.6** — Gift Notes (buyer-submitted; shared with seller; may be read by staff for dispute resolution)
+- **Section 31** — Geographic Restrictions: **US only** (Canada removed)
+- **Section 33.4** — Full E-SIGN Act replacement: hardware requirements, right to withdraw consent, paper copy right, fee disclosure
+- **Section 33.7** — Notices (written notice requirements, email delivery)
+- **Section 33.8** — Limitation Period (1 year to bring claims)
+- **Section 33.9** — Third-Party Beneficiaries (none)
+- **Section 33.10** — Construction (no contra proferentem)
+- **Section 33.11** — Feedback and Suggestions (IP assignment)
+- **Section 33.12** — Arbitration Fees (AAA Consumer Rules; Grainline pays when claim < $10k if filed in good faith)
+- **Section 33.13** — INFORM Consumers Act (high-volume seller disclosure obligations; ID/bank/tax verification; disclosure to buyers on request)
+
+### Privacy Policy (`/privacy`) — 13 sections (updated 2026-04-01)
+
+Key sections:
+- **Section 2** — 17 subsections including 2.12–2.17 (Commission Room Data, Following/Feed Data, Back-in-Stock, Seller Performance Metrics, Listing Snapshots, Saved Searches)
+- **Section 4** — Sharing: 4.1 Shippo sub-processor now discloses carrier sharing (USPS, UPS, FedEx, etc.); Resend entry adds email tracking pixel disclosure; 4.3 law enforcement pre-notification paragraph (advance notice when legally permitted); 4.4 asset transfer adds 30-day advance notice + deletion opt-out; **4.9 Data Visible Between Sellers** (seller names/locations visible during commission interest + conversation creation)
+- **Section 5** — Cookies: 5.1 specific cookie inventory (Clerk auth/session, Cloudflare bot protection, Stripe payment processing, rate-limiting, recently-viewed); **5.3 Do Not Track and Global Privacy Control** — GPC honored per applicable state law (CA, CO, CT); DNT signal not universally honored
+- **Section 6** — Retention: Administrative action logs (permanent), Seller performance metrics (account lifetime + 2yr daily data), Commission Requests (lifetime + 1yr), Following data (deleted on account deletion)
+- **Section 7** — Rights: seller-specific data portability export (listings/orders/reviews/analytics/messages in JSON/CSV); **7.5 Additional US State Privacy Rights** — covers 17 state laws (Virginia VCDPA, Colorado CPA, Connecticut CTDPA, Utah UCPA, Iowa ICDPA, Tennessee TIPA, Montana MCDPA, Oregon OCPA, Delaware DPDPA, Maryland MODPA, Minnesota MNDPA, Nebraska NDPA, New Hampshire NHPA, New Jersey NJDPA, Indiana IDPA, Kentucky KCPA, Rhode Island RIDPPA); opt-out/access/deletion rights, 45-day response; appeal rights
+- **Section 9** — Data breach notification: Texas "as quickly as possible," California 72-hour AG notification per CCPA/AB 1281
+- **Section 10** — US-only service; no EU/EEA framing as primary
 
 ## UptimeRobot Monitoring (complete)
 
@@ -1892,12 +1891,12 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 - **DMCA agent registration**: after LLC confirmed (~$6 at copyright.gov)
 - **Trademark Class 035 filing**: ~$350 when ready
 
-## Geo-Blocking (complete — 2026-04-01)
+## Geo-Blocking (complete — 2026-04-01, US-only updated 2026-04-01)
 
-US and Canada only. Implemented in `src/middleware.ts` at the top of the middleware function body, before auth checks.
+US only (Canada removed to align with Terms of Service Section 31). Implemented in `src/middleware.ts` at the top of the middleware function body, before auth checks.
 
 - Reads `request.geo?.country` (populated by Vercel edge in production; `undefined` in local dev — geo-blocking never fires locally)
-- Non-US/CA requests are redirected to `/not-available`
+- Non-US requests are redirected to `/not-available`
 - `/not-available` is in `isPublic` so the redirect doesn't loop through auth
 - Static assets (`/_next`, `/favicon`, `/logo`, `/icon`, `/manifest`, `/robots`, `/sitemap`) are allowed through without redirect
 - **All `/api` routes bypass geo-blocking** — webhooks (Stripe, Clerk) and API calls originate from servers, not browsers, so geo-checking would break them
