@@ -6,16 +6,49 @@ A woodworking marketplace built with Next.js, similar to Etsy/Amazon but focused
 
 Visual standards for all UI work on this codebase. Do not deviate without explicit instruction.
 
-- **Page background**: `bg-[#F7F5F0]` (warm cream) — provides contrast against white cards
-- **Card rounding**: `rounded-lg` (8px) for listing and content cards, `rounded-md` (6px) for buttons and inputs, `rounded-full` for pill badges and tags only
-- **Card classes** (defined in `src/app/globals.css`):
-  - `.card-listing` — listing cards: white background, `border-stone-200/60`, warm shadow `0 8px 30px rgba(28,25,23,0.04)`, `hover:shadow-md`, `overflow:hidden`
-  - `.card-section` — content/info sections: white background, same border, subtle shadow, no hover
-- **Card info sections** (title/price/seller area below photos): always `bg-white` — never `bg-stone-50` or any grey
-- **Typography**: `.font-display` (Georgia serif, -0.025em tracking) applies to hero headings and section headings only. All other UI text (prices, nav, buttons, card text, metadata) stays system sans-serif.
-- **Category tiles**: uniform `bg-stone-100` background, `text-stone-600` SVG icons
-- **Icons**: SVG icon components from `src/components/icons/` for all structural/navigational UI — no emoji in headings or nav
-- **List card thumbnail**: full-height left column (`w-40 sm:w-48`, `absolute inset-0 h-full w-full object-cover`) — not a fixed square
+### Colors
+
+- **Page background**: `bg-[#F7F5F0]` (warm cream `#F7F5F0`) — creates contrast against `#ffffff` card surfaces
+- **Card surface**: `bg-white` (`#ffffff`) — all card info sections, never `bg-stone-50` or any grey tint
+- **Borders**: `border-stone-200/60` on cards; `border-neutral-200` on inputs and buttons
+- **Text primary**: `text-neutral-900`; secondary: `text-neutral-500`; muted: `text-neutral-400`
+- **Accent**: amber — `bg-amber-50`, `border-amber-200`, `text-amber-700` for highlights/badges
+
+### Card Classes (defined in `src/app/globals.css`)
+
+- **`.card-listing`** — listing cards: `background: #fff`, `border: 1px solid rgba(214,211,209,0.6)`, warm box-shadow `0 8px 30px rgba(28,25,23,0.04)`, `border-radius: 0.5rem` (8px), `overflow: hidden`, `hover:shadow-md`, `transition: box-shadow 0.2s`
+- **`.card-section`** — content/info blocks: same border + shadow, no hover effect, no overflow:hidden
+
+### Rounding
+
+- **Cards**: `rounded-lg` (8px) via `.card-listing` / `.card-section`
+- **Buttons & inputs**: `rounded-md` (6px) — enforced via `button { border-radius: 0.375rem }` global CSS base style in `globals.css`
+- **Pills & tags**: `rounded-full` only — never on buttons or cards
+
+### Typography
+
+- **`.font-display`** — `font-family: Georgia, 'Times New Roman', serif; letter-spacing: -0.025em` — applies ONLY to `<h1>` page titles and `<h2>` section headings. Never on card text, prices, nav links, buttons, or metadata.
+- **Section headings with `.font-display`**: Browse h1, Commission Room h1, My Account h1/h2s, Your Feed h1, Workshop h1, Messages h1, Listing detail "About this piece" / "Details" / "You might also like" h2s, Dashboard h2s
+
+### Card Image Standards
+
+- **Grid cards** (`card-listing`): `aspect-[4/3] object-cover` — no fixed heights
+- **List card thumbnail** (browse list view): full-height left column (`relative w-40 sm:w-48` parent, `absolute inset-0 h-full w-full object-cover` image) — expands to match the text content height
+- **Blog/feed cards**: `aspect-[4/3] object-cover`
+
+### Purchase Panel (listing detail)
+
+- Price: `text-3xl font-semibold`
+- Buy Now: full-width black button, `rounded-md`, `py-3 min-h-[44px]`
+- Add to Cart: full-width bordered button, `rounded-md`
+- Seller card: 56px avatar, display name + GuildBadge, tagline, star rating + count, city/state with MapPin icon, "Visit Shop" + Follow + Message in a row
+
+### Icons
+
+- SVG icon components from `src/components/icons/` for all structural/navigational UI
+- Category tiles: SVG icons at `size=28`, `bg-stone-100` tile, `text-stone-600` icon
+- Section headings: clean `.font-display` serif text only — no inline icons (icons were removed from "Fresh from the Workshop" and "Buyer Favorites" headings for cleaner appearance)
+- No emoji in headings or navigation
 
 ## Tech Stack
 
@@ -540,7 +573,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ## Icon Library (complete)
 
-`src/components/icons/index.tsx` — 63 named Feather-style outline SVG icon components. All icons accept `className?: string` and `size?: number` (default 20) props. Base SVG attrs: `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.5}`, `strokeLinecap="round"`. **No emoji used in structural/navigational UI — all category tiles and section headers use SVG icons.**
+`src/components/icons/index.tsx` — 64 named Feather-style outline SVG icon components (63 original + `Rss` added for Following/Feed nav). All icons accept `className?: string` and `size?: number` (default 20) props. Base SVG attrs: `viewBox="0 0 24 24"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.5}`, `strokeLinecap="round"`. **No emoji in structural/navigational UI. Category tiles use SVG icons at `size=28`. Section headings use `.font-display` serif text only — the `Logs` and `Heart` icons were removed from "Fresh from the Workshop" and "Buyer Favorites" headings for a cleaner appearance.**
 
 **Exports** (grouped):
 - Shopping/Commerce: `ShoppingBag`, `Tag`, `Gift`
@@ -562,13 +595,14 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - Search/Filter/View: `Search`, `Filter`, `Grid`, `List`
 - Media/Files: `Camera`, `Image`, `Video`, `File`
 - Special: `Sparkles`, `Repeat`
-- **Category icons** (new): `Armchair` (Furniture), `Utensils` (Kitchen), `Candle` (Decor), `Toy` (Toys), `TreePine` (Outdoor), `Palette` (Art), `Gem` (Jewelry), `Box` (Storage), `Logs` (Wood/Workshop section headers)
+- **Category icons**: `Armchair` (Furniture), `Utensils` (Kitchen), `Candle` (Decor), `Toy` (Toys), `TreePine` (Outdoor), `Palette` (Art), `Gem` (Jewelry), `Box` (Storage), `Logs` (available but not used in section headers)
+- **Feed**: `Rss`
 
 **Used in:**
-- `Header.tsx` — `MessageCircle` (signed-out messages link), `ShoppingBag` (cart)
+- `Header.tsx` — `MessageCircle` (signed-out messages link), `ShoppingBag` (cart), `Rss` (feed link)
 - `seller/[id]/page.tsx` — `Instagram`, `Facebook`, `Pinterest`, `TikTok`, `Globe` replacing inline filled SVG paths
 - `admin/layout.tsx` — `AlertTriangle` (Flagged Orders, Cases), `Package` (All Orders), `Shield` (Verification), `Edit` (Blog)
-- `dashboard/page.tsx` — `Store` (Create listing), `User` (Shop Profile), `Package` (Shipping & Settings, My Orders), `Tag` (My Sales), `Grid` (Inventory), `MessageCircle` (Messages), `Edit` (My Blog), `Bell` (Notifications), `Sparkles` (Verified Maker badge)
+- `dashboard/page.tsx` — `Store` (Create listing), `User` (Shop Profile), `Package` (Shipping & Settings, My Orders), `Tag` (My Sales), `Grid` (Inventory), `MessageCircle` (Messages), `Edit` (My Blog), `Bell` (Notifications), `Sparkles` (Verified Maker badge), `BarChart` (Analytics)
 
 ## In-Site Notifications (complete)
 
@@ -1510,14 +1544,14 @@ npx dotenv-cli -e .env -- npx ts-node --transpile-only prisma/seeds/metros.ts
 
 ### `src/lib/geo-metro.ts`
 - **`findNearestMetro(lat, lng)`** — checks child metros first (more specific), then majors; returns `{ cityMetro, majorMetro }` within radius
-- **`mapToMetros(lat, lng)`** — returns `{ metroId: string | null, cityMetroId: string | null }` for DB storage (legacy; new code uses `findOrCreateMetro`)
-- **`findOrCreateMetro(lat, lng)`** — **primary mapping function**: calls `findNearestMetro` first; if no metro found within radius, calls `reverseGeocode` to get city/state, then `prisma.metro.upsert` to create a new metro at that location. Logs `[geo-metro] Auto-created metro: ${slug}` to stdout for Vercel logs. Returns `{ metroId, cityMetroId }` — always non-throwing.
+- **`mapToMetros(lat, lng)`** — **legacy function**, do not use in new code; kept for reference only. Use `findOrCreateMetro` instead.
+- **`findOrCreateMetro(lat, lng)`** — **primary mapping function** for all new code: calls `findNearestMetro` first; if no metro found within radius, calls `reverseGeocode` (Nominatim, ≥1.1s throttle, US-only) to get city/state, then `prisma.metro.upsert` to auto-create a new metro at that location with slug format `city-name-xx`. Logs `[geo-metro] Auto-created metro: ${slug}` to Vercel logs. Returns `{ metroId, cityMetroId }` — always non-throwing (wrapped in try/catch at every call site).
 - **`isMetroSlug(slug)`** — returns `true` if slug matches `/^[a-z][a-z0-9-]+-[a-z]{2}$/`; used in dynamic routes to distinguish metro slugs from CUIDs
 
 ### `src/lib/reverse-geocode.ts`
 - **`reverseGeocode(lat, lng)`** — calls Nominatim (OpenStreetMap) reverse geocoding API; `User-Agent: Grainline/1.0 (thegrainline.com)`; enforces ≥1.1s between requests (Nominatim policy); extracts city from `address.city|town|village|hamlet`; returns `{ city, state, stateCode }` or `null` on failure/non-US result
-- **Throttle**: module-level `lastRequestTime` variable; `throttledFetch` adds delay if < 1100ms has elapsed since last call
-- All 50 US state names → two-letter codes in `STATE_CODES` map
+- **Throttle**: module-level `lastRequestTime` variable; `throttledFetch` adds delay if < 1100ms has elapsed since last call (Nominatim policy: max 1 req/sec)
+- All 50 US state names → two-letter codes in `STATE_CODES` map; returns `null` for non-US results
 
 ### Auto-mapping on create
 - **Listings** (`dashboard/listings/new/page.tsx`) — after `prisma.listing.create`, fetches seller's lat/lng, calls `findOrCreateMetro`, updates listing. Non-fatal try/catch.
@@ -1584,53 +1618,120 @@ All have `alternates.canonical` and OpenGraph tags.
 ### National browse page additions
 - **"Browse by city"** section added at the bottom of `/browse` — grouped by major metro with children listed under each. Only shows metros with active listings. Crawlable `<a>` links for Google discovery.
 
-### Sitemap
-- City browse + makers pages at priority 0.7/0.6 weekly/monthly
-- City commission pages at priority 0.6 weekly
-- `BASE_URL` corrected from `grainline.co` → `thegrainline.com` across entire sitemap
+### Sitemap priorities
 
-## Remaining Work
+| Route | Priority | Frequency |
+|---|---|---|
+| `/browse/[metroSlug]` — major metro | 0.8 | weekly |
+| `/browse/[metroSlug]` — child metro | 0.6 | weekly |
+| `/browse/[metroSlug]/[category]` | 0.5 | weekly |
+| `/makers/[metroSlug]` | 0.6 | monthly |
+| `/commission/[metroSlug]` | 0.6 | weekly |
 
-### Mobile audit round 3 (complete — deployed 2026-03-29)
+Only metros with active listings/sellers/commissions are included. `BASE_URL` corrected from `grainline.co` → `https://thegrainline.com` across the entire sitemap.
 
-All items done:
-1. Search icon in mobile header → slide-down dropdown with transparent backdrop + `animate-slide-down`
-2. `NotificationBell` added to mobile header (inside `<Show when="signed-in">`, `flex items-center` wrapper for vertical alignment)
-3. Cart icon added to mobile header; cart row removed from hamburger drawer
-4. Notifications link removed from hamburger drawer (bell now in header)
-5. Bell vertical alignment fixed — `inline-flex items-center justify-center min-h-[44px] min-w-[44px]` wrapper
-6. "Cart" text removed from desktop header — icon-only (badge preserved)
-7. "Collectors" → "Buyers" rename in all user-facing copy (`page.tsx`, `sales/[orderId]/page.tsx`, `fulfillment/route.ts`)
-8. "Browse all" categories tile confirmed correct — `href="/browse"` with no category param
+### Internal linking (SEO crawl graph)
 
-### Infrastructure / legal
+- **Listing detail** → links to `/browse/[metro]` ("Browse all pieces in [City]") in Details section
+- **Commission detail** → links to `/commission/[metro]` ("More commissions in [City]") in the aside
+- **Seller profile** → links to `/makers/[metro]` ("More makers in [City]") near the location chip
+- **Nearby areas** on city pages creates a dense geographic crawl graph (major → children, child → siblings + parent)
+- **National `/browse`** has "Browse by city" section at bottom with all metros grouped by major metro
 
-10. ~~**Terms of service page**~~ — complete, see "Legal Pages" section below
-11. ~~**Privacy policy page**~~ — complete, see "Legal Pages" section below
-12. **Clerk webhook production setup** — see "Deployment steps" in Clerk User Sync Webhook section above
-13. **Stripe live mode webhook** — register in Stripe live mode after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel
+### Dynamic footer
 
-### Seller tools
+`src/app/layout.tsx` footer queries `Metro` for all `isActive` metros with at least 1 active listing; renders them as linked text under "Browse by City". Only present on pages that use the root layout (all public pages).
 
-14. ~~**Guild verification rebuild**~~ — Phases 1, 2, 3 complete (see Guild Verification Program section)
-15. ~~**Seller analytics dashboard**~~ — complete, see "Seller Analytics Dashboard" section below
-16. ~~**Vacation / workshop-closed mode**~~ — complete, see "Vacation Mode" section below
-17. ~~**Seller onboarding flow**~~ — complete, see "Seller Onboarding Flow" section
+## UI Polish Summary (complete — 2026-04-01)
 
-### Discovery & community
+Full visual polish pass across all pages. All changes were CSS/class-only (no logic or feature changes).
 
-18. ~~**Following system**~~ — complete, see "Following System" section below
-19. ~~**Commission / wanted board**~~ — complete and live, see "Search Bar, Blog Search & Commission Room" section above
-20. ~~**Blog subscriptions**~~ — complete: `FOLLOWED_MAKER_NEW_BLOG` notification sent when a followed maker publishes
-21. **Blog search** — search within blog posts
-22. ~~**Save / bookmark blog posts**~~ — complete, see "Following System" section below
+### Global
+- Body background: `bg-[#F7F5F0]` (warm cream) — set on `<body>` in `layout.tsx`
+- Global button base: `button { border-radius: 0.375rem }` in `globals.css` (overridden by `.rounded-full` for pills)
+- Horizontal scroll containers: `pb-0` — eliminates cream strip at bottom of scroll rows
 
-### Platform
+### Homepage (`src/app/page.tsx`)
+- Removed `<Logs>` icon from "Fresh from the Workshop" heading; removed `<Heart>` icon from "Buyer Favorites" heading — clean serif text only
+- Card info sections: `bg-stone-50` → `bg-white` on all horizontal scroll cards
+- Section spacing: `space-y-16` → `space-y-10` on main content container (eliminates oversized gaps)
+- "From Your Makers" scroll row: `pb-2` → `pb-0`
 
-23. ~~**Rate limiting**~~ — complete (see Rate Limiting section; expanded 2026-03-31)
-24. ~~**PWA setup**~~ — complete: manifest.json, icon-192.png, icon-512.png, offline page, metadata tags (see PWA section)
+### Browse (`src/app/browse/page.tsx`)
+- h1 "Browse": added `font-display`
+- ListCard thumbnail: changed from fixed `w-28 h-28` square → full-height left column (`relative w-40 sm:w-48`, `absolute inset-0 h-full w-full object-cover`)
+- ClickTracker wrapper: removed `p-4` so image bleeds to card edges
 
-**TypeScript: zero `tsc --noEmit` errors** (all pre-existing errors resolved as of current codebase)
+### Listing detail (`src/app/listing/[id]/page.tsx`)
+- Buy Now, Sign-in-to-buy, Add to Cart, Visit Shop, Message maker buttons: all got `rounded-md`
+- Section headings "About this piece", "Details", "You might also like": all got `font-display`
+
+### Account page (`src/app/account/page.tsx`)
+- h1 + all h2 section headings: added `font-display`
+- Order list: `<ul className="space-y-3">` → `<ul className="card-section divide-y divide-neutral-100">` with borderless `<li>` items
+- Following/Commission/Settings/Workshop sections: `border border-neutral-200` → `card-section`
+- Saved items cards: `border border-neutral-200` → `card-listing`; info div: `bg-stone-50` → `bg-white`
+- Saved items scroll row: `pb-2` → `pb-0`
+
+### Account saved (`src/app/account/saved/page.tsx`)
+- Listing card `<li>`: → `card-listing hover:shadow-md`
+- Image: fixed `h-40` → `aspect-[4/3] object-cover`
+- Info div: `bg-stone-50` → `bg-white`
+
+### Feed (`src/app/account/feed/FeedClient.tsx`)
+- h1 "Your Feed": added `font-display`
+- Listing and blog FeedCards: `border border-neutral-200` → `card-listing`; images → `aspect-[4/3] object-cover`; info divs: `bg-stone-50` → `bg-white`
+- Broadcast FeedCard: `border border-teal-200 bg-teal-50` → `card-section`; neutralized header border and text colors; kept teal only on "📢 Shop Update" badge text
+
+### Messages inbox (`src/app/messages/page.tsx`)
+- h1 "Messages": added `font-display`
+- `formatSnippet` function: detects JSON message bodies by shape (commission interest card, custom order request, custom listing link) — fixes garbled JSON previews in conversation list
+
+### Commission Room (`src/app/commission/page.tsx`)
+- h1: added `font-display`
+- Explainer banner: softened from solid amber to `border border-amber-200/60 rounded-lg`
+- "Post a Request" buttons (header + empty state): added `rounded-md`
+
+### Dashboard (`src/app/dashboard/page.tsx`)
+- h1 "Workshop — [name]": added `font-display`
+- "My Listings" and "Saved Searches" h2s: added `font-display`
+
+## Pending Tasks
+
+**TypeScript: zero `tsc --noEmit` errors** (maintained as of 2026-04-01)
+
+### Immediate / deploy blockers
+
+1. **CSP enforcement** — change `Content-Security-Policy-Report-Only` → `Content-Security-Policy` in `next.config.ts` after confirming zero new violations in Sentry (one-line change)
+2. **Clerk webhook production setup** — add `CLERK_WEBHOOK_SECRET` to Vercel; register `https://thegrainline.com/api/clerk/webhook` in Clerk Dashboard → Production → Webhooks (events: `user.created`, `user.updated`)
+3. **Stripe live mode webhook** — register after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel with live mode signing secret
+
+### QA / pre-launch
+
+4. **OWASP ZAP scan** — run against preview deployment before go-live
+5. **End-to-end checkout testing** — 10 purchases in Stripe test mode covering: single item, multi-item cart, gift wrapping, made-to-order, pickup, custom order flow
+6. **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars
+7. **Add noindex to dev data** — add `robots: { index: false }` to test listings / seller profiles before Google indexes fake data
+
+### Platform features
+
+8. **Guild reapplication** — allow sellers with `guildLevel: NONE` + no pending `MakerVerification` to reapply; currently the apply route 400s if a previous rejected record exists
+9. **Meet a Maker spotlight** — change badge from "Verified Maker" to Guild Member/Master tier badge; add `featuredOnHomepage Boolean` to `SellerProfile` for manual override; random rotation among Guild Members each build
+10. **Wax seal stamp** (Guild Master exclusive, post-launch) — `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); monogram + `logo-mark.svg` — defer until post-launch
+
+### Legal / business
+
+11. **EIN** — irs.gov, free, ~10 min — do this next after LLC confirmation
+12. **Business bank account** — open after EIN received
+13. **DMCA agent registration** — ~$6 at copyright.gov after LLC confirmed
+14. **Attorney review** of Terms / Privacy — budget $1,500–$3,000
+15. **Trademark Class 035** filing — ~$350 when ready
+16. **Business insurance** — general liability + cyber liability
+
+### SEO
+
+17. **Google Search Console** — verify domain ownership, submit `https://thegrainline.com/sitemap.xml`
+18. **`metadataBase`** currently set to `https://grainline.co` in `layout.tsx` — update to `https://thegrainline.com` (sitemap is already corrected but `metadataBase` drives OG image absolute URLs)
 
 ## Security Hardening (complete — 2026-03-31)
 
@@ -1716,7 +1817,7 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 
-**CSP status**: `Content-Security-Policy` is **enforced** as of 2026-04-01 (switched from report-only). `report-uri /api/csp-report` remains active — any violations are logged to Sentry under tag `csp_violation`.
+**CSP status**: `Content-Security-Policy-Report-Only` (report-only mode, **not yet enforced**). Violations are logged to `/api/csp-report` and Sentry under tag `csp_violation`. Switch to `Content-Security-Policy` in `next.config.ts` (one-line change) after confirming zero new violations in Sentry.
 
 ## chargesEnabled Backfill (hotfix — 2026-03-31)
 
@@ -1726,9 +1827,11 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **Stripe webhook now handles `account.updated`**: When Stripe notifies of a seller account status change, `chargesEnabled` is synced automatically. If a seller's account is disabled, Sentry is notified via `logSecurityEvent`. `account.application.deauthorized` clears `stripeAccountId` and sets `chargesEnabled = false` when a seller disconnects the platform.
 
-## Content Security Policy (enforced — 2026-04-01)
+## Content Security Policy (report-only — 2026-04-01)
 
-`Content-Security-Policy` is active in `next.config.ts`. Switched from report-only after clean violation logs.
+`Content-Security-Policy-Report-Only` is active in `next.config.ts`. Running in report-only mode so violations are logged without blocking users while the policy is validated against production traffic.
+
+**To enforce**: change `Content-Security-Policy-Report-Only` → `Content-Security-Policy` in `next.config.ts` `securityHeaders` array. One-line change. Do this after reviewing Sentry for zero new violation types.
 
 **Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs to Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode.
 
@@ -1737,7 +1840,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 | Directive | Key allowed sources |
 |---|---|
 | `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) |
-| `script-src-elem` | + `clerk.com *.clerk.accounts.dev *.clerk.com js.stripe.com cdnjs.cloudflare.com` |
+| `script-src-elem` | + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com accounts.thegrainline.com js.stripe.com cdnjs.cloudflare.com unpkg.com` |
 | `style-src` | `'self' 'unsafe-inline'` |
 | `img-src` | `'self' data: blob: https:` (HTTPS only — HTTP removed) |
 | `font-src` | `'self' data: fonts.gstatic.com` |
@@ -1767,6 +1870,7 @@ US and Canada only. Implemented in `src/middleware.ts` at the top of the middlew
 - Non-US/CA requests are redirected to `/not-available`
 - `/not-available` is in `isPublic` so the redirect doesn't loop through auth
 - Static assets (`/_next`, `/favicon`, `/logo`, `/icon`, `/manifest`, `/robots`, `/sitemap`) are allowed through without redirect
+- **All `/api` routes bypass geo-blocking** — webhooks (Stripe, Clerk) and API calls originate from servers, not browsers, so geo-checking would break them
 - **`src/app/not-available/page.tsx`** — branded page with logo, "Not available in your region" heading, brief explanation, VPN note; `robots: { index: false }` metadata
 
 ## Notification Preferences (complete — 2026-04-01)
@@ -1797,7 +1901,7 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 
 ## Input Validation — Zod (complete — 2026-04-01)
 
-All API route files that accept request bodies now use **Zod** for schema validation. Schemas are defined at the top of each route file (not in a shared file). Validation runs immediately after auth + rate-limit checks, before any database calls.
+All 33 API route files that accept request bodies now use **Zod** for schema validation. Schemas are colocated at the top of each route file (not in a shared file). Validation runs immediately after auth + rate-limit checks, before any database calls.
 
 **Pattern used in every route:**
 ```ts
@@ -1860,7 +1964,7 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 
 | Gap | Status |
 |---|---|
-| CSP enforcement | ✅ Complete — enforced as of 2026-04-01; report-uri still active |
+| CSP enforcement | ⏳ Report-only mode active; enforce by changing header name in `next.config.ts` after confirming zero violations in Sentry |
 | Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
 | Geo-blocking | ✅ Complete — US + CA only via Vercel edge geo |
 | Notification preferences | ✅ Complete — `/account/settings` with toggles |
@@ -1868,6 +1972,28 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 | CSRF audit | ✅ Complete — documented in `src/lib/security.ts` |
 | Redis rate limit failover | ✅ Complete — `safeRateLimit` / `safeRateLimitOpen` wrappers |
 | Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
+
+### Security Maintenance Rules
+
+**Set-and-forget infrastructure** (already done — do not touch unless there's a breach):
+- Upstash Redis rate limiters — `safeRateLimit` (fail-closed, used for mutations) vs `safeRateLimitOpen` (fail-open, used for analytics)
+- Clerk security settings: bot protection, disposable email blocking, email subaddress blocking, strict enumeration protection, lockout policy
+- `chargesEnabled` filter on all public listing queries — prevents ghost sellers
+- Stripe `account.updated` and `account.application.deauthorized` webhook handlers
+
+**Checklist for every new API route:**
+1. Is it public? If no → add `auth()` as the first check, return 401 before any DB access
+2. Add it to `isPublic` in `middleware.ts` only if truly auth-free
+3. If it mutates state → add a rate limiter from `src/lib/ratelimit.ts` using `safeRateLimit`
+4. If it accepts a request body → add a Zod schema at the top of the file
+5. If it's public and mutates state → document why it's CSRF-safe in `src/lib/security.ts`
+
+**CSP update procedure** (when adding a new third-party):
+1. Add the domain to `next.config.ts` `securityHeaders` in the relevant directive
+2. Deploy in report-only mode first; check Sentry for new violations
+3. Once clean, enforce by changing `Content-Security-Policy-Report-Only` → `Content-Security-Policy`
+
+**npm audit cadence**: Run `npm audit` after every major dependency upgrade. Fix moderate/high vulnerabilities unless they are in transitive deps with no available fix (document the reason in a comment). Do NOT run `npm audit fix --force`.
 
 ## Production Deployment
 
