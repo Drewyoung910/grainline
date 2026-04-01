@@ -941,27 +941,45 @@ Installed via Sentry wizard. Session replay disabled (bundle size trade-off).
 
 `/terms` and `/privacy` — both server components, publicly accessible (added to middleware public matcher), linked in site footer (`src/app/layout.tsx`). Both display a red **DRAFT — Under Attorney Review** banner. Both have a Table of Contents with anchor links and are mobile responsive / print-friendly.
 
-### Terms of Service (`/terms`) — 21 sections
+### Terms of Service (`/terms`) — 33 sections
 
 Key sections beyond boilerplate:
-- **Section 4** (Maker Terms) — 18 subsections including: listing accuracy with no-guarantee-of-authenticity clause (4.4), listing removal rights (4.16), off-platform transaction prohibition (4.17), product liability (4.18), gift wrapping, independent contractor status, custom orders, response/shipping requirements
+- **Section 4** (Maker Terms) — 20 subsections including: listing accuracy with no-guarantee-of-authenticity clause (4.4), listing removal rights (4.16), off-platform transaction prohibition (4.17), product liability (4.18), public profile disclosure (4.19), Makers Map (4.20), gift wrapping, independent contractor status, custom orders, response/shipping requirements
+- **Section 5** (Buyer Terms) — includes 5.7 Cart and Inventory (no-reserve policy)
 - **Section 6.4** — Marketplace facilitator sales tax: Texas Tax Code §151.0242 + all-states compliance; written certification to Makers that Grainline collects/remits on their behalf; 1099-K disclosure; Stripe Tax
-- **Section 8** — Returns/refunds rewritten with 8.1–8.6 including seller-initiated refunds and "Grainline is not the seller" disclaimer
-- **Section 9** — Case System rewritten with 30-day window, 48h seller response, $10k escalation note, binding arbitration cross-reference
-- **Section 10** — Prohibited Activities: 24 items including fake accounts/bots for metric manipulation, coordinated rating inflation, off-platform solicitation, false product safety info
+- **Section 7** — Shipping: 7.7 Estimated Delivery Dates, 7.8 Multi-Seller Orders, 7.9 Shipping Labels, 7.10 Cross-Border Orders added
+- **Section 8** — Returns/refunds with 8.1–8.7 including seller-initiated refunds, "Grainline is not the seller" disclaimer, and Pre-Shipment Cancellations (8.7)
+- **Section 9** — Case System rewritten with 30-day window (or order date if no tracking), 48h seller response, $10k escalation note, binding arbitration cross-reference
+- **Section 10** — Prohibited Activities: 25 items; new: accessing Platform after suspension/termination
 - **Section 13** — Disclaimers: 13.1 As-Is, 13.2 No Warranty for Listings, 13.3 No Warranty of Authenticity (all-caps), 13.4 Limitation of Liability (12-month fees / $100 cap)
+- **Section 14** — Indemnification: new bullet covering Commission Room activity
 - **Section 15** — Texas governing law, AAA binding arbitration, class action waiver, 30-day opt-out
-- **Section 19** — Guild Verification Program: Guild Member + Guild Master badges, FTC disclosure, revocation policy
+- **Section 16** — Termination: full suspension/termination effect description including listing hiding, Commission Request closure, Stripe fund access, 30-day review response; surviving sections list updated
+- **Section 19** — Guild Verification Program: Guild Member + Guild Master badges, FTC disclosure, revocation policy + reapplication right
 - **Section 20** — Force Majeure
 - **Section 21** — Accessibility (WCAG 2.1 AA)
+- **Section 22** — Commission Room: overview, request rules (non-binding), expressing interest, resulting transaction rules, local/national scope, disputes, content moderation
+- **Section 23** — Following System and Seller Broadcasts: following, broadcast limits (1/7 days), prohibited broadcast content, personalized feed (90-day retention)
+- **Section 24** — Blog and Community Content: blog posts, comment moderation, saved blog posts
+- **Section 25** — Automated Content Review: AI-assisted review, Pending Review status, approval/rejection process, no-guarantee disclaimer, liability limitation
+- **Section 26** — Vacation Mode: what is hidden, existing order obligations, Guild badge impact
+- **Section 27** — Reviews and Ratings: posting rules, review content, prohibited practices, seller replies, helpfulness voting, removal rights, aggregate ratings, post-deletion handling
+- **Section 28** — Messaging: platform messaging, permitted use, file attachments, system messages, message review
+- **Section 29** — Notifications and Communication Preferences: in-app, customizable, email, back-in-stock subscriptions
+- **Section 30** — Algorithmic Features and Recommendations: Similar Items, homepage sections, search ranking, feed; no external data/ad profiles
+- **Section 31** — Geographic Restrictions: US + Canada only, IP-based, no VPN circumvention
+- **Section 32** — Private and Reserved Listings: invisible to public, same ToS applies
+- **Section 33** — General Provisions: severability, waiver, assignment, electronic communications, headings, relationship of parties
 
 ### Privacy Policy (`/privacy`) — 13 sections
 
 Key sections:
-- **Section 2** — 11 subsections: account, profile, transaction, communications, usage, device, location (EXIF stripping disclosed), photo metadata, newsletter, cookies, third-party data
-- **Section 4** — Sharing: Stripe, Clerk, Shippo, Resend, UploadThing, Sentry; tax authority sharing (marketplace facilitator); buyer-maker data restrictions; no sale/sharing for ads
-- **Section 6** — Retention schedule: account (active + 30d), transactions (7yr), sales tax records (4yr per Texas Comptroller), 1099-K (7yr), messages (3yr), notifications (90d read)
-- **Section 7** — Rights: universal rights + 7.2 California CCPA/CPRA, 7.3 Texas TDPSA (appeal right, 45-day response), 7.4 EU/EEA/UK GDPR (legal basis: contract + legitimate interests + consent; SCCs for US transfers)
+- **Section 2** — 17 subsections (was 11): 2.12 Commission Room Data, 2.13 Following/Feed Data, 2.14 Back-in-Stock Subscriptions, 2.15 Seller Performance Metrics, 2.16 Listing Snapshots, 2.17 Saved Searches; 2.8 (Photo Metadata) softened from "strips" to "commercially reasonable efforts"
+- **Section 3** — How We Use: 3 new purposes added: Automated content review (AI/OpenAI), Seller performance evaluation, Algorithmic recommendations
+- **Section 4** — Sharing: 10 new service providers added to 4.1: OpenAI, Upstash, OpenStreetMap/Nominatim, OpenStreetMap Tile Servers, UptimeRobot, Vercel, Cloudflare, Neon, Video Providers (YouTube/Vimeo); 4.6 (Buyer-Maker Data) now includes gift note disclosure
+- **Section 5** — Cookies: 3 new types added: Rate limiting cookies, Recently viewed cookie, Payment processing cookies (Stripe.js); new 5.3 Do Not Track section
+- **Section 6** — Retention schedule: 4 new entries: Administrative action logs (permanent), Seller performance metrics (account lifetime + 2yr daily data), Commission Requests (lifetime + 1yr), Following data (deleted on account deletion)
+- **Section 7** — Rights: data portability bullet enhanced with 30-day fulfillment SLA and format details; 7.4 GDPR: new note about automated processing with human review requirement
 
 ## UptimeRobot Monitoring (complete)
 

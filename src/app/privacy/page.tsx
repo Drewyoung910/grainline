@@ -147,9 +147,11 @@ export default function PrivacyPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">2.8 Photo Metadata</h3>
           <p>
             Photos you upload may contain embedded EXIF metadata, which can include location
-            coordinates, device information, and timestamps. Grainline strips location-related EXIF
-            data from uploaded photos before display to protect your privacy. Other non-identifying
-            EXIF metadata may be retained for technical purposes.
+            coordinates, device information, and timestamps. Grainline makes commercially reasonable
+            efforts to strip location-related EXIF data from uploaded photos. Photos are processed
+            through our upload provider (UploadThing) which may retain or strip metadata according to
+            their own practices. Other non-identifying EXIF metadata may be retained for technical
+            purposes.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">2.9 Newsletter and Marketing</h3>
@@ -171,6 +173,50 @@ export default function PrivacyPage() {
             We may receive information about you from third-party services integrated with the
             Platform, including authentication events from Clerk, payment events from Stripe, and
             shipping events from Shippo.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">2.12 Commission Room Data</h3>
+          <p>
+            Buyers who post Commission Requests provide a description, budget range, timeline,
+            category, and optional reference images. This information is displayed publicly on the
+            Commission Room board. Location data may be used for locally-scoped requests as described
+            in Section 2.7.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">2.13 Following and Feed Data</h3>
+          <p>
+            We store records of which Makers you follow. Your following activity is used to generate
+            your personalized feed and to enable seller broadcasts. Follower counts are displayed
+            publicly on Maker profiles.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">2.14 Back-in-Stock Subscriptions</h3>
+          <p>
+            When you subscribe to receive a notification when an out-of-stock item becomes available,
+            we store a record linking your account to that listing. You may unsubscribe at any time
+            from the listing page.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">2.15 Seller Performance Metrics</h3>
+          <p>
+            For Makers participating in the Guild Verification Program, we calculate performance
+            metrics including average rating, on-time shipping rate, response rate, total sales, and
+            open case count. These metrics are calculated automatically from Platform activity data and
+            are used to determine Guild badge eligibility and maintenance.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">2.16 Listing Snapshots</h3>
+          <p>
+            When a purchase is completed, we capture and store a snapshot of the listing details at
+            the time of the transaction, including the title, description, price, images, category,
+            tags, and seller name. This snapshot is retained as part of the order record for dispute
+            resolution, order history display, and archival purposes.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">2.17 Saved Searches</h3>
+          <p>
+            If you save a search, we store your search filters including search query, category, price
+            range, and tags. You may delete saved searches at any time from your dashboard.
           </p>
         </section>
 
@@ -226,6 +272,25 @@ export default function PrivacyPage() {
               <strong>Personalization.</strong> To personalize your experience, including showing
               relevant listings, search results, and recommendations.
             </li>
+            <li>
+              <strong>Automated content review.</strong> We use automated tools, including artificial
+              intelligence provided by third-party services, to review listing content for potential
+              violations of our Terms of Service. This review may occur before a listing is made
+              publicly visible. Automated review does not replace human judgment — flagged listings
+              are reviewed by Grainline staff before final decisions are made.
+            </li>
+            <li>
+              <strong>Seller performance evaluation.</strong> We automatically calculate seller
+              performance metrics to determine eligibility for the Guild Verification Program. While
+              metrics are calculated automatically, all badge approval and revocation decisions include
+              human review.
+            </li>
+            <li>
+              <strong>Algorithmic recommendations.</strong> We use Platform activity data (views,
+              favorites, sales, search behavior) to generate personalized recommendations including
+              &quot;Similar Items,&quot; &quot;Buyer Favorites,&quot; and search relevance ranking.
+              We do not use external data sources or build advertising profiles for these features.
+            </li>
           </ul>
         </section>
 
@@ -269,6 +334,67 @@ export default function PrivacyPage() {
               IP addresses and browser information. We do not intentionally send personally
               identifiable information to Sentry.
             </li>
+            <li>
+              <strong>OpenAI</strong> — Automated content review. Listing content (titles,
+              descriptions) may be processed by OpenAI&apos;s systems to detect potential Terms of
+              Service violations. We send only listing content — not seller names, emails, or other
+              personal data.{" "}
+              <a href="https://openai.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">openai.com/privacy</a>
+            </li>
+            <li>
+              <strong>Upstash</strong> — Rate limiting and security infrastructure. Upstash receives
+              anonymized request identifiers (hashed IP addresses and user IDs) to enforce rate limits
+              and prevent abuse. No personally identifiable information is stored beyond hashed
+              identifiers.{" "}
+              <a href="https://upstash.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">upstash.com/privacy</a>
+            </li>
+            <li>
+              <strong>OpenStreetMap (Nominatim)</strong> — Reverse geocoding. When Makers set their
+              workshop location, coordinates may be sent to OpenStreetMap&apos;s Nominatim API to
+              determine city and state information for the Makers Map and city-level pages. No
+              personally identifiable information beyond coordinates is sent.{" "}
+              <a href="https://nominatim.org" target="_blank" rel="noopener noreferrer" className="underline">nominatim.org</a>
+            </li>
+            <li>
+              <strong>OpenStreetMap Tile Servers</strong> — Map display. When you view the Makers
+              Map, your browser loads map images directly from OpenStreetMap&apos;s tile servers.
+              OpenStreetMap receives your IP address and standard browser information in connection
+              with serving map tiles.{" "}
+              <a href="https://www.openstreetmap.org/privacy" target="_blank" rel="noopener noreferrer" className="underline">openstreetmap.org/privacy</a>
+            </li>
+            <li>
+              <strong>UptimeRobot</strong> — Platform availability monitoring. UptimeRobot makes
+              periodic requests to our servers to detect downtime. No user data is shared with
+              UptimeRobot.{" "}
+              <a href="https://uptimerobot.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">uptimerobot.com/privacy</a>
+            </li>
+            <li>
+              <strong>Vercel</strong> — Cloud hosting and infrastructure. The Platform is hosted on
+              Vercel&apos;s servers. Vercel processes web requests and may access request data
+              including IP addresses in the course of providing hosting services.{" "}
+              <a href="https://vercel.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline">vercel.com/legal/privacy-policy</a>
+            </li>
+            <li>
+              <strong>Cloudflare</strong> — DNS, content delivery network, and security. Cloudflare
+              processes web traffic to the Platform and provides DDoS protection and bot management.
+              Cloudflare may set security cookies (__cf_bm) and process IP addresses.{" "}
+              <a href="https://www.cloudflare.com/privacypolicy" target="_blank" rel="noopener noreferrer" className="underline">cloudflare.com/privacypolicy</a>
+            </li>
+            <li>
+              <strong>Neon</strong> — Database hosting. Our PostgreSQL database is hosted on
+              Neon&apos;s cloud infrastructure. Neon stores and processes Platform data on our behalf
+              as a data processor.{" "}
+              <a href="https://neon.tech/privacy" target="_blank" rel="noopener noreferrer" className="underline">neon.tech/privacy</a>
+            </li>
+            <li>
+              <strong>Video Providers</strong> — Blog post embeds. Blog posts may contain embedded
+              videos from YouTube (Google) or Vimeo. When you view a page containing an embedded
+              video, the video provider receives your IP address and may set cookies according to
+              their own privacy policies.{" "}
+              <a href="https://www.youtube.com/about/policies" target="_blank" rel="noopener noreferrer" className="underline">youtube.com/about/policies</a>{" "}
+              |{" "}
+              <a href="https://vimeo.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">vimeo.com/privacy</a>
+            </li>
           </ul>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.2 Between Users</h3>
@@ -307,7 +433,9 @@ export default function PrivacyPage() {
             When a Buyer completes a purchase, their name and shipping address are shared with the
             Maker solely for order fulfillment purposes. Makers are prohibited from using this
             information for any purpose other than fulfilling the specific order. Makers may not
-            contact Buyers outside the Platform without the Buyer&apos;s consent.
+            contact Buyers outside the Platform without the Buyer&apos;s consent. If a Buyer includes
+            a gift note or selects gift wrapping, the gift note text is shared with the Maker along
+            with the order details for fulfillment purposes.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.7 Stripe Connected Account Agreement</h3>
@@ -349,6 +477,22 @@ export default function PrivacyPage() {
               Platform. We use this data in aggregate to improve our features. These cookies are
               optional.
             </li>
+            <li>
+              <strong>Rate limiting cookies.</strong> We use httpOnly cookies to prevent abuse of view
+              and click tracking endpoints. These cookies are set per listing and per IP address,
+              contain no personally identifiable information, and expire within 24 hours.
+            </li>
+            <li>
+              <strong>Recently viewed cookie.</strong> We store a client-side cookie containing the
+              IDs of up to 10 recently viewed listings to display your browsing history. This cookie
+              expires after 30 days and contains only listing identifiers — no personal information.
+            </li>
+            <li>
+              <strong>Payment processing cookies.</strong> Stripe.js, our payment processor&apos;s
+              client-side library, may set cookies and collect device fingerprint information on pages
+              where payment functionality is present. This data is used by Stripe for fraud prevention
+              and is governed by Stripe&apos;s Privacy Policy and Cookie Policy.
+            </li>
           </ul>
 
           <h3 className="text-base font-semibold mt-6 mb-2">5.2 How to Disable Cookies</h3>
@@ -357,6 +501,14 @@ export default function PrivacyPage() {
             You can typically find these settings in your browser&apos;s &quot;Settings,&quot;
             &quot;Preferences,&quot; or &quot;Privacy&quot; menu. Disabling essential cookies will
             prevent you from logging in and using most Platform features.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">5.3 Do Not Track</h3>
+          <p>
+            Some browsers offer a &quot;Do Not Track&quot; (DNT) signal. There is no industry-standard
+            technology for recognizing or honoring DNT signals. We do not currently respond to DNT
+            signals. However, we do not engage in cross-site tracking, third-party behavioral
+            advertising, or sale of personal information regardless of DNT settings.
           </p>
         </section>
 
@@ -399,6 +551,25 @@ export default function PrivacyPage() {
               investigation, or law enforcement request, we may retain it beyond the standard
               retention periods.
             </li>
+            <li>
+              <strong>Administrative action logs.</strong> Records of administrative actions including
+              account suspensions, content removal decisions, listing review decisions, and Guild badge
+              actions are retained permanently for legal compliance and audit purposes.
+            </li>
+            <li>
+              <strong>Seller performance metrics.</strong> Calculated seller metrics are refreshed
+              monthly and retained for the duration of the seller&apos;s account. Historical daily
+              view and click data is retained for 2 years.
+            </li>
+            <li>
+              <strong>Commission Requests.</strong> Commission Request data (descriptions, reference
+              images, interest records) is retained for the lifetime of the request plus 1 year after
+              the request is closed, fulfilled, or expired.
+            </li>
+            <li>
+              <strong>Following data.</strong> Records of which Makers you follow are retained while
+              your account is active and deleted upon account deletion.
+            </li>
           </ul>
         </section>
 
@@ -424,7 +595,10 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Data portability.</strong> Request an export of your personal data in a
-              commonly used, machine-readable format.
+              commonly used, machine-readable format. Data export requests are processed manually and
+              fulfilled within 30 days of a verified request. Exports typically include your account
+              information, transaction history, messages, reviews, and listing data in JSON or CSV
+              format.
             </li>
             <li>
               <strong>Opt out of marketing.</strong> Opt out of marketing emails at any time by
@@ -495,6 +669,13 @@ export default function PrivacyPage() {
             <li><strong>Right to object</strong> — object to processing based on legitimate interests or for direct marketing</li>
             <li><strong>Rights related to automated decision-making</strong> — not be subject to solely automated decisions that produce significant effects</li>
           </ul>
+          <p className="mt-3">
+            <strong>Note regarding automated processing:</strong> Grainline uses automated systems to
+            calculate seller performance metrics and to perform initial content review of listings.
+            However, all consequential decisions (Guild badge approval/revocation, listing rejection,
+            account suspension) include human review. You have the right to request human review of
+            any automated decision that significantly affects you.
+          </p>
           <p className="mt-3">
             <strong>Legal basis for processing:</strong> We process your data on the basis of contract
             performance (to provide the Platform), legal obligation (tax compliance, legal holds), and

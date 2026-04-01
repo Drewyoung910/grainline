@@ -9,27 +9,39 @@ export const metadata: Metadata = {
 };
 
 const TOC = [
-  { id: "acceptance",       label: "1. Acceptance of Terms" },
-  { id: "service",          label: "2. Description of Service" },
-  { id: "accounts",         label: "3. User Accounts" },
-  { id: "maker-terms",      label: "4. Maker (Seller) Terms" },
-  { id: "buyer-terms",      label: "5. Buyer Terms" },
-  { id: "payments",         label: "6. Payments and Fees" },
-  { id: "shipping",         label: "7. Shipping and Delivery" },
-  { id: "returns",          label: "8. Returns, Refunds, and Cancellations" },
-  { id: "disputes",         label: "9. Dispute Resolution (Cases)" },
-  { id: "prohibited",       label: "10. Prohibited Activities" },
-  { id: "ip",               label: "11. Intellectual Property" },
-  { id: "privacy",          label: "12. Privacy" },
-  { id: "disclaimers",      label: "13. Disclaimers and Limitation of Liability" },
-  { id: "indemnification",  label: "14. Indemnification" },
-  { id: "governing-law",    label: "15. Governing Law and Dispute Resolution" },
-  { id: "termination",      label: "16. Termination" },
-  { id: "changes",          label: "17. Changes to Terms" },
-  { id: "contact",          label: "18. Contact Information" },
-  { id: "guild",            label: "19. Guild Verification Program" },
-  { id: "force-majeure",    label: "20. Force Majeure" },
-  { id: "accessibility",    label: "21. Accessibility" },
+  { id: "acceptance",         label: "1. Acceptance of Terms" },
+  { id: "service",            label: "2. Description of Service" },
+  { id: "accounts",           label: "3. User Accounts" },
+  { id: "maker-terms",        label: "4. Maker (Seller) Terms" },
+  { id: "buyer-terms",        label: "5. Buyer Terms" },
+  { id: "payments",           label: "6. Payments and Fees" },
+  { id: "shipping",           label: "7. Shipping and Delivery" },
+  { id: "returns",            label: "8. Returns, Refunds, and Cancellations" },
+  { id: "disputes",           label: "9. Dispute Resolution (Cases)" },
+  { id: "prohibited",         label: "10. Prohibited Activities" },
+  { id: "ip",                 label: "11. Intellectual Property" },
+  { id: "privacy",            label: "12. Privacy" },
+  { id: "disclaimers",        label: "13. Disclaimers and Limitation of Liability" },
+  { id: "indemnification",    label: "14. Indemnification" },
+  { id: "governing-law",      label: "15. Governing Law and Dispute Resolution" },
+  { id: "termination",        label: "16. Termination" },
+  { id: "changes",            label: "17. Changes to Terms" },
+  { id: "contact",            label: "18. Contact Information" },
+  { id: "guild",              label: "19. Guild Verification Program" },
+  { id: "force-majeure",      label: "20. Force Majeure" },
+  { id: "accessibility",      label: "21. Accessibility" },
+  { id: "commission-room",    label: "22. Commission Room" },
+  { id: "following",          label: "23. Following System and Seller Broadcasts" },
+  { id: "blog-content",       label: "24. Blog and Community Content" },
+  { id: "ai-review",          label: "25. Automated Content Review" },
+  { id: "vacation-mode",      label: "26. Vacation Mode" },
+  { id: "reviews-ratings",    label: "27. Reviews and Ratings" },
+  { id: "messaging",          label: "28. Messaging" },
+  { id: "notifications",      label: "29. Notifications and Communication Preferences" },
+  { id: "algorithmic",        label: "30. Algorithmic Features and Recommendations" },
+  { id: "geo-restrictions",   label: "31. Geographic Restrictions" },
+  { id: "private-listings",   label: "32. Private and Reserved Listings" },
+  { id: "general-provisions", label: "33. General Provisions" },
 ];
 
 export default function TermsPage() {
@@ -182,8 +194,8 @@ export default function TermsPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">4.2 Permitted Listings</h3>
           <p>
             Grainline is a marketplace for handmade woodworking and craft items. Permitted listings
-            include original handmade furniture, kitchen items, decorative items, tools, toys, art,
-            outdoor items, storage solutions, jewelry, and other handcrafted pieces where wood or
+            include original handmade furniture, kitchen items, decorative items, home and office items,
+            toys, art, outdoor items, gifts, jewelry, and other handcrafted pieces where wood or
             natural materials are a primary component. Items must have been made by you or by members
             of your shop.
           </p>
@@ -219,7 +231,7 @@ export default function TermsPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.5 Fees</h3>
           <p>
-            Grainline charges a platform fee of <strong>5% of the total transaction value</strong>{" "}
+            Grainline charges a platform fee of <strong>5% of the item subtotal</strong>{" "}
             (excluding shipping and taxes). This fee is deducted before your payout via Stripe Connect.
             Stripe&apos;s standard payment processing fees also apply. Grainline reserves the right to
             adjust its fee structure upon 30 days&apos; written notice.
@@ -249,6 +261,13 @@ export default function TermsPage() {
             after work has commenced may result in partial or no refund at the Maker&apos;s
             discretion, subject to their stated policies disclosed to the buyer at time of order.
           </p>
+          <p className="mt-3">
+            Custom orders may be initiated through the Platform&apos;s messaging system, through the
+            Commission Room (Section 22), or by using the &quot;Request Something Similar&quot; feature
+            on listing pages. When a Maker agrees to create a custom piece, they may create a private
+            listing (Section 32) visible only to the requesting Buyer. Custom orders processed through
+            the Platform are subject to all standard terms including the Case System and platform fee.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.9 Inventory and Availability</h3>
           <p>
@@ -270,8 +289,8 @@ export default function TermsPage() {
           <p>
             Makers must ship orders within their stated processing time. Failure to ship within 3
             days of the stated processing deadline without proactively notifying the buyer may result
-            in automatic case opening on behalf of the buyer. Makers must provide valid tracking
-            information for all shipped orders.
+            in Grainline initiating a case on the buyer&apos;s behalf at its discretion. Makers must
+            provide valid tracking information for all shipped orders.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.12 Independent Contractor Status</h3>
@@ -298,6 +317,15 @@ export default function TermsPage() {
             Stripe Connected Account Agreement. Grainline is not responsible for delays, errors, or
             failures in Stripe&apos;s payout processing.
           </p>
+          <p className="mt-3">
+            The Stripe Connected Account Agreement and Stripe&apos;s Terms of Service are incorporated
+            into these Terms by reference. In the event of a conflict between these Terms and
+            Stripe&apos;s terms regarding payment processing, Stripe&apos;s terms shall govern with
+            respect to payment processing matters. If your Stripe Connect account is suspended,
+            deactivated, or disconnected — whether by Stripe, by you, or by Grainline — your listings
+            will be automatically hidden from the Platform and you will be unable to receive new orders
+            until a valid Stripe Connect account is restored.
+          </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.15 Content License</h3>
           <p>
@@ -306,6 +334,12 @@ export default function TermsPage() {
             listing content (including photos, descriptions, and other materials) for the purpose of
             operating, promoting, and improving the Platform. This license survives removal of your
             listing but not deletion of your account.
+          </p>
+          <p className="mt-3">
+            Notwithstanding the foregoing, listing data captured in order transaction records (listing
+            snapshots) at the time of purchase is retained per the data retention schedule in the
+            Privacy Policy, regardless of listing removal or account deletion, as required for tax
+            compliance, dispute resolution, and legal obligations.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">4.16 Listing Removal</h3>
@@ -351,6 +385,24 @@ export default function TermsPage() {
             Consumer Product Safety Act, applicable ASTM standards, and any other federal, state, or
             local regulations applicable to the item type.
           </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.19 Public Profile</h3>
+          <p>
+            By creating a seller profile on Grainline, you acknowledge that the following information
+            is publicly visible to all users and may be indexed by search engines: your display name,
+            tagline, biography, profile and banner photos, workshop photos, gallery images, city and
+            state, years in business, shop policies, FAQ answers, ratings and reviews, follower count,
+            active listings, and blog posts. Your precise workshop coordinates, if set, are used to
+            display your approximate location on the Makers Map but exact coordinates are not displayed
+            to users. Your email address is never displayed publicly.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">4.20 Makers Map</h3>
+          <p>
+            If you set a workshop location, your shop will appear as a pin on the publicly accessible
+            Makers Map. Only your approximate location (city/region level) is displayed on the map.
+            You may remove your map pin at any time by clearing your location in your dashboard settings.
+          </p>
         </section>
 
         {/* 5 */}
@@ -394,6 +446,14 @@ export default function TermsPage() {
               and referral to appropriate authorities.
             </li>
           </ul>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">5.7 Cart and Inventory</h3>
+          <p>
+            Adding an item to your cart does not reserve that item. Items remain available for purchase
+            by other Buyers until checkout is completed. If an item becomes unavailable between the
+            time you add it to your cart and the time you attempt to complete checkout, the transaction
+            will not be processed.
+          </p>
         </section>
 
         {/* 6 */}
@@ -418,6 +478,11 @@ export default function TermsPage() {
             deducted from the Maker&apos;s payout before transfer via Stripe Connect. Buyers are not
             charged this fee separately. Grainline reserves the right to change platform fees with
             <strong> 30 days written notice</strong> to affected Makers.
+          </p>
+          <p className="mt-3">
+            When Grainline issues a refund through the Case System (Section 9), the platform fee is
+            not refunded to the Maker. When a Maker issues a voluntary refund through the seller
+            dashboard (Section 8.5), the platform fee is also not refunded.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">6.3 Maker Payouts</h3>
@@ -530,6 +595,38 @@ export default function TermsPage() {
               the Buyer.
             </li>
           </ul>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.7 Estimated Delivery Dates</h3>
+          <p>
+            The Platform calculates estimated delivery dates based on the Maker&apos;s stated
+            processing time plus estimated carrier transit time plus a grace period. These dates are
+            estimates only and are not guaranteed delivery dates. Actual delivery depends on carrier
+            performance, weather, customs, and other factors beyond Grainline&apos;s control.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.8 Multi-Seller Orders</h3>
+          <p>
+            Orders containing items from multiple Makers are processed as separate transactions, one
+            per Maker. Each transaction has its own processing timeline, shipping, and tracking.
+            Buyers will receive separate shipments from each Maker.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.9 Shipping Labels</h3>
+          <p>
+            Grainline offers an optional shipping label purchase feature for Makers. When a Maker
+            purchases a shipping label through the Platform, the label cost is deducted from the
+            Maker&apos;s payout via their Stripe Connect account. Label pricing is provided by
+            third-party carriers through Shippo and Grainline does not mark up label costs. Purchased
+            labels may be voided subject to carrier policies.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">7.10 Cross-Border Orders</h3>
+          <p>
+            For orders shipped between the United States and Canada, the Buyer is responsible for any
+            applicable customs duties, import taxes, or brokerage fees assessed by the destination
+            country. Grainline does not collect customs duties at checkout. Makers are responsible for
+            accurately completing any required customs documentation.
+          </p>
         </section>
 
         {/* 8 */}
@@ -586,7 +683,8 @@ export default function TermsPage() {
             Makers may issue full or partial refunds to Buyers at any time through the Grainline
             seller dashboard. Refunds are processed through Stripe and typically appear within
             5–10 business days. Grainline&apos;s platform fee is not refunded when a Maker
-            voluntarily issues a refund.
+            voluntarily issues a refund. For full refunds of in-stock items, the item&apos;s stock
+            quantity is automatically restored.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">8.6 Grainline Is Not the Seller</h3>
@@ -596,6 +694,17 @@ export default function TermsPage() {
             facilitate dispute resolution but is not the seller of record and is not liable for item
             quality, defects, or misrepresentation by Makers. Grainline&apos;s maximum liability in
             connection with any transaction is limited to the transaction amount.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">8.7 Pre-Shipment Cancellations</h3>
+          <p>
+            Buyers may request cancellation of an order prior to shipment by contacting the Maker
+            through the Platform&apos;s messaging system. Makers should process cancellation requests
+            promptly and issue a full refund for orders not yet shipped. Once an item has been shipped
+            or a Maker has begun work on a made-to-order item, the order cannot be cancelled and is
+            subject to the Maker&apos;s return policy. Makers may cancel an order prior to shipment if
+            they are unable to fulfill it, in which case a full refund must be issued to the Buyer
+            promptly.
           </p>
         </section>
 
@@ -620,7 +729,9 @@ export default function TermsPage() {
           </ul>
           <p className="mt-3">
             Buyers must open cases within <strong>30 days</strong> of the estimated delivery date.
-            Cases opened after this window may be rejected at Grainline&apos;s discretion.
+            Cases opened after this window may be rejected at Grainline&apos;s discretion. If the
+            Maker did not provide tracking information, the 30-day window begins from the order date
+            rather than the estimated delivery date.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">9.3 Case Process</h3>
@@ -698,6 +809,7 @@ export default function TermsPage() {
             <li>Coordinating with other users to artificially inflate ratings or manipulate the Platform</li>
             <li>Using the Platform to solicit off-platform transactions or to circumvent Grainline fees</li>
             <li>Providing false product safety information or misrepresenting compliance with applicable laws and regulations</li>
+            <li>Accessing or attempting to access the Platform after your account has been suspended or terminated, whether through a new account, another user&apos;s account, or any other means</li>
           </ul>
           <p className="mt-4">
             Grainline reserves the right to investigate and take appropriate legal action against
@@ -846,6 +958,7 @@ export default function TermsPage() {
             <li>Any User Content you submit to the Platform</li>
             <li>Any dispute between you and another user of the Platform</li>
             <li>Your failure to collect, report, or remit any taxes that are your responsibility</li>
+            <li>Any Commission Request you post, any interest you express in a Commission Request, or any transaction arising from the Commission Room</li>
           </ul>
           <p className="mt-4">
             Grainline reserves the right, at its own expense, to assume the exclusive defense and
@@ -916,9 +1029,20 @@ export default function TermsPage() {
           <p className="mt-4">
             <strong>Effect of termination.</strong> Upon termination, your right to use the Platform
             immediately ceases, and Grainline may delete your account data in accordance with our
-            Privacy Policy. Outstanding orders at the time of termination will be handled at
-            Grainline&apos;s discretion. The following provisions survive termination: Sections 4.15,
-            10, 11, 13, 14, 15, and all payment obligations that accrued prior to termination.
+            Privacy Policy. Upon account suspension or termination by Grainline: all active listings
+            are immediately hidden from the Platform; new purchases of the user&apos;s items are
+            blocked; open Commission Requests are closed. For existing unfulfilled orders, Grainline
+            may at its discretion require the suspended seller to complete fulfillment, arrange
+            alternative fulfillment, or issue refunds to affected buyers. Grainline does not hold,
+            freeze, or seize funds in a seller&apos;s Stripe Connect account — sellers retain access
+            to funds already transferred to their Stripe account. Grainline maintains a permanent
+            audit log of all suspension and termination actions. Users who believe their account was
+            suspended in error may contact{" "}
+            <a href="mailto:legal@thegrainline.com" className="underline">legal@thegrainline.com</a>{" "}
+            to request review. Grainline will respond within 30 days but is not obligated to reverse
+            any suspension decision. The following provisions survive termination: Sections 4.15, 6,
+            9, 10, 11, 13, 14, 15, 22.6, and all payment obligations that accrued prior to
+            termination.
           </p>
         </section>
 
@@ -1010,7 +1134,10 @@ export default function TermsPage() {
           </ul>
           <p className="mt-3">
             Grainline reserves the right to revoke badges at any time at its sole discretion with or
-            without prior notice.
+            without prior notice. Makers whose badges have been revoked may reapply when they believe
+            they meet all applicable criteria. Reapplication is subject to the same review process as
+            initial applications. Previous revocation does not automatically disqualify a Maker from
+            future badge eligibility.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">19.5 FTC Disclosure</h3>
@@ -1057,6 +1184,457 @@ export default function TermsPage() {
             information in an alternate format, please contact us at{" "}
             <a href="mailto:legal@thegrainline.com" className="underline">legal@thegrainline.com</a>.
             We will make reasonable efforts to accommodate your accessibility needs.
+          </p>
+        </section>
+
+        {/* 22 */}
+        <section id="commission-room">
+          <h2 className="text-xl font-semibold mb-4">22. Commission Room</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.1 Overview</h3>
+          <p>
+            The Commission Room is a feature that allows Buyers to post requests for custom
+            woodworking pieces (&quot;Commission Requests&quot;) and allows Makers to express interest
+            in fulfilling those requests. The Commission Room is a discovery tool — it is not a
+            binding contract, auction, or bidding system.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.2 Commission Requests</h3>
+          <p>
+            Buyers may post Commission Requests describing the type of piece they are looking for,
+            including a description, category, estimated budget range, timeline, and optional reference
+            images. Commission Requests are displayed publicly on the Commission Room board and may be
+            visible to all users of the Platform.
+          </p>
+          <p className="mt-3">By posting a Commission Request, you acknowledge and agree that:</p>
+          <ul className="list-disc pl-6 mt-3 space-y-1">
+            <li>Your request is non-binding and does not obligate any Maker to respond or perform work</li>
+            <li>Budget ranges are estimates provided for Maker reference only and do not constitute a binding price offer</li>
+            <li>Reference images you upload are licensed to Grainline under the same terms as other User Content (Section 11.2)</li>
+            <li>Grainline does not guarantee that any Maker will respond to your request</li>
+            <li>You may close or mark your request as fulfilled at any time</li>
+            <li>Commission Requests may expire or be removed by Grainline at its discretion</li>
+          </ul>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.3 Expressing Interest</h3>
+          <p>
+            Makers may express interest in a Commission Request, which initiates a direct conversation
+            between the Maker and the Buyer through the Platform&apos;s messaging system. Expressing
+            interest does not create any contractual obligation to perform work, deliver a product, or
+            agree to the Buyer&apos;s stated budget or timeline.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.4 Resulting Transactions</h3>
+          <p>
+            If a Maker and Buyer agree to proceed with a custom order as a result of a Commission
+            Request, the resulting transaction must be completed through the Grainline Platform. This
+            includes payment processing, order tracking, and fulfillment. Off-platform transactions
+            resulting from Commission Room introductions are prohibited under Section 4.17 and may
+            result in account suspension for both parties.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.5 Local and National Scope</h3>
+          <p>
+            Buyers may choose to make their Commission Request visible to all Makers nationwide or
+            limit visibility to Makers in their geographic area. For location-scoped requests, the
+            Buyer&apos;s approximate location (derived from their profile) may be displayed to help
+            Makers assess proximity. Grainline uses this location data as described in our Privacy
+            Policy.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.6 Disputes</h3>
+          <p>
+            Disputes arising from transactions that originated in the Commission Room are subject to
+            the same Case System process described in Section 9. Grainline is not a party to any
+            agreement between a Buyer and Maker resulting from a Commission Request and bears no
+            liability for the outcome of any such agreement.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">22.7 Commission Room Content</h3>
+          <p>
+            All content posted in the Commission Room, including request descriptions, reference
+            images, and interest messages, is subject to the same content standards and prohibited
+            activities described in Sections 10 and 11. Grainline reserves the right to remove any
+            Commission Request or related content at its sole discretion.
+          </p>
+        </section>
+
+        {/* 23 */}
+        <section id="following">
+          <h2 className="text-xl font-semibold mb-4">23. Following System and Seller Broadcasts</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">23.1 Following Makers</h3>
+          <p>
+            Users may follow Makers to receive updates about new listings, blog posts, and shop
+            announcements in their personalized feed. Following a Maker is voluntary and may be
+            reversed (unfollowed) at any time. Follower counts may be displayed publicly on Maker
+            profiles.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">23.2 Seller Broadcasts</h3>
+          <p>
+            Makers may send broadcast messages to their followers. Broadcasts are limited to one per
+            seven-day period. Broadcast content is subject to the same content standards and prohibited
+            activities described in Section 10. Makers are solely responsible for the content of their
+            broadcasts.
+          </p>
+          <p className="mt-3">Broadcasts may not contain:</p>
+          <ul className="list-disc pl-6 mt-3 space-y-1">
+            <li>Solicitations for off-platform transactions</li>
+            <li>Spam, misleading claims, or deceptive content</li>
+            <li>Harassment or threats directed at any user</li>
+            <li>Content that violates any applicable law</li>
+          </ul>
+          <p className="mt-3">
+            Users who receive unwanted broadcasts may unfollow the Maker at any time, which immediately
+            removes them from that Maker&apos;s broadcast audience.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">23.3 Personalized Feed</h3>
+          <p>
+            The Platform generates a personalized feed of content from Makers you follow. Feed content
+            is displayed in reverse chronological order and may include new listings, blog posts, and
+            broadcasts. Feed content is retained for up to 90 days.
+          </p>
+        </section>
+
+        {/* 24 */}
+        <section id="blog-content">
+          <h2 className="text-xl font-semibold mb-4">24. Blog and Community Content</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">24.1 Blog Posts</h3>
+          <p>
+            Makers may publish blog posts through the Platform to share stories, techniques, and
+            updates about their craft. Blog posts are User Content subject to the content license in
+            Section 11.2 and the prohibited activities in Section 10.
+          </p>
+          <p className="mt-3">
+            Grainline reserves the right to remove any blog post at its sole discretion, with or
+            without notice, for any reason including violation of these Terms, inappropriate content,
+            or any other reason Grainline deems appropriate.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">24.2 Comments</h3>
+          <p>
+            Users may submit comments on published blog posts. All comments are subject to moderation
+            and will not appear publicly until approved by Grainline staff. Grainline reserves the
+            right to reject, remove, or edit comments at its sole discretion. Approval of a comment
+            does not constitute endorsement of its content.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">24.3 Blog Content Saved by Users</h3>
+          <p>
+            Users may save blog posts for later reference. Saved blog post data is stored per the
+            Privacy Policy.
+          </p>
+        </section>
+
+        {/* 25 */}
+        <section id="ai-review">
+          <h2 className="text-xl font-semibold mb-4">25. Automated Content Review</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">25.1 AI-Assisted Review</h3>
+          <p>
+            Grainline uses automated systems, including artificial intelligence provided by
+            third-party services, to review listing content for potential violations of these Terms.
+            Listing content including titles, descriptions, and images may be processed by these
+            automated systems.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">25.2 Pending Review Status</h3>
+          <p>
+            Listings may be placed in a &quot;Pending Review&quot; status before becoming publicly
+            visible. This may occur for first-time listings, listings flagged by automated review, or
+            at Grainline&apos;s discretion. Listings under review are not visible to Buyers but remain
+            visible to the Maker in their dashboard.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">25.3 Approval and Rejection</h3>
+          <p>
+            Listings placed under review will be reviewed by Grainline staff. Approved listings become
+            publicly visible. Rejected listings are hidden and the Maker is notified with a reason for
+            rejection. Makers may modify rejected listings and resubmit them for review.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">25.4 No Guarantee</h3>
+          <p>
+            Automated and manual review of listings does not constitute a guarantee or endorsement of
+            listing content, product quality, safety, or compliance with applicable laws. Makers remain
+            solely responsible for the accuracy and legality of their listings regardless of whether
+            those listings have been reviewed or approved by Grainline.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">25.5 Limitation of Liability for Review Decisions</h3>
+          <p>
+            Grainline shall not be liable for any damages arising from the delay, rejection, or removal
+            of listings through the review process, whether automated or manual. Grainline&apos;s review
+            decisions are made at its sole discretion and are not subject to appeal beyond the
+            resubmission process described in Section 25.3.
+          </p>
+        </section>
+
+        {/* 26 */}
+        <section id="vacation-mode">
+          <h2 className="text-xl font-semibold mb-4">26. Vacation Mode</h2>
+          <p>
+            Makers may activate Vacation Mode to temporarily hide their listings from the Platform and
+            prevent new orders. When Vacation Mode is active:
+          </p>
+          <ul className="list-disc pl-6 mt-3 space-y-1">
+            <li>All of the Maker&apos;s listings are hidden from browse, search, and the homepage</li>
+            <li>New purchases of the Maker&apos;s items are blocked</li>
+            <li>Existing unfulfilled orders at the time of activation must still be fulfilled within original processing deadlines</li>
+            <li>Vacation Mode does not extend processing deadlines or estimated delivery dates for existing orders</li>
+            <li>Buyers may still send messages to the Maker</li>
+            <li>The Maker&apos;s profile remains accessible but displays a vacation notice</li>
+          </ul>
+          <p className="mt-3">
+            Makers may deactivate Vacation Mode at any time to restore their listings and resume
+            accepting orders. Prolonged or excessive use of Vacation Mode may affect Guild badge
+            eligibility.
+          </p>
+        </section>
+
+        {/* 27 */}
+        <section id="reviews-ratings">
+          <h2 className="text-xl font-semibold mb-4">27. Reviews and Ratings</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.1 Posting Reviews</h3>
+          <p>
+            Buyers who have completed a purchase may post a review of the item and transaction within
+            90 days of order completion. Only verified purchasers may leave reviews. You may not
+            review your own listings or products.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.2 Review Content</h3>
+          <p>
+            Reviews must be honest, accurate, and based on your genuine experience with the item and
+            transaction. Reviews may include text, a star rating, and photos of the item received.
+            Review photos are User Content subject to the license in Section 11.2.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.3 Prohibited Review Practices</h3>
+          <p>
+            The following are prohibited and may result in review removal and account suspension:
+          </p>
+          <ul className="list-disc pl-6 mt-3 space-y-1">
+            <li>Fake or fabricated reviews</li>
+            <li>Reviews written by someone other than the verified purchaser</li>
+            <li>Reviews offered in exchange for compensation, discounts, or free products</li>
+            <li>Retaliatory reviews intended to harm a Maker in response to a dispute outcome</li>
+            <li>Reviews containing threats, harassment, hate speech, or personally identifiable information about the Maker</li>
+            <li>Reviews that are irrelevant to the item or transaction</li>
+          </ul>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.4 Seller Replies</h3>
+          <p>
+            Makers may post one public reply to each review. Seller replies are subject to the same
+            content standards as reviews and may be removed by Grainline if they violate these Terms.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.5 Helpfulness Voting</h3>
+          <p>
+            Users may vote on whether a review is helpful. Vote counts are displayed publicly.
+            Manipulation of helpfulness votes through coordinated action or automated tools is
+            prohibited.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.6 Review Removal</h3>
+          <p>
+            Grainline reserves the right to remove any review at its sole discretion for violation of
+            these Terms or for any other reason. Grainline is not obligated to remove reviews that a
+            Maker disagrees with, provided the review does not violate these Terms.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.7 Aggregate Ratings</h3>
+          <p>
+            Star ratings and review counts displayed on listings and Maker profiles are calculated
+            automatically from verified purchase reviews. These aggregate ratings are provided for
+            informational purposes only and do not constitute a guarantee or endorsement by Grainline.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">27.8 Reviews After Account Deletion</h3>
+          <p>
+            If a reviewer&apos;s account is deleted, their reviews may be retained in anonymized form
+            (with the reviewer&apos;s name removed or replaced with a generic identifier) to maintain
+            the integrity of Maker ratings and the trust of future Buyers.
+          </p>
+        </section>
+
+        {/* 28 */}
+        <section id="messaging">
+          <h2 className="text-xl font-semibold mb-4">28. Messaging</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">28.1 Platform Messaging</h3>
+          <p>
+            The Platform provides a messaging system for communication between Buyers and Makers.
+            Messages are stored on Grainline&apos;s servers and retained per the Privacy Policy
+            (currently 3 years).
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">28.2 Permitted Use</h3>
+          <p>
+            The messaging system is intended for communications related to purchases, custom orders,
+            commission requests, and other legitimate Platform activity. You may not use the messaging
+            system to:
+          </p>
+          <ul className="list-disc pl-6 mt-3 space-y-1">
+            <li>Solicit off-platform transactions (see Section 4.17)</li>
+            <li>Send spam, chain messages, or unsolicited commercial messages</li>
+            <li>Harass, threaten, or abuse other users</li>
+            <li>Share illegal content or content that violates these Terms</li>
+            <li>Collect personal information from other users for purposes unrelated to a Platform transaction</li>
+          </ul>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">28.3 File Attachments</h3>
+          <p>
+            Users may send images and PDF files through the messaging system. File attachments are
+            subject to the same content standards as other User Content.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">28.4 System Messages</h3>
+          <p>
+            The Platform may generate automated system messages in conversations, including commission
+            interest notifications, custom order cards, and transaction confirmations. System messages
+            are generated automatically and are not editable by users.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">28.5 Message Review</h3>
+          <p>
+            Grainline may access and review message content in connection with dispute resolution,
+            fraud investigation, Terms enforcement, or in response to legal process. Grainline does
+            not routinely monitor private messages but reserves the right to do so to maintain
+            Platform safety and integrity.
+          </p>
+        </section>
+
+        {/* 29 */}
+        <section id="notifications">
+          <h2 className="text-xl font-semibold mb-4">29. Notifications and Communication Preferences</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">29.1 In-App Notifications</h3>
+          <p>
+            Grainline sends in-app notifications for Platform activity including new orders, messages,
+            case updates, shipping updates, and follower activity. Transactional notifications related
+            to orders and account security cannot be disabled.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">29.2 Customizable Notifications</h3>
+          <p>
+            Users may customize their notification preferences through their account settings.
+            Customizable notifications include new listing alerts from followed Makers, seller
+            broadcasts, new follower notifications, and review notifications.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">29.3 Email Communications</h3>
+          <p>
+            Grainline sends transactional emails related to orders, cases, and account activity. These
+            emails are necessary for Platform operation and cannot be opted out of while your account
+            is active. Marketing and promotional emails may be unsubscribed from at any time via the
+            unsubscribe link in any email or by contacting{" "}
+            <a href="mailto:privacy@thegrainline.com" className="underline">privacy@thegrainline.com</a>.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">29.4 Back-in-Stock Notifications</h3>
+          <p>
+            Users may subscribe to receive a notification when an out-of-stock item becomes available
+            again. This subscription data is stored per the Privacy Policy and may be removed at any
+            time.
+          </p>
+        </section>
+
+        {/* 30 */}
+        <section id="algorithmic">
+          <h2 className="text-xl font-semibold mb-4">30. Algorithmic Features and Recommendations</h2>
+          <p>The Platform uses algorithms to personalize your experience, including:</p>
+          <ul className="list-disc pl-6 mt-3 space-y-1">
+            <li>&quot;Similar Items&quot; recommendations on listing pages based on category, tags, and price range</li>
+            <li>&quot;Buyer Favorites&quot; and &quot;Fresh from the Workshop&quot; sections on the homepage based on favorites count and recency</li>
+            <li>Search relevance ranking based on engagement metrics, recency, and availability</li>
+            <li>Personalized feed content based on which Makers you follow</li>
+          </ul>
+          <p className="mt-4">
+            These algorithms use Platform activity data (views, favorites, sales) and do not use
+            external data or build profiles for third-party use. Grainline does not guarantee the
+            accuracy or relevance of algorithmic recommendations. The presence of an item in a
+            recommendation section does not constitute an endorsement by Grainline.
+          </p>
+        </section>
+
+        {/* 31 */}
+        <section id="geo-restrictions">
+          <h2 className="text-xl font-semibold mb-4">31. Geographic Restrictions</h2>
+          <p>
+            The Platform is currently available to users located in the United States and Canada.
+            Access from other countries may be restricted. Grainline reserves the right to modify
+            geographic availability at any time. Geographic restrictions are determined by IP address
+            and may not be circumvented using virtual private networks (VPNs) or similar tools.
+          </p>
+        </section>
+
+        {/* 32 */}
+        <section id="private-listings">
+          <h2 className="text-xl font-semibold mb-4">32. Private and Reserved Listings</h2>
+          <p>
+            Makers may create private listings that are visible only to a specific Buyer, typically in
+            connection with a custom order arrangement. Private listings do not appear in search,
+            browse, the homepage, or any public page. Private listings are subject to all the same
+            Terms as public listings, including payment processing through the Platform, the Case
+            System, and content standards. Buyers who receive a private listing link may purchase the
+            item through normal checkout.
+          </p>
+        </section>
+
+        {/* 33 */}
+        <section id="general-provisions">
+          <h2 className="text-xl font-semibold mb-4">33. General Provisions</h2>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.1 Severability</h3>
+          <p>
+            If any provision of these Terms is held to be invalid, illegal, or unenforceable by a
+            court of competent jurisdiction, that provision shall be modified to the minimum extent
+            necessary to make it enforceable, or if modification is not possible, severed from these
+            Terms. The remaining provisions shall continue in full force and effect.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.2 Waiver</h3>
+          <p>
+            Grainline&apos;s failure to enforce any right or provision of these Terms shall not
+            constitute a waiver of that right or provision. A waiver of any provision shall be
+            effective only if in writing and signed by Grainline. No waiver of any provision shall be
+            deemed a further or continuing waiver of that provision or any other provision.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.3 Assignment</h3>
+          <p>
+            You may not assign or transfer these Terms or any rights or obligations hereunder without
+            Grainline&apos;s prior written consent. Grainline may assign or transfer these Terms, in
+            whole or in part, without restriction and without notice to you, including in connection
+            with a merger, acquisition, corporate reorganization, or sale of all or substantially all
+            of its assets. Subject to the foregoing, these Terms shall bind and inure to the benefit
+            of the parties and their respective successors and permitted assigns.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.4 Electronic Communications</h3>
+          <p>
+            By creating an account on the Platform, you consent to receive communications from
+            Grainline electronically, including by email, in-app notifications, and notices posted on
+            the Platform. You agree that all agreements, notices, disclosures, and other communications
+            that Grainline provides to you electronically satisfy any legal requirement that such
+            communications be in writing.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.5 Headings</h3>
+          <p>
+            The section and subsection headings in these Terms are for convenience of reference only
+            and shall not affect the interpretation or construction of any provision.
+          </p>
+
+          <h3 className="text-base font-semibold mt-6 mb-2">33.6 Relationship of the Parties</h3>
+          <p>
+            Nothing in these Terms shall be construed to create a partnership, joint venture,
+            employment, or agency relationship between you and Grainline. You have no authority to
+            bind Grainline in any respect.
           </p>
         </section>
 
