@@ -39,10 +39,10 @@ const isPublic = createRouteMatcher([
 const isAdmin = createRouteMatcher(["/admin(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Geo-blocking — US and Canada only
+  // Geo-blocking — US only
   // request.geo is populated by Vercel in production (undefined in local dev)
   const country = (req as unknown as { geo?: { country?: string } }).geo?.country;
-  if (country && country !== "US" && country !== "CA") {
+  if (country && country !== "US") {
     const pathname = req.nextUrl.pathname;
     // Allow not-available page, static assets, and API routes needed for the page
     const isAllowed =
