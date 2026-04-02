@@ -2271,17 +2271,49 @@ Leaflet is used for all map views. Sellers with a set location appear as pins on
 - `LocationPicker.tsx` — lets sellers set their location
 - `MakersMapSection.tsx` — homepage/browse map section
 
-## File Uploads
+## File Uploads (Cloudflare R2)
 
-UploadThing handles image (and video) uploads for listings and reviews. Config is in `src/app/api/uploadthing/`.
+Files upload directly from browser to Cloudflare R2 via presigned URLs — no server bottleneck, zero egress fees. UploadThing (`uploadthing`, `@uploadthing/react`) removed as of 2026-04-02.
 
-## npm audit status (2026-03-31)
+### Architecture
+- `POST /api/upload/presign` — auth required; Zod-validates type/size/count; returns presigned PUT URL + public URL; generates key: `{endpoint}/{userId}/{timestamp}-{random}.{ext}`
+- Browser PUTs file directly to R2 using the presigned URL
+- `src/lib/r2.ts` — R2 S3-compatible client (`@aws-sdk/client-s3`)
+- `src/hooks/useR2Upload.ts` — upload hook; uploads files sequentially; returns `UploadedFile[]` with both `url` and `ufsUrl` fields (`ufsUrl` is alias for `url` — backward compat with 13 consumer components that access `file.ufsUrl`)
+- `src/components/R2UploadButton.tsx` — drop-in `UploadButton` replacement; handles `content.button` as ReactNode or render function `({ ready }) => ReactNode`; accepts `onUploadProgress`, `appearance.allowedContent` for backward compat
+- `src/utils/uploadthing.ts` — re-exports R2 equivalents under old UploadThing names; 11 of 13 consumers needed zero changes
+- `src/components/ReviewPhotosPicker.tsx` — updated to use `useR2Upload` directly (old `useUploadThing` positional-arg signature incompatible)
 
-**Before**: 14 vulnerabilities (4 moderate, 10 high). **After**: 4 high remaining.
+### Endpoints
+| Endpoint | Max size | Max count |
+|---|---|---|
+| `listingImage` | 8MB | 8 |
+| `messageImage` | 8MB | 6 |
+| `messageFile` (PDF) | 8MB | 4 |
+| `messageAny` | 8MB | 6 |
+| `reviewPhoto` | 8MB | 6 |
+| `listingVideo` | 128MB | 1 |
+| `bannerImage` | 4MB | 1 |
+| `galleryImage` | 4MB | 10 |
 
-Fixed 10 via `npm audit fix`: ajv, brace-expansion, flatted, js-yaml, minimatch, picomatch, qs, tar and transitive deps. Prisma-side `effect` vulnerability resolved by Prisma 7 upgrade.
+### R2 CORS Policy
+Must be set in Cloudflare R2 bucket settings → CORS Policy:
+```json
+[{ "AllowedOrigins": ["https://thegrainline.com", "http://localhost:3000"], "AllowedMethods": ["PUT", "GET"], "AllowedHeaders": ["Content-Type", "Content-Length"], "MaxAgeSeconds": 3600 }]
+```
 
-**Remaining (4 high)**: All in uploadthing's internal `effect <3.20.0` dependency (`@uploadthing/shared`). uploadthing 7.7.4 is already the latest — upstream issue, not fixable on our end. Do NOT run `npm audit fix --force` (would downgrade uploadthing to v6, breaking change).
+### Environment Variables
+`CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_R2_BUCKET_NAME`, `CLOUDFLARE_R2_PUBLIC_URL`
+
+### Database migration (one-time, after deploy)
+```
+npx dotenv-cli -e .env.local -- npx ts-node --transpile-only scripts/migrate-uploadthing-to-r2.ts
+```
+Clears UploadThing URLs from: seller profile images, listing photos, review photos, blog post covers, commission reference images. Does NOT touch `User.imageUrl` (Clerk avatar URLs).
+
+## npm audit status (2026-04-02)
+
+All UploadThing-related vulnerabilities resolved — `uploadthing` and `@uploadthing/react` removed. `npm audit` reports 0 vulnerabilities.
 
 ## Prisma 7 Migration (complete — 2026-03-31)
 

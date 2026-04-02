@@ -19,8 +19,7 @@ const isPublic = createRouteMatcher([
   "/not-available",       // geo-block landing page — no auth needed
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
-  "/api/uploadthing(.*)",  // UploadThing callback must be public (no Clerk session)
-  "/api/whoami",
+"/api/whoami",
   "/api/me",
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
   "/api/blog(.*)",        // blog API — public GET; POST auth handled in route

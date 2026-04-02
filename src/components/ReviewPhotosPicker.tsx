@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useUploadThing } from "@/utils/uploadthing";
+import { useR2Upload } from "@/hooks/useR2Upload";
 
 type Att = { id: string; name: string; url?: string; uploading: boolean };
 
@@ -25,7 +25,8 @@ export default function ReviewPhotosPicker({
   );
   const fileRef = React.useRef<HTMLInputElement | null>(null);
 
-  const ut = useUploadThing("reviewPhoto", {
+  const ut = useR2Upload({
+    endpoint: "reviewPhoto",
     onUploadError: (e) => alert(e?.message ?? "Upload failed"),
   });
 
@@ -60,7 +61,7 @@ export default function ReviewPhotosPicker({
 
     try {
       const res = await ut.startUpload(chosen);
-      const got = (res ?? []).map((x) => x?.ufsUrl ?? (x?.key ? `https://utfs.io/f/${x.key}` : null));
+      const got = (res ?? []).map((x) => x.ufsUrl);
 
       setAtts((prev) =>
         prev.map((a) => {

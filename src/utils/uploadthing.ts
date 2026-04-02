@@ -1,11 +1,5 @@
 // src/utils/uploadthing.ts
-import {
-  generateUploadButton,
-  generateUploadDropzone,
-  generateReactHelpers,
-} from "@uploadthing/react";
-import type { OurFileRouter } from "@/app/api/uploadthing/core";
-
-export const UploadButton = generateUploadButton<OurFileRouter>();
-export const UploadDropzone = generateUploadDropzone<OurFileRouter>();
-export const { useUploadThing } = generateReactHelpers<OurFileRouter>();
+// R2 equivalents exported under UploadThing names for backward compatibility.
+// All existing components import from here — no changes needed in consumers.
+export { default as UploadButton } from "@/components/R2UploadButton";
+export { useR2Upload as useUploadThing } from "@/hooks/useR2Upload";
