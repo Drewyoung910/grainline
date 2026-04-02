@@ -105,9 +105,6 @@ input, textarea, select {
 
 
 /* Prevent Clerk UserProfile modal from clipping the left sidebar */
-.cl-userProfile-root {
-  min-width: min(90vw, 800px) !important;
-}
 
 
 
