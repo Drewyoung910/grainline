@@ -217,42 +217,46 @@ export default async function ThreadPage({
     <main className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
       <MarkReadClient id={id} />
 
-      <header className="flex items-center justify-between">
+      {/* Two-row header for mobile friendliness */}
+      <header className="flex flex-col gap-2">
+        {/* Row 1: back link + participant name */}
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-neutral-200 overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+          <Link href="/messages" className="text-sm text-neutral-500 hover:text-neutral-800 shrink-0">
+            ← Inbox
+          </Link>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-full bg-neutral-200 overflow-hidden shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+            </div>
+            <div className="font-medium truncate">{other?.name || other?.email || "User"}</div>
+            {archivedForMe ? (
+              <span className="rounded-full border px-2 py-[2px] text-[11px] text-neutral-600 shrink-0">Archived</span>
+            ) : null}
           </div>
-          <div className="font-medium">{other?.name || other?.email || "User"}</div>
-          {archivedForMe ? (
-            <span className="ml-2 rounded-full border px-2 py-[2px] text-[11px] text-neutral-600">Archived</span>
-          ) : null}
+        </div>
+
+        {/* Row 2: action buttons (only rendered when there's something to show) */}
+        <div className="flex items-center gap-2 flex-wrap pl-[4.5rem]">
           {showCustomOrderButton && other && (
             <ThreadCustomOrderButton
               sellerUserId={other.id}
               sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
             />
           )}
-        </div>
-
-        <div className="flex items-center gap-2">
           {/* Archive / Unarchive */}
           <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
-            <SubmitButton className="rounded-full border px-3 py-1 text-sm hover:bg-neutral-50">
+            <SubmitButton className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50">
               {archivedForMe ? "Unarchive" : "Archive"}
             </SubmitButton>
           </ActionForm>
-
-          <Link href="/messages" className="text-sm underline">
-            Back to inbox
-          </Link>
         </div>
       </header>
 
       {ctx && (
         <Link
           href={`/listing/${ctx.id}`}
-          className="flex items-center gap-3 rounded-xl border bg-white p-3 hover:bg-neutral-50"
+          className="flex items-center gap-3 rounded-lg border bg-white p-3 hover:bg-neutral-50"
         >
           <div className="h-14 w-14 rounded-lg overflow-hidden bg-neutral-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
