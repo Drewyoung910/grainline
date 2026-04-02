@@ -4,7 +4,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 
 interface Props {
   name: string | null;
@@ -17,7 +17,8 @@ interface Props {
 export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, hasSeller }: Props) {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const { signOut } = useClerk();
+  const { signOut, openUserProfile } = useClerk();
+  const { user: clerkUser } = useUser();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -46,7 +47,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  const avatarSrc = avatarImageUrl ?? imageUrl;
+  const avatarSrc = avatarImageUrl ?? imageUrl ?? clerkUser?.imageUrl ?? null;
   const displayName = name ?? "Account";
   const isAdmin = role === "ADMIN" || role === "EMPLOYEE";
 
@@ -60,7 +61,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       >
         {avatarSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover" />
+          <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover rounded-full" />
         ) : (
           <span className="text-sm font-medium text-neutral-600 select-none">
             {displayName.charAt(0).toUpperCase()}
@@ -75,7 +76,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
               {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover" />
+                <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover rounded-full" />
               ) : (
                 <span className="text-sm font-medium text-neutral-600 select-none">
                   {displayName.charAt(0).toUpperCase()}
@@ -119,15 +120,15 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
                 Admin
               </Link>
             )}
-            <Link
-              href="/account/settings"
-              className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
-              onClick={() => setOpen(false)}
-            >
-              Settings
-            </Link>
-
             <div className="border-t my-1" />
+
+            <button
+              type="button"
+              onClick={() => { openUserProfile(); setOpen(false); }}
+              className="flex w-full items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
+            >
+              Manage Account
+            </button>
 
             <button
               type="button"

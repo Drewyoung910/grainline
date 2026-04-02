@@ -80,7 +80,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
           <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-400">
             <div className="flex justify-center mb-4">
-              <img src="/logo.svg" alt="Grainline" className="h-5 w-auto" style={{ filter: "brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)", opacity: 0.4 }} />
+              <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto opacity-40" />
             </div>
             {/* Browse by City — dynamic, only shown when metros have content */}
             {footerMetros.length > 0 && (

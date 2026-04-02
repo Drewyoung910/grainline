@@ -848,11 +848,12 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 
 ## Logo & Branding (complete)
 
-- **`public/logo.svg`** — real vector wordmark logo from designer; transparent background, cream fill `#F2E6D8`; rendered with espresso filter `brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)` — produces a deep espresso `#2C1F1A` tone; used in header and footer
+- **`public/logo.svg`** — original designer SVG; cream fill `#F2E6D8`; kept unmodified as source
+- **`public/logo-espresso.svg`** — production logo with `fill="#2C1F1A"` (espresso) baked directly into the SVG path; no CSS filter needed. Created via `sed` from `logo.svg`. CSS filter approach abandoned — unreliable across browsers/contexts.
 - **`public/logo-mark.svg`** — grain lines swoosh mark only (4 curved fanning paths, `fill="currentColor"`); for use in Guild Master wax seal badge and other compact branding contexts
-- **Espresso brand color**: `#2C1F1A` — used on logos (via CSS filter), hero primary CTA (`bg-[#2C1F1A]`), and hero secondary CTA border/text. Hover variant: `#3A2A24`. Applied only to brand moments (logos, hero CTAs); body text and UI elements remain neutral-900.
-- **Header** (`src/components/Header.tsx`): desktop logo `h-8`, mobile logo `h-7`, hamburger drawer logo `h-7` — all use espresso filter; `<img src='/logo.svg' alt='Grainline' style={{ filter: 'brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)' }}`
-- **Footer** (`src/app/layout.tsx`): `h-5` logo centered above Terms/Privacy links with espresso filter + `opacity: 0.4`
+- **Espresso brand color**: `#2C1F1A` — used on logos (`logo-espresso.svg`), hero primary CTA (`bg-[#2C1F1A]`), and hero secondary CTA border/text. Hover variant: `#3A2A24`. Applied only to brand moments (logos, hero CTAs); body text and UI elements remain neutral-900.
+- **Header** (`src/components/Header.tsx`): desktop logo `h-8`, mobile logo `h-7`, hamburger drawer logo `h-7` — all use `src="/logo-espresso.svg"` with no filter
+- **Footer** (`src/app/layout.tsx`): `h-5` logo using `logo-espresso.svg` with `opacity-40` Tailwind class
 - **Hero CTAs** (`src/app/page.tsx`): primary "Browse the Workshop" — `bg-[#2C1F1A] hover:bg-[#3A2A24] text-white rounded-full`; secondary "Find Makers Near You" — `border-2 border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white rounded-full`
 
 ## Rate Limiting (complete)
@@ -1305,13 +1306,15 @@ Post-deployment bug fixes and gap fills:
 
 ### Header declutter + avatar sync (complete — 2026-04-01)
 - **Desktop nav reduced** from 12+ items to: Logo, Search, Browse, Blog, Commission Room, bell, messages, cart, avatar dropdown
-- **`UserButton` replaced** with `UserAvatarMenu` (`src/components/UserAvatarMenu.tsx`) — custom click-to-open dropdown using `avatarImageUrl ?? imageUrl` priority so seller custom avatar is correctly shown in the header
-- **Items moved into avatar dropdown**: My Account, Workshop (sellers only), Your Feed, Admin (admin/employee only), Settings, Sign Out. Dropdown shows avatar + name at top.
-- **`/api/me`** now returns `name`, `imageUrl`, `avatarImageUrl` so the header dropdown renders the correct avatar without a Clerk API call
-- Mobile drawer unchanged — My Account, Messages, Your Feed, Workshop, Admin remain as drawer links; drawer footer now shows `UserAvatarMenu` + name instead of bare `UserButton`
+- **`UserButton` replaced** with `UserAvatarMenu` (`src/components/UserAvatarMenu.tsx`) — custom click-to-open dropdown; avatar uses `avatarImageUrl ?? imageUrl ?? clerkUser.imageUrl` priority (seller custom avatar, Clerk fallback); avatar img has `rounded-full` on both trigger button and dropdown header avatar
+- **Items in avatar dropdown**: My Account, Workshop (sellers only), Your Feed, Admin (admin/employee only), Manage Account (opens Clerk profile modal via `openUserProfile()`), Sign Out. Dropdown shows avatar + name at top.
+- **Settings removed from dropdown** — accessible via "Notification preferences →" link on `/account` page instead
+- **Clerk account access**: "Manage Account" button calls `openUserProfile()` from `useClerk()` — gives full Clerk profile modal (password, email, connected accounts)
+- **`/api/me`** now returns `name`, `imageUrl`, `avatarImageUrl` so the header dropdown renders the correct avatar without an extra Clerk API call
+- Mobile drawer unchanged — My Account, Messages, Your Feed, Workshop, Admin remain as drawer links; drawer footer now shows `UserAvatarMenu` + name
 
-### Search submit buttons (complete — 2026-04-01)
-- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: all search inputs now have a visible `rounded-full bg-neutral-900 text-white p-2` submit button with magnifying glass icon inside the input on the right. Input padding adjusted (`pr-12` / `pr-20`) so text doesn't overlap the button. The hero search inherits this automatically since it uses `SearchBar`.
+### Search submit buttons (complete — 2026-04-01, updated 2026-04-02)
+- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: search inputs have a flush right-cap submit button (`absolute right-0 top-0 bottom-0 rounded-r-full px-4 bg-neutral-900`) that fills the pill's right end. Input padding `pr-16` / `pr-24` so text doesn't overlap. The hero search uses `SearchBar` automatically.
 - Mobile search icon dropdown unchanged
 
 ### Blog Search System

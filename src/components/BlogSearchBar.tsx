@@ -100,14 +100,14 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           onFocus={() => suggestions.length > 0 && setOpen(true)}
           onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
           placeholder="Search posts, topics, makers..."
-          className="w-full border border-neutral-200 rounded-full pl-10 pr-20 py-2.5 text-sm bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full border border-neutral-200 rounded-full pl-10 pr-24 py-2.5 text-sm bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           autoComplete="off"
         />
         {value && (
           <button
             type="button"
             onClick={() => { setValue(""); setSuggestions([]); setOpen(false); navigate(""); }}
-            className="absolute right-11 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 text-lg leading-none"
+            className="absolute right-14 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 text-lg leading-none"
             aria-label="Clear search"
           >
             ×
@@ -116,9 +116,9 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         <button
           type="submit"
           aria-label="Search"
-          className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-neutral-900 text-white p-2 hover:bg-neutral-700 transition-colors"
+          className="absolute right-0 top-0 bottom-0 rounded-r-full px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors flex items-center justify-center"
         >
-          <Search size={14} />
+          <Search size={16} />
         </button>
       </form>
 
