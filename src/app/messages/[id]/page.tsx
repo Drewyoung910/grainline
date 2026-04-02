@@ -58,10 +58,13 @@ export default async function ThreadPage({
   const otherSellerProfile = other
     ? await prisma.sellerProfile.findUnique({
         where: { userId: other.id },
-        select: { displayName: true, acceptsCustomOrders: true },
+        select: { displayName: true, acceptsCustomOrders: true, avatarImageUrl: true },
       })
     : null;
   const showCustomOrderButton = !!(otherSellerProfile?.acceptsCustomOrders);
+
+  // Avatar priority: custom seller avatar first, Clerk imageUrl fallback
+  const otherAvatarUrl = otherSellerProfile?.avatarImageUrl ?? other?.imageUrl ?? null;
 
   const messages = await prisma.message.findMany({
     where: { conversationId: convo.id },
@@ -218,7 +221,7 @@ export default async function ThreadPage({
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-neutral-200 overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {other?.imageUrl ? <img src={other.imageUrl} alt="" className="h-full w-full object-cover" /> : null}
+            {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
           </div>
           <div className="font-medium">{other?.name || other?.email || "User"}</div>
           {archivedForMe ? (
@@ -269,7 +272,12 @@ export default async function ThreadPage({
       )}
 
       {/* scrollable thread */}
-      <ThreadMessages convoId={convo.id} meId={me.id} initial={messages} />
+      <ThreadMessages
+        convoId={convo.id}
+        meId={me.id}
+        initial={messages}
+        otherUser={{ imageUrl: other?.imageUrl, avatarImageUrl: otherSellerProfile?.avatarImageUrl, name: other?.name }}
+      />
 
       {/* sticky composer */}
       <ActionForm action={sendMessage}>

@@ -723,7 +723,7 @@ Second mobile fix pass (2026-03-29). Zero TypeScript errors.
 
 ### Message interface
 - **`src/components/MessageComposer.tsx`** — outer container changed to `sticky bottom-0 bg-white border-t` with `[padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]` for iPhone home-bar clearance. Send button: icon-only on mobile (paper-plane SVG), text label on `sm+`.
-- **`src/components/ThreadMessages.tsx`** — message bubble max-width changed to `max-w-[85%] sm:max-w-[70%]`. Added `pb-4` to inner `<ul>`.
+- **`src/components/ThreadMessages.tsx`** — message bubble max-width changed to `max-w-[85%] sm:max-w-[70%]`. Added `pb-4` to inner `<ul>`. **Scroll fix**: thread auto-scrolls to latest messages on load using direct `boxRef.current.scrollTop = scrollHeight` (not `scrollIntoView`, which scrolled the whole page). `requestAnimationFrame` wraps scroll calls to ensure DOM has settled. **Thread avatars**: other participant's 32px avatar shown to the left of their messages, bottom-aligned (`flex items-end gap-2`). Only the last consecutive message in a run from that person gets the avatar; earlier messages in the run get an invisible `w-8` spacer. System messages (`commission_interest_card`, `custom_order_request`, `custom_order_link`, `isSystemMessage: true`) never get an avatar.
 - **`src/app/messages/[id]/page.tsx`** — reduced padding: `p-4 sm:p-8`, `space-y-4 sm:space-y-6`.
 - **`src/app/messages/page.tsx`** — conversation list timestamp hidden on mobile (`hidden sm:block`).
 
@@ -1302,6 +1302,16 @@ Post-deployment bug fixes and gap fills:
 ### Header search bar — always visible on desktop
 - Removed `showSearch` condition that limited the search bar to `/` and `/browse`
 - Now rendered with `hidden md:flex flex-1 max-w-[400px]` on every page in the desktop header
+
+### Header declutter + avatar sync (complete — 2026-04-01)
+- **Desktop nav reduced** from 12+ items to: Logo, Search, Browse, Blog, Commission Room, bell, messages, cart, avatar dropdown
+- **`UserButton` replaced** with `UserAvatarMenu` (`src/components/UserAvatarMenu.tsx`) — custom click-to-open dropdown using `avatarImageUrl ?? imageUrl` priority so seller custom avatar is correctly shown in the header
+- **Items moved into avatar dropdown**: My Account, Workshop (sellers only), Your Feed, Admin (admin/employee only), Settings, Sign Out. Dropdown shows avatar + name at top.
+- **`/api/me`** now returns `name`, `imageUrl`, `avatarImageUrl` so the header dropdown renders the correct avatar without a Clerk API call
+- Mobile drawer unchanged — My Account, Messages, Your Feed, Workshop, Admin remain as drawer links; drawer footer now shows `UserAvatarMenu` + name instead of bare `UserButton`
+
+### Search submit buttons (complete — 2026-04-01)
+- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: all search inputs now have a visible `rounded-full bg-neutral-900 text-white p-2` submit button with magnifying glass icon inside the input on the right. Input padding adjusted (`pr-12` / `pr-20`) so text doesn't overlap the button. The hero search inherits this automatically since it uses `SearchBar`.
 - Mobile search icon dropdown unchanged
 
 ### Blog Search System

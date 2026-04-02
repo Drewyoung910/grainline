@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Search } from "@/components/icons";
 
 type BlogResult = { slug: string; title: string };
 type SuggestionsResponse = { suggestions: string[]; blogs?: BlogResult[] };
@@ -94,16 +95,23 @@ export default function SearchBar() {
 
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="relative">
         <input
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onFocus={() => hasItems && setOpen(true)}
           placeholder="Search handmade goods…"
-          className="w-full rounded-full border px-4 py-2 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-full border pl-4 pr-12 py-2 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           autoComplete="off"
         />
+        <button
+          type="submit"
+          aria-label="Search"
+          className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-neutral-900 text-white p-2 hover:bg-neutral-700 transition-colors"
+        >
+          <Search size={14} />
+        </button>
       </form>
 
       {open && hasItems && (

@@ -3,11 +3,12 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Show, UserButton } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
 import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
+import UserAvatarMenu from "@/components/UserAvatarMenu";
 import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User } from "@/components/icons";
 
 // Set to false to hide Commission Room from nav
@@ -20,6 +21,9 @@ export default function Header() {
   const [cartCount, setCartCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
   const [hasSeller, setHasSeller] = React.useState(false);
+  const [name, setName] = React.useState<string | null>(null);
+  const [imageUrl, setImageUrl] = React.useState<string | null>(null);
+  const [avatarImageUrl, setAvatarImageUrl] = React.useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
@@ -72,6 +76,9 @@ export default function Header() {
       const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
       setRole(data?.role ?? null);
       setHasSeller(data?.hasSeller ?? false);
+      setName(data?.name ?? null);
+      setImageUrl(data?.imageUrl ?? null);
+      setAvatarImageUrl(data?.avatarImageUrl ?? null);
     } catch {
       setRole(null);
       setHasSeller(false);
@@ -130,23 +137,6 @@ export default function Header() {
           )}
 
           <Show when="signed-in">
-            <Link href="/account" className="text-neutral-800">
-              My Account
-            </Link>
-          </Show>
-
-          <Show when="signed-in">
-            <Link
-              href="/account/feed"
-              className="inline-flex items-center justify-center p-1 text-neutral-800"
-              aria-label="Your Feed"
-              title="Your Feed"
-            >
-              <Rss size={20} />
-            </Link>
-          </Show>
-
-          <Show when="signed-in">
             <NotificationBell initialUnreadCount={0} />
           </Show>
 
@@ -189,17 +179,13 @@ export default function Header() {
               </Link>
             }
           >
-            {(role === "EMPLOYEE" || role === "ADMIN") && (
-              <Link href="/admin" className="text-neutral-800">
-                Admin
-              </Link>
-            )}
-            {hasSeller && (
-              <Link href="/dashboard" className="text-neutral-800">
-                Workshop
-              </Link>
-            )}
-            <UserButton />
+            <UserAvatarMenu
+              name={name}
+              imageUrl={imageUrl}
+              avatarImageUrl={avatarImageUrl}
+              role={role}
+              hasSeller={hasSeller}
+            />
           </Show>
         </div>
 
@@ -388,10 +374,17 @@ export default function Header() {
               </Show>
             </div>
 
-            {/* UserButton at bottom */}
+            {/* Avatar menu at bottom */}
             <Show when="signed-in">
-              <div className="border-t px-4 py-4">
-                <UserButton />
+              <div className="border-t px-4 py-4 flex items-center gap-3">
+                <UserAvatarMenu
+                  name={name}
+                  imageUrl={imageUrl}
+                  avatarImageUrl={avatarImageUrl}
+                  role={role}
+                  hasSeller={hasSeller}
+                />
+                <span className="text-sm text-neutral-600 truncate">{name ?? "Account"}</span>
               </div>
             </Show>
           </div>

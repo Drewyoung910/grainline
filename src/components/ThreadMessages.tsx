@@ -8,8 +8,15 @@ type Msg = {
   recipientId: string;
   body: string;
   kind?: string | null;
+  isSystemMessage?: boolean | null;
   createdAt: string | Date;
   readAt?: string | Date | null;
+};
+
+type OtherUser = {
+  imageUrl?: string | null;
+  avatarImageUrl?: string | null;
+  name?: string | null;
 };
 
 const isImageUrl = (s: string) =>
@@ -62,23 +69,31 @@ export default function ThreadMessages({
   convoId,
   meId,
   initial,
+  otherUser,
   height = "60vh",
 }: {
   convoId: string;
   meId: string;
   initial: Msg[];
+  otherUser?: OtherUser | null;
   height?: number | string;
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
   const boxRef = React.useRef<HTMLDivElement | null>(null);
-  const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const lastTsRef = React.useRef<number>(
     initial?.length ? new Date(initial[initial.length - 1].createdAt).getTime() : 0
   );
   const atBottomRef = React.useRef(true);
 
-  const scrollToBottom = (smooth = true) =>
-    bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+  const scrollToBottom = (smooth = true) => {
+    const el = boxRef.current;
+    if (!el) return;
+    if (smooth) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+  };
 
   React.useEffect(() => {
     const el = boxRef.current;
@@ -158,6 +173,21 @@ export default function ThreadMessages({
   }, [convoId]);
 
   const boxHeight = typeof height === "number" ? `${height}px` : height ?? "60vh";
+
+  // Pre-compute which messages are the last in each consecutive "other" run
+  // so we only show the avatar on the final bubble of a streak.
+  const isLastInOtherRun = React.useMemo(() => {
+    const result = new Set<string>();
+    for (let i = 0; i < msgs.length; i++) {
+      if (msgs[i].senderId !== meId) {
+        const isLast = i === msgs.length - 1 || msgs[i + 1].senderId === meId;
+        if (isLast) result.add(msgs[i].id);
+      }
+    }
+    return result;
+  }, [msgs, meId]);
+
+  const otherAvatar = otherUser?.avatarImageUrl ?? otherUser?.imageUrl ?? null;
 
   return (
     <div
@@ -376,19 +406,45 @@ export default function ThreadMessages({
             bubble = <div className="whitespace-pre-wrap break-words">{body}</div>;
           }
 
+          const showAvatar = !mine && isLastInOtherRun.has(m.id);
+          const avatarPlaceholder = !mine && !isLastInOtherRun.has(m.id);
+
           return (
-            <li key={m.id} className={`max-w-[85%] sm:max-w-[70%] ${mine ? "ml-auto text-right" : ""}`}>
-              <div className={`inline-block rounded-2xl px-3 py-2 ${bubbleClass}`}>
-                {bubble}
-              </div>
-              <div className="mt-1 text-[11px] text-neutral-500">
-                {new Date(m.createdAt).toLocaleString()}
+            <li
+              key={m.id}
+              className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}
+            >
+              {/* Avatar slot for other person's messages */}
+              {!mine && (
+                <div className="shrink-0 w-8">
+                  {showAvatar ? (
+                    <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200">
+                      {otherAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={otherAvatar} alt="" className="h-full w-full object-cover" />
+                      ) : null}
+                    </div>
+                  ) : (
+                    /* invisible spacer keeps bubbles aligned */
+                    <div className="h-8 w-8" aria-hidden />
+                  )}
+                  {/* suppress lint warning on avatarPlaceholder — used implicitly above */}
+                  {avatarPlaceholder && null}
+                </div>
+              )}
+
+              <div className={`max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
+                <div className={`inline-block rounded-2xl px-3 py-2 ${bubbleClass}`}>
+                  {bubble}
+                </div>
+                <div className="mt-1 text-[11px] text-neutral-500">
+                  {new Date(m.createdAt).toLocaleString()}
+                </div>
               </div>
             </li>
           );
         })}
       </ul>
-      <div ref={bottomRef} />
     </div>
   );
 }
