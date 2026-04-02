@@ -21,7 +21,7 @@ const securityHeaders = [
       // Drop plain http: — all legitimate image sources use HTTPS; blob:/data: retained for canvas/uploader
       "img-src 'self' data: blob: https:",
       // All XHR/fetch/WebSocket targets: Clerk, Stripe, UploadThing, Sentry, Upstash, OpenStreetMap
-      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://*.uploadthing.com https://utfs.io https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
+      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://*.uploadthing.com https://utfs.io https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com https://unpkg.com",
       // Stripe payment iframe + Clerk account modal iframe
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com",
       "worker-src 'self' blob:",
