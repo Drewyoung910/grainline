@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import {
   Bell,
   Package,
@@ -99,6 +100,7 @@ export default function NotificationBell({
 }: {
   initialUnreadCount: number;
 }) {
+  const { isSignedIn } = useUser();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
@@ -107,6 +109,7 @@ export default function NotificationBell({
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const fetchNotifications = React.useCallback(async () => {
+    if (!isSignedIn) return;
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
       if (!res.ok) return;
@@ -117,7 +120,7 @@ export default function NotificationBell({
     } catch {
       // ignore
     }
-  }, []);
+  }, [isSignedIn]);
 
   // Open dropdown + load
   const handleOpen = React.useCallback(() => {
@@ -127,14 +130,16 @@ export default function NotificationBell({
 
   // Fetch on mount to populate unread count immediately
   React.useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    if (!isSignedIn) return;
+    if (!loaded) fetchNotifications();
+  }, [loaded, fetchNotifications, isSignedIn]);
 
-  // Poll every 5 minutes
+  // Poll every 5 minutes (only when signed in)
   React.useEffect(() => {
+    if (!isSignedIn) return;
     const id = setInterval(fetchNotifications, 300000);
     return () => clearInterval(id);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, isSignedIn]);
 
   // Close on Escape
   React.useEffect(() => {

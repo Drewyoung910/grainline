@@ -24,7 +24,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   async function loadPopularTags() {
     if (popularLoaded) return;
     try {
-      const res = await fetch("/api/search/popular-tags");
+      const res = await fetch("/api/search/popular-blog-tags");
       const data = await res.json();
       setPopularTags(data.tags ?? []);
       setPopularLoaded(true);

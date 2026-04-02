@@ -241,9 +241,11 @@ Plus category label matches from `CATEGORY_VALUES`.
 
 `SearchBar` (`src/components/SearchBar.tsx`) — "use client" header component with 300ms debounce, dropdown, Escape/click-outside dismiss, `onMouseDown + e.preventDefault()` on suggestion buttons to avoid blur-before-click race. **Suggestions trigger at 2 characters** (was 3). **Popular tags on focus**: when the input is focused and empty, fetches `GET /api/search/popular-tags` (ISR 1hr, top 8 by active listing count) and shows them as a "Popular searches" section above regular suggestions; loaded once per session (`popularLoaded` guard).
 
-`GET /api/search/popular-tags` — public route, ISR cached 1 hour (`export const revalidate = 3600`); raw SQL `unnest(tags)` grouped by count on ACTIVE non-private listings; returns `{ tags: string[] }` (up to 8). Same endpoint used by both `SearchBar` and `BlogSearchBar`.
+`GET /api/search/popular-tags` — public route, ISR cached 1 hour (`export const revalidate = 3600`); raw SQL `unnest(tags)` grouped by count on ACTIVE non-private listings; returns `{ tags: string[] }` (up to 8). Used only by `SearchBar`.
 
-**Category suggestions** — `GET /api/search/suggestions` now also returns `categories: { value, label }[]` (structured, for routing to `/browse?category=VALUE`). Category labels remain in the flat `suggestions` string array for backward compatibility. `SearchBar` renders a "Categories" section in the dropdown between popular tags and text suggestions. `BlogSearchBar` shows popular tags on focus (blog-specific topics navigating to `/blog?bq=...&sort=relevant`).
+`GET /api/search/popular-blog-tags` — public route, ISR cached 1 hour; raw SQL `unnest(tags)` grouped by count on PUBLISHED blog posts; returns `{ tags: string[] }` (up to 8). Used by `BlogSearchBar` — shows popular blog topics, not listing tags.
+
+**Category suggestions** — `GET /api/search/suggestions` now also returns `categories: { value, label }[]` (structured, for routing to `/browse?category=VALUE`). Category labels remain in the flat `suggestions` string array for backward compatibility. `SearchBar` renders a "Categories" section in the dropdown between popular tags and text suggestions. `BlogSearchBar` shows popular blog topics on focus (navigating to `/blog?bq=...&sort=relevant`).
 
 ### Analytics fields
 
@@ -2101,8 +2103,12 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 - **Notification polling** (`NotificationBell.tsx`): 30s → 5 minutes (300000ms) — 10x reduction in Vercel function invocations from the bell
 - **Notification cleanup prune**: `GET /api/notifications` only runs `deleteMany` when `getMinutes() === 0` — ~1/60th of requests instead of every poll (60x reduction in unnecessary DB writes)
 - **Browse `getSellerRatingMap` N+1 fixed**: replaced 2 sequential Prisma queries + in-memory join with a single SQL `JOIN` (`AVG(r."ratingX2")::float / 2.0`, `GROUP BY l."sellerId"`) — eliminates a full extra round trip on every browse page load
-- **Popular tags API** (`GET /api/search/popular-tags`): ISR 1hr cache, raw SQL unnest; search bar shows top 8 tags on focus when input is empty — one fetch per session, cached at CDN edge
+- **Popular tags API** (`GET /api/search/popular-tags`): ISR 1hr cache, raw SQL unnest; search bar shows top 8 listing tags on focus when input is empty — one fetch per session, cached at CDN edge
+- **Popular blog tags API** (`GET /api/search/popular-blog-tags`): ISR 1hr cache, raw SQL unnest from `BlogPost.tags` where `status = 'PUBLISHED'`; `BlogSearchBar` uses this endpoint (not `/api/search/popular-tags`) — shows popular blog topics, not listing tags
 - **Search suggestions trigger at 2 chars** (was 3) — faster discoverability
+- **`NotificationBell` gated on sign-in state**: `useUser().isSignedIn` checked before any fetch — no 404 polls for signed-out users
+- **Header `cart:updated` listener gated on `isLoggedIn`**: only fires `loadCartCount` when `loadAll` confirmed sign-in — eliminates signed-out cart 401s on add-to-cart events
+- **`UserAvatarMenu` dropdown z-index confirmed** at `z-[200]`; Clerk modal CSS overrides confirmed in `globals.css` (`z-index: 9999`, `min-width: min(90vw, 800px)`)
 
 ## Input Validation — Zod (complete — 2026-04-01)
 

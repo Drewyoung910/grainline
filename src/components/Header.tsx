@@ -27,6 +27,7 @@ export default function Header() {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
 
   // Close drawer and search on navigation
   React.useEffect(() => {
@@ -92,6 +93,7 @@ export default function Header() {
         setAvatarImageUrl(null);
         setCartCount(0);
         setUnreadNotifCount(0);
+        setIsLoggedIn(false);
         return;
       }
       const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
@@ -100,18 +102,20 @@ export default function Header() {
       setName(data?.name ?? null);
       setImageUrl(data?.imageUrl ?? null);
       setAvatarImageUrl(data?.avatarImageUrl ?? null);
+      setIsLoggedIn(true);
       // Only fetch cart and notifications when signed in
       loadCartCount();
       loadNotifCount();
     } catch {
       setRole(null);
       setHasSeller(false);
+      setIsLoggedIn(false);
     }
   }, [loadCartCount, loadNotifCount]);
 
   React.useEffect(() => {
     loadAll();
-    const onUpdated = () => loadCartCount();
+    const onUpdated = () => { if (isLoggedIn) loadCartCount(); };
     window.addEventListener("cart:updated", onUpdated);
     return () => window.removeEventListener("cart:updated", onUpdated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
