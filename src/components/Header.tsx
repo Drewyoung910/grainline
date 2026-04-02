@@ -105,9 +105,9 @@ export default function Header() {
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
           {/* Mobile */}
-          <img src="/logo.svg" alt="Grainline" className="h-6 w-auto md:hidden" style={{ filter: "brightness(0)" }} />
+          <img src="/logo.svg" alt="Grainline" className="h-7 w-auto md:hidden" style={{ filter: "brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)" }} />
           {/* Desktop */}
-          <img src="/logo.svg" alt="Grainline" className="h-7 w-auto hidden md:block" style={{ filter: "brightness(0)" }} />
+          <img src="/logo.svg" alt="Grainline" className="h-8 w-auto hidden md:block" style={{ filter: "brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)" }} />
         </Link>
 
         {/* Search bar — desktop only, always visible */}
@@ -281,7 +281,7 @@ export default function Header() {
                 aria-label="Grainline"
                 onClick={() => setDrawerOpen(false)}
               >
-                <img src="/logo.svg" alt="Grainline" className="h-6 w-auto" style={{ filter: "brightness(0)" }} />
+                <img src="/logo.svg" alt="Grainline" className="h-7 w-auto" style={{ filter: "brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)" }} />
               </Link>
               {/* X button: relative z-[60] ensures it's above the fixed backdrop */}
               <button

@@ -848,10 +848,12 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 
 ## Logo & Branding (complete)
 
-- **`public/logo.svg`** — real vector wordmark logo from designer; transparent background, cream fill `#F2E6D8`; used in header and footer with `style={{ filter: 'brightness(0)' }}` to render as pure black on white background
+- **`public/logo.svg`** — real vector wordmark logo from designer; transparent background, cream fill `#F2E6D8`; rendered with espresso filter `brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)` — produces a deep espresso `#2C1F1A` tone; used in header and footer
 - **`public/logo-mark.svg`** — grain lines swoosh mark only (4 curved fanning paths, `fill="currentColor"`); for use in Guild Master wax seal badge and other compact branding contexts
-- **Header** (`src/components/Header.tsx`): desktop logo `h-7`, mobile logo `h-6`, hamburger drawer logo `h-6` — all `<img src='/logo.svg' alt='Grainline' style={{ filter: 'brightness(0)' }}`
-- **Footer** (`src/app/layout.tsx`): `h-5` logo centered above Terms/Privacy links with `opacity: 0.4`
+- **Espresso brand color**: `#2C1F1A` — used on logos (via CSS filter), hero primary CTA (`bg-[#2C1F1A]`), and hero secondary CTA border/text. Hover variant: `#3A2A24`. Applied only to brand moments (logos, hero CTAs); body text and UI elements remain neutral-900.
+- **Header** (`src/components/Header.tsx`): desktop logo `h-8`, mobile logo `h-7`, hamburger drawer logo `h-7` — all use espresso filter; `<img src='/logo.svg' alt='Grainline' style={{ filter: 'brightness(0) sepia(1) saturate(3) hue-rotate(-10deg) brightness(0.2)' }}`
+- **Footer** (`src/app/layout.tsx`): `h-5` logo centered above Terms/Privacy links with espresso filter + `opacity: 0.4`
+- **Hero CTAs** (`src/app/page.tsx`): primary "Browse the Workshop" — `bg-[#2C1F1A] hover:bg-[#3A2A24] text-white rounded-full`; secondary "Find Makers Near You" — `border-2 border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white rounded-full`
 
 ## Rate Limiting (complete)
 

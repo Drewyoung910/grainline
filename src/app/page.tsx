@@ -307,13 +307,13 @@ export default async function HomePage() {
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             <Link
               href="/browse"
-              className="inline-flex items-center rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
+              className="inline-flex items-center rounded-full bg-[#2C1F1A] px-6 py-3 text-sm font-medium text-white hover:bg-[#3A2A24]"
             >
               Browse the Workshop
             </Link>
             <Link
               href="/map"
-              className="inline-flex items-center rounded-full border bg-white px-6 py-3 text-sm font-medium hover:bg-neutral-50"
+              className="inline-flex items-center rounded-full border-2 border-[#2C1F1A] bg-transparent px-6 py-3 text-sm font-medium text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
             >
               Find Makers Near You
             </Link>
