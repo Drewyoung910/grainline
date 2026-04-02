@@ -11,6 +11,8 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   const [value, setValue] = React.useState(initialQ ?? "");
   const [suggestions, setSuggestions] = React.useState<BlogSuggestion[]>([]);
   const [open, setOpen] = React.useState(false);
+  const [popularTags, setPopularTags] = React.useState<string[]>([]);
+  const [popularLoaded, setPopularLoaded] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -18,6 +20,18 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   React.useEffect(() => {
     setValue(searchParams.get("bq") ?? "");
   }, [searchParams]);
+
+  async function loadPopularTags() {
+    if (popularLoaded) return;
+    try {
+      const res = await fetch("/api/search/popular-tags");
+      const data = await res.json();
+      setPopularTags(data.tags ?? []);
+      setPopularLoaded(true);
+    } catch {
+      // fail silently
+    }
+  }
 
   // Click outside closes dropdown
   React.useEffect(() => {
@@ -98,7 +112,14 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           <input
             value={value}
             onChange={handleChange}
-            onFocus={() => suggestions.length > 0 && setOpen(true)}
+            onFocus={() => {
+              if (value.length === 0) {
+                loadPopularTags();
+                setOpen(true);
+              } else if (suggestions.length > 0) {
+                setOpen(true);
+              }
+            }}
             onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
             placeholder="Search posts, topics, makers..."
             className="flex-1 pl-10 pr-2 py-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
@@ -124,26 +145,54 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         </div>
       </form>
 
-      {open && suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-white shadow-lg">
-          {suggestions.map((s, i) => (
-            <li key={i}>
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-neutral-50"
-                onMouseDown={(e) => { e.preventDefault(); pick(s); }}
-              >
-                <span className="text-xs text-neutral-400 w-12 shrink-0">
-                  {s.type === "post" ? "Post" : s.type === "tag" ? "Topic" : "Maker"}
-                </span>
-                <span className="text-neutral-800 truncate">
-                  {s.type === "tag" ? `#${s.label}` : s.label}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {(() => {
+        const showPopular = open && value.length === 0 && popularTags.length > 0;
+        const showSuggestions = open && suggestions.length > 0;
+        if (!showPopular && !showSuggestions) return null;
+        return (
+          <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-white shadow-lg">
+            {showPopular && (
+              <>
+                <li className="px-4 py-2 text-xs text-neutral-400 font-medium uppercase tracking-wide">
+                  Popular topics
+                </li>
+                {popularTags.map((tag) => (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setOpen(false);
+                        router.push(`/blog?bq=${encodeURIComponent(tag)}&sort=relevant`);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                    >
+                      <Search size={12} className="text-neutral-400" />
+                      {tag}
+                    </button>
+                  </li>
+                ))}
+              </>
+            )}
+            {showSuggestions && suggestions.map((s, i) => (
+              <li key={i}>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-neutral-50"
+                  onMouseDown={(e) => { e.preventDefault(); pick(s); }}
+                >
+                  <span className="text-xs text-neutral-400 w-12 shrink-0">
+                    {s.type === "post" ? "Post" : s.type === "tag" ? "Topic" : "Maker"}
+                  </span>
+                  <span className="text-neutral-800 truncate">
+                    {s.type === "tag" ? `#${s.label}` : s.label}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        );
+      })()}
     </div>
   );
 }

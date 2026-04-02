@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "@/components/icons";
 
 type BlogResult = { slug: string; title: string };
-type SuggestionsResponse = { suggestions: string[]; blogs?: BlogResult[] };
+type CategoryResult = { value: string; label: string };
+type SuggestionsResponse = { suggestions: string[]; blogs?: BlogResult[]; categories?: CategoryResult[] };
 
 export default function SearchBar() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function SearchBar() {
   const [value, setValue] = React.useState(searchParams.get("q") ?? "");
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
   const [blogs, setBlogs] = React.useState<BlogResult[]>([]);
+  const [categories, setCategories] = React.useState<CategoryResult[]>([]);
   const [open, setOpen] = React.useState(false);
   const [popularTags, setPopularTags] = React.useState<string[]>([]);
   const [popularLoaded, setPopularLoaded] = React.useState(false);
@@ -57,6 +59,7 @@ export default function SearchBar() {
     if (v.length < 2) {
       setSuggestions([]);
       setBlogs([]);
+      setCategories([]);
       setOpen(false);
       return;
     }
@@ -67,12 +70,15 @@ export default function SearchBar() {
         const data: SuggestionsResponse = await res.json();
         const suggs = data.suggestions ?? [];
         const blogResults = data.blogs ?? [];
+        const cats = data.categories ?? [];
         setSuggestions(suggs);
         setBlogs(blogResults);
-        setOpen(suggs.length > 0 || blogResults.length > 0);
+        setCategories(cats);
+        setOpen(suggs.length > 0 || blogResults.length > 0 || cats.length > 0);
       } catch {
         setSuggestions([]);
         setBlogs([]);
+        setCategories([]);
         setOpen(false);
       }
     }, 300);
@@ -105,7 +111,7 @@ export default function SearchBar() {
     router.push(`/blog/${slug}`);
   }
 
-  const hasItems = suggestions.length > 0 || blogs.length > 0;
+  const hasItems = suggestions.length > 0 || blogs.length > 0 || categories.length > 0;
   const showPopular = open && value.length === 0 && popularTags.length > 0;
 
   return (
@@ -166,6 +172,32 @@ export default function SearchBar() {
           )}
           {hasItems && (
             <>
+              {categories.length > 0 && (
+                <>
+                  <li className="px-4 py-2 text-xs text-neutral-400 font-medium uppercase tracking-wide border-t border-neutral-100">
+                    Categories
+                  </li>
+                  {categories.map((cat) => (
+                    <li key={cat.value}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setValue("");
+                          setOpen(false);
+                          router.push(`/browse?category=${cat.value}`);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
+                      >
+                        <span className="text-xs text-neutral-400 border border-neutral-200 rounded px-1.5 py-0.5 shrink-0">
+                          Category
+                        </span>
+                        {cat.label}
+                      </button>
+                    </li>
+                  ))}
+                </>
+              )}
               {suggestions.map((s) => (
                 <li key={s}>
                   <button

@@ -103,5 +103,17 @@ input, textarea, select {
   animation: slide-down 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Ensure Clerk modal renders above all site UI */
+.cl-modalContent,
+.cl-userProfileModal,
+[data-clerk-portal] {
+  z-index: 9999 !important;
+}
+
+/* Prevent Clerk UserProfile modal from clipping the left sidebar */
+.cl-userProfile-root {
+  min-width: min(90vw, 800px) !important;
+}
+
 
 

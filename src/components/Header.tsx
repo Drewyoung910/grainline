@@ -70,21 +70,6 @@ export default function Header() {
     }
   }, []);
 
-  const loadMe = React.useCallback(async () => {
-    try {
-      const res = await fetch("/api/me", { cache: "no-store" });
-      const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
-      setRole(data?.role ?? null);
-      setHasSeller(data?.hasSeller ?? false);
-      setName(data?.name ?? null);
-      setImageUrl(data?.imageUrl ?? null);
-      setAvatarImageUrl(data?.avatarImageUrl ?? null);
-    } catch {
-      setRole(null);
-      setHasSeller(false);
-    }
-  }, []);
-
   const loadNotifCount = React.useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
@@ -96,10 +81,36 @@ export default function Header() {
     }
   }, []);
 
+  const loadAll = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/me", { cache: "no-store" });
+      if (!res.ok) {
+        setRole(null);
+        setHasSeller(false);
+        setName(null);
+        setImageUrl(null);
+        setAvatarImageUrl(null);
+        setCartCount(0);
+        setUnreadNotifCount(0);
+        return;
+      }
+      const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
+      setRole(data?.role ?? null);
+      setHasSeller(data?.hasSeller ?? false);
+      setName(data?.name ?? null);
+      setImageUrl(data?.imageUrl ?? null);
+      setAvatarImageUrl(data?.avatarImageUrl ?? null);
+      // Only fetch cart and notifications when signed in
+      loadCartCount();
+      loadNotifCount();
+    } catch {
+      setRole(null);
+      setHasSeller(false);
+    }
+  }, [loadCartCount, loadNotifCount]);
+
   React.useEffect(() => {
-    loadCartCount();
-    loadMe();
-    loadNotifCount();
+    loadAll();
     const onUpdated = () => loadCartCount();
     window.addEventListener("cart:updated", onUpdated);
     return () => window.removeEventListener("cart:updated", onUpdated);
@@ -258,7 +269,7 @@ export default function Header() {
           />
 
           {/* Panel */}
-          <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right">
+          <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden">
             {/* Header row */}
             <div className="flex items-center justify-between border-b px-4 py-3">
               <Link
@@ -376,7 +387,7 @@ export default function Header() {
 
             {/* Avatar menu at bottom */}
             <Show when="signed-in">
-              <div className="border-t px-4 py-4 flex items-center gap-3">
+              <div className="border-t px-4 py-4 flex items-center gap-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <UserAvatarMenu
                   name={name}
                   imageUrl={imageUrl}

@@ -61,9 +61,10 @@ export async function GET(req: NextRequest) {
 
   // Category suggestions: if query matches a category label, include the label
   const qLower = q.toLowerCase();
-  const categoryMatches = CATEGORY_VALUES.filter((v) =>
+  const matchingCategoryValues = CATEGORY_VALUES.filter((v) =>
     CATEGORY_LABELS[v].toLowerCase().includes(qLower)
-  ).map((v) => CATEGORY_LABELS[v]);
+  );
+  const categoryMatches = matchingCategoryValues.map((v) => CATEGORY_LABELS[v]);
 
   // Blog post title suggestions
   const blogRows = await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
@@ -96,5 +97,12 @@ export async function GET(req: NextRequest) {
     blogs.push({ slug: b.slug, title: b.title });
   }
 
-  return NextResponse.json({ suggestions: suggestions.slice(0, 8), blogs });
+  return NextResponse.json({
+    suggestions: suggestions.slice(0, 8),
+    blogs,
+    categories: matchingCategoryValues.map((v) => ({
+      value: v,
+      label: CATEGORY_LABELS[v],
+    })),
+  });
 }
