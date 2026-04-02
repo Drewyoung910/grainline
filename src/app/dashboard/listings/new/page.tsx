@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "@/lib/email";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import ImagesUploader from "@/components/ImagesUploader";
@@ -244,15 +244,17 @@ async function createListing(formData: FormData) {
       await Promise.allSettled(
         followers.slice(0, 500)
           .filter((f) => f.follower?.email)
-          .map((f) =>
-            sendNewListingFromFollowedMakerEmail({
-              to: f.follower.email!,
-              makerName: sellerDisplay,
-              listingTitle: created.title,
-              listingPrice,
-              listingUrl,
-            })
-          )
+          .map(async (f) => {
+            if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
+              return sendNewListingFromFollowedMakerEmail({
+                to: f.follower.email!,
+                makerName: sellerDisplay,
+                listingTitle: created.title,
+                listingPrice,
+                listingUrl,
+              });
+            }
+          })
       );
     } catch { /* non-fatal */ }
   })();

@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import {
   sendOrderConfirmedBuyer,
   sendOrderConfirmedSeller,
@@ -422,12 +422,14 @@ export async function POST(req: Request) {
                 const sellerOrderCount = await prisma.order.count({
                   where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
                 });
-                await sendOrderConfirmedSeller({
-                  order: orderSummary,
-                  buyer: { name: buyerDisplayName },
-                  seller: { displayName: sellerName, email: seller.user.email },
-                  items: emailItems,
-                });
+                if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
+                  await sendOrderConfirmedSeller({
+                    order: orderSummary,
+                    buyer: { name: buyerDisplayName },
+                    seller: { displayName: sellerName, email: seller.user.email },
+                    items: emailItems,
+                  });
+                }
                 if (sellerOrderCount === 1) {
                   await sendFirstSaleCongrats({
                     seller: { displayName: sellerName, email: seller.user.email },
@@ -657,12 +659,14 @@ export async function POST(req: Request) {
                 const sellerOrderCount = await prisma.order.count({
                   where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
                 });
-                await sendOrderConfirmedSeller({
-                  order: orderSummary,
-                  buyer: { name: buyerDisplayName },
-                  seller: { displayName: sellerName, email: seller.user.email },
-                  items: emailItems,
-                });
+                if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
+                  await sendOrderConfirmedSeller({
+                    order: orderSummary,
+                    buyer: { name: buyerDisplayName },
+                    seller: { displayName: sellerName, email: seller.user.email },
+                    items: emailItems,
+                  });
+                }
                 if (sellerOrderCount === 1) {
                   await sendFirstSaleCongrats({
                     seller: { displayName: sellerName, email: seller.user.email },

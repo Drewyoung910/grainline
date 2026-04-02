@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
 import { z } from "zod";
 
@@ -151,17 +151,19 @@ export async function POST(
     });
 
     try {
-      const buyerUser = await prisma.user.findUnique({
-        where: { id: caseRecord.buyerId },
-        select: { name: true, email: true },
-      });
-      if (buyerUser?.email) {
-        await sendCaseResolved({
-          orderId: caseRecord.orderId,
-          buyer: { name: buyerUser.name, email: buyerUser.email },
-          resolution,
-          refundAmountCents: refundAmountCents ?? null,
+      if (await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_RESOLVED")) {
+        const buyerUser = await prisma.user.findUnique({
+          where: { id: caseRecord.buyerId },
+          select: { name: true, email: true },
         });
+        if (buyerUser?.email) {
+          await sendCaseResolved({
+            orderId: caseRecord.orderId,
+            buyer: { name: buyerUser.name, email: buyerUser.email },
+            resolution,
+            refundAmountCents: refundAmountCents ?? null,
+          });
+        }
       }
     } catch { /* non-fatal */ }
 

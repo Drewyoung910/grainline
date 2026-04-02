@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
 import { z } from "zod";
 
@@ -83,18 +83,20 @@ export async function POST(
     });
 
     try {
-      const recipient = await prisma.user.findUnique({
-        where: { id: recipientId },
-        select: { name: true, email: true },
-      });
-      if (recipient?.email) {
-        await sendCaseMessage({
-          recipientName: recipient.name,
-          recipientEmail: recipient.email,
-          senderName: me.name,
-          caseLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${caseLink}`,
-          messageSnippet: messageBody,
+      if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {
+        const recipient = await prisma.user.findUnique({
+          where: { id: recipientId },
+          select: { name: true, email: true },
         });
+        if (recipient?.email) {
+          await sendCaseMessage({
+            recipientName: recipient.name,
+            recipientEmail: recipient.email,
+            senderName: me.name,
+            caseLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${caseLink}`,
+            messageSnippet: messageBody,
+          });
+        }
       }
     } catch { /* non-fatal */ }
 

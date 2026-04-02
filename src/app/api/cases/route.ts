@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
 import { z } from "zod";
 
@@ -96,17 +96,19 @@ export async function POST(req: Request) {
     });
 
     try {
-      const sellerUser = await prisma.user.findUnique({
-        where: { id: sellerId },
-        select: { name: true, email: true },
-      });
-      if (sellerUser?.email) {
-        await sendCaseOpened({
-          orderId,
-          seller: { name: sellerUser.name, email: sellerUser.email },
-          buyer: { name: me.name },
-          caseDescription: description,
+      if (await shouldSendEmail(sellerId, "EMAIL_CASE_OPENED")) {
+        const sellerUser = await prisma.user.findUnique({
+          where: { id: sellerId },
+          select: { name: true, email: true },
         });
+        if (sellerUser?.email) {
+          await sendCaseOpened({
+            orderId,
+            seller: { name: sellerUser.name, email: sellerUser.email },
+            buyer: { name: me.name },
+            caseDescription: description,
+          });
+        }
       }
     } catch { /* non-fatal */ }
 

@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { sendNewReviewEmail } from "@/lib/email";
 import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText } from "@/lib/sanitize";
@@ -116,6 +117,28 @@ export async function POST(req: NextRequest) {
       body: listing.title,
       link: `/seller/${listing.seller.id}`,
     });
+
+    try {
+      if (await shouldSendEmail(listing.seller.userId, "EMAIL_NEW_REVIEW")) {
+        const sellerUser = await prisma.user.findUnique({
+          where: { id: listing.seller.userId },
+          select: { email: true, name: true },
+        });
+        if (sellerUser?.email) {
+          await sendNewReviewEmail({
+            sellerEmail: sellerUser.email,
+            sellerName: sellerUser.name ?? "there",
+            buyerName: me.name ?? "A buyer",
+            listingTitle: listing.title,
+            rating: ratingX2 / 2,
+            reviewPreview: (comment ?? "").slice(0, 200),
+            reviewUrl: `https://thegrainline.com/listing/${listingId}#reviews`,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to send review notification email:", e);
+    }
   }
 
   return NextResponse.json({ ok: true, id: created.id });

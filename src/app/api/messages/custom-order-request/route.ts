@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { z } from "zod";
 
@@ -121,24 +121,26 @@ export async function POST(req: Request) {
   });
 
   try {
-    const sellerUser = await prisma.user.findUnique({
-      where: { id: sellerUserId },
-      select: { name: true, email: true, sellerProfile: { select: { displayName: true } } },
-    });
-    if (sellerUser?.email) {
-      const buyerUser = await prisma.user.findUnique({
-        where: { id: me.id },
-        select: { name: true },
+    if (await shouldSendEmail(sellerUserId, "EMAIL_CUSTOM_ORDER")) {
+      const sellerUser = await prisma.user.findUnique({
+        where: { id: sellerUserId },
+        select: { name: true, email: true, sellerProfile: { select: { displayName: true } } },
       });
-      await sendCustomOrderRequest({
-        seller: {
-          displayName: sellerUser.sellerProfile?.displayName ?? sellerUser.name,
-          email: sellerUser.email,
-        },
-        buyerName: buyerUser?.name,
-        description: String(description).trim(),
-        conversationId: convo.id,
-      });
+      if (sellerUser?.email) {
+        const buyerUser = await prisma.user.findUnique({
+          where: { id: me.id },
+          select: { name: true },
+        });
+        await sendCustomOrderRequest({
+          seller: {
+            displayName: sellerUser.sellerProfile?.displayName ?? sellerUser.name,
+            email: sellerUser.email,
+          },
+          buyerName: buyerUser?.name,
+          description: String(description).trim(),
+          conversationId: convo.id,
+        });
+      }
     }
   } catch { /* non-fatal */ }
 

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderReady } from "@/lib/email";
 import ImagesUploader from "@/components/ImagesUploader";
 import ListingTypeFields from "@/components/ListingTypeFields";
@@ -145,18 +145,20 @@ async function createCustomListing(formData: FormData) {
   });
 
   try {
-    const buyerUser = await prisma.user.findUnique({
-      where: { id: reservedForUserId },
-      select: { name: true, email: true },
-    });
-    if (buyerUser?.email) {
-      await sendCustomOrderReady({
-        buyer: { name: buyerUser.name, email: buyerUser.email },
-        sellerName: seller.displayName,
-        listingTitle: created.title,
-        priceCents: created.priceCents,
-        listingId: created.id,
+    if (await shouldSendEmail(reservedForUserId, "EMAIL_CUSTOM_ORDER")) {
+      const buyerUser = await prisma.user.findUnique({
+        where: { id: reservedForUserId },
+        select: { name: true, email: true },
       });
+      if (buyerUser?.email) {
+        await sendCustomOrderReady({
+          buyer: { name: buyerUser.name, email: buyerUser.email },
+          sellerName: seller.displayName,
+          listingTitle: created.title,
+          priceCents: created.priceCents,
+          listingId: created.id,
+        });
+      }
     }
   } catch { /* non-fatal */ }
 

@@ -10,6 +10,17 @@ export const metadata: Metadata = {
   title: "Notification Preferences",
 };
 
+const DEFAULT_OFF = [
+  "SELLER_BROADCAST",
+  "NEW_FAVORITE",
+  "NEW_BLOG_COMMENT",
+  "BLOG_COMMENT_REPLY",
+  "EMAIL_SELLER_BROADCAST",
+  "EMAIL_NEW_FOLLOWER",
+];
+
+const DEFAULT_OFF_EMAIL = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
+
 export default async function AccountSettingsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/account/settings");
@@ -29,7 +40,13 @@ export default async function AccountSettingsPage() {
   const hasSeller = !!user?.sellerProfile;
 
   function isEnabled(type: string) {
+    if (DEFAULT_OFF.includes(type)) return prefs[type] === true;
     return prefs[type] !== false;
+  }
+
+  function getEmailPrefInitial(key: string): boolean {
+    if (key in prefs) return prefs[key] as boolean;
+    return !DEFAULT_OFF_EMAIL.includes(key);
   }
 
   function Row({ type, label, description }: { type: string; label: string; description: string }) {
@@ -44,6 +61,18 @@ export default async function AccountSettingsPage() {
     );
   }
 
+  function EmailRow({ type, label, description }: { type: string; label: string; description: string }) {
+    return (
+      <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+        <div>
+          <p className="text-sm font-medium text-neutral-800">{label}</p>
+          <p className="text-xs text-neutral-400 mt-0.5">{description}</p>
+        </div>
+        <NotificationToggle type={type} enabled={getEmailPrefInitial(type)} />
+      </div>
+    );
+  }
+
   return (
     <main className="max-w-2xl mx-auto p-6 md:p-8 space-y-8">
       <header>
@@ -53,68 +82,233 @@ export default async function AccountSettingsPage() {
         </p>
       </header>
 
-      {/* Group 1 — From Makers You Follow */}
-      <section className="border border-neutral-200 p-5">
-        <h2 className="text-base font-semibold mb-3">From Makers You Follow</h2>
-        <Row
-          type="FOLLOWED_MAKER_NEW_LISTING"
-          label="New listings"
-          description="When a maker you follow adds a new piece"
-        />
-        <Row
-          type="FOLLOWED_MAKER_NEW_BLOG"
-          label="New blog posts"
-          description="When a maker you follow publishes a new story"
-        />
-        <Row
-          type="SELLER_BROADCAST"
-          label="Shop updates"
-          description="Broadcasts and announcements from makers you follow"
-        />
-      </section>
+      {/* ── In-App Notifications ──────────────────────────────── */}
+      <div>
+        <h2 className="text-lg font-semibold mb-1">In-App Notifications</h2>
+        <p className="text-sm text-neutral-500 mb-4">These appear in your notification bell.</p>
 
-      {/* Group 2 — Your Account */}
-      <section className="border border-neutral-200 p-5">
-        <h2 className="text-base font-semibold mb-3">Your Account</h2>
-        {hasSeller && (
+        {/* Group 1 — From Makers You Follow */}
+        <section className="border border-neutral-200 p-5 mb-4">
+          <h3 className="text-base font-semibold mb-3">From Makers You Follow</h3>
           <Row
-            type="NEW_FOLLOWER"
-            label="Someone follows your shop"
-            description="When a buyer or maker starts following you"
-          />
-        )}
-        <Row
-          type="COMMISSION_INTEREST"
-          label="Commission interest"
-          description="When a maker expresses interest in your commission request"
-        />
-        <Row
-          type="NEW_ORDER"
-          label="Order updates"
-          description="Order confirmations, shipping updates, and delivery notices"
-        />
-      </section>
-
-      {/* Group 3 — Sellers only */}
-      {hasSeller && (
-        <section className="border border-neutral-200 p-5">
-          <h2 className="text-base font-semibold mb-3">Your Shop</h2>
-          <Row
-            type="NEW_REVIEW"
-            label="New reviews"
-            description="When a buyer leaves a review on one of your listings"
+            type="FOLLOWED_MAKER_NEW_LISTING"
+            label="New listings"
+            description="When a maker you follow adds a new piece"
           />
           <Row
-            type="NEW_MESSAGE"
-            label="New messages"
-            description="When someone sends you a message"
+            type="FOLLOWED_MAKER_NEW_BLOG"
+            label="New blog posts"
+            description="When a maker you follow publishes a new story"
+          />
+          <Row
+            type="SELLER_BROADCAST"
+            label="Shop updates"
+            description="Broadcasts and announcements from makers you follow (off by default)"
           />
         </section>
-      )}
+
+        {/* Group 2 — Orders & Cases */}
+        <section className="border border-neutral-200 p-5 mb-4">
+          <h3 className="text-base font-semibold mb-3">Orders &amp; Cases</h3>
+          <Row
+            type="NEW_ORDER"
+            label="New orders"
+            description="Order confirmations when someone purchases from you"
+          />
+          <Row
+            type="ORDER_SHIPPED"
+            label="Shipping updates"
+            description="When your order has shipped"
+          />
+          <Row
+            type="ORDER_DELIVERED"
+            label="Delivery notices"
+            description="When your order has been delivered"
+          />
+          {hasSeller && (
+            <Row
+              type="CASE_OPENED"
+              label="Cases opened"
+              description="When a buyer opens a case on one of your orders"
+            />
+          )}
+          <Row
+            type="CASE_MESSAGE"
+            label="Case messages"
+            description="New messages in an open case"
+          />
+          <Row
+            type="CASE_RESOLVED"
+            label="Case resolutions"
+            description="When a case you are involved in is resolved"
+          />
+        </section>
+
+        {/* Group 3 — Your Shop (sellers only) */}
+        {hasSeller && (
+          <section className="border border-neutral-200 p-5 mb-4">
+            <h3 className="text-base font-semibold mb-3">Your Shop</h3>
+            <Row
+              type="NEW_MESSAGE"
+              label="New messages"
+              description="When someone sends you a message"
+            />
+            <Row
+              type="NEW_REVIEW"
+              label="New reviews"
+              description="When a buyer leaves a review on one of your listings"
+            />
+            <Row
+              type="NEW_FOLLOWER"
+              label="New followers"
+              description="When someone starts following your shop"
+            />
+            <Row
+              type="CUSTOM_ORDER_REQUEST"
+              label="Custom order requests"
+              description="When a buyer requests a custom piece from you"
+            />
+            <Row
+              type="CUSTOM_ORDER_LINK"
+              label="Custom order ready"
+              description="When a maker sends you a custom listing to purchase"
+            />
+            <Row
+              type="COMMISSION_INTEREST"
+              label="Commission interest"
+              description="When a maker expresses interest in your commission request"
+            />
+            <Row
+              type="NEW_FAVORITE"
+              label="Someone saves your listing"
+              description="When a buyer hearts one of your pieces (off by default)"
+            />
+            <div className="flex items-center justify-between py-3 border-b border-neutral-100">
+              <div>
+                <p className="text-sm font-medium text-neutral-800">Listing approved</p>
+                <p className="text-xs text-neutral-400 mt-0.5">When a listing passes admin review — always sent</p>
+              </div>
+              <span className="text-xs text-neutral-400 italic">Always on</span>
+            </div>
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <p className="text-sm font-medium text-neutral-800">Listing rejected</p>
+                <p className="text-xs text-neutral-400 mt-0.5">When a listing does not pass admin review — always sent</p>
+              </div>
+              <span className="text-xs text-neutral-400 italic">Always on</span>
+            </div>
+          </section>
+        )}
+
+        {/* Group 4 — Blog (sellers only) */}
+        {hasSeller && (
+          <section className="border border-neutral-200 p-5 mb-4">
+            <h3 className="text-base font-semibold mb-3">Blog</h3>
+            <Row
+              type="NEW_BLOG_COMMENT"
+              label="New comments on your posts"
+              description="When someone comments on a blog post you wrote (off by default)"
+            />
+            <Row
+              type="BLOG_COMMENT_REPLY"
+              label="Replies to your comments"
+              description="When someone replies to a comment you left (off by default)"
+            />
+          </section>
+        )}
+      </div>
+
+      {/* ── Email Notifications ───────────────────────────────── */}
+      <div className="border-t pt-6">
+        <h2 className="text-lg font-semibold mb-1">Email Notifications</h2>
+        <p className="text-sm text-neutral-500 mb-1">These are sent to your email address.</p>
+        <p className="text-xs text-neutral-400 mb-4">
+          Order confirmations, shipping updates, refund notifications, and case resolutions are always sent and cannot be disabled.
+        </p>
+
+        {/* Messages & Orders */}
+        <section className="border border-neutral-200 p-5 mb-4">
+          <h3 className="text-base font-semibold mb-3">Messages &amp; Orders</h3>
+          <EmailRow
+            type="EMAIL_NEW_MESSAGE"
+            label="New messages"
+            description="Email when someone sends you a message (5-minute active-conversation throttle)"
+          />
+          {hasSeller && (
+            <EmailRow
+              type="EMAIL_NEW_ORDER"
+              label="New orders"
+              description="Email when a buyer purchases from your shop"
+            />
+          )}
+          {hasSeller && (
+            <EmailRow
+              type="EMAIL_CUSTOM_ORDER"
+              label="Custom order requests &amp; links"
+              description="Email for custom order requests (sellers) and custom pieces ready to purchase (buyers)"
+            />
+          )}
+        </section>
+
+        {/* Cases & Reviews */}
+        <section className="border border-neutral-200 p-5 mb-4">
+          <h3 className="text-base font-semibold mb-3">Cases &amp; Reviews</h3>
+          {hasSeller && (
+            <EmailRow
+              type="EMAIL_CASE_OPENED"
+              label="Cases opened against you"
+              description="Email when a buyer opens a case on one of your orders"
+            />
+          )}
+          <EmailRow
+            type="EMAIL_CASE_MESSAGE"
+            label="Case messages"
+            description="Email when someone sends a message in an open case"
+          />
+          <EmailRow
+            type="EMAIL_CASE_RESOLVED"
+            label="Case resolutions"
+            description="Email when a case you are involved in is resolved"
+          />
+          {hasSeller && (
+            <EmailRow
+              type="EMAIL_NEW_REVIEW"
+              label="New reviews"
+              description="Email when a buyer leaves a review on one of your listings"
+            />
+          )}
+        </section>
+
+        {/* From Makers You Follow */}
+        <section className="border border-neutral-200 p-5 mb-4">
+          <h3 className="text-base font-semibold mb-3">From Makers You Follow</h3>
+          <EmailRow
+            type="EMAIL_FOLLOWED_MAKER_NEW_LISTING"
+            label="New listings from followed makers"
+            description="Email when a maker you follow posts a new piece"
+          />
+          <EmailRow
+            type="EMAIL_SELLER_BROADCAST"
+            label="Shop updates from followed makers"
+            description="Email broadcasts and announcements (off by default)"
+          />
+        </section>
+
+        {/* Your Shop — sellers only */}
+        {hasSeller && (
+          <section className="border border-neutral-200 p-5">
+            <h3 className="text-base font-semibold mb-3">Your Shop</h3>
+            <EmailRow
+              type="EMAIL_NEW_FOLLOWER"
+              label="New followers"
+              description="Email when someone starts following your shop (off by default)"
+            />
+          </section>
+        )}
+      </div>
 
       <p className="text-xs text-neutral-400">
-        Changes take effect immediately. Some critical notifications (security,
-        account issues) cannot be disabled.
+        Changes take effect immediately. Security and account notices cannot be disabled.
       </p>
     </main>
   );

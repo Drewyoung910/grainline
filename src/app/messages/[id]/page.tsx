@@ -2,7 +2,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { sendNewMessageEmail } from "@/lib/email";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import MarkReadClient from "@/components/MarkReadClient";
 import ThreadMessages from "@/components/ThreadMessages";
@@ -154,6 +155,37 @@ export default async function ThreadPage({
         body: body || "Sent an attachment",
         link: `/messages/${id}`,
       });
+    }
+
+    // Email notification for new message (fire-and-forget, 5-min throttle)
+    try {
+      const recentReply = await prisma.message.findFirst({
+        where: {
+          conversationId: id,
+          senderId: recipientId,
+          createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
+        },
+        select: { id: true },
+      });
+      if (!recentReply) {
+        if (await shouldSendEmail(recipientId, "EMAIL_NEW_MESSAGE")) {
+          const recipientUser = await prisma.user.findUnique({
+            where: { id: recipientId },
+            select: { email: true, name: true },
+          });
+          if (recipientUser?.email && body) {
+            await sendNewMessageEmail({
+              recipientEmail: recipientUser.email,
+              recipientName: recipientUser.name ?? "there",
+              senderName: me.name ?? me.email?.split("@")[0] ?? "Someone",
+              messagePreview: body.slice(0, 200),
+              conversationUrl: `https://thegrainline.com/messages/${id}`,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to send message notification email:", e);
     }
 
     return { ok: true };

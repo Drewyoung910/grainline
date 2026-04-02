@@ -614,19 +614,48 @@ export async function sendNewListingFromFollowedMakerEmail(opts: {
   await send(to, `${makerName} just posted a new listing on Grainline`, baseTemplate("New Listing", body));
 }
 
-// ─── Legacy (kept for backwards compatibility) ───────────────────────────────
-
 export async function sendNewMessageEmail(opts: {
-  to: string;
-  fromName: string;
-  preview: string;
-  conversationId: string;
-  listing?: { id: string; title: string | null } | null;
+  recipientEmail: string;
+  recipientName: string;
+  senderName: string;
+  messagePreview: string;
+  conversationUrl: string;
 }) {
-  await sendCaseMessage({
-    recipientEmail: opts.to,
-    senderName: opts.fromName,
-    caseLink: `${APP_URL}/messages/${opts.conversationId}`,
-    messageSnippet: opts.preview,
-  });
+  const { recipientEmail, recipientName, senderName, messagePreview, conversationUrl } = opts;
+  const name = recipientName || "there";
+  const sender = senderName || "Someone";
+  const preview = messagePreview.slice(0, 200) + (messagePreview.length > 200 ? "…" : "");
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent you a message:</p>
+    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;font-style:italic;">${esc(preview)}</blockquote>
+    ${btn("View Conversation", conversationUrl)}
+  `;
+
+  await send(recipientEmail, `New message from ${sender} on Grainline`, baseTemplate("New Message", body));
+}
+
+export async function sendNewReviewEmail(opts: {
+  sellerEmail: string;
+  sellerName: string;
+  buyerName: string;
+  listingTitle: string;
+  rating: number;
+  reviewPreview: string;
+  reviewUrl: string;
+}) {
+  const { sellerEmail, sellerName, buyerName, listingTitle, rating, reviewPreview, reviewUrl } = opts;
+  const name = sellerName || "there";
+  const buyer = buyerName || "A buyer";
+  const ratingDisplay = Number.isInteger(rating) ? `${rating}` : rating.toFixed(1);
+  const preview = reviewPreview.slice(0, 200) + (reviewPreview.length > 200 ? "…" : "");
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(buyer)}</strong> left a review on <strong>${esc(listingTitle)}</strong>:</p>
+    <p style="font-size:18px;font-weight:600;margin:0 0 8px;">${esc(ratingDisplay)} out of 5 stars</p>
+    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;font-style:italic;">${esc(preview)}</blockquote>
+    ${btn("View Review", reviewUrl)}
+  `;
+
+  await send(sellerEmail, `New ${ratingDisplay}-star review from ${buyer} on Grainline`, baseTemplate("New Review", body));
 }

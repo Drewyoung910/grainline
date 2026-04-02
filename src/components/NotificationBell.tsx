@@ -197,14 +197,12 @@ export default function NotificationBell({
           {/* Header */}
           <div className="flex items-center justify-between border-b px-4 py-3">
             <span className="text-sm font-semibold">Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Mark all as read
-              </button>
-            )}
+            <button
+              onClick={markAllRead}
+              className="text-xs text-neutral-500 hover:text-neutral-800 underline"
+            >
+              Mark all as read
+            </button>
           </div>
 
           {/* List */}

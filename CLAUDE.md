@@ -665,32 +665,44 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ## Email System (complete)
 
-`src/lib/email.ts` — 16 email functions with a sharp-edged HTML template (off-white `#FAFAF8` background, no `border-radius` anywhere, dark `#1C1C1A` header bar with Grainline wordmark, warm gray `#3D3D3A` body text, footer with unsubscribe link). `RESEND_API_KEY` guard: logs a warning and skips send if env var is missing — never crashes the app.
+`src/lib/email.ts` — 18 email functions with a sharp-edged HTML template (off-white `#FAFAF8` background, no `border-radius` anywhere, dark `#1C1C1A` header bar with Grainline wordmark, warm gray `#3D3D3A` body text, footer with unsubscribe link). `RESEND_API_KEY` guard: logs a warning and skips send if env var is missing — never crashes the app.
 
 ### Email functions
 
 **Transactional:** `sendOrderConfirmedBuyer`, `sendOrderConfirmedSeller`, `sendOrderShipped`, `sendReadyForPickup`, `sendCaseOpened`, `sendCaseMessage`, `sendCaseResolved`, `sendCustomOrderRequest`, `sendCustomOrderReady`, `sendBackInStock`, `sendVerificationApproved`, `sendVerificationRejected`, `sendRefundIssued`
 
+**Notification:** `sendNewMessageEmail` — fires on new message with 5-minute active-conversation throttle (skipped if recipient replied in last 5 mins); respects `EMAIL_NEW_MESSAGE` preference. `sendNewReviewEmail` — fires on new review with rating display; respects `EMAIL_NEW_REVIEW` preference.
+
 **Lifecycle:** `sendWelcomeBuyer`, `sendWelcomeSeller`, `sendFirstListingCongrats`, `sendFirstSaleCongrats`
 
-### Wiring (14 locations, all wrapped in `try/catch`)
+### Wiring (16 locations, all wrapped in `try/catch`)
 
 | File | Email(s) |
 |---|---|
-| `api/stripe/webhook/route.ts` | `sendOrderConfirmedBuyer`, `sendOrderConfirmedSeller`, `sendFirstSaleCongrats` (if seller order count = 1) |
-| `api/orders/[id]/fulfillment/route.ts` | `sendOrderShipped` (action=shipped), `sendReadyForPickup` (action=ready_for_pickup) |
-| `api/cases/route.ts` | `sendCaseOpened` |
-| `api/cases/[id]/messages/route.ts` | `sendCaseMessage` to the other party |
-| `api/cases/[id]/resolve/route.ts` | `sendCaseResolved` |
-| `api/messages/custom-order-request/route.ts` | `sendCustomOrderRequest` |
-| `dashboard/listings/custom/page.tsx` | `sendCustomOrderReady` |
-| `api/listings/[id]/stock/route.ts` | `sendBackInStock` per subscriber |
-| `admin/verification/page.tsx` | `sendVerificationApproved` / `sendVerificationRejected` |
-| `api/orders/[id]/refund/route.ts` | `sendRefundIssued` |
-| `api/clerk/webhook/route.ts` | `sendWelcomeBuyer` (user.created); `sendWelcomeSeller` if seller profile exists |
-| `dashboard/listings/new/page.tsx` | `sendFirstListingCongrats` if listing count = 1 |
+| `api/stripe/webhook/route.ts` | `sendOrderConfirmedBuyer` (always); `sendOrderConfirmedSeller` (respects `EMAIL_NEW_ORDER`); `sendFirstSaleCongrats` (always, if count = 1) |
+| `api/orders/[id]/fulfillment/route.ts` | `sendOrderShipped` (action=shipped), `sendReadyForPickup` (action=ready_for_pickup) — always |
+| `api/cases/route.ts` | `sendCaseOpened` (respects `EMAIL_CASE_OPENED`) |
+| `api/cases/[id]/messages/route.ts` | `sendCaseMessage` (respects `EMAIL_CASE_MESSAGE`) |
+| `api/cases/[id]/resolve/route.ts` | `sendCaseResolved` (respects `EMAIL_CASE_RESOLVED`) |
+| `api/messages/custom-order-request/route.ts` | `sendCustomOrderRequest` (respects `EMAIL_CUSTOM_ORDER`) |
+| `dashboard/listings/custom/page.tsx` | `sendCustomOrderReady` (respects `EMAIL_CUSTOM_ORDER`) |
+| `api/listings/[id]/stock/route.ts` | `sendBackInStock` per subscriber — always |
+| `admin/verification/page.tsx` | `sendVerificationApproved` / `sendVerificationRejected` — always |
+| `api/orders/[id]/refund/route.ts` | `sendRefundIssued` — always |
+| `api/clerk/webhook/route.ts` | `sendWelcomeBuyer` (user.created) — always |
+| `dashboard/listings/new/page.tsx` | `sendFirstListingCongrats` (always, if count=1); `sendNewListingFromFollowedMakerEmail` per follower (respects `EMAIL_FOLLOWED_MAKER_NEW_LISTING`) |
+| `messages/[id]/page.tsx` | `sendNewMessageEmail` (respects `EMAIL_NEW_MESSAGE`, 5-min throttle) |
+| `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
 
 **Emails are live once `RESEND_API_KEY` + `EMAIL_FROM` env vars are set and the sending domain is verified in Resend.**
+
+### Email Notification Preferences (complete — 2026-04-01)
+
+`shouldSendEmail(userId, prefKey)` in `src/lib/notifications.ts` — centralized preference check before all non-transactional email sends.
+- **Default ON**: sends unless user sets `prefs[key] = false`
+- **Default OFF** (`EMAIL_SELLER_BROADCAST`, `EMAIL_NEW_FOLLOWER`): only sends if `prefs[key] = true`
+
+All non-transactional email sends wrapped with `shouldSendEmail`. Transactional emails (order confirmations, shipping, refunds, welcome, lifecycle, verification) are never gated.
 
 ## Clerk User Sync Webhook (complete)
 
@@ -2051,11 +2063,19 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 ### Settings page (`/account/settings`)
 - Server component; auth required
 - Queries `notificationPreferences` + `sellerProfile` presence
-- Three groups of toggles:
-  - **From Makers You Follow**: `FOLLOWED_MAKER_NEW_LISTING`, `FOLLOWED_MAKER_NEW_BLOG`, `SELLER_BROADCAST`
-  - **Your Account**: `NEW_FOLLOWER` (sellers only), `COMMISSION_INTEREST`, `NEW_ORDER`
-  - **Your Shop** (sellers only): `NEW_REVIEW`, `NEW_MESSAGE`
+- `DEFAULT_OFF` types (default to off unless explicitly enabled): `SELLER_BROADCAST`, `NEW_FAVORITE`, `NEW_BLOG_COMMENT`, `BLOG_COMMENT_REPLY`, `EMAIL_SELLER_BROADCAST`, `EMAIL_NEW_FOLLOWER`
+- **In-App Notifications** (5 groups):
+  - **From Makers You Follow** (3): `FOLLOWED_MAKER_NEW_LISTING`, `FOLLOWED_MAKER_NEW_BLOG`, `SELLER_BROADCAST` (default OFF)
+  - **Orders & Cases** (6): `NEW_ORDER`, `ORDER_SHIPPED`, `ORDER_DELIVERED`, `CASE_OPENED` (sellers), `CASE_MESSAGE`, `CASE_RESOLVED`
+  - **Your Shop** (sellers, 8): `NEW_MESSAGE`, `NEW_REVIEW`, `NEW_FOLLOWER`, `CUSTOM_ORDER_REQUEST`, `CUSTOM_ORDER_LINK`, `COMMISSION_INTEREST`, `NEW_FAVORITE` (default OFF), `LISTING_APPROVED`/`LISTING_REJECTED` (always-on labels)
+  - **Blog** (sellers, 2): `NEW_BLOG_COMMENT` (default OFF), `BLOG_COMMENT_REPLY` (default OFF)
+- **Email Notifications** (10 toggleable types, 4 subgroups):
+  - Messages & Orders: `EMAIL_NEW_MESSAGE`, `EMAIL_NEW_ORDER` (sellers), `EMAIL_CUSTOM_ORDER` (sellers)
+  - Cases & Reviews: `EMAIL_CASE_OPENED` (sellers), `EMAIL_CASE_MESSAGE`, `EMAIL_CASE_RESOLVED`, `EMAIL_NEW_REVIEW` (sellers)
+  - From Makers: `EMAIL_FOLLOWED_MAKER_NEW_LISTING`, `EMAIL_SELLER_BROADCAST` (default OFF)
+  - Your Shop (sellers): `EMAIL_NEW_FOLLOWER` (default OFF)
 - Linked from Account Settings section on `/account` as "Notification preferences →"
+- **NotificationBell** `markAllRead` button always visible in dropdown (removed `unreadCount > 0` condition); styled `text-xs text-neutral-500 hover:text-neutral-800 underline`
 
 ### `NotificationToggle` component (`src/components/NotificationToggle.tsx`)
 - `"use client"` — optimistic toggle (immediate UI update, revert on error)
