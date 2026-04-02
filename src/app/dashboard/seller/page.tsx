@@ -153,10 +153,24 @@ export default async function SellerSettingsPage() {
         <p className="text-sm text-neutral-500">
           View your balance, payout history, and update your bank account in your Stripe dashboard.
         </p>
-        {row?.chargesEnabled && (
-          <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>
+        {row?.stripeAccountId ? (
+          <div className="space-y-3">
+            <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>
+            <StripeLoginButton hasStripeAccount={true} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-500">
+              Connect Stripe to receive payouts from your sales.
+            </p>
+            <a
+              href="/dashboard/onboarding"
+              className="inline-block rounded-md bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
+            >
+              Connect Stripe →
+            </a>
+          </div>
         )}
-        <StripeLoginButton hasStripeAccount={!!row?.stripeAccountId} />
       </section>
 
       {/* Vacation Mode */}

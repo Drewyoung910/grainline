@@ -1315,6 +1315,7 @@ Post-deployment bug fixes and gap fills:
 
 ### Search submit buttons (complete — 2026-04-02)
 - **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: pill shape uses an **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300` clips both the input and button into the pill naturally. The `<input>` has **no border, no border-radius, no focus ring** of its own (`bg-transparent flex-1 focus:outline-none`). The submit button uses `rounded-r-full` and fills the right cap. This prevents double-border or broken pill shape.
+- **Button height**: outer div uses `items-stretch` (not `items-center`) so the submit button fills the full height of the pill without needing fixed `py-` padding — button has `px-4` only.
 - **User avatar button** (`UserAvatarMenu.tsx`): `rounded-full overflow-hidden bg-transparent border-0 p-0 cursor-pointer` — eliminates grey square/border artifact behind profile picture. `<img>` has `block` to remove inline baseline gap.
 - Mobile search icon dropdown unchanged
 
@@ -2195,8 +2196,9 @@ Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
 ### Stripe Connect Dashboard Access (complete — 2026-04-01)
 - **`POST /api/stripe/connect/login-link`** — seller auth required; calls `stripe.accounts.createLoginLink(stripeAccountId)`; returns `{ url }` for one-time Express dashboard link; opens in new tab
-- **`StripeLoginButton`** (`src/app/dashboard/seller/StripeLoginButton.tsx`) — `"use client"`; shows "No Stripe account" + onboarding link when `hasStripeAccount=false`; otherwise renders "Go to Stripe Dashboard →" button; handles loading/error states
-- **"Payouts & Banking" section** added to `/dashboard/seller` above Vacation Mode — shows connection status badge + `StripeLoginButton`
+- **`StripeLoginButton`** (`src/app/dashboard/seller/StripeLoginButton.tsx`) — `"use client"`; renders "Go to Stripe Dashboard →" button when `hasStripeAccount=true`; handles loading/error states
+- **"Payouts & Banking" section** on `/dashboard/seller`: checks `stripeAccountId` directly (not `chargesEnabled` — that field was bulk-backfilled to `true` and is not reliable for UI state). Two states: (1) `stripeAccountId` present → "✓ Stripe Connected" + `StripeLoginButton hasStripeAccount={true}`; (2) `stripeAccountId` null → explanation + "Connect Stripe →" link to `/dashboard/onboarding`
+- **`chargesEnabled` is NOT used for Stripe Connect status display** — always check `stripeAccountId` directly
 - **`/dashboard/seller` page title** changed from "Seller Profile" → "Shop Settings"
 
 Cart checkout supports multi-seller orders (splits into separate Stripe sessions per seller) and single-item buy-now.

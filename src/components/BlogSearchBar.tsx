@@ -87,7 +87,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   return (
     <div ref={containerRef} className="relative w-full">
       <form onSubmit={handleSubmit}>
-        <div className="relative flex items-center rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
+        <div className="relative flex items-stretch rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
             width={16} height={16} viewBox="0 0 24 24" fill="none"
@@ -117,7 +117,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           <button
             type="submit"
             aria-label="Search"
-            className="flex items-center justify-center h-full px-4 py-2.5 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
+            className="flex items-center justify-center px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
           >
             <Search size={16} />
           </button>

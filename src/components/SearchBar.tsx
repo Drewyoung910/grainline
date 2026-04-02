@@ -96,7 +96,7 @@ export default function SearchBar() {
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
       <form onSubmit={handleSubmit}>
-        <div className="relative flex items-center rounded-full border bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
+        <div className="relative flex items-stretch rounded-full border bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
           <input
             value={value}
             onChange={handleChange}
@@ -109,7 +109,7 @@ export default function SearchBar() {
           <button
             type="submit"
             aria-label="Search"
-            className="flex items-center justify-center h-full px-3 py-2 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
+            className="flex items-center justify-center px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
           >
             <Search size={16} />
           </button>
