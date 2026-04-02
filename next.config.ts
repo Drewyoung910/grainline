@@ -15,7 +15,7 @@ const securityHeaders = [
       // Next.js requires 'unsafe-inline' for hydration scripts; 'unsafe-eval' retained for Sentry/source-map support
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.thegrainline.com https://unpkg.com",
       // script-src-elem overrides script-src for <script> elements — list all external script hosts here
-      "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com https://cdnjs.cloudflare.com",
+      "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com https://cdnjs.cloudflare.com https://unpkg.com",
       "style-src 'self' 'unsafe-inline' https://clerk.thegrainline.com https://unpkg.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       // Drop plain http: — all legitimate image sources use HTTPS; blob:/data: retained for canvas/uploader
