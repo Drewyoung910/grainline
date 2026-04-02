@@ -26,10 +26,11 @@ export async function GET(req: NextRequest) {
 
     // Tag partial matches
     prisma.$queryRaw<Array<{ tag: string }>>`
-      SELECT DISTINCT unnest(tags) as tag
-      FROM "BlogPost"
+      SELECT DISTINCT tag
+      FROM "BlogPost",
+           unnest(tags) AS tag
       WHERE status = 'PUBLISHED'
-        AND unnest(tags) ILIKE ${`%${q}%`}
+        AND tag ILIKE ${`%${q}%`}
       LIMIT 5
     `,
 

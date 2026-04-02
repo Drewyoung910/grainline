@@ -89,7 +89,12 @@ export default async function CommissionPage({
   if (tab === "near" && hasLocation) {
     // Near Me: show local requests first, then national ones, filtered by 80km
     const radius = 80000; // 80km
-    const categoryCondition = categoryValid ? `AND cr.category = '${categoryFilter}'` : "";
+    // Select query params: $1-$7 (viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, offset)
+    // Category appended as $8 if present — never string-interpolated (SQL injection prevention)
+    const categoryConditionSelect = categoryValid ? `AND cr.category::text = $8` : "";
+    // Count query params: $1-$3 (viewerLat, viewerLng, radius)
+    // Category appended as $4 if present
+    const categoryConditionCount = categoryValid ? `AND cr.category::text = $4` : "";
 
     const selectSql = `
       SELECT
@@ -112,7 +117,7 @@ export default async function CommissionPage({
       FROM "CommissionRequest" cr
       JOIN "User" u ON u.id = cr."buyerId"
       WHERE cr.status = 'OPEN'
-        ${categoryCondition}
+        ${categoryConditionSelect}
         AND (
           cr."isNational" = true
           OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
@@ -148,12 +153,16 @@ export default async function CommissionPage({
       buyerName: string | null;
       buyerImageUrl: string | null;
       distance_m: number | null;
-    }>>(selectSql, viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, (page - 1) * pageSize);
+    }>>(selectSql, ...((): unknown[] => {
+      const args: unknown[] = [viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, (page - 1) * pageSize];
+      if (categoryValid) args.push(categoryFilter);
+      return args;
+    })());
 
     const countSql = `
       SELECT COUNT(*) FROM "CommissionRequest" cr
       WHERE cr.status = 'OPEN'
-        ${categoryCondition}
+        ${categoryConditionCount}
         AND (
           cr."isNational" = true
           OR (cr.lat IS NOT NULL AND cr.lng IS NOT NULL AND
@@ -167,7 +176,9 @@ export default async function CommissionPage({
           )
         )`;
 
-    const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, viewerLat, viewerLng, radius);
+    const countArgs: unknown[] = [viewerLat, viewerLng, radius];
+    if (categoryValid) countArgs.push(categoryFilter);
+    const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
 
     total = Number(countResult[0].count);
     requests = rawResults.map((r) => ({

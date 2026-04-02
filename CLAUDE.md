@@ -1345,6 +1345,7 @@ Post-deployment bug fixes and gap fills:
 
 #### `GET /api/blog/search/suggestions` (`src/app/api/blog/search/suggestions/route.ts`)
 - Three parallel queries: post titles via `similarity() > 0.2`, tags via `unnest ILIKE`, seller display names via `contains`
+- **Blog search suggestions tag query**: uses `unnest(tags) AS tag` in the `FROM` clause, then filters on the `tag` column in `WHERE` — PostgreSQL does not allow `unnest()` directly in a `WHERE` clause
 - Returns `{ suggestions: Array<{ type: "post"|"tag"|"author", label, slug?, tag? }> }` up to 8 items
 
 #### `BlogSearchBar` component (`src/components/BlogSearchBar.tsx`)
@@ -1554,6 +1555,7 @@ Nine bugs fixed across listing page, commission room, and seller profile.
 ### Commission Room Near Me crash
 - Root cause: `$queryRaw` tagged template literal treats `${}` expressions as SQL parameters; the conditional `${categoryValid ? \`AND cr.category = '${categoryFilter}'\` : \`\`}` was being passed as a bound parameter value instead of raw SQL, causing a PostgreSQL syntax error
 - Fix: rewrote both queries (data + count) using `$queryRawUnsafe` with positional parameters; added `LEAST(1.0, GREATEST(-1.0, ...))` clamping on `acos` arguments to prevent NaN
+- **Commission Near Me raw SQL**: category filter uses positional parameters (`$8` in select, `$4` in count) — never string interpolation. Direct string interpolation was causing a `$4` syntax error when a category was selected (parameter numbering shifted). Select and count use different variables (`categoryConditionSelect` / `categoryConditionCount`) because their param counts differ.
 
 ## User Ban System (complete — 2026-04-01)
 
