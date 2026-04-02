@@ -155,7 +155,7 @@ export default async function SellerSettingsPage() {
         <p className="text-sm text-neutral-500">
           View your balance, payout history, and update your bank account in your Stripe dashboard.
         </p>
-        {row?.stripeAccountId ? (
+        {row?.chargesEnabled && row?.stripeAccountId ? (
           <div className="space-y-3">
             <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>
             <StripeLoginButton hasStripeAccount={true} />
@@ -172,6 +172,14 @@ export default async function SellerSettingsPage() {
                 </a>
               </div>
             )}
+          </div>
+        ) : row?.stripeAccountId && !row?.chargesEnabled ? (
+          <div className="space-y-3">
+            <p className="text-sm text-amber-700 font-medium">⚠ Stripe setup incomplete</p>
+            <p className="text-sm text-neutral-500">
+              You started Stripe setup but didn&apos;t finish. Complete it to receive payouts and publish listings.
+            </p>
+            <StripeConnectButton />
           </div>
         ) : (
           <div className="space-y-3">

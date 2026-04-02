@@ -103,7 +103,7 @@ export default function SearchBar() {
             onKeyDown={handleKeyDown}
             onFocus={() => hasItems && setOpen(true)}
             placeholder="Search handmade goods…"
-            className="flex-1 pl-4 pr-2 bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            className="flex-1 pl-4 pr-2 py-2 bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
             autoComplete="off"
           />
           <button

@@ -101,7 +101,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
             onFocus={() => suggestions.length > 0 && setOpen(true)}
             onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
             placeholder="Search posts, topics, makers..."
-            className="flex-1 pl-10 pr-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            className="flex-1 pl-10 pr-2 py-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
             autoComplete="off"
           />
           {value && (

@@ -2198,9 +2198,8 @@ Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 - **`POST /api/stripe/connect/login-link`** — seller auth required; calls `stripe.accounts.createLoginLink(stripeAccountId)`; returns `{ url }` for one-time Express dashboard link; opens in new tab
 - **`StripeLoginButton`** (`src/app/dashboard/seller/StripeLoginButton.tsx`) — `"use client"`; renders "Go to Stripe Dashboard →" button when `hasStripeAccount=true`; handles loading/error states
 - **`StripeConnectButton`** (`src/app/dashboard/seller/StripeConnectButton.tsx`) — `"use client"`; calls `POST /api/stripe/connect/create` with `returnUrl: "/dashboard/seller"`; works for sellers who skipped Stripe during onboarding; replaces static `<a href="/dashboard/onboarding">` link
-- **"Payouts & Banking" section** on `/dashboard/seller`: checks `stripeAccountId` directly (not `chargesEnabled` — that field was bulk-backfilled and is not reliable for UI state). Two states: (1) `stripeAccountId` present → "✓ Stripe Connected" + `StripeLoginButton` + draft prompt if `draftCount > 0`; (2) `stripeAccountId` null → explanation + `StripeConnectButton`
-- **Draft prompt** shown when `stripeAccountId` present and `draftCount > 0` — amber card with count and link to `/dashboard/inventory`
-- **`chargesEnabled` is NOT used for Stripe Connect status display** — always check `stripeAccountId` directly
+- **"Payouts & Banking" section** on `/dashboard/seller`: three-state logic using both `chargesEnabled` and `stripeAccountId`: (1) both present → "✓ Stripe Connected" + `StripeLoginButton` + draft prompt; (2) `stripeAccountId` present but `chargesEnabled` false → "⚠ Stripe setup incomplete" + `StripeConnectButton` to resume; (3) neither → "Connect Stripe" + `StripeConnectButton` to start. `chargesEnabled` is the source of truth for full connection — `stripeAccountId` alone is insufficient (`stripeAccountId` is set when onboarding starts; `chargesEnabled` only becomes true when Stripe webhook confirms the account on `account.updated`)
+- **Draft prompt** shown in fully-connected state when `draftCount > 0` — amber card with count and link to `/dashboard/inventory`
 - **`/dashboard/seller` page title** changed from "Seller Profile" → "Shop Settings"
 
 ### Listing Visibility Rules (complete — 2026-04-02)
