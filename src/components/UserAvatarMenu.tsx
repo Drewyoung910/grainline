@@ -126,7 +126,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
             <button
               type="button"
-              onClick={() => { openUserProfile(); setOpen(false); }}
+              onClick={() => { openUserProfile({ appearance: { elements: { rootBox: { width: "min(90vw, 860px)" }, card: { width: "100%" } } } }); setOpen(false); }}
               className="flex w-full items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
             >
               Manage Account
