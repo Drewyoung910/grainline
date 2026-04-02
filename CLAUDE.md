@@ -1831,6 +1831,14 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 ## Pending Tasks
 
+### Code Change Safety Rules
+- NEVER remove or modify existing functionality unless explicitly told to
+- Before editing any file, read the ENTIRE file first — not just the section you're changing
+- After making changes to a file, verify that ALL existing features in that file still work (event handlers, API calls, JSX elements)
+- If you're adding a new component or feature to a file, do NOT delete or restructure existing code in that file
+- Run `npx tsc --noEmit` after every file change, not just at the end
+- When replacing a component (e.g., UserButton → UserDropdown), verify ALL functionality of the old component is preserved in the new one
+
 **TypeScript: zero `tsc --noEmit` errors** (maintained as of 2026-04-01)
 
 ### Immediate / deploy blockers
