@@ -25,6 +25,8 @@ const isPublic = createRouteMatcher([
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
   "/api/blog(.*)",        // blog API — public GET; POST auth handled in route
   "/api/search(.*)",      // search suggestions + popular tags — public
+  "/api/cart",              // cart count — auth handled in route (returns 401)
+  "/api/notifications",     // notification count — auth handled in route (returns 401)
   "/api/follow(.*)",      // GET follow status — auth optional; POST/DELETE handled in route
   "/commission",          // Commission Room board — public
   "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
