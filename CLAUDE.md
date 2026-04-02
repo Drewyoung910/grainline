@@ -1035,7 +1035,7 @@ Comprehensive legal update deployed 2026-04-01 (commit 6537bf6). 426 insertions 
 - **Privacy Section 10 duplicate paragraph** — "By using the Platform, you consent..." and "If you access the Platform from outside the United States, you consent..." were back to back. First deleted. *(Commit c7bde34 fixed this)*
 - **TOC clutter** — Both TOCs showed inline subsection names next to main section titles. Simplified to main section titles only. *(Commit c7bde34 fixed this)*
 - **Duplicate Feedback clause** — Section 11.6 and Section 33.11 both assign user feedback IP to Grainline. Attorney should decide which to keep (recommend keeping 33.11, removing 11.6).
-- **Section 8.3 vs 9.4 inconsistency** — 8.3 says case decisions are "final and binding on both parties"; 9.4 now allows a 7-day re-review. Not technically contradictory but should be harmonized.
+- **Section 8.3 vs 9.4 inconsistency** — 8.3 said case decisions are "final and binding on both parties"; 9.4 allows a 7-day re-review. *(Fixed — 8.3 now reads "final, subject to the re-review process described in Section 9.4")*
 
 ### Phase 2 — Deferred Items (after attorney review)
 
@@ -2091,7 +2091,7 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 |---|---|
 | CSP enforcement | ⏳ Report-only mode active; enforce by changing header name in `next.config.ts` after confirming zero violations in Sentry |
 | Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
-| Geo-blocking | ✅ Complete — US + CA only via Vercel edge geo |
+| Geo-blocking | ✅ Complete — US only via Vercel edge geo |
 | Notification preferences | ✅ Complete — `/account/settings` with toggles |
 | Zod input validation | ✅ Complete — all request-body API routes |
 | CSRF audit | ✅ Complete — documented in `src/lib/security.ts` |

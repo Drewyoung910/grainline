@@ -794,8 +794,8 @@ export default function TermsPage() {
             <li>No refund (case dismissed)</li>
           </ul>
           <p className="mt-3">
-            Grainline&apos;s decision in case resolution is <strong>final and binding</strong> on both
-            parties. Refunds issued through the Case System are processed to the original payment
+            Grainline&apos;s decision in case resolution is final, subject to the re-review process
+            described in Section 9.4. Refunds issued through the Case System are processed to the original payment
             method and typically appear within <strong>5–10 business days</strong>, subject to your
             bank&apos;s processing time.
           </p>
