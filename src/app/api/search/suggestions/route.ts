@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: ListingStatus.ACTIVE,
         isPrivate: false,
+        seller: { chargesEnabled: true },
         title: { contains: q, mode: "insensitive" },
       },
       select: { title: true },
@@ -35,8 +36,10 @@ export async function GET(req: NextRequest) {
     // Partial tag matches via unnest
     prisma.$queryRaw<Array<{ tag: string; cnt: bigint }>>`
       SELECT tag, COUNT(*) as cnt
-      FROM "Listing", unnest(tags) as tag
-      WHERE status = 'ACTIVE' AND "isPrivate" = false AND tag ILIKE ${`%${q}%`}
+      FROM "Listing" l
+      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+      , unnest(l.tags) as tag
+      WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true AND tag ILIKE ${`%${q}%`}
       GROUP BY tag
       ORDER BY cnt DESC
       LIMIT 2
@@ -44,11 +47,13 @@ export async function GET(req: NextRequest) {
 
     // Fuzzy title suggestions via pg_trgm (similarity > 0.25)
     prisma.$queryRaw<Array<{ title: string; sim: number }>>`
-      SELECT DISTINCT title, similarity(title, ${q}) as sim
-      FROM "Listing"
-      WHERE status = 'ACTIVE' AND "isPrivate" = false
-        AND similarity(title, ${q}) > 0.25
-        AND title NOT ILIKE ${`%${q}%`}
+      SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
+      FROM "Listing" l
+      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+      WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+        AND sp."chargesEnabled" = true
+        AND similarity(l.title, ${q}) > 0.25
+        AND l.title NOT ILIKE ${`%${q}%`}
       ORDER BY sim DESC
       LIMIT 2
     `,

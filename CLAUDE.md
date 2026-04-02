@@ -232,10 +232,10 @@ The browse page (`src/app/browse/page.tsx`) is a full-featured search experience
 ### Search suggestions / autocomplete
 
 `GET /api/search/suggestions?q=` returns up to 8 deduplicated suggestions from 4 parallel queries:
-1. Listing title substring matches (ILIKE)
-2. Tag partial matches via `unnest(tags) ILIKE` (raw SQL, requires `pg_trgm` extension enabled)
-3. Seller displayName matches
-4. Fuzzy title matches via `similarity(title, q) > 0.25` (pg_trgm)
+1. Listing title substring matches (ILIKE) — filtered `seller: { chargesEnabled: true }`
+2. Tag partial matches via `unnest(tags) ILIKE` (raw SQL, `INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"`, `AND sp."chargesEnabled" = true`)
+3. Seller displayName matches — not filtered by chargesEnabled (sellers appear regardless)
+4. Fuzzy title matches via `similarity(title, q) > 0.25` (pg_trgm) — same `INNER JOIN` + chargesEnabled filter
 
 Plus category label matches from `CATEGORY_VALUES`.
 
@@ -2197,9 +2197,16 @@ Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 ### Stripe Connect Dashboard Access (complete — 2026-04-01)
 - **`POST /api/stripe/connect/login-link`** — seller auth required; calls `stripe.accounts.createLoginLink(stripeAccountId)`; returns `{ url }` for one-time Express dashboard link; opens in new tab
 - **`StripeLoginButton`** (`src/app/dashboard/seller/StripeLoginButton.tsx`) — `"use client"`; renders "Go to Stripe Dashboard →" button when `hasStripeAccount=true`; handles loading/error states
-- **"Payouts & Banking" section** on `/dashboard/seller`: checks `stripeAccountId` directly (not `chargesEnabled` — that field was bulk-backfilled to `true` and is not reliable for UI state). Two states: (1) `stripeAccountId` present → "✓ Stripe Connected" + `StripeLoginButton hasStripeAccount={true}`; (2) `stripeAccountId` null → explanation + "Connect Stripe →" link to `/dashboard/onboarding`
+- **`StripeConnectButton`** (`src/app/dashboard/seller/StripeConnectButton.tsx`) — `"use client"`; calls `POST /api/stripe/connect/create` with `returnUrl: "/dashboard/seller"`; works for sellers who skipped Stripe during onboarding; replaces static `<a href="/dashboard/onboarding">` link
+- **"Payouts & Banking" section** on `/dashboard/seller`: checks `stripeAccountId` directly (not `chargesEnabled` — that field was bulk-backfilled and is not reliable for UI state). Two states: (1) `stripeAccountId` present → "✓ Stripe Connected" + `StripeLoginButton` + draft prompt if `draftCount > 0`; (2) `stripeAccountId` null → explanation + `StripeConnectButton`
+- **Draft prompt** shown when `stripeAccountId` present and `draftCount > 0` — amber card with count and link to `/dashboard/inventory`
 - **`chargesEnabled` is NOT used for Stripe Connect status display** — always check `stripeAccountId` directly
 - **`/dashboard/seller` page title** changed from "Seller Profile" → "Shop Settings"
+
+### Listing Visibility Rules (complete — 2026-04-02)
+- **Listing detail page** (`/listing/[id]`) — returns 404 for non-connected sellers (`!listing.seller.chargesEnabled`) unless the viewer is the seller themselves (checked via `listing.seller.user?.clerkId === userId`)
+- **`generateMetadata`** returns `robots: { index: false, follow: false }` for non-connected seller listings — prevents Google from indexing them
+- **All public surfaces filter `chargesEnabled: true`**: browse, homepage, similar items, search suggestions (Prisma + raw SQL), sitemap — listings from non-connected sellers are completely private to the seller only
 
 Cart checkout supports multi-seller orders (splits into separate Stripe sessions per seller) and single-item buy-now.
 

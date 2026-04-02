@@ -9,6 +9,7 @@ import VacationModeForm from "./VacationModeForm";
 import BroadcastComposer from "@/components/BroadcastComposer";
 import GalleryUploader from "@/components/GalleryUploader";
 import StripeLoginButton from "./StripeLoginButton";
+import StripeConnectButton from "./StripeConnectButton";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
 function toNull(v: unknown) {
@@ -138,9 +139,10 @@ export default async function SellerSettingsPage() {
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/seller");
 
   const { seller } = await ensureSeller();
-  const [row, followerCount] = await Promise.all([
+  const [row, followerCount, draftCount] = await Promise.all([
     prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
+    prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
   ]);
 
   return (
@@ -157,18 +159,26 @@ export default async function SellerSettingsPage() {
           <div className="space-y-3">
             <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>
             <StripeLoginButton hasStripeAccount={true} />
+            {draftCount > 0 && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3">
+                <p className="text-sm text-amber-800 font-medium">
+                  You have {draftCount} draft {draftCount === 1 ? "listing" : "listings"} ready to activate.
+                </p>
+                <a
+                  href="/dashboard/inventory"
+                  className="text-sm text-amber-700 underline"
+                >
+                  Go to inventory to publish →
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-neutral-500">
               Connect Stripe to receive payouts from your sales.
             </p>
-            <a
-              href="/dashboard/onboarding"
-              className="inline-block rounded-md bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
-            >
-              Connect Stripe →
-            </a>
+            <StripeConnectButton />
           </div>
         )}
       </section>

@@ -87,7 +87,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   return (
     <div ref={containerRef} className="relative w-full">
       <form onSubmit={handleSubmit}>
-        <div className="relative flex items-stretch rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
+        <div className="flex items-stretch rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
             width={16} height={16} viewBox="0 0 24 24" fill="none"
@@ -101,7 +101,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
             onFocus={() => suggestions.length > 0 && setOpen(true)}
             onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
             placeholder="Search posts, topics, makers..."
-            className="flex-1 pl-10 pr-2 py-2.5 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            className="flex-1 pl-10 pr-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
             autoComplete="off"
           />
           {value && (
@@ -117,7 +117,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           <button
             type="submit"
             aria-label="Search"
-            className="flex items-center justify-center px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
+            className="flex items-center justify-center px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors shrink-0"
           >
             <Search size={16} />
           </button>

@@ -37,10 +37,16 @@ export async function generateMetadata(
       priceCents: true,
       currency: true,
       photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-      seller: { select: { displayName: true } },
+      seller: { select: { displayName: true, chargesEnabled: true } },
     },
   });
   if (!listing) return {};
+  if (!listing.seller.chargesEnabled) {
+    return {
+      title: listing.title,
+      robots: { index: false, follow: false },
+    };
+  }
   const sellerName = listing.seller.displayName ?? "Maker";
   const title = `${listing.title} by ${sellerName}`;
   const desc = (listing.description ?? "").slice(0, 160);
@@ -122,6 +128,14 @@ export default async function ListingPage({
     },
   });
   if (!listing) return notFound();
+
+  // Non-connected seller listings are private — only the seller can view them
+  if (!listing.seller.chargesEnabled) {
+    const isSeller = userId && listing.seller.user?.clerkId === userId;
+    if (!isSeller) {
+      return notFound();
+    }
+  }
 
   const [ratingAgg, sellerRatingAgg] = await Promise.all([
     prisma.review.aggregate({
