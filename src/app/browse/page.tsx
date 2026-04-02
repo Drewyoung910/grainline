@@ -51,45 +51,28 @@ function StarsInline({ value }: { value: number }) {
 async function getSellerRatingMap(sellerIds: string[]) {
   if (sellerIds.length === 0) return new Map<string, { avg: number; count: number }>();
 
-  const listings = await prisma.listing.findMany({
-    where: { sellerId: { in: sellerIds } },
-    select: { id: true, sellerId: true },
-  });
-  const bySeller = new Map<string, string[]>();
-  for (const l of listings) {
-    const arr = bySeller.get(l.sellerId) ?? [];
-    arr.push(l.id);
-    bySeller.set(l.sellerId, arr);
-  }
-  const allListingIds = listings.map((l) => l.id);
-  if (allListingIds.length === 0) return new Map<string, { avg: number; count: number }>();
-
-  const perListing = await prisma.review.groupBy({
-    by: ["listingId"],
-    where: { listingId: { in: allListingIds } },
-    _avg: { ratingX2: true },
-    _count: { _all: true },
-  });
-  const perListingMap = new Map<string, { avgX2: number; count: number }>();
-  for (const row of perListing) {
-    const count = row._count._all;
-    const avgX2 = row._avg.ratingX2 ?? 0;
-    if (count > 0 && avgX2 > 0) perListingMap.set(row.listingId, { avgX2, count });
-  }
+  const rows = await prisma.$queryRaw<Array<{
+    sellerId: string;
+    avg: number;
+    count: bigint;
+  }>>`
+    SELECT
+      l."sellerId",
+      AVG(r."ratingX2")::float / 2.0 AS avg,
+      COUNT(r.id) AS count
+    FROM "Review" r
+    JOIN "Listing" l ON l.id = r."listingId"
+    WHERE l."sellerId" = ANY(${sellerIds})
+    GROUP BY l."sellerId"
+    HAVING COUNT(r.id) > 0
+  `;
 
   const result = new Map<string, { avg: number; count: number }>();
-  for (const [sellerId, ids] of bySeller.entries()) {
-    let totalCount = 0;
-    let sumX2TimesCount = 0;
-    for (const lid of ids) {
-      const agg = perListingMap.get(lid);
-      if (!agg) continue;
-      totalCount += agg.count;
-      sumX2TimesCount += agg.avgX2 * agg.count;
-    }
-    if (totalCount > 0) {
-      result.set(sellerId, { avg: (sumX2TimesCount / totalCount) / 2, count: totalCount });
-    }
+  for (const row of rows) {
+    result.set(row.sellerId, {
+      avg: row.avg,
+      count: Number(row.count),
+    });
   }
   return result;
 }

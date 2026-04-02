@@ -9,13 +9,13 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       // Next.js requires 'unsafe-inline' for hydration scripts; 'unsafe-eval' retained for Sentry/source-map support
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.thegrainline.com https://unpkg.com",
       // script-src-elem overrides script-src for <script> elements — list all external script hosts here
-      "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://js.stripe.com https://cdnjs.cloudflare.com",
+      "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com https://cdnjs.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://clerk.thegrainline.com https://unpkg.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       // Drop plain http: — all legitimate image sources use HTTPS; blob:/data: retained for canvas/uploader

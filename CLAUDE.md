@@ -239,7 +239,9 @@ The browse page (`src/app/browse/page.tsx`) is a full-featured search experience
 
 Plus category label matches from `CATEGORY_VALUES`.
 
-`SearchBar` (`src/components/SearchBar.tsx`) — "use client" header component with 300ms debounce, dropdown, Escape/click-outside dismiss, `onMouseDown + e.preventDefault()` on suggestion buttons to avoid blur-before-click race.
+`SearchBar` (`src/components/SearchBar.tsx`) — "use client" header component with 300ms debounce, dropdown, Escape/click-outside dismiss, `onMouseDown + e.preventDefault()` on suggestion buttons to avoid blur-before-click race. **Suggestions trigger at 2 characters** (was 3). **Popular tags on focus**: when the input is focused and empty, fetches `GET /api/search/popular-tags` (ISR 1hr, top 8 by active listing count) and shows them as a "Popular searches" section above regular suggestions; loaded once per session (`popularLoaded` guard).
+
+`GET /api/search/popular-tags` — public route, ISR cached 1 hour (`export const revalidate = 3600`); raw SQL `unnest(tags)` grouped by count on ACTIVE non-private listings; returns `{ tags: string[] }` (up to 8).
 
 ### Analytics fields
 
@@ -640,7 +642,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - `POST /api/notifications/mark-read` — auth required; body `{ ids?: string[] }` (omit to mark all read); updates `read = true`
 
 ### Components & pages
-- **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; polls `GET /api/notifications` every 30s; shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
+- **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; polls `GET /api/notifications` every **5 minutes** (300000ms — was 30s; reduced 10x to cut Vercel CPU); shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
 - **`/dashboard/notifications`** (`src/app/dashboard/notifications/page.tsx`) — full paginated notification history; "Mark all read" server action; grouped by read/unread; links to relevant pages
 - **`UnreadBadge`** (`src/components/UnreadBadge.tsx`) — small red dot/count badge, reused by `NotificationBell`
 - `NotificationBell` rendered in `Header.tsx` inside `<Show when="signed-in">`, replacing the static bell placeholder
@@ -725,7 +727,7 @@ Second mobile fix pass (2026-03-29). Zero TypeScript errors.
 - **Messages drawer row fixed** — the "Messages" text span was not navigable (only the `MessageIconLink` icon was a link). Restructured: `MessageIconLink` (icon + unread badge) stays as the icon, a sibling `<Link href="/messages">` covers the text label. Both elements are now independently navigable.
 
 ### Notifications API (`src/app/api/notifications/route.ts`)
-- **Auto-cleanup** — on every `GET /api/notifications`, fire-and-forget `deleteMany` removes `read: true` notifications older than 90 days for the requesting user. Only read notifications are pruned; unread are never deleted.
+- **Auto-cleanup** — on `GET /api/notifications`, fire-and-forget `deleteMany` removes `read: true` notifications older than 90 days. **Runs only when `getMinutes() === 0`** (~1/60th of requests) — was running on every poll, a 60x unnecessary write load. Only read notifications are pruned; unread are never deleted.
 
 ### Dashboard listings (`src/app/dashboard/page.tsx`)
 - "My Listings" section: `flex overflow-x-auto snap-x snap-mandatory` on mobile → `sm:grid sm:grid-cols-2 lg:grid-cols-3` on desktop. Each card gets `min-w-[220px] flex-none snap-start sm:min-w-0`.
@@ -1863,7 +1865,7 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 ### Immediate / deploy blockers
 
-1. **CSP enforcement** — change `Content-Security-Policy-Report-Only` → `Content-Security-Policy` in `next.config.ts` after confirming zero new violations in Sentry (one-line change)
+1. **CSP enforcement** — ✅ **Complete (2026-04-02)** — enforced; `clerk.thegrainline.com` added to `script-src-elem`, header changed to `Content-Security-Policy`
 2. **Clerk webhook production setup** — add `CLERK_WEBHOOK_SECRET` to Vercel; register `https://thegrainline.com/api/clerk/webhook` in Clerk Dashboard → Production → Webhooks (events: `user.created`, `user.updated`)
 3. **Stripe live mode webhook** — register after identity verification clears; update `STRIPE_WEBHOOK_SECRET` in Vercel with live mode signing secret
 
@@ -1995,7 +1997,7 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 
-**CSP status**: `Content-Security-Policy-Report-Only` (report-only mode, **not yet enforced**). Violations are logged to `/api/csp-report` and Sentry under tag `csp_violation`. Switch to `Content-Security-Policy` in `next.config.ts` (one-line change) after confirming zero new violations in Sentry.
+**CSP status**: `Content-Security-Policy` (**enforced** as of 2026-04-02). Previously report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` which caused 3K Sentry CSP violation events. Violations continue to be logged to `/api/csp-report` and Sentry under tag `csp_violation`.
 
 ## chargesEnabled Backfill (hotfix — 2026-03-31)
 
@@ -2005,11 +2007,9 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **Stripe webhook now handles `account.updated`**: When Stripe notifies of a seller account status change, `chargesEnabled` is synced automatically. If a seller's account is disabled, Sentry is notified via `logSecurityEvent`. `account.application.deauthorized` clears `stripeAccountId` and sets `chargesEnabled = false` when a seller disconnects the platform.
 
-## Content Security Policy (report-only — 2026-04-01)
+## Content Security Policy (enforced — 2026-04-02)
 
-`Content-Security-Policy-Report-Only` is active in `next.config.ts`. Running in report-only mode so violations are logged without blocking users while the policy is validated against production traffic.
-
-**To enforce**: change `Content-Security-Policy-Report-Only` → `Content-Security-Policy` in `next.config.ts` `securityHeaders` array. One-line change. Do this after reviewing Sentry for zero new violation types.
+`Content-Security-Policy` is **enforced** in `next.config.ts` as of 2026-04-02. Was report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` (was causing 3K Sentry CSP violation events from Clerk's custom domain scripts).
 
 **Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs to Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode.
 
@@ -2018,7 +2018,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 | Directive | Key allowed sources |
 |---|---|
 | `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) |
-| `script-src-elem` | + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com accounts.thegrainline.com js.stripe.com cdnjs.cloudflare.com unpkg.com` |
+| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com cdnjs.cloudflare.com` (note: `clerk.thegrainline.com` was missing here before, causing 3K violations) |
 | `style-src` | `'self' 'unsafe-inline'` |
 | `img-src` | `'self' data: blob: https:` (HTTPS only — HTTP removed) |
 | `font-src` | `'self' data: fonts.gstatic.com` |
@@ -2091,6 +2091,14 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 ### Preferences API (`/api/account/notifications/preferences`)
 - Auth required; reads current prefs JSON, sets `prefs[type] = enabled`, writes back via `prisma.user.update`
 
+## Performance Improvements (complete — 2026-04-02)
+
+- **Notification polling** (`NotificationBell.tsx`): 30s → 5 minutes (300000ms) — 10x reduction in Vercel function invocations from the bell
+- **Notification cleanup prune**: `GET /api/notifications` only runs `deleteMany` when `getMinutes() === 0` — ~1/60th of requests instead of every poll (60x reduction in unnecessary DB writes)
+- **Browse `getSellerRatingMap` N+1 fixed**: replaced 2 sequential Prisma queries + in-memory join with a single SQL `JOIN` (`AVG(r."ratingX2")::float / 2.0`, `GROUP BY l."sellerId"`) — eliminates a full extra round trip on every browse page load
+- **Popular tags API** (`GET /api/search/popular-tags`): ISR 1hr cache, raw SQL unnest; search bar shows top 8 tags on focus when input is empty — one fetch per session, cached at CDN edge
+- **Search suggestions trigger at 2 chars** (was 3) — faster discoverability
+
 ## Input Validation — Zod (complete — 2026-04-01)
 
 All 33 API route files that accept request bodies now use **Zod** for schema validation. Schemas are colocated at the top of each route file (not in a shared file). Validation runs immediately after auth + rate-limit checks, before any database calls.
@@ -2156,7 +2164,7 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 
 | Gap | Status |
 |---|---|
-| CSP enforcement | ⏳ Report-only mode active; enforce by changing header name in `next.config.ts` after confirming zero violations in Sentry |
+| CSP enforcement | ✅ Enforced (2026-04-02) — `clerk.thegrainline.com` added to `script-src-elem`, header switched to `Content-Security-Policy` |
 | Stripe `account.updated` / `deauthorized` | ✅ Complete — handlers added to webhook |
 | Geo-blocking | ✅ Complete — US only via Vercel edge geo |
 | Notification preferences | ✅ Complete — `/account/settings` with toggles |
