@@ -80,7 +80,7 @@ export default function ListingGallery({
     <>
       {/* Main photo */}
       <div
-        className="relative w-full overflow-hidden cursor-zoom-in"
+        className="relative w-full rounded-lg overflow-hidden cursor-zoom-in"
         style={{ height: "500px" }}
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
@@ -116,7 +116,7 @@ export default function ListingGallery({
             <button
               key={p.id}
               onClick={() => setActiveIndex(i)}
-              className={`shrink-0 w-16 h-16 overflow-hidden border-2 transition-colors ${
+              className={`shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
                 i === activeIndex
                   ? "border-neutral-900"
                   : "border-neutral-200 hover:border-neutral-400"

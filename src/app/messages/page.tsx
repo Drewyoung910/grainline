@@ -194,8 +194,8 @@ export default async function MessagesPage({
       </div>
 
       {/* Tabs + Search */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex flex-wrap gap-2">
           <Link
             href={withQ("/messages")}
             className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
@@ -240,15 +240,15 @@ export default async function MessagesPage({
           </Link>
         </div>
 
-        <form method="get" className="ml-auto flex items-center gap-2">
+        <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex items-center gap-2 rounded-full border px-3 py-1">
+          <div className="flex items-center gap-2 rounded-md border border-neutral-200 px-3 py-1.5 w-full sm:w-auto">
             <input
               name="q"
               defaultValue={q}
               placeholder="Search messages"
-              className="w-56 bg-transparent text-sm outline-none"
+              className="w-full sm:w-52 bg-transparent text-sm outline-none"
             />
             {q ? (
               <Link

@@ -200,7 +200,7 @@ export default async function AccountPage() {
                     </span>
                     <Link
                       href={`/dashboard/orders/${order.id}`}
-                      className="text-xs border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                      className="text-xs border border-neutral-200 rounded-md px-2 py-1 hover:bg-neutral-50"
                     >
                       View
                     </Link>
@@ -270,7 +270,7 @@ export default async function AccountPage() {
           </div>
           <Link
             href="/account/following"
-            className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+            className="border border-neutral-200 rounded-md px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
           >
             Manage →
           </Link>
@@ -326,22 +326,22 @@ export default async function AccountPage() {
                 <p className="text-neutral-500 text-xs">Completed orders</p>
               </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Link
                 href="/dashboard"
-                className="border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
+                className="rounded-md border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
               >
                 Go to Workshop →
               </Link>
               <Link
                 href="/dashboard/blog"
-                className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+                className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
               >
                 My Blog Posts
               </Link>
               <Link
                 href="/dashboard/blog/new"
-                className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
+                className="rounded-md border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50 transition-colors"
               >
                 Write a Post
               </Link>

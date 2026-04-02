@@ -372,16 +372,16 @@ export default async function ListingPage({
           {/* Stock status */}
           {listing.listingType === "IN_STOCK" ? (
             isOutOfStock ? (
-              <div className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 px-3 py-1 text-sm font-medium text-red-700">
+              <div className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-full px-3 py-1 text-sm font-medium text-red-700">
                 Out of Stock
               </div>
             ) : (
-              <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 px-3 py-1 text-sm font-medium text-green-700">
+              <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1 text-sm font-medium text-green-700">
                 In Stock · {listing.stockQuantity} available
               </div>
             )
           ) : (
-            <div className="inline-flex items-center gap-1.5 bg-neutral-100 border border-neutral-200 px-3 py-1 text-sm font-medium text-neutral-700">
+            <div className="inline-flex items-center gap-1.5 bg-neutral-100 border border-neutral-200 rounded-full px-3 py-1 text-sm font-medium text-neutral-700">
               Made to order
             </div>
           )}
@@ -435,7 +435,7 @@ export default async function ListingPage({
 
           {/* Custom order */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (
-            <div className="border border-neutral-200 bg-neutral-50 p-4 space-y-2">
+            <div className="border-t border-stone-200/60 pt-4 space-y-2">
               <div className="text-sm font-medium">Want something custom?</div>
               <p className="text-xs text-neutral-500">
                 Want this in a different size, wood, or finish? Ask the maker. Or{" "}
@@ -465,7 +465,7 @@ export default async function ListingPage({
           )}
 
           {/* Seller profile card */}
-          <div className="border border-neutral-200 p-4 space-y-3">
+          <div className="border-t border-stone-200/60 pt-4 space-y-3">
             <div className="flex items-center gap-3">
               <Link href={sellerHref} className="shrink-0">
                 {sellerAvatar ? (
@@ -557,7 +557,7 @@ export default async function ListingPage({
                 <Link
                   key={t}
                   href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
-                  className="border px-2 py-0.5 text-[11px] text-neutral-600 hover:bg-neutral-50 transition-colors"
+                  className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600 hover:bg-neutral-100 transition-colors"
                 >
                   #{t}
                 </Link>
