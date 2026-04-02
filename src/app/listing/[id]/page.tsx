@@ -336,7 +336,7 @@ export default async function ListingPage({
         </div>
 
         {/* Right: purchase panel */}
-        <div className="bg-stone-50/50 rounded-lg p-6 space-y-4 border border-stone-200/60">
+        <div className="card-section bg-white p-6 space-y-4">
           <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
 
           {/* Private listing banners */}

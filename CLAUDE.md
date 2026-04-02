@@ -1443,6 +1443,14 @@ Full redesign of `src/app/listing/[id]/page.tsx`. Zero TypeScript errors. Deploy
 - **Gift wrapping notice** shown if seller offers it
 - **Seller card**: 56px avatar, display name + Guild badge, tagline, seller star rating + count, city/state with pin icon, "Visit Shop" + Follow + Message buttons in a row
 
+### UI Polish Pass (2026-04-01)
+- Main photo: `rounded-lg overflow-hidden` on container
+- Thumbnails: `rounded-md` on each thumbnail button
+- Status badges ("Made to order", "In Stock", "Out of Stock"): changed from rectangular to `rounded-full` pills
+- Purchase panel consolidated: "Want something custom?" panel and seller info card moved inside the main purchase panel as one continuous `card-section bg-white` card, separated by `border-t` dividers
+- Tags: changed from square to `rounded-full` pills matching browse/hero tag styling
+- Panel background: `bg-stone-50/50` → `card-section bg-white` (design system: never bg-stone-50 or any grey tint on card surfaces)
+
 ### SEO
 - `generateMetadata` title: `{ absolute: "[Listing Title] by [Seller Name] — Grainline" }`
 
@@ -1795,6 +1803,12 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 ### Messages inbox (`src/app/messages/page.tsx`)
 - h1 "Messages": added `font-display`
 - `formatSnippet` function: detects JSON message bodies by shape (commission interest card, custom order request, custom listing link) — fixes garbled JSON previews in conversation list
+- Mobile filter buttons: `flex flex-wrap gap-2` for proper wrapping on small screens
+- Search input: `rounded-md` border container
+
+### Account page polish (2026-04-01)
+- Workshop action buttons: added `rounded-md` per design system button standard
+- Order list, sections: `card-section` class applied consistently
 
 ### Commission Room (`src/app/commission/page.tsx`)
 - h1: added `font-display`
