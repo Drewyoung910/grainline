@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
+import { caseMessageRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -22,6 +23,10 @@ export async function POST(
 
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(caseMessageRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many messages. Slow down and try again.");
+
     const me = await ensureUserByClerkId(userId);
 
     let parsed;

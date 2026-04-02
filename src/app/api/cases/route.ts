@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
+import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -19,6 +20,10 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(caseCreateRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many case submissions. Try again later.");
+
     const me = await ensureUserByClerkId(userId);
 
     let parsed;

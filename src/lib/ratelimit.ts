@@ -115,6 +115,46 @@ export const broadcastRatelimit = new Ratelimit({
   prefix: "rl:broadcast",
 });
 
+// Cases — opening a case (fail closed — abuse has real cost)
+export const caseCreateRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "24 h"),
+  analytics: true,
+  prefix: "rl:case_create",
+});
+
+// Case messages — replying in a case thread (fail closed)
+export const caseMessageRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 m"),
+  analytics: true,
+  prefix: "rl:case_message",
+});
+
+// Custom order request — messaging a seller with a request (fail closed)
+export const customOrderRequestRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "24 h"),
+  analytics: true,
+  prefix: "rl:custom_order_request",
+});
+
+// Stripe Connect login link — generates a Stripe API call (fail closed)
+export const stripeLoginLinkRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "60 m"),
+  analytics: true,
+  prefix: "rl:stripe_login_link",
+});
+
+// Notification mark-read — low risk but cap it (fail open — non-critical)
+export const markReadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 m"),
+  analytics: true,
+  prefix: "rl:mark_read",
+});
+
 /**
  * Fail CLOSED — if Redis is down, reject the request.
  * Use for: checkout, follow, broadcast, commission create,

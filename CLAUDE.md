@@ -1925,6 +1925,11 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `listingCreateRatelimit` | userId | 20 / 24 h | `createListing` server action |
 | `profileViewRatelimit` | `${ip}:${listingId}` | 1 / 24 h | `POST /api/listings/[id]/view` (silent drop — no 429 returned) |
 | `broadcastRatelimit` | sellerId | 1 / 7 d | `POST /api/seller/broadcast` (in addition to DB 7-day check) |
+| `caseCreateRatelimit` | userId | 5 / 24 h | `POST /api/cases` |
+| `caseMessageRatelimit` | userId | 30 / 60 min | `POST /api/cases/[id]/messages` |
+| `customOrderRequestRatelimit` | userId | 10 / 24 h | `POST /api/messages/custom-order-request` |
+| `stripeLoginLinkRatelimit` | userId | 10 / 60 min | `POST /api/stripe/connect/login-link` |
+| `markReadRatelimit` | userId | 60 / 60 min | `POST /api/notifications/read-all` (fail open — silent success on limit) |
 
 ### Spam prevention guards
 
@@ -2169,7 +2174,7 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 **Checklist for every new API route:**
 1. Is it public? If no → add `auth()` as the first check, return 401 before any DB access
 2. Add it to `isPublic` in `middleware.ts` only if truly auth-free
-3. If it mutates state → add a rate limiter from `src/lib/ratelimit.ts` using `safeRateLimit`
+3. If it mutates state → add a rate limiter from `src/lib/ratelimit.ts` using `safeRateLimit` (all mutation routes now have rate limits)
 4. If it accepts a request body → add a Zod schema at the top of the file
 5. If it's public and mutates state → document why it's CSRF-safe in `src/lib/security.ts`
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
+import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -26,6 +27,9 @@ const CustomOrderRequestSchema = z.object({
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many custom order requests. Try again later.");
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, name: true, email: true } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
