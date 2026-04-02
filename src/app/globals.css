@@ -108,3 +108,11 @@ input, textarea, select {
 
 
 
+
+/* Clerk modal portal - render above all site UI */
+.cl-modalBackdrop {
+  z-index: 9998 !important;
+}
+.cl-modalContent {
+  z-index: 9999 !important;
+}
