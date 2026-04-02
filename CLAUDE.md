@@ -937,48 +937,129 @@ Installed via Sentry wizard. Session replay disabled (bundle size trade-off).
 ### Tooling
 - Sentry MCP configured for Claude Code and VS Code — enables AI-assisted error investigation directly from the Sentry dashboard
 
-## Legal Pages (complete)
+## Legal Pages (complete — updated 2026-04-01)
 
 `/terms` and `/privacy` — both server components, publicly accessible (added to middleware public matcher), linked in site footer (`src/app/layout.tsx`). Both display a red **DRAFT — Under Attorney Review** banner. Both have a Table of Contents with anchor links and are mobile responsive / print-friendly.
 
-### Terms of Service (`/terms`) — 33+ sections (updated 2026-04-01)
+### Terms of Service (`/terms`) — 33 sections, 60+ subsections
 
-Key sections:
-- **Section 4** (Maker Terms) — 25 subsections: 4.4 AI review (no authenticity guarantee), 4.5 fee grandfathering, 4.15/11.2 content license expanded to paid advertising, 4.18 product liability insurance mandate for Toys/Kitchen + CPSIA/Prop 65/food-safe/recall obligations, 4.19 public profile disclosure, 4.20 Makers Map, 4.21 likeness consent, **4.22 Identity Verification** (right to request, suspend, remove), **4.23 Business Licenses** (seller responsibility), **4.24 Listing Content Requirements** (FTC Made in USA, description accuracy, AI-generated disclosure), **4.25 Seller Warranties** (Magnuson-Moss implied warranty disclosure)
-- **Section 5** (Buyer Terms) — 5.7 Cart and Inventory (no-reserve), **5.8 Chargeback Rights** (FCBA acknowledgment, $15 chargeback fee, good-faith cooperation)
-- **Section 6.3** — Payout timing deferred to Stripe Connect agreement; **6.8 Payment Collection Agent** (Grainline as limited collection agent; payment to Grainline = payment to seller); **6.9 Payment Reserves** (right to hold up to 30 days for risk, high-chargeback, or new-seller scenarios)
-- **Section 6.4** — Marketplace facilitator sales tax (Texas §151.0242, all-states); 6.5 no warranty on tax accuracy, consult tax professional
-- **Section 7** — Shipping: 7.7 Estimated Delivery Dates, 7.8 Multi-Seller Orders, 7.9 Shipping Labels, **7.10 Domestic Shipping Only** (replaced Cross-Border; US-only, no international), **7.11 Package Theft** (seller obligation ends on carrier handoff), **7.12 Hazardous Materials** (prohibited unless DOT-compliant)
-- **Section 8** — Returns/refunds: 8.4 chargeback fee ($15) + FCBA rights; 8.6 cross-references 13.4 liability cap; 8.7 Pre-Shipment Cancellations
-- **Section 9** — Case System: 9.4 case re-review process (7-day request window, 14-day response, re-review decision final); **9.8 Time Calculations** (calendar days, UTC, business days defined)
-- **Section 13** — Disclaimers: 13.1 As-Is, 13.2 No Warranty for Listings, 13.3 No Warranty of Authenticity (all-caps), 13.4 Limitation of Liability (12-month fees / $100 cap)
-- **Section 14** — Indemnification: data protection misuse bullet added
-- **Section 15** — Texas governing law, AAA binding arbitration, class action waiver, 30-day opt-out; 15.3 injunctive relief carve-out
-- **Section 16** — Termination: voluntary deletion pending obligations clarified; surviving sections updated to "4.15, 4.21, 6, 9, 10, 11, 13, 14, 15, 20, 22.6, 25.5, 27.8, 33"; **Account Dormancy** (24-month inactivity → 60-day notice → closure + unclaimed property law)
-- **Section 19** — Guild Verification Program
-- **Section 24.1** — FTC Endorsement Guides disclosure required for all blog posts with material connections
-- **Section 27.6** — CRFA-compliant review removal (removed "any other reason" language)
-- **Section 28.6** — Gift Notes (buyer-submitted; shared with seller; may be read by staff for dispute resolution)
-- **Section 31** — Geographic Restrictions: **US only** (Canada removed)
-- **Section 33.4** — Full E-SIGN Act replacement: hardware requirements, right to withdraw consent, paper copy right, fee disclosure
-- **Section 33.7** — Notices (written notice requirements, email delivery)
-- **Section 33.8** — Limitation Period (1 year to bring claims)
-- **Section 33.9** — Third-Party Beneficiaries (none)
-- **Section 33.10** — Construction (no contra proferentem)
-- **Section 33.11** — Feedback and Suggestions (IP assignment)
-- **Section 33.12** — Arbitration Fees (AAA Consumer Rules; Grainline pays when claim < $10k if filed in good faith)
-- **Section 33.13** — INFORM Consumers Act (high-volume seller disclosure obligations; ID/bank/tax verification; disclosure to buyers on request)
+Comprehensive legal update deployed 2026-04-01 (commit 6537bf6). 426 insertions across both files. 40+ changes covering payment infrastructure, federal compliance, consumer protection, product safety, and general provisions.
 
-### Privacy Policy (`/privacy`) — 13 sections (updated 2026-04-01)
+**Section 4 — Maker Terms (25 subsections):**
+- 4.4 — AI review acknowledgment (review ≠ verification of claims/safety/accuracy)
+- 4.5 — Fee grandfathering (changes apply only to orders placed after effective date)
+- 4.15 — Content license expanded to cover paid advertising, social media, email campaigns, third-party marketing
+- 4.18 — Product liability: insurance required for Toys/Kitchen categories, recommended for all others; CPSIA compliance for children's products; food-safe finish disclosure for Kitchen; Prop 65 warnings for California shipments; recall notification obligation
+- 4.19 — Public profile data disclosure
+- 4.20 — Makers Map location handling
+- 4.21 — IP warranty (no infringement of patents/copyrights/trademarks/trade secrets/rights of publicity; likeness consent for identifiable persons)
+- 4.22 — Identity verification (Grainline's right to verify via third-party services, public records, or document requests)
+- 4.23 — Business licenses and compliance (seller's responsibility for all permits/registrations)
+- 4.24 — Listing content requirements (original photography only; FTC Made in USA Labeling Rule compliance)
+- 4.25 — Seller warranties (Magnuson-Moss Warranty Act compliance for any written warranty)
 
-Key sections:
-- **Section 2** — 17 subsections including 2.12–2.17 (Commission Room Data, Following/Feed Data, Back-in-Stock, Seller Performance Metrics, Listing Snapshots, Saved Searches)
-- **Section 4** — Sharing: 4.1 Shippo sub-processor now discloses carrier sharing (USPS, UPS, FedEx, etc.); Resend entry adds email tracking pixel disclosure; 4.3 law enforcement pre-notification paragraph (advance notice when legally permitted); 4.4 asset transfer adds 30-day advance notice + deletion opt-out; **4.9 Data Visible Between Sellers** (seller names/locations visible during commission interest + conversation creation)
-- **Section 5** — Cookies: 5.1 specific cookie inventory (Clerk auth/session, Cloudflare bot protection, Stripe payment processing, rate-limiting, recently-viewed); **5.3 Do Not Track and Global Privacy Control** — GPC honored per applicable state law (CA, CO, CT); DNT signal not universally honored
-- **Section 6** — Retention: Administrative action logs (permanent), Seller performance metrics (account lifetime + 2yr daily data), Commission Requests (lifetime + 1yr), Following data (deleted on account deletion)
-- **Section 7** — Rights: seller-specific data portability export (listings/orders/reviews/analytics/messages in JSON/CSV); **7.5 Additional US State Privacy Rights** — covers 17 state laws (Virginia VCDPA, Colorado CPA, Connecticut CTDPA, Utah UCPA, Iowa ICDPA, Tennessee TIPA, Montana MCDPA, Oregon OCPA, Delaware DPDPA, Maryland MODPA, Minnesota MNDPA, Nebraska NDPA, New Hampshire NHPA, New Jersey NJDPA, Indiana IDPA, Kentucky KCPA, Rhode Island RIDPPA); opt-out/access/deletion rights, 45-day response; appeal rights
-- **Section 9** — Data breach notification: Texas "as quickly as possible," California 72-hour AG notification per CCPA/AB 1281
-- **Section 10** — US-only service; no EU/EEA framing as primary
+**Section 5 — Buyer Terms:**
+- 5.6 — FCBA-compliant chargeback language (softened from "must use Case System first" to "agree to attempt resolution"; explicit FCBA rights acknowledgment)
+- 5.8 — Chargeback Rights (new — explicit FCBA and state consumer protection law acknowledgment)
+
+**Section 6 — Payments:**
+- 6.3 — Payout timing defers to Stripe's schedule (not Grainline's guarantee)
+- 6.5 — Tax disclaimer (no accuracy guarantee; not liable for underpayment/overpayment)
+- 6.8 — Payment Collection Agent (Grainline as limited agent via Stripe Connect; buyer payment to Stripe = payment to Maker; no fiduciary relationship)
+- 6.9 — Payment Reserves and Holds (right to delay/hold payouts for risk, fraud, chargebacks)
+
+**Section 7 — Shipping:**
+- 7.10 — Domestic Shipping Only (replaced Cross-Border Orders; US-only)
+- 7.11 — Package Theft and Delivery Confirmation (carrier-confirmed delivery = fulfilled; Case System for disputes)
+- 7.12 — Hazardous Materials in Shipping (DOT 49 CFR compliance for regulated materials)
+
+**Section 8 — Returns/Refunds:**
+- 8.4 — Chargeback fee ($15) allocation + FCBA rights acknowledgment
+- 8.6 — Liability cap harmonized with Section 13.4 (removed conflicting "transaction amount" cap)
+
+**Section 9 — Disputes:**
+- 9.4 — Case re-review process (7-day request window, 14-day response, re-review decision final and binding)
+- 9.8 — Time Calculations (calendar time default; business days = Mon–Fri excl. federal holidays; UTC for server-side deadlines)
+
+**Section 14 — Indemnification:** Data protection indemnification bullet added (misuse of buyer personal data)
+
+**Section 15 — Governing Law:** 15.3 — Injunctive relief carve-out (public injunctive relief not waived by class action waiver)
+
+**Section 16 — Termination:**
+- Voluntary deletion with pending obligations (must fulfill orders, pending payouts processed)
+- Surviving sections updated: 4.15, 4.21, 6, 9, 10, 11, 13, 14, 15, 20, 22.6, 25.5, 27.8, 33
+- Account Dormancy (24-month inactivity → 60-day notice → archive/restrict/delete; unclaimed property law compliance)
+
+**Section 24 — Blog:** 24.1 — FTC Endorsement Guides disclosure requirement for blog posts with material connections
+
+**Section 27 — Reviews:** 27.6 — CRFA-compliant review removal (removed "or for any other reason" catch-all; now limited to Terms violations, prohibited content, or valid legal complaints)
+
+**Section 28 — Messaging:** 28.6 — Gift Notes (content standards apply; no pre-moderation)
+
+**Section 31 — Geographic Restrictions:** US-only (Canada removed)
+
+**Section 33 — General Provisions:**
+- 33.4 — Full E-SIGN Act compliance (hardware/software requirements, right to withdraw consent, right to paper copies, withdrawal doesn't invalidate prior communications)
+- 33.7 — Notices (email delivery, 24-hour deemed receipt, legal process address)
+- 33.8 — Limitation Period (1-year statute of limitations)
+- 33.9 — Third-Party Beneficiaries (none)
+- 33.10 — Construction (no contra proferentem; "including" = "without limitation")
+- 33.11 — Feedback and Suggestions (IP assignment to Grainline)
+- 33.12 — Arbitration Fees (AAA Consumer Rules; Grainline pays if costs prohibitive)
+- 33.13 — INFORM Consumers Act (high-volume seller ID/bank/contact verification; 10-day verification; annual recertification; buyer-facing reporting mechanism)
+
+### Privacy Policy (`/privacy`) — 13 sections
+
+**Section 4 — Sharing:**
+- 4.1 — Shippo sub-processor disclosure (carriers: USPS, UPS, FedEx)
+- 4.1 — Resend email tracking pixel disclosure (open tracking, click tracking, disable via image loading)
+- 4.3 — Law enforcement procedures (compliance with valid legal process; user notification when permitted; right to challenge overbroad requests)
+- 4.4 — Business transfer 30-day advance notice + deletion opt-out during notice period
+- 4.9 — Data Visible Between Sellers (commission interest visibility, follower counts, cross-purchase reviews)
+
+**Section 5 — Cookies:**
+- 5.1 — Individual cookie inventory by name: Clerk auth, Cloudflare __cf_bm, Stripe, rate-limiting, recently-viewed (with purpose, provider, expiry)
+- 5.3 — Do Not Track vs. Global Privacy Control: DNT not honored (no standard); GPC honored per state law (Colorado, Maryland, Minnesota)
+
+**Section 7 — Rights:**
+- Seller data portability expanded (listings, order history, analytics, Guild data; buyer PII excluded)
+- 7.5 — Additional US State Privacy Rights (17 states listed: VA, CO, CT, UT, IA, TN, MT, OR, DE, MD, MN, NE, NH, NJ, IN, KY, RI; 30–45 day response; appeal rights)
+
+**Section 9 — Security:** Data breach notification timing harmonized: Texas "as quickly as possible"; California 72-hour AG notification for 500+ affected; most stringent applicable timeline
+
+**Section 10 — International Transfers:** US-only framing ("Platform is intended for use within the United States")
+
+### Known Issues (to fix before launch)
+
+- **Terms 6.3 redundant sentence** — "Payout timing is governed by Stripe's standard payout schedule." appears before the replacement sentence. Delete the first sentence. *(Commit c7bde34 fixed this)*
+- **Privacy Section 10 duplicate paragraph** — "By using the Platform, you consent..." and "If you access the Platform from outside the United States, you consent..." were back to back. First deleted. *(Commit c7bde34 fixed this)*
+- **TOC clutter** — Both TOCs showed inline subsection names next to main section titles. Simplified to main section titles only. *(Commit c7bde34 fixed this)*
+- **Duplicate Feedback clause** — Section 11.6 and Section 33.11 both assign user feedback IP to Grainline. Attorney should decide which to keep (recommend keeping 33.11, removing 11.6).
+- **Section 8.3 vs 9.4 inconsistency** — 8.3 says case decisions are "final and binding on both parties"; 9.4 now allows a 7-day re-review. Not technically contradictory but should be harmonized.
+
+### Phase 2 — Deferred Items (after attorney review)
+
+These items were identified in a comprehensive 196-item attorney discussion list but deferred from the implementation round. They should be addressed after the attorney meeting:
+
+**Terms additions (medium priority):** seller death/incapacitation, seller bankruptcy, platform shutdown/wind-down, commission room expiration timeframe, maker-to-maker transaction roles, cooperative/multi-person shop definition, minimum/maximum listing price, seller non-compete/price parity, seller-to-seller dispute mechanism, recall obligation framework, local pickup liability confirmation, CITES/Lacey Act for protected wood, food contact surface self-certification field, seller return policy as binding contract clarification
+
+**Attorney judgment calls (critical):** money transmitter licensing (federal felony risk — must confirm Stripe Connect exemption), arbitration venue (Travis vs. Brazos County), "venue only" defense strength given AI review/Guild badges/recommendations, clickwrap vs. browsewrap (enforceability of arbitration clause), IC classification risk level, Section 230 and AI review liability, product liability as marketplace (Amazon precedent), unlimited one-way indemnification (unconscionability risk), UCC Article 2 gap (seller warranties to buyer)
+
+### Pre-Launch Blockers (legal/business)
+
+- Attorney sign-off on Terms and Privacy Policy (remove DRAFT banner)
+- Business address filled in (both documents say "[YOUR ADDRESS]")
+- EIN + business bank account + Stripe live mode
+- Clickwrap implementation (attorney decides if browsewrap acceptable)
+- Money transmitter licensing confirmation from attorney
+- DMCA agent registration ($6 at copyright.gov)
+- Texas marketplace facilitator registration
+- Neon database password rotation (credentials visible in deploy log)
+- Operating agreement for LLC (30 min at attorney meeting)
+
+### Canada Expansion Guide
+
+A standalone guide exists for re-adding Canada when demand justifies it (~1–2 days of work, requires attorney meeting first). Key items: PIPEDA cookie consent, Quebec French language requirements (Bill 96), Canadian provincial consumer protection conflicts with arbitration clause, GST/HST registration, cross-border shipping/customs, currency conversion. Middleware change is one line; legal and compliance changes are the bulk of the work.
 
 ## UptimeRobot Monitoring (complete)
 
@@ -1745,12 +1826,21 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 ### Legal / business
 
-11. **EIN** — irs.gov, free, ~10 min — do this next after LLC confirmation
-12. **Business bank account** — open after EIN received
-13. **DMCA agent registration** — ~$6 at copyright.gov after LLC confirmed
-14. **Attorney review** of Terms / Privacy — budget $1,500–$3,000
-15. **Trademark Class 035** filing — ~$350 when ready
-16. **Business insurance** — general liability + cyber liability
+- **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars **(LAUNCH BLOCKER)**
+- **Attorney review** of Terms / Privacy — budget $1,500–$3,000; bring 5-page pre-launch checklist + 196-item attorney discussion list **(LAUNCH BLOCKER)**
+- **EIN** — irs.gov, free, ~10 min **(LAUNCH BLOCKER)**
+- **Business bank account** — open after EIN received **(LAUNCH BLOCKER)**
+- **Business address** — choose PO Box or registered agent; fill in "[YOUR ADDRESS]" in Terms + Privacy **(LAUNCH BLOCKER)**
+- **DMCA agent registration** — ~$6 at copyright.gov **(LAUNCH BLOCKER)**
+- **Texas marketplace facilitator registration** — required before collecting sales tax **(LAUNCH BLOCKER)**
+- **Operating agreement** — create at attorney meeting **(LAUNCH BLOCKER)**
+- **Clickwrap implementation** — build checkbox before account creation; attorney decides if required for launch
+- **Trademark Class 035** filing — ~$350; clearance search first (conflict risk with "Grainline Studio")
+- **Business insurance** — general liability ($30–60/mo) + cyber liability + marketplace product liability
+- Fix Terms 6.3 redundant sentence — delete "Payout timing is governed by Stripe's standard payout schedule." *(fixed in c7bde34)*
+- Fix Privacy Section 10 duplicate paragraph — delete "By using the Platform, you consent..." paragraph *(fixed in c7bde34)*
+- Clean up both TOCs — remove inline subsection references, show main section titles only *(fixed in c7bde34)*
+- Resolve duplicate Feedback clause — 11.6 vs 33.11; attorney decides which to keep
 
 ### SEO
 
@@ -1883,13 +1973,19 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **CSP maintenance**: When adding new third-party services, add their domains to `next.config.ts` `securityHeaders`. Any violations in production appear in Sentry under tag `csp_violation`.
 
-## Business (2026-03-31)
+## Business (2026-04-01)
 
 - **Texas LLC filed** ✅
-- **EIN**: get at irs.gov (free, ~10 min) — do this next
-- **Business bank account**: open after EIN received
-- **DMCA agent registration**: after LLC confirmed (~$6 at copyright.gov)
-- **Trademark Class 035 filing**: ~$350 when ready
+- **Geo-block**: US-only (Canada removed from middleware + Terms + Privacy)
+- **EIN**: get at irs.gov (free, ~10 min) — LAUNCH BLOCKER
+- **Business bank account**: open after EIN received — LAUNCH BLOCKER
+- **Business address**: choose PO Box or registered agent for Terms/Privacy "[YOUR ADDRESS]" — LAUNCH BLOCKER
+- **Operating agreement**: create at attorney meeting — LAUNCH BLOCKER
+- **DMCA agent registration**: ~$6 at copyright.gov — LAUNCH BLOCKER
+- **Texas marketplace facilitator registration**: required before sales tax collection — LAUNCH BLOCKER
+- **Attorney review**: budget $1,500–$3,000; bring pre-launch checklist + 196-item discussion list — LAUNCH BLOCKER
+- **Trademark Class 035 filing**: ~$350 when ready (clearance search needed — "Grainline Studio" conflict)
+- **Business insurance**: general liability + cyber liability + marketplace product liability
 
 ## Geo-Blocking (complete — 2026-04-01, US-only updated 2026-04-01)
 
