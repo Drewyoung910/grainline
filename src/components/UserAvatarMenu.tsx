@@ -55,17 +55,19 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-center rounded-full overflow-hidden h-8 w-8 bg-neutral-200 border border-neutral-300 hover:border-neutral-400 transition-colors"
+        className="rounded-full overflow-hidden h-8 w-8 bg-transparent border-0 p-0 cursor-pointer block"
         aria-label="Account menu"
         aria-expanded={open}
       >
         {avatarSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover rounded-full" />
+          <img src={avatarSrc} alt={displayName} className="h-8 w-8 rounded-full object-cover block" />
         ) : (
-          <span className="text-sm font-medium text-neutral-600 select-none">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
+          <div className="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
+            <span className="text-sm font-medium text-neutral-600 select-none">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+          </div>
         )}
       </button>
 

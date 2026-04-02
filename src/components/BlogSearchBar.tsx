@@ -16,7 +16,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
 
   // Sync on navigation
   React.useEffect(() => {
-    setValue(searchParams.get("q") ?? "");
+    setValue(searchParams.get("bq") ?? "");
   }, [searchParams]);
 
   // Click outside closes dropdown
@@ -41,7 +41,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
     }
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/blog/search/suggestions?q=${encodeURIComponent(v)}`);
+        const res = await fetch(`/api/blog/search/suggestions?bq=${encodeURIComponent(v)}`);
         const data: { suggestions: BlogSuggestion[] } = await res.json();
         const suggs = data.suggestions ?? [];
         setSuggestions(suggs);
@@ -57,7 +57,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
     const p = new URLSearchParams();
     if (searchParams.get("type")) p.set("type", searchParams.get("type")!);
     if (q) {
-      p.set("q", q);
+      p.set("bq", q);
       p.set("sort", "relevant");
     }
     router.push(`/blog${p.toString() ? `?${p}` : ""}`);
@@ -86,40 +86,42 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <form onSubmit={handleSubmit} className="relative">
-        <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
-          width={16} height={16} viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth={2} strokeLinecap="round"
-        >
-          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          value={value}
-          onChange={handleChange}
-          onFocus={() => suggestions.length > 0 && setOpen(true)}
-          onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
-          placeholder="Search posts, topics, makers..."
-          className="w-full border border-neutral-200 rounded-full pl-10 pr-24 py-2.5 text-sm bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
-          autoComplete="off"
-        />
-        {value && (
-          <button
-            type="button"
-            onClick={() => { setValue(""); setSuggestions([]); setOpen(false); navigate(""); }}
-            className="absolute right-14 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 text-lg leading-none"
-            aria-label="Clear search"
+      <form onSubmit={handleSubmit}>
+        <div className="relative flex items-center rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
+            width={16} height={16} viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth={2} strokeLinecap="round"
           >
-            ×
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            value={value}
+            onChange={handleChange}
+            onFocus={() => suggestions.length > 0 && setOpen(true)}
+            onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+            placeholder="Search posts, topics, makers..."
+            className="flex-1 pl-10 pr-2 py-2.5 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            autoComplete="off"
+          />
+          {value && (
+            <button
+              type="button"
+              onClick={() => { setValue(""); setSuggestions([]); setOpen(false); navigate(""); }}
+              className="shrink-0 text-neutral-400 hover:text-neutral-700 text-lg leading-none px-2"
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+          <button
+            type="submit"
+            aria-label="Search"
+            className="flex items-center justify-center h-full px-4 py-2.5 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
+          >
+            <Search size={16} />
           </button>
-        )}
-        <button
-          type="submit"
-          aria-label="Search"
-          className="absolute right-0 top-0 bottom-0 rounded-r-full px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors flex items-center justify-center"
-        >
-          <Search size={16} />
-        </button>
+        </div>
       </form>
 
       {open && suggestions.length > 0 && (

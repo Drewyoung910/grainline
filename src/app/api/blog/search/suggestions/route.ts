@@ -10,7 +10,7 @@ export type BlogSuggestion = {
 };
 
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const q = req.nextUrl.searchParams.get("bq")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
 
   const [postRows, tagRows, authorRows] = await Promise.all([

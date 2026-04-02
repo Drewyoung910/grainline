@@ -33,7 +33,7 @@ type PostRow = {
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const q = url.searchParams.get("q")?.trim() ?? "";
+  const q = url.searchParams.get("bq")?.trim() ?? "";
   const type = url.searchParams.get("type")?.trim() ?? "";
   const tagsParam = url.searchParams.get("tags") ?? "";
   const tags = tagsParam ? tagsParam.split(",").map((t) => t.trim()).filter(Boolean) : [];

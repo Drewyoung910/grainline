@@ -8,6 +8,7 @@ import LocationPicker from "@/components/LocationPicker";
 import VacationModeForm from "./VacationModeForm";
 import BroadcastComposer from "@/components/BroadcastComposer";
 import GalleryUploader from "@/components/GalleryUploader";
+import StripeLoginButton from "./StripeLoginButton";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
 function toNull(v: unknown) {
@@ -144,7 +145,19 @@ export default async function SellerSettingsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-8 space-y-6">
-      <h1 className="text-2xl font-semibold">Seller profile</h1>
+      <h1 className="text-2xl font-semibold font-display">Shop Settings</h1>
+
+      {/* Payouts & Banking */}
+      <section className="card-section p-6 space-y-3">
+        <h2 className="font-display text-xl font-semibold">Payouts & Banking</h2>
+        <p className="text-sm text-neutral-500">
+          View your balance, payout history, and update your bank account in your Stripe dashboard.
+        </p>
+        {row?.chargesEnabled && (
+          <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>
+        )}
+        <StripeLoginButton hasStripeAccount={!!row?.stripeAccountId} />
+      </section>
 
       {/* Vacation Mode */}
       <VacationModeForm

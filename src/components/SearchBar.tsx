@@ -95,23 +95,25 @@ export default function SearchBar() {
 
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
-      <form onSubmit={handleSubmit} className="relative">
-        <input
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => hasItems && setOpen(true)}
-          placeholder="Search handmade goods…"
-          className="w-full rounded-full border pl-4 pr-16 py-2 bg-white text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
-          autoComplete="off"
-        />
-        <button
-          type="submit"
-          aria-label="Search"
-          className="absolute right-0 top-0 bottom-0 rounded-r-full px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors flex items-center justify-center"
-        >
-          <Search size={16} />
-        </button>
+      <form onSubmit={handleSubmit}>
+        <div className="relative flex items-center rounded-full border bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
+          <input
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => hasItems && setOpen(true)}
+            placeholder="Search handmade goods…"
+            className="flex-1 pl-4 pr-2 py-2 bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            aria-label="Search"
+            className="flex items-center justify-center h-full px-3 py-2 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors rounded-r-full shrink-0"
+          >
+            <Search size={16} />
+          </button>
+        </div>
       </form>
 
       {open && hasItems && (

@@ -1313,8 +1313,9 @@ Post-deployment bug fixes and gap fills:
 - **`/api/me`** now returns `name`, `imageUrl`, `avatarImageUrl` so the header dropdown renders the correct avatar without an extra Clerk API call
 - Mobile drawer unchanged — My Account, Messages, Your Feed, Workshop, Admin remain as drawer links; drawer footer now shows `UserAvatarMenu` + name
 
-### Search submit buttons (complete — 2026-04-01, updated 2026-04-02)
-- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: search inputs have a flush right-cap submit button (`absolute right-0 top-0 bottom-0 rounded-r-full px-4 bg-neutral-900`) that fills the pill's right end. Input padding `pr-16` / `pr-24` so text doesn't overlap. The hero search uses `SearchBar` automatically.
+### Search submit buttons (complete — 2026-04-02)
+- **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: pill shape uses an **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300` clips both the input and button into the pill naturally. The `<input>` has **no border, no border-radius, no focus ring** of its own (`bg-transparent flex-1 focus:outline-none`). The submit button uses `rounded-r-full` and fills the right cap. This prevents double-border or broken pill shape.
+- **User avatar button** (`UserAvatarMenu.tsx`): `rounded-full overflow-hidden bg-transparent border-0 p-0 cursor-pointer` — eliminates grey square/border artifact behind profile picture. `<img>` has `block` to remove inline baseline gap.
 - Mobile search icon dropdown unchanged
 
 ### Blog Search System
@@ -1335,13 +1336,14 @@ Post-deployment bug fixes and gap fills:
 
 #### `BlogSearchBar` component (`src/components/BlogSearchBar.tsx`)
 - `"use client"` — full-width search input with magnifying glass icon, 300ms debounce, dropdown with Post/Topic/Maker labels
-- Clicking a post suggestion navigates to `/blog/[slug]`; tag → `/blog?tags=...`; author → `/blog?q=...`
-- On submit: pushes `/blog?q=...&sort=relevant`; clear button when value non-empty
+- Clicking a post suggestion navigates to `/blog/[slug]`; tag → `/blog?tags=...`; author → `/blog?bq=...`
+- On submit: pushes `/blog?bq=...&sort=relevant`; clear button when value non-empty
+- **Uses `?bq=` URL param** (not `?q=`) to avoid collision with header `SearchBar` which uses `?q=`. Suggestions fetch uses `?bq=`. Affected files: `BlogSearchBar.tsx`, `blog/page.tsx` (`sp.bq`), `api/blog/search/route.ts`, `api/blog/search/suggestions/route.ts`.
 
 #### `/blog` page rewrite (`src/app/blog/page.tsx`)
-- **searchParams**: now handles `q`, `type`, `tags` (comma-separated), `sort`, `page`
+- **searchParams**: now handles `bq` (blog search query), `type`, `tags` (comma-separated), `sort`, `page`
 - `BlogSearchBar` rendered inside hero section
-- **Sort tabs**: "Most Relevant" / "Newest" / "A–Z" shown only when `q` is active
+- **Sort tabs**: "Most Relevant" / "Newest" / "A–Z" shown only when `bq` is active
 - **Active tag chips**: shown below tabs with × to remove individual tags
 - **Search results header**: "X results for 'oak' in Maker Spotlights" composite label
 - **"Browse by Topic" tag cloud**: shown below newsletter when no active search; 20 most-used tags via raw SQL `unnest`; 3 size tiers based on count ratio
@@ -2190,6 +2192,12 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 - `src/app/api/cart/checkout/single/route.ts` — `Math.floor(listing.priceCents * quantity * 0.05)`
 
 Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
+
+### Stripe Connect Dashboard Access (complete — 2026-04-01)
+- **`POST /api/stripe/connect/login-link`** — seller auth required; calls `stripe.accounts.createLoginLink(stripeAccountId)`; returns `{ url }` for one-time Express dashboard link; opens in new tab
+- **`StripeLoginButton`** (`src/app/dashboard/seller/StripeLoginButton.tsx`) — `"use client"`; shows "No Stripe account" + onboarding link when `hasStripeAccount=false`; otherwise renders "Go to Stripe Dashboard →" button; handles loading/error states
+- **"Payouts & Banking" section** added to `/dashboard/seller` above Vacation Mode — shows connection status badge + `StripeLoginButton`
+- **`/dashboard/seller` page title** changed from "Seller Profile" → "Shop Settings"
 
 Cart checkout supports multi-seller orders (splits into separate Stripe sessions per seller) and single-item buy-now.
 

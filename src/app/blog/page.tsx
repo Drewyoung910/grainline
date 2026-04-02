@@ -26,10 +26,10 @@ const TYPE_TABS: Array<{ label: string; value: string }> = [
 export default async function BlogIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; page?: string; q?: string; tags?: string; sort?: string }>;
+  searchParams: Promise<{ type?: string; page?: string; bq?: string; tags?: string; sort?: string }>;
 }) {
   const sp = await searchParams;
-  const q = sp.q?.trim() ?? "";
+  const q = sp.bq?.trim() ?? "";
   const typeFilter = sp.type ?? "";
   const tagsFilter = sp.tags ? sp.tags.split(",").filter(Boolean) : [];
   const sort = sp.sort ?? (q ? "relevant" : "newest");
@@ -158,7 +158,7 @@ export default async function BlogIndexPage({
   function buildHref(overrides: Record<string, string>) {
     const p = new URLSearchParams();
     if (typeFilter) p.set("type", typeFilter);
-    if (q) p.set("q", q);
+    if (q) p.set("bq", q);
     if (tagsFilter.length) p.set("tags", tagsFilter.join(","));
     if (sort && sort !== "newest") p.set("sort", sort);
     if (page > 1) p.set("page", String(page));
@@ -287,7 +287,7 @@ export default async function BlogIndexPage({
                 {tagCloud.slice(0, 10).map((t) => (
                   <Link
                     key={t.tag}
-                    href={buildHref({ tags: t.tag, q: "", page: "" })}
+                    href={buildHref({ tags: t.tag, bq: "", page: "" })}
                     className="border rounded-full px-3 py-1 text-xs text-neutral-600 hover:bg-neutral-50"
                   >
                     #{t.tag}
