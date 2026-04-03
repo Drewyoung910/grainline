@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Show } from "@clerk/nextjs";
+import { Show, useClerk } from "@clerk/nextjs";
 import * as React from "react";
 import MessageIconLink from "@/components/MessageIconLink";
 import SearchBar from "@/components/SearchBar";
@@ -17,6 +17,7 @@ const COMMISSION_ROOM_ENABLED = true;
 export default function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { signOut, openUserProfile } = useClerk();
 
   const [cartCount, setCartCount] = React.useState<number | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
@@ -389,18 +390,48 @@ export default function Header() {
               </Show>
             </div>
 
-            {/* Avatar menu at bottom */}
+            {/* Avatar + inline actions at bottom — no dropdown to avoid overflow-hidden clipping */}
             <Show when="signed-in">
-              <div className="border-t px-4 py-4 flex items-center gap-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                <UserAvatarMenu
-                  name={name}
-                  imageUrl={imageUrl}
-                  avatarImageUrl={avatarImageUrl}
-                  role={role}
-                  hasSeller={hasSeller}
-                  dropDirection="up"
-                />
-                <span className="text-sm text-neutral-600 truncate">{name ?? "Account"}</span>
+              <div className="border-t px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
+                {/* Avatar + name row — display only */}
+                <div className="flex items-center gap-3 px-0 py-2">
+                  <div className="h-9 w-9 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
+                    {(avatarImageUrl ?? imageUrl) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={avatarImageUrl ?? imageUrl ?? ""}
+                        alt={name ?? ""}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-medium text-neutral-600 select-none">
+                        {(name ?? "A").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-neutral-700 truncate">{name ?? "Account"}</span>
+                </div>
+
+                {/* Manage Account — opens Clerk modal directly, no dropdown */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    openUserProfile();
+                    setDrawerOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-neutral-800 hover:text-neutral-600 min-h-[44px]"
+                >
+                  Manage Account
+                </button>
+
+                {/* Sign Out */}
+                <button
+                  type="button"
+                  onClick={() => { signOut(); setDrawerOpen(false); }}
+                  className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-red-600 hover:text-red-700 min-h-[44px]"
+                >
+                  Sign Out
+                </button>
               </div>
             </Show>
           </div>

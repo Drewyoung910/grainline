@@ -1333,7 +1333,8 @@ Post-deployment bug fixes and gap fills:
 - **Clerk modal z-index** (2026-04-02): `globals.css` adds `z-index: 9999 !important` on `.cl-modalContent`, `.cl-userProfileModal`, `[data-clerk-portal]` and `min-width: min(90vw, 800px)` on `.cl-userProfile-root` — fixes modal rendering behind site UI and left-sidebar clipping. `UserAvatarMenu` dropdown changed from `z-50` to `z-[200]`.
 - **`/api/me`** now returns `name`, `imageUrl`, `avatarImageUrl` so the header dropdown renders the correct avatar without an extra Clerk API call
 - Mobile drawer unchanged — My Account, Messages, Your Feed, Workshop, Admin remain as drawer links; drawer footer now shows `UserAvatarMenu` + name
-- **`UserAvatarMenu` `dropDirection` prop** — `"down"` (default, desktop) or `"up"` (drawer bottom); drawer instance uses `dropDirection="up"` so menu opens above the avatar row instead of off-screen at the bottom of the viewport
+- **`UserAvatarMenu` `dropDirection` prop** — `"down"` (default, desktop) or `"up"`; prop still exists but drawer no longer uses it
+- **Mobile drawer bottom** — replaced `UserAvatarMenu` with inline avatar display + "Manage Account" and "Sign Out" buttons; `openUserProfile()` and `signOut()` called directly via `useClerk()` — avoids dropdown clipping by `overflow-hidden` on the drawer panel; Clerk modal opens as a portal above everything
 
 ### Search submit buttons (complete — 2026-04-02)
 - **`SearchBar.tsx`** and **`BlogSearchBar.tsx`**: pill shape uses an **outer div** approach — `rounded-full overflow-hidden border bg-white focus-within:ring-2 focus-within:ring-neutral-300` clips both the input and button into the pill naturally. The `<input>` has **no border, no border-radius, no focus ring** of its own (`bg-transparent flex-1 focus:outline-none`). The submit button uses `rounded-r-full` and fills the right cap. This prevents double-border or broken pill shape.
