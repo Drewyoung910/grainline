@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { revalidatePath } from "next/cache";
-import LocationPicker from "@/components/LocationPicker";
+import SellerLocationSection from "@/components/SellerLocationSection";
 import VacationModeForm from "./VacationModeForm";
 import BroadcastComposer from "@/components/BroadcastComposer";
 import GalleryUploader from "@/components/GalleryUploader";
@@ -232,25 +232,15 @@ export default async function SellerSettingsPage() {
         {/* Location picker */}
         <div>
           <label className="block text-sm mb-2">Pickup location</label>
-          <LocationPicker
+          <SellerLocationSection
             defaultLat={row?.lat != null ? Number(row.lat) : null}
             defaultLng={row?.lng != null ? Number(row.lng) : null}
             defaultRadiusMeters={row?.radiusMeters ?? null}
+            defaultPublicMapOptIn={row?.publicMapOptIn ?? false}
           />
           <p className="mt-2 text-xs text-neutral-500">
             Drag the pin or click the map to set your pickup spot.
           </p>
-          <div className="flex items-center gap-2 mt-3">
-            <input
-              id="publicMapOptIn"
-              name="publicMapOptIn"
-              type="checkbox"
-              defaultChecked={row?.publicMapOptIn ?? false}
-            />
-            <label htmlFor="publicMapOptIn" className="text-sm">
-              Show me on the public makers map
-            </label>
-          </div>
         </div>
 
         {/* 🚚 Shipping & Tax Settings */}

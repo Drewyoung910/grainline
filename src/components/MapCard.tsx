@@ -82,8 +82,11 @@ export default function MapCard({
       style: "https://tiles.openfreemap.org/styles/liberty",
       center: [displayLng, displayLat],
       zoom: radiusMeters ? Math.max(9, 14 - Math.log2(radiusMeters / 100)) : 13,
-      interactive: false,
+      // interactive defaults to true — pan and zoom enabled
     });
+
+    map.scrollZoom.disable(); // prevent scroll hijacking on page
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
       if (radiusMeters && radiusMeters > 0) {

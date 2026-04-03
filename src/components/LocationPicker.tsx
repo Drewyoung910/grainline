@@ -6,10 +6,12 @@ export default function LocationPicker({
   defaultLat,
   defaultLng,
   defaultRadiusMeters,
+  onMilesChange,
 }: {
   defaultLat?: number | null;
   defaultLng?: number | null;
   defaultRadiusMeters?: number | null;
+  onMilesChange?: (miles: number) => void;
 }) {
   const start: [number, number] = useMemo(
     () => [defaultLat ?? 30.2672, defaultLng ?? -97.7431],
@@ -132,6 +134,11 @@ export default function LocationPicker({
     } else {
       map.once("idle", () => drawCircle(map));
     }
+
+    // Hide marker when radius is set — circle replaces pin for privacy
+    if (markerRef.current) {
+      markerRef.current.getElement().style.display = meters > 0 ? "none" : "";
+    }
   }, [meters, pos]);
 
   return (
@@ -193,7 +200,11 @@ export default function LocationPicker({
             max={5}
             step={1}
             value={miles}
-            onChange={(e) => setMiles(parseInt(e.target.value) || 0)}
+            onChange={(e) => {
+              const v = parseInt(e.target.value) || 0;
+              setMiles(v);
+              onMilesChange?.(v);
+            }}
             className="w-full"
           />
           <div className="text-xs mt-1">

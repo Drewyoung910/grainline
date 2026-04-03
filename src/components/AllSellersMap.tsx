@@ -79,19 +79,6 @@ export default function AllSellersMap({
         paint: { "text-color": "#ffffff" },
       });
 
-      map.addLayer({
-        id: "unclustered-point",
-        type: "circle",
-        source: "sellers",
-        filter: ["!", ["has", "point_count"]],
-        paint: {
-          "circle-color": "#1C1C1A",
-          "circle-radius": 8,
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#ffffff",
-        },
-      });
-
       // v5 Promise API — NOT callback style
       map.on("click", "clusters", async (e) => {
         const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
@@ -107,28 +94,62 @@ export default function AllSellersMap({
         }
       });
 
-      map.on("click", "unclustered-point", (e) => {
-        const features = map.queryRenderedFeatures(e.point, { layers: ["unclustered-point"] });
-        if (!features.length) return;
-        const props = features[0].properties;
-        const coords = (features[0].geometry as GeoJSON.Point).coordinates as [number, number];
-        new maplibregl.Popup()
-          .setLngLat(coords)
-          .setHTML(
-            `<div class="text-sm font-medium">${props?.name ?? ""}</div>
-             ${props?.city ? `<div class="text-xs text-neutral-500">${props.city}${props.state ? `, ${props.state}` : ""}</div>` : ""}
-             <a href="/seller/${props?.id}" class="text-xs text-amber-700 underline mt-1 block">View shop →</a>`
-          )
-          .addTo(map);
-      });
-
       map.on("mouseenter", "clusters", () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", "clusters", () => { map.getCanvas().style.cursor = ""; });
-      map.on("mouseenter", "unclustered-point", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "unclustered-point", () => { map.getCanvas().style.cursor = ""; });
     });
 
-    return () => map.remove();
+    const markers: maplibregl.Marker[] = [];
+
+    function buildPopupHTML(props: Record<string, unknown> | null) {
+      return `<div style="font-family:inherit;padding:2px 0;">
+    <div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:4px;">${props?.name ?? ""}</div>
+    ${props?.city ? `<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${props.city}${props.state ? `, ${props.state}` : ""}</div>` : ""}
+    <a href="/seller/${props?.id}" style="font-size:12px;color:#92400e;text-decoration:underline;font-weight:500;">View shop →</a>
+  </div>`;
+    }
+
+    function updateMarkers() {
+      markers.forEach(m => m.remove());
+      markers.length = 0;
+
+      if (!map.isSourceLoaded("sellers")) return;
+
+      const features = map.querySourceFeatures("sellers", {
+        filter: ["!", ["has", "point_count"]],
+      });
+
+      // Deduplicate by feature id since querySourceFeatures can return duplicates across tiles
+      const seen = new Set<string>();
+      for (const feature of features) {
+        const id = feature.properties?.id as string;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+
+        const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
+        const popup = new maplibregl.Popup({ offset: 25, maxWidth: "240px" })
+          .setHTML(buildPopupHTML(feature.properties as Record<string, unknown>));
+
+        const marker = new maplibregl.Marker({ color: "#1C1C1A" })
+          .setLngLat(coords)
+          .setPopup(popup)
+          .addTo(map);
+
+        markers.push(marker);
+      }
+    }
+
+    // Update markers when source data loads or viewport changes
+    map.on("sourcedata", (e) => {
+      if (e.sourceId === "sellers" && map.isSourceLoaded("sellers")) {
+        updateMarkers();
+      }
+    });
+    map.on("moveend", updateMarkers);
+
+    return () => {
+      markers.forEach(m => m.remove());
+      map.remove();
+    };
   }, [points, initialCenter, initialZoom]);
 
   return <div ref={containerRef} style={{ height, width: "100%" }} />;

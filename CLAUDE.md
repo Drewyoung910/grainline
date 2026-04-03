@@ -2240,6 +2240,12 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
+### Seller Location & Map Opt-In (complete — 2026-04-03)
+- **`SellerLocationSection.tsx`** — `"use client"` component; fully controlled checkbox state; wraps `LocationPicker` + `publicMapOptIn` checkbox
+- **Privacy**: sellers with radius > 0 show approximate circle on seller/listing pages; cannot appear on makers map — checkbox force-unchecked and disabled with amber warning when `miles > 0`
+- **Server action** enforces `radiusMeters = 0` when `publicMapOptIn = true` (unchanged at lines 53–58 of `dashboard/seller/page.tsx`)
+- `dashboard/seller/page.tsx`: `LocationPicker` + inline checkbox replaced with `<SellerLocationSection>`
+
 ### Stripe Connect Dashboard Access (complete — 2026-04-01)
 - **`POST /api/stripe/connect/login-link`** — seller auth required; calls `stripe.accounts.createLoginLink(stripeAccountId)`; returns `{ url }` for one-time Express dashboard link; opens in new tab
 - **`StripeLoginButton`** (`src/app/dashboard/seller/StripeLoginButton.tsx`) — `"use client"`; renders "Go to Stripe Dashboard →" button when `hasStripeAccount=true`; handles loading/error states
@@ -2288,9 +2294,14 @@ Maplibre automatically shows © OpenStreetMap contributors bottom-right. Legally
 - `LocationPicker`: `map.panTo()` in both click and dragend handlers so viewport follows marker
 - `LocationPicker` `drawCircle`: takes map as explicit parameter to avoid TypeScript closure narrowing
 - `LocationPicker` radius circle: `map.once("idle", () => drawCircle(map))` fallback if style not yet loaded
-- `MapCard`: `interactive: false` prevents scroll hijacking on mobile
+- `LocationPicker`: accepts `onMilesChange?: (miles: number) => void` — fires on range slider change
+- `LocationPicker`: marker hidden (`display: none`) when `meters > 0` — circle replaces pin for privacy
+- `MapCard`: `scrollZoom.disable()` + `NavigationControl` — pannable/zoomable, no scroll hijack
 - `MapCard`: `className` prop with default `"h-48 w-full rounded-xl border overflow-hidden"`
 - `MapCard` jitter: `xmur3`/`mulberry32`/`seededRand`/`jitterAround` copied verbatim from Leaflet version
+- `AllSellersMap`: unclustered sellers rendered as `Marker` pins; rebuilt on `sourcedata` + `moveend` (NOT render loop); deduplication via `Set<string>` to handle tile boundary duplicates; cleanup removes all markers before `map.remove()`
+- `MakersMapSection`: `AllSellersMap` container wrapped in `rounded-2xl overflow-hidden`
+- Maplibre popup global CSS in `globals.css`: `border-radius: 10px`, `padding: 12px 14px`, `box-shadow`, `font-family: inherit`
 
 ### Migration from Leaflet
 Removed: `leaflet`, `react-leaflet`, `@types/leaflet`

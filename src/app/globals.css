@@ -117,3 +117,16 @@ input, textarea, select {
 .cl-modalContent {
   z-index: 9999 !important;
 }
+
+/* Maplibre popup styling */
+.maplibregl-popup-content {
+  border-radius: 10px !important;
+  padding: 12px 14px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+  font-family: inherit !important;
+}
+.maplibregl-popup-close-button {
+  font-size: 16px !important;
+  padding: 4px 8px !important;
+  color: #6b7280 !important;
+}
