@@ -398,6 +398,7 @@ export default function Header() {
                   avatarImageUrl={avatarImageUrl}
                   role={role}
                   hasSeller={hasSeller}
+                  dropDirection="up"
                 />
                 <span className="text-sm text-neutral-600 truncate">{name ?? "Account"}</span>
               </div>

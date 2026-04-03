@@ -61,6 +61,7 @@ export default async function AllSellersMapPage({
   const sellers = await prisma.sellerProfile.findMany({
     where: {
       publicMapOptIn: true,
+      chargesEnabled: true,
       lat: { not: null },
       lng: { not: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }],

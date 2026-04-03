@@ -12,9 +12,10 @@ interface Props {
   avatarImageUrl: string | null;
   role: string | null;
   hasSeller: boolean;
+  dropDirection?: "down" | "up"; // default "down"
 }
 
-export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, hasSeller }: Props) {
+export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, hasSeller, dropDirection = "down" }: Props) {
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const { signOut, openUserProfile } = useClerk();
@@ -72,7 +73,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-52 rounded-xl border bg-white shadow-lg z-[200]">
+        <div className={`absolute right-0 z-[200] w-52 rounded-xl border bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}>
           {/* Header — avatar + name */}
           <div className="flex items-center gap-3 px-4 py-3 border-b">
             <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
