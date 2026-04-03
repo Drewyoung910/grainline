@@ -2263,13 +2263,41 @@ Shippo integration (`src/lib/shippo.ts`) provides live rate quotes and label gen
 
 When Shippo returns no usable rates, `checkout/single` falls back to `SiteConfig.fallbackShippingCents` (default $15.00). The `checkout-seller` route falls back to the seller's flat-rate / pickup options.
 
-## Maps
+## Maps (Maplibre GL)
 
-Leaflet is used for all map views. Sellers with a set location appear as pins on the map. Key components:
-- `LeafletMap.tsx` — base map
-- `SellersMap.tsx` / `AllSellersMap.tsx` — seller-pin overlays
-- `LocationPicker.tsx` — lets sellers set their location
-- `MakersMapSection.tsx` — homepage/browse map section
+All maps use Maplibre GL JS v5 with OpenFreeMap tiles (free, no API key, OpenStreetMap data). Migration from Leaflet complete 2026-04-03.
+
+### Components
+- `MaplibreMap.tsx` — single pin display map; `LeafletMap.tsx` re-exports it for backward compat
+- `SellersMap.tsx` — multiple seller pins with popups
+- `AllSellersMap.tsx` — full map with built-in GeoJSON clustering (no plugin needed)
+- `MakersMapSection.tsx` — wrapper with geolocation button; wraps `AllSellersMap`
+- `MapCard.tsx` — single pin or radius circle; privacy jitter via seeded PRNG preserved verbatim; accepts `className` prop
+- `LocationPicker.tsx` — interactive draggable marker + address search via Nominatim
+
+### Tile Provider
+OpenFreeMap: `https://tiles.openfreemap.org/styles/liberty`
+Free, no API key, no usage limits, OSM data
+
+### Attribution
+Maplibre automatically shows © OpenStreetMap contributors bottom-right. Legally required, cannot be removed.
+
+### Key implementation notes
+- `getClusterExpansionZoom`: Promise-based (v5 API) — use async/await NOT callback style
+- `clusterId` cast: `features[0].properties?.cluster_id as number`
+- `LocationPicker`: `map.panTo()` in both click and dragend handlers so viewport follows marker
+- `LocationPicker` `drawCircle`: takes map as explicit parameter to avoid TypeScript closure narrowing
+- `LocationPicker` radius circle: `map.once("idle", () => drawCircle(map))` fallback if style not yet loaded
+- `MapCard`: `interactive: false` prevents scroll hijacking on mobile
+- `MapCard`: `className` prop with default `"h-48 w-full rounded-xl border overflow-hidden"`
+- `MapCard` jitter: `xmur3`/`mulberry32`/`seededRand`/`jitterAround` copied verbatim from Leaflet version
+
+### Migration from Leaflet
+Removed: `leaflet`, `react-leaflet`, `@types/leaflet`
+Added: `maplibre-gl`
+Clustering: native GeoJSON source `cluster: true` — no `leaflet.markercluster` plugin needed
+Radius circles: GeoJSON Polygon 64-point approximation
+CSP: removed `unpkg.com` from both `script-src-elem` and `connect-src`; added `https://tiles.openfreemap.org` to `connect-src`
 
 ## File Uploads (Cloudflare R2)
 

@@ -1,42 +1,6 @@
 "use client";
-
-import { MapContainer, TileLayer, Marker, useMapEvents, Circle } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-import { useEffect, useMemo, useState } from "react";
-
-L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
-
-function DraggableMarker({
-  value,
-  onChange,
-}: {
-  value: [number, number];
-  onChange: (v: [number, number]) => void;
-}) {
-  const [pos, setPos] = useState<[number, number]>(value);
-  useEffect(() => setPos(value), [value]);
-
-  const markerRef = (ref: L.Marker | null) => {
-    if (ref) {
-      ref.on("dragend", () => {
-        const p = ref.getLatLng();
-        onChange([p.lat, p.lng]);
-      });
-    }
-  };
-
-  useMapEvents({
-    click(e) {
-      onChange([e.latlng.lat, e.latlng.lng]);
-    },
-  });
-
-  return <Marker draggable position={pos} ref={markerRef as React.Ref<L.Marker>} />;
-}
+import { useEffect, useRef, useState, useMemo } from "react";
+import maplibregl from "maplibre-gl";
 
 export default function LocationPicker({
   defaultLat,
@@ -48,7 +12,7 @@ export default function LocationPicker({
   defaultRadiusMeters?: number | null;
 }) {
   const start: [number, number] = useMemo(
-    () => [defaultLat ?? 30.2672, defaultLng ?? -97.7431], // Austin as a friendly default
+    () => [defaultLat ?? 30.2672, defaultLng ?? -97.7431],
     [defaultLat, defaultLng]
   );
 
@@ -58,19 +22,117 @@ export default function LocationPicker({
   );
   const meters = miles > 0 ? Math.round(miles * 1609.34) : 0;
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
+
   async function search(q: string) {
     if (!q) return;
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
-      q
-    )}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}`;
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     const data = await res.json();
     if (Array.isArray(data) && data[0]) {
       const lat = parseFloat(data[0].lat);
       const lon = parseFloat(data[0].lon);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) setPos([lat, lon]);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        setPos([lat, lon]);
+        if (mapRef.current) mapRef.current.panTo([lon, lat]);
+        if (markerRef.current) markerRef.current.setLngLat([lon, lat]);
+      }
     }
   }
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: "https://tiles.openfreemap.org/styles/liberty",
+      center: [pos[1], pos[0]],
+      zoom: 11,
+    });
+
+    mapRef.current = map;
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    const marker = new maplibregl.Marker({ color: "#1C1C1A", draggable: true })
+      .setLngLat([pos[1], pos[0]])
+      .addTo(map);
+
+    markerRef.current = marker;
+
+    marker.on("dragend", () => {
+      const lngLat = marker.getLngLat();
+      setPos([lngLat.lat, lngLat.lng]);
+      map.panTo([lngLat.lng, lngLat.lat]);
+    });
+
+    map.on("click", (e) => {
+      const { lat, lng } = e.lngLat;
+      marker.setLngLat([lng, lat]);
+      setPos([lat, lng]);
+      map.panTo([lng, lat]);
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, []); // init once only
+
+  // Redraw radius circle when pos or meters changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // map is passed as parameter to avoid TypeScript closure narrowing issues
+    function drawCircle(m: maplibregl.Map) {
+      if (m.getLayer("radius-fill")) m.removeLayer("radius-fill");
+      if (m.getLayer("radius-border")) m.removeLayer("radius-border");
+      if (m.getSource("radius")) m.removeSource("radius");
+
+      if (meters > 0) {
+        const [lat, lng] = pos;
+        const numPoints = 64;
+        const coords: [number, number][] = [];
+        for (let i = 0; i < numPoints; i++) {
+          const angle = (i / numPoints) * 2 * Math.PI;
+          const dx = (meters / 111320) * Math.cos(angle);
+          const dy = (meters / (111320 * Math.cos((lat * Math.PI) / 180))) * Math.sin(angle);
+          coords.push([lng + dy, lat + dx]);
+        }
+        coords.push(coords[0]);
+
+        m.addSource("radius", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: [coords] },
+            properties: {},
+          },
+        });
+        m.addLayer({
+          id: "radius-fill",
+          type: "fill",
+          source: "radius",
+          paint: { "fill-color": "#1C1C1A", "fill-opacity": 0.1 },
+        });
+        m.addLayer({
+          id: "radius-border",
+          type: "line",
+          source: "radius",
+          paint: { "line-color": "#1C1C1A", "line-width": 2, "line-opacity": 0.5 },
+        });
+      }
+    }
+
+    if (map.isStyleLoaded()) {
+      drawCircle(map);
+    } else {
+      map.once("idle", () => drawCircle(map));
+    }
+  }, [meters, pos]);
 
   return (
     <div className="space-y-2">
@@ -90,9 +152,8 @@ export default function LocationPicker({
           type="button"
           className="border rounded px-3 py-2"
           onClick={() => {
-            const el = (document.activeElement as HTMLInputElement);
-            const val = el?.value ?? "";
-            search(val);
+            const el = document.activeElement as HTMLInputElement;
+            search(el?.value ?? "");
           }}
         >
           Search
@@ -100,20 +161,7 @@ export default function LocationPicker({
       </div>
 
       <div className="rounded-xl overflow-hidden border">
-        <MapContainer center={pos} zoom={12} style={{ height: 260, width: "100%" }}>
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&copy; OpenStreetMap"
-          />
-          <DraggableMarker value={pos} onChange={setPos} />
-          {meters > 0 && (
-            <Circle
-              center={pos}
-              radius={meters}
-              pathOptions={{ color: "#2563eb", fillOpacity: 0.15 }}
-            />
-          )}
-        </MapContainer>
+        <div ref={containerRef} style={{ height: 260, width: "100%" }} />
       </div>
 
       <div className="text-sm text-neutral-600">

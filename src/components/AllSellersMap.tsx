@@ -1,8 +1,7 @@
 // src/components/AllSellersMap.tsx
 "use client";
-
-import { useEffect, useMemo, useRef } from "react";
-import type * as LeafletLib from "leaflet";
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
 
 type Point = {
   id: string;
@@ -20,193 +19,117 @@ type Props = {
   height?: number;
 };
 
-function ensureCssOnce(href: string, key: string) {
-  if (typeof document === "undefined") return;
-  if (!document.querySelector(`link[data-key="${key}"]`)) {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = href;
-    link.setAttribute("data-key", key);
-    document.head.appendChild(link);
-  }
-}
-function ensureLeafletCss() {
-  ensureCssOnce("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", "leaflet-css");
-}
-function ensureClusterCss() {
-  ensureCssOnce(
-    "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css",
-    "cluster-css-1"
-  );
-  ensureCssOnce(
-    "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css",
-    "cluster-css-2"
-  );
-}
-function loadScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    if (typeof document === "undefined") return resolve();
-    const existing = document.querySelector(`script[src="${src}"]`);
-    if (existing) return resolve();
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.body.appendChild(s);
-  });
-}
-function esc(s: string) {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-// same inline SVG pin used everywhere
-function makePinIcon(L: typeof LeafletLib, color = "#ef4444", size = 30) {
-  const svg = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}">
-      <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
-    </svg>`
-  );
-  return L.icon({
-    iconUrl: `data:image/svg+xml;charset=UTF-8,${svg}`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-    popupAnchor: [0, -size],
-  });
-}
-
 export default function AllSellersMap({
   points,
   initialCenter,
   initialZoom = 4,
   height = 520,
 }: Props) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<LeafletLib.Map | null>(null);
-
-  // Force fresh DOM node when inputs change
-  const mapKey = useMemo(
-    () =>
-      `all-${points.length}-${initialCenter ? `${initialCenter.lat.toFixed(3)}-${initialCenter.lng.toFixed(3)}` : "auto"}-${initialZoom}`,
-    [points.length, initialCenter?.lat, initialCenter?.lng, initialZoom]
-  );
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    (async () => {
-      ensureLeafletCss();
-      ensureClusterCss();
-      const leaflet = await import("leaflet");
-      const L = ((leaflet as unknown) as { default?: typeof LeafletLib }).default ?? (leaflet as unknown as typeof LeafletLib);
+    if (!containerRef.current) return;
 
-      const el = ref.current!;
-      if (!el) return;
+    const center: [number, number] = initialCenter
+      ? [initialCenter.lng, initialCenter.lat]
+      : [-98.35, 39.5];
 
-      // Clean any previous instance
-      if (mapRef.current) {
-        try {
-          mapRef.current.remove();
-        } catch {}
-        mapRef.current = null;
-      }
-      (el as HTMLDivElement & { _leaflet_id?: number })._leaflet_id = undefined;
-      el.innerHTML = "";
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: "https://tiles.openfreemap.org/styles/liberty",
+      center,
+      zoom: initialZoom,
+    });
 
-      const defaultCenter = initialCenter ?? { lat: 39.5, lng: -98.35 }; // USA-ish
-      const map = L.map(el, {
-        center: [defaultCenter.lat, defaultCenter.lng],
-        zoom: initialZoom,
-        scrollWheelZoom: true,
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      map.addSource("sellers", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: points.map((p) => ({
+            type: "Feature" as const,
+            geometry: { type: "Point" as const, coordinates: [p.lng, p.lat] },
+            properties: { id: p.id, name: p.name, city: p.city, state: p.state },
+          })),
+        },
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50,
       });
-      mapRef.current = map;
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
+      map.addLayer({
+        id: "clusters",
+        type: "circle",
+        source: "sellers",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": "#1C1C1A",
+          "circle-radius": ["step", ["get", "point_count"], 20, 10, 30, 30, 40],
+        },
+      });
 
-      let clusterOk = false;
-      try {
-        await loadScript(
-          "https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
-        );
-        clusterOk = !!(L as unknown as Record<string, unknown>).markerClusterGroup;
-      } catch {
-        clusterOk = false;
-      }
+      map.addLayer({
+        id: "cluster-count",
+        type: "symbol",
+        source: "sellers",
+        filter: ["has", "point_count"],
+        layout: { "text-field": "{point_count_abbreviated}", "text-size": 12 },
+        paint: { "text-color": "#ffffff" },
+      });
 
-      const icon = makePinIcon(L);
-      const bounds = L.latLngBounds([]);
+      map.addLayer({
+        id: "unclustered-point",
+        type: "circle",
+        source: "sellers",
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-color": "#1C1C1A",
+          "circle-radius": 8,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
 
-      if (clusterOk) {
-        const cluster = (L as unknown as { markerClusterGroup: (opts: Record<string, unknown>) => LeafletLib.LayerGroup }).markerClusterGroup({
-          showCoverageOnHover: false,
-          maxClusterRadius: 60,
-        });
-        points.forEach((p) => {
-          const ll = L.latLng(p.lat, p.lng);
-          bounds.extend(ll);
-          const popup = `
-            <div style="min-width:180px">
-              <div style="font-weight:600;margin-bottom:2px">${esc(p.name)}</div>
-              <div style="font-size:12px;color:#555;margin-bottom:6px">${esc(
-                [p.city, p.state].filter(Boolean).join(", ") || ""
-              )}</div>
-              <a href="/seller/${encodeURIComponent(p.id)}" style="font-size:12px;text-decoration:underline">View seller profile →</a>
-            </div>`;
-          L.marker(ll, { icon }).bindPopup(popup).addTo(cluster);
-        });
-        cluster.addTo(map);
-      } else {
-        const layer = L.layerGroup().addTo(map);
-        points.forEach((p) => {
-          const ll = L.latLng(p.lat, p.lng);
-          bounds.extend(ll);
-          const popup = `
-            <div style="min-width:180px">
-              <div style="font-weight:600;margin-bottom:2px">${esc(p.name)}</div>
-              <div style="font-size:12px;color:#555;margin-bottom:6px">${esc(
-                [p.city, p.state].filter(Boolean).join(", ") || ""
-              )}</div>
-              <a href="/seller/${encodeURIComponent(p.id)}" style="font-size:12px;text-decoration:underline">View seller profile →</a>
-            </div>`;
-          L.marker(ll, { icon }).addTo(layer).bindPopup(popup);
-        });
-      }
+      // v5 Promise API — NOT callback style
+      map.on("click", "clusters", async (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ["clusters"] });
+        if (!features.length) return;
+        const clusterId = features[0].properties?.cluster_id as number;
+        const source = map.getSource("sellers") as maplibregl.GeoJSONSource;
+        try {
+          const zoom = await source.getClusterExpansionZoom(clusterId);
+          const coords = (features[0].geometry as GeoJSON.Point).coordinates as [number, number];
+          map.easeTo({ center: coords, zoom });
+        } catch {
+          // ignore
+        }
+      });
 
-      // Fit markers unless a custom center was provided
-      if (!initialCenter && points.length) {
-        map.fitBounds(bounds, { padding: [30, 30] });
-      } else if (initialCenter) {
-        map.setView([initialCenter.lat, initialCenter.lng], initialZoom);
-      }
+      map.on("click", "unclustered-point", (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ["unclustered-point"] });
+        if (!features.length) return;
+        const props = features[0].properties;
+        const coords = (features[0].geometry as GeoJSON.Point).coordinates as [number, number];
+        new maplibregl.Popup()
+          .setLngLat(coords)
+          .setHTML(
+            `<div class="text-sm font-medium">${props?.name ?? ""}</div>
+             ${props?.city ? `<div class="text-xs text-neutral-500">${props.city}${props.state ? `, ${props.state}` : ""}</div>` : ""}
+             <a href="/seller/${props?.id}" class="text-xs text-amber-700 underline mt-1 block">View shop →</a>`
+          )
+          .addTo(map);
+      });
 
-      setTimeout(() => map.invalidateSize(), 0);
-    })();
+      map.on("mouseenter", "clusters", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "clusters", () => { map.getCanvas().style.cursor = ""; });
+      map.on("mouseenter", "unclustered-point", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "unclustered-point", () => { map.getCanvas().style.cursor = ""; });
+    });
 
-    return () => {
-      try {
-        if (mapRef.current) mapRef.current.remove();
-      } catch {}
-      mapRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapKey, points]);
+    return () => map.remove();
+  }, [points, initialCenter, initialZoom]);
 
-  return (
-    <div
-      key={mapKey}
-      ref={ref}
-      style={{ height, width: "100%" }}
-      className="rounded-xl overflow-hidden border"
-    />
-  );
+  return <div ref={containerRef} style={{ height, width: "100%" }} />;
 }
-
-
-

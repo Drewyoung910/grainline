@@ -1,14 +1,6 @@
 "use client";
-
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-import Link from "next/link";
-
-L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
 
 type SellerPin = {
   id: string;
@@ -20,30 +12,45 @@ type SellerPin = {
 };
 
 export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
-  const center = sellers.length
-    ? ([sellers[0].lat, sellers[0].lng] as [number, number])
-    : ([39.5, -98.35] as [number, number]); // US center
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const center: [number, number] = sellers.length
+    ? [sellers[0].lng, sellers[0].lat]
+    : [-98.35, 39.5];
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: "https://tiles.openfreemap.org/styles/liberty",
+      center,
+      zoom: sellers.length ? 8 : 4,
+    });
+
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      for (const seller of sellers) {
+        const popup = new maplibregl.Popup({ offset: 25 }).setHTML(
+          `<div class="text-sm font-medium">${seller.name}</div>
+           ${seller.city ? `<div class="text-xs text-neutral-500">${seller.city}${seller.state ? `, ${seller.state}` : ""}</div>` : ""}
+           <a href="/seller/${seller.id}" class="text-xs text-amber-700 underline mt-1 block">View shop →</a>`
+        );
+
+        new maplibregl.Marker({ color: "#1C1C1A" })
+          .setLngLat([seller.lng, seller.lat])
+          .setPopup(popup)
+          .addTo(map);
+      }
+    });
+
+    return () => map.remove();
+  }, [sellers]);
 
   return (
     <div className="rounded-xl overflow-hidden border">
-      <MapContainer center={center} zoom={sellers.length ? 8 : 4} maxZoom={18} minZoom={4} style={{ height: 520, width: "100%" }}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-        {sellers.map((s) => (
-          <Marker key={s.id} position={[s.lat, s.lng]}>
-            <Popup>
-              <div className="space-y-1">
-                <div className="font-medium">{s.name}</div>
-                <div className="text-xs text-neutral-600">
-                  {[s.city, s.state].filter(Boolean).join(", ")}
-                </div>
-                <Link href={`/seller/${s.id}`} className="text-sm underline">
-                  View profile
-                </Link>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+      <div ref={containerRef} style={{ height: 520, width: "100%" }} />
     </div>
   );
 }
