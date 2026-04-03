@@ -275,7 +275,7 @@ export default async function HomePage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen bg-gradient-to-br from-amber-50 via-stone-50 to-white border-b flex flex-col justify-center">
+      <section className="relative min-h-screen bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50 border-b flex flex-col justify-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
           <h1 className="text-display font-display text-neutral-900">
             The Woodworking Marketplace
@@ -330,18 +330,18 @@ export default async function HomePage() {
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="border-b bg-white">
+      <div className="border-b bg-amber-50">
         <ScrollSection className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
             <span className="text-sm text-stone-500">pieces listed</span>
           </div>
-          <span className="text-stone-300 self-center hidden sm:block">·</span>
+          <span className="text-amber-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString()}</span>
             <span className="text-sm text-stone-500">active makers</span>
           </div>
-          <span className="text-stone-300 self-center hidden sm:block">·</span>
+          <span className="text-amber-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
             <span className="text-sm text-stone-500">orders fulfilled</span>
@@ -350,7 +350,7 @@ export default async function HomePage() {
       </div>
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
-      <ScrollSection className="bg-stone-50 border-b py-12">
+      <ScrollSection className="bg-amber-50/40 border-b py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
           <h2 className="text-2xl sm:text-3xl font-bold font-display text-neutral-900">Find Makers Near You</h2>
           <p className="text-neutral-600 mt-1">Discover woodworkers in your neighborhood</p>
@@ -433,15 +433,15 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center hover:shadow-sm transition-shadow flex-none w-28 sm:w-auto bg-stone-100"
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-amber-100 p-4 text-center hover:bg-amber-100 hover:shadow-md hover:shadow-amber-100/50 transition-all flex-none w-28 sm:w-auto bg-amber-50"
                 >
-                  <c.Icon size={28} className="text-stone-600" />
-                  <span className="text-xs font-medium text-neutral-700">{c.label}</span>
+                  <c.Icon size={28} className="text-amber-700" />
+                  <span className="text-xs font-medium text-neutral-800">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center hover:shadow-sm transition-shadow flex-none w-28 sm:w-auto bg-neutral-50"
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-amber-200 p-4 text-center hover:bg-amber-100 hover:shadow-md transition-all flex-none w-28 sm:w-auto bg-amber-50/50"
               >
                 <span className="text-3xl">→</span>
                 <span className="text-xs font-medium text-neutral-700">Browse all</span>
@@ -452,7 +452,7 @@ export default async function HomePage() {
 
         {/* ── Meet a Maker ─────────────────────────────────────────────────── */}
         {featuredMaker && (
-          <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
+          <ScrollSection className="bg-amber-50/60 rounded-xl px-4 py-6 -mx-4 border border-amber-100">
             <div className="mb-5 space-y-0.5">
               <h2 className="text-xl font-semibold font-display">Meet a Maker</h2>
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
