@@ -2185,6 +2185,9 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 | CSRF audit | ✅ Complete — documented in `src/lib/security.ts` |
 | Redis rate limit failover | ✅ Complete — `safeRateLimit` / `safeRateLimitOpen` wrappers |
 | Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
+| `X-Powered-By` header removal | ✅ Complete (2026-04-03) — `poweredByHeader: false` in `next.config.ts` |
+| OWASP ZAP scan | ✅ Complete (2026-04-03) — 0 high, 0 medium findings; 2 low (missing `Permissions-Policy` on API routes — headers already set globally) |
+| Neon database password rotation | ✅ Complete (2026-04-03) — rotated in Neon dashboard, `DATABASE_URL` + `DIRECT_URL` updated in Vercel |
 
 ### Security Maintenance Rules
 
@@ -2407,3 +2410,38 @@ npm run lint       # ESLint
 npx prisma migrate dev   # Apply a new migration (uses prisma.config.ts for DB URL)
 npx prisma studio        # Open Prisma Studio
 ```
+
+## Homepage Visual Updates (2026-04-03)
+
+### Amber warmth pass
+Full amber color pass on `src/app/page.tsx`:
+- Hero gradient: `from-amber-100 via-amber-50 to-stone-50` (richer amber start)
+- Stats bar: `bg-amber-50` with `text-amber-300` separator dots
+- Map section: `bg-amber-50/40`
+- Category tiles: `bg-amber-50 border-amber-100 text-amber-700`
+- Browse-all tile: `bg-amber-50/50 border-amber-200`
+- Meet a Maker section: `bg-amber-50/60 border border-amber-100`
+- Main content area wrapped in `bg-gradient-to-b from-amber-50/20 via-white to-white`
+
+Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
+
+### Hero photo mosaic (feature branch: `feature/hero-mosaic`)
+
+**New component**: `src/components/HeroMosaic.tsx` — `"use client"` dual-row infinite scroll background mosaic:
+- Row 1 scrolls left (`animate-scroll-left`), Row 2 scrolls right (`animate-scroll-right`)
+- Photos duplicated for seamless CSS loop (`[...row, ...row]` at `width: 200%`)
+- `blur-[4px] scale-105` on each photo for soft background effect
+- Dark overlay gradient (`from-black/65 via-black/55 to-black/75`) ensures white text readability
+- Photos rendered as `tabIndex={-1} aria-hidden="true"` links (decorative, not navigable)
+
+**CSS animations** added to `src/app/globals.css`:
+```css
+@keyframes scroll-left  { 0% { transform: translateX(0); }    100% { transform: translateX(-50%); } }
+@keyframes scroll-right { 0% { transform: translateX(-50%); } 100% { transform: translateX(0); } }
+.animate-scroll-left  { animation: scroll-left  40s linear infinite; }
+.animate-scroll-right { animation: scroll-right 40s linear infinite; }
+```
+
+**Homepage data fetch** (`src/app/page.tsx`): 7th `Promise.all` query fetches top-16 ACTIVE non-private listings by favorites count, selecting `id` + first `photoUrl`. CDN URLs filtered (`cdn.thegrainline.com` only). Threshold: ≥12 real photos required to activate mosaic; falls back to amber gradient below that.
+
+**Adaptive hero**: when mosaic active, hero section switches to `bg-neutral-900`; h1, p, tags, and CTAs switch to white/glass variants. The "Browse the Workshop" CTA uses white text on dark background; "Find Makers Near You" becomes a white-bordered ghost button.

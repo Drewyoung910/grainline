@@ -12,6 +12,7 @@ import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
 import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@/components/icons";
 import ClickTracker from "@/components/ClickTracker";
+import HeroMosaic from "@/components/HeroMosaic";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -84,7 +85,7 @@ const CATEGORIES = [
 ];
 
 export default async function HomePage() {
-  const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts] = await Promise.all([
+  const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts, mosaicListings] = await Promise.all([
     prisma.listing.findMany({
       where: { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } } },
       orderBy: { createdAt: "desc" },
@@ -137,10 +138,28 @@ export default async function HomePage() {
         sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
     }),
+    prisma.listing.findMany({
+      where: { status: "ACTIVE", isPrivate: false },
+      orderBy: { favorites: { _count: "desc" } },
+      take: 16,
+      select: {
+        id: true,
+        photos: {
+          take: 1,
+          orderBy: { sortOrder: "asc" },
+          select: { url: true },
+        },
+      },
+    }),
   ]);
 
   const [activeListingsCount, sellersCount, ordersCount] = statsResults;
   const trendingTags = trendingTagsRaw.map((r) => r.tag);
+
+  const mosaicPhotos: { url: string; listingId: string }[] = mosaicListings
+    .filter(l => l.photos.length > 0)
+    .map(l => ({ url: l.photos[0].url, listingId: l.id }))
+    .filter(item => item.url.includes("cdn.thegrainline.com"));
 
   const mapPoints = mapRows
     .map((r) => ({
@@ -275,12 +294,17 @@ export default async function HomePage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50 border-b flex flex-col justify-center">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
-          <h1 className="text-display font-display text-neutral-900">
+      <section className={`relative min-h-screen border-b flex flex-col justify-center ${
+        mosaicPhotos.length >= 12
+          ? "bg-neutral-900"
+          : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
+      }`}>
+        {mosaicPhotos.length >= 12 && <HeroMosaic photos={mosaicPhotos} />}
+        <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
+          <h1 className={`text-display font-display ${mosaicPhotos.length >= 12 ? "text-white" : "text-neutral-900"}`}>
             The Woodworking Marketplace
           </h1>
-          <p className="text-lg text-stone-500">
+          <p className={`text-lg ${mosaicPhotos.length >= 12 ? "text-white/80" : "text-stone-500"}`}>
             Discover handmade pieces from local makers across the country.
           </p>
 
@@ -292,12 +316,16 @@ export default async function HomePage() {
 
           {trendingTags.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 pt-1">
-              <span className="text-xs text-neutral-500 self-center">Trending:</span>
+              <span className={`text-xs self-center ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-500"}`}>Trending:</span>
               {trendingTags.map((tag) => (
                 <Link
                   key={tag}
                   href={`/browse?q=${encodeURIComponent(tag)}`}
-                  className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs hover:bg-amber-50 text-neutral-700"
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                    mosaicPhotos.length >= 12
+                      ? "border-white/40 bg-white/10 text-white hover:bg-white/20"
+                      : "border-amber-200 bg-white text-neutral-700 hover:bg-amber-50"
+                  }`}
                 >
                   #{tag}
                 </Link>
@@ -314,7 +342,11 @@ export default async function HomePage() {
             </Link>
             <Link
               href="/map"
-              className="inline-flex items-center rounded-full border-2 border-[#2C1F1A] bg-transparent px-6 py-3 text-sm font-medium text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
+              className={`inline-flex items-center rounded-full border-2 px-6 py-3 text-sm font-medium transition-colors ${
+                mosaicPhotos.length >= 12
+                  ? "border-white text-white hover:bg-white hover:text-neutral-900"
+                  : "border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
+              }`}
             >
               Find Makers Near You
             </Link>
@@ -322,7 +354,7 @@ export default async function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-neutral-400">
+        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-400"}`}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 9l6 6 6-6" />
           </svg>
