@@ -366,6 +366,7 @@ export default async function HomePage() {
       </ScrollSection>
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
+      <div className="bg-gradient-to-b from-amber-50/20 via-white to-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-10">
 
         {/* ── From Your Makers ─────────────────────────────────────────────── */}
@@ -708,6 +709,7 @@ export default async function HomePage() {
             </ul>
           </ScrollSection>
         )}
+      </div>
       </div>
 
       {/* ── Newsletter ───────────────────────────────────────────────────── */}

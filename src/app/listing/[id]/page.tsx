@@ -305,7 +305,7 @@ export default async function ListingPage({
   };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 pt-6">
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 pt-6 bg-gradient-to-b from-amber-50/20 to-white min-h-screen">
       <ListingViewTracker listingId={id} />
       <RecentlyViewedTracker listingId={id} />
       {/* JSON-LD */}

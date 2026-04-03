@@ -382,7 +382,7 @@ export default async function BrowsePage({
     });
 
     return (
-      <main className="p-8 max-w-6xl mx-auto">
+      <main className="p-8 max-w-6xl mx-auto bg-gradient-to-b from-amber-50/20 to-white min-h-screen">
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
           <FilterSidebar popularTags={popularTags} />
           <div className="flex-1 min-w-0 space-y-8">
@@ -598,7 +598,7 @@ export default async function BrowsePage({
   ].filter(Boolean).length;
 
   return (
-    <main className="p-4 sm:p-6 max-w-6xl mx-auto">
+    <main className="p-4 sm:p-6 max-w-6xl mx-auto bg-gradient-to-b from-amber-50/20 to-white min-h-screen">
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
         <FilterSidebar popularTags={popularTags} />
