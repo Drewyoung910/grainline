@@ -275,7 +275,7 @@ export default async function HomePage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50 border-b flex flex-col justify-center">
+      <section className="relative bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50 border-b flex flex-col justify-center">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
           <h1 className="text-display font-display text-neutral-900">
             The Woodworking Marketplace
