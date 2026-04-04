@@ -310,7 +310,7 @@ export default async function HomePage() {
 
           <div className="max-w-xl mx-auto [&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60">
             <Suspense>
-              <SearchBar variant={mosaicPhotos.length >= 122 ? "glass" : "default"} />
+              <SearchBar variant={mosaicPhotos.length >= 12 ? "glass" : "default"} />
             </Suspense>
           </div>
 
