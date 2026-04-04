@@ -8,7 +8,7 @@ type BlogResult = { slug: string; title: string };
 type CategoryResult = { value: string; label: string };
 type SuggestionsResponse = { suggestions: string[]; blogs?: BlogResult[]; categories?: CategoryResult[] };
 
-export default function SearchBar() {
+export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -117,7 +117,7 @@ export default function SearchBar() {
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
       <form onSubmit={handleSubmit}>
-        <div className="flex items-stretch rounded-full border bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
+        <div className={`flex items-stretch rounded-full border overflow-hidden focus-within:ring-2 ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:ring-white/30" : "bg-white border-neutral-200 focus-within:ring-neutral-300"}`}>
           <input
             value={value}
             onChange={handleChange}
@@ -131,13 +131,13 @@ export default function SearchBar() {
               }
             }}
             placeholder="Search handmade goods…"
-            className="flex-1 pl-4 pr-2 py-2 bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            className={`flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-400"}`}
             autoComplete="off"
           />
           <button
             type="submit"
             aria-label="Search"
-            className="flex items-center justify-center px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors shrink-0"
+            className={`flex items-center justify-center px-4 transition-colors shrink-0 ${variant === "glass" ? "bg-white/20 text-white hover:bg-white/30" : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
           >
             <Search size={16} />
           </button>
