@@ -21,9 +21,9 @@ export default function HeroMosaic({ photos }: Props) {
   return (
     <div className="absolute inset-0 overflow-hidden">
       {/* Top fade — blends into header */}
-      <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-white/90 to-transparent z-20" />
+      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white/50 to-transparent z-20" />
       {/* Bottom fade — blends into stats bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#F7F5F0] to-transparent z-20" />
+      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#F7F5F0]/60 to-transparent z-20" />
       {/* Light warm overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-amber-900/20 via-amber-800/10 to-amber-900/20 z-10" />
 
