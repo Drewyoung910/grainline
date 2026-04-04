@@ -294,9 +294,9 @@ export default async function HomePage() {
   return (
     <main>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className={`relative min-h-screen border-b flex flex-col justify-center ${
+      <section className={`relative border-b flex flex-col justify-center min-h-[60vh] ${
         mosaicPhotos.length >= 1
-          ? "bg-neutral-900"
+          ? "bg-amber-950"
           : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
       }`}>
         {mosaicPhotos.length >= 1 && <HeroMosaic photos={mosaicPhotos} />}
