@@ -308,7 +308,7 @@ export default async function HomePage() {
             Discover handmade pieces from local makers across the country.
           </p>
 
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-xl mx-auto [&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60">
             <Suspense>
               <SearchBar />
             </Suspense>
