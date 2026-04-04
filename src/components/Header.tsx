@@ -123,7 +123,7 @@ export default function Header() {
   }, [pathname, searchParams]);
 
   return (
-    <header className="border-b bg-white relative z-30">
+    <header className="border-b bg-gradient-to-b from-amber-50 to-white relative z-30">
       <nav className="mx-auto max-w-6xl p-4 flex items-center gap-4">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
