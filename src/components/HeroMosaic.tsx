@@ -21,7 +21,7 @@ export default function HeroMosaic({ photos }: Props) {
   return (
     <div className="absolute inset-0 overflow-hidden">
       {/* Dark overlay — ensures white text readable over any photo */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/55 to-black/75 z-10" />
+      <div className="absolute inset-0 bg-gradient-to-b from-amber-950/60 via-amber-900/40 to-amber-950/60 z-10" />
 
       {/* Row 1 — scrolls left */}
       <div
