@@ -97,7 +97,7 @@ export default async function HomePage() {
     }),
     prisma.listing.findMany({
       where: { status: ListingStatus.ACTIVE, isPrivate: false, favorites: { some: {} }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } } },
-      orderBy: { favorites: { _count: "desc" } },
+      orderBy: { createdAt: "desc" },
       take: 6,
       include: {
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
@@ -140,7 +140,7 @@ export default async function HomePage() {
     }),
     prisma.listing.findMany({
       where: { status: "ACTIVE", isPrivate: false },
-      orderBy: { favorites: { _count: "desc" } },
+      orderBy: { createdAt: "desc" },
       take: 16,
       select: {
         id: true,
