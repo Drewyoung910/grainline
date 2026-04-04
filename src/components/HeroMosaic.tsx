@@ -25,7 +25,7 @@ export default function HeroMosaic({ photos }: Props) {
 
       {/* Row 1 — scrolls left */}
       <div
-        className="absolute top-0 left-0 h-1/2 flex gap-2 animate-scroll-left"
+        className="absolute top-0 left-0 h-1/2 flex gap-px animate-scroll-left"
         style={{ width: "200%" }}
       >
         {row1.map((item, i) => (
@@ -50,7 +50,7 @@ export default function HeroMosaic({ photos }: Props) {
 
       {/* Row 2 — scrolls right */}
       <div
-        className="absolute bottom-0 left-0 h-1/2 flex gap-2 animate-scroll-right"
+        className="absolute bottom-0 left-0 h-1/2 flex gap-px animate-scroll-right"
         style={{ width: "200%" }}
       >
         {row2.map((item, i) => (
