@@ -295,16 +295,16 @@ export default async function HomePage() {
     <main>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className={`relative min-h-screen border-b flex flex-col justify-center ${
-        mosaicPhotos.length >= 12
+        mosaicPhotos.length >= 1
           ? "bg-neutral-900"
           : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
       }`}>
-        {mosaicPhotos.length >= 12 && <HeroMosaic photos={mosaicPhotos} />}
+        {mosaicPhotos.length >= 1 && <HeroMosaic photos={mosaicPhotos} />}
         <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
-          <h1 className={`text-display font-display ${mosaicPhotos.length >= 12 ? "text-white" : "text-neutral-900"}`}>
+          <h1 className={`text-display font-display ${mosaicPhotos.length >= 1 ? "text-white" : "text-neutral-900"}`}>
             The Woodworking Marketplace
           </h1>
-          <p className={`text-lg ${mosaicPhotos.length >= 12 ? "text-white/80" : "text-stone-500"}`}>
+          <p className={`text-lg ${mosaicPhotos.length >= 1 ? "text-white/80" : "text-stone-500"}`}>
             Discover handmade pieces from local makers across the country.
           </p>
 
@@ -316,13 +316,13 @@ export default async function HomePage() {
 
           {trendingTags.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 pt-1">
-              <span className={`text-xs self-center ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-500"}`}>Trending:</span>
+              <span className={`text-xs self-center ${mosaicPhotos.length >= 1 ? "text-white/60" : "text-neutral-500"}`}>Trending:</span>
               {trendingTags.map((tag) => (
                 <Link
                   key={tag}
                   href={`/browse?q=${encodeURIComponent(tag)}`}
                   className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                    mosaicPhotos.length >= 12
+                    mosaicPhotos.length >= 1
                       ? "border-white/40 bg-white/10 text-white hover:bg-white/20"
                       : "border-amber-200 bg-white text-neutral-700 hover:bg-amber-50"
                   }`}
@@ -343,7 +343,7 @@ export default async function HomePage() {
             <Link
               href="/map"
               className={`inline-flex items-center rounded-full border-2 px-6 py-3 text-sm font-medium transition-colors ${
-                mosaicPhotos.length >= 12
+                mosaicPhotos.length >= 1
                   ? "border-white text-white hover:bg-white hover:text-neutral-900"
                   : "border-[#2C1F1A] bg-transparent text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
               }`}
@@ -354,7 +354,7 @@ export default async function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-400"}`}>
+        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce ${mosaicPhotos.length >= 1 ? "text-white/60" : "text-neutral-400"}`}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 9l6 6 6-6" />
           </svg>
