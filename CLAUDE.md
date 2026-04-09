@@ -1860,6 +1860,20 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 - h1 "Workshop — [name]": added `font-display`
 - "My Listings" and "Saved Searches" h2s: added `font-display`
 
+## ListingCard Redesign (complete — 2026-04-09)
+
+Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to all 7 migrated call sites:
+- Photo: `rounded-2xl overflow-hidden aspect-square group-hover:scale-105` — square crop, rounded, subtle zoom on hover
+- No card border or bg-white background — text floats on page background
+- Single star rating: `★ 4.8 (12)` replaces five-star StarsInline on all cards
+- City/state location line below price
+- Listing type badge inline with location: "Ready to ship" (green) or "Made to order" (amber)
+- Seller chip: `rounded-full border` pill, no card background
+- GuildBadge and FavoriteButton positions unchanged
+- Browse grid gap: `gap-x-4 gap-y-8`
+- scroll ul bg-white removed from homepage Fresh + Favorites containers (already absent)
+- Five-star StarsInline preserved on listing detail page only
+
 ## Shared ListingCard Component (complete — refactor)
 
 `src/components/ListingCard.tsx` — `"use client"` shared card component used across all listing grid/scroll surfaces. Zero visual changes from prior inline implementations.
