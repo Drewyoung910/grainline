@@ -2425,13 +2425,17 @@ Full amber color pass on `src/app/page.tsx`:
 
 Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing detail (`src/app/listing/[id]/page.tsx`) pages: `bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen` on both `<main>` elements.
 
-### Hero photo mosaic (feature branch: `feature/hero-mosaic`)
+### Hero photo mosaic (merged to main — 2026-04-03)
 
 **New component**: `src/components/HeroMosaic.tsx` — `"use client"` dual-row infinite scroll background mosaic:
 - Row 1 scrolls left (`animate-scroll-left`), Row 2 scrolls right (`animate-scroll-right`)
-- Photos duplicated for seamless CSS loop (`[...row, ...row]` at `width: 200%`)
+- Photos duplicated for seamless CSS loop (`[...row1Base, ...row1Base]` at `width: 200%`)
 - `blur-[4px] scale-105` on each photo for soft background effect
-- Dark overlay gradient (`from-black/65 via-black/55 to-black/75`) ensures white text readability
+- `gap-px` between photos (no visible gap)
+- **Overlay layers** (z-order from bottom up):
+  1. Light warm amber overlay: `from-amber-900/20 via-amber-800/10 to-amber-900/20` (z-10)
+  2. Top fade (h-32): `from-white/50 to-transparent` — blends into header (z-20)
+  3. Bottom fade (h-24): `from-[#F7F5F0]/60 to-transparent` — blends into stats bar (z-20)
 - Photos rendered as `tabIndex={-1} aria-hidden="true"` links (decorative, not navigable)
 
 **CSS animations** added to `src/app/globals.css`:
@@ -2442,6 +2446,10 @@ Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing de
 .animate-scroll-right { animation: scroll-right 40s linear infinite; }
 ```
 
-**Homepage data fetch** (`src/app/page.tsx`): 7th `Promise.all` query fetches top-16 ACTIVE non-private listings by favorites count, selecting `id` + first `photoUrl`. CDN URLs filtered (`cdn.thegrainline.com` only). Threshold: ≥12 real photos required to activate mosaic; falls back to amber gradient below that.
+**Homepage data fetch** (`src/app/page.tsx`): 7th `Promise.all` query fetches 16 most recent ACTIVE non-private listings (`orderBy: { createdAt: "desc" }`), selecting `id` + first photo `url`. CDN URLs filtered (`cdn.thegrainline.com` only). Threshold: ≥12 real photos required to activate mosaic; falls back to amber gradient below that.
 
-**Adaptive hero**: when mosaic active, hero section switches to `bg-neutral-900`; h1, p, tags, and CTAs switch to white/glass variants. The "Browse the Workshop" CTA uses white text on dark background; "Find Makers Near You" becomes a white-bordered ghost button.
+**Adaptive hero**: when mosaic active, hero section is `bg-[#1C1C1A]` (espresso), `min-h-[60vh]` (shorter than before — removed `min-h-screen`); h1, p, tags, and CTAs switch to white/glass variants. The "Browse the Workshop" CTA uses white text on dark background; "Find Makers Near You" becomes a white-bordered ghost button.
+
+**Glass `SearchBar` variant**: `SearchBar` accepts `variant?: "default" | "glass"` prop. Glass variant: `bg-white/15 backdrop-blur-sm border-white/40`, white text + placeholder, submit button `bg-white/20`. Passed as `<SearchBar variant={mosaicPhotos.length >= 12 ? "glass" : "default"} />` in hero.
+
+**Header**: `bg-white` → `bg-gradient-to-b from-amber-50 to-white` for subtle warmth on all pages.
