@@ -13,6 +13,7 @@ import GuildBadge from "@/components/GuildBadge";
 import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@/components/icons";
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
+import ListingCard from "@/components/ListingCard";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -569,54 +570,38 @@ export default async function HomePage() {
             </div>
           ) : (
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0 bg-white" style={{ width: "max-content" }}>
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
-                  const img = l.photos[0]?.url ?? "/favicon.ico";
-                  const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
-                  const sellerHref = `/seller/${l.sellerId}`;
-                  const sellerAvatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
-                  const initials = (sellerName || "M").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "M";
                   const shop = sellerRatings.get(l.sellerId);
-
                   return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56 card-listing">
-                      <div className="relative">
-                        <Link href={`/listing/${l.id}`} className="block">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img alt={l.title} src={img} className="w-full aspect-[4/3] object-cover" />
-                        </Link>
-                        <div className="absolute top-2 right-2">
-                          <FavoriteButton listingId={l.id} initialSaved={saved.has(l.id)} />
-                        </div>
-                      </div>
-                      <Link href={`/listing/${l.id}`} className="block">
-                        <div className="p-3 space-y-1 bg-white">
-                          <div className="font-medium text-sm leading-snug line-clamp-2 text-neutral-900">{l.title}</div>
-                          <div className="text-sm font-semibold text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
-                          {shop && shop.count > 0 && (
-                            <div className="flex items-center gap-1.5 text-xs text-stone-500">
-                              <StarsInline value={shop.avg} />
-                              <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-                            </div>
-                          )}
-                        </div>
-                      </Link>
-                      <div className="px-3 pb-3 bg-white">
-                        <div className="flex items-center flex-wrap gap-1">
-                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-stone-100">
-                            {sellerAvatar ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
-                            ) : (
-                              <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
-                                <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
-                              </div>
-                            )}
-                            <span className="truncate max-w-[80px] text-stone-500">{sellerName}</span>
-                          </Link>
-                          <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
-                        </div>
-                      </div>
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          seller: {
+                            id: l.sellerId,
+                            displayName: l.seller.displayName ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            guildLevel: l.seller.guildLevel ?? null,
+                            city: l.seller.city ?? null,
+                            state: l.seller.state ?? null,
+                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+                          },
+                          rating: (() => {
+                            const s = sellerRatings.get(l.sellerId);
+                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
+                          })(),
+                        }}
+                        initialSaved={saved.has(l.id)}
+                        variant="scroll"
+                      />
                     </ClickTracker>
                   );
                 })}
@@ -633,55 +618,37 @@ export default async function HomePage() {
             </div>
 
             <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
-              <ul className="flex gap-4 snap-x snap-mandatory pb-0 bg-white" style={{ width: "max-content" }}>
+              <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
-                  const img = l.photos[0]?.url ?? "/favicon.ico";
-                  const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
-                  const sellerHref = `/seller/${l.sellerId}`;
-                  const sellerAvatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
-                  const initials = (sellerName || "M").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "M";
-                  const shop = sellerRatings.get(l.sellerId);
-
                   return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56 card-listing">
-                      <div className="relative">
-                        <Link href={`/listing/${l.id}`} className="block">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img alt={l.title} src={img} className="w-full aspect-[4/3] object-cover" />
-                        </Link>
-                        <div className="absolute top-2 right-2">
-                          <FavoriteButton listingId={l.id} initialSaved={saved.has(l.id)} />
-                        </div>
-                      </div>
-                      <Link href={`/listing/${l.id}`} className="block">
-                        <div className="p-3 space-y-1 bg-white">
-                          <div className="font-medium text-sm leading-snug line-clamp-2 text-neutral-900">{l.title}</div>
-                          <div className="text-sm font-semibold text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
-                          {shop && shop.count > 0 && (
-                            <div className="flex items-center gap-1.5 text-xs text-stone-500">
-                              <StarsInline value={shop.avg} />
-                              <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-                            </div>
-                          )}
-                          <div className="text-xs text-stone-400">{l._count.favorites} saved</div>
-                        </div>
-                      </Link>
-                      <div className="px-3 pb-3 bg-white">
-                        <div className="flex items-center flex-wrap gap-1">
-                          <Link href={sellerHref} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs hover:bg-stone-100">
-                            {sellerAvatar ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
-                            ) : (
-                              <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
-                                <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
-                              </div>
-                            )}
-                            <span className="truncate max-w-[80px] text-stone-500">{sellerName}</span>
-                          </Link>
-                          <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
-                        </div>
-                      </div>
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          seller: {
+                            id: l.sellerId,
+                            displayName: l.seller.displayName ?? null,
+                            avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                            guildLevel: l.seller.guildLevel ?? null,
+                            city: l.seller.city ?? null,
+                            state: l.seller.state ?? null,
+                            acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+                          },
+                          rating: (() => {
+                            const s = sellerRatings.get(l.sellerId);
+                            return s && s.count > 0 ? { avg: s.avg, count: s.count } : null;
+                          })(),
+                        }}
+                        initialSaved={saved.has(l.id)}
+                        variant="scroll"
+                      />
                     </ClickTracker>
                   );
                 })}

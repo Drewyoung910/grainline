@@ -1860,6 +1860,38 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 - h1 "Workshop — [name]": added `font-display`
 - "My Listings" and "Saved Searches" h2s: added `font-display`
 
+## Shared ListingCard Component (complete — refactor)
+
+`src/components/ListingCard.tsx` — `"use client"` shared card component used across all listing grid/scroll surfaces. Zero visual changes from prior inline implementations.
+
+### `ListingCardData` type
+```ts
+export type ListingCardData = {
+  id, title, priceCents, currency, status, listingType, stockQuantity?,
+  photoUrl, seller: { id, displayName, avatarImageUrl, guildLevel, city, state, acceptingNewOrders },
+  rating?: { avg, count } | null
+}
+```
+
+### Props
+- `listing: ListingCardData`
+- `initialSaved: boolean`
+- `variant: "grid" | "scroll"` — grid: full `card-listing` with seller chip + GuildBadge + acceptingNewOrders badge; scroll: compact `w-full` card for horizontal scroll rows
+
+### Migrated call sites (7 total)
+| File | Variant | Notes |
+|---|---|---|
+| `browse/page.tsx` | `grid` | Inside `GridCard` wrapper which provides its own ClickTracker; outer ClickTracker removed from call site |
+| `page.tsx` (homepage) | `scroll` | Fresh from the Workshop + Buyer Favorites horizontal rows; ClickTracker stays at call site as `<li>` |
+| `account/saved/page.tsx` | `grid` | Added `listingType`, `stockQuantity`, `guildLevel`, `city`, `state`, `acceptingNewOrders` to Prisma select |
+| `seller/[id]/shop/page.tsx` | `grid` | Seller chip data from page-level `seller` object |
+| `seller/[id]/page.tsx` | `grid` | Featured Work + All Listings; seller chip data from page-level `seller` object |
+| `browse/[metroSlug]/page.tsx` | `grid` | Added `status`, `listingType`, `stockQuantity`, `city`, `state`, `acceptingNewOrders` to Prisma select |
+| `browse/[metroSlug]/[category]/page.tsx` | `grid` | Same field additions |
+
+### ClickTracker nesting rule
+`ClickTracker` renders as a `<li>`. When the component providing the card (e.g. `GridCard` in browse) includes its own `ClickTracker`, the outer `<ClickTracker>` at the call site must be removed. For scroll-variant cards, `ClickTracker` stays at the call site and `ListingCard` renders an inner `<div>`.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

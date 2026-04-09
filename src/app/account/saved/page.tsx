@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
-import FavoriteButton from "@/components/FavoriteButton";
 import ClickTracker from "@/components/ClickTracker";
+import ListingCard from "@/components/ListingCard";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 
@@ -54,11 +54,17 @@ export default async function SavedPage({
             priceCents: true,
             currency: true,
             status: true,
+            listingType: true,
+            stockQuantity: true,
             seller: {
               select: {
                 id: true,
                 displayName: true,
                 avatarImageUrl: true,
+                guildLevel: true,
+                city: true,
+                state: true,
+                acceptingNewOrders: true,
                 userId: true,
                 user: { select: { imageUrl: true } },
               },
@@ -83,41 +89,32 @@ export default async function SavedPage({
             <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {favorites.map(({ listing: l }) => {
                 if (!l) return null;
-                const avatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
-                const isAvailable = l.status === "ACTIVE";
                 return (
-                  <ClickTracker key={l.id} listingId={l.id} className="relative card-listing hover:shadow-md transition-shadow">
-                    <div className="absolute top-2 right-2 z-10">
-                      <FavoriteButton listingId={l.id} initialSaved={true} />
-                    </div>
-                    <Link href={`/listing/${l.id}`} className="block">
-                      <div className="bg-neutral-100 overflow-hidden">
-                        {l.photos[0]?.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={l.photos[0].url} alt={l.title} className="w-full aspect-[4/3] object-cover" />
-                        ) : (
-                          <div className="w-full aspect-[4/3] bg-gradient-to-br from-amber-50 to-stone-100" />
-                        )}
-                      </div>
-                      <div className="p-3 bg-white space-y-1">
-                        <p className="font-medium text-neutral-900 text-sm truncate">{l.title}</p>
-                        <p className="text-sm text-neutral-600">
-                          {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
-                        </p>
-                        {!isAvailable && (
-                          <p className="text-xs text-red-500">No longer available</p>
-                        )}
-                        <div className="flex items-center gap-1.5 pt-0.5">
-                          {avatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={avatar} alt={l.seller.displayName ?? ""} className="h-4 w-4 rounded-full object-cover" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full bg-neutral-200" />
-                          )}
-                          <span className="text-xs text-neutral-500 truncate">{l.seller.displayName}</span>
-                        </div>
-                      </div>
-                    </Link>
+                  <ClickTracker key={l.id} listingId={l.id}>
+                    <ListingCard
+                      listing={{
+                        id: l.id,
+                        title: l.title,
+                        priceCents: l.priceCents,
+                        currency: l.currency,
+                        status: l.status,
+                        listingType: l.listingType,
+                        stockQuantity: l.stockQuantity ?? null,
+                        photoUrl: l.photos[0]?.url ?? null,
+                        seller: {
+                          id: l.seller.id,
+                          displayName: l.seller.displayName ?? null,
+                          avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+                          guildLevel: l.seller.guildLevel ?? null,
+                          city: l.seller.city ?? null,
+                          state: l.seller.state ?? null,
+                          acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+                        },
+                        rating: null,
+                      }}
+                      initialSaved={true}
+                      variant="grid"
+                    />
                   </ClickTracker>
                 );
               })}

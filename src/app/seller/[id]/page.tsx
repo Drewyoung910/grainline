@@ -14,6 +14,7 @@ import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
 import SellerGallery from "@/components/SellerGallery";
 import CoverLightbox from "@/components/CoverLightbox";
+import ListingCard from "@/components/ListingCard";
 
 export async function generateMetadata({
   params,
@@ -414,38 +415,34 @@ export default async function SellerPublicPage({
           <section className="mb-8">
             <h2 className="text-lg font-semibold mb-3">Featured Work</h2>
             <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-              {featuredListings.map((l) => {
-                const thumb = l.photos[0]?.url ?? "/favicon.ico";
-                return (
-                  <ClickTracker key={l.id} listingId={l.id} className="card-listing min-w-[200px] flex-none snap-start md:min-w-0">
-                    <div className="relative">
-                      <Link href={`/listing/${l.id}`} className="block">
-                        <div className="relative">
-                          <span className="absolute top-2 left-2 z-10 rounded-full bg-amber-400 text-amber-900 text-xs font-medium px-2 py-0.5">
-                            Featured
-                          </span>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={thumb}
-                            alt={l.title}
-                            className="h-48 w-full object-cover"
-                          />
-                        </div>
-                        <div className="p-3">
-                          <div className="font-medium text-sm">{l.title}</div>
-                          <div className="text-sm text-neutral-500">
-                            {(l.priceCents / 100).toLocaleString(undefined, {
-                              style: "currency",
-                              currency: l.currency,
-                            })}
-                          </div>
-                        </div>
-                      </Link>
-                      <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-                    </div>
-                  </ClickTracker>
-                );
-              })}
+              {featuredListings.map((l) => (
+                <ClickTracker key={l.id} listingId={l.id} className="min-w-[200px] flex-none snap-start md:min-w-0">
+                  <ListingCard
+                    listing={{
+                      id: l.id,
+                      title: l.title,
+                      priceCents: l.priceCents,
+                      currency: l.currency,
+                      status: l.status,
+                      listingType: l.listingType,
+                      stockQuantity: l.stockQuantity ?? null,
+                      photoUrl: l.photos[0]?.url ?? null,
+                      seller: {
+                        id: seller.id,
+                        displayName: seller.displayName ?? null,
+                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                        guildLevel: seller.guildLevel ?? null,
+                        city: seller.city ?? null,
+                        state: seller.state ?? null,
+                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                      },
+                      rating: null,
+                    }}
+                    initialSaved={savedSet.has(l.id)}
+                    variant="grid"
+                  />
+                </ClickTracker>
+              ))}
             </ul>
           </section>
         )}
@@ -624,33 +621,34 @@ export default async function SellerPublicPage({
             </div>
           ) : (
             <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
-              {listings.slice(0, 8).map((l) => {
-                const thumb = l.photos[0]?.url ?? "/favicon.ico";
-                return (
-                  <ClickTracker key={l.id} listingId={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
-                    <div className="relative">
-                      <Link href={`/listing/${l.id}`} className="block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={thumb}
-                          alt={l.title}
-                          className="h-48 w-full object-cover"
-                        />
-                        <div className="p-4">
-                          <div className="font-medium">{l.title}</div>
-                          <div className="text-sm text-neutral-500">
-                            {(l.priceCents / 100).toLocaleString(undefined, {
-                              style: "currency",
-                              currency: l.currency,
-                            })}
-                          </div>
-                        </div>
-                      </Link>
-                      <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-                    </div>
-                  </ClickTracker>
-                );
-              })}
+              {listings.slice(0, 8).map((l) => (
+                <ClickTracker key={l.id} listingId={l.id} className="min-w-[220px] flex-none snap-start sm:min-w-0">
+                  <ListingCard
+                    listing={{
+                      id: l.id,
+                      title: l.title,
+                      priceCents: l.priceCents,
+                      currency: l.currency,
+                      status: l.status,
+                      listingType: l.listingType,
+                      stockQuantity: l.stockQuantity ?? null,
+                      photoUrl: l.photos[0]?.url ?? null,
+                      seller: {
+                        id: seller.id,
+                        displayName: seller.displayName ?? null,
+                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                        guildLevel: seller.guildLevel ?? null,
+                        city: seller.city ?? null,
+                        state: seller.state ?? null,
+                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                      },
+                      rating: null,
+                    }}
+                    initialSaved={savedSet.has(l.id)}
+                    variant="grid"
+                  />
+                </ClickTracker>
+              ))}
             </ul>
           )}
           {listings.length > 8 && (

@@ -9,9 +9,8 @@ import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { ListingStatus } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
-import FavoriteButton from "@/components/FavoriteButton";
-import GuildBadge from "@/components/GuildBadge";
-import type { GuildLevelValue } from "@/components/GuildBadge";
+import ClickTracker from "@/components/ClickTracker";
+import ListingCard from "@/components/ListingCard";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -136,6 +135,9 @@ export default async function BrowseMetroPage({
         title: true,
         priceCents: true,
         currency: true,
+        status: true,
+        listingType: true,
+        stockQuantity: true,
         category: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
         seller: {
@@ -144,6 +146,9 @@ export default async function BrowseMetroPage({
             displayName: true,
             avatarImageUrl: true,
             guildLevel: true,
+            city: true,
+            state: true,
+            acceptingNewOrders: true,
             user: { select: { imageUrl: true } },
           },
         },
@@ -284,46 +289,34 @@ export default async function BrowseMetroPage({
         </div>
       ) : (
         <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
-          {listings.map((listing) => {
-            const photo = listing.photos[0]?.url;
-            const price = `$${(listing.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
-            const avatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl;
-            return (
-              <li key={listing.id} className="relative">
-                <div className="border border-neutral-200">
-                  <div className="relative">
-                    <Link href={`/listing/${listing.id}`}>
-                      {photo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={photo} alt={listing.title} className="w-full aspect-square object-cover" />
-                      ) : (
-                        <div className="w-full aspect-square bg-neutral-100" />
-                      )}
-                    </Link>
-                    <div className="absolute top-2 right-2 z-10">
-                      <FavoriteButton listingId={listing.id} initialSaved={savedSet.has(listing.id)} />
-                    </div>
-                  </div>
-                  <div className="bg-stone-50 p-3">
-                    <Link href={`/listing/${listing.id}`} className="block">
-                      <p className="text-sm font-medium text-neutral-900 truncate">{listing.title}</p>
-                      <p className="text-sm text-neutral-700 mt-0.5">{price}</p>
-                    </Link>
-                    <Link href={`/seller/${listing.seller.id}`} className="flex items-center gap-1.5 mt-2">
-                      {avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt={listing.seller.displayName} className="w-4 h-4 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full bg-neutral-200" />
-                      )}
-                      <span className="text-xs text-neutral-500 truncate">{listing.seller.displayName}</span>
-                      <GuildBadge level={listing.seller.guildLevel as GuildLevelValue} size={12} />
-                    </Link>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
+          {listings.map((listing) => (
+            <ClickTracker key={listing.id} listingId={listing.id}>
+              <ListingCard
+                listing={{
+                  id: listing.id,
+                  title: listing.title,
+                  priceCents: listing.priceCents,
+                  currency: listing.currency,
+                  status: listing.status,
+                  listingType: listing.listingType,
+                  stockQuantity: listing.stockQuantity ?? null,
+                  photoUrl: listing.photos[0]?.url ?? null,
+                  seller: {
+                    id: listing.seller.id,
+                    displayName: listing.seller.displayName ?? null,
+                    avatarImageUrl: listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null,
+                    guildLevel: listing.seller.guildLevel ?? null,
+                    city: listing.seller.city ?? null,
+                    state: listing.seller.state ?? null,
+                    acceptingNewOrders: listing.seller.acceptingNewOrders ?? null,
+                  },
+                  rating: null,
+                }}
+                initialSaved={savedSet.has(listing.id)}
+                variant="grid"
+              />
+            </ClickTracker>
+          ))}
         </ul>
       )}
 

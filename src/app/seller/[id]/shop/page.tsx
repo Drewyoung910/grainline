@@ -5,8 +5,8 @@ import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
-import FavoriteButton from "@/components/FavoriteButton";
 import ClickTracker from "@/components/ClickTracker";
+import ListingCard from "@/components/ListingCard";
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
@@ -66,6 +66,9 @@ export default async function SellerShopPage({
       displayName: true,
       avatarImageUrl: true,
       guildLevel: true,
+      city: true,
+      state: true,
+      acceptingNewOrders: true,
       vacationMode: true,
       vacationReturnDate: true,
       vacationMessage: true,
@@ -275,33 +278,32 @@ export default async function SellerShopPage({
       ) : (
         <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {listings.map((l) => {
-            const thumb = l.photos[0]?.url ?? null;
             return (
-              <ClickTracker key={l.id} listingId={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
-                <Link href={`/listing/${l.id}`} className="block">
-                  <div className="h-48 bg-neutral-100 overflow-hidden">
-                    {thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={thumb}
-                        alt={l.title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-neutral-200" />
-                    )}
-                  </div>
-                  <div className="p-3 bg-white">
-                    <div className="font-medium text-sm line-clamp-2">{l.title}</div>
-                    <div className="text-sm text-neutral-500">
-                      {(l.priceCents / 100).toLocaleString(undefined, {
-                        style: "currency",
-                        currency: l.currency,
-                      })}
-                    </div>
-                  </div>
-                </Link>
-                <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
+              <ClickTracker key={l.id} listingId={l.id}>
+                <ListingCard
+                  listing={{
+                    id: l.id,
+                    title: l.title,
+                    priceCents: l.priceCents,
+                    currency: l.currency,
+                    status: l.status,
+                    listingType: l.listingType,
+                    stockQuantity: l.stockQuantity ?? null,
+                    photoUrl: l.photos[0]?.url ?? null,
+                    seller: {
+                      id: seller.id,
+                      displayName: seller.displayName ?? null,
+                      avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                      guildLevel: seller.guildLevel ?? null,
+                      city: seller.city ?? null,
+                      state: seller.state ?? null,
+                      acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                    },
+                    rating: null,
+                  }}
+                  initialSaved={savedSet.has(l.id)}
+                  variant="grid"
+                />
               </ClickTracker>
             );
           })}

@@ -12,6 +12,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Suspense } from "react";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import GuildBadge from "@/components/GuildBadge";
+import ListingCard from "@/components/ListingCard";
 
 const PAGE_SIZE = 24;
 
@@ -461,63 +462,34 @@ export default async function BrowsePage({
 
   // ── Grid card renderer ─────────────────────────────────────────────────────
   function GridCard({ l }: { l: ListingWithIncludes }) {
-    const img = l.photos[0]?.url ?? "/favicon.ico";
-    const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Seller";
-    const sellerAvatar = l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null;
-    const initials = (sellerName || "S").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "S";
     const shop = sellerRatings.get(l.sellerId);
-
     return (
-      <>
-        <div className="relative">
-          <Link href={`/listing/${l.id}`} className="block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img alt={l.title} src={img} className="w-full aspect-[4/3] object-cover" />
-          </Link>
-          <div className="absolute top-2 right-2">
-            <FavoriteButton listingId={l.id} initialSaved={savedSet.has(l.id)} />
-          </div>
-        </div>
-
-        <Link href={`/listing/${l.id}`} className="block">
-          <div className="p-4 space-y-1 bg-white">
-            <div className="font-medium text-sm text-neutral-900 line-clamp-1">{l.title}</div>
-            <div className="font-semibold text-base text-neutral-900">${(l.priceCents / 100).toFixed(2)}</div>
-            {shop && shop.count > 0 && (
-              <div className="flex items-center gap-2 text-xs text-stone-500">
-                <StarsInline value={shop.avg} />
-                <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-                <span className="text-stone-400">({shop.count})</span>
-              </div>
-            )}
-          </div>
-        </Link>
-
-        <div className="px-4 pb-4 bg-white">
-          <div className="flex items-center flex-wrap gap-1.5">
-            <Link
-              href={`/seller/${l.sellerId}`}
-              className="inline-flex items-center gap-2 text-xs rounded-full border px-3 py-1 hover:bg-neutral-50"
-            >
-              {sellerAvatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={sellerAvatar} alt={sellerName} className="h-5 w-5 rounded-full object-cover" />
-              ) : (
-                <div className="h-5 w-5 rounded-full bg-neutral-200 flex items-center justify-center">
-                  <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
-                </div>
-              )}
-              <span>{sellerName}</span>
-            </Link>
-            <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
-          </div>
-          {l.seller.acceptingNewOrders === false && (
-            <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-              Not accepting new orders
-            </span>
-          )}
-        </div>
-      </>
+      <ClickTracker listingId={l.id}>
+        <ListingCard
+          listing={{
+            id: l.id,
+            title: l.title,
+            priceCents: l.priceCents,
+            currency: l.currency,
+            status: l.status,
+            listingType: l.listingType,
+            stockQuantity: l.stockQuantity ?? null,
+            photoUrl: l.photos[0]?.url ?? null,
+            seller: {
+              id: l.sellerId,
+              displayName: l.seller.displayName ?? null,
+              avatarImageUrl: l.seller.avatarImageUrl ?? l.seller.user?.imageUrl ?? null,
+              guildLevel: l.seller.guildLevel ?? null,
+              city: l.seller.city ?? null,
+              state: l.seller.state ?? null,
+              acceptingNewOrders: l.seller.acceptingNewOrders ?? null,
+            },
+            rating: shop && shop.count > 0 ? { avg: shop.avg, count: shop.count } : null,
+          }}
+          initialSaved={savedSet.has(l.id)}
+          variant="grid"
+        />
+      </ClickTracker>
     );
   }
 
@@ -651,9 +623,7 @@ export default async function BrowsePage({
           {view === "grid" ? (
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {listings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="card-listing">
-                  <GridCard l={l} />
-                </ClickTracker>
+                <GridCard key={l.id} l={l} />
               ))}
             </ul>
           ) : (
