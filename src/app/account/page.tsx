@@ -277,7 +277,18 @@ export default async function AccountPage() {
         </div>
       </section>
 
-      {/* ── Section 4: Commission Requests ── */}
+      {/* ── Section 4: My Reviews ── */}
+      <section>
+        <h2 className="text-xl font-semibold font-display mb-4">My Reviews</h2>
+        <div className="card-section p-4">
+          <p className="text-sm text-neutral-500 mb-3">Reviews you&apos;ve written for items you&apos;ve purchased</p>
+          <Link href="/account/reviews" className="text-sm underline hover:text-neutral-900">
+            View my reviews →
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Section 5 (orig 4): Commission Requests ── */}
       <section>
         <h2 className="text-xl font-semibold font-display mb-4">Commission Requests</h2>
         <div className="card-section p-4">

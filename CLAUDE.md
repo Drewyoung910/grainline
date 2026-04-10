@@ -1909,6 +1909,27 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - globals.css: scroll-fade-edges updated — fades only appear on hover/focus-within, not on static load
 - src/app/about/page.tsx: About page with live stats, story sections, maker + buyer CTAs; added to isPublic middleware and footer
 
+## Social Features (2026-04-10)
+
+### Block/Report Users
+- `Block` model + `UserReport` model added to schema; migration: `add_block_report`
+- Block enforcement: `sendMessage` server action checks `Block` table before sending — returns `{ ok: false, error: "blocked" }`
+- Block enforcement: follow API rejects if either user has blocked the other
+- `POST/DELETE /api/users/[id]/block` — upsert/delete Block record
+- `POST /api/users/[id]/report` — creates UserReport; rate limited 5/hr (`reportRatelimit`)
+- `reportRatelimit` added to `src/lib/ratelimit.ts`
+- `BlockReportButton` (`src/components/BlockReportButton.tsx`) — ••• menu with block/unblock + report with reason + details; wired into `seller/[id]/page.tsx` and `messages/[id]/page.tsx`
+- `POST /api/admin/reports/[id]/resolve` — marks resolved, logs `RESOLVE_REPORT` to audit
+
+### My Reviews
+- `src/app/account/reviews/page.tsx` — buyer's review history with listing photo, stars, comment, seller reply
+- Linked from `account/page.tsx` as new Section 4
+
+### Admin Reports Queue
+- `src/app/admin/reports/page.tsx` — unresolved reports with reporter/reported names, reason, resolve button
+- `ResolveReportButton` (`src/components/admin/ResolveReportButton.tsx`) + resolve API route
+- Reports link added to admin sidebar + mobile nav
+
 ## Admin Capabilities (2026-04-10)
 
 - DELETE /api/admin/reviews/[id] — hard delete review; logged as DELETE_REVIEW in AdminAuditLog

@@ -10,6 +10,7 @@ import ThreadMessages from "@/components/ThreadMessages";
 import MessageComposer from "@/components/MessageComposer";
 import Link from "next/link";
 import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
+import BlockReportButton from "@/components/BlockReportButton";
 
 export default async function ThreadPage({
   params,
@@ -107,6 +108,18 @@ export default async function ThreadPage({
     if (!c) return { ok: false };
 
     const recipientId = c.userAId === me.id ? c.userBId : c.userAId;
+
+    // Block check — reject if either user has blocked the other
+    const blockExists = await prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: me.id, blockedId: recipientId },
+          { blockerId: recipientId, blockedId: me.id },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blockExists) return { ok: false, error: "blocked" };
 
     // 1) attachments -> each as its own message (JSON payload in body)
     for (const a of atts) {
@@ -265,6 +278,12 @@ export default async function ThreadPage({
             {archivedForMe ? (
               <span className="rounded-full border px-2 py-[2px] text-[11px] text-neutral-600 shrink-0">Archived</span>
             ) : null}
+            {other && other.id !== me.id && (
+              <BlockReportButton
+                targetUserId={other.id}
+                targetName={other.name ?? "this user"}
+              />
+            )}
           </div>
         </div>
 

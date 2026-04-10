@@ -155,6 +155,14 @@ export const adminEmailRatelimit = new Ratelimit({
   prefix: "rl:admin_email",
 });
 
+// Report user — fail closed (abuse has real cost)
+export const reportRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "1 h"),
+  analytics: true,
+  prefix: "rl:report",
+});
+
 // Notification mark-read — low risk but cap it (fail open — non-critical)
 export const markReadRatelimit = new Ratelimit({
   redis,

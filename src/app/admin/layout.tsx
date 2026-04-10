@@ -128,6 +128,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             Reviews
           </Link>
           <Link
+            href="/admin/reports"
+            className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <AlertTriangle size={16} className="shrink-0 text-neutral-400" />
+            Reports
+          </Link>
+          <Link
             href="/admin/users"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >

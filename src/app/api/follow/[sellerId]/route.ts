@@ -71,6 +71,18 @@ export async function POST(
     return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
   }
 
+  // Don't allow following a user who has blocked you or whom you've blocked
+  const blockExists = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: sellerProfile.userId },
+        { blockerId: sellerProfile.userId, blockedId: me.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blockExists) return NextResponse.json({ error: "Blocked" }, { status: 403 });
+
   await prisma.follow.upsert({
     where: { followerId_sellerProfileId: { followerId: me.id, sellerProfileId: sellerProfile.id } },
     create: { followerId: me.id, sellerProfileId: sellerProfile.id },

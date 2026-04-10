@@ -12,6 +12,7 @@ import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
+import BlockReportButton from "@/components/BlockReportButton";
 import SellerGallery from "@/components/SellerGallery";
 import CoverLightbox from "@/components/CoverLightbox";
 import ListingCard from "@/components/ListingCard";
@@ -313,7 +314,7 @@ export default async function SellerPublicPage({
                 <p className="text-sm text-neutral-500 mt-0.5">{cityState}</p>
               )}
               {meId !== seller.userId && (
-                <div className="mt-2">
+                <div className="mt-2 flex items-center gap-2">
                   <FollowButton
                     sellerProfileId={seller.id}
                     sellerUserId={seller.userId}
@@ -321,6 +322,12 @@ export default async function SellerPublicPage({
                     initialCount={followerCount}
                     size="sm"
                   />
+                  {meId && (
+                    <BlockReportButton
+                      targetUserId={seller.userId}
+                      targetName={seller.displayName ?? "this maker"}
+                    />
+                  )}
                 </div>
               )}
             </div>

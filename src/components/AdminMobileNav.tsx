@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: "/admin/broadcasts",   label: "Broadcasts", Icon: Rss },
   { href: "/admin/review",       label: "Review",     Icon: Eye, badgeKey: "pendingReviewCount" as const },
   { href: "/admin/reviews",       label: "Reviews",    Icon: Star },
+  { href: "/admin/reports",      label: "Reports",    Icon: AlertTriangle },
   { href: "/admin/users",        label: "Users",      Icon: User },
   { href: "/admin/audit",        label: "Audit",      Icon: Shield },
 ];
