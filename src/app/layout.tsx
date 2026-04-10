@@ -96,6 +96,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </div>
             )}
             <div className="flex flex-wrap justify-center gap-4 mb-2">
+              <Link href="/about" className="hover:text-stone-600 hover:underline">About</Link>
               <Link href="/terms" className="hover:text-stone-600 hover:underline">Terms of Service</Link>
               <Link href="/privacy" className="hover:text-stone-600 hover:underline">Privacy Policy</Link>
               <Link href="/blog" className="hover:text-stone-600 hover:underline">Blog</Link>

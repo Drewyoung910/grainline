@@ -1902,6 +1902,13 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - MessageComposer.tsx: actionform:ok handler explicitly resets textarea DOM value + height — fixes emoji residue after send
 - ThreadMessages.tsx: 500ms fallback setTimeout after initial requestAnimationFrame scroll — fixes mobile loading at top of thread
 
+## Listing Page + UX Polish (2026-04-10)
+
+- listing/[id]/page.tsx: Shop Policies accordion added before SimilarItems — shows returnPolicy, shippingPolicy, customOrderPolicy; no query change (seller fully included already)
+- page.tsx: Hero text changed to "Buy handmade. Buy local. Buy quality." with updated subheading
+- globals.css: scroll-fade-edges updated — fades only appear on hover/focus-within, not on static load
+- src/app/about/page.tsx: About page with live stats, story sections, maker + buyer CTAs; added to isPublic middleware and footer
+
 ## Admin Capabilities (2026-04-10)
 
 - DELETE /api/admin/reviews/[id] — hard delete review; logged as DELETE_REVIEW in AdminAuditLog

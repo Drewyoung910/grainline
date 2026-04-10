@@ -303,10 +303,10 @@ export default async function HomePage() {
         {mosaicPhotos.length >= 12 && <HeroMosaic photos={mosaicPhotos} />}
         <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
           <h1 className={`text-display font-display ${mosaicPhotos.length >= 12 ? "text-white" : "text-neutral-900"}`}>
-            The Woodworking Marketplace
+            Buy handmade.<br />Buy local. Buy quality.
           </h1>
           <p className={`text-lg ${mosaicPhotos.length >= 12 ? "text-white/80" : "text-stone-500"}`}>
-            Discover handmade pieces from local makers across the country.
+            Handmade woodworking pieces from makers across the country.
           </p>
 
           <div className="max-w-xl mx-auto [&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60">

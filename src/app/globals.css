@@ -147,8 +147,14 @@ input, textarea, select {
   animation: scroll-right 40s linear infinite;
 }
 
-/* Horizontal scroll fade edges */
+/* Horizontal scroll fade edges — appears on hover/focus */
 .scroll-fade-edges {
+  mask-image: linear-gradient(to right, black, black);
+  -webkit-mask-image: linear-gradient(to right, black, black);
+  transition: mask-image 0.2s ease;
+}
+.scroll-fade-edges:hover,
+.scroll-fade-edges:focus-within {
   mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
 }

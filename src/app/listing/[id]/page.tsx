@@ -658,6 +658,42 @@ export default async function ListingPage({
         );
       })()}
 
+      {/* ── Shop Policies ──────────────────────────────────────────────────── */}
+      {(listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
+        <section className="card-section p-6 mb-10">
+          <h2 className="font-semibold font-display text-neutral-900 mb-3">Shop Policies</h2>
+          <div className="space-y-0">
+            {listing.seller.returnPolicy && (
+              <details className="border-b border-neutral-100 last:border-0">
+                <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
+                  Returns & Exchanges
+                  <span className="text-neutral-400 text-xs">▾</span>
+                </summary>
+                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.returnPolicy}</p>
+              </details>
+            )}
+            {listing.seller.shippingPolicy && (
+              <details className="border-b border-neutral-100 last:border-0">
+                <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
+                  Shipping
+                  <span className="text-neutral-400 text-xs">▾</span>
+                </summary>
+                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.shippingPolicy}</p>
+              </details>
+            )}
+            {listing.seller.customOrderPolicy && (
+              <details className="border-b border-neutral-100 last:border-0">
+                <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
+                  Custom Orders
+                  <span className="text-neutral-400 text-xs">▾</span>
+                </summary>
+                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.customOrderPolicy}</p>
+              </details>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* ── Similar items ─────────────────────────────────────────────────── */}
       <section className="mb-10">
         <h2 className="font-semibold font-display text-neutral-900 mb-4">You might also like</h2>
