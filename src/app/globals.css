@@ -146,3 +146,9 @@ input, textarea, select {
 .animate-scroll-right {
   animation: scroll-right 40s linear infinite;
 }
+
+/* Horizontal scroll fade edges */
+.scroll-fade-edges {
+  mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+}

@@ -305,7 +305,8 @@ export default async function ListingPage({
   };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 pt-6 bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+    <div className="bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-6">
       <ListingViewTracker listingId={id} />
       <RecentlyViewedTracker listingId={id} />
       {/* JSON-LD */}
@@ -674,5 +675,6 @@ export default async function ListingPage({
         />
       </section>
     </main>
+    </div>
   );
 }

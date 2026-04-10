@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
@@ -13,6 +14,7 @@ export type ListingCardData = {
   listingType: string;
   stockQuantity?: number | null;
   photoUrl: string | null;
+  secondPhotoUrl?: string | null;
   seller: {
     id: string;
     displayName: string | null;
@@ -32,7 +34,9 @@ type Props = {
 };
 
 export default function ListingCard({ listing: l, initialSaved = false, variant = "grid" }: Props) {
+  const [hovered, setHovered] = useState(false);
   const img = l.photoUrl ?? "/favicon.ico";
+  const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
   const sellerName = l.seller.displayName ?? "Maker";
   const sellerAvatar = l.seller.avatarImageUrl ?? null;
   const initials = (sellerName || "S").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "S";
@@ -42,13 +46,17 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
   const state = l.seller.state;
 
   const photo = (
-    <div className="relative rounded-2xl overflow-hidden group-hover:shadow-md transition-shadow duration-300">
+    <div
+      className="relative rounded-2xl overflow-hidden"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <Link href={`/listing/${l.id}`} className="block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt={l.title}
-          src={img}
-          className="w-full aspect-square object-cover transition-transform duration-300 group-hover:scale-105"
+          src={displayImg}
+          className="w-full aspect-square object-cover transition-all duration-300 group-hover:scale-105"
         />
       </Link>
       <div className="absolute top-2 right-2">
@@ -62,7 +70,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
       <div className={`font-medium text-neutral-900 line-clamp-2 leading-snug ${variant === "scroll" ? "text-sm" : "text-sm"}`}>
         {l.title}
       </div>
-      <div className="font-semibold text-sm text-neutral-900">
+      <div className="font-bold text-sm text-neutral-900">
         {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
       </div>
       {shop && shop.count > 0 && (
@@ -90,20 +98,12 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
   );
 
   const sellerChip = (
-    <div className="pt-2 flex items-center flex-wrap gap-1.5">
+    <div className="pt-1.5 flex items-center flex-wrap gap-1.5">
       <Link
         href={`/seller/${l.seller.id}`}
-        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-neutral-50 transition-colors"
+        className="text-xs text-stone-500 hover:text-neutral-700 hover:underline transition-colors truncate max-w-[140px]"
       >
-        {sellerAvatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={sellerAvatar} alt={sellerName} className="h-4 w-4 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-4 w-4 items-center justify-center rounded-full bg-neutral-200">
-            <span className="text-[9px] font-medium text-neutral-700">{initials}</span>
-          </div>
-        )}
-        <span className="truncate max-w-[100px] text-stone-600">{sellerName}</span>
+        {sellerName}
       </Link>
       {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
         <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={16} />

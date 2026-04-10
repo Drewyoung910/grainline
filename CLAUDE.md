@@ -1874,6 +1874,19 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - scroll ul bg-white removed from homepage Fresh + Favorites containers (already absent)
 - Five-star StarsInline preserved on listing detail page only
 
+## Layout & Polish Pass (complete — 2026-04-09)
+
+- Browse + Listing: gradient moved outside max-w constraint — now full-screen width
+- All listing surfaces: max-w-6xl → max-w-7xl (1280px)
+- Browse grid: xl:grid-cols-4 (4 columns on very wide screens only)
+- Browse FilterSidebar: sticky top-4 self-start
+- ListingCard: seller avatar removed — seller name as plain text link
+- ListingCard: hover photo swap — shows second listing photo on hover when available
+- ListingCard: `secondPhotoUrl?: string | null` added to `ListingCardData` type
+- Homepage scroll rows: `scroll-fade-edges` CSS class — fade on both edges
+- From Your Makers: bg-white removed from scroll ul for consistency
+- Browse + page.tsx photo queries: `take: 2` to enable hover swap
+
 ## Shared ListingCard Component (complete — refactor)
 
 `src/components/ListingCard.tsx` — `"use client"` shared card component used across all listing grid/scroll surfaces. Zero visual changes from prior inline implementations.

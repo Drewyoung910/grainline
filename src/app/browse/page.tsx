@@ -87,7 +87,7 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
     take,
     skip,
     include: {
-      photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+      photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
       seller: { include: { user: true } },
       ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
     },
@@ -383,9 +383,12 @@ export default async function BrowsePage({
     });
 
     return (
-      <main className="p-8 max-w-6xl mx-auto bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+      <div className="bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+      <main className="p-8 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
-          <FilterSidebar popularTags={popularTags} />
+          <div className="sticky top-4 self-start">
+            <FilterSidebar popularTags={popularTags} />
+          </div>
           <div className="flex-1 min-w-0 space-y-8">
             <div className="space-y-2">
               <h1 className="text-2xl font-semibold">
@@ -436,6 +439,7 @@ export default async function BrowsePage({
           </div>
         </div>
       </main>
+      </div>
     );
   }
 
@@ -475,6 +479,7 @@ export default async function BrowsePage({
             listingType: l.listingType,
             stockQuantity: l.stockQuantity ?? null,
             photoUrl: l.photos[0]?.url ?? null,
+            secondPhotoUrl: l.photos[1]?.url ?? null,
             seller: {
               id: l.sellerId,
               displayName: l.seller.displayName ?? null,
@@ -570,10 +575,13 @@ export default async function BrowsePage({
   ].filter(Boolean).length;
 
   return (
-    <main className="p-4 sm:p-6 max-w-6xl mx-auto bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+    <div className="bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+    <main className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
-        <FilterSidebar popularTags={popularTags} />
+        <div className="sticky top-4 self-start">
+          <FilterSidebar popularTags={popularTags} />
+        </div>
 
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-4">
@@ -621,7 +629,7 @@ export default async function BrowsePage({
 
           {/* Listings */}
           {view === "grid" ? (
-            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-8">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
               {listings.map((l) => (
                 <GridCard key={l.id} l={l} />
               ))}
@@ -646,7 +654,7 @@ export default async function BrowsePage({
       </div>
 
       {/* Recently Viewed */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
         <Suspense>
           <RecentlyViewed />
         </Suspense>
@@ -655,6 +663,7 @@ export default async function BrowsePage({
       {/* Browse by city */}
       <BrowseByCity />
     </main>
+    </div>
   );
 }
 
@@ -677,7 +686,7 @@ async function BrowseByCity() {
   const children = metros.filter((m) => m.parentMetroId);
 
   return (
-    <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10 border-t">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 border-t">
       <h2 className="text-base font-semibold text-neutral-800 mb-4">Browse by city</h2>
       <div className="space-y-4">
         {majors.map((major) => {

@@ -92,7 +92,7 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
         seller: { include: { user: true } },
       },
     }),
@@ -101,7 +101,7 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
         seller: { include: { user: true } },
         _count: { select: { favorites: true } },
       },
@@ -364,7 +364,7 @@ export default async function HomePage() {
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
       <div className="border-b bg-amber-50">
-        <ScrollSection className="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
+        <ScrollSection className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
             <span className="text-sm text-stone-500">pieces listed</span>
@@ -384,11 +384,11 @@ export default async function HomePage() {
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
       <ScrollSection className="bg-amber-50/40 border-b py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-6">
           <h2 className="text-2xl sm:text-3xl font-bold font-display text-neutral-900">Find Makers Near You</h2>
           <p className="text-neutral-600 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <MakersMapSection
             points={mapPoints}
             heading="Explore the map"
@@ -400,7 +400,7 @@ export default async function HomePage() {
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
       <div className="bg-gradient-to-b from-amber-50/20 via-white to-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 space-y-10">
 
         {/* ── From Your Makers ─────────────────────────────────────────────── */}
         {fromYourMakers.length > 0 && (
@@ -411,7 +411,7 @@ export default async function HomePage() {
                 See full feed →
               </Link>
             </div>
-            <ul className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-0 -mx-1 px-1 bg-white">
+            <ul className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-0 -mx-1 px-1 scroll-fade-edges">
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start card-listing">
@@ -569,7 +569,7 @@ export default async function HomePage() {
               Nothing listed yet — check back soon.
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 scroll-fade-edges">
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   const shop = sellerRatings.get(l.sellerId);
@@ -585,6 +585,7 @@ export default async function HomePage() {
                           listingType: l.listingType,
                           stockQuantity: l.stockQuantity ?? null,
                           photoUrl: l.photos[0]?.url ?? null,
+                          secondPhotoUrl: l.photos[1]?.url ?? null,
                           seller: {
                             id: l.sellerId,
                             displayName: l.seller.displayName ?? null,
@@ -617,7 +618,7 @@ export default async function HomePage() {
               <h2 className="text-xl font-semibold font-display">Buyer Favorites</h2>
             </div>
 
-            <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+            <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 scroll-fade-edges">
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
@@ -632,6 +633,7 @@ export default async function HomePage() {
                           listingType: l.listingType,
                           stockQuantity: l.stockQuantity ?? null,
                           photoUrl: l.photos[0]?.url ?? null,
+                          secondPhotoUrl: l.photos[1]?.url ?? null,
                           seller: {
                             id: l.sellerId,
                             displayName: l.seller.displayName ?? null,
