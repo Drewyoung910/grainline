@@ -104,7 +104,11 @@ export default function ThreadMessages({
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     requestAnimationFrame(() => scrollToBottom(false));
-    return () => el.removeEventListener("scroll", onScroll);
+    const fallbackTimer = setTimeout(() => scrollToBottom(false), 500);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   React.useEffect(() => {

@@ -39,6 +39,10 @@ export default function MessageComposer({
     const onOk = () => {
       setValue("");
       setAttachments([]);
+      if (taRef.current) {
+        taRef.current.value = "";
+        taRef.current.style.height = "auto";
+      }
     };
     document.addEventListener("actionform:ok", onOk);
     return () => document.removeEventListener("actionform:ok", onOk);

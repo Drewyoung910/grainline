@@ -1895,6 +1895,13 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - ListingCard: metadata collapsed to 3 lines — title / price+rating inline / location·seller
 - ListingCard: fixed nested Link bug — location+seller row is a sibling div not inside listing Link
 
+## Message + Mobile Fixes (2026-04-10)
+
+- seller/[id]/page.tsx: featured/all listings use w-[200px]/w-[220px] flex-none — fixes mobile card stretch with aspect-square
+- ActionForm.tsx: useEffect dependency [state?.ok] → [state] — fixes repeat sends not clearing MessageComposer
+- MessageComposer.tsx: actionform:ok handler explicitly resets textarea DOM value + height — fixes emoji residue after send
+- ThreadMessages.tsx: 500ms fallback setTimeout after initial requestAnimationFrame scroll — fixes mobile loading at top of thread
+
 ## Shared ListingCard Component (complete — refactor)
 
 `src/components/ListingCard.tsx` — `"use client"` shared card component used across all listing grid/scroll surfaces. Zero visual changes from prior inline implementations.

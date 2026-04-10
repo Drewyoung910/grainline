@@ -416,7 +416,7 @@ export default async function SellerPublicPage({
             <h2 className="text-lg font-semibold mb-3">Featured Work</h2>
             <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
               {featuredListings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="min-w-[200px] flex-none snap-start md:min-w-0">
+                <ClickTracker key={l.id} listingId={l.id} className="w-[200px] flex-none snap-start md:w-auto">
                   <ListingCard
                     listing={{
                       id: l.id,
@@ -622,7 +622,7 @@ export default async function SellerPublicPage({
           ) : (
             <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
               {listings.slice(0, 8).map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="min-w-[220px] flex-none snap-start sm:min-w-0">
+                <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
                   <ListingCard
                     listing={{
                       id: l.id,

@@ -33,7 +33,7 @@ export default function ActionForm({
       const t = setTimeout(() => setShow(false), 1800);
       return () => clearTimeout(t);
     }
-  }, [state?.ok]);
+  }, [state]);
 
   return (
     <>
