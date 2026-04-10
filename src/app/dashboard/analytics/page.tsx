@@ -595,17 +595,17 @@ export default function AnalyticsPage() {
               {
                 label: "Cart Abandoned",
                 value: data.engagement.cartAbandonment.toLocaleString(),
-                note: "items added to cart but not purchased",
+                note: "items added to cart but not purchased · in range",
               },
               {
                 label: "Saved",
                 value: data.engagement.favoritesCount.toLocaleString(),
-                note: "total favorites",
+                note: "all-time total",
               },
               {
                 label: "Watching",
                 value: data.engagement.stockNotificationSubs.toLocaleString(),
-                note: "stock alerts",
+                note: "stock alerts · all time",
               },
               {
                 label: "Repeat Buyers",
@@ -620,7 +620,7 @@ export default function AnalyticsPage() {
                       ? `${(data.avgProcessingHours / 24).toFixed(1)} days`
                       : `${data.avgProcessingHours.toFixed(1)} hrs`
                     : "—",
-                note: "order to shipped",
+                note: "order to shipped · all time",
               },
             ].map((stat) => (
               <div key={stat.label} className="border border-neutral-200 p-3">
