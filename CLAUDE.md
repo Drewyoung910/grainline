@@ -1887,6 +1887,14 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - From Your Makers: bg-white removed from scroll ul for consistency
 - Browse + page.tsx photo queries: `take: 2` to enable hover swap
 
+## Mobile Mosaic + Card Layout + Gradient Fix (2026-04-09)
+
+- HeroMosaic: style={{ width: "200%" }} → w-max on both rows — fixes mobile showing only 3 photos
+- Browse gradient: softened to from-amber-50/30 via-amber-50/10 to match header seamlessly
+- ListingCard: badge moved to photo overlay bottom-left (bg-black/70 solid, green/amber text)
+- ListingCard: metadata collapsed to 3 lines — title / price+rating inline / location·seller
+- ListingCard: fixed nested Link bug — location+seller row is a sibling div not inside listing Link
+
 ## Shared ListingCard Component (complete — refactor)
 
 `src/components/ListingCard.tsx` — `"use client"` shared card component used across all listing grid/scroll surfaces. Zero visual changes from prior inline implementations.

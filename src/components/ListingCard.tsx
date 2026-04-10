@@ -38,89 +38,86 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
   const img = l.photoUrl ?? "/favicon.ico";
   const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
   const sellerName = l.seller.displayName ?? "Maker";
-  const sellerAvatar = l.seller.avatarImageUrl ?? null;
-  const initials = (sellerName || "S").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "S";
   const shop = l.rating;
   const isReady = l.listingType === "IN_STOCK";
   const city = l.seller.city;
   const state = l.seller.state;
 
-  const photo = (
-    <div
-      className="relative rounded-2xl overflow-hidden"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <Link href={`/listing/${l.id}`} className="block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          alt={l.title}
-          src={displayImg}
-          className="w-full aspect-square object-cover transition-all duration-300 group-hover:scale-105"
-        />
-      </Link>
-      <div className="absolute top-2 right-2">
-        <FavoriteButton listingId={l.id} initialSaved={initialSaved} />
-      </div>
-    </div>
-  );
-
-  const meta = (
-    <Link href={`/listing/${l.id}`} className="block pt-2.5 space-y-0.5">
-      <div className={`font-medium text-neutral-900 line-clamp-2 leading-snug ${variant === "scroll" ? "text-sm" : "text-sm"}`}>
-        {l.title}
-      </div>
-      <div className="font-bold text-sm text-neutral-900">
-        {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
-      </div>
-      {shop && shop.count > 0 && (
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-amber-500">★</span>
-          <span className="font-medium text-neutral-700">{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-          <span className="text-stone-400">({shop.count})</span>
-        </div>
-      )}
-      <div className="flex items-center gap-2 flex-wrap pt-0.5">
-        {(city || state) && (
-          <span className="text-[11px] text-stone-400 truncate">
-            {[city, state].filter(Boolean).join(", ")}
-          </span>
-        )}
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-          isReady
-            ? "bg-green-50 text-green-700 border border-green-200"
-            : "bg-amber-50 text-amber-700 border border-amber-200"
-        }`}>
-          {isReady ? "Ready to ship" : "Made to order"}
-        </span>
-      </div>
-    </Link>
-  );
-
-  const sellerChip = (
-    <div className="pt-1.5 flex items-center flex-wrap gap-1.5">
-      <Link
-        href={`/seller/${l.seller.id}`}
-        className="text-xs text-stone-500 hover:text-neutral-700 hover:underline transition-colors truncate max-w-[140px]"
+  return (
+    <div className="group">
+      {/* Photo */}
+      <div
+        className="relative rounded-2xl overflow-hidden"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
       >
-        {sellerName}
+        <Link href={`/listing/${l.id}`} className="block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt={l.title}
+            src={displayImg}
+            className="w-full aspect-square object-cover transition-all duration-300 group-hover:scale-105"
+          />
+        </Link>
+        {/* Heart — top right */}
+        <div className="absolute top-2 right-2">
+          <FavoriteButton listingId={l.id} initialSaved={initialSaved} />
+        </div>
+        {/* Listing type badge — bottom left overlay */}
+        <div className="absolute bottom-2 left-2">
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+            isReady
+              ? "bg-black/70 text-green-200 border border-green-700/40"
+              : "bg-black/70 text-amber-200 border border-amber-700/40"
+          }`}>
+            {isReady ? "Ready to ship" : "Made to order"}
+          </span>
+        </div>
+      </div>
+
+      {/* Line 1 + 2: Title and price+rating — wrapped in listing Link */}
+      <Link href={`/listing/${l.id}`} className="block pt-2.5 space-y-0.5">
+        <div className="font-medium text-sm text-neutral-900 line-clamp-2 leading-snug">
+          {l.title}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-sm text-neutral-900">
+            {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
+          </span>
+          {shop && shop.count > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-stone-500">
+              <span className="text-amber-500">★</span>
+              <span className="font-medium text-neutral-700">{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
+              <span className="text-stone-400">({shop.count})</span>
+            </span>
+          )}
+        </div>
       </Link>
-      {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
-        <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={16} />
-      )}
+
+      {/* Line 3: Location · Seller — separate row, no nested Links */}
+      <div className="flex items-center gap-1 text-xs text-stone-400 flex-wrap pt-0.5">
+        {(city || state) && (
+          <>
+            <span className="truncate">{[city, state].filter(Boolean).join(", ")}</span>
+            <span>·</span>
+          </>
+        )}
+        <Link
+          href={`/seller/${l.seller.id}`}
+          className="hover:text-neutral-600 hover:underline truncate max-w-[120px]"
+        >
+          {sellerName}
+        </Link>
+        {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
+          <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={14} />
+        )}
+      </div>
+
       {l.seller.acceptingNewOrders === false && (
-        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-1 inline-block">
           Not accepting orders
         </span>
       )}
-    </div>
-  );
-
-  return (
-    <div className="group">
-      {photo}
-      {meta}
-      {sellerChip}
     </div>
   );
 }

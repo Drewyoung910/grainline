@@ -29,8 +29,7 @@ export default function HeroMosaic({ photos }: Props) {
 
       {/* Row 1 — scrolls left */}
       <div
-        className="absolute top-0 left-0 h-1/2 flex gap-px animate-scroll-left"
-        style={{ width: "200%" }}
+        className="absolute top-0 left-0 h-1/2 flex gap-px animate-scroll-left w-max"
       >
         {row1.map((item, i) => (
           // eslint-disable-next-line jsx-a11y/anchor-is-valid
@@ -54,8 +53,7 @@ export default function HeroMosaic({ photos }: Props) {
 
       {/* Row 2 — scrolls right */}
       <div
-        className="absolute bottom-0 left-0 h-1/2 flex gap-px animate-scroll-right"
-        style={{ width: "200%" }}
+        className="absolute bottom-0 left-0 h-1/2 flex gap-px animate-scroll-right w-max"
       >
         {row2.map((item, i) => (
           // eslint-disable-next-line jsx-a11y/anchor-is-valid
