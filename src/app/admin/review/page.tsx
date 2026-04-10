@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ReviewListingButtons } from "@/components/ReviewListingButtons";
+import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
 import Link from "next/link";
 import type { Metadata } from "next";
 
@@ -110,6 +111,7 @@ export default async function AdminReviewPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <ReviewListingButtons listingId={listing.id} />
+                  <DeleteListingButton listingId={listing.id} />
                   <Link
                     href={`/listing/${listing.id}`}
                     target="_blank"

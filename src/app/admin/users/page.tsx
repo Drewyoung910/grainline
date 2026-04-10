@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { BanUserButton } from "@/components/BanUserButton";
+import { AdminEmailForm } from "@/components/admin/AdminEmailForm";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Users — Admin" };
@@ -148,6 +149,7 @@ export default async function AdminUsersPage({
                       userName={u.name ?? u.email}
                     />
                   )}
+                  <AdminEmailForm userId={u.id} userName={u.name ?? u.email ?? "User"} />
                 </td>
               </tr>
             ))}

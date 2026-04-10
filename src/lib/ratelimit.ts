@@ -147,6 +147,14 @@ export const stripeLoginLinkRatelimit = new Ratelimit({
   prefix: "rl:stripe_login_link",
 });
 
+// Admin email to user — ADMIN only, rate limited hard
+export const adminEmailRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "1 h"),
+  analytics: true,
+  prefix: "rl:admin_email",
+});
+
 // Notification mark-read — low risk but cap it (fail open — non-critical)
 export const markReadRatelimit = new Ratelimit({
   redis,

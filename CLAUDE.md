@@ -1902,6 +1902,17 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - MessageComposer.tsx: actionform:ok handler explicitly resets textarea DOM value + height — fixes emoji residue after send
 - ThreadMessages.tsx: 500ms fallback setTimeout after initial requestAnimationFrame scroll — fixes mobile loading at top of thread
 
+## Admin Capabilities (2026-04-10)
+
+- DELETE /api/admin/reviews/[id] — hard delete review; logged as DELETE_REVIEW in AdminAuditLog
+- DELETE /api/admin/listings/[id] — soft delete (status=HIDDEN); logged as REMOVE_LISTING; no migration needed
+- POST /api/admin/email — ADMIN-only; rate limited 10/hr via adminEmailRatelimit; Resend email with Grainline template
+- adminEmailRatelimit added to src/lib/ratelimit.ts (slidingWindow 10/1h)
+- src/app/admin/reviews/page.tsx — all reviews list with delete buttons (100 most recent)
+- DeleteReviewButton, DeleteListingButton, AdminEmailForm in src/components/admin/
+- AdminEmailForm: expand/collapse pattern, collapses after successful send
+- Admin sidebar + mobile nav updated with Reviews link
+
 ## Shared ListingCard Component (complete — refactor)
 
 `src/components/ListingCard.tsx` — `"use client"` shared card component used across all listing grid/scroll surfaces. Zero visual changes from prior inline implementations.

@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User } from "@/components/icons";
+import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star } from "@/components/icons";
 
 const NAV_ITEMS = [
   { href: "/admin/orders",       label: "Orders",     Icon: Package },
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/admin/blog",         label: "Blog",       Icon: Edit, badgeKey: "pendingCommentCount" as const },
   { href: "/admin/broadcasts",   label: "Broadcasts", Icon: Rss },
   { href: "/admin/review",       label: "Review",     Icon: Eye, badgeKey: "pendingReviewCount" as const },
+  { href: "/admin/reviews",       label: "Reviews",    Icon: Star },
   { href: "/admin/users",        label: "Users",      Icon: User },
   { href: "/admin/audit",        label: "Audit",      Icon: Shield },
 ];
