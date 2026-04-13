@@ -196,7 +196,7 @@ export default function ThreadMessages({
   return (
     <div
       ref={boxRef}
-      className="rounded-xl border bg-white p-4 overflow-y-auto"
+      className="md:rounded-xl md:border md:bg-white md:p-4 overflow-y-auto pb-8"
       style={{ height: boxHeight }}
     >
       <ul className="space-y-3 pb-4">
@@ -438,7 +438,7 @@ export default function ThreadMessages({
               )}
 
               <div className={`max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
-                <div className={`inline-block rounded-2xl px-3 py-2 ${bubbleClass}`}>
+                <div className={`inline-block rounded-2xl px-3 py-2 text-left break-words ${bubbleClass}`}>
                   {bubble}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">
