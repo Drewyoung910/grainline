@@ -322,6 +322,7 @@ Seven sections with a single `updateSellerProfile` server action for fields A–
   - `src/app/dashboard/saved/page.tsx` (saved items seller chips)
 - **Audited all avatar rendering sites** (2026-04-13): all seller-context avatars confirmed to use `avatarImageUrl ?? user.imageUrl` priority; buyer-only contexts (`User.imageUrl` alone) confirmed correct
 - **Shop profile fallback preview** (`/dashboard/profile`): below `ProfileAvatarUploader`, shows the Clerk avatar (`user.imageUrl`) labeled "Current photo from Manage Account — used as fallback if no custom photo is uploaded above.". Query updated to `include: { user: { select: { imageUrl: true } } }`
+- **Remove custom avatar** (2026-04-13): `removeSellerAvatar()` server action in `/dashboard/profile/page.tsx` sets `avatarImageUrl: null` and calls `revalidatePath`; "Remove custom photo" button shown as a ConfirmButton form only when `fullSeller.avatarImageUrl` is non-null; `ProfileAvatarUploader` has `key={fullSeller.avatarImageUrl ?? "none"}` to force remount on removal
 
 ## Gift Notes & Gift Wrapping at Checkout (complete)
 
@@ -562,6 +563,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ### `BlogComment` self-relation (migration `20260413191812_add_blog_comment_replies`)
 - `parentId String?`, `parent BlogComment? @relation("CommentReplies", ...)`, `replies BlogComment[] @relation("CommentReplies")`; `@@index([parentId])`
 - **3-level threading** (updated 2026-04-13): depth enforced server-side only — no additional migration needed. Level 1 (root) → Level 2 (reply) → Level 3 (reply to reply). Attempts to reply at level 4+ flatten to level 3 (POST attaches to the level-2 parent instead). GET returns root comments with 2 levels of nested approved replies via `replies: { include: { replies: { ... } } }`.
+- **Avatar priority in comments** (2026-04-13): `AUTHOR_SELECT` const in `api/blog/[slug]/comments/route.ts` includes `sellerProfile: { select: { avatarImageUrl: true } }` at all 3 nesting levels; GET response mapped to add `avatarUrl = sellerProfile?.avatarImageUrl ?? imageUrl` per comment/reply/level-3-reply; `blog/[slug]/page.tsx` and `BlogReplyToggle.tsx` interfaces updated to include `sellerProfile?` on author and use `avatarUrl` for rendering
 
 ### Components
 - **`NewsletterSignup`** — client component; email + optional name; success state "You're on the list! 🎉"; client-side email format validation
@@ -839,6 +841,9 @@ Card containers use `<div className="relative">` wrapping the photo Link; `Favor
 - **Sitemap** — seller profiles now use `flatMap` to emit both `/seller/[id]` and `/seller/[id]/shop` at priority 0.6 monthly
 - **FavoriteButton** covered: `savedSet` server query for signed-in users; `initialSaved={false}` fallback for signed-out (401 → redirect)
 - **Owner view** (2026-04-13): `isOwner = userId === seller.user.clerkId`; seller query includes `user: { select: { clerkId: true } }`. Owner sees ALL listings regardless of status + chargesEnabled; buyers see ACTIVE + chargesEnabled only (unchanged). Category tabs for owner show categories from all statuses. Each owner-view card shows a status badge below (Draft=gray, Hidden=gray, Under Review=amber, Sold=neutral, Sold Out=neutral) and an "Edit →" link to `/dashboard/listings/[id]/edit`.
+- **Owner status filter tabs** (2026-04-13): second row of smaller tabs below category tabs, shown to owner only; tabs: All / Active / Draft / Hidden / Sold Out / Sold / Under Review; `?status=` URL param; status AND'd with category in where clause; category groupBy also filtered by status; empty states have "Create listing →" and "View all listings" links per status
+- **`ShopListingActions`** (`src/app/seller/[id]/shop/ShopListingActions.tsx`) — `"use client"` with `useTransition` + inline toast; Publish (DRAFT/HIDDEN → `publishListingAction`, toasts "Published!" or "Sent for review."), Hide (ACTIVE → HIDDEN), Unhide (HIDDEN → ACTIVE, notifies followers), Mark sold (ACTIVE → SOLD), Delete (DRAFT only, window.confirm), Edit link always present
+- **`src/app/seller/[id]/shop/actions.ts`** — server actions: `hideListingAction`, `unhideListingAction`, `markSoldAction`, `deleteListingAction`, `publishListingAction`; all verify ownership via `getOwnedListing`; `syncThreshold` mirrors dashboard Guild Member tracking; `publishListingAction` runs `reviewListingWithAI` + `logAdminAction` identically to new listing creation flow; returns `{ status: "ACTIVE" | "PENDING_REVIEW" }`
 
 ## Security Audit (complete — 2026-03-30)
 
@@ -1230,7 +1235,7 @@ Sellers can pause their shop while away. Migration: `20260331000843_vacation_mod
 **G — Recent Sales**: last 10 paid orders table (date, item, buyer first name, amount, status badge); fetched from separate `/recent-sales` endpoint
 
 ### Dashboard + inventory listing stats
-- **`/dashboard/page.tsx`** listings query: added `_count: { select: { favorites: true, stockNotifications: true } }` to include; each card shows `👁 X · 🖱 X · ♥ X · 🔔 X` below the status badge
+- **`/dashboard/page.tsx`** listings query: added `_count: { select: { favorites: true, stockNotifications: true } }` to include; each card shows `👁 X · 🖱 X · ♥ X · 🔔 X` below the status badge; `take: 6` (most recently updated) added (2026-04-13)
 - **`/dashboard/inventory/page.tsx`** query: same `_count` addition; `InventoryRow.tsx` type extended with `viewCount`, `clickCount`, `_count`; stats row shown below price
 
 ## Following System (complete — 2026-03-31)
@@ -1574,6 +1579,13 @@ Nine bugs fixed across listing page, commission room, and seller profile.
 
 ### Description field in new listing form
 - Added `<textarea name="description">` (6 rows, 2000 char max) between title and price fields in `dashboard/listings/new/page.tsx`; server action already read and saved the field
+
+### Draft system (2026-04-13)
+- **Save as Draft button**: uses HTML button `name="saveAsDraft" value="true"` — no client component needed; Publish button uses `value="false"`; `createListing` reads `formData.get("saveAsDraft") === "true"` as FIRST line
+- **Listing status**: `status: saveAsDraft ? "DRAFT" : "ACTIVE"` in `prisma.listing.create`
+- **Draft redirect**: when `saveAsDraft`, redirects immediately to `/dashboard` after geo-metro mapping — skips ALL side effects (AI review, emails, follower notifications, syncListingsThreshold)
+- **chargesEnabled gate**: if `!saveAsDraft && !seller.chargesEnabled` → `redirect("/dashboard/listings/new?error=stripe")`; page shows inline red error when `searchParams.error === "stripe"`; amber banner always shown when `!seller.chargesEnabled` (regardless of error param)
+- **Save as Draft always works** regardless of chargesEnabled — sellers can draft listings before connecting Stripe
 
 ### Commission Room Near Me crash
 - Root cause: `$queryRaw` tagged template literal treats `${}` expressions as SQL parameters; the conditional `${categoryValid ? \`AND cr.category = '${categoryFilter}'\` : \`\`}` was being passed as a bound parameter value instead of raw SQL, causing a PostgreSQL syntax error
@@ -1948,7 +1960,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - `POST/DELETE /api/users/[id]/block` — upsert/delete Block record
 - `POST /api/users/[id]/report` — creates UserReport; rate limited 5/hr (`reportRatelimit`)
 - `reportRatelimit` added to `src/lib/ratelimit.ts`
-- `BlockReportButton` (`src/components/BlockReportButton.tsx`) — ••• menu with block/unblock + report with reason + details; wired into `seller/[id]/page.tsx` and `messages/[id]/page.tsx`
+- `BlockReportButton` (`src/components/BlockReportButton.tsx`) — ••• menu with block/unblock + report with reason + details; wired into `seller/[id]/page.tsx` and `messages/[id]/page.tsx`; **dropdown direction fix** (2026-04-13): `triggerRef = useRef<HTMLButtonElement>()` on trigger, `getBoundingClientRect()` in `handleOpen()` measures position before opening, `openUpward ? "bottom-full mb-1" : "top-full mt-1"` classes applied; report label: "Report this listing" (LISTING), "Report this conversation" (MESSAGE_THREAD), "Report [name]" (default)
 - `POST /api/admin/reports/[id]/resolve` — marks resolved, logs `RESOLVE_REPORT` to audit
 
 ### My Reviews
@@ -2046,6 +2058,24 @@ Mutual block filtering applied to all public surfaces. When user A blocks user B
 
 ### Auth pattern for server components
 When auth() was positioned after the queries that need block filtering, it was moved to before those queries. The resolved `meDbId` is reused in downstream savedSet / favorites logic to eliminate redundant DB lookups.
+
+## Bug Fixes (2026-04-13)
+
+Seven bugs fixed across seller shop, dashboard, and blog pages. Zero TypeScript errors. Deployed.
+
+- **Remove custom photo button did nothing** (`dashboard/profile/page.tsx`): Root cause was nested `<form>` elements — the remove button was inside `<form action={removeSellerAvatar}>` nested inside `<form action={updateSellerProfile}>`. HTML discards inner forms; the button submitted the outer form instead. Fix: extracted `RemoveAvatarButton.tsx` (`"use client"`) with `type="button"` that calls the server action directly and calls `router.refresh()` to force RSC re-render.
+
+- **Dashboard listing cards not clickable** (`dashboard/page.tsx`): Non-draft listings (ACTIVE, HIDDEN, SOLD, SOLD_OUT, PENDING_REVIEW) had no clickable link on photo or title. Fixed by wrapping photo in `<Link href={/listing/${l.id}}>` and title text in a separate `<Link>` for non-DRAFT statuses. DRAFT listings keep only the existing "Preview →" link.
+
+- **Shop page draft cards missing preview banner** (`seller/[id]/shop/page.tsx`, `components/ListingCard.tsx`): Added `href?: string` prop to `ListingCard`; `listingHref = href ?? /listing/${l.id}`. Shop page passes `href={/listing/${l.id}?preview=1}` for owner+DRAFT listings.
+
+- **publishListingAction missing chargesEnabled check** (`seller/[id]/shop/actions.ts`, `ShopListingActions.tsx`): Added `chargesEnabled` guard BEFORE the try/catch in `publishListingAction` so it throws to the client. Added try/catch to the Publish button's `startTransition` handler in `ShopListingActions.tsx` — shows error message as toast (e.g. "Connect your bank account in Shop Settings to publish.").
+
+- **SOLD listings had no way to relist** (`seller/[id]/shop/actions.ts`, `ShopListingActions.tsx`): Added `markAvailableAction` (sets ACTIVE, syncThreshold, revalidates shop + dashboard). Added "Mark available" button shown for SOLD status only.
+
+- **HIDDEN listings showed both Publish and Unhide** (`ShopListingActions.tsx`): Rewrote per-status button logic. Final matrix: ACTIVE → Hide, Mark sold, Delete; HIDDEN → Unhide, Delete; DRAFT → Publish, Delete; PENDING_REVIEW → (nothing, Edit only); SOLD → Mark available, Delete; SOLD_OUT → Delete. Edit link always shown. Delete hidden from PENDING_REVIEW only.
+
+- **Blog post author avatar used Clerk image only** (`blog/[slug]/page.tsx`): Added `sellerProfile: { select: { avatarImageUrl, displayName } }` to the `author` select. Updated resolution: `authorAvatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl`; `authorName = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff"`. No layout changes.
 
 ## Pending Tasks
 
