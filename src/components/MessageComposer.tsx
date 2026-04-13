@@ -26,13 +26,6 @@ export default function MessageComposer({
   const completed = attachments.filter((a) => !!a.url);
   const canSend = !isUploading && (value.trim().length > 0 || completed.length > 0);
 
-  // autosize
-  React.useEffect(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = "0px";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
-  }, [value]);
 
   // Clear after successful submit (make sure ActionForm dispatches `actionform:ok`)
   React.useEffect(() => {
@@ -162,9 +155,19 @@ export default function MessageComposer({
           name="body"
           rows={1}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder={placeholder}
-          className="w-full resize-none rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full resize-none rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300 max-h-40 overflow-y-auto"
         />
 
         {canSend ? (
