@@ -1901,6 +1901,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - ActionForm.tsx: useEffect dependency [state?.ok] → [state] — fixes repeat sends not clearing MessageComposer
 - MessageComposer.tsx: actionform:ok handler explicitly resets textarea DOM value + height — fixes emoji residue after send
 - ThreadMessages.tsx: 500ms fallback setTimeout after initial requestAnimationFrame scroll — fixes mobile loading at top of thread
+- MessageComposer: Enter sends, Shift+Enter newline, auto-grow up to 160px max-height, resets to single row after send
 
 ## Listing Page + UX Polish (2026-04-10)
 
