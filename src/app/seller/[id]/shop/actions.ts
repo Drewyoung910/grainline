@@ -103,7 +103,7 @@ export async function markAvailableAction(listingId: string) {
   revalidatePath("/dashboard");
 }
 
-export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" }> {
+export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" } | { error: string }> {
   const listing = await getOwnedListing(listingId);
   if (!listing) return { status: "PENDING_REVIEW" };
 
@@ -112,7 +112,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     select: { chargesEnabled: true },
   });
   if (!sellerCheck?.chargesEnabled) {
-    throw new Error("Connect your bank account in Shop Settings to publish.");
+    return { error: "Connect your bank account in Shop Settings to publish." };
   }
 
   try {

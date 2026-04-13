@@ -68,14 +68,14 @@ export default async function BlogIndexPage({
     readingTimeMinutes: number | null;
     publishedAt: Date | null;
     authorType: string;
-    author: { name: string | null; imageUrl: string | null };
+    author: { name: string | null; imageUrl: string | null; sellerProfile: { avatarImageUrl: string | null; displayName: string | null } | null };
     sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
   };
 
   const POST_SELECT = {
     id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, type: true,
     tags: true, readingTimeMinutes: true, publishedAt: true, authorType: true,
-    author: { select: { name: true, imageUrl: true } },
+    author: { select: { name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
     sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
   } as const;
 
@@ -341,8 +341,8 @@ export default async function BlogIndexPage({
                   )}
                   <div className="flex items-center gap-2 pt-1">
                     {(() => {
-                      const avatar = featured.sellerProfile?.avatarImageUrl ?? featured.author.imageUrl;
-                      const name = featured.sellerProfile?.displayName ?? featured.author.name ?? "Staff";
+                      const avatar = featured.author.sellerProfile?.avatarImageUrl ?? featured.author.imageUrl;
+                      const name = featured.author.sellerProfile?.displayName ?? featured.author.name ?? "Staff";
                       return (
                         <>
                           {avatar ? (
@@ -372,8 +372,8 @@ export default async function BlogIndexPage({
           {rest.length > 0 && (
             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-10">
               {rest.map((post) => {
-                const avatar = post.sellerProfile?.avatarImageUrl ?? post.author.imageUrl;
-                const name = post.sellerProfile?.displayName ?? post.author.name ?? "Staff";
+                const avatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl;
+                const name = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff";
                 const excerpt = post.excerpt
                   ? post.excerpt.slice(0, 120) + (post.excerpt.length > 120 ? "…" : "")
                   : null;

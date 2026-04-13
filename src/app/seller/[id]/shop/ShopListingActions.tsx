@@ -37,7 +37,9 @@ export default function ShopListingActions({ listingId, status }: Props) {
             startTransition(async () => {
               try {
                 const result = await publishListingAction(listingId);
-                if (result.status === "ACTIVE") {
+                if ("error" in result) {
+                  showToast(result.error);
+                } else if (result.status === "ACTIVE") {
                   showToast("Published!");
                 } else {
                   showToast("Sent for review — you'll be notified once approved.");
