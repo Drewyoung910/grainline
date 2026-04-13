@@ -58,7 +58,7 @@ export default async function BlogPostPage({
   const post = await prisma.blogPost.findUnique({
     where: { slug },
     include: {
-      author: { select: { id: true, name: true, imageUrl: true } },
+      author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
         where: { approved: true, parentId: null },
@@ -155,8 +155,8 @@ export default async function BlogPostPage({
   });
 
   const video = post.videoUrl ? extractVideoId(post.videoUrl) : null;
-  const authorName = post.sellerProfile?.displayName ?? post.author.name ?? "Staff";
-  const authorAvatar = post.sellerProfile?.avatarImageUrl ?? post.sellerProfile?.user?.imageUrl ?? post.author.imageUrl ?? null;
+  const authorName = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff";
+  const authorAvatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl ?? null;
   const postUrl = `https://grainline.co/blog/${slug}`;
 
   return (

@@ -4,6 +4,7 @@ import {
   hideListingAction,
   unhideListingAction,
   markSoldAction,
+  markAvailableAction,
   deleteListingAction,
   publishListingAction,
 } from "./actions";
@@ -28,17 +29,21 @@ export default function ShopListingActions({ listingId, status }: Props) {
         <span className="w-full text-[10px] text-neutral-500">{toast}</span>
       )}
 
-      {/* Publish — for DRAFT or HIDDEN listings */}
-      {(status === "DRAFT" || status === "HIDDEN") && (
+      {/* Publish — DRAFT only */}
+      {status === "DRAFT" && (
         <button
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
-              const result = await publishListingAction(listingId);
-              if (result.status === "ACTIVE") {
-                showToast("Published!");
-              } else {
-                showToast("Sent for review.");
+              try {
+                const result = await publishListingAction(listingId);
+                if (result.status === "ACTIVE") {
+                  showToast("Published!");
+                } else {
+                  showToast("Sent for review — you'll be notified once approved.");
+                }
+              } catch (e) {
+                showToast(e instanceof Error ? e.message : "Failed to publish.");
               }
             })
           }
@@ -48,7 +53,7 @@ export default function ShopListingActions({ listingId, status }: Props) {
         </button>
       )}
 
-      {/* Hide — for ACTIVE listings */}
+      {/* Hide — ACTIVE only */}
       {status === "ACTIVE" && (
         <button
           disabled={isPending}
@@ -64,7 +69,7 @@ export default function ShopListingActions({ listingId, status }: Props) {
         </button>
       )}
 
-      {/* Unhide — for HIDDEN listings (in addition to Publish) */}
+      {/* Unhide — HIDDEN only */}
       {status === "HIDDEN" && (
         <button
           disabled={isPending}
@@ -80,7 +85,7 @@ export default function ShopListingActions({ listingId, status }: Props) {
         </button>
       )}
 
-      {/* Mark Sold — for ACTIVE listings */}
+      {/* Mark Sold — ACTIVE only */}
       {status === "ACTIVE" && (
         <button
           disabled={isPending}
@@ -96,8 +101,24 @@ export default function ShopListingActions({ listingId, status }: Props) {
         </button>
       )}
 
-      {/* Delete — for DRAFT listings */}
-      {status === "DRAFT" && (
+      {/* Mark Available — SOLD only */}
+      {status === "SOLD" && (
+        <button
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              await markAvailableAction(listingId);
+              showToast("Listing is now active.");
+            })
+          }
+          className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"
+        >
+          Mark available
+        </button>
+      )}
+
+      {/* Delete — all statuses except PENDING_REVIEW */}
+      {status !== "PENDING_REVIEW" && (
         <button
           disabled={isPending}
           onClick={() => {

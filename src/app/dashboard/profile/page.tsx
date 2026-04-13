@@ -10,6 +10,7 @@ import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
 import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
 import CharCounter from "@/components/CharCounter";
 import ConfirmButton from "@/components/ConfirmButton";
+import RemoveAvatarButton from "./RemoveAvatarButton";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -231,14 +232,9 @@ export default async function ProfilePage() {
             <label className="block text-sm font-medium mb-2">Profile avatar</label>
             <ProfileAvatarUploader key={fullSeller.avatarImageUrl ?? "none"} initialUrl={fullSeller.avatarImageUrl} />
             {fullSeller.avatarImageUrl && (
-              <form action={removeSellerAvatar} className="mt-2">
-                <ConfirmButton
-                  confirm="Remove your custom photo? Your Manage Account photo will be used instead."
-                  className="text-xs text-neutral-500 hover:text-red-600 hover:underline"
-                >
-                  Remove custom photo
-                </ConfirmButton>
-              </form>
+              <div className="mt-2">
+                <RemoveAvatarButton action={removeSellerAvatar} />
+              </div>
             )}
             <div className="mt-3 flex items-center gap-3">
               {fullSeller.user?.imageUrl ? (

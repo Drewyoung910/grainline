@@ -94,9 +94,26 @@ export async function deleteListingAction(listingId: string) {
   revalidatePath(`/seller/${listing.sellerId}/shop`);
 }
 
+export async function markAvailableAction(listingId: string) {
+  const listing = await getOwnedListing(listingId);
+  if (!listing) return;
+  await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
+  await syncThreshold(listing.sellerId);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
+  revalidatePath("/dashboard");
+}
+
 export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" }> {
   const listing = await getOwnedListing(listingId);
   if (!listing) return { status: "PENDING_REVIEW" };
+
+  const sellerCheck = await prisma.sellerProfile.findUnique({
+    where: { id: listing.sellerId },
+    select: { chargesEnabled: true },
+  });
+  if (!sellerCheck?.chargesEnabled) {
+    throw new Error("Connect your bank account in Shop Settings to publish.");
+  }
 
   try {
     const sellerInfo = await prisma.sellerProfile.findUnique({

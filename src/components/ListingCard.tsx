@@ -31,12 +31,14 @@ type Props = {
   listing: ListingCardData;
   initialSaved?: boolean;
   variant?: "grid" | "scroll";
+  href?: string;
 };
 
-export default function ListingCard({ listing: l, initialSaved = false, variant = "grid" }: Props) {
+export default function ListingCard({ listing: l, initialSaved = false, variant = "grid", href }: Props) {
   const [hovered, setHovered] = useState(false);
   const img = l.photoUrl ?? "/favicon.ico";
   const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
+  const listingHref = href ?? `/listing/${l.id}`;
   const sellerName = l.seller.displayName ?? "Maker";
   const shop = l.rating;
   const isReady = l.listingType === "IN_STOCK";
@@ -51,7 +53,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <Link href={`/listing/${l.id}`} className="block">
+        <Link href={listingHref} className="block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={l.title}
@@ -76,7 +78,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
       </div>
 
       {/* Line 1 + 2: Title and price+rating — wrapped in listing Link */}
-      <Link href={`/listing/${l.id}`} className="block pt-2.5 space-y-0.5">
+      <Link href={listingHref} className="block pt-2.5 space-y-0.5">
         <div className="font-medium text-sm text-neutral-900 line-clamp-2 leading-snug">
           {l.title}
         </div>

@@ -412,20 +412,33 @@ export default async function DashboardPage() {
 
               return (
                 <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
-                  {thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={thumb}
-                      alt={l.title}
-                      className="h-48 w-full object-cover"
-                    />
+                  {l.status !== "DRAFT" ? (
+                    <Link href={`/listing/${l.id}`} className="block">
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt={l.title} className="h-48 w-full object-cover" />
+                      ) : (
+                        <div className="h-48 w-full bg-neutral-100" />
+                      )}
+                    </Link>
                   ) : (
-                    <div className="h-48 w-full bg-neutral-100" />
+                    <>
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt={l.title} className="h-48 w-full object-cover" />
+                      ) : (
+                        <div className="h-48 w-full bg-neutral-100" />
+                      )}
+                    </>
                   )}
 
                   <div className="p-4 space-y-2">
                     <div className="flex items-baseline justify-between">
-                      <h3 className="font-medium">{l.title}</h3>
+                      <h3 className="font-medium">
+                        {l.status !== "DRAFT" ? (
+                          <Link href={`/listing/${l.id}`} className="hover:underline">{l.title}</Link>
+                        ) : l.title}
+                      </h3>
                       <span className="text-sm text-neutral-500">
                         {(l.priceCents / 100).toLocaleString(undefined, {
                           style: "currency",

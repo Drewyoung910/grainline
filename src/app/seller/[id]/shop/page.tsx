@@ -377,6 +377,7 @@ export default async function SellerShopPage({
                     }}
                     initialSaved={savedSet.has(l.id)}
                     variant="grid"
+                    href={isOwner && l.status === "DRAFT" ? `/listing/${l.id}?preview=1` : undefined}
                   />
                   {isOwner ? (
                     <div>
