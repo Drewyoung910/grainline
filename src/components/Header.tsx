@@ -266,9 +266,9 @@ export default function Header() {
       {/* ── Mobile drawer ─────────────────────────────────────────────── */}
       {drawerOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — z-40 is above filter bar (z-30); opacity 60 fully obscures it */}
           <div
-            className="fixed inset-0 z-40 bg-black/40"
+            className="fixed inset-0 z-40 bg-black/60"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />

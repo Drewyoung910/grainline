@@ -6,6 +6,14 @@ import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Filter } from "@/components/icons";
 
+const SORT_LABELS: Record<string, string> = {
+  relevant: "Relevant",
+  newest: "Newest",
+  price_asc: "Price ↑",
+  price_desc: "Price ↓",
+  popular: "Popular",
+};
+
 export default function MobileFilterBar({ popularTags }: { popularTags: string[] }) {
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
@@ -13,6 +21,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const view = searchParams.get("view") ?? "grid";
 
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [sortOpen, setSortOpen] = React.useState(false);
   const [geoLat, setGeoLat] = React.useState(searchParams.get("lat") ?? "");
   const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
   const [locating, setLocating] = React.useState(false);
@@ -48,30 +57,41 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     return `/browse?${p.toString()}`;
   }
 
-  // Re-sync geo state and close sheet when URL changes (e.g. after Apply)
+  function sortHref(sort: string) {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("sort", sort);
+    p.delete("page");
+    return `/browse?${p.toString()}`;
+  }
+
+  // Re-sync geo state and close sheets when URL changes (e.g. after Apply or sort click)
   React.useEffect(() => {
     setGeoLat(searchParams.get("lat") ?? "");
     setGeoLng(searchParams.get("lng") ?? "");
     setMobileOpen(false);
+    setSortOpen(false);
   }, [searchParams]);
 
-  // Close sheet on Escape
+  // Close sheets on Escape
   React.useEffect(() => {
-    if (!mobileOpen) return;
+    if (!mobileOpen && !sortOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
+      if (e.key === "Escape") {
+        setMobileOpen(false);
+        setSortOpen(false);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [mobileOpen]);
+  }, [mobileOpen, sortOpen]);
 
-  // Lock body scroll when sheet is open
+  // Lock body scroll when any sheet is open
   React.useEffect(() => {
-    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    document.body.style.overflow = (mobileOpen || sortOpen) ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [mobileOpen]);
+  }, [mobileOpen, sortOpen]);
 
   const currentCategory = searchParams.get("category") ?? "";
   const currentType = searchParams.get("type") ?? "";
@@ -81,6 +101,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const currentMax = searchParams.get("max") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const currentRadius = searchParams.get("radius") ?? "";
+
+  const sortLabel = SORT_LABELS[currentSort] ?? "Sort";
 
   const activeFilterCount = [
     currentCategory,
@@ -308,7 +330,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-hidden="true"
       />
 
-      {/* Sheet panel */}
+      {/* Sheet panel — rounded top only, extends to viewport bottom */}
       <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
@@ -326,10 +348,74 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           </button>
         </div>
 
-        {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-4 py-4">
+        {/* Scrollable content — pb accounts for iPhone home indicator */}
+        <div className="overflow-y-auto flex-1 px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {form}
           {tagsSection}
+        </div>
+      </div>
+    </>
+  ) : null;
+
+  const sortSheet = sortOpen ? (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        onClick={() => setSortOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Sort sheet panel — rounded top only, extends to viewport bottom */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl md:hidden animate-slide-up shadow-2xl">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-2 shrink-0">
+          <div className="h-1 w-10 rounded-full bg-neutral-300" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pb-3 border-b shrink-0">
+          <span className="font-semibold text-sm">Sort by</span>
+          <button
+            onClick={() => setSortOpen(false)}
+            className="rounded border px-3 py-1 text-sm hover:bg-neutral-50 min-h-[44px]"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Sort options — each navigates and closes sheet */}
+        <div className="py-2 pb-[env(safe-area-inset-bottom)]">
+          {q && (
+            <Link
+              href={sortHref("relevant")}
+              onClick={() => setSortOpen(false)}
+              className={`flex items-center justify-between px-4 py-3 text-sm min-h-[44px] hover:bg-neutral-50 ${
+                currentSort === "relevant" ? "font-semibold text-neutral-900" : "text-neutral-700"
+              }`}
+            >
+              Most relevant
+              {currentSort === "relevant" && <span className="text-neutral-400 text-base">✓</span>}
+            </Link>
+          )}
+          {[
+            { value: "newest", label: "Newest" },
+            { value: "price_asc", label: "Price: Low → High" },
+            { value: "price_desc", label: "Price: High → Low" },
+            { value: "popular", label: "Most popular" },
+          ].map(({ value, label }) => (
+            <Link
+              key={value}
+              href={sortHref(value)}
+              onClick={() => setSortOpen(false)}
+              className={`flex items-center justify-between px-4 py-3 text-sm min-h-[44px] hover:bg-neutral-50 ${
+                currentSort === value ? "font-semibold text-neutral-900" : "text-neutral-700"
+              }`}
+            >
+              {label}
+              {currentSort === value && <span className="text-neutral-400 text-base">✓</span>}
+            </Link>
+          ))}
         </div>
       </div>
     </>
@@ -338,7 +424,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   return (
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
-      <div className="md:hidden sticky top-0 z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 py-2 flex items-center gap-3">
+      {/* py-3 (was py-2) gives button borders breathing room at the top edge */}
+      <div className="md:hidden sticky top-0 z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => setMobileOpen(true)}
           className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
@@ -351,10 +438,18 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => setSortOpen(true)}
+          className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+        >
+          Sort: {sortLabel}
+        </button>
       </div>
 
-      {/* Portal sheet — rendered at document.body to escape all stacking contexts */}
+      {/* Portal sheets — rendered at document.body to escape all stacking contexts */}
       {mounted && sheet ? createPortal(sheet, document.body) : null}
+      {mounted && sortSheet ? createPortal(sortSheet, document.body) : null}
     </>
   );
 }
