@@ -730,6 +730,22 @@ All non-transactional email sends wrapped with `shouldSendEmail`. Transactional 
 1. Add `CLERK_WEBHOOK_SECRET` to Vercel environment variables
 2. Clerk Dashboard → **Production** → Developers → Webhooks → Add Endpoint → `https://thegrainline.com/api/clerk/webhook` → events: `user.created`, `user.updated` → copy Signing Secret → paste as `CLERK_WEBHOOK_SECRET`
 
+## MobileFilterBar (complete — 2026-04-13)
+
+**Problem**: Making the filter button `sticky` inside the browse page's flex container failed in iOS Safari because listing cards use `rounded-2xl overflow-hidden`, which creates new stacking contexts that render over `position: sticky` elements in the same container.
+
+**Fix**: Extracted all mobile filter UI into a new `src/components/MobileFilterBar.tsx` component, positioned as a **sibling** of the listings flex container (not inside it), so listing card stacking contexts cannot interfere.
+
+- `sticky top-0 z-30 bg-[#F7F5F0] border-b` — always visible at top of viewport on mobile
+- Bottom sheet uses `createPortal(sheet, document.body)` to escape all ancestor stacking contexts
+- `mounted` state guards `createPortal` against SSR/hydration mismatch
+- Accepts `popularTags: string[]` prop; duplicates all form state from `FilterSidebar`
+- `md:hidden` on the sticky bar; sheet also has `md:hidden` — desktop unaffected
+
+**FilterSidebar changes**: Removed mobile button block, mobile sheet, `mobileOpen` state, Escape key effect, body scroll lock effect, and `activeFilterCount`. Desktop `<aside>` unchanged.
+
+**Applied to**: `src/app/browse/page.tsx` — `<MobileFilterBar popularTags={popularTags} />` inserted before the flex container in both the main render and the no-results early return. Metro browse pages not applicable (no FilterSidebar).
+
 ## Mobile Audit Round 2 (complete)
 
 Second mobile fix pass (2026-03-29). Zero TypeScript errors.
