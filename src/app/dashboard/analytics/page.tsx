@@ -600,12 +600,12 @@ export default function AnalyticsPage() {
               {
                 label: "Saved",
                 value: data.engagement.favoritesCount.toLocaleString(),
-                note: "all-time total",
+                note: "new saves this period",
               },
               {
                 label: "Watching",
                 value: data.engagement.stockNotificationSubs.toLocaleString(),
-                note: "stock alerts · all time",
+                note: "new watchers this period",
               },
               {
                 label: "Repeat Buyers",
@@ -620,7 +620,7 @@ export default function AnalyticsPage() {
                       ? `${(data.avgProcessingHours / 24).toFixed(1)} days`
                       : `${data.avgProcessingHours.toFixed(1)} hrs`
                     : "—",
-                note: "order to shipped · all time",
+                note: "order to shipped · this period",
               },
             ].map((stat) => (
               <div key={stat.label} className="border border-neutral-200 p-3">

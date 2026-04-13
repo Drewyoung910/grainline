@@ -204,8 +204,8 @@ export async function GET(req: Request) {
         : Math.min((totalViews / totalClicks) * 100, 100);
 
     const [favoritesCount, stockNotificationSubs] = await Promise.all([
-      listingIds.length > 0 ? prisma.favorite.count({ where: { listingId: { in: listingIds } } }) : 0,
-      listingIds.length > 0 ? prisma.stockNotification.count({ where: { listingId: { in: listingIds } } }) : 0,
+      listingIds.length > 0 ? prisma.favorite.count({ where: { listingId: { in: listingIds }, createdAt: { gte: startDate, lte: endDate } } }) : 0,
+      listingIds.length > 0 ? prisma.stockNotification.count({ where: { listingId: { in: listingIds }, createdAt: { gte: startDate, lte: endDate } } }) : 0,
     ]);
 
     // Cart abandonment — range-aware: cart items in range whose listing was not purchased in the same range
@@ -253,6 +253,8 @@ export async function GET(req: Request) {
       WHERE l."sellerId" = ${sellerId}
         AND o."shippedAt" IS NOT NULL
         AND o."paidAt" IS NOT NULL
+        AND o."createdAt" >= ${startDate}
+        AND o."createdAt" <= ${endDate}
     `;
     const avgProcessingHours: number | null =
       processingRows[0]?.avg_hours != null ? Number(processingRows[0].avg_hours) : null;
