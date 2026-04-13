@@ -7,6 +7,7 @@ import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import FavoriteButton from "@/components/FavoriteButton";
 import FilterSidebar from "@/components/FilterSidebar";
+import MobileFilterBar from "@/components/MobileFilterBar";
 import SaveSearchButton from "@/components/SaveSearchButton";
 import ClickTracker from "@/components/ClickTracker";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
@@ -397,6 +398,7 @@ export default async function BrowsePage({
     return (
       <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
       <main className="p-8 max-w-7xl mx-auto">
+        <MobileFilterBar popularTags={popularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
           <div className="sticky top-4 self-start">
             <FilterSidebar popularTags={popularTags} />
@@ -589,6 +591,7 @@ export default async function BrowsePage({
   return (
     <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
     <main className="p-4 sm:p-6 max-w-7xl mx-auto">
+      <MobileFilterBar popularTags={popularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
         <div className="sticky top-4 self-start">

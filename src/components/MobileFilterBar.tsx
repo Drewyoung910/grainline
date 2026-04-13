@@ -1,18 +1,26 @@
 "use client";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import { Filter } from "@/components/icons";
 
-export default function FilterSidebar({ popularTags }: { popularTags: string[] }) {
+export default function MobileFilterBar({ popularTags }: { popularTags: string[] }) {
   const searchParams = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const selectedTags = searchParams.getAll("tag");
   const view = searchParams.get("view") ?? "grid";
 
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const [geoLat, setGeoLat] = React.useState(searchParams.get("lat") ?? "");
   const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
   const [locating, setLocating] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function detectLocation() {
     if (!navigator.geolocation) return;
@@ -40,11 +48,30 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     return `/browse?${p.toString()}`;
   }
 
-  // Re-sync geo state when URL changes (e.g. after Apply)
+  // Re-sync geo state and close sheet when URL changes (e.g. after Apply)
   React.useEffect(() => {
     setGeoLat(searchParams.get("lat") ?? "");
     setGeoLng(searchParams.get("lng") ?? "");
+    setMobileOpen(false);
   }, [searchParams]);
+
+  // Close sheet on Escape
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  // Lock body scroll when sheet is open
+  React.useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   const currentCategory = searchParams.get("category") ?? "";
   const currentType = searchParams.get("type") ?? "";
@@ -54,6 +81,17 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   const currentMax = searchParams.get("max") ?? "";
   const currentSort = searchParams.get("sort") ?? (q ? "relevant" : "newest");
   const currentRadius = searchParams.get("radius") ?? "";
+
+  const activeFilterCount = [
+    currentCategory,
+    currentType,
+    currentShips,
+    currentRating,
+    geoLat && geoLng ? "loc" : null,
+    currentMin,
+    currentMax,
+    ...selectedTags,
+  ].filter(Boolean).length;
 
   const form = (
     <form
@@ -261,15 +299,62 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     </div>
   );
 
-  return (
+  const sheet = mobileOpen ? (
     <>
-      {/* ── Desktop sidebar (md+) ── */}
-      <aside className="hidden md:block w-52 lg:w-56 shrink-0">
-        <div className="rounded-xl border p-4 sticky top-4">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        onClick={() => setMobileOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Sheet panel */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl">
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-2 shrink-0">
+          <div className="h-1 w-10 rounded-full bg-neutral-300" />
+        </div>
+
+        {/* Header row */}
+        <div className="flex items-center justify-between px-4 pb-3 border-b shrink-0">
+          <span className="font-semibold text-sm">Filters</span>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="rounded border px-3 py-1 text-sm hover:bg-neutral-50 min-h-[44px]"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-4 py-4">
           {form}
           {tagsSection}
         </div>
-      </aside>
+      </div>
+    </>
+  ) : null;
+
+  return (
+    <>
+      {/* Sticky bar — only on mobile, sits above the listings flex container */}
+      <div className="md:hidden sticky top-0 z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 py-2 flex items-center gap-3">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+        >
+          <Filter size={16} />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="inline-flex items-center rounded-full bg-neutral-900 text-white px-1.5 py-0.5 text-[11px] font-medium leading-none">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Portal sheet — rendered at document.body to escape all stacking contexts */}
+      {mounted && sheet ? createPortal(sheet, document.body) : null}
     </>
   );
 }
