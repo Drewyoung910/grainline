@@ -1977,6 +1977,39 @@ export type ListingCardData = {
 ### ClickTracker nesting rule
 `ClickTracker` renders as a `<li>`. When the component providing the card (e.g. `GridCard` in browse) includes its own `ClickTracker`, the outer `<ClickTracker>` at the call site must be removed. For scroll-variant cards, `ClickTracker` stays at the call site and `ListingCard` renders an inner `<div>`.
 
+## Block Filtering (complete — 2026-04-13)
+
+Mutual block filtering applied to all public surfaces. When user A blocks user B (or is blocked by B), neither can see the other's content anywhere on the platform.
+
+### Utility (`src/lib/blocks.ts`)
+- **`getBlockedUserIdsFor(meId)`** — queries `Block` table bidirectionally, returns `Set<string>` of all user IDs that are either blocking or blocked by the given user
+- **`getBlockedSellerProfileIdsFor(meId)`** — calls `getBlockedUserIdsFor`, maps user IDs to SellerProfile IDs
+
+### Pattern rules
+- Prisma: `...(list.length > 0 ? { field: { notIn: list } } : {})` — never passes `notIn: []`
+- Raw SQL: skip when empty; use `!= ALL(${array})` template parameter when non-empty
+- Never applied to admin surfaces or order history
+
+### Surfaces covered (12)
+
+| Surface | File | What changes |
+|---|---|---|
+| Browse | `browse/page.tsx` | `sellerId: { notIn: blockedSellerIds }` on main query; preserved through sellerIdFilters merge |
+| Homepage | `page.tsx` | `fresh`, `topSaved`, `fromYourMakers` recentListings/recentPosts |
+| Seller profile | `seller/[id]/page.tsx` | Returns "not available" page with "Browse other makers →" (not 404) |
+| Messages inbox | `messages/page.tsx` | Post-fetch `convos.filter()` by other participant |
+| Blog index | `blog/page.tsx` | `authorId: { notIn: [...] }` in `baseFilters` — applies to both GIN + standard query paths |
+| Blog post | `blog/[slug]/page.tsx` | `notFound()` if post author is in blocked set |
+| Feed API | `api/account/feed/route.ts` | Filters `sellerIds` from follows before all three parallel queries |
+| Makers map | `map/page.tsx` | `id: { notIn: blockedSellerIds }` on sellerProfile query |
+| Search suggestions | `api/search/suggestions/route.ts` | Prisma `listings` query + two conditional raw SQL paths (tagRows, fuzzyRows) |
+| Metro browse | `browse/[metroSlug]/page.tsx` + `[metroSlug]/[category]/page.tsx` | `sellerId: { notIn: blockedSellerIds }` in `listingWhere` |
+| Commission board | `commission/page.tsx` | Standard Prisma path: `buyerId: { notIn: [...] }`; near-me raw SQL path: post-filter `rawResults` (added `u.id AS "buyerId"` to SELECT) |
+| Reviews | `ReviewsSection.tsx` + `listing/[id]/page.tsx` | Added `blockedUserIds?: string[]` prop; `reviewerId: { notIn: blockedUserIds }` on review query |
+
+### Auth pattern for server components
+When auth() was positioned after the queries that need block filtering, it was moved to before those queries. The resolved `meDbId` is reused in downstream savedSet / favorites logic to eliminate redundant DB lookups.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
