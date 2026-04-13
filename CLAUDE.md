@@ -2006,6 +2006,17 @@ Mutual block filtering applied to all public surfaces. When user A blocks user B
 | Metro browse | `browse/[metroSlug]/page.tsx` + `[metroSlug]/[category]/page.tsx` | `sellerId: { notIn: blockedSellerIds }` in `listingWhere` |
 | Commission board | `commission/page.tsx` | Standard Prisma path: `buyerId: { notIn: [...] }`; near-me raw SQL path: post-filter `rawResults` (added `u.id AS "buyerId"` to SELECT) |
 | Reviews | `ReviewsSection.tsx` + `listing/[id]/page.tsx` | Added `blockedUserIds?: string[]` prop; `reviewerId: { notIn: blockedUserIds }` on review query |
+| Homepage MakersMapSection | `page.tsx` | `id: { notIn: blockedSellerIds }` on mapRows sellerProfile query |
+| Homepage Stories (blog) | `page.tsx` | `authorId: { notIn: [...blockedUserIds] }` on recentBlogPosts query; added `getBlockedUserIdsFor` import |
+| Listing detail | `listing/[id]/page.tsx` | Returns "not available" page (not 404) if seller user is in blocked set |
+| Saved items | `account/saved/page.tsx` | `listing: { sellerId: { notIn: blockedSellerIds } }` on favorites query |
+
+### `/account/blocked` page (complete — 2026-04-13)
+- `src/app/account/blocked/page.tsx` — server component; lists all blocks WHERE `blockerId = me.id` (only blocks YOU created); shows avatar + name per row; Unblock button submits to server action
+- `src/app/account/blocked/actions.ts` — `unblockUser(blockedId)` server action; verifies ownership before `deleteMany`; `revalidatePath("/account/blocked")`
+- Form uses `action={unblockUser.bind(null, b.blockedId)}` pattern (no inline closure)
+- Linked from `/account` page inside the My Reviews section (same card, `block` links)
+- Card layout matches `/account/reviews` exactly (`card-section p-4 flex gap-4`)
 
 ### Auth pattern for server components
 When auth() was positioned after the queries that need block filtering, it was moved to before those queries. The resolved `meDbId` is reused in downstream savedSet / favorites logic to eliminate redundant DB lookups.
