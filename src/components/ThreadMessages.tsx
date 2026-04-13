@@ -119,6 +119,18 @@ export default function ThreadMessages({
     requestAnimationFrame(() => scrollToBottom(false));
   }, [convoId, initial]);
 
+  // Scroll to bottom after a message is sent (waits for DOM render)
+  React.useEffect(() => {
+    const onOk = () => {
+      setTimeout(() => {
+        const el = boxRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }, 200);
+    };
+    document.addEventListener("actionform:ok", onOk);
+    return () => document.removeEventListener("actionform:ok", onOk);
+  }, []);
+
   React.useEffect(() => {
     let closed = false;
     let pollId: number | null = null;
@@ -438,7 +450,7 @@ export default function ThreadMessages({
               )}
 
               <div className={`max-w-[75%] sm:max-w-[65%] ${mine ? "text-right" : ""}`}>
-                <div className={`inline-block rounded-2xl px-3 py-2 text-left break-words ${bubbleClass}`}>
+                <div className={`inline-block rounded-2xl px-3 py-2 text-left break-all ${bubbleClass}`}>
                   {bubble}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">

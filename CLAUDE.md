@@ -1903,6 +1903,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - ThreadMessages.tsx: 500ms fallback setTimeout after initial requestAnimationFrame scroll — fixes mobile loading at top of thread
 - MessageComposer: Enter sends, Shift+Enter newline, auto-grow up to 160px max-height, resets to single row after send
 - ThreadMessages: text-left inside bubbles, break-words, desktop-only card styling (mobile full-bleed), pb-8 on scroll container
+- ThreadMessages: break-all (was break-words) to break mid-word on long strings; scroll-after-send uses 200ms setTimeout to wait for DOM render
 
 ## Listing Page + UX Polish (2026-04-10)
 
