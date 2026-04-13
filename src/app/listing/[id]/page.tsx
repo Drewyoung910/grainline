@@ -20,6 +20,7 @@ import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
 import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
+import BlockReportButton from "@/components/BlockReportButton";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -581,6 +582,14 @@ export default async function ListingPage({
                 >
                   Message maker
                 </Link>
+              )}
+              {meId && !isOwnListing && sellerUserId && (
+                <BlockReportButton
+                  targetUserId={sellerUserId}
+                  targetName={listing.seller.displayName ?? "this maker"}
+                  targetType="LISTING"
+                  targetId={listing.id}
+                />
               )}
             </div>
           </div>

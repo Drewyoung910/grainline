@@ -338,6 +338,8 @@ export default async function SellerPublicPage({
                     <BlockReportButton
                       targetUserId={seller.userId}
                       targetName={seller.displayName ?? "this maker"}
+                      targetType="SELLER"
+                      targetId={seller.id}
                     />
                   )}
                 </div>

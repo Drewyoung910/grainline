@@ -282,6 +282,8 @@ export default async function ThreadPage({
               <BlockReportButton
                 targetUserId={other.id}
                 targetName={other.name ?? "this user"}
+                targetType="MESSAGE_THREAD"
+                targetId={id}
               />
             )}
           </div>

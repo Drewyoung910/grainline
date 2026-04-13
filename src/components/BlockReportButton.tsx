@@ -5,6 +5,8 @@ type Props = {
   targetUserId: string;
   targetName: string;
   initialBlocked?: boolean;
+  targetType?: string;
+  targetId?: string;
 };
 
 const REPORT_REASONS = [
@@ -15,7 +17,7 @@ const REPORT_REASONS = [
   { value: "OTHER", label: "Other" },
 ];
 
-export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false }: Props) {
+export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false, targetType, targetId }: Props) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"menu" | "report">("menu");
   const [blocked, setBlocked] = useState(initialBlocked);
@@ -37,7 +39,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     const res = await fetch(`/api/users/${targetUserId}/report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: reportReason, details: reportDetails || undefined }),
+      body: JSON.stringify({ reason: reportReason, details: reportDetails || undefined, ...(targetType ? { targetType } : {}), ...(targetId ? { targetId } : {}) }),
     });
     setStatus(res.ok ? "done" : "idle");
     if (res.ok) setTimeout(() => { setOpen(false); setView("menu"); setStatus("idle"); }, 1500);

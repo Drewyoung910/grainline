@@ -998,6 +998,8 @@ model UserReport {
   reportedId String
   reason     String
   details    String?
+  targetType String?
+  targetId   String?
   resolved   Boolean  @default(false)
   createdAt  DateTime @default(now())
 

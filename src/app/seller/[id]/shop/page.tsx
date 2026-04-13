@@ -72,7 +72,7 @@ export default async function SellerShopPage({
       vacationMode: true,
       vacationReturnDate: true,
       vacationMessage: true,
-      user: { select: { imageUrl: true } },
+      user: { select: { imageUrl: true, clerkId: true } },
     },
   });
 
@@ -86,6 +86,8 @@ export default async function SellerShopPage({
     meId = me?.id ?? null;
   }
 
+  const isOwner = !!userId && seller.user?.clerkId === userId;
+
   // Follow data
   const [followerCount, isFollowing] = await Promise.all([
     prisma.follow.count({ where: { sellerProfileId: id } }),
@@ -97,10 +99,12 @@ export default async function SellerShopPage({
       : Promise.resolve(false),
   ]);
 
-  // Distinct categories this seller has active listings in
+  // Distinct categories — for owner show all statuses, for buyers show ACTIVE only
   const categoryGroups = await prisma.listing.groupBy({
     by: ["category"],
-    where: { sellerId: id, status: "ACTIVE", isPrivate: false, category: { not: null } },
+    where: isOwner
+      ? { sellerId: id, category: { not: null } }
+      : { sellerId: id, status: "ACTIVE", isPrivate: false, category: { not: null } },
     _count: { _all: true },
   });
   const availableCategories = categoryGroups
@@ -108,14 +112,11 @@ export default async function SellerShopPage({
     .map((g) => g.category as Category)
     .sort();
 
-  // Build where clause — only show listings from sellers with Stripe connected
-  const where = {
-    sellerId: id,
-    status: "ACTIVE" as const,
-    isPrivate: false,
-    seller: { chargesEnabled: true },
-    ...(category ? { category } : {}),
-  };
+  // Build where clause — owner sees all listings; buyers see ACTIVE + chargesEnabled only
+  const categoryFilter = category ? { category } : {};
+  const where = isOwner
+    ? { sellerId: id, ...categoryFilter }
+    : { sellerId: id, status: "ACTIVE" as const, isPrivate: false, seller: { chargesEnabled: true }, ...categoryFilter };
 
   // Build orderBy
   type OrderBy =
@@ -278,32 +279,56 @@ export default async function SellerShopPage({
       ) : (
         <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {listings.map((l) => {
+            const statusBadge =
+              l.status === "DRAFT" ? { label: "Draft", cls: "bg-neutral-100 text-neutral-600" }
+              : l.status === "HIDDEN" ? { label: "Hidden", cls: "bg-neutral-100 text-neutral-600" }
+              : l.status === "PENDING_REVIEW" ? { label: "Under Review", cls: "bg-amber-50 text-amber-700 border border-amber-200" }
+              : l.status === "SOLD" ? { label: "Sold", cls: "bg-neutral-100 text-neutral-500" }
+              : l.status === "SOLD_OUT" ? { label: "Sold Out", cls: "bg-neutral-100 text-neutral-500" }
+              : null;
             return (
               <ClickTracker key={l.id} listingId={l.id}>
-                <ListingCard
-                  listing={{
-                    id: l.id,
-                    title: l.title,
-                    priceCents: l.priceCents,
-                    currency: l.currency,
-                    status: l.status,
-                    listingType: l.listingType,
-                    stockQuantity: l.stockQuantity ?? null,
-                    photoUrl: l.photos[0]?.url ?? null,
-                    seller: {
-                      id: seller.id,
-                      displayName: seller.displayName ?? null,
-                      avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
-                      guildLevel: seller.guildLevel ?? null,
-                      city: seller.city ?? null,
-                      state: seller.state ?? null,
-                      acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                    },
-                    rating: null,
-                  }}
-                  initialSaved={savedSet.has(l.id)}
-                  variant="grid"
-                />
+                <div className="relative">
+                  <ListingCard
+                    listing={{
+                      id: l.id,
+                      title: l.title,
+                      priceCents: l.priceCents,
+                      currency: l.currency,
+                      status: l.status,
+                      listingType: l.listingType,
+                      stockQuantity: l.stockQuantity ?? null,
+                      photoUrl: l.photos[0]?.url ?? null,
+                      seller: {
+                        id: seller.id,
+                        displayName: seller.displayName ?? null,
+                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                        guildLevel: seller.guildLevel ?? null,
+                        city: seller.city ?? null,
+                        state: seller.state ?? null,
+                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                      },
+                      rating: null,
+                    }}
+                    initialSaved={savedSet.has(l.id)}
+                    variant="grid"
+                  />
+                  {isOwner && (
+                    <div className="mt-1 flex items-center gap-2 px-0.5">
+                      {statusBadge && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadge.cls}`}>
+                          {statusBadge.label}
+                        </span>
+                      )}
+                      <Link
+                        href={`/dashboard/listings/${l.id}/edit`}
+                        className="text-[11px] text-neutral-500 hover:text-neutral-800 hover:underline ml-auto"
+                      >
+                        Edit →
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </ClickTracker>
             );
           })}

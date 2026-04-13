@@ -36,6 +36,16 @@ export async function GET(
           body: true,
           createdAt: true,
           author: { select: { id: true, name: true, imageUrl: true } },
+          replies: {
+            where: { approved: true },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              body: true,
+              createdAt: true,
+              author: { select: { id: true, name: true, imageUrl: true } },
+            },
+          },
         },
       },
     },
@@ -70,7 +80,10 @@ export async function POST(
   const text = parsed.body.trim();
   const { parentId } = parsed;
 
-  // Validate parent if provided
+  // Validate parent and determine effective parentId for depth enforcement
+  let effectiveParentId: string | null = null;
+  let notifyAuthorId: string | null = null;
+
   if (parentId) {
     const parent = await prisma.blogComment.findUnique({
       where: { id: parentId },
@@ -79,25 +92,40 @@ export async function POST(
     if (!parent || parent.postId !== post.id) {
       return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
     }
-    if (parent.parentId !== null) {
-      return NextResponse.json({ error: "Cannot reply to a reply" }, { status: 400 });
+
+    if (parent.parentId === null) {
+      // Parent is level 1 → new comment becomes level 2
+      effectiveParentId = parent.id;
+    } else {
+      // Parent is level 2 or deeper → check grandparent
+      const grandparent = await prisma.blogComment.findUnique({
+        where: { id: parent.parentId },
+        select: { id: true, parentId: true, postId: true },
+      });
+      if (!grandparent || grandparent.postId !== post.id) {
+        return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
+      }
+      if (grandparent.parentId === null) {
+        // Grandparent is level 1, parent is level 2 → new comment becomes level 3
+        effectiveParentId = parent.id;
+      } else {
+        // Already at level 3 or deeper → flatten to level 3 by attaching to parent's parent (level 2)
+        effectiveParentId = parent.parentId;
+      }
     }
+    notifyAuthorId = parent.authorId !== me.id ? parent.authorId : null;
   }
 
   const comment = await prisma.blogComment.create({
-    data: { postId: post.id, authorId: me.id, body: text, approved: false, parentId: parentId ?? null },
+    data: { postId: post.id, authorId: me.id, body: text, approved: false, parentId: effectiveParentId },
     select: { id: true, body: true, createdAt: true, approved: true },
   });
 
-  if (parentId) {
-    // Notify parent comment author (if different from replier)
-    const parent = await prisma.blogComment.findUnique({
-      where: { id: parentId },
-      select: { authorId: true },
-    });
-    if (parent && parent.authorId !== me.id) {
+  if (effectiveParentId) {
+    // Notify effective parent comment author (if different from replier)
+    if (notifyAuthorId) {
       await createNotification({
-        userId: parent.authorId,
+        userId: notifyAuthorId,
         type: "BLOG_COMMENT_REPLY",
         title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} replied to your comment`,
         body: text.slice(0, 60),

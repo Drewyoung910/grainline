@@ -320,6 +320,8 @@ Seven sections with a single `updateSellerProfile` server action for fields A–
   - `src/app/listing/[id]/page.tsx` (seller chip on listing detail)
   - `src/app/page.tsx` (homepage most-saved and fresh-finds seller chips)
   - `src/app/dashboard/saved/page.tsx` (saved items seller chips)
+- **Audited all avatar rendering sites** (2026-04-13): all seller-context avatars confirmed to use `avatarImageUrl ?? user.imageUrl` priority; buyer-only contexts (`User.imageUrl` alone) confirmed correct
+- **Shop profile fallback preview** (`/dashboard/profile`): below `ProfileAvatarUploader`, shows the Clerk avatar (`user.imageUrl`) labeled "Current photo from Manage Account — used as fallback if no custom photo is uploaded above.". Query updated to `include: { user: { select: { imageUrl: true } } }`
 
 ## Gift Notes & Gift Wrapping at Checkout (complete)
 
@@ -554,12 +556,18 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - `POST /api/newsletter` — upserts `NewsletterSubscriber`, no auth required
 - `GET /api/blog` — paginated published posts, filterable by `type` and `tag`
 - `GET /api/blog/[slug]/comments` — approved comments only
-- `POST /api/blog/[slug]/comments` — auth required; creates comment with `approved: false`
+- `GET /api/blog/[slug]/comments` — returns top-level comments (`parentId: null`) with their approved replies nested under `replies[]`
+- `POST /api/blog/[slug]/comments` — auth required; creates comment with `approved: false`; accepts optional `parentId`; depth enforced server-side (level 4+ flattens to level 3 by attaching to parent's parent); sends `BLOG_COMMENT_REPLY` notification to effective parent author (if different from replier), or `NEW_BLOG_COMMENT` to post author for top-level comments
+
+### `BlogComment` self-relation (migration `20260413191812_add_blog_comment_replies`)
+- `parentId String?`, `parent BlogComment? @relation("CommentReplies", ...)`, `replies BlogComment[] @relation("CommentReplies")`; `@@index([parentId])`
+- **3-level threading** (updated 2026-04-13): depth enforced server-side only — no additional migration needed. Level 1 (root) → Level 2 (reply) → Level 3 (reply to reply). Attempts to reply at level 4+ flatten to level 3 (POST attaches to the level-2 parent instead). GET returns root comments with 2 levels of nested approved replies via `replies: { include: { replies: { ... } } }`.
 
 ### Components
 - **`NewsletterSignup`** — client component; email + optional name; success state "You're on the list! 🎉"; client-side email format validation
 - **`BlogCopyLinkButton`** — Web Share API with clipboard copy fallback
-- **`BlogCommentForm`** — post comment with moderation notice, success state
+- **`BlogCommentForm`** — `"use client"`; props: `slug`, `parentId?`, `onCancel?`, `placeholder?`; sends parentId in POST body when provided; success state shows "Close" button when `onCancel` provided; button label: "Post reply" vs "Post comment"
+- **`BlogReplyToggle`** (`src/components/BlogReplyToggle.tsx`) — `"use client"`; renders level-2 replies indented with `pl-8 border-l border-neutral-100`; each level-2 reply has its own Reply button (separate `showingReplyId` state) and its level-3 replies at `pl-10 border-l border-neutral-100`; no Reply button on level-3 comments; root Reply button adds level-2 replies; hidden entirely if no replies and not signed in
 - **`BlogPostForm`** — full create/edit form: title + slug preview, type select (staff: all types; makers: STANDARD + BEHIND_THE_BUILD only), UploadThing cover image upload, video URL, markdown body textarea with cheat sheet link, excerpt (200 char counter), meta description (160 char counter), comma-separated tags, featured listing checkboxes, status select
 
 ### Public pages
@@ -714,6 +722,8 @@ All non-transactional email sends wrapped with `shouldSendEmail`. Transactional 
 
 `src/app/api/clerk/webhook/route.ts` — verifies svix signature, handles `user.created` and `user.updated` events, upserts `User` record via `ensureUserByClerkId`, sends `sendWelcomeBuyer` on `user.created`. Route added to public matcher in `src/middleware.ts`.
 
+**`User.imageUrl` sync**: `imageUrl: image_url ?? null` is passed to `ensureUserByClerkId` before the event-type branch, so `User.imageUrl` stays in sync with Clerk's `image_url` for **both** `user.created` and `user.updated` events. No separate sync logic needed — this is already handled.
+
 **Deployment steps still required:**
 1. Add `CLERK_WEBHOOK_SECRET` to Vercel environment variables
 2. Clerk Dashboard → **Production** → Developers → Webhooks → Add Endpoint → `https://thegrainline.com/api/clerk/webhook` → events: `user.created`, `user.updated` → copy Signing Secret → paste as `CLERK_WEBHOOK_SECRET`
@@ -735,6 +745,7 @@ Second mobile fix pass (2026-03-29). Zero TypeScript errors.
 
 ### Dashboard listings (`src/app/dashboard/page.tsx`)
 - "My Listings" section: `flex overflow-x-auto snap-x snap-mandatory` on mobile → `sm:grid sm:grid-cols-2 lg:grid-cols-3` on desktop. Each card gets `min-w-[220px] flex-none snap-start sm:min-w-0`.
+- **Preview → link**: shown next to Edit for DRAFT, HIDDEN, and PENDING_REVIEW listings; links to `/listing/[id]?preview=1` in a new tab
 
 ### Seller profile (`src/app/seller/[id]/page.tsx`)
 - **Featured Work**, **All Listings**, and **From the Workshop** (blog posts) sections all converted to the same pattern: horizontal scroll row on mobile (`flex overflow-x-auto snap-x snap-mandatory pb-4`), grid on tablet/desktop (`sm:grid` or `md:grid`). Min-width per card: 200–220px.
@@ -827,6 +838,7 @@ Card containers use `<div className="relative">` wrapping the photo Link; `Favor
   - `src/app/dashboard/page.tsx` My Listings section: "View My Shop →" link next to heading
 - **Sitemap** — seller profiles now use `flatMap` to emit both `/seller/[id]` and `/seller/[id]/shop` at priority 0.6 monthly
 - **FavoriteButton** covered: `savedSet` server query for signed-in users; `initialSaved={false}` fallback for signed-out (401 → redirect)
+- **Owner view** (2026-04-13): `isOwner = userId === seller.user.clerkId`; seller query includes `user: { select: { clerkId: true } }`. Owner sees ALL listings regardless of status + chargesEnabled; buyers see ACTIVE + chargesEnabled only (unchanged). Category tabs for owner show categories from all statuses. Each owner-view card shows a status badge below (Draft=gray, Hidden=gray, Under Review=amber, Sold=neutral, Sold Out=neutral) and an "Edit →" link to `/dashboard/listings/[id]/edit`.
 
 ## Security Audit (complete — 2026-03-30)
 
@@ -1663,11 +1675,25 @@ Paginated audit log (30/page). Action column color-coded (BAN_USER=red, UNBAN_US
 ### `/admin/review`
 Review queue for `PENDING_REVIEW` listings. Oldest-first. "First listing" badge, AI flags, confidence score. Approve/Reject via `ReviewListingButtons`. Count badge in sidebar + mobile nav. ADMIN or EMPLOYEE access.
 
+### `/admin/reports`
+Reports show reason + details inline. Each report card now includes a contextual link based on `targetType`:
+- `SELLER` → "View seller →" to `/seller/[targetId]`
+- `LISTING` → "View listing →" to `/listing/[targetId]`
+- `MESSAGE_THREAD` → "View thread →" to `/messages/[targetId]`
+- `BLOG_POST` → "View post →" to `/blog/[targetId]`
+- null → no link shown
+
 ### Admin layout + mobile nav updates
 - Desktop sidebar: added Review Queue (with `pendingReviewCount` badge), Users, Audit Log links
 - Mobile nav: added same three tabs with badge support
 - `Eye` icon used for Review Queue, `User` for Users, `Shield` for Audit Log (already imported)
 - `pendingReviewCount` added to parallel `Promise.all` in layout; passed to `AdminMobileNav`
+
+### `UserReport` schema (2026-04-13)
+Added `targetType String?` and `targetId String?` to `UserReport` model. Migration: `20260413200254_add_user_report_target`. `BlockReportButton` accepts optional `targetType` and `targetId` props and includes them in the POST body. Report API route (`/api/users/[id]/report`) reads and saves both fields. Wired on:
+- `seller/[id]/page.tsx` → `targetType="SELLER" targetId={seller.id}`
+- `messages/[id]/page.tsx` → `targetType="MESSAGE_THREAD" targetId={id}` (conversation ID)
+- `listing/[id]/page.tsx` → `targetType="LISTING" targetId={listing.id}` (added BlockReportButton to seller card, gated on `meId && !isOwnListing`)
 
 ## Metro Geography Infrastructure (complete — 2026-04-01)
 
@@ -1930,7 +1956,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - Linked from `account/page.tsx` as new Section 4
 
 ### Admin Reports Queue
-- `src/app/admin/reports/page.tsx` — unresolved reports with reporter/reported names, reason, resolve button
+- `src/app/admin/reports/page.tsx` — unresolved reports with reporter/reported names, reason, resolve button; reported user name is a Link to `/admin/users?q=<email>` for quick lookup
 - `ResolveReportButton` (`src/components/admin/ResolveReportButton.tsx`) + resolve API route
 - Reports link added to admin sidebar + mobile nav
 
@@ -2422,6 +2448,7 @@ Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
 ### Listing Visibility Rules (complete — 2026-04-02)
 - **Listing detail page** (`/listing/[id]`) — returns 404 for non-connected sellers (`!listing.seller.chargesEnabled`) unless the viewer is the seller themselves (checked via `listing.seller.user?.clerkId === userId`)
+- **Preview bypass** (`?preview=1`) — if `preview=1` AND the authenticated user is the listing's own seller (`listing.seller.user?.clerkId === userId`), all visibility/chargesEnabled/block checks are skipped and the listing renders normally regardless of status. An amber banner reads "Preview mode — this is how your listing appears to buyers. It is not yet published." Dashboard shows "Preview →" link for DRAFT/HIDDEN/PENDING_REVIEW listings opening in a new tab.
 - **`generateMetadata`** returns `robots: { index: false, follow: false }` for non-connected seller listings — prevents Google from indexing them
 - **All public surfaces filter `chargesEnabled: true`**: browse, homepage, similar items, search suggestions (Prisma + raw SQL), sitemap — listings from non-connected sellers are completely private to the seller only
 

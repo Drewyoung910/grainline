@@ -8,6 +8,8 @@ import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
   details: z.string().max(500).optional(),
+  targetType: z.string().max(50).optional(),
+  targetId: z.string().max(100).optional(),
 });
 
 export async function POST(
@@ -34,7 +36,7 @@ export async function POST(
   }
 
   await prisma.userReport.create({
-    data: { reporterId: me.id, reportedId, reason: body.reason, details: body.details },
+    data: { reporterId: me.id, reportedId, reason: body.reason, details: body.details, targetType: body.targetType ?? null, targetId: body.targetId ?? null },
   });
 
   return NextResponse.json({ ok: true });

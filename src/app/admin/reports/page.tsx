@@ -20,7 +20,13 @@ export default async function AdminReportsPage() {
   const reports = await prisma.userReport.findMany({
     where: { resolved: false },
     orderBy: { createdAt: "desc" },
-    include: {
+    select: {
+      id: true,
+      reason: true,
+      details: true,
+      targetType: true,
+      targetId: true,
+      createdAt: true,
       reporter: { select: { name: true, email: true } },
       reported: { select: { name: true, email: true } },
     },
@@ -49,6 +55,22 @@ export default async function AdminReportsPage() {
                 </div>
                 {r.details && (
                   <p className="text-sm text-neutral-600">{r.details}</p>
+                )}
+                {r.targetType && r.targetId && (
+                  <div>
+                    {r.targetType === "LISTING" && (
+                      <Link href={`/listing/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View listing →</Link>
+                    )}
+                    {r.targetType === "SELLER" && (
+                      <Link href={`/seller/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View seller →</Link>
+                    )}
+                    {r.targetType === "MESSAGE_THREAD" && (
+                      <Link href={`/messages/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View thread →</Link>
+                    )}
+                    {r.targetType === "BLOG_POST" && (
+                      <Link href={`/blog/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View post →</Link>
+                    )}
+                  </div>
                 )}
               </div>
               <ResolveReportButton reportId={r.id} />

@@ -185,7 +185,7 @@ export default async function ProfilePage() {
   const [fullSeller, activeListings] = await Promise.all([
     prisma.sellerProfile.findUnique({
       where: { id: seller.id },
-      include: { faqs: { orderBy: { sortOrder: "asc" } } },
+      include: { faqs: { orderBy: { sortOrder: "asc" } }, user: { select: { imageUrl: true } } },
     }),
     prisma.listing.findMany({
       where: { sellerId: seller.id, status: "ACTIVE" },
@@ -219,6 +219,17 @@ export default async function ProfilePage() {
           <div>
             <label className="block text-sm font-medium mb-2">Profile avatar</label>
             <ProfileAvatarUploader initialUrl={fullSeller.avatarImageUrl} />
+            <div className="mt-3 flex items-center gap-3">
+              {fullSeller.user?.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={fullSeller.user.imageUrl} alt="Manage Account photo" className="h-10 w-10 rounded-full object-cover border border-neutral-200" />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-neutral-200 border border-neutral-200 shrink-0" />
+              )}
+              <p className="text-xs text-neutral-500">
+                <span className="font-medium">Current photo from Manage Account</span> — used as fallback if no custom photo is uploaded above.
+              </p>
+            </div>
           </div>
 
           <div>

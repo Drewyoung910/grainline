@@ -76,6 +76,16 @@ export default async function BlogPostPage({
               body: true,
               createdAt: true,
               author: { select: { id: true, name: true, imageUrl: true } },
+              replies: {
+                where: { approved: true },
+                orderBy: { createdAt: "asc" },
+                select: {
+                  id: true,
+                  body: true,
+                  createdAt: true,
+                  author: { select: { id: true, name: true, imageUrl: true } },
+                },
+              },
             },
           },
         },
