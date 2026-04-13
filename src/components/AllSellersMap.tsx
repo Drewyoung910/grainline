@@ -22,7 +22,7 @@ type Props = {
 export default function AllSellersMap({
   points,
   initialCenter,
-  initialZoom = 4,
+  initialZoom = 3,
   height = 520,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,7 +32,7 @@ export default function AllSellersMap({
 
     const center: [number, number] = initialCenter
       ? [initialCenter.lng, initialCenter.lat]
-      : [-98.35, 39.5];
+      : [-96, 38];
 
     const map = new maplibregl.Map({
       container: containerRef.current,

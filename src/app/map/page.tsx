@@ -20,7 +20,7 @@ export default async function AllSellersMapPage({
   const { near, zoom } = await searchParams;
 
   let initialCenter: { lat: number; lng: number } | null = null;
-  let initialZoom = 10;
+  let initialZoom = 3;
 
   if (near) {
     const [latStr, lngStr] = near.split(",");
