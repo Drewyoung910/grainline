@@ -9,6 +9,7 @@ import ProfileBannerUploader from "@/components/ProfileBannerUploader";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
 import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
 import CharCounter from "@/components/CharCounter";
+import ConfirmButton from "@/components/ConfirmButton";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -143,6 +144,16 @@ async function deleteFaq(faqId: string) {
   revalidatePath(`/seller/${seller.id}`);
 }
 
+async function removeSellerAvatar() {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  if (!me) return;
+  await prisma.sellerProfile.update({ where: { userId: me.id }, data: { avatarImageUrl: null } });
+  revalidatePath("/dashboard/profile");
+}
+
 async function toggleFeaturedListing(listingId: string) {
   "use server";
   const { userId } = await auth();
@@ -218,7 +229,17 @@ export default async function ProfilePage() {
 
           <div>
             <label className="block text-sm font-medium mb-2">Profile avatar</label>
-            <ProfileAvatarUploader initialUrl={fullSeller.avatarImageUrl} />
+            <ProfileAvatarUploader key={fullSeller.avatarImageUrl ?? "none"} initialUrl={fullSeller.avatarImageUrl} />
+            {fullSeller.avatarImageUrl && (
+              <form action={removeSellerAvatar} className="mt-2">
+                <ConfirmButton
+                  confirm="Remove your custom photo? Your Manage Account photo will be used instead."
+                  className="text-xs text-neutral-500 hover:text-red-600 hover:underline"
+                >
+                  Remove custom photo
+                </ConfirmButton>
+              </form>
+            )}
             <div className="mt-3 flex items-center gap-3">
               {fullSeller.user?.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

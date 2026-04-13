@@ -67,7 +67,7 @@ export default async function BlogPostPage({
           id: true,
           body: true,
           createdAt: true,
-          author: { select: { id: true, name: true, imageUrl: true } },
+          author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
           replies: {
             where: { approved: true },
             orderBy: { createdAt: "asc" },
@@ -75,7 +75,7 @@ export default async function BlogPostPage({
               id: true,
               body: true,
               createdAt: true,
-              author: { select: { id: true, name: true, imageUrl: true } },
+              author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
               replies: {
                 where: { approved: true },
                 orderBy: { createdAt: "asc" },
@@ -83,7 +83,7 @@ export default async function BlogPostPage({
                   id: true,
                   body: true,
                   createdAt: true,
-                  author: { select: { id: true, name: true, imageUrl: true } },
+                  author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
                 },
               },
             },
@@ -319,12 +319,14 @@ export default async function BlogPostPage({
 
         {post.comments.length > 0 && (
           <ul className="space-y-4 mb-6">
-            {post.comments.map((c) => (
+            {post.comments.map((c) => {
+              const cAvatarUrl = c.author.sellerProfile?.avatarImageUrl ?? c.author.imageUrl;
+              return (
               <li key={c.id} className="flex flex-col gap-0">
                 <div className="flex gap-3">
-                  {c.author.imageUrl ? (
+                  {cAvatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.author.imageUrl} alt={c.author.name ?? ""} className="h-8 w-8 rounded-full object-cover shrink-0 mt-0.5" />
+                    <img src={cAvatarUrl} alt={c.author.name ?? ""} className="h-8 w-8 rounded-full object-cover shrink-0 mt-0.5" />
                   ) : (
                     <div className="h-8 w-8 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
                   )}
@@ -345,7 +347,8 @@ export default async function BlogPostPage({
                   isSignedIn={!!meId}
                 />
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
 

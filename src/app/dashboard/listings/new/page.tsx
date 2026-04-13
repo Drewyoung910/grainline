@@ -28,10 +28,18 @@ async function createListing(formData: FormData) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
+  // 1. Read saveAsDraft FIRST — before any other logic
+  const saveAsDraft = formData.get("saveAsDraft") === "true";
+
   const { success: rlOk } = await safeRateLimit(listingCreateRatelimit, userId);
   if (!rlOk) throw new Error("You can create up to 20 listings per day. Try again tomorrow.");
 
   const { seller } = await ensureSeller();
+
+  // 2. Check chargesEnabled for publish (not for draft)
+  if (!saveAsDraft && !seller.chargesEnabled) {
+    redirect("/dashboard/listings/new?error=stripe");
+  }
 
   const title = sanitizeText(String(formData.get("title") ?? "").trim());
   const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
@@ -108,6 +116,7 @@ async function createListing(formData: FormData) {
   if (stockQuantity !== null && stockQuantity < 0) throw new Error("Stock quantity cannot be negative.");
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) throw new Error("Processing time cannot exceed 365 days.");
 
+  // 3. Create listing with status based on saveAsDraft
   const created = await prisma.listing.create({
     data: {
       sellerId: seller.id,
@@ -125,6 +134,7 @@ async function createListing(formData: FormData) {
       shipsWithinDays,
       processingTimeMinDays,
       processingTimeMaxDays,
+      status: saveAsDraft ? "DRAFT" : "ACTIVE",
       photos: { create: imageUrls.map((url, i) => ({ url, sortOrder: i })) },
     },
   });
@@ -132,7 +142,7 @@ async function createListing(formData: FormData) {
   revalidatePath("/browse");
   revalidatePath("/dashboard");
 
-  // Assign metro geography from seller's location — non-fatal
+  // Assign metro geography from seller's location — non-fatal (runs for both draft and publish)
   try {
     const sellerLocation = await prisma.sellerProfile.findUnique({
       where: { id: seller.id },
@@ -149,6 +159,12 @@ async function createListing(formData: FormData) {
     console.error("[geo-metro] Failed to assign metro to listing:", e);
   }
 
+  // 4. Draft: skip ALL side effects and redirect immediately
+  if (saveAsDraft) {
+    redirect("/dashboard");
+  }
+
+  // Non-draft: run all side effects unchanged
   try {
     const listingCount = await prisma.listing.count({ where: { sellerId: seller.id } });
     if (listingCount === 1) {
@@ -262,12 +278,36 @@ async function createListing(formData: FormData) {
   redirect(`/listing/${created.id}`);
 }
 
-export default async function NewListingPage() {
+export default async function NewListingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[]>>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/listings/new");
 
+  const { seller } = await ensureSeller();
+  const sellerData = await prisma.sellerProfile.findUnique({
+    where: { id: seller.id },
+    select: { chargesEnabled: true },
+  });
+  const chargesEnabled = sellerData?.chargesEnabled ?? false;
+
+  const sp = await searchParams;
+  const errorMessage = sp.error === "stripe"
+    ? "Connect your bank account in Shop Settings to publish listings."
+    : null;
+
   return (
     <div className="max-w-2xl mx-auto p-8">
+      {!chargesEnabled && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 rounded">
+          Connect your bank account in{" "}
+          <a href="/dashboard/seller" className="underline font-medium">Shop Settings</a>{" "}
+          to publish. You can still save drafts — they won&apos;t be visible to buyers until published.
+        </div>
+      )}
+
       <h1 className="text-2xl font-semibold mb-6">Create a listing</h1>
 
       <form action={createListing} className="space-y-4">
@@ -334,20 +374,33 @@ export default async function NewListingPage() {
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">
-            Enter the dimensions/weight of the packaged item (ready to ship). We’ll convert to cm/grams internally.
+            Enter the dimensions/weight of the packaged item (ready to ship). We'll convert to cm/grams internally.
           </p>
         </div>
 
-        <button type="submit" className="rounded px-4 py-2 bg-black text-white">Create</button>
+        {errorMessage && (
+          <p className="text-sm text-red-600">{errorMessage}</p>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            type="submit"
+            name="saveAsDraft"
+            value="false"
+            className="flex-1 rounded px-4 py-2 bg-black text-white hover:bg-neutral-800"
+          >
+            Publish
+          </button>
+          <button
+            type="submit"
+            name="saveAsDraft"
+            value="true"
+            className="flex-1 rounded border border-neutral-300 px-4 py-2 bg-white text-neutral-700 hover:bg-neutral-50"
+          >
+            Save as Draft
+          </button>
+        </div>
       </form>
     </div>
   );
 }
-
-
-
-
-
-
-
-

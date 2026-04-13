@@ -9,15 +9,27 @@ import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
+import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 
 const PAGE_SIZE = 20;
 
+const STATUS_TABS = [
+  { value: "", label: "All" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "HIDDEN", label: "Hidden" },
+  { value: "SOLD_OUT", label: "Sold Out" },
+  { value: "SOLD", label: "Sold" },
+  { value: "PENDING_REVIEW", label: "Under Review" },
+] as const;
+
 type ShopSearch = {
   category?: string;
   sort?: string;
   page?: string;
+  status?: string;
 };
 
 export async function generateMetadata({
@@ -57,6 +69,7 @@ export default async function SellerShopPage({
   const category: Category | null = CATEGORY_VALUES.includes(categoryRaw)
     ? (categoryRaw as Category)
     : null;
+  const statusRaw = sp.status ?? "";
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id },
@@ -99,12 +112,24 @@ export default async function SellerShopPage({
       : Promise.resolve(false),
   ]);
 
-  // Distinct categories — for owner show all statuses, for buyers show ACTIVE only
+  // Validate status filter (owner only)
+  const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
+  const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])
+    ? statusRaw
+    : "";
+
+  // Distinct categories — for owner show all statuses (optionally filtered by status), for buyers show ACTIVE only
+  const categoryGroupWhere = isOwner
+    ? {
+        sellerId: id,
+        category: { not: null },
+        ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" } : {}),
+      }
+    : { sellerId: id, status: "ACTIVE" as const, isPrivate: false, category: { not: null } };
+
   const categoryGroups = await prisma.listing.groupBy({
     by: ["category"],
-    where: isOwner
-      ? { sellerId: id, category: { not: null } }
-      : { sellerId: id, status: "ACTIVE", isPrivate: false, category: { not: null } },
+    where: categoryGroupWhere,
     _count: { _all: true },
   });
   const availableCategories = categoryGroups
@@ -112,10 +137,13 @@ export default async function SellerShopPage({
     .map((g) => g.category as Category)
     .sort();
 
-  // Build where clause — owner sees all listings; buyers see ACTIVE + chargesEnabled only
+  // Build where clause — owner sees all listings (filtered by status); buyers see ACTIVE + chargesEnabled only
   const categoryFilter = category ? { category } : {};
+  const ownerStatusFilter = statusFilter
+    ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" }
+    : {};
   const where = isOwner
-    ? { sellerId: id, ...categoryFilter }
+    ? { sellerId: id, ...ownerStatusFilter, ...categoryFilter }
     : { sellerId: id, status: "ACTIVE" as const, isPrivate: false, seller: { chargesEnabled: true }, ...categoryFilter };
 
   // Build orderBy
@@ -156,14 +184,16 @@ export default async function SellerShopPage({
   }
 
   // URL helpers
-  function shopUrl(overrides: { category?: string | null; sort?: string; page?: number }) {
+  function shopUrl(overrides: { category?: string | null; sort?: string; page?: number; status?: string | null }) {
     const params = new URLSearchParams();
     const c = "category" in overrides ? overrides.category : categoryRaw;
     const s = overrides.sort ?? sort;
     const p = overrides.page ?? 1;
+    const st = "status" in overrides ? overrides.status : statusFilter;
     if (c) params.set("category", c);
     if (s && s !== "newest") params.set("sort", s);
     if (p > 1) params.set("page", String(p));
+    if (st) params.set("status", st);
     const qs = params.toString();
     return `/seller/${id}/shop${qs ? `?${qs}` : ""}`;
   }
@@ -232,7 +262,7 @@ export default async function SellerShopPage({
       </div>
 
       {/* ── Category tabs + sort ────────────────────────────────────── */}
-      <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="flex items-start justify-between gap-4 mb-3">
         {/* Tabs */}
         <div className="flex overflow-x-auto gap-2 pb-1 flex-1 min-w-0">
           <Link
@@ -264,6 +294,25 @@ export default async function SellerShopPage({
         <SortSelect currentSort={sort} sellerId={id} category={category} />
       </div>
 
+      {/* ── Status tabs (owner only) ────────────────────────────────── */}
+      {isOwner && (
+        <div className="flex overflow-x-auto gap-2 pb-1 mb-5">
+          {STATUS_TABS.map((tab) => (
+            <Link
+              key={tab.value}
+              href={shopUrl({ status: tab.value || null, page: 1 })}
+              className={`shrink-0 rounded-full border px-3 py-0.5 text-xs font-medium transition-colors ${
+                statusFilter === tab.value
+                  ? "bg-neutral-700 text-white border-neutral-700"
+                  : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* ── Results count ───────────────────────────────────────────── */}
       <p className="text-sm text-neutral-500 mb-4">
         {total === 0 ? "No pieces" : `${total} ${total === 1 ? "piece" : "pieces"}`}
@@ -272,9 +321,25 @@ export default async function SellerShopPage({
       {/* ── Grid ────────────────────────────────────────────────────── */}
       {listings.length === 0 ? (
         <div className="border border-neutral-200 p-12 text-center text-neutral-500">
-          {category
-            ? `No pieces in ${CATEGORY_LABELS[category] ?? category} yet.`
-            : "No pieces listed yet."}
+          {isOwner && statusFilter ? (
+            <div>
+              <p>{`No ${STATUS_TABS.find((t) => t.value === statusFilter)?.label.toLowerCase() ?? ""} listings.`}</p>
+              <Link href={shopUrl({ status: null, page: 1 })} className="mt-2 inline-block text-sm text-neutral-700 underline hover:text-neutral-900">
+                View all listings
+              </Link>
+            </div>
+          ) : isOwner && !category ? (
+            <div>
+              <p>{"Your workshop is empty — list your first piece and start selling."}</p>
+              <Link href="/dashboard/listings/new" className="mt-2 inline-block text-sm text-neutral-700 underline hover:text-neutral-900">
+                Create a listing →
+              </Link>
+            </div>
+          ) : category ? (
+            `No pieces in ${CATEGORY_LABELS[category] ?? category} yet.`
+          ) : (
+            "No pieces listed yet."
+          )}
         </div>
       ) : (
         <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -313,21 +378,18 @@ export default async function SellerShopPage({
                     initialSaved={savedSet.has(l.id)}
                     variant="grid"
                   />
-                  {isOwner && (
-                    <div className="mt-1 flex items-center gap-2 px-0.5">
+                  {isOwner ? (
+                    <div>
                       {statusBadge && (
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadge.cls}`}>
-                          {statusBadge.label}
-                        </span>
+                        <div className="mt-1 px-0.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusBadge.cls}`}>
+                            {statusBadge.label}
+                          </span>
+                        </div>
                       )}
-                      <Link
-                        href={`/dashboard/listings/${l.id}/edit`}
-                        className="text-[11px] text-neutral-500 hover:text-neutral-800 hover:underline ml-auto"
-                      >
-                        Edit →
-                      </Link>
+                      <ShopListingActions listingId={l.id} status={l.status} />
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </ClickTracker>
             );

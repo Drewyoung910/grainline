@@ -5,6 +5,13 @@ import { auth } from "@clerk/nextjs/server";
 import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
 
+const AUTHOR_SELECT = {
+  id: true,
+  name: true,
+  imageUrl: true,
+  sellerProfile: { select: { avatarImageUrl: true } },
+} as const;
+
 const CommentSchema = z.object({
   body: z.string().min(1).max(2000),
   parentId: z.string().min(1).optional(),
@@ -27,7 +34,7 @@ export async function GET(
       id: true,
       body: true,
       createdAt: true,
-      author: { select: { id: true, name: true, imageUrl: true } },
+      author: { select: AUTHOR_SELECT },
       replies: {
         where: { approved: true },
         orderBy: { createdAt: "asc" },
@@ -35,7 +42,7 @@ export async function GET(
           id: true,
           body: true,
           createdAt: true,
-          author: { select: { id: true, name: true, imageUrl: true } },
+          author: { select: AUTHOR_SELECT },
           replies: {
             where: { approved: true },
             orderBy: { createdAt: "asc" },
@@ -43,7 +50,7 @@ export async function GET(
               id: true,
               body: true,
               createdAt: true,
-              author: { select: { id: true, name: true, imageUrl: true } },
+              author: { select: AUTHOR_SELECT },
             },
           },
         },
@@ -51,7 +58,20 @@ export async function GET(
     },
   });
 
-  return NextResponse.json({ comments });
+  const mapped = comments.map((c) => ({
+    ...c,
+    avatarUrl: c.author.sellerProfile?.avatarImageUrl ?? c.author.imageUrl,
+    replies: c.replies.map((r) => ({
+      ...r,
+      avatarUrl: r.author.sellerProfile?.avatarImageUrl ?? r.author.imageUrl,
+      replies: r.replies.map((r3) => ({
+        ...r3,
+        avatarUrl: r3.author.sellerProfile?.avatarImageUrl ?? r3.author.imageUrl,
+      })),
+    })),
+  }));
+
+  return NextResponse.json({ comments: mapped });
 }
 
 export async function POST(

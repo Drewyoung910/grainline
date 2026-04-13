@@ -6,14 +6,24 @@ interface Level3Reply {
   id: string;
   body: string;
   createdAt: Date | string;
-  author: { id: string; name: string | null; imageUrl: string | null };
+  author: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+    sellerProfile?: { avatarImageUrl: string | null } | null;
+  };
 }
 
 interface Reply {
   id: string;
   body: string;
   createdAt: Date | string;
-  author: { id: string; name: string | null; imageUrl: string | null };
+  author: {
+    id: string;
+    name: string | null;
+    imageUrl: string | null;
+    sellerProfile?: { avatarImageUrl: string | null } | null;
+  };
   replies?: Level3Reply[];
 }
 
@@ -38,88 +48,94 @@ export default function BlogReplyToggle({
   return (
     <div className="pl-8 border-l border-neutral-100 mt-3 space-y-3">
       {/* Level-2 replies */}
-      {replies.map((r) => (
-        <div key={r.id} className="space-y-2">
-          {/* Level-2 reply content */}
-          <div className="flex gap-3">
-            {r.author.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={r.author.imageUrl}
-                alt={r.author.name ?? ""}
-                className="h-7 w-7 rounded-full object-cover shrink-0 mt-0.5"
-              />
-            ) : (
-              <div className="h-7 w-7 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
-            )}
-            <div className="flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium">{r.author.name ?? "User"}</span>
-                <span className="text-xs text-neutral-400">
-                  {new Date(r.createdAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-              <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{r.body}</p>
-            </div>
-          </div>
-
-          {/* Level-3 replies (no Reply button) */}
-          {r.replies && r.replies.length > 0 && (
-            <div className="pl-10 border-l border-neutral-100 space-y-2">
-              {r.replies.map((r3) => (
-                <div key={r3.id} className="flex gap-3">
-                  {r3.author.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={r3.author.imageUrl}
-                      alt={r3.author.name ?? ""}
-                      className="h-6 w-6 rounded-full object-cover shrink-0 mt-0.5"
-                    />
-                  ) : (
-                    <div className="h-6 w-6 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium">{r3.author.name ?? "User"}</span>
-                      <span className="text-xs text-neutral-400">
-                        {new Date(r3.createdAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{r3.body}</p>
-                  </div>
+      {replies.map((r) => {
+        const rAvatarUrl = r.author.sellerProfile?.avatarImageUrl ?? r.author.imageUrl;
+        return (
+          <div key={r.id} className="space-y-2">
+            {/* Level-2 reply content */}
+            <div className="flex gap-3">
+              {rAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={rAvatarUrl}
+                  alt={r.author.name ?? ""}
+                  className="h-7 w-7 rounded-full object-cover shrink-0 mt-0.5"
+                />
+              ) : (
+                <div className="h-7 w-7 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-medium">{r.author.name ?? "User"}</span>
+                  <span className="text-xs text-neutral-400">
+                    {new Date(r.createdAt).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
                 </div>
-              ))}
+                <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{r.body}</p>
+              </div>
             </div>
-          )}
 
-          {/* Reply button for level-2 (creates level-3) */}
-          {isSignedIn && (
-            showingReplyId === r.id ? (
-              <BlogCommentForm
-                slug={slug}
-                parentId={r.id}
-                placeholder="Write a reply…"
-                onCancel={() => setShowingReplyId(null)}
-              />
-            ) : (
-              <button
-                onClick={() => setShowingReplyId(r.id)}
-                className="text-xs text-neutral-500 hover:text-neutral-700 hover:underline pl-10"
-              >
-                Reply
-              </button>
-            )
-          )}
-        </div>
-      ))}
+            {/* Level-3 replies (no Reply button) */}
+            {r.replies && r.replies.length > 0 && (
+              <div className="pl-10 border-l border-neutral-100 space-y-2">
+                {r.replies.map((r3) => {
+                  const r3AvatarUrl = r3.author.sellerProfile?.avatarImageUrl ?? r3.author.imageUrl;
+                  return (
+                    <div key={r3.id} className="flex gap-3">
+                      {r3AvatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={r3AvatarUrl}
+                          alt={r3.author.name ?? ""}
+                          className="h-6 w-6 rounded-full object-cover shrink-0 mt-0.5"
+                        />
+                      ) : (
+                        <div className="h-6 w-6 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-medium">{r3.author.name ?? "User"}</span>
+                          <span className="text-xs text-neutral-400">
+                            {new Date(r3.createdAt).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{r3.body}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Reply button for level-2 (creates level-3) */}
+            {isSignedIn && (
+              showingReplyId === r.id ? (
+                <BlogCommentForm
+                  slug={slug}
+                  parentId={r.id}
+                  placeholder="Write a reply…"
+                  onCancel={() => setShowingReplyId(null)}
+                />
+              ) : (
+                <button
+                  onClick={() => setShowingReplyId(r.id)}
+                  className="text-xs text-neutral-500 hover:text-neutral-700 hover:underline pl-10"
+                >
+                  Reply
+                </button>
+              )
+            )}
+          </div>
+        );
+      })}
 
       {/* Reply button for level-1 (creates level-2) */}
       {isSignedIn && (

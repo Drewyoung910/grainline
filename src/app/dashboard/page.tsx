@@ -165,6 +165,7 @@ export default async function DashboardPage() {
         _count: { select: { favorites: true, stockNotifications: true } },
       },
       orderBy: { updatedAt: "desc" },
+      take: 6,
     }),
     prisma.savedSearch.findMany({
       where: { userId: me.id },

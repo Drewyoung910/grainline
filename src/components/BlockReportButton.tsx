@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 type Props = {
   targetUserId: string;
@@ -19,11 +19,21 @@ const REPORT_REASONS = [
 
 export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false, targetType, targetId }: Props) {
   const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const [view, setView] = useState<"menu" | "report">("menu");
   const [blocked, setBlocked] = useState(initialBlocked);
   const [reportReason, setReportReason] = useState("SPAM");
   const [reportDetails, setReportDetails] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  function handleOpen() {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setOpenUpward(rect.bottom > window.innerHeight - 200);
+    }
+    setOpen(true);
+  }
 
   async function handleBlock() {
     setStatus("loading");
@@ -45,10 +55,16 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     if (res.ok) setTimeout(() => { setOpen(false); setView("menu"); setStatus("idle"); }, 1500);
   }
 
+  const reportLabel =
+    targetType === "LISTING" ? "Report this listing"
+    : targetType === "MESSAGE_THREAD" ? "Report this conversation"
+    : `Report ${targetName}`;
+
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        ref={triggerRef}
+        onClick={open ? () => { setOpen(false); setView("menu"); } : handleOpen}
         className="text-xs text-neutral-400 hover:text-neutral-600 px-2 py-1 rounded"
         aria-label="More options"
       >
@@ -58,7 +74,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setView("menu"); }} />
-          <div className="absolute right-0 top-6 z-50 bg-white border border-neutral-200 rounded-lg shadow-lg w-48 py-1">
+          <div className={`absolute right-0 z-50 bg-white border border-neutral-200 rounded-lg shadow-lg w-48 py-1 ${openUpward ? "bottom-full mb-1" : "top-full mt-1"}`}>
             {view === "menu" ? (
               <>
                 <button
@@ -72,7 +88,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
                   onClick={() => setView("report")}
                   className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-neutral-50"
                 >
-                  Report {targetName}
+                  {reportLabel}
                 </button>
               </>
             ) : status === "done" ? (
