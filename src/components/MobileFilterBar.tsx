@@ -330,8 +330,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-hidden="true"
       />
 
-      {/* Sheet panel — rounded top only, extends to viewport bottom */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl">
+      {/* Sheet panel — rounded top only, forced h-[90vh] so it always fills to viewport bottom */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl h-[90vh] md:hidden animate-slide-up shadow-2xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="h-1 w-10 rounded-full bg-neutral-300" />
@@ -366,8 +366,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-hidden="true"
       />
 
-      {/* Sort sheet panel — rounded top only, extends to viewport bottom */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl md:hidden animate-slide-up shadow-2xl">
+      {/* Sort sheet panel — rounded top only, forced h-[90vh] so it always fills to viewport bottom */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl h-[90vh] md:hidden animate-slide-up shadow-2xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="h-1 w-10 rounded-full bg-neutral-300" />
@@ -424,27 +424,29 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   return (
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
-      {/* py-3 (was py-2) gives button borders breathing room at the top edge */}
-      <div className="md:hidden sticky top-0 z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 py-3 flex items-center gap-3">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
-        >
-          <Filter size={16} />
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="inline-flex items-center rounded-full bg-neutral-900 text-white px-1.5 py-0.5 text-[11px] font-medium leading-none">
-              {activeFilterCount}
-            </span>
-          )}
-        </button>
+      {/* pt-4 pb-3 + inner pt-1 gives button borders breathing room at the very top edge */}
+      <div className="md:hidden sticky top-0 z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-4 pb-3">
+        <div className="pt-1 flex items-center gap-3">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+          >
+            <Filter size={16} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-neutral-900 text-white px-1.5 py-0.5 text-[11px] font-medium leading-none">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setSortOpen(true)}
-          className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
-        >
-          Sort: {sortLabel}
-        </button>
+          <button
+            onClick={() => setSortOpen(true)}
+            className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+          >
+            Sort: {sortLabel}
+          </button>
+        </div>
       </div>
 
       {/* Portal sheets — rendered at document.body to escape all stacking contexts */}

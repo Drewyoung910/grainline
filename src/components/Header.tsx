@@ -123,7 +123,7 @@ export default function Header() {
   }, [pathname, searchParams]);
 
   return (
-    <header className="border-b bg-gradient-to-b from-amber-50 to-white relative z-30">
+    <header className="border-b bg-gradient-to-b from-amber-50 to-white relative z-[50]">
       <nav className="mx-auto max-w-6xl p-4 flex items-center gap-4">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
@@ -266,15 +266,15 @@ export default function Header() {
       {/* ── Mobile drawer ─────────────────────────────────────────────── */}
       {drawerOpen && (
         <>
-          {/* Backdrop — z-40 is above filter bar (z-30); opacity 60 fully obscures it */}
+          {/* Backdrop — z-[1000] within header's z-[50] stacking context beats any sticky element */}
           <div
-            className="fixed inset-0 z-40 bg-black/60"
+            className="fixed inset-0 z-[1000] bg-black/60"
             onClick={() => setDrawerOpen(false)}
             aria-hidden="true"
           />
 
           {/* Panel */}
-          <div className="fixed right-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden">
+          <div className="fixed right-0 top-0 z-[1001] flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden">
             {/* Header row */}
             <div className="flex items-center justify-between border-b px-4 py-3">
               <Link
