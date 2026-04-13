@@ -14,7 +14,7 @@ import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
-import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { getBlockedSellerProfileIdsFor, getBlockedUserIdsFor } from "@/lib/blocks";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -94,6 +94,7 @@ export default async function HomePage() {
     meDbId = meRow?.id ?? null;
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+  const blockedUserIds = await getBlockedUserIdsFor(meDbId);
 
   const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts, mosaicListings] = await Promise.all([
     prisma.listing.findMany({
@@ -122,6 +123,7 @@ export default async function HomePage() {
         lat: { not: null },
         lng: { not: null },
         OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
+        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
       },
       select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
     }),
@@ -139,7 +141,7 @@ export default async function HomePage() {
       prisma.order.count({ where: { paidAt: { not: null } } }),
     ]),
     prisma.blogPost.findMany({
-      where: { status: "PUBLISHED" },
+      where: { status: "PUBLISHED", ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}) },
       orderBy: { publishedAt: "desc" },
       take: 3,
       select: {

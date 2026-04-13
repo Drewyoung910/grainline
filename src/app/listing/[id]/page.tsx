@@ -139,6 +139,16 @@ export default async function ListingPage({
     }
   }
 
+  // Block filter — show "not available" if the viewer has blocked or been blocked by the seller
+  if (listing.seller.user?.id && blockedUserIds.has(listing.seller.user.id)) {
+    return (
+      <main className="max-w-2xl mx-auto p-8 text-center space-y-4">
+        <p className="text-neutral-500">This listing is not available.</p>
+        <Link href="/browse" className="text-sm text-amber-700 underline">Browse other pieces →</Link>
+      </main>
+    );
+  }
+
   const [ratingAgg, sellerRatingAgg] = await Promise.all([
     prisma.review.aggregate({
       where: { listingId: id },

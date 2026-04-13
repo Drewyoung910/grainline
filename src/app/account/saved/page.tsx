@@ -2,6 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import Link from "next/link";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
@@ -26,6 +27,8 @@ export default async function SavedPage({
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) redirect("/sign-in");
 
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+
   const sp = await searchParams;
   const tab = sp.tab === "posts" ? "posts" : "listings";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
@@ -42,7 +45,7 @@ export default async function SavedPage({
   if (tab === "listings") {
     const totalPages = Math.ceil(listingTotal / PAGE_SIZE);
     const favorites = await prisma.favorite.findMany({
-      where: { userId: me.id },
+      where: { userId: me.id, ...(blockedSellerIds.length > 0 ? { listing: { sellerId: { notIn: blockedSellerIds } } } : {}) },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
