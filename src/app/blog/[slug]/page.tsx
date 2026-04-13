@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import BlogCommentForm from "@/components/BlogCommentForm";
+import BlogReplyToggle from "@/components/BlogReplyToggle";
 import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
@@ -60,13 +61,23 @@ export default async function BlogPostPage({
       author: { select: { id: true, name: true, imageUrl: true } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
-        where: { approved: true },
+        where: { approved: true, parentId: null },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
           body: true,
           createdAt: true,
           author: { select: { id: true, name: true, imageUrl: true } },
+          replies: {
+            where: { approved: true },
+            orderBy: { createdAt: "asc" },
+            select: {
+              id: true,
+              body: true,
+              createdAt: true,
+              author: { select: { id: true, name: true, imageUrl: true } },
+            },
+          },
         },
       },
     },
@@ -299,22 +310,30 @@ export default async function BlogPostPage({
         {post.comments.length > 0 && (
           <ul className="space-y-4 mb-6">
             {post.comments.map((c) => (
-              <li key={c.id} className="flex gap-3">
-                {c.author.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.author.imageUrl} alt={c.author.name ?? ""} className="h-8 w-8 rounded-full object-cover shrink-0 mt-0.5" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
-                )}
-                <div className="flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium">{c.author.name ?? "User"}</span>
-                    <span className="text-xs text-neutral-400">
-                      {new Date(c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                    </span>
+              <li key={c.id} className="flex flex-col gap-0">
+                <div className="flex gap-3">
+                  {c.author.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.author.imageUrl} alt={c.author.name ?? ""} className="h-8 w-8 rounded-full object-cover shrink-0 mt-0.5" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-medium">{c.author.name ?? "User"}</span>
+                      <span className="text-xs text-neutral-400">
+                        {new Date(c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{c.body}</p>
                   </div>
-                  <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{c.body}</p>
                 </div>
+                <BlogReplyToggle
+                  slug={slug}
+                  parentId={c.id}
+                  replies={c.replies}
+                  isSignedIn={!!meId}
+                />
               </li>
             ))}
           </ul>

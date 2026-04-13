@@ -452,6 +452,15 @@ export default async function DashboardPage() {
                       >
                         Edit
                       </Link>
+                      {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW") && (
+                        <Link
+                          href={`/listing/${l.id}?preview=1`}
+                          className="text-xs rounded border px-2 py-1 hover:bg-neutral-50"
+                          target="_blank"
+                        >
+                          Preview →
+                        </Link>
+                      )}
 
                       <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
                         <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">

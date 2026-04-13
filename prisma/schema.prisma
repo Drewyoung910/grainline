@@ -743,9 +743,13 @@ model BlogComment {
   author    User     @relation("BlogCommentsAuthored", fields: [authorId], references: [id])
   body      String
   approved  Boolean  @default(false)
+  parentId  String?
+  parent    BlogComment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   BlogComment[]  @relation("CommentReplies")
   createdAt DateTime @default(now())
 
   @@index([postId])
+  @@index([parentId])
 }
 
 model NewsletterSubscriber {

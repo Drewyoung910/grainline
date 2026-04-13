@@ -104,7 +104,7 @@ export default async function ListingPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ rsort?: string; redit?: string }>;
+  searchParams: Promise<{ rsort?: string; redit?: string; preview?: string }>;
 }) {
   const { id } = await params;
 
@@ -131,8 +131,11 @@ export default async function ListingPage({
   });
   if (!listing) return notFound();
 
+  // Preview mode: seller can view their own listing regardless of status/chargesEnabled
+  const isPreview = sp.preview === "1" && !!userId && listing.seller.user?.clerkId === userId;
+
   // Non-connected seller listings are private — only the seller can view them
-  if (!listing.seller.chargesEnabled) {
+  if (!isPreview && !listing.seller.chargesEnabled) {
     const isSeller = userId && listing.seller.user?.clerkId === userId;
     if (!isSeller) {
       return notFound();
@@ -140,7 +143,7 @@ export default async function ListingPage({
   }
 
   // Block filter — show "not available" if the viewer has blocked or been blocked by the seller
-  if (listing.seller.user?.id && blockedUserIds.has(listing.seller.user.id)) {
+  if (!isPreview && listing.seller.user?.id && blockedUserIds.has(listing.seller.user.id)) {
     return (
       <main className="max-w-2xl mx-auto p-8 text-center space-y-4">
         <p className="text-neutral-500">This listing is not available.</p>
@@ -318,6 +321,11 @@ export default async function ListingPage({
 
   return (
     <div className="bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+    {isPreview && (
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-sm text-amber-800 text-center">
+        Preview mode — this is how your listing appears to buyers. It is not yet published.
+      </div>
+    )}
     <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-6">
       <ListingViewTracker listingId={id} />
       <RecentlyViewedTracker listingId={id} />

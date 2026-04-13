@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { ResolveReportButton } from "@/components/admin/ResolveReportButton";
 
@@ -36,7 +37,7 @@ export default async function AdminReportsPage() {
                 <div className="text-sm">
                   <span className="font-medium">{r.reporter.name ?? r.reporter.email ?? "Unknown"}</span>
                   <span className="text-neutral-400"> reported </span>
-                  <span className="font-medium">{r.reported.name ?? r.reported.email ?? "Unknown"}</span>
+                  <Link href={`/admin/users?q=${encodeURIComponent(r.reported.email ?? r.reported.name ?? "")}`} className="font-medium hover:underline">{r.reported.name ?? r.reported.email ?? "Unknown"}</Link>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5">
