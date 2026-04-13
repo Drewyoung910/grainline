@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 export type FeedItem = {
   kind: "listing" | "blog" | "broadcast";
@@ -43,7 +44,11 @@ export async function GET(req: NextRequest) {
     where: { followerId: me.id },
     select: { sellerProfileId: true },
   });
-  const sellerIds = follows.map((f) => f.sellerProfileId);
+  const rawSellerIds = follows.map((f) => f.sellerProfileId);
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+  const sellerIds = blockedSellerIds.length > 0
+    ? rawSellerIds.filter((id) => !blockedSellerIds.includes(id))
+    : rawSellerIds;
 
   if (sellerIds.length === 0) {
     return NextResponse.json({ items: [], nextCursor: null, hasMore: false });

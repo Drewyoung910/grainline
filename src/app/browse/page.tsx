@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { Category, ListingStatus, ListingType, Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import FavoriteButton from "@/components/FavoriteButton";
 import FilterSidebar from "@/components/FilterSidebar";
 import SaveSearchButton from "@/components/SaveSearchButton";
@@ -148,6 +149,15 @@ export default async function BrowsePage({
 }) {
   const sp = await searchParams;
 
+  // Resolve user early for block filtering
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = me?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+
   const q = sp.q ?? "";
   const page = sp.page ?? "1";
   const min = sp.min ?? "";
@@ -236,7 +246,12 @@ export default async function BrowsePage({
   }
 
   // Build WHERE
-  const where: Prisma.ListingWhereInput = { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } } };
+  const where: Prisma.ListingWhereInput = {
+    status: ListingStatus.ACTIVE,
+    isPrivate: false,
+    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+    ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+  };
 
   if (q) {
     where.OR = [
@@ -256,12 +271,13 @@ export default async function BrowsePage({
     where.shipsWithinDays = { lte: shipsFilter };
   }
 
-  // Apply intersected seller ID constraints
+  // Apply intersected seller ID constraints (preserve block notIn if set)
+  const blockNotIn = blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {};
   if (sellerIdFilters.length === 1) {
-    where.sellerId = { in: sellerIdFilters[0] };
+    where.sellerId = { in: sellerIdFilters[0], ...blockNotIn };
   } else if (sellerIdFilters.length > 1) {
     const bSet = new Set(sellerIdFilters[1]);
-    where.sellerId = { in: sellerIdFilters[0].filter((id) => bSet.has(id)) };
+    where.sellerId = { in: sellerIdFilters[0].filter((id) => bSet.has(id)), ...blockNotIn };
   }
 
   // ORDER BY
@@ -310,17 +326,13 @@ export default async function BrowsePage({
     .map(([name]) => name);
 
   // Saved set for current user
-  const { userId } = await auth();
   let savedSet = new Set<string>();
-  if (userId && listings.length) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-    if (me) {
-      const favs = await prisma.favorite.findMany({
-        where: { userId: me.id, listingId: { in: listings.map((l) => l.id) } },
-        select: { listingId: true },
-      });
-      savedSet = new Set(favs.map((f) => f.listingId));
-    }
+  if (meDbId && listings.length) {
+    const favs = await prisma.favorite.findMany({
+      where: { userId: meDbId, listingId: { in: listings.map((l) => l.id) } },
+      select: { listingId: true },
+    });
+    savedSet = new Set(favs.map((f) => f.listingId));
   }
 
   // Seller ratings for display

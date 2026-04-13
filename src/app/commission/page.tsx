@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { CommissionStatus, Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -59,11 +60,13 @@ export default async function CommissionPage({
   }
 
   const hasLocation = viewerLat != null && viewerLng != null;
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
 
   // Build where clause
   const where = {
     status: CommissionStatus.OPEN,
     ...(categoryValid ? { category: categoryFilter as Category } : {}),
+    ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
   };
 
   // For Near Me tab: filter by distance using raw SQL
@@ -102,7 +105,7 @@ export default async function CommissionPage({
         cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
         cr."referenceImageUrls", cr."interestedCount", cr."createdAt",
         cr.lat, cr.lng, cr."isNational",
-        u.name AS "buyerName", u."imageUrl" AS "buyerImageUrl",
+        u.id AS "buyerId", u.name AS "buyerName", u."imageUrl" AS "buyerImageUrl",
         CASE
           WHEN cr.lat IS NOT NULL AND cr.lng IS NOT NULL
           THEN (6371000 * acos(
@@ -150,6 +153,7 @@ export default async function CommissionPage({
       lat: number | null;
       lng: number | null;
       isNational: boolean;
+      buyerId: string;
       buyerName: string | null;
       buyerImageUrl: string | null;
       distance_m: number | null;
@@ -181,7 +185,10 @@ export default async function CommissionPage({
     const countResult = await prisma.$queryRawUnsafe<[{ count: bigint }]>(countSql, ...countArgs);
 
     total = Number(countResult[0].count);
-    requests = rawResults.map((r) => ({
+    const filteredRawResults = blockedUserIds.size > 0
+      ? rawResults.filter((r) => !blockedUserIds.has(r.buyerId))
+      : rawResults;
+    requests = filteredRawResults.map((r) => ({
       id: r.id,
       title: r.title,
       description: r.description,

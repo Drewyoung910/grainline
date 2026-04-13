@@ -13,6 +13,7 @@ import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icon
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
 import BlockReportButton from "@/components/BlockReportButton";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 import SellerGallery from "@/components/SellerGallery";
 import CoverLightbox from "@/components/CoverLightbox";
 import ListingCard from "@/components/ListingCard";
@@ -111,6 +112,17 @@ export default async function SellerPublicPage({
   if (userId) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
+  }
+
+  // Block check
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
+  if (seller.user?.id && blockedUserIds.has(seller.user.id)) {
+    return (
+      <main className="max-w-2xl mx-auto p-8 text-center space-y-4">
+        <p className="text-neutral-500">This maker&apos;s profile is not available.</p>
+        <Link href="/browse" className="text-sm text-amber-700 underline">Browse other makers →</Link>
+      </main>
+    );
   }
 
   // Follow data

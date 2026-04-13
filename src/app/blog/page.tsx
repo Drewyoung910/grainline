@@ -7,6 +7,7 @@ import { BlogPostType, BlogPostStatus, Prisma } from "@prisma/client";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { auth } from "@clerk/nextjs/server";
 import SaveBlogButton from "@/components/SaveBlogButton";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
 
 export const metadata: Metadata = {
@@ -39,10 +40,21 @@ export default async function BlogIndexPage({
 
   const typeValid = typeFilter && (Object.values(BlogPostType) as string[]).includes(typeFilter);
 
+  // Auth + block filter (resolved before queries so authorId notIn applies to both query paths)
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedUserIds = await getBlockedUserIdsFor(meDbId);
+  const blockedUserIdList = [...blockedUserIds];
+
   // Base where clause (type + tag filters apply always)
   const baseFilters = {
     ...(typeValid ? { type: typeFilter as BlogPostType } : {}),
     ...(tagsFilter.length > 0 ? { tags: { hasSome: tagsFilter } } : {}),
+    ...(blockedUserIdList.length > 0 ? { authorId: { notIn: blockedUserIdList } } : {}),
   };
 
   type PostSelect = {
@@ -140,19 +152,13 @@ export default async function BlogIndexPage({
   }
 
   // Saved set for logged-in users
-  const { userId } = await auth();
   let savedSet = new Set<string>();
-  if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-    if (me) {
-      const allIds = allPosts.map((p) => p.id);
-      if (featured) allIds.push(featured.id);
-      const saved = await prisma.savedBlogPost.findMany({
-        where: { userId: me.id, blogPostId: { in: allPosts.map((p) => p.id) } },
-        select: { blogPostId: true },
-      });
-      savedSet = new Set(saved.map((s) => s.blogPostId));
-    }
+  if (meDbId && allPosts.length > 0) {
+    const saved = await prisma.savedBlogPost.findMany({
+      where: { userId: meDbId, blogPostId: { in: allPosts.map((p) => p.id) } },
+      select: { blogPostId: true },
+    });
+    savedSet = new Set(saved.map((s) => s.blogPostId));
   }
 
   function buildHref(overrides: Record<string, string>) {

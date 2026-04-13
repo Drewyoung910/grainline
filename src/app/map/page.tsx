@@ -2,6 +2,8 @@
 import { prisma } from "@/lib/db";
 import AllSellersMap from "@/components/AllSellersMap";
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 type Point = {
   id: string;
@@ -18,6 +20,14 @@ export default async function AllSellersMapPage({
   searchParams: Promise<{ near?: string; zoom?: string }>;
 }) {
   const { near, zoom } = await searchParams;
+
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
   let initialCenter: { lat: number; lng: number } | null = null;
   let initialZoom = 3;
@@ -65,6 +75,7 @@ export default async function AllSellersMapPage({
       lat: { not: null },
       lng: { not: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
+      ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
     },
     select: {
       id: true,

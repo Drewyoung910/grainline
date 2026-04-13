@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 
 function formatWhen(d?: Date | null) {
   if (!d) return "";
@@ -78,6 +79,8 @@ export default async function MessagesPage({
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect("/sign-in?redirect_url=/messages");
+
+  const blockedUserIds = await getBlockedUserIdsFor(me.id);
 
   const isArchivedTab = tab === "archived";
 
@@ -160,8 +163,11 @@ export default async function MessagesPage({
     unread.map((u) => [u.conversationId, u._count._all]),
   );
 
-  // Enrich for rendering
-  const enrich = convos.map((c) => {
+  // Enrich for rendering — exclude conversations with blocked users
+  const enrich = convos.filter((c) => {
+    const other = c.userAId === me.id ? c.userB : c.userA;
+    return !blockedUserIds.has(other.id);
+  }).map((c) => {
     const other = c.userAId === me.id ? c.userB : c.userA;
     const latest = c.messages[0] || null;
     const unreadCount = unreadByConvo.get(c.id) || 0;

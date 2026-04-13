@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { ListingStatus } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { searchRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import { auth } from "@clerk/nextjs/server";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimitOpen(searchRatelimit, getIP(req));
@@ -12,6 +14,14 @@ export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
 
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+
   const [listings, sellers, tagRows, fuzzyRows] = await Promise.all([
     // Exact title prefix / substring matches
     prisma.listing.findMany({
@@ -20,6 +30,7 @@ export async function GET(req: NextRequest) {
         isPrivate: false,
         seller: { chargesEnabled: true },
         title: { contains: q, mode: "insensitive" },
+        ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       },
       select: { title: true },
       take: 4,
@@ -34,29 +45,49 @@ export async function GET(req: NextRequest) {
     }),
 
     // Partial tag matches via unnest
-    prisma.$queryRaw<Array<{ tag: string; cnt: bigint }>>`
-      SELECT tag, COUNT(*) as cnt
-      FROM "Listing" l
-      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      , unnest(l.tags) as tag
-      WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true AND tag ILIKE ${`%${q}%`}
-      GROUP BY tag
-      ORDER BY cnt DESC
-      LIMIT 2
-    `,
+    blockedSellerIds.length > 0
+      ? prisma.$queryRaw<Array<{ tag: string; cnt: bigint }>>`
+          SELECT tag, COUNT(*) as cnt
+          FROM "Listing" l
+          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          , unnest(l.tags) as tag
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true
+            AND tag ILIKE ${`%${q}%`}
+            AND l."sellerId" != ALL(${blockedSellerIds})
+          GROUP BY tag ORDER BY cnt DESC LIMIT 2
+        `
+      : prisma.$queryRaw<Array<{ tag: string; cnt: bigint }>>`
+          SELECT tag, COUNT(*) as cnt
+          FROM "Listing" l
+          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          , unnest(l.tags) as tag
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true AND tag ILIKE ${`%${q}%`}
+          GROUP BY tag ORDER BY cnt DESC LIMIT 2
+        `,
 
     // Fuzzy title suggestions via pg_trgm (similarity > 0.25)
-    prisma.$queryRaw<Array<{ title: string; sim: number }>>`
-      SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
-      FROM "Listing" l
-      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-        AND sp."chargesEnabled" = true
-        AND similarity(l.title, ${q}) > 0.25
-        AND l.title NOT ILIKE ${`%${q}%`}
-      ORDER BY sim DESC
-      LIMIT 2
-    `,
+    blockedSellerIds.length > 0
+      ? prisma.$queryRaw<Array<{ title: string; sim: number }>>`
+          SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
+          FROM "Listing" l
+          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+            AND sp."chargesEnabled" = true
+            AND similarity(l.title, ${q}) > 0.25
+            AND l.title NOT ILIKE ${`%${q}%`}
+            AND l."sellerId" != ALL(${blockedSellerIds})
+          ORDER BY sim DESC LIMIT 2
+        `
+      : prisma.$queryRaw<Array<{ title: string; sim: number }>>`
+          SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
+          FROM "Listing" l
+          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+            AND sp."chargesEnabled" = true
+            AND similarity(l.title, ${q}) > 0.25
+            AND l.title NOT ILIKE ${`%${q}%`}
+          ORDER BY sim DESC LIMIT 2
+        `,
   ]);
 
   // Category suggestions: if query matches a category label, include the label

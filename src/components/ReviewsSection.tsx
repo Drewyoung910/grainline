@@ -27,12 +27,14 @@ export default async function ReviewsSection({
   sellerUserId,              // Clerk user id (validated again in API)
   initialSort = "top",
   edit = false,              // ?redit=1 toggles edit UI
+  blockedUserIds,
 }: {
   listingId: string;
   meId: string | null;
   sellerUserId: string | null;
   initialSort?: "top" | "new" | "rating" | "photos";
   edit?: boolean;
+  blockedUserIds?: string[];
 }) {
   const basePath = `/listing/${listingId}`;
   const sort = initialSort;
@@ -80,7 +82,7 @@ export default async function ReviewsSection({
 
   // All reviews (others)
   const all = await prisma.review.findMany({
-    where: { listingId },
+    where: { listingId, ...(blockedUserIds && blockedUserIds.length > 0 ? { reviewerId: { notIn: blockedUserIds } } : {}) },
     include: {
       reviewer: { select: { id: true, name: true, email: true, imageUrl: true } },
       photos: { orderBy: { sortOrder: "asc" } },

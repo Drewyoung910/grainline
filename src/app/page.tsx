@@ -14,6 +14,7 @@ import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -86,9 +87,17 @@ const CATEGORIES = [
 ];
 
 export default async function HomePage() {
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+
   const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts, mosaicListings] = await Promise.all([
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } } },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
@@ -97,7 +106,7 @@ export default async function HomePage() {
       },
     }),
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, favorites: { some: {} }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } } },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false, favorites: { some: {} }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
@@ -211,74 +220,67 @@ export default async function HomePage() {
     }
   }
 
-  const { userId } = await auth();
   let saved = new Set<string>();
   type FromYourMakersItem =
     | { kind: "listing"; id: string; title: string; priceCents: number; currency: string; photoUrl: string | null; sellerName: string; sellerProfileId: string }
     | { kind: "blog"; slug: string; title: string; coverImageUrl: string | null; sellerName: string; sellerProfileId: string };
   let fromYourMakers: FromYourMakersItem[] = [];
 
-  if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
-    if (me) {
-      const ids = [...fresh.map((f) => f.id), ...topSaved.map((t) => t.id)];
-      const [favs, follows] = await Promise.all([
-        prisma.favorite.findMany({
-          where: { userId: me.id, listingId: { in: ids } },
-          select: { listingId: true },
+  if (meDbId) {
+    const ids = [...fresh.map((f) => f.id), ...topSaved.map((t) => t.id)];
+    const [favs, follows] = await Promise.all([
+      prisma.favorite.findMany({
+        where: { userId: meDbId, listingId: { in: ids } },
+        select: { listingId: true },
+      }),
+      prisma.follow.findMany({
+        where: { followerId: meDbId },
+        select: { sellerProfileId: true },
+        take: 50,
+      }),
+    ]);
+    saved = new Set(favs.map((f) => f.listingId));
+
+    if (follows.length >= 3) {
+      const followedIds = follows.map((f) => f.sellerProfileId);
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const [recentListings, recentPosts] = await Promise.all([
+        prisma.listing.findMany({
+          where: { sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff } },
+          orderBy: { createdAt: "desc" },
+          take: 6,
+          select: {
+            id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
+            seller: { select: { displayName: true } },
+            photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+          },
         }),
-        prisma.follow.findMany({
-          where: { followerId: me.id },
-          select: { sellerProfileId: true },
-          take: 50,
+        prisma.blogPost.findMany({
+          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff } },
+          orderBy: { publishedAt: "desc" },
+          take: 6,
+          select: {
+            slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
+            sellerProfile: { select: { displayName: true } },
+          },
         }),
       ]);
-      saved = new Set(favs.map((f) => f.listingId));
 
-      if (follows.length >= 3) {
-        const followedIds = follows.map((f) => f.sellerProfileId);
-        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const [recentListings, recentPosts] = await Promise.all([
-          prisma.listing.findMany({
-            where: { sellerId: { in: followedIds }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff } },
-            orderBy: { createdAt: "desc" },
-            take: 6,
-            select: {
-              id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
-              seller: { select: { displayName: true } },
-              photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-            },
-          }),
-          prisma.blogPost.findMany({
-            where: { sellerProfileId: { in: followedIds }, status: "PUBLISHED", publishedAt: { gte: cutoff } },
-            orderBy: { publishedAt: "desc" },
-            take: 6,
-            select: {
-              slug: true, title: true, coverImageUrl: true, publishedAt: true, sellerProfileId: true,
-              sellerProfile: { select: { displayName: true } },
-            },
-          }),
-        ]);
-
-        const merged: FromYourMakersItem[] = [
-          ...recentListings.map((l): FromYourMakersItem => ({
-            kind: "listing", id: l.id, title: l.title, priceCents: l.priceCents, currency: l.currency,
-            photoUrl: l.photos[0]?.url ?? null,
-            sellerName: l.seller.displayName ?? "Maker",
-            sellerProfileId: l.sellerId,
-          })),
-          ...recentPosts.map((p): FromYourMakersItem => ({
-            kind: "blog", slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
-            sellerName: p.sellerProfile?.displayName ?? "Maker",
-            sellerProfileId: p.sellerProfileId ?? "",
-          })),
-        ];
-        // Sort by recency (listings by createdAt, posts by publishedAt - both are within cutoff)
-        fromYourMakers = merged.slice(0, 6);
-      }
+      const merged: FromYourMakersItem[] = [
+        ...recentListings.map((l): FromYourMakersItem => ({
+          kind: "listing", id: l.id, title: l.title, priceCents: l.priceCents, currency: l.currency,
+          photoUrl: l.photos[0]?.url ?? null,
+          sellerName: l.seller.displayName ?? "Maker",
+          sellerProfileId: l.sellerId,
+        })),
+        ...recentPosts.map((p): FromYourMakersItem => ({
+          kind: "blog", slug: p.slug, title: p.title, coverImageUrl: p.coverImageUrl,
+          sellerName: p.sellerProfile?.displayName ?? "Maker",
+          sellerProfileId: p.sellerProfileId ?? "",
+        })),
+      ];
+      // Sort by recency (listings by createdAt, posts by publishedAt - both are within cutoff)
+      fromYourMakers = merged.slice(0, 6);
     }
   }
 

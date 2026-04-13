@@ -10,6 +10,7 @@ import { ListingStatus, Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -101,22 +102,28 @@ export default async function BrowseMetroCategoryPage({
   const cityName = `${metro.name}, ${metro.state}`;
   const categoryLabel = CATEGORY_LABELS[categoryKey] ?? categoryKey;
 
+  // Auth for favorites + block filter
+  const { userId } = await auth();
+  let meDbId: string | null = null;
+  if (userId) {
+    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+    meDbId = meRow?.id ?? null;
+  }
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
+
   const listingWhere = {
     status: ListingStatus.ACTIVE,
     isPrivate: false,
     category: categoryKey as Category,
     seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
+    ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
   };
 
-  const { userId } = await auth();
   let savedSet = new Set<string>();
-  if (userId) {
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-    if (me) {
-      const favs = await prisma.favorite.findMany({ where: { userId: me.id }, select: { listingId: true } });
-      savedSet = new Set(favs.map((f) => f.listingId));
-    }
+  if (meDbId) {
+    const favs = await prisma.favorite.findMany({ where: { userId: meDbId }, select: { listingId: true } });
+    savedSet = new Set(favs.map((f) => f.listingId));
   }
 
   const [listings, listingCount] = await Promise.all([

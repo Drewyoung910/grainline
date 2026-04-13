@@ -11,6 +11,7 @@ import BlogCommentForm from "@/components/BlogCommentForm";
 import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 
 export async function generateMetadata({
   params,
@@ -80,6 +81,8 @@ export default async function BlogPostPage({
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
     if (meId) {
+      const blockedUserIds = await getBlockedUserIdsFor(meId);
+      if (blockedUserIds.has(post.author.id)) return notFound();
       const savedRow = await prisma.savedBlogPost.findUnique({
         where: { userId_blogPostId: { userId: meId, blogPostId: post.id } },
         select: { id: true },

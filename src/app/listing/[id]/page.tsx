@@ -7,6 +7,7 @@ import FavoriteButton from "@/components/FavoriteButton";
 import MapCard from "@/components/MapCard";
 import type { Metadata } from "next";
 import ReviewsSection from "@/components/ReviewsSection";
+import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BuyNowButton from "@/components/BuyNowButton";
 import AddToCartButton from "@/components/AddToCartButton";
 import ListingViewTracker from "@/components/ListingViewTracker";
@@ -117,6 +118,7 @@ export default async function ListingPage({
     const me = await prisma.user.findUnique({ where: { clerkId: userId } });
     meId = me?.id ?? null;
   }
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
 
   const listing = await prisma.listing.findUnique({
     where: { id },
@@ -708,6 +710,7 @@ export default async function ListingPage({
           sellerUserId={canReplyClerkId}
           initialSort={sortKey}
           edit={editingMine}
+          blockedUserIds={blockedUserIds.size > 0 ? [...blockedUserIds] : undefined}
         />
       </section>
     </main>
