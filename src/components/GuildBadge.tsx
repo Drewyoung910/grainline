@@ -12,7 +12,7 @@ const WREATH_D = "m388.87 88.547c-7.7812 21.328-26.906 36.375-49.453 38.906-21.2
 const BADGE_VIEWBOX = "0 0 1200 1200";
 
 // 5-pointed star polygon centered at (600,600) for Guild Master overlay
-const STAR_POINTS = "600,500 624,560 688,560 638,597 662,657 600,620 538,657 562,597 512,560 576,560";
+const STAR_POINTS = "600,405 621,466 686,468 634,507 653,568 600,531 547,568 566,507 514,468 579,466";
 
 // Laurel wreath only — Guild Member badge
 function LaurelWreathIcon({ size = 24 }: { size?: number }) {
@@ -22,9 +22,9 @@ function LaurelWreathIcon({ size = 24 }: { size?: number }) {
     <svg width={size} height={size} viewBox={BADGE_VIEWBOX} fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#FFD700"/>
-          <stop offset="40%" stopColor="#D4AF37"/>
-          <stop offset="100%" stopColor="#B8960C"/>
+          <stop offset="0%" stopColor="#86EFAC"/>
+          <stop offset="50%" stopColor="#D4A04A"/>
+          <stop offset="100%" stopColor="#166534"/>
         </linearGradient>
       </defs>
       <path d={WREATH_D} fill={`url(#${gradientId})`} fillOpacity={1} />
@@ -108,7 +108,7 @@ function GuildPopup({
   }, [onClose, anchorRef]);
 
   const isMember = level === "GUILD_MEMBER";
-  const color = isMember ? "#BA7517" : "#B8960C";
+  const color = isMember ? "#15803d" : "#B8960C";
   const border = isMember ? "#FAC775" : "#FAC775";
 
   return createPortal(
@@ -130,7 +130,7 @@ function GuildPopup({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        {isMember ? <LaurelWreathIcon size={20} /> : <StarWreathIcon size={20} />}
+        {isMember ? <LaurelWreathIcon size={48} /> : <StarWreathIcon size={48} />}
         <span style={{ fontWeight: 500, color, fontSize: 14 }}>
           {isMember ? "Guild Member" : "Guild Master"}
         </span>
@@ -167,7 +167,7 @@ export default function GuildBadge({
   if (level === "NONE") return null;
 
   const isMember = level === "GUILD_MEMBER";
-  const color = isMember ? "#BA7517" : "#B8960C";
+  const color = isMember ? "#15803d" : "#B8960C";
   const label = isMember ? "Guild Member" : "Guild Master";
 
   return (
