@@ -4,14 +4,36 @@ import { NextResponse } from "next/server";
 export function GET() {
   const body = `User-agent: *
 Allow: /
-Allow: /browse/
-Allow: /commission/
-Allow: /makers/
+Crawl-delay: 10
 Disallow: /dashboard
 Disallow: /admin
 Disallow: /cart
 Disallow: /checkout
 Disallow: /api
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Crawl-delay: 60
+
+User-agent: MJ12bot
+Disallow: /
 
 Sitemap: https://thegrainline.com/sitemap.xml
 `;

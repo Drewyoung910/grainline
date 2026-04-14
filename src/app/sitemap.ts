@@ -11,6 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/`, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
     { url: `${BASE_URL}/browse`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
     { url: `${BASE_URL}/commission`, lastModified: new Date(), changeFrequency: "daily", priority: 0.7 },
+    { url: `${BASE_URL}/about`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
   ];
 
   const [listings, sellers, blogPosts, openCommissions] = await Promise.all([

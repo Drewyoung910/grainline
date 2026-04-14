@@ -134,10 +134,10 @@ export default function NotificationBell({
     if (!loaded) fetchNotifications();
   }, [loaded, fetchNotifications, isSignedIn]);
 
-  // Poll every 5 minutes (only when signed in)
+  // Poll every 10 minutes (only when signed in)
   React.useEffect(() => {
     if (!isSignedIn) return;
-    const id = setInterval(fetchNotifications, 300000);
+    const id = setInterval(fetchNotifications, 600000);
     return () => clearInterval(id);
   }, [fetchNotifications, isSignedIn]);
 

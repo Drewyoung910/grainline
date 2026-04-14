@@ -12,7 +12,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://grainline.co"),
+  metadataBase: new URL("https://thegrainline.com"),
   title: {
     default: "Grainline — Handmade Woodworking Marketplace",
     template: "%s | Grainline",

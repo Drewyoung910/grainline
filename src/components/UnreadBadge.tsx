@@ -4,7 +4,7 @@ import * as React from "react";
 
 export default function UnreadBadge({
   className = "",
-  pollMs = 15000,
+  pollMs = 600000,
 }: { className?: string; pollMs?: number }) {
   const [count, setCount] = React.useState<number>(0);
 
