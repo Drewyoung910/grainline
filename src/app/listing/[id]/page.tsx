@@ -522,7 +522,7 @@ export default async function ListingPage({
                   <Link href={sellerHref} className="font-semibold text-sm hover:underline">
                     {sellerName}
                   </Link>
-                  <GuildBadge level={listing.seller.guildLevel} showLabel={false} size={24} />
+                  <GuildBadge level={listing.seller.guildLevel} showLabel={true} size={32} />
                 </div>
                 {listing.seller.tagline && (
                   <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>

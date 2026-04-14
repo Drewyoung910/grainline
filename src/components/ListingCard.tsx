@@ -75,6 +75,12 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
             {isReady ? "Ready to ship" : "Made to order"}
           </span>
         </div>
+        {/* Guild badge — bottom right overlay */}
+        {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
+          <div className="absolute bottom-2 right-2 z-10 drop-shadow-md">
+            <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={40} />
+          </div>
+        )}
       </div>
 
       {/* Line 1 + 2: Title and price+rating — wrapped in listing Link */}
@@ -110,9 +116,6 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
         >
           {sellerName}
         </Link>
-        {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
-          <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={22} />
-        )}
       </div>
 
       {l.seller.acceptingNewOrders === false && (

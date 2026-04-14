@@ -7,7 +7,7 @@ import Link from "next/link";
 export type GuildLevelValue = "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
 
 // Real laurel wreath SVG from public/gold-laurel-wreath.svg — warm gold gradient
-function LaurelWreathIcon({ size = 24 }: { size?: number }) {
+function LaurelWreathIcon({ size = 32 }: { size?: number }) {
   const id = useId();
   const gradientId = `gold-${id}`;
   return (
@@ -25,7 +25,7 @@ function LaurelWreathIcon({ size = 24 }: { size?: number }) {
 }
 
 // Hammer + chisel crossed SVG — indigo/purple, crisp at all sizes
-function HammerChiselIcon({ size = 18 }: { size?: number }) {
+function HammerChiselIcon({ size = 32 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* Chisel — diagonal from bottom-left to top-right */}
@@ -138,7 +138,7 @@ function GuildPopup({
 export default function GuildBadge({
   level,
   showLabel = false,
-  size = 24,
+  size = 32,
 }: {
   level: GuildLevelValue;
   showLabel?: boolean;

@@ -2,7 +2,6 @@
 import * as React from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
-import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
 import ClickTracker from "@/components/ClickTracker";
 
 type SimilarListing = {
@@ -83,9 +82,6 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                       <div className="h-4 w-4 rounded-full bg-neutral-300" />
                     )}
                     <span className="text-xs text-neutral-500">{l.sellerDisplayName}</span>
-                    {l.sellerGuildLevel && l.sellerGuildLevel !== "NONE" && (
-                      <GuildBadge level={l.sellerGuildLevel as GuildLevelValue} showLabel={false} size={24} />
-                    )}
                   </div>
                 </div>
               </Link>
