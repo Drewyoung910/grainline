@@ -425,10 +425,10 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 ### `GuildBadge` component (`src/components/GuildBadge.tsx`)
 - `"use client"` — accepts `level: GuildLevelValue`, `showLabel?: boolean` (default `false`), `size?: number` (default `18`)
 - Returns `null` if level is `"NONE"`
-- Guild badges share `WREATH_PATHS`, `STAR_PATH`, and `BADGE_VIEWBOX` module-level constants — ensures identical laurel wreath across both tiers. Source: `public/gold-laurel-wreath.svg` (1200×1200 viewBox, Noun Project design). `useId()` for hydration-safe gradient IDs per instance.
-- **Guild Member** — `LaurelWreathIcon`: laurel wreath only, all gold gradient (`#FFD700 → #D4AF37 → #B8960C`).
-- **Guild Master** — `StarWreathIcon` (replaces `HammerChiselIcon`): same laurel wreath (gold gradient) + diamond star on top (`#F0F9FF → #E0F2FE → #BAE6FD`).
-- Popup descriptions updated: Member = "Laurel wreath — awarded to verified makers..."; Master = "Laurel wreath with diamond star — awarded to elite makers..."
+- `WREATH_D` (full single path from `gold-laurel-wreath.svg`, viewBox 1200x1200), `BADGE_VIEWBOX`, `STAR_POINTS` (hardcoded 5-point polygon at 600,600) — module-level constants shared by both icons. No subpath splitting — auto-traced file is not clean vectors. `useId()` for hydration-safe gradient IDs.
+- **Guild Member** — `LaurelWreathIcon`: full wreath `<path>` with gold gradient (`#FFD700 → #D4AF37 → #B8960C`).
+- **Guild Master** — `StarWreathIcon` (replaces `HammerChiselIcon`): same wreath `<path>` (gold gradient) + `<polygon>` star overlay (diamond gradient `#F0F9FF → #E0F2FE → #BAE6FD`).
+- Popup descriptions restored to original legally-reviewed language (profile standing disclaimer for Member; historical performance disclaimer for Master).
 - **Popup**: `createPortal`-based — renders at `document.body` to avoid `overflow:hidden` clipping; positioned below the badge button using `getBoundingClientRect()` + scroll offsets, clamped to viewport width; closes on outside click or Escape; "Learn more about Guild Verification →" link to `/terms#guild-verification-program`
 - `showLabel={false}` → icon only (used on listing cards); `showLabel={true}` → icon + label text (used on profile/detail pages)
 - `GuildLevelValue` type exported from the file
