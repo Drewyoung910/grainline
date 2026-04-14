@@ -69,6 +69,7 @@ function GuildPopup({
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [isPositioned, setIsPositioned] = useState(false);
 
   useEffect(() => {
     if (anchorRef.current) {
@@ -80,6 +81,7 @@ function GuildPopup({
         window.innerWidth - 280
       );
       setPosition({ top: rect.bottom + scrollY + 8, left });
+      setIsPositioned(true);
     }
   }, [anchorRef]);
 
@@ -123,6 +125,8 @@ function GuildPopup({
         borderRadius: 8,
         padding: 14,
         boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+        opacity: isPositioned ? 1 : 0,
+        transition: "opacity 0.1s ease-out",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
