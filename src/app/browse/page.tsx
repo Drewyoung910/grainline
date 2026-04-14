@@ -538,7 +538,7 @@ export default async function BrowsePage({
             <Link href={`/seller/${l.sellerId}`} className="text-xs text-neutral-500 hover:underline">
               {sellerName}
             </Link>
-            <GuildBadge level={l.seller.guildLevel} showLabel={false} size={16} />
+            <GuildBadge level={l.seller.guildLevel} showLabel={false} size={24} />
           </div>
           {l.seller.acceptingNewOrders === false && (
             <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-1 inline-block">

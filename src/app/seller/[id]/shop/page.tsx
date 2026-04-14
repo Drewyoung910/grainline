@@ -238,7 +238,7 @@ export default async function SellerShopPage({
             <h1 className="text-xl font-semibold">
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
-            <GuildBadge level={seller.guildLevel} showLabel={true} size={20} />
+            <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
           </div>
           {meId !== seller.userId && (
             <div className="mt-1">

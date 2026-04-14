@@ -111,7 +111,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
           {sellerName}
         </Link>
         {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
-          <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={14} />
+          <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={22} />
         )}
       </div>
 

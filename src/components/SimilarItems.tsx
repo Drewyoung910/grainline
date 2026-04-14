@@ -84,7 +84,7 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                     )}
                     <span className="text-xs text-neutral-500">{l.sellerDisplayName}</span>
                     {l.sellerGuildLevel && l.sellerGuildLevel !== "NONE" && (
-                      <GuildBadge level={l.sellerGuildLevel as GuildLevelValue} showLabel={false} size={16} />
+                      <GuildBadge level={l.sellerGuildLevel as GuildLevelValue} showLabel={false} size={24} />
                     )}
                   </div>
                 </div>

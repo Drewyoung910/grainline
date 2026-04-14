@@ -567,7 +567,7 @@ export default async function HomePage() {
                     </span>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-lg font-semibold">{featuredMaker.displayName}</span>
-                      <GuildBadge level={featuredMaker.guildLevel as import("@/components/GuildBadge").GuildLevelValue} showLabel={true} size={18} />
+                      <GuildBadge level={featuredMaker.guildLevel as import("@/components/GuildBadge").GuildLevelValue} showLabel={true} size={28} />
                     </div>
 
                     {featuredMaker.tagline && (

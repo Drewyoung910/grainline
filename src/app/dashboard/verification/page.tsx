@@ -183,7 +183,7 @@ export default async function VerificationPage() {
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">Guild Member</h2>
-          <GuildBadge level="GUILD_MEMBER" showLabel={false} size={20} />
+          <GuildBadge level="GUILD_MEMBER" showLabel={false} size={32} />
         </div>
         <p className="text-sm text-neutral-600">
           Profile reviewed and approved by the Grainline team.
@@ -366,7 +366,7 @@ export default async function VerificationPage() {
         <section className="space-y-4">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold">Guild Master</h2>
-            <GuildBadge level="GUILD_MASTER" showLabel={false} size={20} />
+            <GuildBadge level="GUILD_MASTER" showLabel={false} size={32} />
           </div>
           <p className="text-sm text-neutral-600">
             Our highest tier — awarded for sustained performance, ratings, and responsiveness.

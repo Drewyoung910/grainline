@@ -236,7 +236,7 @@ export default async function MakersMetroPage({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-sm text-neutral-900 truncate">{seller.displayName}</span>
-                        <GuildBadge level={seller.guildLevel as GuildLevelValue} size={14} />
+                        <GuildBadge level={seller.guildLevel as GuildLevelValue} size={22} />
                       </div>
                       {seller.city && seller.state && (
                         <p className="text-xs text-neutral-400">{seller.city}, {seller.state}</p>

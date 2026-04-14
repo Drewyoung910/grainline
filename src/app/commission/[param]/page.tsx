@@ -529,7 +529,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
                     <div className="w-6 h-6 rounded-full bg-neutral-200" />
                   )}
                   <span className="text-sm text-neutral-800">{sp.displayName}</span>
-                  <GuildBadge level={sp.guildLevel as GuildLevelValue} size={14} />
+                  <GuildBadge level={sp.guildLevel as GuildLevelValue} size={22} />
                 </Link>
               );
             })}

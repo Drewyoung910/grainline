@@ -317,7 +317,7 @@ export default async function SellerPublicPage({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold">{seller.displayName}</h1>
-                <GuildBadge level={seller.guildLevel} showLabel={true} size={20} />
+                <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
               </div>
               {seller.tagline && (
                 <p className="text-sm text-neutral-600 mt-0.5">{seller.tagline}</p>

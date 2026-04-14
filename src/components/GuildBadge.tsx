@@ -7,7 +7,7 @@ import Link from "next/link";
 export type GuildLevelValue = "NONE" | "GUILD_MEMBER" | "GUILD_MASTER";
 
 // Real laurel wreath SVG from public/gold-laurel-wreath.svg — warm gold gradient
-function LaurelWreathIcon({ size = 18 }: { size?: number }) {
+function LaurelWreathIcon({ size = 24 }: { size?: number }) {
   const id = useId();
   const gradientId = `gold-${id}`;
   return (
@@ -138,7 +138,7 @@ function GuildPopup({
 export default function GuildBadge({
   level,
   showLabel = false,
-  size = 18,
+  size = 24,
 }: {
   level: GuildLevelValue;
   showLabel?: boolean;
