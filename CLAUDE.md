@@ -425,7 +425,7 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 ### `GuildBadge` component (`src/components/GuildBadge.tsx`)
 - `"use client"` — accepts `level: GuildLevelValue`, `showLabel?: boolean` (default `false`), `size?: number` (default `18`)
 - Returns `null` if level is `"NONE"`
-- **Guild Member** — `LaurelWreathIcon`: amber/gold two-branch wreath SVG (40×44 viewBox, ellipse leaves, ribbon tie, star dot at top)
+- **Guild Member** — `LaurelWreathIcon`: replaced hand-coded SVG with traced laurel wreath from `public/gold-laurel-wreath.svg` (1024×1024 viewBox). Linear gradient `#FFD700 → #D4AF37 → #B8960C` (top to bottom) for warm metallic gold. `useId()` for hydration-safe gradient ID per instance.
 - **Guild Master** — `HammerChiselIcon`: indigo crossed hammer + chisel SVG (40×40 viewBox)
 - **Popup**: `createPortal`-based — renders at `document.body` to avoid `overflow:hidden` clipping; positioned below the badge button using `getBoundingClientRect()` + scroll offsets, clamped to viewport width; closes on outside click or Escape; "Learn more about Guild Verification →" link to `/terms#guild-verification-program`
 - `showLabel={false}` → icon only (used on listing cards); `showLabel={true}` → icon + label text (used on profile/detail pages)
