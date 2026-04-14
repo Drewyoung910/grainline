@@ -433,13 +433,13 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 
 ### Badge placement with props
 
-Listing cards (ListingCard component, used on browse grid, homepage Fresh/Favorites, seller shop, metro browse) use a **40px bottom-right photo overlay** with `drop-shadow-md` — no background circle, no white wrap. The inline badge next to seller name was removed from ListingCard. SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
+Status badges (Made to order / Ready to ship / Out of stock) removed from listing cards — redundant noise. Only visible on listing detail page. Guild badge: 40px, right-aligned in metadata area via two-column flex layout (`flex-1 min-w-0` for text, `flex-none` for badge), vertically centered against metadata block. No photo overlay. FavoriteButton heart wrapped in `bg-black/30 rounded-full p-1.5 backdrop-blur-sm` for visibility on all photo backgrounds. SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
 
 LaurelWreathIcon and HammerChiselIcon default sizes both bumped to 32.
 
 | Surface | `showLabel` | `size` |
 |---|---|---|
-| ListingCard photo overlay (all grid cards) | `false` | `40` |
+| ListingCard metadata right column | `false` | `40` |
 | Browse ListCard inline (list view only) | `false` | `22` |
 | Commission interested makers | `false` | `22` |
 | Makers metro directory | `false` | `22` |
@@ -1949,7 +1949,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - ListingCard: seller avatar removed — seller name as plain text link
 - ListingCard: hover photo swap — shows second listing photo on hover when available
 - ListingCard: `secondPhotoUrl?: string | null` added to `ListingCardData` type
-- Homepage scroll rows: `scroll-fade-edges` CSS class — fade on both edges
+- Homepage scroll rows: `ScrollFadeRow` component (`src/components/ScrollFadeRow.tsx`) wraps Fresh, Favorites, From Your Makers. Right edge fade always visible; left edge fade only appears after `scrollLeft > 0` via `data-scrolled` attribute. CSS in `globals.css` `.scroll-fade-edges`.
 - From Your Makers: bg-white removed from scroll ul for consistency
 - Browse + page.tsx photo queries: `take: 2` to enable hover swap
 
@@ -1976,7 +1976,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 
 - listing/[id]/page.tsx: Shop Policies accordion added before SimilarItems — shows returnPolicy, shippingPolicy, customOrderPolicy; no query change (seller fully included already)
 - page.tsx: Hero text changed to "Buy handmade. Buy local. Buy quality." with updated subheading
-- globals.css: scroll-fade-edges updated — fades only appear on hover/focus-within, not on static load
+- globals.css: scroll-fade-edges updated — right fade always visible, left fade only when `data-scrolled="true"` (set by `ScrollFadeRow` component on scroll)
 - src/app/about/page.tsx: About page with live stats, story sections, maker + buyer CTAs; added to isPublic middleware and footer
 
 ## Social Features (2026-04-10)
