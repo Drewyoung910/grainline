@@ -11,8 +11,8 @@ const WREATH_D = "m388.87 88.547c-7.7812 21.328-26.906 36.375-49.453 38.906-21.2
 
 const BADGE_VIEWBOX = "0 0 1200 1200";
 
-// 5-pointed star polygon (r_out=203, r_in=81, center=600,579) — derived from svgpathtools bbox of star subpath
-const STAR_POINTS = "600,376 648,514 793,516 677,604 719,743 600,660 481,743 523,604 407,516 552,514";
+// 5-pointed star polygon (r_out=203, r_in=81, center=600,604) — bbox center + 25px visual alignment shift
+const STAR_POINTS = "600,401 648,538 793,541 677,629 719,768 600,685 481,768 523,629 407,541 552,538";
 
 // Laurel wreath (green) + bronze star overlay — Guild Member badge
 function LaurelWreathIcon({ size = 24 }: { size?: number }) {
@@ -53,9 +53,9 @@ function StarWreathIcon({ size = 24 }: { size?: number }) {
           <stop offset="100%" stopColor="#B8960C"/>
         </linearGradient>
         <linearGradient id={diamondGradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#F0F9FF"/>
-          <stop offset="50%" stopColor="#E0F2FE"/>
-          <stop offset="100%" stopColor="#BAE6FD"/>
+          <stop offset="0%" stopColor="#FAFBFF"/>
+          <stop offset="50%" stopColor="#D8DCE8"/>
+          <stop offset="100%" stopColor="#A0A8BC"/>
         </linearGradient>
       </defs>
       <path d={WREATH_D} fill={`url(#${goldGradientId})`} fillOpacity={1} />
@@ -115,7 +115,7 @@ function GuildPopup({
   }, [onClose, anchorRef]);
 
   const isMember = level === "GUILD_MEMBER";
-  const color = isMember ? "#15803d" : "#B8960C";
+  const color = isMember ? "#14532d" : "#B8960C";
   const border = isMember ? "#FAC775" : "#FAC775";
 
   return createPortal(
@@ -174,7 +174,7 @@ export default function GuildBadge({
   if (level === "NONE") return null;
 
   const isMember = level === "GUILD_MEMBER";
-  const color = isMember ? "#15803d" : "#B8960C";
+  const color = isMember ? "#14532d" : "#B8960C";
   const label = isMember ? "Guild Member" : "Guild Master";
 
   return (
