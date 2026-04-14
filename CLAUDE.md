@@ -434,13 +434,15 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 ### Badge placement with props
 | Surface | `showLabel` | `size` |
 |---|---|---|
-| Browse GridCard + ListCard seller chip | `false` | `16` |
-| Homepage Fresh + Favorites cards | `false` | `16` |
-| `SimilarItems` seller chip | `false` | `16` |
-| Listing detail seller section | `true` | `18` |
-| Seller profile header | `true` | `20` |
-| Seller shop header | `true` | `20` |
-| Dashboard verification page (section headers) | `false` | `20` |
+| Browse GridCard + ListCard seller chip | `false` | `24` |
+| Homepage Fresh + Favorites cards | `false` | `24` |
+| `SimilarItems` seller chip | `false` | `24` |
+| ListingCard, commission, makers metro | `false` | `22` |
+| Homepage Meet a Maker | `true` | `28` |
+| Listing detail seller section | `true` | `24` |
+| Seller profile header | `true` | `32` |
+| Seller shop header | `true` | `32` |
+| Dashboard verification page (section headers) | `false` | `32` |
 
 ### Seller dashboard (`/dashboard/verification`)
 Two sections:
