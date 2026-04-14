@@ -425,10 +425,10 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 ### `GuildBadge` component (`src/components/GuildBadge.tsx`)
 - `"use client"` — accepts `level: GuildLevelValue`, `showLabel?: boolean` (default `false`), `size?: number` (default `18`)
 - Returns `null` if level is `"NONE"`
-- `WREATH_D` (full single path from `gold-laurel-wreath.svg`, viewBox 1200x1200), `BADGE_VIEWBOX`, `STAR_POINTS` (hardcoded 5-point polygon at 600,600) — module-level constants shared by both icons. No subpath splitting — auto-traced file is not clean vectors. `useId()` for hydration-safe gradient IDs.
-- **Guild Member** — `LaurelWreathIcon`: full wreath `<path>` with gold gradient (`#FFD700 → #D4AF37 → #B8960C`).
-- **Guild Master** — `StarWreathIcon` (replaces `HammerChiselIcon`): same wreath `<path>` (gold gradient) + `<polygon>` star overlay (diamond gradient `#F0F9FF → #E0F2FE → #BAE6FD`).
-- Popup descriptions restored to original legally-reviewed language (profile standing disclaimer for Member; historical performance disclaimer for Master).
+- `WREATH_D` (full single path from `gold-laurel-wreath.svg`, viewBox 1200x1200), `BADGE_VIEWBOX`, `STAR_POINTS` (hardcoded 5-point polygon aligned via Python bounding-box analysis of star subpath at absolute ~600,495) — module-level constants shared by both icons. No subpath splitting — auto-traced file is not clean vectors. `useId()` for hydration-safe gradient IDs.
+- **Guild Member** — `LaurelWreathIcon`: full wreath `<path>` with green+bronze gradient (`#86EFAC → #D4A04A → #166534`). Label text color `#15803d` (green-700).
+- **Guild Master** — `StarWreathIcon` (replaces `HammerChiselIcon`): same wreath `<path>` (gold gradient `#FFD700 → #D4AF37 → #B8960C`) + `<polygon>` star overlay (diamond gradient `#F0F9FF → #E0F2FE → #BAE6FD`). Label text color `#B8960C`.
+- Popup descriptions: original legally-reviewed language (profile standing disclaimer for Member; historical performance disclaimer for Master). Popup icon size 48px.
 - **Popup**: `createPortal`-based — renders at `document.body` to avoid `overflow:hidden` clipping; positioned below the badge button using `getBoundingClientRect()` + scroll offsets, clamped to viewport width; closes on outside click or Escape; "Learn more about Guild Verification →" link to `/terms#guild-verification-program`. Opacity gating: popup starts at `opacity:0`, transitions to `opacity:1` after position calculated via `getBoundingClientRect` — eliminates top-left flash on open.
 - `showLabel={false}` → icon only (used on listing cards); `showLabel={true}` → icon + label text (used on profile/detail pages)
 - `GuildLevelValue` type exported from the file
