@@ -186,17 +186,10 @@ export default async function HomePage() {
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
   // Admin-featured: any seller with featuredUntil > now takes priority
+  const featuredMakerSelect = { user: true } as const;
   let featuredMaker = await prisma.sellerProfile.findFirst({
     where: { featuredUntil: { gt: new Date() }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
-    include: {
-      user: true,
-      listings: {
-        where: { status: "ACTIVE", isPrivate: false, photos: { some: {} } },
-        orderBy: { updatedAt: "desc" },
-        take: 1,
-        select: { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-      },
-    },
+    include: featuredMakerSelect,
   });
 
   if (!featuredMaker) {
@@ -204,15 +197,7 @@ export default async function HomePage() {
     const guildSellers = await prisma.sellerProfile.findMany({
       where: { guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
       orderBy: { id: "asc" },
-      include: {
-        user: true,
-        listings: {
-          where: { status: "ACTIVE", isPrivate: false, photos: { some: {} } },
-          orderBy: { updatedAt: "desc" },
-          take: 1,
-          select: { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-        },
-      },
+      include: featuredMakerSelect,
     });
 
     if (guildSellers.length > 0) {
@@ -240,15 +225,32 @@ export default async function HomePage() {
     if (topReviewedRows.length > 0) {
       featuredMaker = await prisma.sellerProfile.findUnique({
         where: { id: topReviewedRows[0].sellerId },
-        include: {
-          user: true,
-          listings: {
-            where: { status: "ACTIVE", isPrivate: false, photos: { some: {} } },
-            orderBy: { updatedAt: "desc" },
-            take: 1,
-            select: { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
-          },
-        },
+        include: featuredMakerSelect,
+      });
+    }
+  }
+
+  // Resolve featured listing: prefer curated featuredListingIds[], fall back to most recently updated
+  type FeaturedListing = { id: string; title: string; priceCents: number; photos: { url: string }[] };
+  let featuredListing: FeaturedListing | null = null;
+  if (featuredMaker) {
+    const listingSelect = { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" as const }, select: { url: true } } };
+    // Try curated list first
+    if (featuredMaker.featuredListingIds.length > 0) {
+      const curated = await prisma.listing.findMany({
+        where: { id: { in: featuredMaker.featuredListingIds }, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+        select: listingSelect,
+      });
+      if (curated.length > 0) {
+        featuredListing = curated[Math.floor(Math.random() * curated.length)];
+      }
+    }
+    // Fall back to most recently updated
+    if (!featuredListing) {
+      featuredListing = await prisma.listing.findFirst({
+        where: { sellerId: featuredMaker.id, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+        orderBy: { updatedAt: "desc" },
+        select: listingSelect,
       });
     }
   }
@@ -546,7 +548,7 @@ export default async function HomePage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt="" className="h-36 w-full object-cover" />
               )}
-              <div className={`p-6 sm:p-8 ${featuredMaker.listings[0] ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
+              <div className={`p-6 sm:p-8 ${featuredListing ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
                 {/* Left column — maker info */}
                 <div className="flex flex-col sm:flex-row gap-6 items-start">
                   <div className="shrink-0">
@@ -609,14 +611,14 @@ export default async function HomePage() {
                 </div>
 
                 {/* Right column — featured listing card (only if listing exists) */}
-                {featuredMaker.listings[0] && (
-                  <Link href={`/listing/${featuredMaker.listings[0].id}`} className="card-listing block group">
+                {featuredListing && (
+                  <Link href={`/listing/${featuredListing.id}`} className="card-listing block group">
                     <div className="aspect-[4/3] overflow-hidden">
-                      {featuredMaker.listings[0].photos[0]?.url ? (
+                      {featuredListing.photos[0]?.url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={featuredMaker.listings[0].photos[0].url}
-                          alt={featuredMaker.listings[0].title}
+                          src={featuredListing.photos[0].url}
+                          alt={featuredListing.title}
                           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
@@ -624,9 +626,9 @@ export default async function HomePage() {
                       )}
                     </div>
                     <div className="p-3 bg-white">
-                      <div className="font-medium text-sm text-neutral-900 line-clamp-1">{featuredMaker.listings[0].title}</div>
+                      <div className="font-medium text-sm text-neutral-900 line-clamp-1">{featuredListing.title}</div>
                       <div className="text-sm text-neutral-600 mt-0.5">
-                        ${(featuredMaker.listings[0].priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        ${(featuredListing.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
                     </div>
                   </Link>
