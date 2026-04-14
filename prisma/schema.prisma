@@ -190,6 +190,9 @@ model SellerProfile {
   // Analytics
   profileViews  Int  @default(0)
 
+  // Admin-featured spotlight (set by admin for 7 days to pin to Meet a Maker)
+  featuredUntil DateTime?
+
   // Metro geography (set automatically from lat/lng)
   metroId     String?
   metro       Metro?   @relation("SellerMetro", fields: [metroId], references: [id])

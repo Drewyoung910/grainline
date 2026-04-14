@@ -184,23 +184,45 @@ export default async function HomePage() {
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
-  // Manual override: any seller with isVerifiedMaker = true shown first
+  // Admin-featured: any seller with featuredUntil > now takes priority
   let featuredMaker = await prisma.sellerProfile.findFirst({
-    where: { isVerifiedMaker: true, chargesEnabled: true, vacationMode: false, user: { banned: false } },
-    include: { user: true },
+    where: { featuredUntil: { gt: new Date() }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
+    include: {
+      user: true,
+      listings: {
+        where: { status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        select: { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
+      },
+    },
   });
 
   if (!featuredMaker) {
-    // Weekly rotation among Guild Members and Masters (deterministic — same for all visitors in same week)
+    // Weekly rotation aligned to Monday–Sunday calendar weeks
     const guildSellers = await prisma.sellerProfile.findMany({
       where: { guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
       orderBy: { id: "asc" },
-      include: { user: true },
+      include: {
+        user: true,
+        listings: {
+          where: { status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+          orderBy: { updatedAt: "desc" },
+          take: 1,
+          select: { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
+        },
+      },
     });
 
     if (guildSellers.length > 0) {
-      const weekNumber = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
-      featuredMaker = guildSellers[weekNumber % guildSellers.length];
+      const now = new Date();
+      const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
+      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setUTCDate(now.getUTCDate() + daysToMonday);
+      monday.setUTCHours(0, 0, 0, 0);
+      const weekIndex = Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % guildSellers.length;
+      featuredMaker = guildSellers[weekIndex];
     }
   }
 
@@ -217,7 +239,15 @@ export default async function HomePage() {
     if (topReviewedRows.length > 0) {
       featuredMaker = await prisma.sellerProfile.findUnique({
         where: { id: topReviewedRows[0].sellerId },
-        include: { user: true },
+        include: {
+          user: true,
+          listings: {
+            where: { status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+            select: { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
+          },
+        },
       });
     }
   }
@@ -295,6 +325,18 @@ export default async function HomePage() {
   );
   const sellerRatings = await getSellerRatingMap(sellerIds);
   const featuredRating = featuredMaker ? (sellerRatings.get(featuredMaker.id) ?? null) : null;
+
+  // Maker of the Week pill dates — aligned to Monday–Sunday calendar week
+  const nowForPill = new Date();
+  const dowForPill = nowForPill.getUTCDay();
+  const daysToMondayForPill = dowForPill === 0 ? -6 : 1 - dowForPill;
+  const mondayForPill = new Date(nowForPill);
+  mondayForPill.setUTCDate(nowForPill.getUTCDate() + daysToMondayForPill);
+  mondayForPill.setUTCHours(0, 0, 0, 0);
+  const sundayForPill = new Date(mondayForPill);
+  sundayForPill.setUTCDate(mondayForPill.getUTCDate() + 6);
+  const weekStart = mondayForPill.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const weekEnd = sundayForPill.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
     <main>
@@ -501,61 +543,91 @@ export default async function HomePage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt="" className="h-36 w-full object-cover" />
               )}
-              <div className="p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-start">
-                <div className="shrink-0">
-                  {(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl)!}
-                      alt={featuredMaker.displayName ?? ""}
-                      className="h-20 w-20 rounded-full border-2 border-white shadow object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 border-2 border-white shadow">
-                      {(featuredMaker.displayName || "M")[0]?.toUpperCase()}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-semibold">{featuredMaker.displayName}</span>
-                    <GuildBadge level={featuredMaker.guildLevel as import("@/components/GuildBadge").GuildLevelValue} showLabel={true} size={18} />
+              <div className={`p-6 sm:p-8 ${featuredMaker.listings[0] ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
+                {/* Left column — maker info */}
+                <div className="flex flex-col sm:flex-row gap-6 items-start">
+                  <div className="shrink-0">
+                    {(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl)!}
+                        alt={featuredMaker.displayName ?? ""}
+                        className="h-20 w-20 rounded-full border-2 border-white shadow object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 border-2 border-white shadow">
+                        {(featuredMaker.displayName || "M")[0]?.toUpperCase()}
+                      </div>
+                    )}
                   </div>
 
-                  {featuredMaker.tagline && (
-                    <p className="text-sm text-neutral-600 italic">&ldquo;{featuredMaker.tagline}&rdquo;</p>
-                  )}
-
-                  {(featuredMaker.city || featuredMaker.state) && (
-                    <p className="text-xs text-neutral-500">
-                      📍 {[featuredMaker.city, featuredMaker.state].filter(Boolean).join(", ")}
-                    </p>
-                  )}
-
-                  {featuredRating && featuredRating.count > 0 && (
-                    <div className="flex items-center gap-1.5 text-xs text-neutral-600">
-                      <StarsInline value={featuredRating.avg} />
-                      <span>{(Math.round(featuredRating.avg * 10) / 10).toFixed(1)}</span>
-                      <span className="text-neutral-400">({featuredRating.count} reviews)</span>
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full mb-1">
+                      Maker of the Week · {weekStart} – {weekEnd}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-lg font-semibold">{featuredMaker.displayName}</span>
+                      <GuildBadge level={featuredMaker.guildLevel as import("@/components/GuildBadge").GuildLevelValue} showLabel={true} size={18} />
                     </div>
-                  )}
 
-                  {featuredMaker.bio && (
-                    <p className="text-sm text-neutral-600 line-clamp-2">
-                      {featuredMaker.bio.slice(0, 150)}{featuredMaker.bio.length > 150 ? "…" : ""}
-                    </p>
-                  )}
+                    {featuredMaker.tagline && (
+                      <p className="text-sm text-neutral-600 italic">&ldquo;{featuredMaker.tagline}&rdquo;</p>
+                    )}
 
-                  <div className="pt-1">
-                    <Link
-                      href={`/seller/${featuredMaker.id}`}
-                      className="inline-flex items-center rounded-full bg-neutral-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
-                    >
-                      Visit Their Workshop →
-                    </Link>
+                    {(featuredMaker.city || featuredMaker.state) && (
+                      <p className="text-xs text-neutral-500">
+                        📍 {[featuredMaker.city, featuredMaker.state].filter(Boolean).join(", ")}
+                      </p>
+                    )}
+
+                    {featuredRating && featuredRating.count > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs text-neutral-600">
+                        <StarsInline value={featuredRating.avg} />
+                        <span>{(Math.round(featuredRating.avg * 10) / 10).toFixed(1)}</span>
+                        <span className="text-neutral-400">({featuredRating.count} reviews)</span>
+                      </div>
+                    )}
+
+                    {featuredMaker.bio && (
+                      <p className="text-sm text-neutral-600 line-clamp-2">
+                        {featuredMaker.bio.slice(0, 120)}{featuredMaker.bio.length > 120 ? "…" : ""}
+                      </p>
+                    )}
+
+                    <div className="pt-1">
+                      <Link
+                        href={`/seller/${featuredMaker.id}`}
+                        className="inline-flex items-center rounded-full bg-neutral-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
+                      >
+                        Visit Their Workshop →
+                      </Link>
+                    </div>
                   </div>
                 </div>
+
+                {/* Right column — featured listing card (only if listing exists) */}
+                {featuredMaker.listings[0] && (
+                  <Link href={`/listing/${featuredMaker.listings[0].id}`} className="card-listing block group">
+                    <div className="aspect-[4/3] overflow-hidden">
+                      {featuredMaker.listings[0].photos[0]?.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={featuredMaker.listings[0].photos[0].url}
+                          alt={featuredMaker.listings[0].title}
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-stone-100" />
+                      )}
+                    </div>
+                    <div className="p-3 bg-white">
+                      <div className="font-medium text-sm text-neutral-900 line-clamp-1">{featuredMaker.listings[0].title}</div>
+                      <div className="text-sm text-neutral-600 mt-0.5">
+                        ${(featuredMaker.listings[0].priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                  </Link>
+                )}
               </div>
             </div>
           </ScrollSection>

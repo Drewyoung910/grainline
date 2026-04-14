@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createNotification } from "@/lib/notifications";
 import { sendVerificationApproved, sendVerificationRejected } from "@/lib/email";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
+import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 
 // ── Shared auth helper ──────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -255,6 +256,48 @@ async function reinstateGuildMember(formData: FormData) {
   revalidatePath("/admin/verification");
 }
 
+async function featureMaker(sellerProfileId: string) {
+  "use server";
+  const me = await requireAdmin();
+
+  await prisma.sellerProfile.update({
+    where: { id: sellerProfileId },
+    data: { featuredUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+  });
+
+  const { logAdminAction } = await import("@/lib/audit");
+  await logAdminAction({
+    adminId: me.id,
+    action: "FEATURE_MAKER",
+    targetType: "SellerProfile",
+    targetId: sellerProfileId,
+  });
+
+  revalidatePath("/admin/verification");
+  revalidatePath("/");
+}
+
+async function unfeatureMaker(sellerProfileId: string) {
+  "use server";
+  const me = await requireAdmin();
+
+  await prisma.sellerProfile.update({
+    where: { id: sellerProfileId },
+    data: { featuredUntil: null },
+  });
+
+  const { logAdminAction } = await import("@/lib/audit");
+  await logAdminAction({
+    adminId: me.id,
+    action: "UNFEATURE_MAKER",
+    targetType: "SellerProfile",
+    targetId: sellerProfileId,
+  });
+
+  revalidatePath("/admin/verification");
+  revalidatePath("/");
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 export default async function AdminVerificationPage() {
   const [memberPending, masterPending, memberActive, masterActive, revokedMembers] = await Promise.all([
@@ -274,12 +317,12 @@ export default async function AdminVerificationPage() {
     }),
     prisma.sellerProfile.findMany({
       where: { guildLevel: "GUILD_MEMBER" },
-      select: { id: true, displayName: true, guildMemberApprovedAt: true },
+      select: { id: true, displayName: true, guildMemberApprovedAt: true, featuredUntil: true },
       orderBy: { guildMemberApprovedAt: "desc" },
     }),
     prisma.sellerProfile.findMany({
       where: { guildLevel: "GUILD_MASTER" },
-      select: { id: true, displayName: true, guildMasterApprovedAt: true },
+      select: { id: true, displayName: true, guildMasterApprovedAt: true, featuredUntil: true },
       orderBy: { guildMasterApprovedAt: "desc" },
     }),
     prisma.sellerProfile.findMany({
@@ -544,11 +587,19 @@ export default async function AdminVerificationPage() {
                     </div>
                   )}
                 </div>
-                <form action={revokeMember.bind(null, s.id)}>
-                  <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
-                    Revoke Badge
-                  </button>
-                </form>
+                <div className="flex items-center gap-2">
+                  <FeatureMakerButton
+                    sellerProfileId={s.id}
+                    isFeatured={s.featuredUntil != null && s.featuredUntil > new Date()}
+                    featureAction={featureMaker}
+                    unfeatureAction={unfeatureMaker}
+                  />
+                  <form action={revokeMember.bind(null, s.id)}>
+                    <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
+                      Revoke Badge
+                    </button>
+                  </form>
+                </div>
               </div>
             ))}
           </div>
@@ -572,11 +623,19 @@ export default async function AdminVerificationPage() {
                     </div>
                   )}
                 </div>
-                <form action={revokeMaster.bind(null, s.id)}>
-                  <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
-                    Revoke Guild Master
-                  </button>
-                </form>
+                <div className="flex items-center gap-2">
+                  <FeatureMakerButton
+                    sellerProfileId={s.id}
+                    isFeatured={s.featuredUntil != null && s.featuredUntil > new Date()}
+                    featureAction={featureMaker}
+                    unfeatureAction={unfeatureMaker}
+                  />
+                  <form action={revokeMaster.bind(null, s.id)}>
+                    <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
+                      Revoke Guild Master
+                    </button>
+                  </form>
+                </div>
               </div>
             ))}
           </div>
