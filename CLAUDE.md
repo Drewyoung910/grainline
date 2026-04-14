@@ -258,14 +258,14 @@ Plus category label matches from `CATEGORY_VALUES`.
 
 ## SEO (complete)
 
-- **`metadataBase`** set to `https://grainline.co` in `src/app/layout.tsx`
+- **`metadataBase`** set to `https://thegrainline.com` in `src/app/layout.tsx`
 - **Root metadata** (`layout.tsx`): full title template (`%s | Grainline`), description, keywords, OG (type, siteName, title, description, `/og-image.jpg` 1200×630), Twitter card
 - **`generateMetadata`** on `listing/[id]`, `seller/[id]`, and `browse` pages — title, description, OG image, Twitter card; listing page also sets `other: { product:price:amount, product:price:currency }`
 - **Canonical URLs** — `alternates: { canonical }` on listing, seller, and browse `generateMetadata` (browse varies by `q` / `category` / default)
 - **JSON-LD** on listing pages: `Product` schema (name, description, images, sku, brand, offers with seller name, aggregateRating when reviews exist) + `BreadcrumbList` (Home → Category → Listing, or Home → Listing if no category)
 - **LocalBusiness JSON-LD** on seller pages: name, description, url, `knowsAbout: "Handmade Woodworking"`, PostalAddress (city/state), GeoCoordinates (only when lat/lng set)
 - **Sitemap** (`src/app/sitemap.ts`): homepage `priority: 1.0` daily, browse `0.9` daily, active listings `0.8` weekly with `updatedAt`, seller profiles `0.6` monthly with `updatedAt`; private routes excluded
-- **robots.txt** (`src/app/robots.txt/route.ts`): allows all crawlers; disallows `/dashboard`, `/admin`, `/cart`, `/checkout`, `/api`; `Sitemap: https://grainline.co/sitemap.xml`
+- **robots.txt** (`src/app/robots.txt/route.ts`): allows all crawlers with `Crawl-delay: 10`; disallows `/dashboard`, `/admin`, `/cart`, `/checkout`, `/api`; blocks AI training bots (GPTBot, ClaudeBot, CCBot, Google-Extended, anthropic-ai, MJ12bot, SemrushBot); rate-limits AhrefsBot (`Crawl-delay: 60`); `Sitemap: https://thegrainline.com/sitemap.xml`
 - **Photo filename tip** in new and edit listing forms (below uploader/photos section)
 
 ## Seller Profile Personalization (complete)
@@ -1131,7 +1131,7 @@ A standalone guide exists for re-adding Canada when demand justifies it (~1–2 
 
 ## UptimeRobot Monitoring (complete)
 
-UptimeRobot configured to ping thegrainline.com every 5 minutes. Alerts on downtime.
+UptimeRobot configured to ping `https://thegrainline.com/api/health` every 10 minutes. `/api/health` is a static endpoint (`force-static`, no DB, no auth, <5ms response). NotificationBell polls reduced to 10min (600000ms). UnreadBadge polls reduced to 10min (600000ms, was 15s).
 
 ## UX Restructuring (complete — 2026-03-30)
 
@@ -2157,7 +2157,7 @@ Seven bugs fixed across seller shop, dashboard, and blog pages. Zero TypeScript 
 ### SEO
 
 17. **Google Search Console** — verify domain ownership, submit `https://thegrainline.com/sitemap.xml`
-18. **`metadataBase`** currently set to `https://grainline.co` in `layout.tsx` — update to `https://thegrainline.com` (sitemap is already corrected but `metadataBase` drives OG image absolute URLs)
+18. **`metadataBase`** ✅ corrected to `https://thegrainline.com` in `layout.tsx`
 
 ### Process
 
@@ -2349,7 +2349,7 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 
 ## Performance Improvements (complete — 2026-04-02)
 
-- **Notification polling** (`NotificationBell.tsx`): 30s → 5 minutes (300000ms) — 10x reduction in Vercel function invocations from the bell
+- **Notification polling** (`NotificationBell.tsx`): 30s → 5 min → 10 min (600000ms). `UnreadBadge.tsx` default: 15s → 10 min (600000ms). Combined ~40x reduction from original polling rates.
 - **Notification cleanup prune**: `GET /api/notifications` only runs `deleteMany` when `getMinutes() === 0` — ~1/60th of requests instead of every poll (60x reduction in unnecessary DB writes)
 - **Browse `getSellerRatingMap` N+1 fixed**: replaced 2 sequential Prisma queries + in-memory join with a single SQL `JOIN` (`AVG(r."ratingX2")::float / 2.0`, `GROUP BY l."sellerId"`) — eliminates a full extra round trip on every browse page load
 - **Popular tags API** (`GET /api/search/popular-tags`): ISR 1hr cache, raw SQL unnest; search bar shows top 8 listing tags on focus when input is empty — one fetch per session, cached at CDN edge
@@ -2358,6 +2358,8 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 - **`NotificationBell` gated on sign-in state**: `useUser().isSignedIn` checked before any fetch — no 404 polls for signed-out users
 - **Header `cart:updated` listener gated on `isLoggedIn`**: only fires `loadCartCount` when `loadAll` confirmed sign-in — eliminates signed-out cart 401s on add-to-cart events
 - **`UserAvatarMenu` dropdown z-index confirmed** at `z-[200]`; Clerk modal CSS overrides confirmed in `globals.css` (`z-index: 9999`, `min-width: min(90vw, 800px)`)
+- **ISR not applied** — block filtering requires per-user server rendering on all public listing/browse pages. Per-user caching is the correct future optimization when traffic justifies it.
+- **`/api/health`** — static endpoint (`force-static`, no DB, no auth) for UptimeRobot monitoring
 
 ## Input Validation — Zod (complete — 2026-04-01)
 
