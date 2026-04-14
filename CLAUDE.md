@@ -742,9 +742,9 @@ All non-transactional email sends wrapped with `shouldSendEmail`. Transactional 
 - Accepts `popularTags: string[]` prop; duplicates all form state from `FilterSidebar`
 - `md:hidden` on the sticky bar; sheet also has `md:hidden` — desktop unaffected
 - **Sort button** added next to Filter button — opens separate small sort-only sheet via `createPortal`; label shows current sort (e.g. "Sort: Newest"); options navigate to `/browse?sort=...` preserving all other params; sort still present inside main Filters sheet too
-- **Sheet extends to viewport bottom** — `rounded-t-2xl` top-only; scrollable content uses `pb-[calc(1rem+env(safe-area-inset-bottom))]` so home indicator doesn't overlap; sheet itself reaches screen edge
-- **Sticky wrapper uses `py-3`** (was `py-2`) — 4px extra top breathing room prevents button border from touching the sticky edge
-- **Header drawer backdrop raised to `bg-black/60`** (was `bg-black/40`) — fully visually obscures filter bar (z-30) which sits below drawer backdrop (z-40)
+- **Sheet uses `h-[90vh]`** (not `max-h-[85vh]`) — forces sheet to fill 90% of viewport height so it always extends to the bottom edge; scrollable content uses `pb-[calc(1rem+env(safe-area-inset-bottom))]` so iPhone home indicator doesn't overlap content
+- **Sticky wrapper uses `pt-4 pb-3`** with inner `pt-1` wrapper on buttons — provides enough top breathing room so button borders aren't clipped at the sticky edge
+- **Header stacking context raised to `z-[50]`** (was `z-30`) — the `<header>` element itself creates a CSS stacking context; because the drawer backdrop and panel are children of that context, raising the header's z-index is the only way to make them paint above sticky elements (which are z-30 in the root context). Backdrop raised to `z-[1000]`, panel to `z-[1001]` within the header's stacking context.
 
 **FilterSidebar changes**: Removed mobile button block, mobile sheet, `mobileOpen` state, Escape key effect, body scroll lock effect, and `activeFilterCount`. Desktop `<aside>` unchanged.
 
