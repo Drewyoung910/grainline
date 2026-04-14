@@ -147,14 +147,13 @@ input, textarea, select {
   animation: scroll-right 40s linear infinite;
 }
 
-/* Horizontal scroll fade edges — appears on hover/focus */
+/* Horizontal scroll fade edges — right always visible, left only when scrolled */
 .scroll-fade-edges {
-  mask-image: linear-gradient(to right, black, black);
-  -webkit-mask-image: linear-gradient(to right, black, black);
+  mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
   transition: mask-image 0.2s ease;
 }
-.scroll-fade-edges:hover,
-.scroll-fade-edges:focus-within {
+.scroll-fade-edges[data-scrolled="true"] {
   mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
 }

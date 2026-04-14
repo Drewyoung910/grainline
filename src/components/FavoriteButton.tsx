@@ -63,7 +63,7 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       disabled={isPending}
-      className="absolute right-3 top-3 z-10 rounded-full p-1"
+      className="absolute right-3 top-3 z-10 bg-black/30 rounded-full p-1.5 backdrop-blur-sm"
       style={{ lineHeight: 0 }}
     >
       {/* Heart icon (solid when saved, outline otherwise) */}

@@ -15,6 +15,7 @@ import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor, getBlockedUserIdsFor } from "@/lib/blocks";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -457,7 +458,8 @@ export default async function HomePage() {
                 See full feed →
               </Link>
             </div>
-            <ul className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-0 -mx-1 px-1 scroll-fade-edges">
+            <ScrollFadeRow className="overflow-x-auto -mx-1 px-1">
+            <ul className="flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start card-listing">
@@ -500,6 +502,7 @@ export default async function HomePage() {
                 )
               ))}
             </ul>
+            </ScrollFadeRow>
           </ScrollSection>
         )}
 
@@ -645,7 +648,7 @@ export default async function HomePage() {
               Nothing listed yet — check back soon.
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 scroll-fade-edges">
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   const shop = sellerRatings.get(l.sellerId);
@@ -683,7 +686,7 @@ export default async function HomePage() {
                   );
                 })}
               </ul>
-            </div>
+            </ScrollFadeRow>
           )}
         </ScrollSection>
 
@@ -694,7 +697,7 @@ export default async function HomePage() {
               <h2 className="text-xl font-semibold font-display">Buyer Favorites</h2>
             </div>
 
-            <div className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 scroll-fade-edges">
+            <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
@@ -731,7 +734,7 @@ export default async function HomePage() {
                   );
                 })}
               </ul>
-            </div>
+            </ScrollFadeRow>
           </ScrollSection>
         )}
 

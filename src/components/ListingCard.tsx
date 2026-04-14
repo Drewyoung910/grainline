@@ -41,7 +41,6 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
   const listingHref = href ?? `/listing/${l.id}`;
   const sellerName = l.seller.displayName ?? "Maker";
   const shop = l.rating;
-  const isReady = l.listingType === "IN_STOCK";
   const city = l.seller.city;
   const state = l.seller.state;
 
@@ -65,64 +64,60 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
         <div className="absolute top-2 right-2">
           <FavoriteButton listingId={l.id} initialSaved={initialSaved} />
         </div>
-        {/* Listing type badge — bottom left overlay */}
-        <div className="absolute bottom-2 left-2">
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-            isReady
-              ? "bg-black/70 text-green-200 border border-green-700/40"
-              : "bg-black/70 text-amber-200 border border-amber-700/40"
-          }`}>
-            {isReady ? "Ready to ship" : "Made to order"}
-          </span>
+      </div>
+
+      {/* Metadata area — two columns: text left, guild badge right */}
+      <div className="flex items-center gap-3 pt-2.5">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          {/* Title and price+rating — wrapped in listing Link */}
+          <Link href={listingHref} className="block space-y-0.5">
+            <div className="font-medium text-sm text-neutral-900 line-clamp-2 leading-snug">
+              {l.title}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-sm text-neutral-900">
+                {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
+              </span>
+              {shop && shop.count > 0 && (
+                <span className="flex items-center gap-0.5 text-xs text-stone-500">
+                  <span className="text-amber-500">★</span>
+                  <span className="font-medium text-neutral-700">{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
+                  <span className="text-stone-400">({shop.count})</span>
+                </span>
+              )}
+            </div>
+          </Link>
+
+          {/* Location · Seller — separate row, no nested Links */}
+          <div className="flex items-center gap-1 text-xs text-stone-400 flex-wrap">
+            {(city || state) && (
+              <>
+                <span className="truncate">{[city, state].filter(Boolean).join(", ")}</span>
+                <span>·</span>
+              </>
+            )}
+            <Link
+              href={`/seller/${l.seller.id}`}
+              className="hover:text-neutral-600 hover:underline truncate max-w-[120px]"
+            >
+              {sellerName}
+            </Link>
+          </div>
+
+          {l.seller.acceptingNewOrders === false && (
+            <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-0.5 inline-block">
+              Not accepting orders
+            </span>
+          )}
         </div>
-        {/* Guild badge — bottom right overlay */}
+
+        {/* Guild badge — right column */}
         {l.seller.guildLevel && l.seller.guildLevel !== "NONE" && (
-          <div className="absolute bottom-2 right-2 z-10 drop-shadow-md">
+          <div className="flex-none">
             <GuildBadge level={l.seller.guildLevel as GuildLevelValue} showLabel={false} size={40} />
           </div>
         )}
       </div>
-
-      {/* Line 1 + 2: Title and price+rating — wrapped in listing Link */}
-      <Link href={listingHref} className="block pt-2.5 space-y-0.5">
-        <div className="font-medium text-sm text-neutral-900 line-clamp-2 leading-snug">
-          {l.title}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-bold text-sm text-neutral-900">
-            {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
-          </span>
-          {shop && shop.count > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-stone-500">
-              <span className="text-amber-500">★</span>
-              <span className="font-medium text-neutral-700">{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-              <span className="text-stone-400">({shop.count})</span>
-            </span>
-          )}
-        </div>
-      </Link>
-
-      {/* Line 3: Location · Seller — separate row, no nested Links */}
-      <div className="flex items-center gap-1 text-xs text-stone-400 flex-wrap pt-0.5">
-        {(city || state) && (
-          <>
-            <span className="truncate">{[city, state].filter(Boolean).join(", ")}</span>
-            <span>·</span>
-          </>
-        )}
-        <Link
-          href={`/seller/${l.seller.id}`}
-          className="hover:text-neutral-600 hover:underline truncate max-w-[120px]"
-        >
-          {sellerName}
-        </Link>
-      </div>
-
-      {l.seller.acceptingNewOrders === false && (
-        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 mt-1 inline-block">
-          Not accepting orders
-        </span>
-      )}
     </div>
   );
 }
