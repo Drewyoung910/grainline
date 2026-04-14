@@ -330,8 +330,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-hidden="true"
       />
 
-      {/* Sheet panel — rounded top only, forced h-[90vh] so it always fills to viewport bottom */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl h-[90vh] md:hidden animate-slide-up shadow-2xl">
+      {/* Sheet panel — rounded top only, max-h caps height but allows shorter content to show shorter sheet */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="h-1 w-10 rounded-full bg-neutral-300" />
@@ -348,8 +348,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           </button>
         </div>
 
-        {/* Scrollable content — pb accounts for iPhone home indicator */}
-        <div className="overflow-y-auto flex-1 px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1 px-4 py-4">
           {form}
           {tagsSection}
         </div>
@@ -366,8 +366,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         aria-hidden="true"
       />
 
-      {/* Sort sheet panel — rounded top only, forced h-[90vh] so it always fills to viewport bottom */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl h-[90vh] md:hidden animate-slide-up shadow-2xl">
+      {/* Sort sheet panel — smaller max-h so short list shows a compact sheet */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[50vh] md:hidden animate-slide-up shadow-2xl">
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="h-1 w-10 rounded-full bg-neutral-300" />
@@ -385,7 +385,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         </div>
 
         {/* Sort options — each navigates and closes sheet */}
-        <div className="py-2 pb-[env(safe-area-inset-bottom)]">
+        <div className="py-2">
           {q && (
             <Link
               href={sortHref("relevant")}
@@ -424,12 +424,11 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   return (
     <>
       {/* Sticky bar — only on mobile, sits above the listings flex container */}
-      {/* pt-4 pb-3 + inner pt-1 gives button borders breathing room at the very top edge */}
-      <div className="md:hidden sticky top-0 z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-4 pb-3">
-        <div className="pt-1 flex items-center gap-3">
+      {/* top-[2px] + pt-3 pulls bar 2px below viewport top so button outlines aren't clipped */}
+      <div className="md:hidden sticky top-[2px] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
           <button
             onClick={() => setMobileOpen(true)}
-            className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+            className="mt-[2px] inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
           >
             <Filter size={16} />
             Filters
@@ -442,11 +441,10 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
           <button
             onClick={() => setSortOpen(true)}
-            className="inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+            className="mt-[2px] inline-flex items-center gap-2 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
           >
             Sort: {sortLabel}
           </button>
-        </div>
       </div>
 
       {/* Portal sheets — rendered at document.body to escape all stacking contexts */}

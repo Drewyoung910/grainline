@@ -742,8 +742,8 @@ All non-transactional email sends wrapped with `shouldSendEmail`. Transactional 
 - Accepts `popularTags: string[]` prop; duplicates all form state from `FilterSidebar`
 - `md:hidden` on the sticky bar; sheet also has `md:hidden` — desktop unaffected
 - **Sort button** added next to Filter button — opens separate small sort-only sheet via `createPortal`; label shows current sort (e.g. "Sort: Newest"); options navigate to `/browse?sort=...` preserving all other params; sort still present inside main Filters sheet too
-- **Sheet uses `h-[90vh]`** (not `max-h-[85vh]`) — forces sheet to fill 90% of viewport height so it always extends to the bottom edge; scrollable content uses `pb-[calc(1rem+env(safe-area-inset-bottom))]` so iPhone home indicator doesn't overlap content
-- **Sticky wrapper uses `pt-4 pb-3`** with inner `pt-1` wrapper on buttons — provides enough top breathing room so button borders aren't clipped at the sticky edge
+- **Sheet sizing reverted to max-h-[85vh] (main filters) and max-h-[50vh] (sort)** — sheets auto-size to content; short sheets look short, long sheets scroll. iOS safe-area inset for home indicator is correct behavior; no pb override needed.
+- **Sticky wrapper uses `top-[2px]` + `pt-3`** to prevent button outline clip — pulls bar 2px below viewport top; buttons have `mt-[2px]` for additional inset
 - **Header stacking context raised to `z-[50]`** (was `z-30`) — the `<header>` element itself creates a CSS stacking context; because the drawer backdrop and panel are children of that context, raising the header's z-index is the only way to make them paint above sticky elements (which are z-30 in the root context). Backdrop raised to `z-[1000]`, panel to `z-[1001]` within the header's stacking context.
 
 **FilterSidebar changes**: Removed mobile button block, mobile sheet, `mobileOpen` state, Escape key effect, body scroll lock effect, and `activeFilterCount`. Desktop `<aside>` unchanged.
