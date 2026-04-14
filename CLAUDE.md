@@ -432,17 +432,22 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 - `GuildLevelValue` type exported from the file
 
 ### Badge placement with props
+
+Listing cards (ListingCard component, used on browse grid, homepage Fresh/Favorites, seller shop, metro browse) use a **40px bottom-right photo overlay** with `drop-shadow-md` — no background circle, no white wrap. The inline badge next to seller name was removed from ListingCard. SimilarItems no longer shows a badge (too cluttered). Browse list-view ListCard keeps an inline 22px badge next to seller name.
+
+LaurelWreathIcon and HammerChiselIcon default sizes both bumped to 32.
+
 | Surface | `showLabel` | `size` |
 |---|---|---|
-| Browse GridCard + ListCard seller chip | `false` | `24` |
-| Homepage Fresh + Favorites cards | `false` | `24` |
-| `SimilarItems` seller chip | `false` | `24` |
-| ListingCard, commission, makers metro | `false` | `22` |
-| Homepage Meet a Maker | `true` | `28` |
-| Listing detail seller section | `true` | `24` |
-| Seller profile header | `true` | `32` |
-| Seller shop header | `true` | `32` |
-| Dashboard verification page (section headers) | `false` | `32` |
+| ListingCard photo overlay (all grid cards) | `false` | `40` |
+| Browse ListCard inline (list view only) | `false` | `22` |
+| Commission interested makers | `false` | `22` |
+| Makers metro directory | `false` | `22` |
+| Listing detail seller section | `true` | `32` |
+| Homepage Meet a Maker | `true` | `32` |
+| Seller profile header | `true` | `36` |
+| Seller shop header | `true` | `36` |
+| Dashboard verification page (section headers) | `true` | `28` |
 
 ### Seller dashboard (`/dashboard/verification`)
 Two sections:
