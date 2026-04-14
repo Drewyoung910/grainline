@@ -11,23 +11,30 @@ const WREATH_D = "m388.87 88.547c-7.7812 21.328-26.906 36.375-49.453 38.906-21.2
 
 const BADGE_VIEWBOX = "0 0 1200 1200";
 
-// 5-pointed star polygon centered at (600,600) for Guild Master overlay
-const STAR_POINTS = "600,405 621,466 686,468 634,507 653,568 600,531 547,568 566,507 514,468 579,466";
+// Oversized 5-pointed star polygon (r_out=140, r_in=55, center=600,495) — fully covers baked-in star
+const STAR_POINTS = "600,355 632,451 733,452 652,512 682,608 600,550 518,608 548,512 467,452 568,451";
 
-// Laurel wreath only — Guild Member badge
+// Laurel wreath (green) + bronze star overlay — Guild Member badge
 function LaurelWreathIcon({ size = 24 }: { size?: number }) {
   const id = useId();
-  const gradientId = `gold-${id}`;
+  const greenGradientId = `green-${id}`;
+  const bronzeGradientId = `bronze-${id}`;
   return (
     <svg width={size} height={size} viewBox={BADGE_VIEWBOX} fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#86EFAC"/>
-          <stop offset="50%" stopColor="#D4A04A"/>
+        <linearGradient id={greenGradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#4ADE80"/>
+          <stop offset="50%" stopColor="#22C55E"/>
           <stop offset="100%" stopColor="#166534"/>
         </linearGradient>
+        <linearGradient id={bronzeGradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#E8B86D"/>
+          <stop offset="50%" stopColor="#B8860B"/>
+          <stop offset="100%" stopColor="#8B6914"/>
+        </linearGradient>
       </defs>
-      <path d={WREATH_D} fill={`url(#${gradientId})`} fillOpacity={1} />
+      <path d={WREATH_D} fill={`url(#${greenGradientId})`} fillOpacity={1} />
+      <polygon points={STAR_POINTS} fill={`url(#${bronzeGradientId})`} fillOpacity={1} />
     </svg>
   );
 }
