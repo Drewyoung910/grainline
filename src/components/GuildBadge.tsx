@@ -11,8 +11,8 @@ const WREATH_D = "m388.87 88.547c-7.7812 21.328-26.906 36.375-49.453 38.906-21.2
 
 const BADGE_VIEWBOX = "0 0 1200 1200";
 
-// 5-pointed star polygon (r_out=203, r_in=81, center=600,604) — bbox center + 25px visual alignment shift
-const STAR_POINTS = "600,401 648,538 793,541 677,629 719,768 600,685 481,768 523,629 407,541 552,538";
+// 5-pointed star polygon (r_out=220, r_in=88, center=600,595)
+const STAR_POINTS = "600,375 652,524 809,527 684,622 729,773 600,683 471,773 516,622 391,527 548,524";
 
 // Laurel wreath (green) + bronze star overlay — Guild Member badge
 function LaurelWreathIcon({ size = 24 }: { size?: number }) {
