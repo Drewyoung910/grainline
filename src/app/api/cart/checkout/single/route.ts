@@ -292,7 +292,6 @@ export async function POST(req: Request) {
     };
 
     base.payment_intent_data = {
-      on_behalf_of: destination,
       transfer_data: { destination },
       application_fee_amount,
     };

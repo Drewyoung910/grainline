@@ -106,7 +106,6 @@ export async function POST() {
 
     // Connect transfer + application fee (items only — shipping amount unknown at session creation)
     base.payment_intent_data = {
-      on_behalf_of: destination,
       transfer_data: { destination },
       application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
     };
