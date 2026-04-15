@@ -1676,7 +1676,8 @@ Added to `ListingStatus` enum. Listings in this state are hidden from browse, ho
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
 - Uses `gpt-4o-mini` via OpenAI API with vision; gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` is missing or API fails
-- Prompt instructs model to flag only clearly non-woodworking, prohibited, spam, or offensive content; lenient with new sellers
+- Prompt expanded to 13 explicit prohibited categories: counterfeit goods, unlicensed IP, regulated goods, weapons, explicit content, hate symbols, protected species, medical claims, services-as-goods, digital-only, mass-produced, spam, non-woodworking. Tiered leniency: 0-2 listings = lenient, 3+ = standard. Error logging added to catch block (`console.error`).
+- Duplicate detection skipped — requires `sellerId` in function signature (not present; follow-up needed to add)
 - **Image moderation** added via OpenAI Vision API. Up to 4 images per listing reviewed at `detail: "low"` (~85 tokens/image). Catches explicit content, counterfeit logos, copyrighted characters, hate symbols, weapons, mass-produced/stock imagery that text-only review misses. Cost ~$0.0006 per listing with 4 images.
 - Optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing
 - Returns `{ approved, flags, confidence, reason }`, max_tokens bumped to 300 for image reasoning
