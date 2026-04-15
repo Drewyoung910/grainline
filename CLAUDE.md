@@ -1711,15 +1711,17 @@ After `prisma.listing.create()`, AI review runs async in a try/catch:
 
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
-### Listing edit re-review (`dashboard/listings/[id]/edit/page.tsx`)
-When an ACTIVE listing is edited, if title, description, category, or price (>50% change) changed, AI review is re-triggered:
-1. Compares new values to existing listing values
-2. If substantive change detected + listing is ACTIVE: calls `reviewListingWithAI` with updated data + photos
-3. If AI rejects or confidence < 0.7: sets status to `PENDING_REVIEW` (listing hidden until admin approves)
-4. If AI approves: listing stays ACTIVE (no interruption)
-5. Non-fatal — AI review errors leave listing ACTIVE
+### Listing edit re-review
+AI re-review triggers on ACTIVE listings when any substantive content changes. Three trigger points:
+
+1. **Text field edits** (`dashboard/listings/[id]/edit/page.tsx` `updateListing`): title, description, category, or price (>50% change). Low-risk changes (tags, shipping, dimensions) do not trigger.
+2. **Image additions** (`api/listings/[id]/photos/route.ts`): any new photos added to ACTIVE listing triggers re-review with the new image set.
+3. **Image deletions** (`dashboard/listings/[id]/edit/page.tsx` `deletePhoto`): removing a photo from ACTIVE listing triggers re-review with remaining images.
+
+All three paths use the same threshold: `!approved || flags.length > 0 || confidence < 0.8` → PENDING_REVIEW. AI errors also send to admin queue. Non-fatal on infrastructure errors (listing stays ACTIVE only if try/catch catches a non-AI error).
+
 - Scope: only ACTIVE listings. Edits to DRAFT, PENDING_REVIEW, REJECTED, HIDDEN, SOLD, SOLD_OUT skip re-review.
-- Low-risk changes (tags, shipping, dimensions) do not trigger re-review.
+- Cover photo reorder (`setCoverPhoto`) does not trigger re-review (same images, different order — lower risk).
 
 ### Admin review queue (`/admin/review`)
 - Shows all `PENDING_REVIEW` listings ordered oldest-first
