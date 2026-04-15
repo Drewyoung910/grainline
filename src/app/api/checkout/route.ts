@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       ],
       // let the webhook know what to create after payment
       metadata: { listingId: listing.id, buyerId: me.id, quantity: String(quantity) },
-      automatic_tax: { enabled: true },
+      automatic_tax: { enabled: true, liability: { type: "self" } },
     };
 
     base.payment_intent_data = {

@@ -99,7 +99,7 @@ export async function POST() {
       line_items,
       billing_address_collection: "auto",
       shipping_address_collection: { allowed_countries: ["US"] },
-      automatic_tax: { enabled: true },
+      automatic_tax: { enabled: true, liability: { type: "self" } },
       // Track context for webhook/order creation
       metadata: { cartId: cart.id, buyerId: me.id, sellerId },
     };

@@ -355,7 +355,7 @@ export async function POST(req: Request) {
       line_items,
       billing_address_collection: "auto",
       shipping_address_collection: { allowed_countries: ["US"] },
-      automatic_tax: { enabled: true },
+      automatic_tax: { enabled: true, liability: { type: "self" } },
       shipping_options: capped_shipping_options,
       metadata: {
         cartId: cart.id,
