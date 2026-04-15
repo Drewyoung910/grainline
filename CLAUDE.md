@@ -1691,7 +1691,8 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
 - **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
 - **Text review**: 13 explicit prohibited categories (counterfeit goods, unlicensed IP like Disney/Marvel/sports logos, regulated goods like firearms/tobacco/cannabis/Rx, weapons as weapons, adult content, hate symbols, protected species, medical claims, services disguised as goods, digital-only, mass-produced/dropshipped, scams/spam, non-woodworking primary goods)
-- **Image review**: up to 4 images per listing at `detail: "low"` (~85 tokens/image). Checks for explicit content, copyrighted logos, counterfeits, hate symbols, weapons, drug paraphernalia, stock imagery, bait-and-switch mismatches. Stock/generic images flagged as "possibly-not-handmade"; poor image quality approved if item seems legitimate.
+- **Image review** (strict mode): up to 4 images at `detail: "low"` (~85 tokens/image). Rejects: graphics/logos/SVGs/clipart instead of product photos, headshots/portraits without visible product, stock photos, mismatched product images, sexualized content. Single-image listings rejected if image doesn't clearly show described product. When in doubt: reject (seller can resubmit with proper photos). Includes worked examples of both violations and valid listings in prompt.
+- **Description quality**: under 20 chars or no product info → flag `low-quality-description` (new sellers get pass); 3+ listings with very low quality → reject; missing description → always reject.
 - **Signature**: optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing. Returns `{ approved, flags, confidence, reason }`.
 - **Leniency**: 0-2 listing count = benefit of doubt on borderline cases, 3+ = standard strictness. Always reject clear violations regardless of seller experience.
 - **Fallback**: returns `approved: true` on any error (API down, rate limit, no key) with manual review flag. Gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` env var is missing.
@@ -1710,10 +1711,20 @@ After `prisma.listing.create()`, AI review runs async in a try/catch:
 
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
+### Listing edit re-review (`dashboard/listings/[id]/edit/page.tsx`)
+When an ACTIVE listing is edited, if title, description, category, or price (>50% change) changed, AI review is re-triggered:
+1. Compares new values to existing listing values
+2. If substantive change detected + listing is ACTIVE: calls `reviewListingWithAI` with updated data + photos
+3. If AI rejects or confidence < 0.7: sets status to `PENDING_REVIEW` (listing hidden until admin approves)
+4. If AI approves: listing stays ACTIVE (no interruption)
+5. Non-fatal — AI review errors leave listing ACTIVE
+- Scope: only ACTIVE listings. Edits to DRAFT, PENDING_REVIEW, REJECTED, HIDDEN, SOLD, SOLD_OUT skip re-review.
+- Low-risk changes (tags, shipping, dimensions) do not trigger re-review.
+
 ### Admin review queue (`/admin/review`)
 - Shows all `PENDING_REVIEW` listings ordered oldest-first
 - Card shows thumbnail, title, seller name, price, date, "First listing" badge, AI flags list, confidence %
-- Approve → ACTIVE + seller notification; Reject → HIDDEN + seller notification + reason required
+- Approve → ACTIVE + seller notification + clear rejectionReason; Reject → REJECTED + seller notification + reason required
 - Count badge in admin sidebar and mobile nav
 
 ## Listing Snapshot at Purchase (complete — 2026-04-01)
