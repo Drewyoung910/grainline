@@ -66,6 +66,7 @@ export async function POST(req: Request) {
               name: listing.title,
               images: listing.photos?.length ? [listing.photos[0]?.url] : undefined,
               metadata: { listingId: listing.id },
+              tax_code: "txcd_99999999", // General - Tangible Personal Property
             },
           },
         },
@@ -75,8 +76,9 @@ export async function POST(req: Request) {
       automatic_tax: { enabled: true, liability: { type: "self" } },
     };
 
+    const sellerTransfer = (priceCents * quantity) - platformFee; // items minus fee — tax excluded
     base.payment_intent_data = {
-      transfer_data: { destination },
+      transfer_data: { destination, amount: sellerTransfer },
       application_fee_amount: platformFee,
     };
 

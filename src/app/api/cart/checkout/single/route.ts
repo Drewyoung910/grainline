@@ -232,7 +232,7 @@ export async function POST(req: Request) {
 
     const line_items: {
       quantity: number;
-      price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string> } };
+      price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
     }[] = [
       {
         quantity,
@@ -243,6 +243,7 @@ export async function POST(req: Request) {
             name: listing.title,
             images: listing.photos.length ? [listing.photos[0].url] : undefined,
             metadata: { listingId: listing.id },
+            tax_code: "txcd_99999999", // General - Tangible Personal Property
           },
         },
       },
@@ -254,7 +255,7 @@ export async function POST(req: Request) {
         price_data: {
           currency,
           unit_amount: giftWrappingPriceCents,
-          product_data: { name: "Gift Wrapping" },
+          product_data: { name: "Gift Wrapping", tax_code: "txcd_99999999" },
         },
       });
     }
@@ -291,6 +292,8 @@ export async function POST(req: Request) {
       },
     };
 
+    // NOTE: buyer selects shipping in Stripe Checkout — final amount unknown at creation.
+    // transfer_data.amount not set; tax may be included in auto-calculated transfer.
     base.payment_intent_data = {
       transfer_data: { destination },
       application_fee_amount,

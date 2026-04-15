@@ -78,6 +78,7 @@ export async function POST() {
           name: i.listing.title,
           images: i.listing.photos?.length ? [i.listing.photos[0]!.url] : undefined,
           metadata: { listingId: i.listing.id },
+          tax_code: "txcd_99999999", // General - Tangible Personal Property
         },
       },
     }));
@@ -104,7 +105,10 @@ export async function POST() {
       metadata: { cartId: cart.id, buyerId: me.id, sellerId },
     };
 
-    // Connect transfer + application fee (items only — shipping amount unknown at session creation)
+    // Connect transfer + application fee
+    // NOTE: shipping selected by buyer in Stripe Checkout — final amount unknown at creation.
+    // transfer_data.amount not set — Stripe auto-calculates (charge - fee = transfer).
+    // Tax may be included in transfer; webhook reconciliation needed for tax-exclusive transfers.
     base.payment_intent_data = {
       transfer_data: { destination },
       application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
