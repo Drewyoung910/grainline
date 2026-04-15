@@ -3,7 +3,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import GiftNoteSection from "@/components/GiftNoteSection";
+import ShippingAddressForm from "@/components/ShippingAddressForm";
+import type { ShippingAddress } from "@/types/checkout";
 
 type CartItem = {
   id: string;
@@ -40,7 +43,12 @@ type GiftForm = {
   giftWrapping: boolean;
 };
 
+type CheckoutStep = "review" | "address" | "payment";
+
 export default function CartPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [items, setItems] = React.useState<CartItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [checkingOutSeller, setCheckingOutSeller] = React.useState<string | null>(null);
@@ -51,6 +59,35 @@ export default function CartPage() {
   const [destBySeller, setDestBySeller] = React.useState<Record<string, DestForm>>({});
   // per-seller gift state
   const [giftBySeller, setGiftBySeller] = React.useState<Record<string, GiftForm>>({});
+
+  // Checkout step state
+  const [step, setStep] = React.useState<CheckoutStep>("review");
+  const [shippingAddress, setShippingAddress] = React.useState<ShippingAddress | null>(null);
+
+  // Mount-time URL restoration
+  React.useEffect(() => {
+    const urlStep = searchParams.get("step");
+    if (urlStep === "address") {
+      setStep("address");
+    } else if (urlStep === "payment") {
+      if (shippingAddress) {
+        setStep("payment");
+      } else {
+        setStep("address");
+        router.replace("/cart?step=address", { scroll: false });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Safety guard
+  React.useEffect(() => {
+    if (step === "payment" && !shippingAddress) {
+      setStep("address");
+      router.replace("/cart?step=address", { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, shippingAddress]);
 
   async function load() {
     setLoading(true);
@@ -66,18 +103,18 @@ export default function CartPage() {
       const data = await res.json();
       setItems(data.items || []);
 
-      // initialize dest forms for any new seller groups (don’t clobber if already typed)
-      const groups = (data.items || []).reduce((set: Set<string>, it: CartItem) => {
+      // initialize dest forms for any new seller groups (don't clobber if already typed)
+      const sellerIdSet = (data.items || []).reduce((set: Set<string>, it: CartItem) => {
         set.add(it.listing.sellerId);
         return set;
       }, new Set<string>());
 
       setDestBySeller((prev) => {
         const next = { ...prev };
-        for (const sellerId of groups) {
+        for (const sellerId of sellerIdSet) {
           if (!next[sellerId]) {
             next[sellerId] = {
-              useCalculated: false, // default off unless seller toggled on at profile, handled in API
+              useCalculated: false,
               postal: "",
               city: "",
               state: "",
@@ -136,7 +173,6 @@ export default function CartPage() {
 
       if (dest?.useCalculated) {
         body.useCalculated = true;
-        // pass destination if present; ZIP/State/Country is enough for rating
         if (dest.postal)  body.toPostal = dest.postal.trim();
         if (dest.state)   body.toState  = dest.state.trim();
         if (dest.city)    body.toCity   = dest.city.trim();
@@ -152,19 +188,11 @@ export default function CartPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Checkout failed");
-      window.location.href = data.url as string; // Stripe Checkout
+      window.location.href = data.url as string;
     } catch (e) {
       setError((e as Error).message);
       setCheckingOutSeller(null);
     }
-  }
-
-  function planShippingAndTaxesNote() {
-    return (
-      <p className="text-xs text-neutral-500">
-        Shipping &amp; taxes shown after you choose an option at Checkout.
-      </p>
-    );
   }
 
   if (loading) return <main className="p-8">Loading…</main>;
@@ -213,95 +241,88 @@ export default function CartPage() {
 
   const grandTotal = groups.reduce((s, g) => s + g.subtotalCents, 0);
 
-  return (
-    <main className="mx-auto max-w-3xl p-8 space-y-6">
-      <h1 className="text-2xl font-semibold">Your cart</h1>
+  // Render seller sections (used in Step 1 review and Step 3 payment)
+  function renderSellerSections(showCheckoutButtons: boolean) {
+    return groups.map((g) => {
+      const dest = destBySeller[g.sellerId] || {
+        useCalculated: false,
+        postal: "",
+        city: "",
+        state: "",
+        country: "US",
+      };
+      const disabled = checkingOutSeller != null;
 
-      {error && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      return (
+        <section key={g.sellerId} className="rounded-lg border">
+          <header className="flex items-center justify-between border-b px-4 py-3">
+            <div className="text-sm text-neutral-700">
+              <span className="text-neutral-500">Seller:</span>{" "}
+              <span className="font-medium">{g.sellerName}</span>
+            </div>
+            <div className="text-sm">
+              Subtotal: <span className="font-semibold">${(g.subtotalCents / 100).toFixed(2)}</span>
+            </div>
+          </header>
 
-      {groups.map((g) => {
-        const dest = destBySeller[g.sellerId] || {
-          useCalculated: false,
-          postal: "",
-          city: "",
-          state: "",
-          country: "US",
-        };
-        const disabled = checkingOutSeller != null;
+          <ul className="divide-y">
+            {g.items.map((i) => {
+              const img = i.listing.photos?.[0]?.url;
+              const lineCents = i.priceCents * i.quantity;
 
-        return (
-          <section key={g.sellerId} className="rounded-lg border">
-            <header className="flex items-center justify-between border-b px-4 py-3">
-              <div className="text-sm text-neutral-700">
-                <span className="text-neutral-500">Seller:</span>{" "}
-                <span className="font-medium">{g.sellerName}</span>
-              </div>
-              <div className="text-sm">
-                Subtotal: <span className="font-semibold">${(g.subtotalCents / 100).toFixed(2)}</span>
-              </div>
-            </header>
+              return (
+                <li key={i.id} className="flex items-center gap-3 px-4 py-3">
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                  ) : (
+                    <div className="h-16 w-16 rounded border bg-neutral-100" />
+                  )}
 
-            <ul className="divide-y">
-              {g.items.map((i) => {
-                const img = i.listing.photos?.[0]?.url;
-                const lineCents = i.priceCents * i.quantity;
+                  <div className="min-w-0 flex-1">
+                    <a href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
+                      {i.listing.title}
+                    </a>
 
-                return (
-                  <li key={i.id} className="flex items-center gap-3 px-4 py-3">
-                    {img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
-                    ) : (
-                      <div className="h-16 w-16 rounded border bg-neutral-100" />
-                    )}
+                    <div className="mt-1 flex items-center gap-3 text-sm text-neutral-700">
+                      <span>${(i.priceCents / 100).toFixed(2)} each</span>
 
-                    <div className="min-w-0 flex-1">
-                      <a href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
-                        {i.listing.title}
-                      </a>
+                      <label className="ml-2 text-xs text-neutral-500">Qty</label>
+                      <select
+                        className="rounded border px-2 py-1 text-sm"
+                        value={i.quantity}
+                        disabled={disabled}
+                        onChange={(e) => setQuantity(i.listing.id, Number(e.target.value))}
+                      >
+                        {Array.from({ length: 10 }).map((_, idx) => {
+                          const n = idx + 1;
+                          return (
+                            <option key={n} value={n}>{n}</option>
+                          );
+                        })}
+                      </select>
 
-                      <div className="mt-1 flex items-center gap-3 text-sm text-neutral-700">
-                        <span>${(i.priceCents / 100).toFixed(2)} each</span>
-
-                        <label className="ml-2 text-xs text-neutral-500">Qty</label>
-                        <select
-                          className="rounded border px-2 py-1 text-sm"
-                          value={i.quantity}
-                          disabled={disabled}
-                          onChange={(e) => setQuantity(i.listing.id, Number(e.target.value))}
-                        >
-                          {Array.from({ length: 10 }).map((_, idx) => {
-                            const n = idx + 1;
-                            return (
-                              <option key={n} value={n}>{n}</option>
-                            );
-                          })}
-                        </select>
-
-                        <button
-                          type="button"
-                          className="ml-2 text-xs text-red-600 underline disabled:opacity-50"
-                          onClick={() => setQuantity(i.listing.id, 0)}
-                          disabled={disabled}
-                        >
-                          Remove
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        className="ml-2 text-xs text-red-600 underline disabled:opacity-50"
+                        onClick={() => setQuantity(i.listing.id, 0)}
+                        disabled={disabled}
+                      >
+                        Remove
+                      </button>
                     </div>
+                  </div>
 
-                    <div className="text-sm font-medium">
-                      ${(lineCents / 100).toFixed(2)}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                  <div className="text-sm font-medium">
+                    ${(lineCents / 100).toFixed(2)}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
 
-            {/* Destination + toggle */}
+          {/* Destination toggle — only in review step */}
+          {!showCheckoutButtons && (
             <div className="px-4 py-3 border-t bg-neutral-50">
               <div className="flex items-center gap-3">
                 <input
@@ -350,25 +371,29 @@ export default function CartPage() {
                 </div>
               )}
             </div>
+          )}
 
-            {/* Gift note */}
-            <div className="px-4 py-3 border-t">
-              <GiftNoteSection
-                offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
-                giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
-                giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
-                giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
-                onChange={(note, wrapping) =>
-                  setGiftBySeller((prev) => ({
-                    ...prev,
-                    [g.sellerId]: { giftNote: note, giftWrapping: wrapping },
-                  }))
-                }
-              />
-            </div>
+          {/* Gift note */}
+          <div className="px-4 py-3 border-t">
+            <GiftNoteSection
+              offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
+              giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
+              giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
+              giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
+              onChange={(note, wrapping) =>
+                setGiftBySeller((prev) => ({
+                  ...prev,
+                  [g.sellerId]: { giftNote: note, giftWrapping: wrapping },
+                }))
+              }
+            />
+          </div>
 
+          {showCheckoutButtons && (
             <footer className="flex flex-col items-end gap-2 px-4 py-3">
-              {planShippingAndTaxesNote()}
+              <p className="text-xs text-neutral-500">
+                Shipping &amp; taxes shown after you choose an option at Checkout.
+              </p>
               <button
                 type="button"
                 onClick={() => checkoutSeller(g.sellerId)}
@@ -378,22 +403,139 @@ export default function CartPage() {
                 {checkingOutSeller === g.sellerId ? "Redirecting…" : "Checkout"}
               </button>
             </footer>
-          </section>
-        );
-      })}
+          )}
+        </section>
+      );
+    });
+  }
 
-      <div className="flex items-center justify-end gap-4">
-        <div className="text-sm text-neutral-600">Grand total (items only)</div>
-        <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
+  return (
+    <main className="mx-auto max-w-3xl p-8 space-y-6">
+      <h1 className="text-2xl font-semibold">Your cart</h1>
+
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 text-sm mb-6">
+        {[
+          { key: "review", label: "Cart" },
+          { key: "address", label: "Shipping address" },
+          { key: "payment", label: "Payment" },
+        ].map((s, i) => (
+          <span key={s.key} className="flex items-center gap-2">
+            {i > 0 && <span className="text-neutral-300">→</span>}
+            <span className={
+              step === s.key
+                ? "text-neutral-900 font-medium"
+                : "text-neutral-400"
+            }>
+              {s.label}
+            </span>
+          </span>
+        ))}
       </div>
 
-      <p className="text-xs text-neutral-500">
-        You can check out each seller group separately. Calculated shipping quotes are based on the
-        destination you enter above and verified after payment.
-      </p>
+      {error && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Step 1: Review */}
+      {step === "review" && (
+        <>
+          {renderSellerSections(false)}
+
+          <div className="flex items-center justify-end gap-4">
+            <div className="text-sm text-neutral-600">Grand total (items only)</div>
+            <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
+          </div>
+
+          <button
+            onClick={() => {
+              setStep("address");
+              router.replace("/cart?step=address", { scroll: false });
+            }}
+            disabled={items.length === 0}
+            className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+          >
+            Continue to shipping →
+          </button>
+        </>
+      )}
+
+      {/* Step 2: Address */}
+      {step === "address" && (
+        <div className="max-w-lg mx-auto py-6">
+          <h2 className="font-display text-2xl text-neutral-900 mb-6">
+            Shipping address
+          </h2>
+          <ShippingAddressForm
+            isSignedIn={!needsSignIn}
+            onBack={() => {
+              setStep("review");
+              router.replace("/cart", { scroll: false });
+            }}
+            onConfirm={(address) => {
+              setShippingAddress(address);
+
+              // Pre-fill destBySeller for ALL sellers in the cart
+              const uniqueSellerIds = groups.map((g) => g.sellerId);
+              setDestBySeller((prev) => {
+                const updated = { ...prev };
+                uniqueSellerIds.forEach((sellerId) => {
+                  updated[sellerId] = {
+                    ...(updated[sellerId] ?? {}),
+                    useCalculated: true,
+                    postal: address.postalCode,
+                    state: address.state,
+                    city: address.city,
+                    country: "US",
+                  };
+                });
+                return updated;
+              });
+
+              setStep("payment");
+              router.replace("/cart?step=payment", { scroll: false });
+            }}
+          />
+        </div>
+      )}
+
+      {/* Step 3: Payment */}
+      {step === "payment" && (
+        <>
+          {/* Address summary */}
+          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
+            <p className="text-sm text-neutral-600">
+              <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
+              {shippingAddress?.line1},{" "}
+              {shippingAddress?.city},{" "}
+              {shippingAddress?.state}{" "}
+              {shippingAddress?.postalCode}
+            </p>
+            <button
+              onClick={() => {
+                setStep("address");
+                router.replace("/cart?step=address", { scroll: false });
+              }}
+              className="text-sm text-neutral-500 hover:text-neutral-700 whitespace-nowrap flex-shrink-0"
+            >
+              Change
+            </button>
+          </div>
+
+          {renderSellerSections(true)}
+
+          <div className="flex items-center justify-end gap-4">
+            <div className="text-sm text-neutral-600">Grand total (items only)</div>
+            <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
+          </div>
+
+          <p className="text-xs text-neutral-500">
+            You can check out each seller group separately. Shipping quotes are based on the address above.
+          </p>
+        </>
+      )}
     </main>
   );
 }
-
-
-
