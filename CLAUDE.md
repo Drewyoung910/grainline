@@ -1705,9 +1705,9 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 After `prisma.listing.create()`, AI review runs async in a try/catch:
 1. Fetches seller's total listing count
 2. Calls `reviewListingWithAI()`
-3. `shouldHold = isFirstListing || !aiResult.approved || aiResult.confidence < 0.7`
+3. `shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8` — only auto-approves when AI returns approved:true AND zero flags AND confidence >= 0.8. Any flag, low confidence, or rejection → PENDING_REVIEW for admin. AI errors also default to PENDING_REVIEW (not ACTIVE).
 4. If hold: updates listing to `PENDING_REVIEW`, saves `aiReviewFlags` + `aiReviewScore`, logs `AI_HOLD_LISTING` audit entry
-5. If not held: listing stays `ACTIVE` (default from schema) — redirect proceeds normally
+5. If not held: listing stays `ACTIVE` — only when AI fully clears with no concerns
 
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
