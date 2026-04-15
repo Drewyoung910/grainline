@@ -1684,7 +1684,7 @@ Added to `ListingStatus` enum. Listings in this state are hidden from browse, ho
 - **Error logging**: `console.error` on catch for debugging
 - **Cost**: ~$0.0006 per listing with 4 images (~85 tokens per low-detail image)
 - **Callers**: `dashboard/listings/new/page.tsx` (passes `imageUrls.slice(0, 4)` from form data) and `seller/[id]/shop/actions.ts` (`publishListingAction` — fetches first 4 photos via `prisma.photo.findMany`)
-- **Known gap**: duplicate detection requires `sellerId` in function signature (not present; follow-up needed to add param + update both callers)
+- **Duplicate detection**: `sellerId` (required) added to function signature. Before OpenAI call, counts listings with same title (case-insensitive) from same seller in last 24h. 2+ = auto-reject with `duplicate-listing` + `possible-spam` flags, bypasses OpenAI entirely (saves tokens). Uses SellerProfile ID (`seller.id`), not User ID. Duplicate check wrapped in try/catch — non-fatal on error, continues to AI review.
 
 ### Listing creation flow (`dashboard/listings/new/page.tsx`)
 After `prisma.listing.create()`, AI review runs async in a try/catch:
