@@ -99,6 +99,8 @@ export async function deleteListingAction(listingId: string) {
 export async function markAvailableAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
+  // REJECTED listings cannot bypass moderation via markAvailable
+  if (listing.status === "REJECTED") return;
   await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
   await syncThreshold(listing.sellerId);
   revalidatePath(`/seller/${listing.sellerId}/shop`);

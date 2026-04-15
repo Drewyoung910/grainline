@@ -9,6 +9,7 @@ import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart } from "@/components/icons";
 import { createNotification } from "@/lib/notifications";
+import DismissibleBanner from "@/components/DismissibleBanner";
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(listingId: string, nextStatus: ListingStatus) {
@@ -25,6 +26,9 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
     include: { seller: true },
   });
   if (!listing || listing.seller.userId !== me.id) return;
+
+  // REJECTED listings cannot be unhidden or set active — must go through resubmit/AI review flow
+  if (listing.status === "REJECTED" && (nextStatus === "ACTIVE" || nextStatus === "HIDDEN")) return;
 
   await prisma.listing.update({
     where: { id: listingId },
@@ -398,9 +402,9 @@ export default async function DashboardPage() {
         )}
 
         {listings.some((l) => l.status === "REJECTED") && (
-          <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 rounded-md">
+          <DismissibleBanner className="mb-4 border border-red-200 bg-red-50 px-4 py-3 pr-8 text-sm text-red-900 rounded-md">
             <span className="font-medium">Some listings were rejected.</span> Edit and resubmit them from your shop page to go through review again.
-          </div>
+          </DismissibleBanner>
         )}
 
         {listings.length === 0 ? (
@@ -476,7 +480,7 @@ export default async function DashboardPage() {
                       >
                         Edit
                       </Link>
-                      {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW") && (
+                      {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
                         <Link
                           href={`/listing/${l.id}?preview=1`}
                           className="text-xs rounded border px-2 py-1 hover:bg-neutral-50"
@@ -486,17 +490,22 @@ export default async function DashboardPage() {
                         </Link>
                       )}
 
-                      <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
-                        <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
-                          Mark sold
-                        </button>
-                      </form>
+                      {/* REJECTED: only Edit (above) + Delete — no Hide/Unhide/Mark sold */}
+                      {l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
+                        <>
+                          <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
+                            <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+                              Mark sold
+                            </button>
+                          </form>
 
-                      <form action={hideAction}>
-                        <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
-                          {l.status === "HIDDEN" ? "Unhide" : "Hide"}
-                        </button>
-                      </form>
+                          <form action={hideAction}>
+                            <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+                              {l.status === "HIDDEN" ? "Unhide" : "Hide"}
+                            </button>
+                          </form>
+                        </>
+                      )}
 
                       <form action={deleteListing.bind(null, l.id)}>
                         <ConfirmButton

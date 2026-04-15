@@ -44,7 +44,7 @@ export async function PATCH(
   if (action === 'approve') {
     await prisma.listing.update({
       where: { id },
-      data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date() }
+      data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
     })
     await logAdminAction({
       adminId: admin.id,
