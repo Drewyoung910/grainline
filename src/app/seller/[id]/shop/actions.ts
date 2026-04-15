@@ -129,6 +129,13 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     const { reviewListingWithAI } = await import("@/lib/ai-review");
     const { logAdminAction } = await import("@/lib/audit");
 
+    const photos = await prisma.photo.findMany({
+      where: { listingId: listing.id },
+      select: { url: true },
+      orderBy: { sortOrder: "asc" },
+      take: 4,
+    });
+
     const aiResult = await reviewListingWithAI({
       title: listing.title,
       description: listing.description,
@@ -137,6 +144,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       tags: listing.tags,
       sellerName: sellerInfo?.displayName ?? "Unknown",
       listingCount,
+      imageUrls: photos.map((p) => p.url),
     }).catch(() => ({
       approved: true,
       flags: ["AI review error"],

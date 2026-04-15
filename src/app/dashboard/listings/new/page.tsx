@@ -205,6 +205,7 @@ async function createListing(formData: FormData) {
       tags: created.tags,
       sellerName: sellerInfo?.displayName ?? 'Unknown',
       listingCount,
+      imageUrls: imageUrls.slice(0, 4),
     }).catch(() => ({
       approved: true,
       flags: ['AI review error'],

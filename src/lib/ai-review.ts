@@ -13,12 +13,13 @@ export async function reviewListingWithAI(listing: {
   tags: string[]
   sellerName: string
   listingCount: number
+  imageUrls?: string[]
 }): Promise<AIReviewResult> {
   if (!process.env.OPENAI_API_KEY) {
     return { approved: true, flags: [], confidence: 1, reason: 'AI review disabled — no API key' }
   }
 
-  const prompt = `You are a marketplace moderator for Grainline, a handmade woodworking marketplace in the US and Canada.
+  const prompt = `You are a marketplace moderator for Grainline, a handmade woodworking marketplace in the US.
 
 Review this listing and determine if it should be approved for publication.
 
@@ -39,6 +40,21 @@ Flag and reject ONLY if:
 - Inappropriate or offensive content
 - Obvious test listing (title is literally "test", "asdf", "aaa" etc)
 
+IMAGE REVIEW:
+When images are provided, examine them for violations that text alone cannot reveal:
+- Explicit or sexual content visible in images
+- Copyrighted characters (Disney, Marvel, sports logos) visible on products
+- Counterfeit brand logos (Rolex, Louis Vuitton, Gucci) on items
+- Hate symbols or extremist imagery
+- Weapons (firearms, knives as weapons) vs tools
+- Drug paraphernalia (bongs, pipes, rolling trays) vs decorative items
+- Items clearly mass-produced (identical stock photos, Alibaba-style imagery)
+- Product image does not match the title/description (bait-and-switch)
+
+If images look stock/generic or show mass-produced goods, flag as "possibly-not-handmade".
+If image quality is poor but item seems legitimate, approve — new sellers may lack photography skills.
+
+LENIENCY FOR NEW SELLERS:
 Be lenient — woodworking covers furniture, cutting boards, art, home decor, toys, tools, and more.
 New sellers (low listing count) should get benefit of the doubt unless clearly problematic.
 
@@ -51,6 +67,22 @@ Respond with ONLY valid JSON, no other text:
 }`
 
   try {
+    const messageContent: Array<{
+      type: 'text' | 'image_url'
+      text?: string
+      image_url?: { url: string; detail: 'low' | 'high' | 'auto' }
+    }> = [{ type: 'text', text: prompt }]
+
+    if (listing.imageUrls && listing.imageUrls.length > 0) {
+      const imagesToReview = listing.imageUrls.slice(0, 4)
+      for (const url of imagesToReview) {
+        messageContent.push({
+          type: 'image_url',
+          image_url: { url, detail: 'low' }
+        })
+      }
+    }
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -59,8 +91,8 @@ Respond with ONLY valid JSON, no other text:
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
+        messages: [{ role: 'user', content: messageContent }],
+        max_tokens: 300,
         temperature: 0.1,
       })
     })
