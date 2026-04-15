@@ -2559,6 +2559,8 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 **Platform fee: 5%** of item subtotal (excluding shipping and taxes), applied as `application_fee_amount` in all four checkout routes. Note: shipping cannot be included in fee because `application_fee_amount` is fixed at session creation and shipping amount depends on buyer's selection during checkout.
 
+**CHECKOUT REBUILD — Phase 1 complete**: User model now has `shippingName`, `shippingLine1`, `shippingLine2`, `shippingCity`, `shippingState`, `shippingPostalCode`, `shippingPhone` fields (migration: `add_user_shipping_address`). `GET /api/account/shipping-address` returns saved address. `PUT /api/account/shipping-address` saves address (Zod validated: 2-letter state, 5-digit zip, sanitized text). Both routes auth-required, rate-limited via `shippingAddressRatelimit` (30/10min per userId). Phase 2 next: ShippingAddressForm component.
+
 **`on_behalf_of` REMOVED** (2026-04-15): was causing tax to flow to seller instead of platform. Removed from all 4 routes. Platform absorbs Stripe processing fees (~2.9% + 30¢) — covered by the 5% platform fee.
 
 **Product tax code**: `txcd_99999999` (General - Tangible Personal Property) set on all product line items + gift wrapping. Was defaulting to `txcd_10000000` (Electronically Supplied Services — wrong for physical handmade goods).
