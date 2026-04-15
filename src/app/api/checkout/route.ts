@@ -72,14 +72,17 @@ export async function POST(req: Request) {
         },
       ],
       // let the webhook know what to create after payment
-      metadata: { listingId: listing.id, buyerId: me.id, quantity: String(quantity) },
+      metadata: { listingId: listing.id, buyerId: me.id, quantity: String(quantity), taxRetainedAtCreation: "true" },
       automatic_tax: { enabled: true, liability: { type: "self" } },
     };
 
     const sellerTransfer = (priceCents * quantity) - platformFee; // items minus fee — tax excluded
+    const descriptorSuffix = ((listing.seller as { displayName?: string })?.displayName ?? "")
+      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
     base.payment_intent_data = {
       transfer_data: { destination, amount: sellerTransfer },
       application_fee_amount: platformFee,
+      ...(descriptorSuffix.length > 0 && { statement_descriptor_suffix: descriptorSuffix }),
     };
 
     const session = await stripe.checkout.sessions.create(base);

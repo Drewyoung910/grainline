@@ -107,11 +107,13 @@ export async function POST() {
 
     // Connect transfer + application fee
     // NOTE: shipping selected by buyer in Stripe Checkout — final amount unknown at creation.
-    // transfer_data.amount not set — Stripe auto-calculates (charge - fee = transfer).
-    // Tax may be included in transfer; webhook reconciliation needed for tax-exclusive transfers.
+    // transfer_data.amount not set; webhook reverses tax portion post-payment.
+    const cartDescriptor = (cart.items[0].listing.seller.displayName ?? "")
+      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
     base.payment_intent_data = {
       transfer_data: { destination },
       application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
+      ...(cartDescriptor.length > 0 && { statement_descriptor_suffix: cartDescriptor }),
     };
 
     /**

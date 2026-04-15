@@ -481,6 +481,10 @@ model Order {
   reviewNeeded  Boolean  @default(false)
   reviewNote    String?
 
+  /// Tax reversal audit trail (webhook reverses tax portion of seller transfer)
+  taxReversalId          String?
+  taxReversalAmountCents Int?
+
     // 👇 NEW: what the buyer typed on your site (used for mismatch detection)
   
   quotedToLine1                String?

@@ -10,6 +10,7 @@ import {
   sendFirstSaleCongrats,
 } from "@/lib/email";
 import type { FulfillmentStatus } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -185,6 +186,35 @@ export async function POST(req: Request) {
         return { processingDeadline, estimatedDeliveryDate };
       }
 
+      // Tax reversal helper — reverse tax portion of seller transfer for marketplace facilitator compliance
+      async function reverseTaxIfNeeded(orderId: string) {
+        const taxAmount = s.total_details?.amount_tax ?? 0;
+        const taxAlreadyRetained = s?.metadata?.taxRetainedAtCreation === "true";
+
+        if (taxAmount === 0 && !taxAlreadyRetained) {
+          console.warn("Zero tax collected on order", { orderId, sessionId, note: "Verify Stripe Tax nexus if unexpected" });
+        }
+
+        if (taxAlreadyRetained) return; // Legacy route excluded tax at creation
+
+        if (taxAmount > 0 && stripeTransferId) {
+          try {
+            const reversal = await stripe.transfers.createReversal(
+              stripeTransferId,
+              { amount: taxAmount, description: "Tax retention — marketplace facilitator", metadata: { sessionId, orderId, reason: "tax_retention" } },
+              { idempotencyKey: `tax-reversal-${sessionId}` }
+            );
+            await prisma.order.update({ where: { id: orderId }, data: { taxReversalId: reversal.id, taxReversalAmountCents: taxAmount } });
+          } catch (err) {
+            console.error("Tax reversal failed:", err);
+            const stripeErr = err as { code?: string; message?: string };
+            const isBalanceIssue = stripeErr.code === "insufficient_funds" || stripeErr.message?.toLowerCase().includes("insufficient");
+            Sentry.captureException(err, { level: isBalanceIssue ? "fatal" : "error", extra: { orderId, taxAmount, isBalanceIssue } });
+            await prisma.order.update({ where: { id: orderId }, data: { reviewNeeded: true } });
+          }
+        }
+      }
+
       // CART CHECKOUT
       const cartId: string | undefined = s?.metadata?.cartId;
       const sellerIdFromMeta: string | undefined = s?.metadata?.sellerId;
@@ -304,6 +334,10 @@ export async function POST(req: Request) {
               : { cartId },
           });
         });
+
+        // Reverse tax portion of seller transfer (marketplace facilitator)
+        const cartOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
+        if (cartOrder) await reverseTaxIfNeeded(cartOrder.id);
 
         // Notify buyer + seller after cart checkout
         try {
@@ -545,6 +579,10 @@ export async function POST(req: Request) {
             });
           }
         });
+
+        // Reverse tax portion of seller transfer (marketplace facilitator)
+        const singleOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
+        if (singleOrder) await reverseTaxIfNeeded(singleOrder.id);
 
         // Notify buyer + seller after single-listing checkout
         try {

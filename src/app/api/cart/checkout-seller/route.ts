@@ -383,10 +383,13 @@ export async function POST(req: Request) {
     };
 
     // NOTE: buyer selects shipping in Stripe Checkout — final amount unknown at creation.
-    // transfer_data.amount not set; tax may be included in auto-calculated transfer.
+    // transfer_data.amount not set; webhook reverses tax portion post-payment.
+    const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")
+      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
     base.payment_intent_data = {
       transfer_data: { destination },
       application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
+      ...(csDescriptor.length > 0 && { statement_descriptor_suffix: csDescriptor }),
     };
 
     const session = await stripe.checkout.sessions.create(base);

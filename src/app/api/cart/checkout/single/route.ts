@@ -100,6 +100,7 @@ export async function POST(req: Request) {
         seller: {
           select: {
             userId: true,
+            displayName: true,
             stripeAccountId: true,
             chargesEnabled: true,
             vacationMode: true,
@@ -293,10 +294,13 @@ export async function POST(req: Request) {
     };
 
     // NOTE: buyer selects shipping in Stripe Checkout — final amount unknown at creation.
-    // transfer_data.amount not set; tax may be included in auto-calculated transfer.
+    // transfer_data.amount not set; webhook reverses tax portion post-payment.
+    const singleDescriptor = (sp.displayName ?? "")
+      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
     base.payment_intent_data = {
       transfer_data: { destination },
       application_fee_amount,
+      ...(singleDescriptor.length > 0 && { statement_descriptor_suffix: singleDescriptor }),
     };
 
     const session = await stripe.checkout.sessions.create(base);
