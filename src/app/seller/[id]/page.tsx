@@ -164,7 +164,7 @@ export default async function SellerPublicPage({
 
   // Fetch all listings
   const listings = await prisma.listing.findMany({
-    where: { sellerId: seller.id },
+    where: { sellerId: seller.id, status: { in: ["ACTIVE", "SOLD", "SOLD_OUT"] } },
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
     orderBy: { updatedAt: "desc" },
   });

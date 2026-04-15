@@ -10,6 +10,7 @@ import ConfirmButton from "@/components/ConfirmButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart } from "@/components/icons";
 import { createNotification } from "@/lib/notifications";
 import DismissibleBanner from "@/components/DismissibleBanner";
+import ResubmitButton from "@/components/ResubmitButton";
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(listingId: string, nextStatus: ListingStatus) {
@@ -402,8 +403,11 @@ export default async function DashboardPage() {
         )}
 
         {listings.some((l) => l.status === "REJECTED") && (
-          <DismissibleBanner className="mb-4 border border-red-200 bg-red-50 px-4 py-3 pr-8 text-sm text-red-900 rounded-md">
-            <span className="font-medium">Some listings were rejected.</span> Edit and resubmit them from your shop page to go through review again.
+          <DismissibleBanner
+            className="mb-4 border border-red-200 bg-red-50 px-4 py-3 pr-8 text-sm text-red-900 rounded-md"
+            rejectedIds={listings.filter((l) => l.status === "REJECTED").map((l) => l.id)}
+          >
+            <span className="font-medium">Some listings were rejected.</span> Edit and resubmit them for review.
           </DismissibleBanner>
         )}
 
@@ -490,7 +494,11 @@ export default async function DashboardPage() {
                         </Link>
                       )}
 
-                      {/* REJECTED: only Edit (above) + Delete — no Hide/Unhide/Mark sold */}
+                      {l.status === "REJECTED" && (
+                        <ResubmitButton listingId={l.id} />
+                      )}
+
+                      {/* REJECTED: only Edit + Resubmit + Delete — no Hide/Unhide/Mark sold */}
                       {l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
                         <>
                           <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>

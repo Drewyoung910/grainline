@@ -7,7 +7,7 @@ import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
   action: z.enum(['approve', 'reject']),
-  reason: z.string().max(500).optional(),
+  reason: z.string().max(500).nullish(),
 })
 
 export async function PATCH(
