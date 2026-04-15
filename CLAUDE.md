@@ -111,7 +111,7 @@ Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` 
 
 `Category` enum: `FURNITURE | KITCHEN | DECOR | TOOLS | TOYS | JEWELRY | ART | OUTDOOR | STORAGE | OTHER` — display labels in `src/lib/categories.ts` (`CATEGORY_LABELS`, `CATEGORY_VALUES`). **Always use `CATEGORY_VALUES.includes(raw)` to validate — never `Object.values(Category)` which crashes in RSC if Prisma enum is undefined at runtime.** Current display labels: TOOLS → "Home & Office", STORAGE → "Gifts" (updated 2026-04-01).
 
-`ListingStatus` enum: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN`
+`ListingStatus` enum: `DRAFT | ACTIVE | SOLD | SOLD_OUT | HIDDEN | PENDING_REVIEW | REJECTED`
 
 `ListingType` enum: `MADE_TO_ORDER | IN_STOCK`
 
@@ -872,7 +872,7 @@ Card containers use `<div className="relative">` wrapping the photo Link; `Favor
 - **FavoriteButton** covered: `savedSet` server query for signed-in users; `initialSaved={false}` fallback for signed-out (401 → redirect)
 - **Owner view** (2026-04-13): `isOwner = userId === seller.user.clerkId`; seller query includes `user: { select: { clerkId: true } }`. Owner sees ALL listings regardless of status + chargesEnabled; buyers see ACTIVE + chargesEnabled only (unchanged). Category tabs for owner show categories from all statuses. Each owner-view card shows a status badge below (Draft=gray, Hidden=gray, Under Review=amber, Sold=neutral, Sold Out=neutral) and an "Edit →" link to `/dashboard/listings/[id]/edit`.
 - **Owner status filter tabs** (2026-04-13): second row of smaller tabs below category tabs, shown to owner only; tabs: All / Active / Draft / Hidden / Sold Out / Sold / Under Review; `?status=` URL param; status AND'd with category in where clause; category groupBy also filtered by status; empty states have "Create listing →" and "View all listings" links per status
-- **`ShopListingActions`** (`src/app/seller/[id]/shop/ShopListingActions.tsx`) — `"use client"` with `useTransition` + inline toast; Publish (DRAFT/HIDDEN → `publishListingAction`, toasts "Published!" or "Sent for review."), Hide (ACTIVE → HIDDEN), Unhide (HIDDEN → ACTIVE, notifies followers), Mark sold (ACTIVE → SOLD), Delete (DRAFT only, window.confirm), Edit link always present
+- **`ShopListingActions`** (`src/app/seller/[id]/shop/ShopListingActions.tsx`) — `"use client"` with `useTransition` + inline toast; Publish (DRAFT/HIDDEN → `publishListingAction`, toasts "Published!" or "Sent for review."), Hide (ACTIVE → HIDDEN), Unhide (HIDDEN → ACTIVE, notifies followers; blocked for REJECTED), Resubmit for Review (REJECTED → `publishListingAction`), Mark sold (ACTIVE → SOLD), Delete (all except PENDING_REVIEW), Edit link always present
 - **`src/app/seller/[id]/shop/actions.ts`** — server actions: `hideListingAction`, `unhideListingAction`, `markSoldAction`, `markAvailableAction`, `deleteListingAction`, `publishListingAction`; all verify ownership via `getOwnedListing`; `syncThreshold` mirrors dashboard Guild Member tracking; `publishListingAction` runs `reviewListingWithAI` + `logAdminAction` identically to new listing creation flow; returns `{ status: "ACTIVE" | "PENDING_REVIEW" } | { error: string }` — returns `{ error }` instead of throwing on chargesEnabled failure because Next.js server actions mask thrown error messages in production. Client checks `"error" in result` before checking `result.status`.
 
 ## Security Audit (complete — 2026-03-30)
@@ -1671,8 +1671,16 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 - `reviewedByAdmin Boolean @default(false)` — set to true on admin approve/reject
 - `reviewedAt DateTime?` — timestamp of admin review
 
-### `PENDING_REVIEW` listing status
-Added to `ListingStatus` enum. Listings in this state are hidden from browse, homepage, and similar items. Only visible to the seller in their dashboard (with amber "Under Review" badge) and to admins in `/admin/review`.
+### `PENDING_REVIEW` and `REJECTED` listing statuses
+`PENDING_REVIEW`: listings held for admin review. Hidden from all public surfaces. Visible to seller (amber "Under Review" badge) and admins in `/admin/review`.
+
+`REJECTED`: **SECURITY FIX (2026-04-15)** — admin-rejected listings now use `REJECTED` status (was `HIDDEN`, which let sellers click "Unhide" to bypass moderation). `rejectionReason String?` field added to Listing model. Migration: `20260415050609_add_rejected_listing_status`.
+
+- **Seller sees**: red "Rejected" badge on dashboard + shop page; rejection reason banner on edit page; "Resubmit for Review" button (triggers full AI review again) + Edit + Delete. No Unhide button.
+- **`unhideListingAction`**: blocks `REJECTED` status (returns early).
+- **`publishListingAction`**: clears `rejectionReason` on re-publish; runs full AI review flow.
+- **Admin reject action** (`/api/admin/listings/[id]/review`): sets `status: 'REJECTED'`, saves `rejectionReason`, sends `LISTING_REJECTED` notification with reason.
+- **Public surfaces**: all queries already filter `status: ACTIVE` — REJECTED and PENDING_REVIEW never appear on browse, homepage, seller profile, search, or sitemap.
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
 - **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
