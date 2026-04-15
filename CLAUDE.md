@@ -191,9 +191,13 @@ Five API routes handle the full case lifecycle:
 `POST /api/orders/[id]/refund` lets sellers issue refunds directly:
 - Auth: verifies requesting user is a seller who owns items in the order
 - Body: `{ type: "FULL" | "PARTIAL", amountCents?: number }`
-- Issues Stripe refund; for FULL also reverses the seller's transfer (non-fatal)
+- Issues Stripe refund with `refund_application_fee: true` + `reverse_transfer: true` — proportional platform fee returned to seller, refund comes from seller's Stripe balance (not platform). Manual `transfers.createReversal` removed (handled by `reverse_transfer` flag).
 - Restores stock for IN_STOCK items on FULL refund
 - Atomically resolves any open case as REFUND_FULL or REFUND_PARTIAL
+
+**Refund flags** (audited 2026-04-15): both refund routes (`/api/orders/[id]/refund` + `/api/cases/[id]/resolve`) now include `refund_application_fee: true` and `reverse_transfer: true`. Without these, platform keeps fee on refunds (unfair to seller) and refund comes from platform balance (wrong).
+
+**Gift wrap fee**: excluded from platform fee base — gift wrap is a seller-provided service added as separate Stripe line item. Platform fee applies only to product items.
 - Stamps `order.sellerRefundId`, `order.sellerRefundAmountCents`, `reviewNeeded = true`
 
 `SellerRefundPanel` client component (`src/components/SellerRefundPanel.tsx`) is rendered in the seller order detail page above fulfillment actions. Shows already-issued refund notice if `sellerRefundId` is set; otherwise offers Full Refund / Partial Refund buttons.
