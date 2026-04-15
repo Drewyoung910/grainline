@@ -1677,10 +1677,15 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 `REJECTED`: **SECURITY FIX (2026-04-15)** — admin-rejected listings now use `REJECTED` status (was `HIDDEN`, which let sellers click "Unhide" to bypass moderation). `rejectionReason String?` field added to Listing model. Migration: `20260415050609_add_rejected_listing_status`.
 
 - **Seller sees**: red "Rejected" badge on dashboard + shop page; rejection reason banner on edit page; "Resubmit for Review" button (triggers full AI review again) + Edit + Delete. No Unhide button.
-- **`unhideListingAction`**: blocks `REJECTED` status (returns early).
+- **`unhideListingAction`** (shop): blocks `REJECTED` status (returns early).
+- **`markAvailableAction`** (shop): blocks `REJECTED` status (returns early).
+- **`setStatus`** (dashboard/page.tsx): blocks `REJECTED` → `ACTIVE` and `REJECTED` → `HIDDEN` transitions (returns early). REJECTED listings only show Edit, Preview, Delete on My Listings — no Hide/Unhide/Mark sold buttons.
 - **`publishListingAction`**: clears `rejectionReason` on re-publish; runs full AI review flow.
-- **Admin reject action** (`/api/admin/listings/[id]/review`): sets `status: 'REJECTED'`, saves `rejectionReason`, sends `LISTING_REJECTED` notification with reason.
-- **Public surfaces**: all queries already filter `status: ACTIVE` — REJECTED and PENDING_REVIEW never appear on browse, homepage, seller profile, search, or sitemap.
+- **Admin approve** (`/api/admin/listings/[id]/review`): clears `rejectionReason: null` when approving (handles both PENDING_REVIEW and REJECTED → ACTIVE).
+- **Admin reject** (`/api/admin/listings/[id]/review`): sets `status: 'REJECTED'`, saves `rejectionReason`, sends `LISTING_REJECTED` notification with reason.
+- **Public surfaces**: all queries filter `status: ACTIVE` — REJECTED and PENDING_REVIEW never appear on browse, homepage, seller profile, search, or sitemap.
+- **`DismissibleBanner`** (`src/components/DismissibleBanner.tsx`): "use client" wrapper; dismissed via useState (session only, reappears on next visit). Used for rejected listing banner on dashboard.
+- **Full audit (2026-04-15)**: 15 status-change locations found. All 4 seller-accessible paths to ACTIVE now check for REJECTED. Admin paths (approve, undo) intentionally bypass — admin is the authority.
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
 - **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
