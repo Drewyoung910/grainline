@@ -1677,13 +1677,14 @@ Added to `ListingStatus` enum. Listings in this state are hidden from browse, ho
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
 - **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
 - **Text review**: 13 explicit prohibited categories (counterfeit goods, unlicensed IP like Disney/Marvel/sports logos, regulated goods like firearms/tobacco/cannabis/Rx, weapons as weapons, adult content, hate symbols, protected species, medical claims, services disguised as goods, digital-only, mass-produced/dropshipped, scams/spam, non-woodworking primary goods)
-- **Image review**: up to 4 images per listing at `detail: "low"`, checks for explicit content, copyrighted logos, counterfeits, hate symbols, weapons, drug paraphernalia, stock imagery, bait-and-switch mismatches
-- **Leniency**: 0-2 listing count = benefit of doubt on borderline cases, 3+ = standard strictness
-- **Fallback**: returns `approved: true` on any error (API down, rate limit, no key) with manual review flag
+- **Image review**: up to 4 images per listing at `detail: "low"` (~85 tokens/image). Checks for explicit content, copyrighted logos, counterfeits, hate symbols, weapons, drug paraphernalia, stock imagery, bait-and-switch mismatches. Stock/generic images flagged as "possibly-not-handmade"; poor image quality approved if item seems legitimate.
+- **Signature**: optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing. Returns `{ approved, flags, confidence, reason }`.
+- **Leniency**: 0-2 listing count = benefit of doubt on borderline cases, 3+ = standard strictness. Always reject clear violations regardless of seller experience.
+- **Fallback**: returns `approved: true` on any error (API down, rate limit, no key) with manual review flag. Gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` env var is missing.
 - **Error logging**: `console.error` on catch for debugging
-- **Cost**: ~$0.0006 per listing with 4 images
-- **Callers**: `dashboard/listings/new/page.tsx` and `seller/[id]/shop/actions.ts` (`publishListingAction`)
-- **Known gap**: duplicate detection requires `sellerId` signature change — not implemented
+- **Cost**: ~$0.0006 per listing with 4 images (~85 tokens per low-detail image)
+- **Callers**: `dashboard/listings/new/page.tsx` (passes `imageUrls.slice(0, 4)` from form data) and `seller/[id]/shop/actions.ts` (`publishListingAction` — fetches first 4 photos via `prisma.photo.findMany`)
+- **Known gap**: duplicate detection requires `sellerId` in function signature (not present; follow-up needed to add param + update both callers)
 
 ### Listing creation flow (`dashboard/listings/new/page.tsx`)
 After `prisma.listing.create()`, AI review runs async in a try/catch:
