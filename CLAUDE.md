@@ -1679,13 +1679,14 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 - **Seller sees**: red "Rejected" badge on dashboard + shop page; rejection reason banner on edit page; "Resubmit for Review" button (triggers full AI review again) + Edit + Delete. No Unhide button.
 - **`unhideListingAction`** (shop): blocks `REJECTED` status (returns early).
 - **`markAvailableAction`** (shop): blocks `REJECTED` status (returns early).
-- **`setStatus`** (dashboard/page.tsx): blocks `REJECTED` → `ACTIVE` and `REJECTED` → `HIDDEN` transitions (returns early). REJECTED listings only show Edit, Preview, Delete on My Listings — no Hide/Unhide/Mark sold buttons.
+- **`setStatus`** (dashboard/page.tsx): blocks `REJECTED` → `ACTIVE` and `REJECTED` → `HIDDEN` transitions (returns early). REJECTED listings show Edit, Preview, Resubmit, Delete on My Listings — no Hide/Unhide/Mark sold.
+- **`ResubmitButton`** (`src/components/ResubmitButton.tsx`): "use client" component; calls `publishListingAction` with `useTransition`; shows inline toast. Used on dashboard My Listings for REJECTED status.
 - **`publishListingAction`**: clears `rejectionReason` on re-publish; runs full AI review flow.
-- **Admin approve** (`/api/admin/listings/[id]/review`): clears `rejectionReason: null` when approving (handles both PENDING_REVIEW and REJECTED → ACTIVE).
+- **Admin approve** (`/api/admin/listings/[id]/review`): Zod schema fixed — `reason` changed from `.optional()` to `.nullish()` (accepts `null` from `JSON.stringify`). Clears `rejectionReason: null` when approving. Handles PENDING_REVIEW and REJECTED → ACTIVE.
 - **Admin reject** (`/api/admin/listings/[id]/review`): sets `status: 'REJECTED'`, saves `rejectionReason`, sends `LISTING_REJECTED` notification with reason.
-- **Public surfaces**: all queries filter `status: ACTIVE` — REJECTED and PENDING_REVIEW never appear on browse, homepage, seller profile, search, or sitemap.
-- **`DismissibleBanner`** (`src/components/DismissibleBanner.tsx`): "use client" wrapper; dismissed via useState (session only, reappears on next visit). Used for rejected listing banner on dashboard.
-- **Full audit (2026-04-15)**: 15 status-change locations found. All 4 seller-accessible paths to ACTIVE now check for REJECTED. Admin paths (approve, undo) intentionally bypass — admin is the authority.
+- **Public surfaces**: seller profile listing query fixed — was `where: { sellerId }` (no status filter, showed REJECTED/HIDDEN/DRAFT on public page). Now uses allowlist: `status: { in: ["ACTIVE", "SOLD", "SOLD_OUT"] }`. All other public queries already filtered by ACTIVE.
+- **`DismissibleBanner`** (`src/components/DismissibleBanner.tsx`): "use client" wrapper; localStorage persistence keyed to rejected listing IDs (`dismissed-rejected-ids`). Reappears when a NEW listing gets rejected (new ID not in dismissed set).
+- **Full audit (2026-04-15)**: 15 status-change locations found. All 4 seller-accessible paths to ACTIVE check for REJECTED. Admin paths (approve, undo) intentionally bypass.
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
 - **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
