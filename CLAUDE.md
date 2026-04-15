@@ -1675,12 +1675,15 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 Added to `ListingStatus` enum. Listings in this state are hidden from browse, homepage, and similar items. Only visible to the seller in their dashboard (with amber "Under Review" badge) and to admins in `/admin/review`.
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
-- Uses `gpt-4o-mini` via OpenAI API with vision; gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` is missing or API fails
-- Prompt expanded to 13 explicit prohibited categories: counterfeit goods, unlicensed IP, regulated goods, weapons, explicit content, hate symbols, protected species, medical claims, services-as-goods, digital-only, mass-produced, spam, non-woodworking. Tiered leniency: 0-2 listings = lenient, 3+ = standard. Error logging added to catch block (`console.error`).
-- Duplicate detection skipped — requires `sellerId` in function signature (not present; follow-up needed to add)
-- **Image moderation** added via OpenAI Vision API. Up to 4 images per listing reviewed at `detail: "low"` (~85 tokens/image). Catches explicit content, counterfeit logos, copyrighted characters, hate symbols, weapons, mass-produced/stock imagery that text-only review misses. Cost ~$0.0006 per listing with 4 images.
-- Optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing
-- Returns `{ approved, flags, confidence, reason }`, max_tokens bumped to 300 for image reasoning
+- **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
+- **Text review**: 13 explicit prohibited categories (counterfeit goods, unlicensed IP like Disney/Marvel/sports logos, regulated goods like firearms/tobacco/cannabis/Rx, weapons as weapons, adult content, hate symbols, protected species, medical claims, services disguised as goods, digital-only, mass-produced/dropshipped, scams/spam, non-woodworking primary goods)
+- **Image review**: up to 4 images per listing at `detail: "low"`, checks for explicit content, copyrighted logos, counterfeits, hate symbols, weapons, drug paraphernalia, stock imagery, bait-and-switch mismatches
+- **Leniency**: 0-2 listing count = benefit of doubt on borderline cases, 3+ = standard strictness
+- **Fallback**: returns `approved: true` on any error (API down, rate limit, no key) with manual review flag
+- **Error logging**: `console.error` on catch for debugging
+- **Cost**: ~$0.0006 per listing with 4 images
+- **Callers**: `dashboard/listings/new/page.tsx` and `seller/[id]/shop/actions.ts` (`publishListingAction`)
+- **Known gap**: duplicate detection requires `sellerId` signature change — not implemented
 
 ### Listing creation flow (`dashboard/listings/new/page.tsx`)
 After `prisma.listing.create()`, AI review runs async in a try/catch:
