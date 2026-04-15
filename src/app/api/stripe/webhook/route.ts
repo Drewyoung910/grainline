@@ -209,6 +209,24 @@ export async function POST(req: Request) {
           }
         }
 
+        // Retry after 2s delay — Stripe may not have attached the transfer yet
+        if (!transferId && paymentIntentId) {
+          console.log("reverseTaxIfNeeded waiting 2s for transfer attachment...");
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          try {
+            const piRetry = await stripe.paymentIntents.retrieve(paymentIntentId, {
+              expand: ["latest_charge"],
+            });
+            const retryCharge = piRetry.latest_charge as { transfer?: string | { id?: string } } | null;
+            transferId = retryCharge
+              ? (typeof retryCharge.transfer === "string" ? retryCharge.transfer : retryCharge.transfer?.id ?? null)
+              : null;
+            console.log("reverseTaxIfNeeded retry transferId", { transferId });
+          } catch (e) {
+            console.warn("reverseTaxIfNeeded retry failed", e);
+          }
+        }
+
         console.log("reverseTaxIfNeeded state", { orderId, transferId, taxAmount, taxAlreadyRetained });
 
         if (taxAmount === 0 && !taxAlreadyRetained) {
