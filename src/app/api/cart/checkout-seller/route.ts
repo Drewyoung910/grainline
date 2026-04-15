@@ -389,10 +389,11 @@ export async function POST(req: Request) {
 
     const session = await stripe.checkout.sessions.create(base);
     return NextResponse.json({ url: session.url });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("POST /api/cart/checkout-seller error:", err);
+    const msg = err instanceof Error ? err.message : "Server error creating checkout session";
     return NextResponse.json(
-      { error: "Server error creating checkout session" },
+      { error: msg },
       { status: 500 }
     );
   }

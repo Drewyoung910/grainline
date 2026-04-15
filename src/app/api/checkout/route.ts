@@ -83,8 +83,9 @@ export async function POST(req: Request) {
 
     const session = await stripe.checkout.sessions.create(base);
     return NextResponse.json({ url: session.url });
-  } catch (e) {
+  } catch (e: unknown) {
     console.error("checkout error:", e);
-    return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
+    const msg = e instanceof Error ? e.message : "Failed to create session";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

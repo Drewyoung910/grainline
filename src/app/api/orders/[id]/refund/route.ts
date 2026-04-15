@@ -82,22 +82,13 @@ export async function POST(
       );
     }
 
-    // Issue Stripe refund
+    // Issue Stripe refund with automatic fee + transfer reversal
     const refundParams =
       type === "FULL"
-        ? { payment_intent: order.stripePaymentIntentId }
-        : { payment_intent: order.stripePaymentIntentId, amount: amountCents! };
+        ? { payment_intent: order.stripePaymentIntentId, refund_application_fee: true, reverse_transfer: true }
+        : { payment_intent: order.stripePaymentIntentId, amount: amountCents!, refund_application_fee: true, reverse_transfer: true };
 
     const refund = await stripe.refunds.create(refundParams);
-
-    // For full refunds: reverse the seller transfer + restore stock
-    if (type === "FULL" && order.stripeTransferId) {
-      try {
-        await stripe.transfers.createReversal(order.stripeTransferId);
-      } catch (err) {
-        console.error("Transfer reversal failed (non-fatal):", err);
-      }
-    }
 
     const refundAmountCents = type === "FULL"
       ? (order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents)

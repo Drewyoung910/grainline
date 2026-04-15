@@ -84,8 +84,8 @@ export async function POST(
 
       const refund = await stripe.refunds.create(
         resolution === "REFUND_FULL"
-          ? { payment_intent: paymentIntentId, reason: "fraudulent" }
-          : { payment_intent: paymentIntentId, amount: refundAmountCents! }
+          ? { payment_intent: paymentIntentId, reason: "fraudulent", refund_application_fee: true, reverse_transfer: true }
+          : { payment_intent: paymentIntentId, amount: refundAmountCents!, refund_application_fee: true, reverse_transfer: true }
       );
       stripeRefundId = refund.id;
     }
