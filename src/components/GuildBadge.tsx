@@ -11,8 +11,8 @@ const WREATH_D = "m388.87 88.547c-7.7812 21.328-26.906 36.375-49.453 38.906-21.2
 
 const BADGE_VIEWBOX = "0 0 1200 1200";
 
-// 5-pointed star polygon (r_out=220, r_in=88, center=600,595)
-const STAR_POINTS = "600,375 652,524 809,527 684,622 729,773 600,683 471,773 516,622 391,527 548,524";
+// 5-pointed star polygon (r_out=235, r_in=94, center=600,595) — slightly oversized to fully cover baked-in star
+const STAR_POINTS = "600,360 655,519 823,522 689,624 738,785 600,689 462,785 511,624 377,522 545,519";
 
 // Laurel wreath (green) + bronze star overlay — Guild Member badge
 function LaurelWreathIcon({ size = 24 }: { size?: number }) {
@@ -34,7 +34,7 @@ function LaurelWreathIcon({ size = 24 }: { size?: number }) {
         </linearGradient>
       </defs>
       <path d={WREATH_D} fill={`url(#${greenGradientId})`} fillOpacity={1} />
-      <polygon points={STAR_POINTS} fill={`url(#${bronzeGradientId})`} fillOpacity={1} />
+      <polygon points={STAR_POINTS} fill={`url(#${bronzeGradientId})`} fillOpacity={1} stroke={`url(#${bronzeGradientId})`} strokeWidth={30} strokeLinejoin="round" />
     </svg>
   );
 }
@@ -59,7 +59,7 @@ function StarWreathIcon({ size = 24 }: { size?: number }) {
         </linearGradient>
       </defs>
       <path d={WREATH_D} fill={`url(#${goldGradientId})`} fillOpacity={1} />
-      <polygon points={STAR_POINTS} fill={`url(#${diamondGradientId})`} fillOpacity={1} />
+      <polygon points={STAR_POINTS} fill={`url(#${diamondGradientId})`} fillOpacity={1} stroke={`url(#${diamondGradientId})`} strokeWidth={30} strokeLinejoin="round" />
     </svg>
   );
 }

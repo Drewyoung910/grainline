@@ -546,7 +546,7 @@ export default async function HomePage() {
             <div className="rounded-3xl border bg-gradient-to-br from-amber-50 to-stone-50 overflow-hidden">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={featuredMaker.bannerImageUrl} alt="" className="h-36 w-full object-cover" />
+                <img src={featuredMaker.bannerImageUrl} alt="" className="h-48 w-full object-cover" />
               )}
               <div className={`p-6 sm:p-8 ${featuredListing ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
                 {/* Left column — maker info */}
@@ -612,8 +612,8 @@ export default async function HomePage() {
 
                 {/* Right column — featured listing card (only if listing exists) */}
                 {featuredListing && (
-                  <Link href={`/listing/${featuredListing.id}`} className="card-listing block group">
-                    <div className="aspect-[4/3] overflow-hidden">
+                  <Link href={`/listing/${featuredListing.id}`} className="card-listing block group self-start">
+                    <div className="aspect-square overflow-hidden max-h-[200px]">
                       {featuredListing.photos[0]?.url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

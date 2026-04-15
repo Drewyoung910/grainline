@@ -30,8 +30,8 @@ export async function GET(
     if (!listing) return NextResponse.json({ listings: [] });
 
     const { category, tags, priceCents } = listing;
-    const minPrice = Math.floor(priceCents * 0.5);
-    const maxPrice = Math.ceil(priceCents * 1.5);
+    const minPrice = Math.floor(priceCents * 0.2);
+    const maxPrice = Math.ceil(priceCents * 5);
 
     // Try tag-overlap ordering via raw SQL when we have tags and a category
     if (tags.length > 0 && category) {
@@ -63,7 +63,7 @@ export async function GET(
 
       const withOverlap = rows.filter((r) => Number(r.overlapCount) > 0).slice(0, 6);
 
-      if (withOverlap.length >= 3) {
+      if (withOverlap.length >= 1) {
         return NextResponse.json({
           listings: withOverlap.map((r) => ({
             id: r.id,
@@ -108,7 +108,7 @@ export async function GET(
 
       const withOverlap = rows.filter((r) => Number(r.overlapCount) > 0).slice(0, 6);
 
-      if (withOverlap.length >= 3) {
+      if (withOverlap.length >= 1) {
         return NextResponse.json({
           listings: withOverlap.map((r) => ({
             id: r.id,
@@ -124,15 +124,13 @@ export async function GET(
       }
     }
 
-    // Fallback: same category (if set), price range, sorted by recency
-    if (!category) return NextResponse.json({ listings: [] });
-
+    // Fallback: same category (if set) or any ACTIVE listing, price range, sorted by recency
     const fallback = await prisma.listing.findMany({
       where: {
         id: { not: id },
         status: "ACTIVE",
         isPrivate: false,
-        category,
+        ...(category ? { category } : {}),
         priceCents: { gte: minPrice, lte: maxPrice },
         seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
       },
