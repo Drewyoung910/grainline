@@ -349,7 +349,7 @@ Seven sections with a single `updateSellerProfile` server action for fields A–
 2. **Stats bar** — thin `border-b` strip; makers count fixed to `prisma.sellerProfile.count({ where: { listings: { some: { status: ACTIVE } } } })` (only active-listing sellers); "X pieces listed · X active makers · X orders fulfilled"; wrapped in `ScrollSection` for fade-in
 3. **Find Makers Near You** — full-width `bg-stone-50 border-b` section; heading + subheading; `MakersMapSection` (now accepts optional `heading`/`subheading` props, falls back to defaults); replaces old "Made Near You" at bottom
 4. **Shop by Category** — 5 categories + "Browse all →" tile; `overflow-x-auto` horizontal scroll on mobile, `grid-cols-6` on desktop; `ScrollSection` fade-in
-5. **Meet a Maker spotlight** — 3-tier selection: (1) admin-featured (`featuredUntil > now()`) takes priority, (2) weekly deterministic rotation among all Guild Members/Masters aligned to Monday–Sunday calendar weeks (same anchor used for "Maker of the Week" pill), (3) most-reviewed seller fallback. Two-column desktop layout (`lg:grid-cols-2`) — left: amber "Maker of the Week · Apr 7 – Apr 13" pill above maker name, avatar, GuildBadge, tagline, location, rating, bio (120 chars), "Visit Their Workshop" button; right: one featured listing card (`card-listing`, aspect-[4/3] photo, title, price) — pulled randomly from maker's curated `featuredListingIds[]` if any are ACTIVE, falls back to most recently updated ACTIVE listing. Random per request. Right column hidden if no active listings with photos. Badge: `<GuildBadge level={guildLevel} showLabel={true} size={18} />`. `ScrollSection` fade-in
+5. **Meet a Maker spotlight** — 3-tier selection: (1) admin-featured (`featuredUntil > now()`) takes priority, (2) weekly deterministic rotation among all Guild Members/Masters aligned to Monday–Sunday calendar weeks (same anchor used for "Maker of the Week" pill), (3) most-reviewed seller fallback. Two-column desktop layout (`lg:grid-cols-2`) — left: amber "Maker of the Week" pill, avatar, GuildBadge, tagline, location, rating, bio (120 chars), "Visit Their Workshop" button; right: 3-column grid of up to 3 featured listing cards (curated `featuredListingIds[]` first, then most recent ACTIVE). Banner `h-48`. Right column hidden if no active listings. `ScrollSection` fade-in
 6. **Fresh from the Workshop 🪵** — horizontal scroll row (`overflow-x-auto flex snap-x snap-mandatory`), 6 cards, `w-56 flex-none` per card; `ScrollSection` fade-in
 7. **Collector Favorites ❤️** — same horizontal scroll pattern, 6 cards; `ScrollSection` fade-in
 8. **Stories from the Workshop** — 3-col grid of blog post cards; `ScrollSection` fade-in
@@ -425,7 +425,7 @@ Two-tier badge system replacing the old single "Verified Maker" badge.
 ### `GuildBadge` component (`src/components/GuildBadge.tsx`)
 - `"use client"` — accepts `level: GuildLevelValue`, `showLabel?: boolean` (default `false`), `size?: number` (default `18`)
 - Returns `null` if level is `"NONE"`
-- `WREATH_D` (full single path from `gold-laurel-wreath.svg`, viewBox 1200x1200), `BADGE_VIEWBOX`, `STAR_POINTS` (5-point polygon, r_out=203, r_in=81, center 600,604 — bbox center 600,579 + 25px visual alignment shift downward; stars have visual weight biased toward bottom points) — module-level constants shared by both icons. No subpath splitting — auto-traced file is not clean vectors. `useId()` for hydration-safe gradient IDs.
+- `WREATH_D` (full single path from `gold-laurel-wreath.svg`, viewBox 1200x1200), `BADGE_VIEWBOX`, `STAR_POINTS` (5-point polygon, r_out=235, r_in=94, center 600,595 — slightly oversized to fully cover baked-in star) — module-level constants shared by both icons. Star rendered with `strokeWidth={30} strokeLinejoin="round"` for rounded points. No subpath splitting. `useId()` for hydration-safe gradient IDs.
 - **Guild Member** — `LaurelWreathIcon`: earthy green wreath (`#5B7553 → #3F5D3A → #1F3A1E`, pine/oak tones) + bronze star polygon overlay (`#E8B86D → #B8860B → #8B6914`). Label text color `#14532d` (green-900).
 - **Guild Master** — `StarWreathIcon` (replaces `HammerChiselIcon`): gold wreath (`#FFD700 → #D4AF37 → #B8960C`) + diamond star polygon overlay — cut-gemstone palette (`#FAFBFF → #D8DCE8 → #A0A8BC`). Both polygons same position/size, different gradients. Label text color `#B8960C`.
 - Popup descriptions: original legally-reviewed language (profile standing disclaimer for Member; historical performance disclaimer for Master). Popup icon size 48px.
@@ -543,11 +543,11 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 **Still unbuilt (separate from Phases 1–3):**
 - Monogram stamp picker (Phase 1 cosmetic): `guildStampStyle String?` on `SellerProfile`; 4 styles (serif/block/script/ornate); unique wax-seal stamp per Guild Master using shop initials + chosen style
 
-## Similar Items (complete)
+## Similar Items (redesigned 2026-04-15)
 
-- **`GET /api/listings/[id]/similar`** — fetches current listing's category, tags, priceCents; queries up to 8 ACTIVE non-private listings within 50% price range; orders by tag-overlap count via `unnest(tags)` raw SQL; returns up to 6 results with photo, seller name, seller avatar. Two raw SQL paths (with/without category), falls back to Prisma category query if <3 tag-overlap results found.
-- **`SimilarItems`** (`src/components/SimilarItems.tsx`) — `"use client"` component; fetches on mount; 3-col grid with skeleton loading state (3 animated placeholder cards); hides section entirely if 0 results returned
-- **Listing detail page** — `<SimilarItems listingId={id} />` added before the reviews section
+- **`GET /api/listings/[id]/similar`** — weighted similarity scoring. Fetches up to 20 candidates via raw SQL, scores each with: tag overlap (3 pts/match), same category (5 pts), price proximity (0-3 pts, closer = more), title word overlap (2 pts/shared word). Returns up to 12 sorted by total score. Wide price range (10%-1000%) to fill section even with few listings. Returns full `ListingCardData` shape (id, title, priceCents, currency, status, listingType, stockQuantity, photoUrl, secondPhotoUrl, seller object).
+- **`SimilarItems`** (`src/components/SimilarItems.tsx`) — `"use client"` component; fetches on mount; horizontal scroll row using `ScrollFadeRow` + `ListingCard` (same card style as browse/homepage). Skeleton loading shows 4 placeholder cards. Hides section entirely if 0 results.
+- **Listing detail page** — `<SimilarItems listingId={id} />` in "You might also like" section
 
 ## Blog System (complete)
 
@@ -1970,14 +1970,16 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 ## ListingCard Redesign (complete — 2026-04-09)
 
-Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to all 7 migrated call sites:
+Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to all migrated call sites:
 - Photo: `rounded-2xl overflow-hidden aspect-square group-hover:scale-105` — square crop, rounded, subtle zoom on hover
 - No card border or bg-white background — text floats on page background
+- Title: `line-clamp-1` (single line, truncated with ellipsis) — prevents height mismatches between cards in grid/scroll rows
 - Single star rating: `★ 4.8 (12)` replaces five-star StarsInline on all cards
 - City/state location line below price
-- Listing type badge inline with location: "Ready to ship" (green) or "Made to order" (amber)
-- Seller chip: `rounded-full border` pill, no card background
-- GuildBadge and FavoriteButton positions unchanged
+- Status badges (Made to order / Ready to ship) removed from cards — only on listing detail page
+- Seller name as plain text link (no avatar chip)
+- GuildBadge: 40px right-aligned in metadata area via two-column flex layout
+- FavoriteButton: no background circle — grey heart shape behind white outline for visibility, `drop-shadow` for depth on all photo backgrounds
 - Browse grid gap: `gap-x-4 gap-y-8`
 - scroll ul bg-white removed from homepage Fresh + Favorites containers (already absent)
 - Five-star StarsInline preserved on listing detail page only
