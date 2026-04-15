@@ -1115,15 +1115,21 @@ These items were identified in a comprehensive 196-item attorney discussion list
 
 ### Pre-Launch Blockers (legal/business)
 
+- ✅ Texas LLC filed
+- ✅ EIN obtained
+- ✅ Business bank account opened
+- ✅ Business address — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731 (filled in Terms + Privacy)
+- ✅ DMCA agent registration — DMCA-1071504, registered 2026-04-14, designated agent Joseph Young c/o Registered Agents Inc.
+- ✅ Neon database password rotation
 - Attorney sign-off on Terms and Privacy Policy (remove DRAFT banner)
-- Business address filled in (both documents say "[YOUR ADDRESS]")
-- EIN + business bank account + Stripe live mode
 - Clickwrap implementation (attorney decides if browsewrap acceptable)
 - Money transmitter licensing confirmation from attorney
-- DMCA agent registration ($6 at copyright.gov)
-- Texas marketplace facilitator registration
-- Neon database password rotation (credentials visible in deploy log)
+- Texas marketplace facilitator registration (apply at comptroller.texas.gov)
+- Stripe live mode webhook (after switching to live mode)
+- Clerk webhook production setup (`CLERK_WEBHOOK_SECRET` + register endpoint)
 - Operating agreement for LLC (30 min at attorney meeting)
+- Trademark Class 035 filing (post-launch optional, ~$350)
+- Business insurance — general liability + cyber liability + marketplace product liability (post-launch)
 
 ### Canada Expansion Guide
 
@@ -2140,10 +2146,10 @@ Seven bugs fixed across seller shop, dashboard, and blog pages. Zero TypeScript 
 
 - **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars **(LAUNCH BLOCKER)**
 - **Attorney review** of Terms / Privacy — budget $1,500–$3,000; bring 5-page pre-launch checklist + 196-item attorney discussion list **(LAUNCH BLOCKER)**
-- **EIN** — irs.gov, free, ~10 min **(LAUNCH BLOCKER)**
-- **Business bank account** — open after EIN received **(LAUNCH BLOCKER)**
-- **Business address** — choose PO Box or registered agent; fill in "[YOUR ADDRESS]" in Terms + Privacy **(LAUNCH BLOCKER)**
-- **DMCA agent registration** — ~$6 at copyright.gov **(LAUNCH BLOCKER)**
+- **EIN** ✅ obtained
+- **Business bank account** ✅ opened
+- **Business address** ✅ — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731
+- **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
 - **Texas marketplace facilitator registration** — required before collecting sales tax **(LAUNCH BLOCKER)**
 - **Operating agreement** — create at attorney meeting **(LAUNCH BLOCKER)**
 - **Clickwrap implementation** — build checkbox before account creation; attorney decides if required for launch
@@ -2288,19 +2294,44 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **CSP maintenance**: When adding new third-party services, add their domains to `next.config.ts` `securityHeaders`. Any violations in production appear in Sentry under tag `csp_violation`.
 
-## Business (2026-04-01)
+## Business (2026-04-01, updated 2026-04-14)
 
 - **Texas LLC filed** ✅
+- **EIN obtained** ✅
+- **Business bank account opened** ✅
+- **Business address** ✅ — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731; filled in Terms + Privacy (was "[YOUR ADDRESS]")
+- **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
 - **Geo-block**: US-only (Canada removed from middleware + Terms + Privacy)
-- **EIN**: get at irs.gov (free, ~10 min) — LAUNCH BLOCKER
-- **Business bank account**: open after EIN received — LAUNCH BLOCKER
-- **Business address**: choose PO Box or registered agent for Terms/Privacy "[YOUR ADDRESS]" — LAUNCH BLOCKER
 - **Operating agreement**: create at attorney meeting — LAUNCH BLOCKER
-- **DMCA agent registration**: ~$6 at copyright.gov — LAUNCH BLOCKER
 - **Texas marketplace facilitator registration**: required before sales tax collection — LAUNCH BLOCKER
 - **Attorney review**: budget $1,500–$3,000; bring pre-launch checklist + 196-item discussion list — LAUNCH BLOCKER
 - **Trademark Class 035 filing**: ~$350 when ready (clearance search needed — "Grainline Studio" conflict)
 - **Business insurance**: general liability + cyber liability + marketplace product liability
+
+## External Services & Vendors
+
+### DMCA Designated Agent
+- Registration: DMCA-1071504
+- Service Provider: Grainline LLC (258 Roehl Rd, Yorktown TX 78164 — matches LLC Certificate of Formation)
+- Designated Agent: Joseph Young c/o Registered Agents Inc., 5900 Balcones Drive STE 100, Austin TX 78731
+- Email: legal@thegrainline.com
+- Update at: copyright.gov DMCA Designated Agent Directory
+
+### Texas Registered Agent
+- Registered Agents Inc.
+- 5900 Balcones Drive STE 100, Austin, TX 78731
+- Used for: LLC Certificate of Formation, DMCA agent address, Terms/Privacy contact address
+- Annual fee paid
+
+### Cloudflare Email Routing (set up 2026-04-14)
+- Domain: thegrainline.com
+- Routing addresses (all forward to drewyoung910@gmail.com):
+  - legal@thegrainline.com (DMCA, legal notices)
+  - support@thegrainline.com (general support)
+  - hello@thegrainline.com
+  - abuse@thegrainline.com
+- MX records: route1.mx.cloudflare.net, route2.mx.cloudflare.net, route3.mx.cloudflare.net
+- Existing Resend setup unaffected (Resend uses send.thegrainline.com subdomain for outbound only)
 
 ## Geo-Blocking (complete — 2026-04-01, US-only updated 2026-04-01)
 

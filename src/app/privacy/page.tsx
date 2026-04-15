@@ -886,7 +886,10 @@ export default function PrivacyPage() {
           <address className="not-italic mt-4 space-y-1 text-neutral-700">
             <p><strong>Grainline — Privacy Team</strong></p>
             <p>Email: <a href="mailto:privacy@thegrainline.com" className="underline hover:text-neutral-600">privacy@thegrainline.com</a></p>
-            <p>[YOUR ADDRESS]</p>
+            <p>Grainline LLC</p>
+            <p>c/o Registered Agents Inc.</p>
+            <p>5900 Balcones Drive STE 100</p>
+            <p>Austin, TX 78731</p>
           </address>
           <p className="mt-4 text-sm text-neutral-500">
             For general legal inquiries:{" "}

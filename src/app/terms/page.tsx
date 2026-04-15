@@ -1259,7 +1259,10 @@ export default function TermsPage() {
           <address className="not-italic mt-4 space-y-1 text-neutral-700">
             <p><strong>Grainline</strong></p>
             <p>Email: <a href="mailto:legal@thegrainline.com" className="underline hover:text-neutral-600">legal@thegrainline.com</a></p>
-            <p>[YOUR ADDRESS]</p>
+            <p>Grainline LLC</p>
+            <p>c/o Registered Agents Inc.</p>
+            <p>5900 Balcones Drive STE 100</p>
+            <p>Austin, TX 78731</p>
           </address>
           <p className="mt-4 text-sm text-neutral-500">
             For DMCA notices, email{" "}
@@ -1866,7 +1869,7 @@ export default function TermsPage() {
             account and are considered received 24 hours after sending. You are responsible for keeping
             your account email address current. Failure to receive a notice due to an outdated or
             incorrect email address does not invalidate the notice. For purposes of legal process,
-            Grainline&apos;s mailing address is [YOUR ADDRESS].
+            Grainline&apos;s mailing address is Grainline LLC, c/o Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">33.8 Limitation Period</h3>
