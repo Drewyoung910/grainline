@@ -188,22 +188,47 @@ export async function POST(req: Request) {
 
       // Tax reversal helper — reverse tax portion of seller transfer for marketplace facilitator compliance
       async function reverseTaxIfNeeded(orderId: string) {
+        console.log("reverseTaxIfNeeded called", { orderId });
         const taxAmount = s.total_details?.amount_tax ?? 0;
         const taxAlreadyRetained = s?.metadata?.taxRetainedAtCreation === "true";
+
+        // Try to resolve transferId — may be null from expansion if transfer was async
+        let transferId = stripeTransferId;
+        if (!transferId && paymentIntentId) {
+          try {
+            const piExpanded = await stripe.paymentIntents.retrieve(paymentIntentId, {
+              expand: ["latest_charge"],
+            });
+            const latestCharge = piExpanded.latest_charge as { transfer?: string | { id?: string } } | null;
+            transferId = latestCharge
+              ? (typeof latestCharge.transfer === "string" ? latestCharge.transfer : latestCharge.transfer?.id ?? null)
+              : null;
+            console.log("reverseTaxIfNeeded re-fetched transferId", { transferId });
+          } catch (e) {
+            console.warn("reverseTaxIfNeeded PI re-fetch failed", e);
+          }
+        }
+
+        console.log("reverseTaxIfNeeded state", { orderId, transferId, taxAmount, taxAlreadyRetained });
 
         if (taxAmount === 0 && !taxAlreadyRetained) {
           console.warn("Zero tax collected on order", { orderId, sessionId, note: "Verify Stripe Tax nexus if unexpected" });
         }
 
-        if (taxAlreadyRetained) return; // Legacy route excluded tax at creation
+        if (taxAlreadyRetained) {
+          console.log("reverseTaxIfNeeded skipped — tax retained at creation");
+          return;
+        }
 
-        if (taxAmount > 0 && stripeTransferId) {
+        if (taxAmount > 0 && transferId) {
+          console.log("reverseTaxIfNeeded attempting reversal", { transferId, taxAmount });
           try {
             const reversal = await stripe.transfers.createReversal(
-              stripeTransferId,
+              transferId,
               { amount: taxAmount, description: "Tax retention — marketplace facilitator", metadata: { sessionId, orderId, reason: "tax_retention" } },
               { idempotencyKey: `tax-reversal-${sessionId}` }
             );
+            console.log("reverseTaxIfNeeded success", { reversalId: reversal.id, taxAmount });
             await prisma.order.update({ where: { id: orderId }, data: { taxReversalId: reversal.id, taxReversalAmountCents: taxAmount } });
           } catch (err) {
             console.error("Tax reversal failed:", err);
@@ -212,6 +237,8 @@ export async function POST(req: Request) {
             Sentry.captureException(err, { level: isBalanceIssue ? "fatal" : "error", extra: { orderId, taxAmount, isBalanceIssue } });
             await prisma.order.update({ where: { id: orderId }, data: { reviewNeeded: true } });
           }
+        } else {
+          console.log("reverseTaxIfNeeded skipped — no tax or no transfer", { taxAmount, transferId });
         }
       }
 
