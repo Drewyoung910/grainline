@@ -9,11 +9,20 @@ type SimilarRow = {
   title: string;
   priceCents: number;
   currency: string;
+  status: string;
+  listingType: string;
+  stockQuantity: number | null;
   photoUrl: string | null;
+  secondPhotoUrl: string | null;
   sellerDisplayName: string;
   sellerAvatarImageUrl: string | null;
   sellerGuildLevel: string | null;
-  overlapCount: bigint;
+  sellerId: string;
+  sellerCity: string | null;
+  sellerState: string | null;
+  sellerAcceptingNewOrders: boolean;
+  tagOverlap: bigint;
+  categoryMatch: boolean;
 };
 
 export async function GET(
@@ -25,137 +34,92 @@ export async function GET(
 
     const listing = await prisma.listing.findUnique({
       where: { id },
-      select: { category: true, tags: true, priceCents: true },
+      select: { category: true, tags: true, priceCents: true, title: true, sellerId: true },
     });
     if (!listing) return NextResponse.json({ listings: [] });
 
-    const { category, tags, priceCents } = listing;
-    const minPrice = Math.floor(priceCents * 0.2);
-    const maxPrice = Math.ceil(priceCents * 5);
+    const { category, tags, priceCents, title } = listing;
 
-    // Try tag-overlap ordering via raw SQL when we have tags and a category
-    if (tags.length > 0 && category) {
-      const rows = await prisma.$queryRaw<SimilarRow[]>`
-        SELECT
-          l.id,
-          l.title,
-          l."priceCents",
-          l.currency,
-          (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
-          sp."displayName" AS "sellerDisplayName",
-          sp."avatarImageUrl" AS "sellerAvatarImageUrl",
-          sp."guildLevel"::text AS "sellerGuildLevel",
-          (SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})) AS "overlapCount"
-        FROM "Listing" l
-        JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-        WHERE
-          l.id != ${id}
-          AND l.status = 'ACTIVE'
-          AND l."isPrivate" = false
-          AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
-          AND l.category = ${category}::"Category"
-          AND sp."vacationMode" = false
-          AND sp."chargesEnabled" = true
-          AND EXISTS (SELECT 1 FROM "User" u WHERE u.id = sp."userId" AND u."banned" = false)
-        ORDER BY "overlapCount" DESC
-        LIMIT 8
-      `;
+    // Wide price range to get enough candidates
+    const minPrice = Math.floor(priceCents * 0.1);
+    const maxPrice = Math.ceil(priceCents * 10);
 
-      const withOverlap = rows.filter((r) => Number(r.overlapCount) > 0).slice(0, 6);
+    // Get up to 20 candidates via raw SQL with tag overlap + category match scoring
+    const rows = await prisma.$queryRaw<SimilarRow[]>`
+      SELECT
+        l.id,
+        l.title,
+        l."priceCents",
+        l.currency,
+        l.status,
+        l."listingType"::text AS "listingType",
+        l."stockQuantity",
+        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
+        (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1 OFFSET 1) AS "secondPhotoUrl",
+        sp."displayName" AS "sellerDisplayName",
+        sp."avatarImageUrl" AS "sellerAvatarImageUrl",
+        sp."guildLevel"::text AS "sellerGuildLevel",
+        sp.id AS "sellerId",
+        sp.city AS "sellerCity",
+        sp.state AS "sellerState",
+        sp."acceptingNewOrders" AS "sellerAcceptingNewOrders",
+        COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) AS "tagOverlap",
+        (l.category = ${category ?? "OTHER"}::"Category") AS "categoryMatch"
+      FROM "Listing" l
+      JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+      WHERE
+        l.id != ${id}
+        AND l.status = 'ACTIVE'
+        AND l."isPrivate" = false
+        AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
+        AND sp."vacationMode" = false
+        AND sp."chargesEnabled" = true
+        AND EXISTS (SELECT 1 FROM "User" u WHERE u.id = sp."userId" AND u."banned" = false)
+      ORDER BY
+        (l.category = ${category ?? "OTHER"}::"Category") DESC,
+        COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) DESC,
+        ABS(l."priceCents" - ${priceCents}) ASC
+      LIMIT 20
+    `;
 
-      if (withOverlap.length >= 1) {
-        return NextResponse.json({
-          listings: withOverlap.map((r) => ({
-            id: r.id,
-            title: r.title,
-            priceCents: r.priceCents,
-            currency: r.currency,
-            photoUrl: r.photoUrl,
-            sellerDisplayName: r.sellerDisplayName,
-            sellerAvatarImageUrl: r.sellerAvatarImageUrl,
-            sellerGuildLevel: r.sellerGuildLevel,
-          })),
-        });
-      }
-    }
-
-    // Tag-overlap without category filter (when no category)
-    if (tags.length > 0 && !category) {
-      const rows = await prisma.$queryRaw<SimilarRow[]>`
-        SELECT
-          l.id,
-          l.title,
-          l."priceCents",
-          l.currency,
-          (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
-          sp."displayName" AS "sellerDisplayName",
-          sp."avatarImageUrl" AS "sellerAvatarImageUrl",
-          sp."guildLevel"::text AS "sellerGuildLevel",
-          (SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})) AS "overlapCount"
-        FROM "Listing" l
-        JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-        WHERE
-          l.id != ${id}
-          AND l.status = 'ACTIVE'
-          AND l."isPrivate" = false
-          AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
-          AND sp."vacationMode" = false
-          AND sp."chargesEnabled" = true
-          AND EXISTS (SELECT 1 FROM "User" u WHERE u.id = sp."userId" AND u."banned" = false)
-        ORDER BY "overlapCount" DESC
-        LIMIT 8
-      `;
-
-      const withOverlap = rows.filter((r) => Number(r.overlapCount) > 0).slice(0, 6);
-
-      if (withOverlap.length >= 1) {
-        return NextResponse.json({
-          listings: withOverlap.map((r) => ({
-            id: r.id,
-            title: r.title,
-            priceCents: r.priceCents,
-            currency: r.currency,
-            photoUrl: r.photoUrl,
-            sellerDisplayName: r.sellerDisplayName,
-            sellerAvatarImageUrl: r.sellerAvatarImageUrl,
-            sellerGuildLevel: r.sellerGuildLevel,
-          })),
-        });
-      }
-    }
-
-    // Fallback: same category (if set) or any ACTIVE listing, price range, sorted by recency
-    const fallback = await prisma.listing.findMany({
-      where: {
-        id: { not: id },
-        status: "ACTIVE",
-        isPrivate: false,
-        ...(category ? { category } : {}),
-        priceCents: { gte: minPrice, lte: maxPrice },
-        seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
-      },
-      select: {
-        id: true,
-        title: true,
-        priceCents: true,
-        currency: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        seller: { select: { displayName: true, avatarImageUrl: true, guildLevel: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 6,
+    // Score each candidate with weighted similarity
+    const scored = rows.map((r) => {
+      const tagScore = Number(r.tagOverlap) * 3; // 3 points per matching tag
+      const catScore = r.categoryMatch ? 5 : 0;  // 5 points for same category
+      const priceDistance = Math.abs(r.priceCents - priceCents) / Math.max(priceCents, 1);
+      const priceScore = Math.max(0, 3 - priceDistance * 3); // 3 points for close price, 0 for far
+      // Simple title word overlap
+      const titleWords = new Set(title.toLowerCase().split(/\s+/).filter((w) => w.length > 2));
+      const rTitleWords = r.title.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+      const titleScore = rTitleWords.filter((w) => titleWords.has(w)).length * 2;
+      const totalScore = tagScore + catScore + priceScore + titleScore;
+      return { ...r, totalScore };
     });
 
+    // Sort by total score descending, take 6-12 (aim for 12, min 6)
+    scored.sort((a, b) => b.totalScore - a.totalScore);
+    const results = scored.slice(0, 12);
+
     return NextResponse.json({
-      listings: fallback.map((l) => ({
-        id: l.id,
-        title: l.title,
-        priceCents: l.priceCents,
-        currency: l.currency,
-        photoUrl: l.photos[0]?.url ?? null,
-        sellerDisplayName: l.seller.displayName,
-        sellerAvatarImageUrl: l.seller.avatarImageUrl,
-        sellerGuildLevel: l.seller.guildLevel,
+      listings: results.map((r) => ({
+        id: r.id,
+        title: r.title,
+        priceCents: r.priceCents,
+        currency: r.currency,
+        status: r.status,
+        listingType: r.listingType,
+        stockQuantity: r.stockQuantity,
+        photoUrl: r.photoUrl,
+        secondPhotoUrl: r.secondPhotoUrl,
+        seller: {
+          id: r.sellerId,
+          displayName: r.sellerDisplayName,
+          avatarImageUrl: r.sellerAvatarImageUrl,
+          guildLevel: r.sellerGuildLevel,
+          city: r.sellerCity,
+          state: r.sellerState,
+          acceptingNewOrders: r.sellerAcceptingNewOrders,
+        },
       })),
     });
   } catch (err) {

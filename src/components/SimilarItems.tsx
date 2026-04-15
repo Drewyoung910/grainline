@@ -1,18 +1,28 @@
 "use client";
 import * as React from "react";
-import Link from "next/link";
-import FavoriteButton from "@/components/FavoriteButton";
+import ListingCard, { type ListingCardData } from "@/components/ListingCard";
 import ClickTracker from "@/components/ClickTracker";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 
 type SimilarListing = {
   id: string;
   title: string;
   priceCents: number;
   currency: string;
+  status: string;
+  listingType: string;
+  stockQuantity: number | null;
   photoUrl: string | null;
-  sellerDisplayName: string;
-  sellerAvatarImageUrl: string | null;
-  sellerGuildLevel?: string | null;
+  secondPhotoUrl: string | null;
+  seller: {
+    id: string;
+    displayName: string | null;
+    avatarImageUrl: string | null;
+    guildLevel: string | null;
+    city: string | null;
+    state: string | null;
+    acceptingNewOrders: boolean | null;
+  };
 };
 
 export default function SimilarItems({ listingId }: { listingId: string }) {
@@ -32,13 +42,13 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
   if (!loading && listings.length === 0) return null;
 
   return (
-    <div className="space-y-4">
+    <div>
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="border border-neutral-200 overflow-hidden animate-pulse">
-              <div className="h-48 bg-neutral-200" />
-              <div className="p-4 space-y-2">
+        <div className="flex gap-4 overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="w-56 flex-none animate-pulse">
+              <div className="aspect-square bg-neutral-200 rounded-2xl" />
+              <div className="pt-2.5 space-y-1.5">
                 <div className="h-4 bg-neutral-200 rounded w-3/4" />
                 <div className="h-3 bg-neutral-200 rounded w-1/2" />
               </div>
@@ -46,49 +56,38 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
           ))}
         </div>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {listings.map((l) => (
-            <ClickTracker key={l.id} listingId={l.id} className="relative border border-neutral-200 overflow-hidden hover:shadow-sm transition-shadow">
-              <Link href={`/listing/${l.id}`} className="block">
-                <div className="h-48 bg-neutral-100 overflow-hidden">
-                  {l.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={l.photoUrl}
-                      alt={l.title}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-full w-full bg-neutral-200" />
-                  )}
-                </div>
-                <div className="p-4 space-y-1 bg-white">
-                  <div className="font-medium text-sm line-clamp-2">{l.title}</div>
-                  <div className="text-sm text-neutral-500">
-                    {(l.priceCents / 100).toLocaleString(undefined, {
-                      style: "currency",
-                      currency: l.currency,
-                    })}
-                  </div>
-                  <div className="flex items-center flex-wrap gap-1.5 pt-1">
-                    {l.sellerAvatarImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={l.sellerAvatarImageUrl}
-                        alt={l.sellerDisplayName}
-                        className="h-4 w-4 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-4 w-4 rounded-full bg-neutral-300" />
-                    )}
-                    <span className="text-xs text-neutral-500">{l.sellerDisplayName}</span>
-                  </div>
-                </div>
-              </Link>
-              <FavoriteButton listingId={l.id} initialSaved={false} />
-            </ClickTracker>
-          ))}
-        </ul>
+        <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
+          <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
+            {listings.map((l) => (
+              <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                <ListingCard
+                  listing={{
+                    id: l.id,
+                    title: l.title,
+                    priceCents: l.priceCents,
+                    currency: l.currency,
+                    status: l.status,
+                    listingType: l.listingType,
+                    stockQuantity: l.stockQuantity,
+                    photoUrl: l.photoUrl,
+                    secondPhotoUrl: l.secondPhotoUrl,
+                    seller: {
+                      id: l.seller.id,
+                      displayName: l.seller.displayName,
+                      avatarImageUrl: l.seller.avatarImageUrl,
+                      guildLevel: l.seller.guildLevel,
+                      city: l.seller.city,
+                      state: l.seller.state,
+                      acceptingNewOrders: l.seller.acceptingNewOrders,
+                    },
+                  }}
+                  initialSaved={false}
+                  variant="scroll"
+                />
+              </ClickTracker>
+            ))}
+          </ul>
+        </ScrollFadeRow>
       )}
     </div>
   );

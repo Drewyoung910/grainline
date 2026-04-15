@@ -230,28 +230,28 @@ export default async function HomePage() {
     }
   }
 
-  // Resolve featured listing: prefer curated featuredListingIds[], fall back to most recently updated
+  // Resolve featured listings: prefer curated, fall back to most recently updated (up to 3)
   type FeaturedListing = { id: string; title: string; priceCents: number; photos: { url: string }[] };
-  let featuredListing: FeaturedListing | null = null;
+  let featuredListings: FeaturedListing[] = [];
   if (featuredMaker) {
     const listingSelect = { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" as const }, select: { url: true } } };
-    // Try curated list first
     if (featuredMaker.featuredListingIds.length > 0) {
       const curated = await prisma.listing.findMany({
         where: { id: { in: featuredMaker.featuredListingIds }, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
         select: listingSelect,
+        take: 3,
       });
-      if (curated.length > 0) {
-        featuredListing = curated[Math.floor(Math.random() * curated.length)];
-      }
+      featuredListings = curated;
     }
-    // Fall back to most recently updated
-    if (!featuredListing) {
-      featuredListing = await prisma.listing.findFirst({
-        where: { sellerId: featuredMaker.id, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+    if (featuredListings.length < 3) {
+      const existingIds = featuredListings.map((l) => l.id);
+      const more = await prisma.listing.findMany({
+        where: { sellerId: featuredMaker.id, status: "ACTIVE", isPrivate: false, photos: { some: {} }, ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}) },
         orderBy: { updatedAt: "desc" },
         select: listingSelect,
+        take: 3 - featuredListings.length,
       });
+      featuredListings = [...featuredListings, ...more];
     }
   }
 
@@ -548,7 +548,7 @@ export default async function HomePage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt="" className="h-48 w-full object-cover" />
               )}
-              <div className={`p-6 sm:p-8 ${featuredListing ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
+              <div className={`p-6 sm:p-8 ${featuredListings.length > 0 ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
                 {/* Left column — maker info */}
                 <div className="flex flex-col sm:flex-row gap-6 items-start">
                   <div className="shrink-0">
@@ -610,28 +610,32 @@ export default async function HomePage() {
                   </div>
                 </div>
 
-                {/* Right column — featured listing card (only if listing exists) */}
-                {featuredListing && (
-                  <Link href={`/listing/${featuredListing.id}`} className="card-listing block group self-start">
-                    <div className="aspect-square overflow-hidden max-h-[200px]">
-                      {featuredListing.photos[0]?.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={featuredListing.photos[0].url}
-                          alt={featuredListing.title}
-                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-stone-100" />
-                      )}
-                    </div>
-                    <div className="p-3 bg-white">
-                      <div className="font-medium text-sm text-neutral-900 line-clamp-1">{featuredListing.title}</div>
-                      <div className="text-sm text-neutral-600 mt-0.5">
-                        ${(featuredListing.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </div>
-                    </div>
-                  </Link>
+                {/* Right column — featured listings grid */}
+                {featuredListings.length > 0 && (
+                  <div className="grid grid-cols-3 gap-3 self-start">
+                    {featuredListings.map((fl) => (
+                      <Link key={fl.id} href={`/listing/${fl.id}`} className="card-listing block group">
+                        <div className="aspect-square overflow-hidden">
+                          {fl.photos[0]?.url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={fl.photos[0].url}
+                              alt={fl.title}
+                              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-stone-100" />
+                          )}
+                        </div>
+                        <div className="p-2 bg-white">
+                          <div className="font-medium text-xs text-neutral-900 line-clamp-1">{fl.title}</div>
+                          <div className="text-xs text-neutral-600">
+                            ${(fl.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

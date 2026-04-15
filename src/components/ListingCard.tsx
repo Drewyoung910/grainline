@@ -71,7 +71,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
         <div className="flex-1 min-w-0 space-y-0.5">
           {/* Title and price+rating — wrapped in listing Link */}
           <Link href={listingHref} className="block space-y-0.5">
-            <div className="font-medium text-sm text-neutral-900 line-clamp-2 leading-snug">
+            <div className="font-medium text-sm text-neutral-900 line-clamp-1 leading-snug">
               {l.title}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
