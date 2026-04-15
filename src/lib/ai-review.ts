@@ -19,11 +19,11 @@ export async function reviewListingWithAI(listing: {
     return { approved: true, flags: [], confidence: 1, reason: 'AI review disabled — no API key' }
   }
 
-  const prompt = `You are a marketplace moderator for Grainline, a handmade woodworking marketplace in the US.
+  const prompt = `You are a content moderator for Grainline, a handmade woodworking marketplace serving the US and Canada.
 
 Review this listing and determine if it should be approved for publication.
 
-Listing details:
+LISTING DETAILS:
 Title: ${listing.title}
 Description: ${listing.description || 'None provided'}
 Price: $${(listing.priceCents / 100).toFixed(2)}
@@ -32,13 +32,27 @@ Tags: ${listing.tags.join(', ') || 'None'}
 Seller: ${listing.sellerName}
 Seller total listings: ${listing.listingCount}
 
-Flag and reject ONLY if:
-- Clearly not woodworking or handmade related
-- Prohibited items (weapons, illegal goods, digital-only products, obviously mass-produced)
-- Price under $1 or over $50,000 with no reasonable context
-- Obvious spam (gibberish, repeated characters, meaningless text)
-- Inappropriate or offensive content
-- Obvious test listing (title is literally "test", "asdf", "aaa" etc)
+APPROVE if the listing is:
+- Handmade woodworking or wood-focused craft (furniture, cutting boards, decor, toys, tools, art, turned bowls, etc.)
+- Mixed-material items where wood is a primary component (resin-and-wood charcuterie, metal-and-wood furniture, etc.)
+- Clearly handmade by the seller (not dropshipped, not mass-produced)
+- Priced reasonably ($1-$50,000 depending on item complexity)
+
+REJECT if the listing contains ANY of:
+
+1. Counterfeit or replica branded goods (fake Rolex, knockoff Louis Vuitton, "Gucci inspired", etc.)
+2. Unlicensed copyrighted characters (Disney, Marvel, Harry Potter, Pokemon, sports team logos)
+3. Regulated goods (firearms, ammunition, tobacco, vapes, alcohol, cannabis/CBD, prescription drugs, lottery)
+4. Weapons marketed as weapons (brass knuckles, concealed weapons) — tools like kitchen/hunting knives OK
+5. Adult or sexually explicit content or suggestive imagery
+6. Hate symbols or extremist content (Nazi imagery, racist imagery, terrorist imagery)
+7. Protected species materials (ivory, protected fur, tortoiseshell, protected coral)
+8. Medical claims or unregulated health products (healing crystals as cure, CBD as medicine, supplements)
+9. Services disguised as goods (escort, companion, lessons disguised as products)
+10. Digital-only products (PDFs, downloads, e-books — unless bundled with physical item)
+11. Mass-produced or dropshipped items (Alibaba, Temu, Shein imagery/patterns)
+12. Scams or spam (gibberish, price wildly mismatched, all-caps, test listings like "asdf", "test")
+13. Non-woodworking primary goods (pure pottery, pure leather, pure metal with no wood element)
 
 IMAGE REVIEW:
 When images are provided, examine them for violations that text alone cannot reveal:
@@ -48,22 +62,23 @@ When images are provided, examine them for violations that text alone cannot rev
 - Hate symbols or extremist imagery
 - Weapons (firearms, knives as weapons) vs tools
 - Drug paraphernalia (bongs, pipes, rolling trays) vs decorative items
-- Items clearly mass-produced (identical stock photos, Alibaba-style imagery)
-- Product image does not match the title/description (bait-and-switch)
+- Items clearly mass-produced (stock photos, identical Alibaba-style imagery)
+- Product image does not match the title/description
 
-If images look stock/generic or show mass-produced goods, flag as "possibly-not-handmade".
+If images look stock/generic, flag as "possibly-not-handmade".
 If image quality is poor but item seems legitimate, approve — new sellers may lack photography skills.
 
 LENIENCY FOR NEW SELLERS:
-Be lenient — woodworking covers furniture, cutting boards, art, home decor, toys, tools, and more.
-New sellers (low listing count) should get benefit of the doubt unless clearly problematic.
+- Sellers with 0-2 listings get benefit of doubt on borderline cases
+- Always reject clear violations regardless of seller experience
+- After 3+ listings, apply standard strictness
 
 Respond with ONLY valid JSON, no other text:
 {
   "approved": true or false,
-  "flags": ["specific issues found, empty array if none"],
+  "flags": ["specific-issue-category-keys"],
   "confidence": 0.0 to 1.0,
-  "reason": "one sentence explanation"
+  "reason": "one-sentence explanation"
 }`
 
   try {
@@ -105,7 +120,8 @@ Respond with ONLY valid JSON, no other text:
     const text = data.choices?.[0]?.message?.content ?? ''
     const clean = text.replace(/```json|```/g, '').trim()
     return JSON.parse(clean) as AIReviewResult
-  } catch {
+  } catch (error) {
+    console.error('AI review failed:', error instanceof Error ? error.message : error)
     return {
       approved: true,
       flags: ['AI review unavailable — manual spot check recommended'],
