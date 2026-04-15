@@ -2561,6 +2561,14 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
+**Automatic tax**: `automatic_tax: { enabled: true }` on all four checkout routes (audited 2026-04-15). Stripe Checkout handles tax calculation based on buyer's address.
+
+**chargesEnabled enforcement** (audited 2026-04-15): all paths that can make a listing public check `seller.chargesEnabled`:
+- `publishListingAction` (shop) — returns error
+- `createListing` (new listing) — redirects to error
+- Edit re-review (`dashboard/listings/[id]/edit`) — reverts listing to DRAFT if seller lost chargesEnabled
+- Photo add re-review (`api/listings/[id]/photos`) — same DRAFT revert
+
 ### Seller Location & Map Opt-In (complete — 2026-04-03)
 - **`SellerLocationSection.tsx`** — `"use client"` component; fully controlled checkbox state; wraps `LocationPicker` + `publicMapOptIn` checkbox
 - **Privacy**: sellers with radius > 0 show approximate circle on seller/listing pages; cannot appear on makers map — checkbox force-unchecked and disabled with amber warning when `miles > 0`
