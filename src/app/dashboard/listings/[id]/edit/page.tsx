@@ -107,6 +107,14 @@ async function updateListing(
   });
   if (!listing) return { ok: false, error: "Not allowed" };
 
+  // Check if substantive content changed (triggers AI re-review for ACTIVE listings)
+  const titleChanged = title !== listing.title;
+  const descChanged = description !== listing.description;
+  const categoryChanged = (category ?? null) !== (listing.category ?? null);
+  const priceRatio = listing.priceCents > 0 ? Math.abs(priceCents - listing.priceCents) / listing.priceCents : 0;
+  const priceChanged = priceRatio > 0.5; // >50% price change
+  const substantiveChange = titleChanged || descChanged || categoryChanged || priceChanged;
+
   await prisma.listing.update({
     where: { id: listingId },
     data: {
@@ -126,6 +134,45 @@ async function updateListing(
       processingTimeMaxDays,
     },
   });
+
+  // Re-trigger AI review if ACTIVE listing had substantive content changes
+  if (listing.status === "ACTIVE" && substantiveChange) {
+    try {
+      const seller = await prisma.sellerProfile.findFirst({
+        where: { listings: { some: { id: listingId } } },
+        select: { id: true, displayName: true, _count: { select: { listings: true } } },
+      });
+      const photos = await prisma.photo.findMany({
+        where: { listingId },
+        select: { url: true },
+        orderBy: { sortOrder: "asc" },
+        take: 4,
+      });
+      const { reviewListingWithAI } = await import("@/lib/ai-review");
+      const aiResult = await reviewListingWithAI({
+        sellerId: seller?.id ?? "",
+        title,
+        description,
+        priceCents,
+        category: category ?? null,
+        tags,
+        sellerName: seller?.displayName ?? "Unknown",
+        listingCount: seller?._count.listings ?? 0,
+        imageUrls: photos.map((p) => p.url),
+      }).catch(() => ({ approved: true, flags: [] as string[], confidence: 0.5, reason: "AI error" }));
+
+      if (!aiResult.approved || aiResult.confidence < 0.7) {
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: {
+            status: "PENDING_REVIEW",
+            aiReviewFlags: aiResult.flags,
+            aiReviewScore: aiResult.confidence,
+          },
+        });
+      }
+    } catch { /* non-fatal — listing stays ACTIVE on AI review error */ }
+  }
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath("/dashboard");

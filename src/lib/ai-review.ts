@@ -80,31 +80,56 @@ REJECT if the listing contains ANY of:
 12. Scams or spam (gibberish, price wildly mismatched, all-caps, test listings like "asdf", "test")
 13. Non-woodworking primary goods (pure pottery, pure leather, pure metal with no wood element)
 
-IMAGE REVIEW:
-When images are provided, examine them for violations that text alone cannot reveal:
-- Explicit or sexual content visible in images
-- Copyrighted characters (Disney, Marvel, sports logos) visible on products
-- Counterfeit brand logos (Rolex, Louis Vuitton, Gucci) on items
-- Hate symbols or extremist imagery
-- Weapons (firearms, knives as weapons) vs tools
-- Drug paraphernalia (bongs, pipes, rolling trays) vs decorative items
-- Items clearly mass-produced (stock photos, identical Alibaba-style imagery)
-- Product image does not match the title/description
+IMAGE REVIEW (CRITICAL — be strict):
+The PRIMARY function of these images is to show the actual physical handmade product being sold. If the images do not clearly depict the specific product described, REJECT.
 
-If images look stock/generic, flag as "possibly-not-handmade".
-If image quality is poor but item seems legitimate, approve — new sellers may lack photography skills.
+REJECT if images contain:
+- Graphics, logos, illustrations, SVGs, clipart, or any computer-generated imagery instead of product photos
+- Stock photos, screenshots, memes, or other non-product imagery
+- Photos of people (headshots, portraits, lifestyle shots) where no product is visible or the person is the focus
+- Photos showing a different product than what's described (e.g., title says "cutting board" but image shows a chair, a person, or unrelated item)
+- Photos that are clearly not handmade items (commercial product packaging, mass-produced items, branded merchandise photos)
 
-CRITICAL — Image-text mismatch detection:
-If the product images do NOT show an actual physical handmade item matching the title and description, REJECT.
-Examples of mismatches that MUST be rejected:
-- Title says "cutting board" but image shows a graphic, logo, illustration, or non-cutting-board item
-- Title says "furniture" but image shows clothing, food, digital art, or unrelated objects
-- Images are clearly clipart, SVGs, screenshots, memes, or non-product photography
-- Images show a completely different product category than what's described
-A legitimate listing should show actual photographs of the physical handmade item described. Stock photos, graphics, illustrations, and unrelated images are not acceptable as primary product photos.
+REJECT if the listing has only ONE image and that image does not clearly show the described product.
+
+EXAMPLES OF VIOLATIONS (REJECT THESE):
+- Title: "walnut cutting board" + Image: portrait photo of a person → REJECT (image-text-mismatch)
+- Title: "custom table" + Image: laurel wreath graphic/logo → REJECT (image-text-mismatch, possibly-not-handmade)
+- Title: "wooden bowl" + Image: stock photo from Alibaba → REJECT (mass-produced)
+- Title: "handmade earrings" + Image: clipart of earrings → REJECT (not-actual-product)
+- Title: "oak desk" + Image: a chair (different product) → REJECT (image-text-mismatch)
+
+EXAMPLES OF VALID LISTINGS (APPROVE):
+- Title: "walnut cutting board" + Image: photograph of an actual walnut cutting board on a table → APPROVE
+- Title: "custom dining table" + Image: photo of a wooden dining table in a workshop → APPROVE
+- Title: "wooden necklace" + Image: photo of a person wearing the wooden necklace (product is focus) → APPROVE
+
+SEXUALIZED CONTENT DETECTION:
+Reject ANY images that are clearly sexualized or designed for sexual appeal:
+- Swimwear, lingerie, underwear (especially when posed sexually or person is focus)
+- Photos of people in revealing clothing where the person is the focus, not a product
+- Suggestive poses regardless of clothing
+- Any image where the focus is on a person's body rather than a handmade product
+This applies even if the image is not technically "explicit" or "nude". Grainline is a woodworking marketplace — product photos should focus on the product.
+EXCEPTION: Lifestyle photos showing a product being used (a person wearing a wooden necklace, a person sitting on handmade furniture) are acceptable IF the product is clearly the focus and the person is wearing normal clothing.
+
+When in doubt about whether an image shows the actual product: REJECT. The seller can resubmit with proper product photos.
+
+DESCRIPTION QUALITY:
+Flag listings with low-quality descriptions:
+- Description is under 20 characters
+- Description is just "test", "asdf", "made it", or similar minimal text
+- Description provides no useful information about the product (materials, dimensions, process, intended use)
+
+For low-quality descriptions:
+- If listing is otherwise legitimate and from a NEW seller (0-2 listings): APPROVE but include flag "low-quality-description"
+- If seller has 3+ listings AND description is very low quality: REJECT with reason "Description too brief — please describe materials, dimensions, and any unique features"
+- If description is completely missing: REJECT regardless of seller experience
+
+A good description for a handmade item should be at least 50 characters and mention something specific about the product.
 
 LENIENCY FOR NEW SELLERS:
-- Sellers with 0-2 listings get benefit of doubt on borderline cases
+- Sellers with 0-2 listings get benefit of doubt on borderline TEXT cases (not image violations)
 - Always reject clear violations regardless of seller experience
 - After 3+ listings, apply standard strictness
 
