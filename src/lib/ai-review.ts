@@ -1,3 +1,5 @@
+import { prisma } from '@/lib/db'
+
 interface AIReviewResult {
   approved: boolean
   flags: string[]
@@ -6,6 +8,7 @@ interface AIReviewResult {
 }
 
 export async function reviewListingWithAI(listing: {
+  sellerId: string
   title: string
   description: string | null
   priceCents: number
@@ -17,6 +20,29 @@ export async function reviewListingWithAI(listing: {
 }): Promise<AIReviewResult> {
   if (!process.env.OPENAI_API_KEY) {
     return { approved: true, flags: [], confidence: 1, reason: 'AI review disabled — no API key' }
+  }
+
+  // Duplicate detection — catch spammers posting same listing repeatedly
+  try {
+    const duplicateCount = await prisma.listing.count({
+      where: {
+        sellerId: listing.sellerId,
+        title: { equals: listing.title, mode: 'insensitive' },
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      }
+    })
+
+    if (duplicateCount >= 2) {
+      return {
+        approved: false,
+        flags: ['duplicate-listing', 'possible-spam'],
+        confidence: 0.95,
+        reason: 'Seller has already posted 2+ listings with this exact title in the last 24 hours'
+      }
+    }
+  } catch (error) {
+    console.error('Duplicate check failed:', error instanceof Error ? error.message : error)
+    // Non-fatal — continue to AI review
   }
 
   const prompt = `You are a content moderator for Grainline, a handmade woodworking marketplace serving the US and Canada.

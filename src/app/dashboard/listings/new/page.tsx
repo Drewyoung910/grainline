@@ -198,6 +198,7 @@ async function createListing(formData: FormData) {
     const { logAdminAction: logAction } = await import('@/lib/audit')
 
     const aiResult = await reviewListingWithAI({
+      sellerId: seller.id,
       title: created.title,
       description: created.description,
       priceCents: created.priceCents,
