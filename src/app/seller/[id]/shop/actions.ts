@@ -44,6 +44,8 @@ export async function hideListingAction(listingId: string) {
 export async function unhideListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
+  // REJECTED listings cannot be unhidden — seller must edit and resubmit for review
+  if (listing.status === "REJECTED") return;
   await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
   await syncThreshold(listing.sellerId);
   // Notify followers
@@ -162,6 +164,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           status: "PENDING_REVIEW",
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
+          rejectionReason: null,
         },
       });
       await logAdminAction({
@@ -175,14 +178,14 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       revalidatePath(`/seller/${listing.sellerId}/shop`);
       return { status: "PENDING_REVIEW" };
     } else {
-      await prisma.listing.update({ where: { id: listingId }, data: { status: "ACTIVE" } });
+      await prisma.listing.update({ where: { id: listingId }, data: { status: "ACTIVE", rejectionReason: null } });
       await syncThreshold(listing.sellerId);
       revalidatePath(`/seller/${listing.sellerId}/shop`);
       return { status: "ACTIVE" };
     }
   } catch {
     // Fallback: just set active
-    await prisma.listing.update({ where: { id: listingId }, data: { status: "ACTIVE" } });
+    await prisma.listing.update({ where: { id: listingId }, data: { status: "ACTIVE", rejectionReason: null } });
     await syncThreshold(listing.sellerId);
     revalidatePath(`/seller/${listing.sellerId}/shop`);
     return { status: "ACTIVE" };

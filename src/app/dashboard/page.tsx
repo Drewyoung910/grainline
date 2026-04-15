@@ -392,8 +392,14 @@ export default async function DashboardPage() {
         </div>
 
         {listings.some((l) => l.status === "PENDING_REVIEW") && (
-          <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 rounded-md">
             <span className="font-medium">Some listings are under review.</span> Our team will approve them shortly. You&apos;ll be notified when they go live.
+          </div>
+        )}
+
+        {listings.some((l) => l.status === "REJECTED") && (
+          <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 rounded-md">
+            <span className="font-medium">Some listings were rejected.</span> Edit and resubmit them from your shop page to go through review again.
           </div>
         )}
 
@@ -451,6 +457,10 @@ export default async function DashboardPage() {
                       {l.status === "PENDING_REVIEW" ? (
                         <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium normal-case">
                           Under Review
+                        </span>
+                      ) : l.status === "REJECTED" ? (
+                        <span className="inline-block px-2 py-0.5 bg-red-100 text-red-800 rounded-full font-medium normal-case">
+                          Rejected
                         </span>
                       ) : l.status}
                     </div>

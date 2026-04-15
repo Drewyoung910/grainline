@@ -211,6 +211,21 @@ export default async function EditListingPage(props: {
     <main className="max-w-4xl mx-auto p-8">
       <h1 className="text-2xl font-semibold mb-6">Edit listing</h1>
 
+      {listing.status === "REJECTED" && listing.rejectionReason && (
+        <div className="mb-6 rounded-md border border-red-300 bg-red-50 px-4 py-3">
+          <p className="text-sm font-medium text-red-800">This listing was rejected by our review team:</p>
+          <p className="text-sm text-red-700 mt-1">{listing.rejectionReason}</p>
+          <p className="text-sm text-red-600 mt-2">Please make the necessary changes and resubmit for review from your shop page.</p>
+        </div>
+      )}
+
+      {listing.status === "REJECTED" && !listing.rejectionReason && (
+        <div className="mb-6 rounded-md border border-red-300 bg-red-50 px-4 py-3">
+          <p className="text-sm font-medium text-red-800">This listing was rejected by our review team.</p>
+          <p className="text-sm text-red-600 mt-1">Please make changes and resubmit for review from your shop page.</p>
+        </div>
+      )}
+
       <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10">
         <div>
           <label className="block text-sm mb-1">Title</label>

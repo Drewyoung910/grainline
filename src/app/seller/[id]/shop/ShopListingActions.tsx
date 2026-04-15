@@ -119,6 +119,32 @@ export default function ShopListingActions({ listingId, status }: Props) {
         </button>
       )}
 
+      {/* Resubmit for Review — REJECTED only */}
+      {status === "REJECTED" && (
+        <button
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              try {
+                const result = await publishListingAction(listingId);
+                if ("error" in result) {
+                  showToast(result.error);
+                } else if (result.status === "ACTIVE") {
+                  showToast("Published!");
+                } else {
+                  showToast("Resubmitted for review.");
+                }
+              } catch (e) {
+                showToast(e instanceof Error ? e.message : "Failed to resubmit.");
+              }
+            })
+          }
+          className="text-[11px] rounded border border-amber-400 text-amber-700 px-2 py-0.5 hover:bg-amber-50 disabled:opacity-50"
+        >
+          Resubmit for Review
+        </button>
+      )}
+
       {/* Delete — all statuses except PENDING_REVIEW */}
       {status !== "PENDING_REVIEW" && (
         <button

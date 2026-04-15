@@ -94,6 +94,15 @@ When images are provided, examine them for violations that text alone cannot rev
 If images look stock/generic, flag as "possibly-not-handmade".
 If image quality is poor but item seems legitimate, approve — new sellers may lack photography skills.
 
+CRITICAL — Image-text mismatch detection:
+If the product images do NOT show an actual physical handmade item matching the title and description, REJECT.
+Examples of mismatches that MUST be rejected:
+- Title says "cutting board" but image shows a graphic, logo, illustration, or non-cutting-board item
+- Title says "furniture" but image shows clothing, food, digital art, or unrelated objects
+- Images are clearly clipart, SVGs, screenshots, memes, or non-product photography
+- Images show a completely different product category than what's described
+A legitimate listing should show actual photographs of the physical handmade item described. Stock photos, graphics, illustrations, and unrelated images are not acceptable as primary product photos.
+
 LENIENCY FOR NEW SELLERS:
 - Sellers with 0-2 listings get benefit of doubt on borderline cases
 - Always reject clear violations regardless of seller experience

@@ -23,6 +23,7 @@ const STATUS_TABS = [
   { value: "SOLD_OUT", label: "Sold Out" },
   { value: "SOLD", label: "Sold" },
   { value: "PENDING_REVIEW", label: "Under Review" },
+  { value: "REJECTED", label: "Rejected" },
 ] as const;
 
 type ShopSearch = {
@@ -123,7 +124,7 @@ export default async function SellerShopPage({
     ? {
         sellerId: id,
         category: { not: null },
-        ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" } : {}),
+        ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
       }
     : { sellerId: id, status: "ACTIVE" as const, isPrivate: false, category: { not: null } };
 
@@ -140,7 +141,7 @@ export default async function SellerShopPage({
   // Build where clause — owner sees all listings (filtered by status); buyers see ACTIVE + chargesEnabled only
   const categoryFilter = category ? { category } : {};
   const ownerStatusFilter = statusFilter
-    ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" }
+    ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" }
     : {};
   const where = isOwner
     ? { sellerId: id, ...ownerStatusFilter, ...categoryFilter }
@@ -348,6 +349,7 @@ export default async function SellerShopPage({
               l.status === "DRAFT" ? { label: "Draft", cls: "bg-neutral-100 text-neutral-600" }
               : l.status === "HIDDEN" ? { label: "Hidden", cls: "bg-neutral-100 text-neutral-600" }
               : l.status === "PENDING_REVIEW" ? { label: "Under Review", cls: "bg-amber-50 text-amber-700 border border-amber-200" }
+              : l.status === "REJECTED" ? { label: "Rejected", cls: "bg-red-50 text-red-700 border border-red-200" }
               : l.status === "SOLD" ? { label: "Sold", cls: "bg-neutral-100 text-neutral-500" }
               : l.status === "SOLD_OUT" ? { label: "Sold Out", cls: "bg-neutral-100 text-neutral-500" }
               : null;

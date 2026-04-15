@@ -38,6 +38,7 @@ enum ListingStatus {
   SOLD_OUT
   HIDDEN
   PENDING_REVIEW
+  REJECTED
 }
 
 model User {
@@ -282,10 +283,11 @@ model Listing {
   customOrderConversationId String?
 
   // AI review fields
-  aiReviewFlags   String[]  @default([])
-  aiReviewScore   Float?
-  reviewedByAdmin Boolean   @default(false)
-  reviewedAt      DateTime?
+  aiReviewFlags     String[]  @default([])
+  aiReviewScore     Float?
+  reviewedByAdmin   Boolean   @default(false)
+  reviewedAt        DateTime?
+  rejectionReason   String?
 
   // Metro geography (set automatically on create/update from seller location)
   metroId     String?

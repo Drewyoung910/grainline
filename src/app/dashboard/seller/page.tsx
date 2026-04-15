@@ -165,10 +165,10 @@ export default async function SellerSettingsPage() {
                   You have {draftCount} draft {draftCount === 1 ? "listing" : "listings"} ready to activate.
                 </p>
                 <a
-                  href="/dashboard/inventory"
+                  href={`/seller/${seller.id}/shop?status=DRAFT`}
                   className="text-sm text-amber-700 underline"
                 >
-                  Go to inventory to publish →
+                  Go to My Shop to publish →
                 </a>
               </div>
             )}

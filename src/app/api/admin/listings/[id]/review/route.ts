@@ -64,7 +64,7 @@ export async function PATCH(
     if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
     await prisma.listing.update({
       where: { id },
-      data: { status: 'HIDDEN', reviewedByAdmin: true, reviewedAt: new Date() }
+      data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: reason }
     })
     await logAdminAction({
       adminId: admin.id,
