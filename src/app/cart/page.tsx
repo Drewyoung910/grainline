@@ -2,11 +2,20 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import GiftNoteSection from "@/components/GiftNoteSection";
 import ShippingAddressForm from "@/components/ShippingAddressForm";
 import type { ShippingAddress } from "@/types/checkout";
+
+export default function CartPageWrapper() {
+  return (
+    <Suspense fallback={<main className="p-8">Loading…</main>}>
+      <CartPage />
+    </Suspense>
+  );
+}
 
 type CartItem = {
   id: string;
@@ -45,7 +54,7 @@ type GiftForm = {
 
 type CheckoutStep = "review" | "address" | "payment";
 
-export default function CartPage() {
+function CartPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
