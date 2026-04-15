@@ -2563,7 +2563,19 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 **Product tax code**: `txcd_99999999` (General - Tangible Personal Property) set on all product line items + gift wrapping. Was defaulting to `txcd_10000000` (Electronically Supplied Services — wrong for physical handmade goods).
 
-**Tax handling**: `automatic_tax: { enabled: true, liability: { type: "self" } }` on all routes. Grainline is marketplace facilitator. Legacy checkout route (`/api/checkout`) uses explicit `transfer_data.amount` to exclude tax from seller transfer. Other routes (cart checkout, single, checkout-seller) have buyer-selected shipping so `transfer_data.amount` cannot be set at session creation — tax may be included in auto-calculated transfer. Post-payment webhook reconciliation needed for tax-exclusive transfers on these routes (deferred).
+**Tax handling**: `automatic_tax: { enabled: true, liability: { type: "self" } }` on all routes. Grainline is marketplace facilitator. Legacy checkout route (`/api/checkout`) uses explicit `transfer_data.amount` + metadata `taxRetainedAtCreation: "true"` to exclude tax at session creation. Other routes have buyer-selected shipping so `transfer_data.amount` cannot be set at creation — **webhook tax reconciliation** reverses tax portion post-payment.
+
+**Webhook tax reconciliation** (added 2026-04-15): in `checkout.session.completed`, after Order creation, `reverseTaxIfNeeded(orderId)` runs:
+1. Reads `session.total_details.amount_tax` for actual tax collected
+2. Skips if `metadata.taxRetainedAtCreation === "true"` (legacy route already excluded tax)
+3. Calls `stripe.transfers.createReversal(stripeTransferId, { amount: taxAmount })` with idempotency key `tax-reversal-{sessionId}`
+4. Saves `taxReversalId` + `taxReversalAmountCents` to Order for audit trail
+5. Non-fatal: failures log to Sentry (fatal severity for insufficient_funds, error for transient), flags `reviewNeeded` on Order
+- New Order fields: `taxReversalId String?`, `taxReversalAmountCents Int?` (migration `20260415204102_add_tax_reversal_fields`)
+- Assumes card payments — ACH/bank transfers would need `checkout.session.async_payment_succeeded` handler
+- Long-term: move shipping selection to cart UI so `transfer_data.amount` can be set at session creation (deferred post-launch)
+
+**Statement descriptor suffix**: all 4 routes add `statement_descriptor_suffix` from seller displayName (uppercase, alphanumeric, max 22 chars). Conditional spread — skipped if empty to prevent checkout breakage. Shows seller name on buyer's card statement to reduce chargebacks.
 
 **Pre-flight chargesEnabled guard** (added 2026-04-15): all four checkout routes verify `seller.chargesEnabled && seller.stripeAccountId` BEFORE calling `stripe.checkout.sessions.create()`. Returns 400 "seller not accepting orders" if incomplete.
 
