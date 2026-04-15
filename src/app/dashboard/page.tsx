@@ -398,7 +398,7 @@ export default async function DashboardPage() {
 
         {listings.some((l) => l.status === "PENDING_REVIEW") && (
           <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 rounded-md">
-            <span className="font-medium">Some listings are under review.</span> Our team will approve them shortly. You&apos;ll be notified when they go live.
+            <span className="font-medium">Some listings are under review. </span>Our team will approve them shortly. You&apos;ll be notified when they go live.
           </div>
         )}
 
