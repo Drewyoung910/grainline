@@ -2559,7 +2559,11 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 **Platform fee: 5%** of item subtotal (excluding shipping and taxes), applied as `application_fee_amount` in all four checkout routes. Note: shipping cannot be included in fee because `application_fee_amount` is fixed at session creation and shipping amount depends on buyer's selection during checkout.
 
-**`on_behalf_of` REMOVED** (2026-04-15): was causing tax to flow to seller instead of platform. With `on_behalf_of` + `transfer_data` (no explicit `amount`), Stripe calculates transfer as `charge - application_fee`, which INCLUDES tax in the transfer. `transfer_data.amount` can't be set dynamically because Checkout Sessions with buyer-selected shipping don't know the final amount at creation time. Removed from all 4 routes. Platform now absorbs Stripe processing fees (~2.9% + 30¢) — covered by the 5% platform fee. Tax stays with platform via `automatic_tax: { enabled: true, liability: { type: "self" } }`.
+**`on_behalf_of` REMOVED** (2026-04-15): was causing tax to flow to seller instead of platform. Removed from all 4 routes. Platform absorbs Stripe processing fees (~2.9% + 30¢) — covered by the 5% platform fee.
+
+**Product tax code**: `txcd_99999999` (General - Tangible Personal Property) set on all product line items + gift wrapping. Was defaulting to `txcd_10000000` (Electronically Supplied Services — wrong for physical handmade goods).
+
+**Tax handling**: `automatic_tax: { enabled: true, liability: { type: "self" } }` on all routes. Grainline is marketplace facilitator. Legacy checkout route (`/api/checkout`) uses explicit `transfer_data.amount` to exclude tax from seller transfer. Other routes (cart checkout, single, checkout-seller) have buyer-selected shipping so `transfer_data.amount` cannot be set at session creation — tax may be included in auto-calculated transfer. Post-payment webhook reconciliation needed for tax-exclusive transfers on these routes (deferred).
 
 **Pre-flight chargesEnabled guard** (added 2026-04-15): all four checkout routes verify `seller.chargesEnabled && seller.stripeAccountId` BEFORE calling `stripe.checkout.sessions.create()`. Returns 400 "seller not accepting orders" if incomplete.
 
