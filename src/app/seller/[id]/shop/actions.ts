@@ -151,13 +151,13 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       listingCount,
       imageUrls: photos.map((p) => p.url),
     }).catch(() => ({
-      approved: true,
+      approved: false,
       flags: ["AI review error"],
-      confidence: 0.5,
-      reason: "AI error — defaulting to approve",
+      confidence: 0,
+      reason: "AI error — sending to admin review",
     }));
 
-    const shouldHold = isFirstListing || !aiResult.approved || aiResult.confidence < 0.7;
+    const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
     if (shouldHold) {
       await prisma.listing.update({

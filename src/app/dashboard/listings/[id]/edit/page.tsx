@@ -159,9 +159,9 @@ async function updateListing(
         sellerName: seller?.displayName ?? "Unknown",
         listingCount: seller?._count.listings ?? 0,
         imageUrls: photos.map((p) => p.url),
-      }).catch(() => ({ approved: true, flags: [] as string[], confidence: 0.5, reason: "AI error" }));
+      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review" }));
 
-      if (!aiResult.approved || aiResult.confidence < 0.7) {
+      if (!aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8) {
         await prisma.listing.update({
           where: { id: listingId },
           data: {
