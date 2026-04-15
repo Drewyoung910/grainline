@@ -51,6 +51,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Buyer shipping address
+  shippingName        String?
+  shippingLine1       String?
+  shippingLine2       String?
+  shippingCity        String?
+  shippingState       String?
+  shippingPostalCode  String?
+  shippingPhone       String?
+
   conversationsAsA Conversation[] @relation("ConvoA")
   conversationsAsB Conversation[] @relation("ConvoB")
   messagesSent     Message[]      @relation("MessagesFromUser")

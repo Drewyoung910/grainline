@@ -171,6 +171,13 @@ export const markReadRatelimit = new Ratelimit({
   prefix: "rl:mark_read",
 });
 
+export const shippingAddressRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "10 m"),
+  analytics: true,
+  prefix: "rl:shipping_address",
+});
+
 /**
  * Fail CLOSED — if Redis is down, reject the request.
  * Use for: checkout, follow, broadcast, commission create,
