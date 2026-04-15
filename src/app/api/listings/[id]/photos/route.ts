@@ -51,6 +51,41 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     })),
   });
 
+  // Re-trigger AI review if listing is ACTIVE (image content changed)
+  if (listing.status === "ACTIVE") {
+    try {
+      const allPhotos = await prisma.photo.findMany({
+        where: { listingId },
+        select: { url: true },
+        orderBy: { sortOrder: "asc" },
+        take: 4,
+      });
+      const seller = await prisma.sellerProfile.findFirst({
+        where: { listings: { some: { id: listingId } } },
+        select: { id: true, displayName: true, _count: { select: { listings: true } } },
+      });
+      const { reviewListingWithAI } = await import("@/lib/ai-review");
+      const aiResult = await reviewListingWithAI({
+        sellerId: seller?.id ?? "",
+        title: listing.title,
+        description: listing.description,
+        priceCents: listing.priceCents,
+        category: listing.category ?? null,
+        tags: listing.tags,
+        sellerName: seller?.displayName ?? "Unknown",
+        listingCount: seller?._count.listings ?? 0,
+        imageUrls: allPhotos.map((p) => p.url),
+      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
+
+      if (!aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8) {
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: { status: "PENDING_REVIEW", aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+        });
+      }
+    } catch { /* non-fatal */ }
+  }
+
   // Revalidate pages that show these photos
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
