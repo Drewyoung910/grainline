@@ -1675,9 +1675,11 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 Added to `ListingStatus` enum. Listings in this state are hidden from browse, homepage, and similar items. Only visible to the seller in their dashboard (with amber "Under Review" badge) and to admins in `/admin/review`.
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
-- Uses `gpt-4o-mini` via OpenAI API; gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` is missing or API fails
+- Uses `gpt-4o-mini` via OpenAI API with vision; gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` is missing or API fails
 - Prompt instructs model to flag only clearly non-woodworking, prohibited, spam, or offensive content; lenient with new sellers
-- Returns `{ approved, flags, confidence, reason }`
+- **Image moderation** added via OpenAI Vision API. Up to 4 images per listing reviewed at `detail: "low"` (~85 tokens/image). Catches explicit content, counterfeit logos, copyrighted characters, hate symbols, weapons, mass-produced/stock imagery that text-only review misses. Cost ~$0.0006 per listing with 4 images.
+- Optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing
+- Returns `{ approved, flags, confidence, reason }`, max_tokens bumped to 300 for image reasoning
 
 ### Listing creation flow (`dashboard/listings/new/page.tsx`)
 After `prisma.listing.create()`, AI review runs async in a try/catch:
