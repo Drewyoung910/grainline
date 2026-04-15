@@ -364,6 +364,7 @@ export async function POST(req: Request) {
 
         // Reverse tax portion of seller transfer (marketplace facilitator)
         const cartOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
+        console.log("CART ORDER CHECK", { cartOrderId: cartOrder?.id ?? "NULL", cartId, buyerId, sessionId });
         if (cartOrder) await reverseTaxIfNeeded(cartOrder.id);
 
         // Notify buyer + seller after cart checkout
@@ -609,6 +610,7 @@ export async function POST(req: Request) {
 
         // Reverse tax portion of seller transfer (marketplace facilitator)
         const singleOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
+        console.log("SINGLE ORDER CHECK", { singleOrderId: singleOrder?.id ?? "NULL", listingId, buyerId, sessionId });
         if (singleOrder) await reverseTaxIfNeeded(singleOrder.id);
 
         // Notify buyer + seller after single-listing checkout
