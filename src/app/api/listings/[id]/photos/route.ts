@@ -62,8 +62,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       });
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, _count: { select: { listings: true } } },
+        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
+      if (!seller?.chargesEnabled) {
+        await prisma.listing.update({ where: { id: listingId }, data: { status: "DRAFT" } });
+        revalidatePath("/dashboard");
+        revalidatePath(`/dashboard/listings/${listingId}/edit`);
+        revalidatePath(`/listing/${listingId}`);
+        return NextResponse.json({ added: toAdd.length });
+      }
       const { reviewListingWithAI } = await import("@/lib/ai-review");
       const aiResult = await reviewListingWithAI({
         sellerId: seller?.id ?? "",

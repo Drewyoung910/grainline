@@ -140,8 +140,13 @@ async function updateListing(
     try {
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, _count: { select: { listings: true } } },
+        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
+      // If seller lost chargesEnabled, revert listing to DRAFT
+      if (!seller?.chargesEnabled) {
+        await prisma.listing.update({ where: { id: listingId }, data: { status: "DRAFT" } });
+        return { ok: true };
+      }
       const photos = await prisma.photo.findMany({
         where: { listingId },
         select: { url: true },
@@ -217,8 +222,12 @@ async function deletePhoto(photoId: string, listingId: string) {
       });
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, _count: { select: { listings: true } } },
+        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
+      if (!seller?.chargesEnabled) {
+        await prisma.listing.update({ where: { id: listingId }, data: { status: "DRAFT" } });
+        return;
+      }
       const { reviewListingWithAI } = await import("@/lib/ai-review");
       const aiResult = await reviewListingWithAI({
         sellerId: seller?.id ?? "",
