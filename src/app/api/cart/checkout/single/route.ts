@@ -101,6 +101,7 @@ export async function POST(req: Request) {
           select: {
             userId: true,
             stripeAccountId: true,
+            chargesEnabled: true,
             vacationMode: true,
             shipFromName: true,
             shipFromLine1: true,
@@ -133,6 +134,11 @@ export async function POST(req: Request) {
     const currency = (listing.currency || "usd").toLowerCase();
     const destination = listing.seller.stripeAccountId || null;
     const sp = listing.seller;
+
+    // Pre-flight: verify seller can accept payments
+    if (!destination || !sp.chargesEnabled) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+    }
 
     // Build shipping options — attempt live Shippo rates first
     const shipping_options: Record<string, unknown>[] = [];
@@ -285,12 +291,11 @@ export async function POST(req: Request) {
       },
     };
 
-    if (destination) {
-      base.payment_intent_data = {
-        transfer_data: { destination },
-        application_fee_amount,
-      };
-    }
+    base.payment_intent_data = {
+      on_behalf_of: destination,
+      transfer_data: { destination },
+      application_fee_amount,
+    };
 
     const session = await stripe.checkout.sessions.create(base);
     return NextResponse.json({ url: session.url });

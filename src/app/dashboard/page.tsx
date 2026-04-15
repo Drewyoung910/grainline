@@ -398,7 +398,7 @@ export default async function DashboardPage() {
 
         {listings.some((l) => l.status === "PENDING_REVIEW") && (
           <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 rounded-md">
-            <span className="font-medium">Some listings are under review. </span>Our team will approve them shortly. You&apos;ll be notified when they go live.
+            <span className="font-medium">Some listings are under review.</span>{" "}Our team will approve them shortly. You&apos;ll be notified when they go live.
           </div>
         )}
 
@@ -537,8 +537,7 @@ export default async function DashboardPage() {
         <h2 className="text-xl font-semibold font-display mb-4">Saved Searches</h2>
         {savedSearches.length === 0 ? (
           <div className="rounded-xl border p-6 text-neutral-600 text-sm">
-            No saved searches yet.{" "}
-            <Link href="/browse" className="underline">Browse listings</Link> and click &quot;Save search&quot; to save a search.
+            No saved searches yet.{" "}<Link href="/browse" className="underline">Browse listings</Link>{" "}and click &quot;Save search&quot; to save a search.
           </div>
         ) : (
           <ul className="space-y-2">

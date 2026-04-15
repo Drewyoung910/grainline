@@ -107,6 +107,12 @@ export async function POST(req: Request) {
 
     const currency = (sellerItems[0].listing.currency || "usd").toLowerCase();
     const destination = sellerItems[0].listing.seller.stripeAccountId || null;
+    const sellerChargesEnabled = sellerItems[0].listing.seller.chargesEnabled ?? false;
+
+    // Pre-flight: verify seller can accept payments
+    if (!destination || !sellerChargesEnabled) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+    }
 
     // Seller shipping prefs (flat/free/pickup + toggle)
     const sellerProfile = await prisma.sellerProfile.findUnique({
@@ -375,12 +381,11 @@ export async function POST(req: Request) {
       },
     };
 
-    if (destination) {
-      base.payment_intent_data = {
-        transfer_data: { destination },
-        application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
-      };
-    }
+    base.payment_intent_data = {
+      on_behalf_of: destination,
+      transfer_data: { destination },
+      application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
+    };
 
     const session = await stripe.checkout.sessions.create(base);
     return NextResponse.json({ url: session.url });

@@ -61,6 +61,12 @@ export async function POST() {
 
     const currency = (cart.items[0].listing.currency || "usd").toLowerCase();
     const destination = cart.items[0].listing.seller.stripeAccountId || null;
+    const sellerChargesEnabled = cart.items[0].listing.seller.chargesEnabled ?? false;
+
+    // Pre-flight: verify seller can accept payments
+    if (!destination || !sellerChargesEnabled) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+    }
 
     // Build product line items
     const line_items = cart.items.map((i) => ({
@@ -98,13 +104,12 @@ export async function POST() {
       metadata: { cartId: cart.id, buyerId: me.id, sellerId },
     };
 
-    // Connect transfer + application fee (on items subtotal only)
-    if (destination) {
-      base.payment_intent_data = {
-        transfer_data: { destination },
-        application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
-      };
-    }
+    // Connect transfer + application fee (items only — shipping amount unknown at session creation)
+    base.payment_intent_data = {
+      on_behalf_of: destination,
+      transfer_data: { destination },
+      application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
+    };
 
     /**
      * Try to fetch **calculated** shipping options from our quoting endpoint.

@@ -40,9 +40,14 @@ export async function POST(req: Request) {
     const priceCents = listing.priceCents ?? 0;
     const currency = (listing.currency || "usd").toLowerCase();
 
-    // If the seller has connected Stripe, send destination & fee
-    const destination = (listing.seller as { stripeAccountId?: string | null })?.stripeAccountId || null;
-    const platformFee = Math.floor(priceCents * quantity * 0.05); // 5% platform fee
+    // Pre-flight: verify seller can accept payments
+    const destination = (listing.seller as { stripeAccountId?: string | null; chargesEnabled?: boolean })?.stripeAccountId || null;
+    const sellerChargesEnabled = (listing.seller as { chargesEnabled?: boolean })?.chargesEnabled ?? false;
+    if (!destination || !sellerChargesEnabled) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+    }
+
+    const platformFee = Math.floor(priceCents * quantity * 0.05); // 5% platform fee (items only — no shipping on this route)
 
     const successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl  = `${process.env.NEXT_PUBLIC_APP_URL}/listing/${listing.id}`;
@@ -70,12 +75,11 @@ export async function POST(req: Request) {
       automatic_tax: { enabled: true },
     };
 
-    if (destination) {
-      base.payment_intent_data = {
-        transfer_data: { destination },
-        application_fee_amount: platformFee,
-      };
-    }
+    base.payment_intent_data = {
+      on_behalf_of: destination,
+      transfer_data: { destination },
+      application_fee_amount: platformFee,
+    };
 
     const session = await stripe.checkout.sessions.create(base);
     return NextResponse.json({ url: session.url });
