@@ -188,7 +188,6 @@ export async function POST(req: Request) {
 
       // Tax reversal helper — reverse tax portion of seller transfer for marketplace facilitator compliance
       async function reverseTaxIfNeeded(orderId: string) {
-        console.log("reverseTaxIfNeeded called", { orderId });
         const taxAmount = s.total_details?.amount_tax ?? 0;
         const taxAlreadyRetained = s?.metadata?.taxRetainedAtCreation === "true";
 
@@ -203,7 +202,6 @@ export async function POST(req: Request) {
             transferId = latestCharge
               ? (typeof latestCharge.transfer === "string" ? latestCharge.transfer : latestCharge.transfer?.id ?? null)
               : null;
-            console.log("reverseTaxIfNeeded re-fetched transferId", { transferId });
           } catch (e) {
             console.warn("reverseTaxIfNeeded PI re-fetch failed", e);
           }
@@ -211,7 +209,6 @@ export async function POST(req: Request) {
 
         // Retry after 2s delay — Stripe may not have attached the transfer yet
         if (!transferId && paymentIntentId) {
-          console.log("reverseTaxIfNeeded waiting 2s for transfer attachment...");
           await new Promise(resolve => setTimeout(resolve, 2000));
           try {
             const piRetry = await stripe.paymentIntents.retrieve(paymentIntentId, {
@@ -221,32 +218,20 @@ export async function POST(req: Request) {
             transferId = retryCharge
               ? (typeof retryCharge.transfer === "string" ? retryCharge.transfer : retryCharge.transfer?.id ?? null)
               : null;
-            console.log("reverseTaxIfNeeded retry transferId", { transferId });
           } catch (e) {
             console.warn("reverseTaxIfNeeded retry failed", e);
           }
         }
 
-        console.log("reverseTaxIfNeeded state", { orderId, transferId, taxAmount, taxAlreadyRetained });
-
-        if (taxAmount === 0 && !taxAlreadyRetained) {
-          console.warn("Zero tax collected on order", { orderId, sessionId, note: "Verify Stripe Tax nexus if unexpected" });
-        }
-
-        if (taxAlreadyRetained) {
-          console.log("reverseTaxIfNeeded skipped — tax retained at creation");
-          return;
-        }
+        if (taxAlreadyRetained) return;
 
         if (taxAmount > 0 && transferId) {
-          console.log("reverseTaxIfNeeded attempting reversal", { transferId, taxAmount });
           try {
             const reversal = await stripe.transfers.createReversal(
               transferId,
               { amount: taxAmount, description: "Tax retention — marketplace facilitator", metadata: { sessionId, orderId, reason: "tax_retention" } },
               { idempotencyKey: `tax-reversal-${sessionId}` }
             );
-            console.log("reverseTaxIfNeeded success", { reversalId: reversal.id, taxAmount });
             await prisma.order.update({ where: { id: orderId }, data: { taxReversalId: reversal.id, taxReversalAmountCents: taxAmount } });
           } catch (err) {
             console.error("Tax reversal failed:", err);
@@ -255,8 +240,6 @@ export async function POST(req: Request) {
             Sentry.captureException(err, { level: isBalanceIssue ? "fatal" : "error", extra: { orderId, taxAmount, isBalanceIssue } });
             await prisma.order.update({ where: { id: orderId }, data: { reviewNeeded: true } });
           }
-        } else {
-          console.log("reverseTaxIfNeeded skipped — no tax or no transfer", { taxAmount, transferId });
         }
       }
 
@@ -382,7 +365,6 @@ export async function POST(req: Request) {
 
         // Reverse tax portion of seller transfer (marketplace facilitator)
         const cartOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
-        console.log("CART ORDER CHECK", { cartOrderId: cartOrder?.id ?? "NULL", cartId, buyerId, sessionId });
         if (cartOrder) await reverseTaxIfNeeded(cartOrder.id);
 
         // Notify buyer + seller after cart checkout
@@ -628,7 +610,6 @@ export async function POST(req: Request) {
 
         // Reverse tax portion of seller transfer (marketplace facilitator)
         const singleOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
-        console.log("SINGLE ORDER CHECK", { singleOrderId: singleOrder?.id ?? "NULL", listingId, buyerId, sessionId });
         if (singleOrder) await reverseTaxIfNeeded(singleOrder.id);
 
         // Notify buyer + seller after single-listing checkout
