@@ -2553,21 +2553,28 @@ Helper utilities:
 
 Stripe Connect is used so sellers receive payouts directly. Stripe webhook handler is at `src/app/api/stripe/webhook/route.ts`. The `stripe` client lives in `src/lib/stripe.ts`.
 
-**Platform fee: 5%** of item subtotal (excluding shipping and taxes), applied as `application_fee_amount` in all four checkout routes:
-- `src/app/api/checkout/route.ts` — `Math.floor(priceCents * quantity * 0.05)`
-- `src/app/api/cart/checkout/route.ts` — `Math.floor(itemsSubtotalCents * 0.05)`
-- `src/app/api/cart/checkout-seller/route.ts` — `Math.floor(itemsSubtotalCents * 0.05)`
-- `src/app/api/cart/checkout/single/route.ts` — `Math.floor(listing.priceCents * quantity * 0.05)`
+**Platform fee: 5%** of item subtotal (excluding shipping and taxes), applied as `application_fee_amount` in all four checkout routes. Note: shipping cannot be included in fee because `application_fee_amount` is fixed at session creation and shipping amount depends on buyer's selection during checkout.
+
+**`on_behalf_of`** (added 2026-04-15): all four checkout routes now set `on_behalf_of: sellerStripeAccountId` in `payment_intent_data`. This makes the **seller absorb Stripe processing fees** (~2.9% + 30¢) instead of the platform. Combined with `transfer_data.destination`, Stripe auto-calculates: charge - application_fee - tax = transfer to seller.
+
+**Pre-flight chargesEnabled guard** (added 2026-04-15): all four checkout routes verify `seller.chargesEnabled && seller.stripeAccountId` BEFORE calling `stripe.checkout.sessions.create()`. Returns 400 "seller not accepting orders" if incomplete. Prevents Stripe API errors when `on_behalf_of` references a non-ready Connect account.
+
+All four checkout routes:
+- `src/app/api/checkout/route.ts` — legacy single item
+- `src/app/api/cart/checkout/route.ts` — cart (single-seller enforced)
+- `src/app/api/cart/checkout-seller/route.ts` — per-seller cart split
+- `src/app/api/cart/checkout/single/route.ts` — single item from cart (buy-now)
 
 Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
-**Automatic tax**: `automatic_tax: { enabled: true }` on all four checkout routes (audited 2026-04-15). Stripe Checkout handles tax calculation based on buyer's address.
+**Automatic tax**: `automatic_tax: { enabled: true }` on all four routes. Tax stays with platform per Stripe marketplace facilitator default (no explicit `transfer_data.amount` — Stripe auto-excludes tax from seller transfer).
 
 **chargesEnabled enforcement** (audited 2026-04-15): all paths that can make a listing public check `seller.chargesEnabled`:
 - `publishListingAction` (shop) — returns error
 - `createListing` (new listing) — redirects to error
 - Edit re-review (`dashboard/listings/[id]/edit`) — reverts listing to DRAFT if seller lost chargesEnabled
 - Photo add re-review (`api/listings/[id]/photos`) — same DRAFT revert
+- All four checkout routes — pre-flight guard returns 400
 
 ### Seller Location & Map Opt-In (complete — 2026-04-03)
 - **`SellerLocationSection.tsx`** — `"use client"` component; fully controlled checkbox state; wraps `LocationPicker` + `publicMapOptIn` checkbox
