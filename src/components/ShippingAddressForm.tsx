@@ -134,7 +134,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form noValidate onSubmit={handleSubmit} className="space-y-4">
       {/* Full name */}
       <div>
         <label htmlFor="sa-name" className="block text-sm font-medium text-neutral-700 mb-1">Full name</label>
