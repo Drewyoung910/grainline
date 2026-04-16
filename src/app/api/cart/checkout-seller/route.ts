@@ -4,60 +4,33 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { shippoRatesMultiPiece } from "@/lib/shippo";
+import { isFallbackRate } from "@/types/checkout";
 import { z } from "zod";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
-  useCalculated: z.boolean().optional(),
-  toPostal: z.string().max(20).optional(),
-  toState: z.string().max(50).optional(),
-  toCity: z.string().max(100).optional(),
-  toCountry: z.string().max(2).optional(),
-  giftNote: z.string().max(200).optional(),
-  giftWrapping: z.boolean().optional(),
-  giftWrappingPriceCents: z.number().int().min(0).max(10000000).optional(),
+  shippingAddress: z.object({
+    name: z.string().min(1).max(100),
+    line1: z.string().min(1).max(200),
+    line2: z.string().max(200).optional().nullable(),
+    city: z.string().min(1).max(100),
+    state: z.string().length(2),
+    postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
+    phone: z.string().max(20).optional().nullable(),
+  }),
+  selectedRate: z.object({
+    objectId: z.string().min(1),
+    amountCents: z.number().int().min(0),
+    displayName: z.string().min(1).max(200),
+    carrier: z.string().max(100),
+    estDays: z.number().int().nullable(),
+  }),
+  giftNote: z.string().max(200).optional().nullable(),
+  giftWrapping: z.boolean().optional().default(false),
+  giftWrappingPriceCents: z.number().int().min(0).optional().default(0),
 });
 
 export const runtime = "nodejs";
-
-type LiveRate = {
-  label: string;
-  amountCents: number;
-  objectId?: string;
-  carrier?: string;
-  service?: string;
-  estDays?: number | null;
-  taxBehavior?: "exclusive" | "inclusive";
-};
-
-function prioritizeAndTrim(rates: LiveRate[], max = 5): LiveRate[] {
-  if (!Array.isArray(rates) || rates.length === 0) return [];
-  const scored = rates.map((r) => {
-    const isUps = (r.carrier || "").toLowerCase().includes("ups");
-    const isGround =
-      (r.service || "").toLowerCase().includes("ground") ||
-      r.label.toLowerCase().includes("ground");
-    const boost = isUps && isGround ? 1 : 0;
-    return { ...r, __boost: boost };
-  });
-  scored.sort((a, b) => {
-    if (b.__boost !== a.__boost) return b.__boost - a.__boost; // UPS Ground first
-    if (a.amountCents !== b.amountCents) return a.amountCents - b.amountCents; // cheapest next
-    const ad = a.estDays ?? 999, bd = b.estDays ?? 999;
-    return ad - bd; // then fastest
-  });
-  const seen = new Set<string>();
-  const out: (LiveRate & { __boost: number })[] = [];
-  for (const r of scored) {
-    const key = `${(r.carrier || "").toLowerCase()}|${(r.service || r.label).toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(r);
-    if (out.length >= max) break;
-  }
-  return out.map(({ __boost, ...rest }) => rest);
-}
 
 export async function POST(req: Request) {
   try {
@@ -65,7 +38,6 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
     const me = await ensureUserByClerkId(userId);
 
-    // Body: { sellerId, useCalculated?: boolean, toPostal?, toState?, toCity?, toCountry? }
     let body;
     try {
       body = CheckoutSellerSchema.parse(await req.json());
@@ -84,10 +56,15 @@ export async function POST(req: Request) {
         ? Math.round(body.giftWrappingPriceCents!)
         : 0;
 
-    const toPostal  = body.toPostal;
-    const toState   = body.toState;
-    const toCity    = body.toCity;
-    const toCountry = body.toCountry ?? "US";
+    // Fetch buyer email for tax calculation
+    const userWithEmail = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { email: true },
+    });
+    const buyerEmail = userWithEmail?.email;
+    if (!buyerEmail) {
+      return NextResponse.json({ error: "Buyer email required for tax calculation" }, { status: 400 });
+    }
 
     // Load cart (filter items to this seller)
     const cart = await prisma.cart.findUnique({
@@ -113,33 +90,6 @@ export async function POST(req: Request) {
     if (!destination || !sellerChargesEnabled) {
       return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
     }
-
-    // Seller shipping prefs (flat/free/pickup + toggle)
-    const sellerProfile = await prisma.sellerProfile.findUnique({
-      where: { id: sellerId },
-      select: {
-        shippingFlatRate: true,
-        freeShippingOver: true,
-        allowLocalPickup: true,
-        useCalculatedShipping: true,
-        shipFromName: true,
-        shipFromLine1: true,
-        shipFromLine2: true,
-        shipFromCity: true,
-        shipFromState: true,
-        shipFromPostal: true,
-        shipFromCountry: true,
-        defaultPkgWeightGrams: true,
-        defaultPkgLengthCm: true,
-        defaultPkgWidthCm: true,
-        defaultPkgHeightCm: true,
-      },
-    });
-
-    const useCalculated =
-      typeof body.useCalculated === "boolean"
-        ? body.useCalculated
-        : !!sellerProfile?.useCalculatedShipping;
 
     // Stripe line items
     const line_items: {
@@ -175,225 +125,75 @@ export async function POST(req: Request) {
       0
     );
 
-    // Live rates via direct Shippo call
-    let liveRates: LiveRate[] = [];
-    let shippoShipmentId: string | undefined;
-    if (useCalculated) {
-      try {
-        const sp = sellerProfile;
-        if (sp?.shipFromLine1 && sp.shipFromCity && sp.shipFromState && sp.shipFromPostal) {
-          // Aggregate: sum weights, take max dims across all seller items
-          let totalWeightGrams = 0;
-          let lengthCm = 0;
-          let widthCm = 0;
-          let heightCm = 0;
-          for (const it of sellerItems) {
-            const L = it.listing;
-            totalWeightGrams += (L.packagedWeightGrams ?? sp.defaultPkgWeightGrams ?? 0) * it.quantity;
-            lengthCm = Math.max(lengthCm, L.packagedLengthCm ?? sp.defaultPkgLengthCm ?? 0);
-            widthCm  = Math.max(widthCm,  L.packagedWidthCm  ?? sp.defaultPkgWidthCm  ?? 0);
-            heightCm = Math.max(heightCm, L.packagedHeightCm ?? sp.defaultPkgHeightCm ?? 0);
-          }
-
-          if (totalWeightGrams > 0 && lengthCm > 0 && widthCm > 0 && heightCm > 0) {
-            const { rates: rawRates, shipmentId: fetchedShipmentId } = await shippoRatesMultiPiece({
-              from: {
-                name: sp.shipFromName ?? undefined,
-                street1: sp.shipFromLine1,
-                street2: sp.shipFromLine2 ?? undefined,
-                city: sp.shipFromCity,
-                state: sp.shipFromState,
-                zip: sp.shipFromPostal,
-                country: sp.shipFromCountry ?? "US",
-              },
-              to: {
-                street1: "Placeholder",
-                city: toCity ?? "New York",
-                state: toState ?? "NY",
-                zip: toPostal ?? "10001",
-                country: toCountry ?? "US",
-              },
-              parcels: [
-                {
-                  weight: { value: totalWeightGrams, unit: "g" },
-                  length: lengthCm ? String(lengthCm) : undefined,
-                  width:  widthCm  ? String(widthCm)  : undefined,
-                  height: heightCm ? String(heightCm) : undefined,
-                },
-              ],
-            });
-
-            shippoShipmentId = fetchedShipmentId;
-            type RawRate = { currency?: string; provider?: string; servicelevel_name?: string; est_days?: number | null; amount: number; objectId?: string };
-            liveRates = (rawRates as RawRate[])
-              .filter((r) => (r.currency || "").toLowerCase() === currency)
-              .slice(0, 12)
-              .map((r) => ({
-                label: `${r.provider} ${r.servicelevel_name} (${r.est_days ? `${r.est_days}d` : "—"})`,
-                amountCents: r.amount, // already converted to cents by shippoRatesMultiPiece
-                objectId: r.objectId || "",
-                carrier: r.provider,
-                service: r.servicelevel_name,
-                estDays: r.est_days ?? null,
-                taxBehavior: "exclusive" as const,
-              }));
-          }
-        }
-      } catch (e) {
-        console.warn("Shippo quote failed; will fall back to flat/pickup", e);
-      }
-    }
-
-    const shipping_options: Record<string, unknown>[] = [];
-    let quotedAmountCents: number | undefined;
-    let quotedLabel: string | undefined;
-    let quotedCarrier: string | undefined;
-    let quotedService: string | undefined;
-
-    if (useCalculated && liveRates.length > 0) {
-      // Keep ≤4 live rates so there's always room for pickup (Stripe max 5)
-      const best = prioritizeAndTrim(liveRates, 4);
-      best.forEach((r, idx) => {
-        if (idx === 0) {
-          quotedAmountCents = r.amountCents;
-          quotedLabel = r.label;
-          quotedCarrier = r.carrier;
-          quotedService = r.service;
-        }
-        shipping_options.push({
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: r.amountCents, currency },
-            display_name: r.label,
-            tax_behavior: r.taxBehavior || "exclusive",
-            metadata: { objectId: r.objectId || "", estDays: r.estDays != null ? String(r.estDays) : "" },
-          },
-        });
+    // Resolve shipping amount — use fallback from SiteConfig if rate is the fallback placeholder
+    let shippingAmountCents = body.selectedRate.amountCents;
+    if (isFallbackRate(body.selectedRate)) {
+      const siteConfig = await prisma.siteConfig.findUnique({
+        where: { id: 1 },
+        select: { fallbackShippingCents: true },
       });
-
-      if (sellerProfile?.allowLocalPickup) {
-        shipping_options.push({
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: 0, currency },
-            display_name: "Local pickup (no shipping)",
-            tax_behavior: "exclusive",
-          },
-        });
-      }
-    } else {
-      // Flat / Free / Pickup path
-      const flatDollars = sellerProfile?.shippingFlatRate ?? null;
-      const freeOverDollars = sellerProfile?.freeShippingOver ?? null;
-      const allowPickup = !!sellerProfile?.allowLocalPickup;
-
-      if (
-        freeOverDollars != null &&
-        Number.isFinite(freeOverDollars) &&
-        itemsSubtotalCents >= Math.round(freeOverDollars * 100)
-      ) {
-        const amt = 0;
-        if (quotedAmountCents === undefined) quotedAmountCents = amt;
-        shipping_options.push({
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: amt, currency },
-            display_name: "Free shipping",
-            tax_behavior: "exclusive",
-          },
-        });
-      }
-
-      if (flatDollars != null && Number.isFinite(flatDollars) && flatDollars >= 0) {
-        const amt = Math.round(flatDollars * 100);
-        if (quotedAmountCents === undefined) quotedAmountCents = amt;
-        shipping_options.push({
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: amt, currency },
-            display_name: "Flat shipping",
-            tax_behavior: "exclusive",
-          },
-        });
-      }
-
-      if (allowPickup) {
-        const amt = 0;
-        if (quotedAmountCents === undefined) quotedAmountCents = amt;
-        shipping_options.push({
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: amt, currency },
-            display_name: "Local pickup (no shipping)",
-            tax_behavior: "exclusive",
-          },
-        });
-      }
-
-      if (shipping_options.length === 0) {
-        const amt = 0;
-        quotedAmountCents = amt;
-        shipping_options.push({
-          shipping_rate_data: {
-            type: "fixed_amount",
-            fixed_amount: { amount: amt, currency },
-            display_name: "Local pickup (no shipping)",
-            tax_behavior: "exclusive",
-          },
-        });
-      }
+      shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
     }
 
-    const capped_shipping_options = shipping_options.slice(0, 5);
+    const giftWrapCents = body.giftWrapping ? body.giftWrappingPriceCents : 0;
+    const platformFee = Math.round(itemsSubtotalCents * 0.05);
+    const sellerTransferAmount = itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
 
-    const success_url = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
-    const cancel_url = `${process.env.NEXT_PUBLIC_APP_URL}/cart`;
+    const return_url = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 
-    const base: Record<string, unknown> = {
+    const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")
+      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
+
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded",
       mode: "payment",
-      success_url,
-      cancel_url,
+      return_url,
       line_items,
-      billing_address_collection: "auto",
-      shipping_address_collection: { allowed_countries: ["US"] },
-      automatic_tax: { enabled: true, liability: { type: "self" } },
-      shipping_options: capped_shipping_options,
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: shippingAmountCents, currency },
+            display_name: body.selectedRate.displayName,
+            tax_behavior: "exclusive",
+            metadata: {
+              objectId: body.selectedRate.objectId,
+              estDays: body.selectedRate.estDays != null ? String(body.selectedRate.estDays) : "",
+            },
+          },
+        },
+      ],
+      customer_email: buyerEmail,
+      automatic_tax: { enabled: true, liability: { type: "self" as const } },
+      payment_intent_data: {
+        transfer_data: {
+          destination,
+          amount: sellerTransferAmount,
+        },
+        ...(csDescriptor.length > 0 && { statement_descriptor_suffix: csDescriptor }),
+      },
       metadata: {
         cartId: cart.id,
         buyerId: me.id,
         sellerId,
-        useCalculated: String(!!useCalculated),
-
-        // snapshot the address we quoted against
-        quotedShipToPostalCode: toPostal || "",
-        quotedShipToState: toState || "",
-        quotedShipToCity: toCity || "",
-        quotedShipToCountry: toCountry || "US",
-
-        // snapshot the rate we showed as "quoted"
-        quotedShippingAmountCents: quotedAmountCents != null ? String(quotedAmountCents) : "",
-        quotedLabel: quotedLabel || "",
-        quotedCarrier: quotedCarrier || "",
-        quotedService: quotedService || "",
-        shippoShipmentId: shippoShipmentId || "",
+        taxRetainedAtCreation: "true",
+        selectedRateObjectId: body.selectedRate.objectId,
+        quotedToName: body.shippingAddress.name,
+        quotedToLine1: body.shippingAddress.line1,
+        quotedToLine2: body.shippingAddress.line2 ?? "",
+        quotedToCity: body.shippingAddress.city,
+        quotedToState: body.shippingAddress.state,
+        quotedToPostalCode: body.shippingAddress.postalCode,
+        quotedToCountry: "US",
+        quotedToPhone: body.shippingAddress.phone ?? "",
+        quotedShippingAmountCents: String(shippingAmountCents),
         giftNote: giftNote ?? "",
         giftWrapping: giftWrapping ? "true" : "false",
         giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
       },
-    };
+    });
 
-    // NOTE: buyer selects shipping in Stripe Checkout — final amount unknown at creation.
-    // transfer_data.amount not set; webhook reverses tax portion post-payment.
-    const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")
-      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
-    base.payment_intent_data = {
-      transfer_data: { destination },
-      application_fee_amount: Math.floor(itemsSubtotalCents * 0.05), // 5% platform fee
-      ...(csDescriptor.length > 0 && { statement_descriptor_suffix: csDescriptor }),
-    };
-
-    const session = await stripe.checkout.sessions.create(base);
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
     console.error("POST /api/cart/checkout-seller error:", err);
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";
@@ -403,13 +203,3 @@ export async function POST(req: Request) {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-

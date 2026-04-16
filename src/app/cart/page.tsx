@@ -7,7 +7,10 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import GiftNoteSection from "@/components/GiftNoteSection";
 import ShippingAddressForm from "@/components/ShippingAddressForm";
-import type { ShippingAddress } from "@/types/checkout";
+import ShippingRateSelector from "@/components/ShippingRateSelector";
+import EmbeddedCheckoutPanel from "@/components/EmbeddedCheckoutPanel";
+import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
+import { isFallbackRate } from "@/types/checkout";
 
 export default function CartPageWrapper() {
   return (
@@ -39,20 +42,18 @@ type Group = {
   subtotalCents: number;
 };
 
-type DestForm = {
-  useCalculated: boolean;
-  postal: string;
-  city: string;
-  state: string;
-  country: string;
-};
-
 type GiftForm = {
   giftNote: string;
   giftWrapping: boolean;
 };
 
-type CheckoutStep = "review" | "address" | "payment";
+type CheckoutStep = "review" | "address" | "shipping" | "payment";
+
+type ClientSecretEntry = {
+  sellerId: string;
+  sellerName: string;
+  secret: string;
+};
 
 function CartPage() {
   const searchParams = useSearchParams();
@@ -60,12 +61,9 @@ function CartPage() {
 
   const [items, setItems] = React.useState<CartItem[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [checkingOutSeller, setCheckingOutSeller] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = React.useState(false);
 
-  // per-seller destination form state
-  const [destBySeller, setDestBySeller] = React.useState<Record<string, DestForm>>({});
   // per-seller gift state
   const [giftBySeller, setGiftBySeller] = React.useState<Record<string, GiftForm>>({});
 
@@ -73,14 +71,42 @@ function CartPage() {
   const [step, setStep] = React.useState<CheckoutStep>("review");
   const [shippingAddress, setShippingAddress] = React.useState<ShippingAddress | null>(null);
 
+  // Shipping rate selection per seller
+  const [selectedRates, setSelectedRates] = React.useState<Record<string, SelectedShippingRate>>({});
+
+  // Embedded checkout state
+  const [clientSecrets, setClientSecrets] = React.useState<ClientSecretEntry[]>([]);
+  const [currentPaymentIndex, setCurrentPaymentIndex] = React.useState(0);
+  const [creatingSession, setCreatingSession] = React.useState(false);
+
   // Mount-time URL restoration
   React.useEffect(() => {
     const urlStep = searchParams.get("step");
     if (urlStep === "address") {
       setStep("address");
+    } else if (urlStep === "shipping") {
+      if (shippingAddress) {
+        setStep("shipping");
+      } else {
+        setStep("address");
+        router.replace("/cart?step=address", { scroll: false });
+      }
     } else if (urlStep === "payment") {
       if (shippingAddress) {
-        setStep("payment");
+        // Try restoring from sessionStorage
+        try {
+          const stored = sessionStorage.getItem("grainline_checkouts");
+          if (stored) {
+            const parsed = JSON.parse(stored) as ClientSecretEntry[];
+            if (parsed.length > 0) {
+              setClientSecrets(parsed);
+              setStep("payment");
+              return;
+            }
+          }
+        } catch { /* ignore */ }
+        setStep("shipping");
+        router.replace("/cart?step=shipping", { scroll: false });
       } else {
         setStep("address");
         router.replace("/cart?step=address", { scroll: false });
@@ -89,14 +115,18 @@ function CartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Safety guard
+  // Safety guards
   React.useEffect(() => {
-    if (step === "payment" && !shippingAddress) {
+    if (step === "shipping" && !shippingAddress) {
       setStep("address");
       router.replace("/cart?step=address", { scroll: false });
     }
+    if (step === "payment" && (!shippingAddress || clientSecrets.length === 0)) {
+      setStep("shipping");
+      router.replace("/cart?step=shipping", { scroll: false });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, shippingAddress]);
+  }, [step, shippingAddress, clientSecrets]);
 
   async function load() {
     setLoading(true);
@@ -111,28 +141,6 @@ function CartPage() {
       }
       const data = await res.json();
       setItems(data.items || []);
-
-      // initialize dest forms for any new seller groups (don't clobber if already typed)
-      const sellerIdSet = (data.items || []).reduce((set: Set<string>, it: CartItem) => {
-        set.add(it.listing.sellerId);
-        return set;
-      }, new Set<string>());
-
-      setDestBySeller((prev) => {
-        const next = { ...prev };
-        for (const sellerId of sellerIdSet) {
-          if (!next[sellerId]) {
-            next[sellerId] = {
-              useCalculated: false,
-              postal: "",
-              city: "",
-              state: "",
-              country: "US",
-            };
-          }
-        }
-        return next;
-      });
     } catch {
       setError("Failed to load cart");
     } finally {
@@ -156,51 +164,12 @@ function CartPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to update cart");
       await load();
       window.dispatchEvent(new Event("cart:updated"));
+      // Reset checkout state on cart change
+      sessionStorage.removeItem("grainline_checkouts");
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
     } catch (e) {
       setError((e as Error).message);
-    }
-  }
-
-  function updateDest(sellerId: string, patch: Partial<DestForm>) {
-    setDestBySeller((prev) => ({ ...prev, [sellerId]: { ...(prev[sellerId] || {}), ...patch } }));
-  }
-
-  async function checkoutSeller(sellerId: string) {
-    setCheckingOutSeller(sellerId);
-    setError(null);
-    try {
-      const dest = destBySeller[sellerId];
-      const gift = giftBySeller[sellerId];
-      const sellerGroup = groups.find((g) => g.sellerId === sellerId);
-      const giftWrappingPriceCents = sellerGroup?.items[0]?.listing.giftWrappingPriceCents ?? 0;
-      const body: Record<string, unknown> = {
-        sellerId,
-        giftNote: gift?.giftNote ?? "",
-        giftWrapping: gift?.giftWrapping ?? false,
-        giftWrappingPriceCents: gift?.giftWrapping ? (giftWrappingPriceCents ?? 0) : 0,
-      };
-
-      if (dest?.useCalculated) {
-        body.useCalculated = true;
-        if (dest.postal)  body.toPostal = dest.postal.trim();
-        if (dest.state)   body.toState  = dest.state.trim();
-        if (dest.city)    body.toCity   = dest.city.trim();
-        if (dest.country) body.toCountry = dest.country.trim() || "US";
-      } else {
-        body.useCalculated = false;
-      }
-
-      const res = await fetch("/api/cart/checkout-seller", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Checkout failed");
-      window.location.href = data.url as string;
-    } catch (e) {
-      setError((e as Error).message);
-      setCheckingOutSeller(null);
     }
   }
 
@@ -250,172 +219,147 @@ function CartPage() {
 
   const grandTotal = groups.reduce((s, g) => s + g.subtotalCents, 0);
 
-  // Render seller sections (used in Step 1 review and Step 3 payment)
-  function renderSellerSections(showCheckoutButtons: boolean) {
-    return groups.map((g) => {
-      const dest = destBySeller[g.sellerId] || {
-        useCalculated: false,
-        postal: "",
-        city: "",
-        state: "",
-        country: "US",
-      };
-      const disabled = checkingOutSeller != null;
-
-      return (
-        <section key={g.sellerId} className="rounded-lg border">
-          <header className="flex items-center justify-between border-b px-4 py-3">
-            <div className="text-sm text-neutral-700">
-              <span className="text-neutral-500">Seller:</span>{" "}
-              <span className="font-medium">{g.sellerName}</span>
-            </div>
-            <div className="text-sm">
-              Subtotal: <span className="font-semibold">${(g.subtotalCents / 100).toFixed(2)}</span>
-            </div>
-          </header>
-
-          <ul className="divide-y">
-            {g.items.map((i) => {
-              const img = i.listing.photos?.[0]?.url;
-              const lineCents = i.priceCents * i.quantity;
-
-              return (
-                <li key={i.id} className="flex items-center gap-3 px-4 py-3">
-                  {img ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
-                  ) : (
-                    <div className="h-16 w-16 rounded border bg-neutral-100" />
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <a href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
-                      {i.listing.title}
-                    </a>
-
-                    <div className="mt-1 flex items-center gap-3 text-sm text-neutral-700">
-                      <span>${(i.priceCents / 100).toFixed(2)} each</span>
-
-                      <label className="ml-2 text-xs text-neutral-500">Qty</label>
-                      <select
-                        className="rounded border px-2 py-1 text-sm"
-                        value={i.quantity}
-                        disabled={disabled}
-                        onChange={(e) => setQuantity(i.listing.id, Number(e.target.value))}
-                      >
-                        {Array.from({ length: 10 }).map((_, idx) => {
-                          const n = idx + 1;
-                          return (
-                            <option key={n} value={n}>{n}</option>
-                          );
-                        })}
-                      </select>
-
-                      <button
-                        type="button"
-                        className="ml-2 text-xs text-red-600 underline disabled:opacity-50"
-                        onClick={() => setQuantity(i.listing.id, 0)}
-                        disabled={disabled}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="text-sm font-medium">
-                    ${(lineCents / 100).toFixed(2)}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Destination toggle — only in review step */}
-          {!showCheckoutButtons && (
-            <div className="px-4 py-3 border-t bg-neutral-50">
-              <div className="flex items-center gap-3">
-                <input
-                  id={`calc-${g.sellerId}`}
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={dest.useCalculated}
-                  disabled={disabled}
-                  onChange={(e) => updateDest(g.sellerId, { useCalculated: e.target.checked })}
-                />
-                <label htmlFor={`calc-${g.sellerId}`} className="text-sm">
-                  Use calculated shipping
-                </label>
-              </div>
-
-              {dest.useCalculated && (
-                <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
-                  <input
-                    className="rounded border px-2 py-1 text-sm col-span-2"
-                    placeholder="ZIP / Postal *"
-                    value={dest.postal}
-                    onChange={(e) => updateDest(g.sellerId, { postal: e.target.value })}
-                    disabled={disabled}
-                  />
-                  <input
-                    className="rounded border px-2 py-1 text-sm"
-                    placeholder="State/Region"
-                    value={dest.state}
-                    onChange={(e) => updateDest(g.sellerId, { state: e.target.value })}
-                    disabled={disabled}
-                  />
-                  <input
-                    className="rounded border px-2 py-1 text-sm"
-                    placeholder="City"
-                    value={dest.city}
-                    onChange={(e) => updateDest(g.sellerId, { city: e.target.value })}
-                    disabled={disabled}
-                  />
-                  <input
-                    className="rounded border px-2 py-1 text-sm"
-                    placeholder="Country"
-                    value={dest.country}
-                    onChange={(e) => updateDest(g.sellerId, { country: e.target.value })}
-                    disabled={disabled}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Gift note */}
-          <div className="px-4 py-3 border-t">
-            <GiftNoteSection
-              offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
-              giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
-              giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
-              giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
-              onChange={(note, wrapping) =>
-                setGiftBySeller((prev) => ({
-                  ...prev,
-                  [g.sellerId]: { giftNote: note, giftWrapping: wrapping },
-                }))
-              }
-            />
+  // Render seller item list (used in review and shipping steps)
+  function renderSellerSections() {
+    return groups.map((g) => (
+      <section key={g.sellerId} className="rounded-lg border">
+        <header className="flex items-center justify-between border-b px-4 py-3">
+          <div className="text-sm text-neutral-700">
+            <span className="text-neutral-500">Seller:</span>{" "}
+            <span className="font-medium">{g.sellerName}</span>
           </div>
+          <div className="text-sm">
+            Subtotal: <span className="font-semibold">${(g.subtotalCents / 100).toFixed(2)}</span>
+          </div>
+        </header>
 
-          {showCheckoutButtons && (
-            <footer className="flex flex-col items-end gap-2 px-4 py-3">
-              <p className="text-xs text-neutral-500">
-                Shipping &amp; taxes shown after you choose an option at Checkout.
-              </p>
-              <button
-                type="button"
-                onClick={() => checkoutSeller(g.sellerId)}
-                disabled={checkingOutSeller === g.sellerId}
-                className="rounded bg-neutral-900 px-4 py-2 text-white text-sm disabled:opacity-50"
-              >
-                {checkingOutSeller === g.sellerId ? "Redirecting…" : "Checkout"}
-              </button>
-            </footer>
-          )}
-        </section>
-      );
-    });
+        <ul className="divide-y">
+          {g.items.map((i) => {
+            const img = i.listing.photos?.[0]?.url;
+            const lineCents = i.priceCents * i.quantity;
+
+            return (
+              <li key={i.id} className="flex items-center gap-3 px-4 py-3">
+                {img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                ) : (
+                  <div className="h-16 w-16 rounded border bg-neutral-100" />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <a href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
+                    {i.listing.title}
+                  </a>
+
+                  <div className="mt-1 flex items-center gap-3 text-sm text-neutral-700">
+                    <span>${(i.priceCents / 100).toFixed(2)} each</span>
+
+                    <label className="ml-2 text-xs text-neutral-500">Qty</label>
+                    <select
+                      className="rounded border px-2 py-1 text-sm"
+                      value={i.quantity}
+                      onChange={(e) => setQuantity(i.listing.id, Number(e.target.value))}
+                    >
+                      {Array.from({ length: 10 }).map((_, idx) => {
+                        const n = idx + 1;
+                        return (
+                          <option key={n} value={n}>{n}</option>
+                        );
+                      })}
+                    </select>
+
+                    <button
+                      type="button"
+                      className="ml-2 text-xs text-red-600 underline"
+                      onClick={() => setQuantity(i.listing.id, 0)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-sm font-medium">
+                  ${(lineCents / 100).toFixed(2)}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Gift note */}
+        <div className="px-4 py-3 border-t">
+          <GiftNoteSection
+            offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
+            giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
+            giftNote={giftBySeller[g.sellerId]?.giftNote ?? ""}
+            giftWrapping={giftBySeller[g.sellerId]?.giftWrapping ?? false}
+            onChange={(note, wrapping) =>
+              setGiftBySeller((prev) => ({
+                ...prev,
+                [g.sellerId]: { giftNote: note, giftWrapping: wrapping },
+              }))
+            }
+          />
+        </div>
+      </section>
+    ));
+  }
+
+  // Calculate total shipping
+  const totalShippingCents = groups.reduce((sum, g) => {
+    const rate = selectedRates[g.sellerId];
+    return sum + (rate ? rate.amountCents : 0);
+  }, 0);
+
+  const allRatesSelected = groups.every((g) => selectedRates[g.sellerId]);
+
+  // Create checkout sessions for all sellers
+  async function handleProceedToPayment() {
+    if (!shippingAddress) return;
+    setCreatingSession(true);
+    setError(null);
+
+    const secrets: ClientSecretEntry[] = [];
+    try {
+      for (const g of groups) {
+        const rate = selectedRates[g.sellerId];
+        if (!rate) throw new Error(`No shipping rate selected for ${g.sellerName}`);
+
+        const gift = giftBySeller[g.sellerId];
+        const giftWrappingPriceCents = g.items[0]?.listing.giftWrappingPriceCents ?? 0;
+
+        const res = await fetch("/api/cart/checkout-seller", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            sellerId: g.sellerId,
+            shippingAddress,
+            selectedRate: rate,
+            giftNote: gift?.giftNote ?? "",
+            giftWrapping: gift?.giftWrapping ?? false,
+            giftWrappingPriceCents: gift?.giftWrapping ? (giftWrappingPriceCents ?? 0) : 0,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Checkout failed for ${g.sellerName}`);
+        secrets.push({
+          sellerId: g.sellerId,
+          sellerName: g.sellerName,
+          secret: data.clientSecret,
+        });
+      }
+
+      setClientSecrets(secrets);
+      setCurrentPaymentIndex(0);
+      sessionStorage.setItem("grainline_checkouts", JSON.stringify(secrets));
+      setStep("payment");
+      router.replace("/cart?step=payment", { scroll: false });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCreatingSession(false);
+    }
   }
 
   return (
@@ -426,7 +370,8 @@ function CartPage() {
       <div className="flex items-center gap-2 text-sm mb-6">
         {[
           { key: "review", label: "Cart" },
-          { key: "address", label: "Shipping address" },
+          { key: "address", label: "Address" },
+          { key: "shipping", label: "Shipping" },
           { key: "payment", label: "Payment" },
         ].map((s, i) => (
           <span key={s.key} className="flex items-center gap-2">
@@ -451,7 +396,7 @@ function CartPage() {
       {/* Step 1: Review */}
       {step === "review" && (
         <>
-          {renderSellerSections(false)}
+          {renderSellerSections()}
 
           <div className="flex items-center justify-end gap-4">
             <div className="text-sm text-neutral-600">Grand total (items only)</div>
@@ -485,42 +430,24 @@ function CartPage() {
             }}
             onConfirm={(address) => {
               setShippingAddress(address);
-
-              // Pre-fill destBySeller for ALL sellers in the cart
-              const uniqueSellerIds = groups.map((g) => g.sellerId);
-              setDestBySeller((prev) => {
-                const updated = { ...prev };
-                uniqueSellerIds.forEach((sellerId) => {
-                  updated[sellerId] = {
-                    ...(updated[sellerId] ?? {}),
-                    useCalculated: true,
-                    postal: address.postalCode,
-                    state: address.state,
-                    city: address.city,
-                    country: "US",
-                  };
-                });
-                return updated;
-              });
-
-              setStep("payment");
-              router.replace("/cart?step=payment", { scroll: false });
+              setStep("shipping");
+              router.replace("/cart?step=shipping", { scroll: false });
             }}
           />
         </div>
       )}
 
-      {/* Step 3: Payment */}
-      {step === "payment" && (
+      {/* Step 3: Shipping */}
+      {step === "shipping" && shippingAddress && (
         <>
           {/* Address summary */}
           <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
             <p className="text-sm text-neutral-600">
               <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
-              {shippingAddress?.line1},{" "}
-              {shippingAddress?.city},{" "}
-              {shippingAddress?.state}{" "}
-              {shippingAddress?.postalCode}
+              {shippingAddress.name}, {shippingAddress.line1},{" "}
+              {shippingAddress.city},{" "}
+              {shippingAddress.state}{" "}
+              {shippingAddress.postalCode}
             </p>
             <button
               onClick={() => {
@@ -533,16 +460,125 @@ function CartPage() {
             </button>
           </div>
 
-          {renderSellerSections(true)}
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Shipping rate selectors */}
+            <div className="flex-1 space-y-6">
+              <h2 className="font-display text-xl text-neutral-900">Choose shipping</h2>
+              {groups.map((g) => (
+                <ShippingRateSelector
+                  key={g.sellerId}
+                  sellerId={g.sellerId}
+                  sellerDisplayName={g.sellerName}
+                  address={shippingAddress}
+                  selectedRate={selectedRates[g.sellerId] ?? null}
+                  onSelect={(rate) =>
+                    setSelectedRates((prev) => ({ ...prev, [g.sellerId]: rate }))
+                  }
+                />
+              ))}
+            </div>
 
-          <div className="flex items-center justify-end gap-4">
-            <div className="text-sm text-neutral-600">Grand total (items only)</div>
-            <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
+            {/* Order summary sidebar */}
+            <div className="lg:w-72 space-y-4">
+              <h3 className="text-sm font-medium text-neutral-900">Order summary</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">Items</span>
+                  <span className="font-medium">${(grandTotal / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">Shipping</span>
+                  <span className="font-medium">
+                    {allRatesSelected
+                      ? groups.some((g) => isFallbackRate(selectedRates[g.sellerId]))
+                        ? "Calculated at checkout"
+                        : `$${(totalShippingCents / 100).toFixed(2)}`
+                      : "Selecting..."}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-600">Tax</span>
+                  <span className="text-neutral-400">Calculated at checkout</span>
+                </div>
+                <hr />
+                <div className="flex justify-between text-base">
+                  <span className="text-neutral-900">Estimated total</span>
+                  <span className="font-semibold">
+                    {allRatesSelected && !groups.some((g) => isFallbackRate(selectedRates[g.sellerId]))
+                      ? `$${((grandTotal + totalShippingCents) / 100).toFixed(2)}`
+                      : `$${(grandTotal / 100).toFixed(2)}+`}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={handleProceedToPayment}
+                disabled={!allRatesSelected || creatingSession}
+                className="w-full rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+              >
+                {creatingSession ? "Preparing checkout..." : "Continue to payment →"}
+              </button>
+
+              <button
+                onClick={() => {
+                  setStep("address");
+                  router.replace("/cart?step=address", { scroll: false });
+                }}
+                className="w-full text-sm text-neutral-500 hover:text-neutral-700"
+              >
+                ← Back to address
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Step 4: Payment */}
+      {step === "payment" && clientSecrets.length > 0 && (
+        <>
+          {/* Address summary */}
+          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
+            <p className="text-sm text-neutral-600">
+              <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
+              {shippingAddress?.name}, {shippingAddress?.line1},{" "}
+              {shippingAddress?.city},{" "}
+              {shippingAddress?.state}{" "}
+              {shippingAddress?.postalCode}
+            </p>
           </div>
 
-          <p className="text-xs text-neutral-500">
-            You can check out each seller group separately. Shipping quotes are based on the address above.
-          </p>
+          {currentPaymentIndex < clientSecrets.length ? (
+            <EmbeddedCheckoutPanel
+              key={clientSecrets[currentPaymentIndex].sellerId}
+              clientSecret={clientSecrets[currentPaymentIndex].secret}
+              sellerName={clientSecrets[currentPaymentIndex].sellerName}
+              currentIndex={currentPaymentIndex + 1}
+              totalCount={clientSecrets.length}
+              onComplete={() => {
+                if (currentPaymentIndex < clientSecrets.length - 1) {
+                  setCurrentPaymentIndex((prev) => prev + 1);
+                } else {
+                  // All payments complete — clean up and redirect
+                  sessionStorage.removeItem("grainline_checkouts");
+                  router.push("/dashboard/orders");
+                }
+              }}
+            />
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-neutral-600">All payments complete. Redirecting...</p>
+            </div>
+          )}
+
+          <button
+            onClick={() => {
+              setStep("shipping");
+              router.replace("/cart?step=shipping", { scroll: false });
+            }}
+            className="text-sm text-neutral-500 hover:text-neutral-700"
+          >
+            ← Back to shipping
+          </button>
         </>
       )}
     </main>

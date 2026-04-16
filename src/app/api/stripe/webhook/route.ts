@@ -10,7 +10,7 @@ import {
   sendFirstSaleCongrats,
 } from "@/lib/email";
 import type { FulfillmentStatus } from "@prisma/client";
-import * as Sentry from "@sentry/nextjs";
+
 
 export const runtime = "nodejs";
 
@@ -85,16 +85,15 @@ export async function POST(req: Request) {
       const shippingTitle: string | undefined = shippingRateObj?.display_name || undefined;
       const taxAmountCents: number = s.total_details?.amount_tax ?? 0;
 
+      const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
       const buyerEmail: string | undefined = s.customer_details?.email || undefined;
-      const buyerName: string | undefined = s.customer_details?.name || undefined;
-
-      const addr = (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address ?? s.customer_details?.address ?? null;
-      const shipToLine1 = addr?.line1 ?? null;
-      const shipToLine2 = addr?.line2 ?? null;
-      const shipToCity = addr?.city ?? null;
-      const shipToState = addr?.state ?? null;
-      const shipToPostalCode = addr?.postal_code ?? null;
-      const shipToCountry = addr?.country ?? null;
+      const buyerName: string | undefined = sessionMeta.quotedToName ?? s.customer_details?.name ?? undefined;
+      const shipToLine1 = sessionMeta.quotedToLine1 ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.line1 ?? null;
+      const shipToLine2 = sessionMeta.quotedToLine2 ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.line2 ?? null;
+      const shipToCity = sessionMeta.quotedToCity ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.city ?? null;
+      const shipToState = sessionMeta.quotedToState ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.state ?? null;
+      const shipToPostalCode = sessionMeta.quotedToPostalCode ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.postal_code ?? null;
+      const shipToCountry = sessionMeta.quotedToCountry ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.country ?? "US";
 
       // Payment refs
       type ExpandedPI = { id?: string; charges?: { data?: { id?: string; application_fee?: string | { id?: string }; transfer?: string | { id?: string } }[] } };
@@ -112,29 +111,29 @@ export async function POST(req: Request) {
           ? charge.transfer
           : charge?.transfer?.id) ?? null;
 
-      const buyerId: string | undefined = s?.metadata?.buyerId;
+      const buyerId: string | undefined = sessionMeta.buyerId;
 
       // Quoted snapshot from metadata (typed on-site)
-      const quotedShipToPostalCode = s?.metadata?.quotedShipToPostalCode || "";
-      const quotedShipToState = s?.metadata?.quotedShipToState || "";
-      const quotedShipToCity = s?.metadata?.quotedShipToCity || "";
-      const quotedShipToCountry = s?.metadata?.quotedShipToCountry || "";
+      const quotedShipToPostalCode = sessionMeta.quotedShipToPostalCode || sessionMeta.quotedToPostalCode || "";
+      const quotedShipToState = sessionMeta.quotedShipToState || sessionMeta.quotedToState || "";
+      const quotedShipToCity = sessionMeta.quotedShipToCity || sessionMeta.quotedToCity || "";
+      const quotedShipToCountry = sessionMeta.quotedShipToCountry || sessionMeta.quotedToCountry || "";
       const quotedShippingAmountCents =
-        s?.metadata?.quotedShippingAmountCents != null &&
-        s.metadata.quotedShippingAmountCents !== ""
-          ? Number(s.metadata.quotedShippingAmountCents)
+        sessionMeta.quotedShippingAmountCents != null &&
+        sessionMeta.quotedShippingAmountCents !== ""
+          ? Number(sessionMeta.quotedShippingAmountCents)
           : null;
-      const useCalculated = String(s?.metadata?.useCalculated || "false") === "true";
 
       // Gift options from metadata
-      const giftNote: string | null = s?.metadata?.giftNote || null;
-      const giftWrapping: boolean = s?.metadata?.giftWrapping === "true";
-      const giftWrappingPriceCentsRaw = s?.metadata?.giftWrappingPriceCents ? parseInt(s.metadata.giftWrappingPriceCents, 10) : null;
+      const giftNote: string | null = sessionMeta.giftNote || null;
+      const giftWrapping: boolean = sessionMeta.giftWrapping === "true";
+      const giftWrappingPriceCentsRaw = sessionMeta.giftWrappingPriceCents ? parseInt(sessionMeta.giftWrappingPriceCents, 10) : null;
       const giftWrappingPriceCents: number | null = giftWrappingPriceCentsRaw != null && Number.isFinite(giftWrappingPriceCentsRaw) ? giftWrappingPriceCentsRaw : null;
 
       // Shippo IDs from metadata / selected shipping rate
-      const shippoShipmentId: string | null = s?.metadata?.shippoShipmentId || null;
-      const shippoRateObjectId: string | null = shippingRateObj?.metadata?.objectId || null;
+      const shippoShipmentId: string | null = sessionMeta.shippoShipmentId || null;
+      const selectedRateObjectId: string | null = sessionMeta.selectedRateObjectId || null;
+      const shippoRateObjectId: string | null = selectedRateObjectId || shippingRateObj?.metadata?.objectId || null;
 
       // estDays stored in shipping rate metadata at checkout time; default 7 if missing
       const rawEstDays = shippingRateObj?.metadata?.estDays;
@@ -155,7 +154,6 @@ export async function POST(req: Request) {
         (quotedShipToCountry && quotedShipToCountry !== (shipToCountry || ""));
 
       const amountMismatch =
-        useCalculated &&
         quotedShippingAmountCents != null &&
         shippingAmountCents != null &&
         quotedShippingAmountCents !== shippingAmountCents;
@@ -186,66 +184,9 @@ export async function POST(req: Request) {
         return { processingDeadline, estimatedDeliveryDate };
       }
 
-      // Tax reversal helper — reverse tax portion of seller transfer for marketplace facilitator compliance
-      async function reverseTaxIfNeeded(orderId: string) {
-        const taxAmount = s.total_details?.amount_tax ?? 0;
-        const taxAlreadyRetained = s?.metadata?.taxRetainedAtCreation === "true";
-
-        // Try to resolve transferId — may be null from expansion if transfer was async
-        let transferId = stripeTransferId;
-        if (!transferId && paymentIntentId) {
-          try {
-            const piExpanded = await stripe.paymentIntents.retrieve(paymentIntentId, {
-              expand: ["latest_charge"],
-            });
-            const latestCharge = piExpanded.latest_charge as { transfer?: string | { id?: string } } | null;
-            transferId = latestCharge
-              ? (typeof latestCharge.transfer === "string" ? latestCharge.transfer : latestCharge.transfer?.id ?? null)
-              : null;
-          } catch (e) {
-            console.warn("reverseTaxIfNeeded PI re-fetch failed", e);
-          }
-        }
-
-        // Retry after 2s delay — Stripe may not have attached the transfer yet
-        if (!transferId && paymentIntentId) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          try {
-            const piRetry = await stripe.paymentIntents.retrieve(paymentIntentId, {
-              expand: ["latest_charge"],
-            });
-            const retryCharge = piRetry.latest_charge as { transfer?: string | { id?: string } } | null;
-            transferId = retryCharge
-              ? (typeof retryCharge.transfer === "string" ? retryCharge.transfer : retryCharge.transfer?.id ?? null)
-              : null;
-          } catch (e) {
-            console.warn("reverseTaxIfNeeded retry failed", e);
-          }
-        }
-
-        if (taxAlreadyRetained) return;
-
-        if (taxAmount > 0 && transferId) {
-          try {
-            const reversal = await stripe.transfers.createReversal(
-              transferId,
-              { amount: taxAmount, description: "Tax retention — marketplace facilitator", metadata: { sessionId, orderId, reason: "tax_retention" } },
-              { idempotencyKey: `tax-reversal-${sessionId}` }
-            );
-            await prisma.order.update({ where: { id: orderId }, data: { taxReversalId: reversal.id, taxReversalAmountCents: taxAmount } });
-          } catch (err) {
-            console.error("Tax reversal failed:", err);
-            const stripeErr = err as { code?: string; message?: string };
-            const isBalanceIssue = stripeErr.code === "insufficient_funds" || stripeErr.message?.toLowerCase().includes("insufficient");
-            Sentry.captureException(err, { level: isBalanceIssue ? "fatal" : "error", extra: { orderId, taxAmount, isBalanceIssue } });
-            await prisma.order.update({ where: { id: orderId }, data: { reviewNeeded: true } });
-          }
-        }
-      }
-
       // CART CHECKOUT
-      const cartId: string | undefined = s?.metadata?.cartId;
-      const sellerIdFromMeta: string | undefined = s?.metadata?.sellerId;
+      const cartId: string | undefined = sessionMeta.cartId;
+      const sellerIdFromMeta: string | undefined = sessionMeta.sellerId;
 
       if (cartId && buyerId) {
         const cart = await prisma.cart.findUnique({
@@ -308,6 +249,8 @@ export async function POST(req: Request) {
               shippingService,
               shippingEta,
 
+              quotedToName: sessionMeta.quotedToName ?? null,
+              quotedToPhone: sessionMeta.quotedToPhone ?? null,
               quotedToCity: quotedShipToCity || null,
               quotedToState: quotedShipToState || null,
               quotedToPostalCode: quotedShipToPostalCode || null,
@@ -347,9 +290,6 @@ export async function POST(req: Request) {
                 where: { id: it.listingId },
                 data: {
                   stockQuantity: newQty,
-                  // TODO: When stock is restocked (e.g. via inventory update route), query
-                  // StockNotification for this listing and send emails to subscribers via Resend.
-                  // Actual email sending deferred until sending domain is verified.
                   ...(newQty <= 0 ? { status: "SOLD_OUT" } : {}),
                 },
               });
@@ -363,9 +303,20 @@ export async function POST(req: Request) {
           });
         });
 
-        // Reverse tax portion of seller transfer (marketplace facilitator)
-        const cartOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
-        if (cartOrder) await reverseTaxIfNeeded(cartOrder.id);
+        // Cart cleanup (separate try/catch — non-fatal)
+        try {
+          const webhookSellerId = sessionMeta.sellerId;
+          if (webhookSellerId) {
+            await prisma.cartItem.deleteMany({
+              where: {
+                cart: { userId: buyerId },
+                listing: { sellerId: webhookSellerId },
+              },
+            });
+          }
+        } catch (err) {
+          console.error("Webhook cart cleanup failed:", err);
+        }
 
         // Notify buyer + seller after cart checkout
         try {
@@ -509,10 +460,10 @@ export async function POST(req: Request) {
       }
 
       // SINGLE LISTING CHECKOUT
-      const listingId: string | undefined = s?.metadata?.listingId;
-      const quantity: number = Math.max(1, Number(s?.metadata?.quantity || 1));
+      const listingId: string | undefined = sessionMeta.listingId;
+      const quantity: number = Math.max(1, Number(sessionMeta.quantity || 1));
       const priceCentsFromMeta: number | null =
-        s?.metadata?.priceCents != null ? Number(s.metadata.priceCents) : null;
+        sessionMeta.priceCents != null ? Number(sessionMeta.priceCents) : null;
 
       if (listingId && buyerId) {
         const listingData = await prisma.listing.findUnique({
@@ -570,6 +521,8 @@ export async function POST(req: Request) {
               shippingService,
               shippingEta,
 
+              quotedToName: sessionMeta.quotedToName ?? null,
+              quotedToPhone: sessionMeta.quotedToPhone ?? null,
               quotedToCity: quotedShipToCity || null,
               quotedToState: quotedShipToState || null,
               quotedToPostalCode: quotedShipToPostalCode || null,
@@ -599,18 +552,26 @@ export async function POST(req: Request) {
               where: { id: listingId },
               data: {
                 stockQuantity: newQty,
-                // TODO: When stock is restocked (e.g. via inventory update route), query
-                // StockNotification for this listing and send emails to subscribers via Resend.
-                // Actual email sending deferred until sending domain is verified.
                 ...(newQty <= 0 ? { status: "SOLD_OUT" } : {}),
               },
             });
           }
         });
 
-        // Reverse tax portion of seller transfer (marketplace facilitator)
-        const singleOrder = await prisma.order.findFirst({ where: { stripeSessionId: sessionId }, select: { id: true } });
-        if (singleOrder) await reverseTaxIfNeeded(singleOrder.id);
+        // Cart cleanup (separate try/catch — non-fatal)
+        try {
+          const webhookSellerId = sessionMeta.sellerId;
+          if (webhookSellerId) {
+            await prisma.cartItem.deleteMany({
+              where: {
+                cart: { userId: buyerId },
+                listing: { sellerId: webhookSellerId },
+              },
+            });
+          }
+        } catch (err) {
+          console.error("Webhook cart cleanup failed:", err);
+        }
 
         // Notify buyer + seller after single-listing checkout
         try {

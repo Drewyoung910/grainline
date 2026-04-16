@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 import { FALLBACK_RATE } from "@/types/checkout";
 
@@ -10,6 +10,7 @@ type QuoteRate = {
   carrier: string;
   service: string;
   estDays: number | null;
+  objectId?: string | null;
 };
 
 type Props = {
@@ -22,7 +23,7 @@ type Props = {
 
 function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
   return {
-    objectId: `${r.carrier}-${r.service}-${index}`,
+    objectId: r.objectId ?? `${r.carrier}-${r.service}-${index}`,
     amountCents: r.amountCents,
     displayName: r.label,
     carrier: r.carrier,
@@ -41,48 +42,47 @@ export default function ShippingRateSelector({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const fetchRates = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch("/api/shipping/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "cart",
-          sellerId,
-          toPostal: address.postalCode,
-          toState: address.state,
-          toCity: address.city,
-          toCountry: "US",
-        }),
-      });
-      if (!res.ok) throw new Error("Quote failed");
-      const data = await res.json();
-      const quoteRates: QuoteRate[] = data.rates ?? [];
-
-      if (quoteRates.length === 0) {
+  useEffect(() => {
+    const ac = new AbortController();
+    async function fetchRates() {
+      setLoading(true);
+      setError(false);
+      try {
+        const res = await fetch("/api/shipping/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: ac.signal,
+          body: JSON.stringify({
+            mode: "cart",
+            sellerId,
+            toPostal: address.postalCode,
+            toState: address.state,
+            toCity: address.city,
+            toCountry: "US",
+          }),
+        });
+        if (!res.ok) throw new Error("Quote failed");
+        const data = await res.json();
+        const quoteRates: QuoteRate[] = data.rates ?? [];
+        if (quoteRates.length === 0) {
+          setError(true);
+          onSelect(FALLBACK_RATE);
+          return;
+        }
+        const mapped = quoteRates.map(toSelectedRate);
+        setRates(mapped);
+        const cheapest = mapped.reduce((min, r) => (r.amountCents < min.amountCents ? r : min), mapped[0]);
+        onSelect(cheapest);
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
         setError(true);
         onSelect(FALLBACK_RATE);
-        return;
+      } finally {
+        if (!ac.signal.aborted) setLoading(false);
       }
-
-      const mapped = quoteRates.map(toSelectedRate);
-      setRates(mapped);
-
-      // Auto-select cheapest
-      const cheapest = mapped.reduce((min, r) => (r.amountCents < min.amountCents ? r : min), mapped[0]);
-      onSelect(cheapest);
-    } catch {
-      setError(true);
-      onSelect(FALLBACK_RATE);
-    } finally {
-      setLoading(false);
     }
-  }, [sellerId, address.postalCode, address.state, address.city, onSelect]);
-
-  useEffect(() => {
     fetchRates();
+    return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sellerId, address.postalCode, address.state, address.city]);
 

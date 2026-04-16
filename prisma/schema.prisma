@@ -502,6 +502,8 @@ model Order {
   quotedToState                String?
   quotedToPostalCode           String?
   quotedToCountry              String?
+  quotedToName                 String?
+  quotedToPhone                String?
   quotedAt                     DateTime?
   quotedUseCalculatedShipping  Boolean?  // what path we used
 

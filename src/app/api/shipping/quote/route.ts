@@ -84,23 +84,33 @@ export async function POST(req: Request) {
     };
 
     if (mode === "cart") {
-      const cart = await prisma.cart.findUnique({
-        where: { id: body.cartId ?? "" },
-        include: {
-          items: {
-            include: { listing: { include: { seller: true } } },
-            where: body.sellerId
-              ? { listing: { sellerId: body.sellerId } }
-              : undefined,
+      let cart;
+      if (body.cartId) {
+        cart = await prisma.cart.findUnique({
+          where: { id: body.cartId },
+          include: {
+            items: {
+              include: { listing: { include: { seller: true } } },
+              where: body.sellerId ? { listing: { sellerId: body.sellerId } } : undefined,
+            },
           },
-        },
-      });
+        });
+        if (cart && cart.userId !== me.id) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+      } else {
+        cart = await prisma.cart.findFirst({
+          where: { userId: me.id },
+          include: {
+            items: {
+              include: { listing: { include: { seller: true } } },
+              where: body.sellerId ? { listing: { sellerId: body.sellerId } } : undefined,
+            },
+          },
+        });
+      }
       if (!cart || cart.items.length === 0) {
         return NextResponse.json({ rates: [] });
-      }
-      // Verify the cart belongs to the requesting user
-      if (cart.userId !== me.id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       sellerId = cart.items[0].listing.sellerId;
 
@@ -226,7 +236,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ rates: [] });
     }
 
-    type ShippoRate = { currency?: string; provider?: string; carrier?: string; servicelevel?: { name?: string }; service?: string; estimated_days?: number | null; amount?: number };
+    type ShippoRate = { currency?: string; provider?: string; carrier?: string; servicelevel?: { name?: string }; service?: string; estimated_days?: number | null; amount?: number; object_id?: string };
     type ShippoShipment = { rates?: ShippoRate[] };
     // Build Shippo shipment + fetch rates (async=false embeds rates)
     const shipment = await shippoRequest<ShippoShipment>("/shipments/", {
@@ -277,6 +287,7 @@ export async function POST(req: Request) {
         service: r.servicelevel?.name || r.service,
         estDays: r.estimated_days ?? null,
         taxBehavior: "exclusive" as const,
+        objectId: r.object_id ?? null,
       }));
 
     return NextResponse.json({ rates: out });

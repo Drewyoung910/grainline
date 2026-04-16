@@ -85,7 +85,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
     if (!line1.trim()) e.line1 = "Address is required";
     if (!city.trim()) e.city = "City is required";
     if (!state || !STATE_CODES.has(state as typeof US_STATES[number]["code"])) e.state = "Select a state";
-    if (!/^\d{5}$/.test(postalCode)) e.postalCode = "Enter a 5-digit ZIP code";
+    if (!/^\d{5}(-\d{4})?$/.test(postalCode)) e.postalCode = "Enter a 5-digit ZIP code";
     return e;
   }
 

@@ -5,13 +5,21 @@ import { shippingAddressRatelimit, safeRateLimit, rateLimitResponse } from "@/li
 import { sanitizeText } from "@/lib/sanitize";
 import { z } from "zod";
 
+const US_STATE_CODES = new Set([
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
+  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"
+]);
+
 const AddressSchema = z.object({
   name: z.string().min(1).max(100),
   line1: z.string().min(1).max(200),
   line2: z.string().max(200).optional().nullable(),
   city: z.string().min(1).max(100),
-  state: z.string().length(2),
-  postalCode: z.string().regex(/^\d{5}$/),
+  state: z.string().length(2).refine(s => US_STATE_CODES.has(s.toUpperCase()), { message: "Invalid US state code" }),
+  postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
   phone: z.string().max(20).optional().nullable(),
 });
 
@@ -41,7 +49,7 @@ export async function GET() {
     line1: me.shippingLine1 ?? null,
     line2: me.shippingLine2 ?? null,
     city: me.shippingCity ?? null,
-    state: me.shippingState ?? null,
+    state: me.shippingState?.toUpperCase() ?? null,
     postalCode: me.shippingPostalCode ?? null,
     phone: me.shippingPhone ?? null,
   });
@@ -73,7 +81,7 @@ export async function PUT(req: Request) {
       shippingCity: sanitizeText(body.city),
       shippingState: body.state.toUpperCase(),
       shippingPostalCode: body.postalCode,
-      shippingPhone: body.phone ?? null,
+      shippingPhone: body.phone ? sanitizeText(body.phone) : null,
     },
   });
 

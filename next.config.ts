@@ -21,9 +21,9 @@ const securityHeaders = [
       // Drop plain http: — all legitimate image sources use HTTPS; blob:/data: retained for canvas/uploader
       "img-src 'self' data: blob: https:",
       // All XHR/fetch/WebSocket targets: Clerk, Stripe, R2, Sentry, Upstash, OpenStreetMap, Maplibre tiles
-      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://*.r2.cloudflarestorage.com https://cdn.thegrainline.com https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.openfreemap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
+      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.r2.cloudflarestorage.com https://cdn.thegrainline.com https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.openfreemap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
       // Stripe payment iframe + Clerk account modal iframe
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com",
       "worker-src 'self' blob:",
       "media-src 'self'",
       "object-src 'none'",

@@ -17,6 +17,8 @@
     "@prisma/client": "^7.6.0",
     "@react-email/render": "^1.4.0",
     "@sentry/nextjs": "^10.46.0",
+    "@stripe/react-stripe-js": "^3.10.0",
+    "@stripe/stripe-js": "^4.10.0",
     "@types/marked": "^5.0.2",
     "@types/pg": "^8.20.0",
     "@upstash/ratelimit": "^2.0.8",

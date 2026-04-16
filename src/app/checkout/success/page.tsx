@@ -62,13 +62,20 @@ export default async function CheckoutSuccessPage({
     const buyerEmail: string | undefined = s.customer_details?.email || undefined;
     const buyerName: string | undefined = s.customer_details?.name || undefined;
 
-    const addr = (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address ?? s.customer_details?.address ?? null;
-    const shipToLine1 = addr?.line1 ?? null;
-    const shipToLine2 = addr?.line2 ?? null;
-    const shipToCity = addr?.city ?? null;
-    const shipToState = addr?.state ?? null;
-    const shipToPostalCode = addr?.postal_code ?? null;
-    const shipToCountry = addr?.country ?? null;
+    const addr = {
+      line1: meta.quotedToLine1 ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.line1 ?? null,
+      line2: meta.quotedToLine2 ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.line2 ?? null,
+      city: meta.quotedToCity ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.city ?? null,
+      state: meta.quotedToState ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.state ?? null,
+      postal_code: meta.quotedToPostalCode ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.postal_code ?? null,
+      country: meta.quotedToCountry ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.country ?? null,
+    };
+    const shipToLine1 = addr.line1;
+    const shipToLine2 = addr.line2;
+    const shipToCity = addr.city;
+    const shipToState = addr.state;
+    const shipToPostalCode = addr.postal_code;
+    const shipToCountry = addr.country;
 
     const pi = typeof s.payment_intent === "string" ? null : (s.payment_intent as { id?: string; charges?: { data?: { id?: string; application_fee?: string | { id?: string }; transfer?: string | { id?: string } }[] } });
     const paymentIntentId =
@@ -121,6 +128,9 @@ export default async function CheckoutSuccessPage({
             shipToState,
             shipToPostalCode,
             shipToCountry,
+
+            quotedToName: meta.quotedToName ?? null,
+            quotedToPhone: meta.quotedToPhone ?? null,
 
             stripePaymentIntentId: paymentIntentId,
             stripeChargeId,
@@ -196,6 +206,9 @@ export default async function CheckoutSuccessPage({
           shipToState,
           shipToPostalCode,
           shipToCountry,
+
+          quotedToName: meta.quotedToName ?? null,
+          quotedToPhone: meta.quotedToPhone ?? null,
 
           stripePaymentIntentId: paymentIntentId,
           stripeChargeId,
