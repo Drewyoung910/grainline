@@ -2601,6 +2601,11 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 - Listing page (`src/app/listing/[id]/page.tsx`): only call site updated with new props; no Prisma query change (seller fields already fully included via `seller: { include: { user: true } }`).
 - Phase 7 deferred: `on_behalf_of` (Terms update needed), Apple Pay domain registration, billing address prefill (Stripe Customer objects).
 
+**Security fixes post-Phase 6** (2026-04-16):
+- `checkout/single` reads gift wrap price from `listing.seller.giftWrappingPriceCents` (server-side), no longer accepts client input for this field. `giftWrappingPriceCents` removed from `CheckoutSingleSchema` and from `BuyNowCheckoutModal` fetch body. Prevents buyer from paying $0 gift wrap while seller's real price is charged downstream.
+- Listing status/privacy guards added to `checkout/single`: rejects with 400 if `listing.status !== "ACTIVE"` (blocks DRAFT, SOLD, SOLD_OUT, HIDDEN, PENDING_REVIEW, REJECTED); rejects with 400 if `listing.isPrivate && listing.reservedForUserId !== me.id` (blocks direct-POST purchase of custom/reserved listings). Note: `Listing.soldAt` and `isPublished` fields do not exist in the schema — `status === "SOLD"` is covered by the ACTIVE-only check.
+- `BuyNowButton`: `isLoaded` gate (`useUser()` → `{ isSignedIn, isLoaded }`) with `disabled={!isLoaded}` on the button element. Prevents Clerk hydration race where `isSignedIn` is briefly `undefined` and signed-in users get redirected to `/sign-in` if they click immediately on page load.
+
 **Statement descriptor suffix**: all 4 routes add `statement_descriptor_suffix` from seller displayName (uppercase, alphanumeric, max 22 chars). Conditional spread — skipped if empty to prevent checkout breakage. Shows seller name on buyer's card statement to reduce chargebacks.
 
 **Pre-flight chargesEnabled guard** (added 2026-04-15): all four checkout routes verify `seller.chargesEnabled && seller.stripeAccountId` BEFORE calling `stripe.checkout.sessions.create()`. Returns 400 "seller not accepting orders" if incomplete.
