@@ -2571,17 +2571,20 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 **Product tax code**: `txcd_99999999` (General - Tangible Personal Property) set on all product line items + gift wrapping. Was defaulting to `txcd_10000000` (Electronically Supplied Services — wrong for physical handmade goods).
 
-**Tax handling**: `automatic_tax: { enabled: true, liability: { type: "self" } }` on all routes. Grainline is marketplace facilitator. Legacy checkout route (`/api/checkout`) uses explicit `transfer_data.amount` + metadata `taxRetainedAtCreation: "true"` to exclude tax at session creation. Other routes have buyer-selected shipping so `transfer_data.amount` cannot be set at creation — **webhook tax reconciliation** reverses tax portion post-payment.
-
-**Webhook tax reconciliation** (added 2026-04-15): in `checkout.session.completed`, after Order creation, `reverseTaxIfNeeded(orderId)` runs:
-1. Reads `session.total_details.amount_tax` for actual tax collected
-2. Skips if `metadata.taxRetainedAtCreation === "true"` (legacy route already excluded tax)
-3. Calls `stripe.transfers.createReversal(stripeTransferId, { amount: taxAmount })` with idempotency key `tax-reversal-{sessionId}`
-4. Saves `taxReversalId` + `taxReversalAmountCents` to Order for audit trail
-5. Non-fatal: failures log to Sentry (fatal severity for insufficient_funds, error for transient), flags `reviewNeeded` on Order
-- New Order fields: `taxReversalId String?`, `taxReversalAmountCents Int?` (migration `20260415204102_add_tax_reversal_fields`)
-- Assumes card payments — ACH/bank transfers would need `checkout.session.async_payment_succeeded` handler
-- Long-term: move shipping selection to cart UI so `transfer_data.amount` can be set at session creation (deferred post-launch)
+**CHECKOUT REBUILD — Phase 5 complete** (2026-04-16):
+- `checkout-seller` route rewritten: new payload schema (`shippingAddress` + `selectedRate` objects), `ui_mode: "embedded"`, returns `clientSecret`, explicit `transfer_data.amount` excludes tax (items + shipping + giftwrap - 5% fee), `on_behalf_of` intentionally deferred (fee allocation decision pending Terms update), `automatic_tax` with `liability: { type: "self" }`
+- `shipping_address_collection` removed from checkout-seller — address collected in cart UI
+- Webhook: `reverseTaxIfNeeded` removed (no longer needed — explicit `transfer_data.amount` retains tax on platform automatically). Address now read from session metadata with fallback to Stripe fields for legacy sessions. Per-seller cart cleanup added AFTER `$transaction` (non-fatal).
+- CSP updated: `checkout.stripe.com` added to `frame-src` and `connect-src` (required for embedded checkout iframe)
+- Quote route: falls back to cart lookup by `userId` when `cartId` absent; now returns Shippo `objectId` per rate
+- `ShippingRateSelector`: real `objectId` preferred, `AbortController` on fetch, `useCallback` removed
+- `EmbeddedCheckoutPanel` component created (`src/components/EmbeddedCheckoutPanel.tsx`)
+- Cart page: 4-step flow (review/address/shipping/payment), `destBySeller` removed, `selectedRates` + `clientSecrets` state added, `sessionStorage` backup for payment step, multi-seller sequential payment via embedded checkout
+- `/api/cart/checkout/single` NOT updated (Phase 6 — `BuyNowButton.tsx` still calls it with old payload)
+- New Order fields: `quotedToName String?`, `quotedToPhone String?` (migration: `add_order_quoted_to_name_phone`)
+- Historical fields retained: `taxReversalId`, `taxReversalAmountCents` (no longer written)
+- ENV required: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- Phase 6 next: Buy Now modal + checkout/single update
 
 **Statement descriptor suffix**: all 4 routes add `statement_descriptor_suffix` from seller displayName (uppercase, alphanumeric, max 22 chars). Conditional spread — skipped if empty to prevent checkout breakage. Shows seller name on buyer's card statement to reduce chargebacks.
 
