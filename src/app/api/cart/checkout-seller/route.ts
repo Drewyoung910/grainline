@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { isFallbackRate } from "@/types/checkout";
+import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const CheckoutSellerSchema = z.object({
@@ -36,6 +37,15 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+    const rl = await safeRateLimit(checkoutRatelimit, userId);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again in a moment." },
+        { status: 429 }
+      );
+    }
+
     const me = await ensureUserByClerkId(userId);
 
     let body;
