@@ -561,7 +561,9 @@ function CartPage() {
                 } else {
                   // All payments complete — clean up and redirect
                   sessionStorage.removeItem("grainline_checkouts");
-                  router.push("/dashboard/orders");
+                  const lastSecret = clientSecrets[clientSecrets.length - 1].secret;
+                  const sessionId = lastSecret.split("_secret_")[0];
+                  router.push(`/checkout/success?session_id=${sessionId}`);
                 }
               }}
             />
