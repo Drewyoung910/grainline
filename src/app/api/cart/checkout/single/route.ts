@@ -2,62 +2,37 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { shippoRatesMultiPiece } from "@/lib/shippo";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { isFallbackRate } from "@/types/checkout";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
-  quantity: z.number().int().min(1).max(99).optional(),
+  quantity: z.number().int().min(1).max(10).default(1),
+  shippingAddress: z.object({
+    name: z.string().min(1).max(100),
+    line1: z.string().min(1).max(200),
+    line2: z.string().max(200).optional().nullable(),
+    city: z.string().min(1).max(100),
+    state: z.string().length(2),
+    postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
+    phone: z.string().max(20).optional().nullable(),
+  }),
+  selectedRate: z.object({
+    objectId: z.string().min(1),
+    amountCents: z.number().int().min(0),
+    displayName: z.string().min(1).max(200),
+    carrier: z.string().max(100),
+    estDays: z.number().int().nullable(),
+  }),
   giftNote: z.string().max(200).optional().nullable(),
-  giftWrapping: z.boolean().optional(),
-  giftWrappingPriceCents: z.number().int().min(0).max(10000000).optional().nullable(),
-  toPostal: z.string().max(20).optional().nullable(),
-  toState: z.string().max(50).optional().nullable(),
-  toCity: z.string().max(100).optional().nullable(),
-  toCountry: z.string().max(2).optional().nullable(),
+  giftWrapping: z.boolean().optional().default(false),
+  giftWrappingPriceCents: z.number().int().min(0).optional().default(0),
 });
 
 export const runtime = "nodejs";
-
-type LiveRate = {
-  label: string;
-  amountCents: number;
-  objectId?: string;
-  carrier?: string;
-  service?: string;
-  estDays?: number | null;
-  taxBehavior?: "exclusive" | "inclusive";
-};
-
-function prioritizeAndTrim(rates: LiveRate[], max = 5): LiveRate[] {
-  if (!Array.isArray(rates) || rates.length === 0) return [];
-  const scored = rates.map((r) => {
-    const isUps = (r.carrier || "").toLowerCase().includes("ups");
-    const isGround =
-      (r.service || "").toLowerCase().includes("ground") ||
-      r.label.toLowerCase().includes("ground");
-    const boost = isUps && isGround ? 1 : 0;
-    return { ...r, __boost: boost };
-  });
-  scored.sort((a, b) => {
-    if (b.__boost !== a.__boost) return b.__boost - a.__boost;
-    if (a.amountCents !== b.amountCents) return a.amountCents - b.amountCents;
-    const ad = a.estDays ?? 999, bd = b.estDays ?? 999;
-    return ad - bd;
-  });
-  const seen = new Set<string>();
-  const out: (LiveRate & { __boost: number })[] = [];
-  for (const r of scored) {
-    const key = `${(r.carrier || "").toLowerCase()}|${(r.service || r.label).toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(r);
-    if (out.length >= max) break;
-  }
-  return out.map(({ __boost, ...rest }) => rest);
-}
 
 export async function POST(req: Request) {
   try {
@@ -69,32 +44,18 @@ export async function POST(req: Request) {
 
     const me = await ensureUserByClerkId(userId);
 
-    let singleParsed;
+    let body;
     try {
-      singleParsed = CheckoutSingleSchema.parse(await req.json());
+      body = CheckoutSingleSchema.parse(await req.json());
     } catch (e) {
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const { listingId } = singleParsed;
-    const quantity = Math.max(1, Math.min(99, singleParsed.quantity ?? 1));
-
-    const giftNote: string = singleParsed.giftNote?.slice(0, 200) ?? "";
-    const giftWrapping: boolean = singleParsed.giftWrapping === true;
-    const giftWrappingPriceCents: number =
-      singleParsed.giftWrappingPriceCents && singleParsed.giftWrappingPriceCents > 0
-        ? Math.round(singleParsed.giftWrappingPriceCents)
-        : 0;
-
-    const toPostal  = singleParsed.toPostal  ?? undefined;
-    const toState   = singleParsed.toState   ?? undefined;
-    const toCity    = singleParsed.toCity    ?? undefined;
-    const toCountry = singleParsed.toCountry ?? "US";
 
     const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
+      where: { id: body.listingId },
       include: {
         photos: true,
         seller: {
@@ -104,17 +65,6 @@ export async function POST(req: Request) {
             stripeAccountId: true,
             chargesEnabled: true,
             vacationMode: true,
-            shipFromName: true,
-            shipFromLine1: true,
-            shipFromLine2: true,
-            shipFromCity: true,
-            shipFromState: true,
-            shipFromPostal: true,
-            shipFromCountry: true,
-            defaultPkgWeightGrams: true,
-            defaultPkgLengthCm: true,
-            defaultPkgWidthCm: true,
-            defaultPkgHeightCm: true,
           },
         },
       },
@@ -128,115 +78,55 @@ export async function POST(req: Request) {
     if (listing.seller.vacationMode) {
       return NextResponse.json(
         { error: "This seller is currently on vacation and not accepting new orders." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const currency = (listing.currency || "usd").toLowerCase();
-    const destination = listing.seller.stripeAccountId || null;
+    const sellerStripeAccountId = listing.seller.stripeAccountId || null;
     const sp = listing.seller;
 
     // Pre-flight: verify seller can accept payments
-    if (!destination || !sp.chargesEnabled) {
-      return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+    if (!sellerStripeAccountId || !sp.chargesEnabled) {
+      return NextResponse.json(
+        { error: "This seller is not currently accepting orders. Please try again later." },
+        { status: 400 },
+      );
     }
 
-    // Build shipping options — attempt live Shippo rates first
-    const shipping_options: Record<string, unknown>[] = [];
-    let quotedAmountCents: number | undefined;
-    let shippoShipmentId: string | undefined;
-
-    if (sp.shipFromLine1 && sp.shipFromCity && sp.shipFromState && sp.shipFromPostal) {
-      try {
-        // Cast both to number to handle Int? vs Float? inconsistency across listing and seller defaults
-        const totalWeightGrams = Number(listing.packagedWeightGrams ?? sp.defaultPkgWeightGrams ?? 0) * quantity;
-        const lengthCm = Number(listing.packagedLengthCm ?? sp.defaultPkgLengthCm ?? 0);
-        const widthCm  = Number(listing.packagedWidthCm  ?? sp.defaultPkgWidthCm  ?? 0);
-        const heightCm = Number(listing.packagedHeightCm ?? sp.defaultPkgHeightCm ?? 0);
-
-        if (totalWeightGrams > 0 && lengthCm > 0 && widthCm > 0 && heightCm > 0) {
-          const { rates: rawRates, shipmentId: fetchedShipmentId } = await shippoRatesMultiPiece({
-            from: {
-              name: sp.shipFromName ?? undefined,
-              street1: sp.shipFromLine1,
-              street2: sp.shipFromLine2 ?? undefined,
-              city: sp.shipFromCity,
-              state: sp.shipFromState,
-              zip: sp.shipFromPostal,
-              country: sp.shipFromCountry ?? "US",
-            },
-            to: {
-              street1: "Placeholder",
-              city: toCity ?? "New York",
-              state: toState ?? "NY",
-              zip: toPostal ?? "10001",
-              country: toCountry ?? "US",
-            },
-            parcels: [
-              {
-                weight: { value: totalWeightGrams, unit: "g" },
-                length: lengthCm ? String(lengthCm) : undefined,
-                width:  widthCm  ? String(widthCm)  : undefined,
-                height: heightCm ? String(heightCm) : undefined,
-              },
-            ],
-          });
-
-          shippoShipmentId = fetchedShipmentId;
-          type RawRate = { currency?: string; provider?: string; servicelevel_name?: string; est_days?: number | null; amount: number; objectId?: string };
-          const liveRates: LiveRate[] = (rawRates as RawRate[])
-            .filter((r) => (r.currency || "").toLowerCase() === currency)
-            .slice(0, 12)
-            .map((r) => ({
-              label: `${r.provider} ${r.servicelevel_name} (${r.est_days ? `${r.est_days}d` : "—"})`,
-              amountCents: r.amount, // already converted to cents by shippoRatesMultiPiece
-              objectId: r.objectId || "",
-              carrier: r.provider,
-              service: r.servicelevel_name,
-              estDays: r.est_days ?? null,
-              taxBehavior: "exclusive" as const,
-            }));
-
-          const best = prioritizeAndTrim(liveRates, 4);
-          best.forEach((r, idx) => {
-            if (idx === 0) quotedAmountCents = r.amountCents;
-            shipping_options.push({
-              shipping_rate_data: {
-                type: "fixed_amount",
-                fixed_amount: { amount: r.amountCents, currency },
-                display_name: r.label,
-                tax_behavior: r.taxBehavior || "exclusive",
-                metadata: { objectId: r.objectId || "", estDays: r.estDays != null ? String(r.estDays) : "" },
-              },
-            });
-          });
-        }
-      } catch (e) {
-        console.warn("Shippo quote failed for single checkout; using fallback", e);
-      }
-    }
-
-    // Fallback: read SiteConfig for a platform-level flat rate
-    if (shipping_options.length === 0) {
-      const siteConfig = await prisma.siteConfig.findUnique({ where: { id: 1 } });
-      const fallbackCents = siteConfig?.fallbackShippingCents ?? 1500;
-      quotedAmountCents = fallbackCents;
-      shipping_options.push({
-        shipping_rate_data: {
-          type: "fixed_amount",
-          fixed_amount: { amount: fallbackCents, currency },
-          display_name: "Standard Shipping",
-          tax_behavior: "exclusive",
-        },
+    // Resolve shipping amount — fall back to SiteConfig if fallback rate selected
+    const isFallback = isFallbackRate(body.selectedRate);
+    let shippingAmountCents = body.selectedRate.amountCents;
+    if (isFallback) {
+      const siteConfig = await prisma.siteConfig.findUnique({
+        where: { id: 1 },
+        select: { fallbackShippingCents: true },
       });
+      shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
     }
 
+    const giftWrapCents = body.giftWrapping ? body.giftWrappingPriceCents : 0;
+    const itemsSubtotalCents = listing.priceCents * body.quantity;
+
+    // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
+    const platformFee = Math.round(itemsSubtotalCents * 0.05);
+
+    // Seller receives items + shipping + gift wrap - platform fee.
+    // Tax is excluded — platform retains tax (marketplace facilitator).
+    const sellerTransferAmount =
+      itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
+
+    // Line items
     const line_items: {
       quantity: number;
-      price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
+      price_data: {
+        currency: string;
+        unit_amount: number;
+        product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string };
+      };
     }[] = [
       {
-        quantity,
+        quantity: body.quantity,
         price_data: {
           currency,
           unit_amount: listing.priceCents,
@@ -250,63 +140,101 @@ export async function POST(req: Request) {
       },
     ];
 
-    if (giftWrapping && giftWrappingPriceCents > 0) {
+    if (body.giftWrapping && giftWrapCents > 0) {
       line_items.push({
         quantity: 1,
         price_data: {
           currency,
-          unit_amount: giftWrappingPriceCents,
+          unit_amount: giftWrapCents,
           product_data: { name: "Gift Wrapping", tax_code: "txcd_99999999" },
         },
       });
     }
 
-    const application_fee_amount = Math.floor(listing.priceCents * quantity * 0.05); // 5% platform fee
+    // Buyer email (for Stripe receipt)
+    const buyerEmail = me.email ?? undefined;
 
-    const success_url = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
-    const cancel_url  = `${process.env.NEXT_PUBLIC_APP_URL}/listing/${listing.id}`;
+    // Statement descriptor: shows seller name on buyer's card statement
+    const descriptorSuffix = (sp.displayName ?? "")
+      .slice(0, 22)
+      .toUpperCase()
+      .replace(/[^A-Z0-9 ]/g, "")
+      .trim();
 
-    const base: Record<string, unknown> = {
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded",
+      // CRITICAL: "if_required" lets onComplete fire for card payments.
+      // "always" (the default) redirects instead of firing onComplete.
+      redirect_on_completion: "if_required",
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       mode: "payment",
-      success_url,
-      cancel_url,
       line_items,
-      billing_address_collection: "auto",
-      shipping_address_collection: { allowed_countries: ["US"] },
-      automatic_tax: { enabled: true, liability: { type: "self" } },
-      shipping_options,
-      metadata: {
-        listingId: listing.id,
-        buyerId: me.id,
-        quantity,
-        priceCents: listing.priceCents,
-        // Quoted address snapshot for webhook mismatch detection
-        quotedShipToPostalCode: toPostal || "",
-        quotedShipToState: toState || "",
-        quotedShipToCity: toCity || "",
-        quotedShipToCountry: toCountry || "US",
-        quotedShippingAmountCents: quotedAmountCents != null ? String(quotedAmountCents) : "",
-        shippoShipmentId: shippoShipmentId || "",
-        giftNote: giftNote ?? "",
-        giftWrapping: giftWrapping ? "true" : "false",
-        giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: "fixed_amount",
+            fixed_amount: { amount: shippingAmountCents, currency },
+            display_name: isFallback ? "Standard shipping" : body.selectedRate.displayName,
+            tax_behavior: "exclusive",
+            ...(body.selectedRate.estDays != null && {
+              delivery_estimate: {
+                minimum: {
+                  unit: "business_day" as const,
+                  value: body.selectedRate.estDays,
+                },
+                maximum: {
+                  unit: "business_day" as const,
+                  value: body.selectedRate.estDays + 2,
+                },
+              },
+            }),
+            metadata: {
+              objectId: isFallback ? "" : body.selectedRate.objectId,
+              estDays: body.selectedRate.estDays != null ? String(body.selectedRate.estDays) : "",
+            },
+          },
+        },
+      ],
+      customer_email: buyerEmail,
+      automatic_tax: {
+        enabled: true,
+        liability: { type: "self" as const },
       },
-    };
+      payment_intent_data: {
+        transfer_data: {
+          destination: sellerStripeAccountId,
+          amount: sellerTransferAmount,
+        },
+        ...(descriptorSuffix.length > 0 && { statement_descriptor_suffix: descriptorSuffix }),
+        // NOTE: on_behalf_of intentionally omitted —
+        // deferred until Terms update
+      },
+      metadata: {
+        listingId: body.listingId,
+        quantity: String(body.quantity),
+        priceCents: String(listing.priceCents),
+        buyerId: me.id,
+        taxRetainedAtCreation: "true",
+        selectedRateObjectId: body.selectedRate.objectId,
+        quotedToName: body.shippingAddress.name,
+        quotedToLine1: body.shippingAddress.line1,
+        quotedToLine2: body.shippingAddress.line2 ?? "",
+        quotedToCity: body.shippingAddress.city,
+        quotedToState: body.shippingAddress.state,
+        quotedToPostalCode: body.shippingAddress.postalCode,
+        quotedToCountry: "US",
+        quotedToPhone: body.shippingAddress.phone ?? "",
+        quotedShippingAmountCents: String(shippingAmountCents),
+        giftNote: body.giftNote ?? "",
+        giftWrapping: body.giftWrapping ? "true" : "false",
+        giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
+      },
+    });
 
-    // NOTE: buyer selects shipping in Stripe Checkout — final amount unknown at creation.
-    // transfer_data.amount not set; webhook reverses tax portion post-payment.
-    const singleDescriptor = (sp.displayName ?? "")
-      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
-    base.payment_intent_data = {
-      transfer_data: { destination },
-      application_fee_amount,
-      ...(singleDescriptor.length > 0 && { statement_descriptor_suffix: singleDescriptor }),
-    };
-
-    const session = await stripe.checkout.sessions.create(base);
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
-    console.error("POST /api/checkout/single error:", err);
+    console.error("POST /api/cart/checkout/single error:", err);
+    Sentry.captureException(err);
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

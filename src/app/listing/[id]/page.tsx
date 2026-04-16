@@ -439,6 +439,13 @@ export default async function ListingPage({
               {userId ? (
                 <BuyNowButton
                   listingId={id}
+                  listingTitle={listing.title}
+                  listingImageUrl={listing.photos[0]?.url}
+                  sellerName={sellerName}
+                  sellerId={listing.sellerId}
+                  priceCents={listing.priceCents}
+                  offersGiftWrapping={listing.seller.offersGiftWrapping}
+                  giftWrappingPriceCents={listing.seller.giftWrappingPriceCents}
                   className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
                 >
                   Buy now

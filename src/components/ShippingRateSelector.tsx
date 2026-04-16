@@ -19,6 +19,10 @@ type Props = {
   address: ShippingAddress;
   onSelect: (rate: SelectedShippingRate) => void;
   selectedRate: SelectedShippingRate | null;
+  // Optional: extra fields merged into quote body.
+  // For Buy Now: { mode: "single", listingId: "xxx" }
+  // Omit for cart (default cart behavior preserved).
+  quoteBodyExtra?: Record<string, string>;
 };
 
 function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
@@ -37,10 +41,13 @@ export default function ShippingRateSelector({
   address,
   onSelect,
   selectedRate,
+  quoteBodyExtra,
 }: Props) {
   const [rates, setRates] = useState<SelectedShippingRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const quoteBodyStr = JSON.stringify(quoteBodyExtra ?? null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -55,6 +62,7 @@ export default function ShippingRateSelector({
           body: JSON.stringify({
             mode: "cart",
             sellerId,
+            ...quoteBodyExtra,
             toPostal: address.postalCode,
             toState: address.state,
             toCity: address.city,
@@ -84,7 +92,7 @@ export default function ShippingRateSelector({
     fetchRates();
     return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerId, address.postalCode, address.state, address.city]);
+  }, [sellerId, address.postalCode, address.state, address.city, quoteBodyStr]);
 
   if (loading) {
     return (
