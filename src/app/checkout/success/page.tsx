@@ -48,6 +48,7 @@ export default async function CheckoutSuccessPage({
 
   if (!order) {
     const meta = (s.metadata ?? {}) as Record<string, string | undefined>;
+    const isEmbeddedCheckout = meta.taxRetainedAtCreation === "true";
     const buyerId = meta.buyerId;
     if (!buyerId) redirect("/cart");
 
@@ -94,22 +95,132 @@ export default async function CheckoutSuccessPage({
     const cartId = meta.cartId;
     const sellerIdFromMeta = meta.sellerId;
 
-    if (cartId) {
-      try {
-        order = await prisma.$transaction(async (tx) => {
-          const cart = await tx.cart.findUnique({
-            where: { id: cartId },
-            include: {
-              items: {
-                include: { listing: true },
-                where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
+    if (!isEmbeddedCheckout) {
+      // Hosted checkout: webhook may not have fired yet.
+      // Fallback order creation with P2002 safety catch.
+      if (cartId) {
+        try {
+          order = await prisma.$transaction(async (tx) => {
+            const cart = await tx.cart.findUnique({
+              where: { id: cartId },
+              include: {
+                items: {
+                  include: { listing: true },
+                  where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
+                },
               },
-            },
+            });
+
+            if (!cart || cart.items.length === 0) return null;
+
+            const created = await tx.order.create({
+              data: {
+                buyerId,
+                paidAt: new Date(),
+                stripeSessionId: sessionId,
+
+                currency,
+                itemsSubtotalCents,
+                shippingTitle,
+                shippingAmountCents,
+                taxAmountCents,
+
+                buyerEmail,
+                buyerName,
+                shipToLine1,
+                shipToLine2,
+                shipToCity,
+                shipToState,
+                shipToPostalCode,
+                shipToCountry,
+
+                quotedToName: meta.quotedToName ?? null,
+                quotedToPhone: meta.quotedToPhone ?? null,
+
+                stripePaymentIntentId: paymentIntentId,
+                stripeChargeId,
+                stripeApplicationFeeId,
+                stripeTransferId,
+              },
+            });
+
+            for (const it of cart.items) {
+              await tx.orderItem.create({
+                data: {
+                  orderId: created.id,
+                  listingId: it.listingId,
+                  quantity: it.quantity,
+                  priceCents: it.priceCents,
+                },
+              });
+            }
+
+            await tx.cartItem.deleteMany({
+              where: sellerIdFromMeta ? { cartId, listing: { sellerId: sellerIdFromMeta } } : { cartId },
+            });
+
+            return tx.order.findUnique({
+              where: { id: created.id },
+              include: {
+                items: {
+                  include: {
+                    listing: {
+                      include: {
+                        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                        seller: { select: { displayName: true } },
+                      },
+                    },
+                  },
+                },
+                buyer: true,
+              },
+            });
           });
 
-          if (!cart || cart.items.length === 0) return null;
+          if (!order) redirect("/dashboard/orders");
+        } catch (e: unknown) {
+          if (
+            e && typeof e === "object" && "code" in e &&
+            (e as { code: string }).code === "P2002"
+          ) {
+            // Webhook created the order between our check and create
+            // Re-query it
+            order = await prisma.order.findFirst({
+              where: { stripeSessionId: sessionId },
+              include: {
+                items: {
+                  include: {
+                    listing: {
+                      include: {
+                        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                        seller: { select: { displayName: true } },
+                      },
+                    },
+                  },
+                },
+                buyer: true,
+              },
+            });
+            if (!order) redirect("/dashboard/orders");
+          } else {
+            throw e;
+          }
+        }
+      } else if (meta.listingId) {
+        const listingId = meta.listingId;
+        const quantity = Math.max(1, Number(meta.quantity || 1));
+        const priceCentsFromMeta = meta.priceCents ? Number(meta.priceCents) : null;
 
-          const created = await tx.order.create({
+        const price =
+          priceCentsFromMeta ??
+          (await prisma.listing.findUnique({
+            where: { id: listingId },
+            select: { priceCents: true },
+          }))?.priceCents ??
+          0;
+
+        try {
+          order = await prisma.order.create({
             data: {
               buyerId,
               paidAt: new Date(),
@@ -137,161 +248,106 @@ export default async function CheckoutSuccessPage({
               stripeChargeId,
               stripeApplicationFeeId,
               stripeTransferId,
+
+              items: { create: [{ listingId, quantity, priceCents: price }] },
+            },
+            include: {
+              items: {
+                include: {
+                  listing: {
+                    include: {
+                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                      seller: { select: { displayName: true } },
+                    },
+                  },
+                },
+              },
+              buyer: true,
             },
           });
-
-          for (const it of cart.items) {
-            await tx.orderItem.create({
-              data: {
-                orderId: created.id,
-                listingId: it.listingId,
-                quantity: it.quantity,
-                priceCents: it.priceCents,
+        } catch (e: unknown) {
+          if (
+            e && typeof e === "object" && "code" in e &&
+            (e as { code: string }).code === "P2002"
+          ) {
+            // Webhook created the order between our check and create
+            // Re-query it
+            order = await prisma.order.findFirst({
+              where: { stripeSessionId: sessionId },
+              include: {
+                items: {
+                  include: {
+                    listing: {
+                      include: {
+                        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                        seller: { select: { displayName: true } },
+                      },
+                    },
+                  },
+                },
+                buyer: true,
               },
             });
+            if (!order) redirect("/dashboard/orders");
+          } else {
+            throw e;
           }
-
-          await tx.cartItem.deleteMany({
-            where: sellerIdFromMeta ? { cartId, listing: { sellerId: sellerIdFromMeta } } : { cartId },
-          });
-
-          return tx.order.findUnique({
-            where: { id: created.id },
-            include: {
-              items: {
-                include: {
-                  listing: {
-                    include: {
-                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                      seller: { select: { displayName: true } },
-                    },
-                  },
-                },
-              },
-              buyer: true,
-            },
-          });
-        });
-
-        if (!order) redirect("/dashboard/orders");
-      } catch (e: unknown) {
-        if (
-          e && typeof e === "object" && "code" in e &&
-          (e as { code: string }).code === "P2002"
-        ) {
-          // Webhook created the order between our check and create
-          // Re-query it
-          order = await prisma.order.findFirst({
-            where: { stripeSessionId: sessionId },
-            include: {
-              items: {
-                include: {
-                  listing: {
-                    include: {
-                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                      seller: { select: { displayName: true } },
-                    },
-                  },
-                },
-              },
-              buyer: true,
-            },
-          });
-          if (!order) redirect("/dashboard/orders");
-        } else {
-          throw e;
         }
-      }
-    } else if (meta.listingId) {
-      const listingId = meta.listingId;
-      const quantity = Math.max(1, Number(meta.quantity || 1));
-      const priceCentsFromMeta = meta.priceCents ? Number(meta.priceCents) : null;
-
-      const price =
-        priceCentsFromMeta ??
-        (await prisma.listing.findUnique({
-          where: { id: listingId },
-          select: { priceCents: true },
-        }))?.priceCents ??
-        0;
-
-      try {
-        order = await prisma.order.create({
-          data: {
-            buyerId,
-            paidAt: new Date(),
-            stripeSessionId: sessionId,
-
-            currency,
-            itemsSubtotalCents,
-            shippingTitle,
-            shippingAmountCents,
-            taxAmountCents,
-
-            buyerEmail,
-            buyerName,
-            shipToLine1,
-            shipToLine2,
-            shipToCity,
-            shipToState,
-            shipToPostalCode,
-            shipToCountry,
-
-            quotedToName: meta.quotedToName ?? null,
-            quotedToPhone: meta.quotedToPhone ?? null,
-
-            stripePaymentIntentId: paymentIntentId,
-            stripeChargeId,
-            stripeApplicationFeeId,
-            stripeTransferId,
-
-            items: { create: [{ listingId, quantity, priceCents: price }] },
-          },
-          include: {
-            items: {
-              include: {
-                listing: {
-                  include: {
-                    photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                    seller: { select: { displayName: true } },
-                  },
-                },
-              },
-            },
-            buyer: true,
-          },
-        });
-      } catch (e: unknown) {
-        if (
-          e && typeof e === "object" && "code" in e &&
-          (e as { code: string }).code === "P2002"
-        ) {
-          // Webhook created the order between our check and create
-          // Re-query it
-          order = await prisma.order.findFirst({
-            where: { stripeSessionId: sessionId },
-            include: {
-              items: {
-                include: {
-                  listing: {
-                    include: {
-                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                      seller: { select: { displayName: true } },
-                    },
-                  },
-                },
-              },
-              buyer: true,
-            },
-          });
-          if (!order) redirect("/dashboard/orders");
-        } else {
-          throw e;
-        }
+      } else {
+        redirect("/dashboard/orders");
       }
     } else {
-      redirect("/dashboard/orders");
+      // Embedded checkout: webhook creates the order.
+      // Single re-query — webhook is often fast enough
+      // that it fires during page load.
+      // Do NOT call order.create (webhook owns this).
+      order = await prisma.order.findFirst({
+        where: { stripeSessionId: sessionId },
+        include: {
+          items: {
+            include: {
+              listing: {
+                include: {
+                  photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                  seller: { select: { displayName: true } },
+                },
+              },
+            },
+          },
+          buyer: true,
+        },
+      });
     }
+  }
+
+  if (!order) {
+    return (
+      <main className="mx-auto max-w-3xl p-8 space-y-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">
+            Payment successful! 🎉
+          </h1>
+          <p className="text-neutral-600 text-sm">
+            Your order is being processed and will appear
+            in your orders momentarily.
+          </p>
+        </header>
+        <div className="flex gap-3">
+          <Link
+            href="/dashboard/orders"
+            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            View my orders
+          </Link>
+          <Link
+            href="/browse"
+            className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Keep shopping
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   const currency = order.currency || "usd";
