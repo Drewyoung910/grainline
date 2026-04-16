@@ -451,6 +451,7 @@ function CartPage() {
             </p>
             <button
               onClick={() => {
+                setSelectedRates({});
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}

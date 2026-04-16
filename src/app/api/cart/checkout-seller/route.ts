@@ -6,6 +6,7 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { isFallbackRate } from "@/types/checkout";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 const CheckoutSellerSchema = z.object({
@@ -205,6 +206,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
+    Sentry.captureException(err);
     console.error("POST /api/cart/checkout-seller error:", err);
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";
     return NextResponse.json(
