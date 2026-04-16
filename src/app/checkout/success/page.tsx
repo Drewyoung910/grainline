@@ -95,20 +95,128 @@ export default async function CheckoutSuccessPage({
     const sellerIdFromMeta = meta.sellerId;
 
     if (cartId) {
-      order = await prisma.$transaction(async (tx) => {
-        const cart = await tx.cart.findUnique({
-          where: { id: cartId },
-          include: {
-            items: {
-              include: { listing: true },
-              where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
+      try {
+        order = await prisma.$transaction(async (tx) => {
+          const cart = await tx.cart.findUnique({
+            where: { id: cartId },
+            include: {
+              items: {
+                include: { listing: true },
+                where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
+              },
             },
-          },
+          });
+
+          if (!cart || cart.items.length === 0) return null;
+
+          const created = await tx.order.create({
+            data: {
+              buyerId,
+              paidAt: new Date(),
+              stripeSessionId: sessionId,
+
+              currency,
+              itemsSubtotalCents,
+              shippingTitle,
+              shippingAmountCents,
+              taxAmountCents,
+
+              buyerEmail,
+              buyerName,
+              shipToLine1,
+              shipToLine2,
+              shipToCity,
+              shipToState,
+              shipToPostalCode,
+              shipToCountry,
+
+              quotedToName: meta.quotedToName ?? null,
+              quotedToPhone: meta.quotedToPhone ?? null,
+
+              stripePaymentIntentId: paymentIntentId,
+              stripeChargeId,
+              stripeApplicationFeeId,
+              stripeTransferId,
+            },
+          });
+
+          for (const it of cart.items) {
+            await tx.orderItem.create({
+              data: {
+                orderId: created.id,
+                listingId: it.listingId,
+                quantity: it.quantity,
+                priceCents: it.priceCents,
+              },
+            });
+          }
+
+          await tx.cartItem.deleteMany({
+            where: sellerIdFromMeta ? { cartId, listing: { sellerId: sellerIdFromMeta } } : { cartId },
+          });
+
+          return tx.order.findUnique({
+            where: { id: created.id },
+            include: {
+              items: {
+                include: {
+                  listing: {
+                    include: {
+                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                      seller: { select: { displayName: true } },
+                    },
+                  },
+                },
+              },
+              buyer: true,
+            },
+          });
         });
 
-        if (!cart || cart.items.length === 0) return null;
+        if (!order) redirect("/dashboard/orders");
+      } catch (e: unknown) {
+        if (
+          e && typeof e === "object" && "code" in e &&
+          (e as { code: string }).code === "P2002"
+        ) {
+          // Webhook created the order between our check and create
+          // Re-query it
+          order = await prisma.order.findFirst({
+            where: { stripeSessionId: sessionId },
+            include: {
+              items: {
+                include: {
+                  listing: {
+                    include: {
+                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                      seller: { select: { displayName: true } },
+                    },
+                  },
+                },
+              },
+              buyer: true,
+            },
+          });
+          if (!order) redirect("/dashboard/orders");
+        } else {
+          throw e;
+        }
+      }
+    } else if (meta.listingId) {
+      const listingId = meta.listingId;
+      const quantity = Math.max(1, Number(meta.quantity || 1));
+      const priceCentsFromMeta = meta.priceCents ? Number(meta.priceCents) : null;
 
-        const created = await tx.order.create({
+      const price =
+        priceCentsFromMeta ??
+        (await prisma.listing.findUnique({
+          where: { id: listingId },
+          select: { priceCents: true },
+        }))?.priceCents ??
+        0;
+
+      try {
+        order = await prisma.order.create({
           data: {
             buyerId,
             paidAt: new Date(),
@@ -136,26 +244,9 @@ export default async function CheckoutSuccessPage({
             stripeChargeId,
             stripeApplicationFeeId,
             stripeTransferId,
+
+            items: { create: [{ listingId, quantity, priceCents: price }] },
           },
-        });
-
-        for (const it of cart.items) {
-          await tx.orderItem.create({
-            data: {
-              orderId: created.id,
-              listingId: it.listingId,
-              quantity: it.quantity,
-              priceCents: it.priceCents,
-            },
-          });
-        }
-
-        await tx.cartItem.deleteMany({
-          where: sellerIdFromMeta ? { cartId, listing: { sellerId: sellerIdFromMeta } } : { cartId },
-        });
-
-        return tx.order.findUnique({
-          where: { id: created.id },
           include: {
             items: {
               include: {
@@ -170,67 +261,34 @@ export default async function CheckoutSuccessPage({
             buyer: true,
           },
         });
-      });
-
-      if (!order) redirect("/dashboard/orders");
-    } else if (meta.listingId) {
-      const listingId = meta.listingId;
-      const quantity = Math.max(1, Number(meta.quantity || 1));
-      const priceCentsFromMeta = meta.priceCents ? Number(meta.priceCents) : null;
-
-      const price =
-        priceCentsFromMeta ??
-        (await prisma.listing.findUnique({
-          where: { id: listingId },
-          select: { priceCents: true },
-        }))?.priceCents ??
-        0;
-
-      order = await prisma.order.create({
-        data: {
-          buyerId,
-          paidAt: new Date(),
-          stripeSessionId: sessionId,
-
-          currency,
-          itemsSubtotalCents,
-          shippingTitle,
-          shippingAmountCents,
-          taxAmountCents,
-
-          buyerEmail,
-          buyerName,
-          shipToLine1,
-          shipToLine2,
-          shipToCity,
-          shipToState,
-          shipToPostalCode,
-          shipToCountry,
-
-          quotedToName: meta.quotedToName ?? null,
-          quotedToPhone: meta.quotedToPhone ?? null,
-
-          stripePaymentIntentId: paymentIntentId,
-          stripeChargeId,
-          stripeApplicationFeeId,
-          stripeTransferId,
-
-          items: { create: [{ listingId, quantity, priceCents: price }] },
-        },
-        include: {
-          items: {
+      } catch (e: unknown) {
+        if (
+          e && typeof e === "object" && "code" in e &&
+          (e as { code: string }).code === "P2002"
+        ) {
+          // Webhook created the order between our check and create
+          // Re-query it
+          order = await prisma.order.findFirst({
+            where: { stripeSessionId: sessionId },
             include: {
-              listing: {
+              items: {
                 include: {
-                  photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                  seller: { select: { displayName: true } },
+                  listing: {
+                    include: {
+                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                      seller: { select: { displayName: true } },
+                    },
+                  },
                 },
               },
+              buyer: true,
             },
-          },
-          buyer: true,
-        },
-      });
+          });
+          if (!order) redirect("/dashboard/orders");
+        } else {
+          throw e;
+        }
+      }
     } else {
       redirect("/dashboard/orders");
     }
