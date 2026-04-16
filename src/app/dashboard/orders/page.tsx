@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import LocalDate from "@/components/LocalDate";
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {
@@ -81,7 +82,7 @@ export default async function OrdersPage() {
                       </Link>
                     </div>
                     <div className="text-neutral-500">
-                      {o.createdAt.toLocaleString()}
+                      <LocalDate date={o.createdAt} />
                       {o.paidAt ? " · Paid" : " · Unpaid"}
                     </div>
                   </div>

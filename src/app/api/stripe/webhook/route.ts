@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         id: string;
         currency?: string | null;
         amount_subtotal?: number | null;
-        shipping_cost?: { amount_total?: number | null; shipping_rate?: unknown } | null;
+        shipping_cost?: { amount_total?: number | null; amount_subtotal?: number | null; shipping_rate?: unknown } | null;
         total_details?: { amount_tax?: number | null } | null;
         customer_details?: { email?: string | null; name?: string | null; address?: Record<string, string | null> | null } | null;
         shipping_details?: { address?: Record<string, string | null> | null } | null;
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       // Stripe snapshots
       const currency: string = (s.currency || "usd").toLowerCase();
       const itemsSubtotalCents: number = s.amount_subtotal ?? 0;
-      const shippingAmountCents: number = s.shipping_cost?.amount_total ?? 0;
+      const shippingAmountCents: number = s.shipping_cost?.amount_subtotal ?? 0;
       const shippingRateObj = (s.shipping_cost?.shipping_rate || null) as {
         display_name?: string;
         metadata?: Record<string, string>;

@@ -55,7 +55,7 @@ export default async function CheckoutSuccessPage({
     // Stripe snapshots
     const currency: string = (s.currency || "usd").toLowerCase();
     const itemsSubtotalCents: number = s.amount_subtotal ?? 0;
-    const shippingAmountCents: number = s.shipping_cost?.amount_total ?? 0;
+    const shippingAmountCents: number = s.shipping_cost?.amount_subtotal ?? 0;
     const shippingTitle: string | undefined =
       (s.shipping_cost?.shipping_rate as { display_name?: string })?.display_name || undefined;
     const taxAmountCents: number = s.total_details?.amount_tax ?? 0;
