@@ -2584,6 +2584,7 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 - New Order fields: `quotedToName String?`, `quotedToPhone String?` (migration: `add_order_quoted_to_name_phone`)
 - Historical fields retained: `taxReversalId`, `taxReversalAmountCents` (no longer written)
 - ENV required: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- Post-deploy fixes: `checkoutRatelimit` rate limiter restored; Sentry capture in catch block; `setSelectedRates({})` on "Change" button in Step 3; `redirect_on_completion: "if_required"` so `onComplete` fires for card payments; `onComplete` extracts session ID from last client secret (`split("_secret_")[0]`) and redirects to `/checkout/success?session_id=...`
 - Phase 6 next: Buy Now modal + checkout/single update
 
 **Statement descriptor suffix**: all 4 routes add `statement_descriptor_suffix` from seller displayName (uppercase, alphanumeric, max 22 chars). Conditional spread — skipped if empty to prevent checkout breakage. Shows seller name on buyer's card statement to reduce chargebacks.
