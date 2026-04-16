@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { shippoRequest } from "@/lib/shippo";
+import { signRate } from "@/lib/shipping-token";
 import { z } from "zod";
 
 const ShippingQuoteSchema = z.object({
@@ -12,7 +13,10 @@ const ShippingQuoteSchema = z.object({
   listingId: z.string().min(1).optional().nullable(),
   quantity: z.number().int().min(1).max(99).optional().nullable(),
   currency: z.string().max(3).optional().nullable(),
-  toPostal: z.string().max(20).optional().nullable(),
+  // toPostal is required — it's signed into the HMAC and must match
+  // what the buyer's checkout address submits. A default here would
+  // cause every signature to mismatch on verification.
+  toPostal: z.string().min(1).max(20),
   toState: z.string().max(50).optional().nullable(),
   toCity: z.string().max(100).optional().nullable(),
   toCountry: z.string().max(2).optional().nullable(),
@@ -75,9 +79,11 @@ export async function POST(req: Request) {
         }
       | null = null;
 
-    // If you pass buyer destination in body, we’ll use it; else a NYC placeholder.
+    // toPostal is required by the Zod schema — the HMAC signing
+    // below uses this exact value, and it must match what the
+    // checkout route receives in body.shippingAddress.postalCode.
     const shipTo = {
-      postal: body.toPostal || "10001",
+      postal: body.toPostal,
       state: body.toState || "NY",
       city: body.toCity || "New York",
       country: body.toCountry || "US",
@@ -275,20 +281,48 @@ export async function POST(req: Request) {
 
     const rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
 
+    // contextId ties the HMAC signature to either the seller (cart)
+    // or the specific listing (buy-now). This prevents a cheap rate
+    // signed for one seller/listing from being replayed against another.
+    // sellerId is resolved above in both branches.
+    const contextId: string =
+      mode === "single" ? (body.listingId ?? "") : (sellerId ?? "");
+
     const out = rates
       .filter((r) => String(r.currency || "").toLowerCase() === currency)
       .slice(0, 12)
-      .map((r) => ({
-        label: `${r.provider || r.carrier} ${r.servicelevel?.name || r.service} (${
+      .map((r) => {
+        const label = `${r.provider || r.carrier} ${r.servicelevel?.name || r.service} (${
           r.estimated_days ? `${r.estimated_days}d` : "—"
-        })`,
-        amountCents: Math.round(Number(r.amount) * 100),
-        carrier: r.provider || r.carrier,
-        service: r.servicelevel?.name || r.service,
-        estDays: r.estimated_days ?? null,
-        taxBehavior: "exclusive" as const,
-        objectId: r.object_id ?? null,
-      }));
+        })`;
+        const amountCents = Math.round(Number(r.amount) * 100);
+        const carrier = r.provider || r.carrier || "";
+        const service = r.servicelevel?.name || r.service || "";
+        const estDays = r.estimated_days ?? null;
+        const objectId = r.object_id ?? null;
+
+        const { token, expiresAt } = signRate({
+          objectId: objectId ?? "",
+          amountCents,
+          displayName: label,
+          carrier,
+          estDays,
+          contextId,
+          buyerPostal: shipTo.postal,
+        });
+
+        return {
+          label,
+          amountCents,
+          carrier,
+          service,
+          estDays,
+          taxBehavior: "exclusive" as const,
+          objectId,
+          token,
+          expiresAt,
+        };
+      });
 
     return NextResponse.json({ rates: out });
   } catch (err) {

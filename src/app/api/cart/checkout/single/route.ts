@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isFallbackRate } from "@/types/checkout";
+import { verifyRate } from "@/lib/shipping-token";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -26,6 +27,8 @@ const CheckoutSingleSchema = z.object({
     displayName: z.string().min(1).max(200),
     carrier: z.string().max(100),
     estDays: z.number().int().nullable(),
+    token: z.string().min(1),
+    expiresAt: z.number().int().min(0),
   }),
   giftNote: z.string().max(200).optional().nullable(),
   giftWrapping: z.boolean().optional().default(false),
@@ -64,6 +67,7 @@ export async function POST(req: Request) {
             stripeAccountId: true,
             chargesEnabled: true,
             vacationMode: true,
+            offersGiftWrapping: true,
             giftWrappingPriceCents: true,
           },
         },
@@ -109,6 +113,42 @@ export async function POST(req: Request) {
         { error: "This seller is not currently accepting orders. Please try again later." },
         { status: 400 },
       );
+    }
+
+    // Gift wrapping: reject if buyer requested it but seller does not offer it.
+    if (body.giftWrapping && !listing.seller.offersGiftWrapping) {
+      return NextResponse.json(
+        { error: "This seller does not offer gift wrapping." },
+        { status: 400 },
+      );
+    }
+
+    // Verify shipping rate HMAC token.
+    // Fallback rates bypass verification — they use
+    // SiteConfig.fallbackShippingCents instead of the
+    // client-provided amountCents.
+    if (!isFallbackRate(body.selectedRate)) {
+      const contextId = body.listingId;
+      const rateVerification = verifyRate(
+        {
+          objectId: body.selectedRate.objectId,
+          amountCents: body.selectedRate.amountCents,
+          displayName: body.selectedRate.displayName,
+          carrier: body.selectedRate.carrier,
+          estDays: body.selectedRate.estDays,
+          contextId,
+          buyerPostal: body.shippingAddress.postalCode,
+        },
+        body.selectedRate.token,
+        body.selectedRate.expiresAt,
+      );
+
+      if (!rateVerification.ok) {
+        return NextResponse.json(
+          { error: rateVerification.error },
+          { status: rateVerification.status },
+        );
+      }
     }
 
     // Resolve shipping amount — fall back to SiteConfig if fallback rate selected

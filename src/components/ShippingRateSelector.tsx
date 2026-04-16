@@ -11,6 +11,8 @@ type QuoteRate = {
   service: string;
   estDays: number | null;
   objectId?: string | null;
+  token?: string;
+  expiresAt?: number;
 };
 
 type Props = {
@@ -32,6 +34,12 @@ function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
     displayName: r.label,
     carrier: r.carrier,
     estDays: r.estDays,
+    // Unsigned rates get empty token — intentionally fails HMAC
+    // verification with a clear 400 rather than silently downgrading
+    // to SiteConfig.fallbackShippingCents. Do NOT use "fallback" here —
+    // that would cause isFallbackRate() to match and skip verification.
+    token: r.token ?? "",
+    expiresAt: r.expiresAt ?? 0,
   };
 }
 

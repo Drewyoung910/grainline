@@ -14,6 +14,8 @@ export type SelectedShippingRate = {
   displayName: string
   carrier: string
   estDays: number | null
+  token: string        // HMAC from signRate()
+  expiresAt: number    // Unix timestamp seconds
 }
 
 export const FALLBACK_RATE: SelectedShippingRate = {
@@ -22,6 +24,8 @@ export const FALLBACK_RATE: SelectedShippingRate = {
   displayName: "Calculated at checkout",
   carrier: "",
   estDays: null,
+  token: "fallback",    // intentionally invalid HMAC
+  expiresAt: 0,         // intentionally expired
 }
 
 export function isFallbackRate(rate: SelectedShippingRate): boolean {

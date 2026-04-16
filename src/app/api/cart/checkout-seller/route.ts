@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { isFallbackRate } from "@/types/checkout";
+import { verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -26,10 +27,11 @@ const CheckoutSellerSchema = z.object({
     displayName: z.string().min(1).max(200),
     carrier: z.string().max(100),
     estDays: z.number().int().nullable(),
+    token: z.string().min(1),
+    expiresAt: z.number().int().min(0),
   }),
   giftNote: z.string().max(200).optional().nullable(),
   giftWrapping: z.boolean().optional().default(false),
-  giftWrappingPriceCents: z.number().int().min(0).optional().default(0),
 });
 
 export const runtime = "nodejs";
@@ -62,10 +64,8 @@ export async function POST(req: Request) {
 
     const giftNote: string = body.giftNote ?? "";
     const giftWrapping: boolean = body.giftWrapping === true;
-    const giftWrappingPriceCents: number =
-      giftWrapping && Number.isFinite(body.giftWrappingPriceCents) && (body.giftWrappingPriceCents ?? 0) > 0
-        ? Math.round(body.giftWrappingPriceCents!)
-        : 0;
+    // Gift wrap price is resolved below from the seller's server-side
+    // giftWrappingPriceCents — do NOT trust client input for this.
 
     // Fetch buyer email for tax calculation
     const userWithEmail = await prisma.user.findUnique({
@@ -100,6 +100,73 @@ export async function POST(req: Request) {
     // Pre-flight: verify seller can accept payments
     if (!destination || !sellerChargesEnabled) {
       return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
+    }
+
+    // Only ACTIVE listings are purchasable.
+    // Blocks DRAFT, SOLD, SOLD_OUT, HIDDEN, PENDING_REVIEW, REJECTED.
+    const inactiveItem = sellerItems.find(
+      (it) => it.listing.status !== "ACTIVE",
+    );
+    if (inactiveItem) {
+      return NextResponse.json(
+        { error: `"${inactiveItem.listing.title}" is no longer available.` },
+        { status: 400 },
+      );
+    }
+
+    // Private/reserved listings: only the reserved buyer can purchase.
+    const privateItem = sellerItems.find(
+      (it) =>
+        it.listing.isPrivate &&
+        it.listing.reservedForUserId !== me.id,
+    );
+    if (privateItem) {
+      return NextResponse.json(
+        { error: "One or more items in your cart are not available for purchase." },
+        { status: 400 },
+      );
+    }
+
+    // Gift wrapping: reject if buyer requested it but seller does not offer it.
+    if (giftWrapping && !sellerItems[0].listing.seller.offersGiftWrapping) {
+      return NextResponse.json(
+        { error: "This seller does not offer gift wrapping." },
+        { status: 400 },
+      );
+    }
+
+    // Gift wrap price: sourced server-side from the seller's profile.
+    // Client input for this amount is ignored to prevent price manipulation.
+    const giftWrappingPriceCents: number = giftWrapping
+      ? (sellerItems[0].listing.seller.giftWrappingPriceCents ?? 0)
+      : 0;
+
+    // Verify shipping rate HMAC token.
+    // Fallback rates bypass verification — they use
+    // SiteConfig.fallbackShippingCents instead of the
+    // client-provided amountCents.
+    if (!isFallbackRate(body.selectedRate)) {
+      const contextId = body.sellerId;
+      const rateVerification = verifyRate(
+        {
+          objectId: body.selectedRate.objectId,
+          amountCents: body.selectedRate.amountCents,
+          displayName: body.selectedRate.displayName,
+          carrier: body.selectedRate.carrier,
+          estDays: body.selectedRate.estDays,
+          contextId,
+          buyerPostal: body.shippingAddress.postalCode,
+        },
+        body.selectedRate.token,
+        body.selectedRate.expiresAt,
+      );
+
+      if (!rateVerification.ok) {
+        return NextResponse.json(
+          { error: rateVerification.error },
+          { status: rateVerification.status },
+        );
+      }
     }
 
     // Stripe line items
@@ -146,7 +213,7 @@ export async function POST(req: Request) {
       shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
     }
 
-    const giftWrapCents = body.giftWrapping ? body.giftWrappingPriceCents : 0;
+    const giftWrapCents = giftWrapping ? giftWrappingPriceCents : 0;
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
     const sellerTransferAmount = itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
 
