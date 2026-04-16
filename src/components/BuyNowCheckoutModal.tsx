@@ -94,9 +94,6 @@ export default function BuyNowCheckoutModal({
           selectedRate,
           giftNote: giftNote || "",
           giftWrapping,
-          giftWrappingPriceCents: giftWrapping
-            ? (giftWrappingPriceCents ?? 0)
-            : 0,
         }),
       });
       const data = await res.json();

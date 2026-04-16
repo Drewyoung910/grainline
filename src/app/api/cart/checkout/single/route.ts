@@ -29,7 +29,6 @@ const CheckoutSingleSchema = z.object({
   }),
   giftNote: z.string().max(200).optional().nullable(),
   giftWrapping: z.boolean().optional().default(false),
-  giftWrappingPriceCents: z.number().int().min(0).optional().default(0),
 });
 
 export const runtime = "nodejs";
@@ -65,11 +64,29 @@ export async function POST(req: Request) {
             stripeAccountId: true,
             chargesEnabled: true,
             vacationMode: true,
+            giftWrappingPriceCents: true,
           },
         },
       },
     });
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+
+    // Only ACTIVE listings are purchasable.
+    // Blocks DRAFT, SOLD, SOLD_OUT, HIDDEN, PENDING_REVIEW, REJECTED.
+    if (listing.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: "This listing is not currently available." },
+        { status: 400 },
+      );
+    }
+
+    // Private/reserved listings: only the reserved buyer can purchase.
+    if (listing.isPrivate && listing.reservedForUserId !== me.id) {
+      return NextResponse.json(
+        { error: "This listing is not available for purchase." },
+        { status: 400 },
+      );
+    }
 
     if (listing.seller.userId === me.id) {
       return NextResponse.json({ error: "You cannot buy your own listing." }, { status: 400 });
@@ -105,7 +122,11 @@ export async function POST(req: Request) {
       shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
     }
 
-    const giftWrapCents = body.giftWrapping ? body.giftWrappingPriceCents : 0;
+    // Gift wrap price is sourced server-side from the seller's profile —
+    // client input for this amount is ignored to prevent price manipulation.
+    const giftWrapCents = body.giftWrapping
+      ? (listing.seller.giftWrappingPriceCents ?? 0)
+      : 0;
     const itemsSubtotalCents = listing.priceCents * body.quantity;
 
     // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)

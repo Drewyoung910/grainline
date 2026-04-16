@@ -32,12 +32,13 @@ export default function BuyNowButton({
   children,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
 
   return (
     <>
       <button
         type="button"
+        disabled={!isLoaded}
         onClick={() => {
           // Gate before opening modal — saves buyer from
           // completing address + shipping only to hit 401
