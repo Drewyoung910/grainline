@@ -2493,6 +2493,54 @@ All Next.js API routes are implicitly CSRF-safe for browser requests because Cle
 
 All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data access.
 
+## Comprehensive Security Audit (2026-04-17)
+
+Full-codebase audit across 79 API routes, 8 parallel audit passes. 44 findings identified and fixed in a single commit. Zero TypeScript errors. All fixes deployed to production.
+
+### Critical fixes
+- **Blog XSS** — `marked.parse()` output was rendered via `dangerouslySetInnerHTML` with no sanitization. Installed `isomorphic-dompurify`, added `DOMPurify.sanitize()` with explicit tag/attribute allowlist before rendering. File: `src/app/blog/[slug]/page.tsx`.
+- **Stock oversell race** — Webhook used `Math.max(0, staleQty - qty)` which is not atomic under concurrent webhooks. Replaced with Prisma `{ decrement: qty }` (translates to `SET stockQuantity = stockQuantity - N` in SQL). Both cart and single-listing webhook paths fixed. File: `src/app/api/stripe/webhook/route.ts`.
+- **No stock check at checkout** — Neither checkout route validated `stockQuantity >= requested quantity` for IN_STOCK items. Added guards to both `checkout-seller` and `checkout/single`. Buyers now get 400 "Not enough stock" instead of a Stripe session for unavailable items.
+- **Private listings on seller profile** — `src/app/seller/[id]/page.tsx` listing query had no `isPrivate: false` filter. Custom order listings reserved for specific buyers appeared publicly. Fixed.
+- **Attachment URL phishing** — `sendMessage` accepted arbitrary URLs in message attachments with no domain validation. Added R2 origin prefix check (`CLOUDFLARE_R2_PUBLIC_URL`). Non-R2 URLs are silently skipped. File: `src/app/messages/[id]/page.tsx`.
+
+### High fixes
+- **checkout-seller: vacationMode** — Route was missing vacation check (checkout/single had it). Added guard after chargesEnabled check.
+- **checkout-seller: self-purchase** — Route was missing buyer === seller check. Added guard (Stripe ToS violation).
+- **Refund double-refund race** — `sellerRefundId` null-check and Stripe call were not atomic. Added `prisma.order.updateMany({ where: { sellerRefundId: null } })` atomic lock with rollback on failure. Also added partial refund amount cap against order total. File: `src/app/api/orders/[id]/refund/route.ts`.
+- **Case resolve: Stripe refund outside transaction** — Stripe refund issued before DB transaction; failure orphans the refund. Added try/catch with `ORPHANED REFUND` console.error for manual reconciliation. Added partial refund cap. File: `src/app/api/cases/[id]/resolve/route.ts`.
+- **Label purchase double-purchase race** — Read-check guard for `labelStatus !== "PURCHASED"` races under concurrent requests. Added atomic `$executeRaw` UPDATE with WHERE condition + rollback on Shippo failure. File: `src/app/api/orders/[id]/label/route.ts`.
+- **listingSnapshot never written** — `OrderItem.listingSnapshot` was always null despite being documented. Added snapshot capture (title, description, priceCents, imageUrls, category, tags, sellerName, capturedAt) to both webhook order creation paths. Expanded single-listing query to include snapshot fields.
+- **Sentry `sendDefaultPii: true`** — Server and edge Sentry configs were sending Clerk session cookies to Sentry on every error. Changed to `false`. Client config unchanged (no cookies).
+- **Sitemap leaks private listings** — `src/app/sitemap.ts` had no `isPrivate: false` filter. Private listing IDs were published in sitemap.xml. Fixed.
+- **Custom listing `reservedForUserId` not validated** — `dashboard/listings/custom/page.tsx` accepted any `reservedForUserId` without verifying it matched the other conversation participant. Added validation.
+
+### Medium fixes
+- **Stale cart price** — `checkout-seller` used `CartItem.priceCents` (snapshot from add-time) instead of live `listing.priceCents`. Changed `unit_amount` and `itemsSubtotalCents` to use `i.listing.priceCents`.
+- **displayName max 200 vs Stripe 100** — Zod `displayName` max was 200 in both checkout routes; Stripe's `display_name` limit is 100. Tightened to `.max(100)`.
+- **Rate limiters added** — 7 new limiters wired into 8 routes: `shippingQuoteRatelimit` (quote), `newsletterRatelimit` (newsletter, IP-keyed), `blogCommentRatelimit` (comments), `notifyRatelimit` (stock notifications), `stripeConnectRatelimit` (connect/create + connect/dashboard), `clickDedupRatelimit` (per-IP+listing 24h dedup on click endpoint).
+- **/api/health in isPublic** — UptimeRobot was getting 401s. Added to middleware public list.
+- **Case resolve: partial refund stock restore** — Changed condition from `resolution !== "DISMISSED"` to `resolution === "REFUND_FULL"`. Partial refunds no longer restore full inventory (consistent with seller refund route).
+- **Seller email leak** — `cart/route.ts` used `seller?.user?.email` as `sellerName` fallback. Removed; now falls back to `"Seller"`.
+- **`buyer: true` over-fetch** — 4 files (sales detail, sales list, buyer order detail, checkout success) fetched entire User row including `shippingPhone`, `notificationPreferences`, `banReason`. Narrowed to `{ id, name, email, imageUrl }`.
+- **cart/add: no status check** — DRAFT/SOLD/HIDDEN listings could be added to cart. Added `status !== "ACTIVE"` guard.
+- **cart/update: no stock validation** — Buyer could set quantity to 50 when 1 in stock. Added IN_STOCK quantity check.
+- **Custom order request: target not verified as seller** — Route checked User existence but not SellerProfile or `acceptsCustomOrders`. Added both checks.
+- **Admin verification: 6 actions missing audit log** — `approveGuildMember`, `rejectGuildMember`, `approveGuildMaster`, `rejectGuildMaster`, `revokeMember`, `revokeMaster` now all call `logAdminAction`.
+- **Click endpoint: missing per-listing 24h dedup** — View endpoint had `profileViewRatelimit` per IP+listing; click endpoint only had global IP limit. Added `clickDedupRatelimit` with same pattern.
+- **Edit listing: priceCents=0 allowed** — Create blocked `<= 0` but edit only blocked `< 0`. Changed to `<= 0`.
+
+### Low fixes
+- **Fulfillment state machine** — No backwards transition guard. Added `validTransitions` map; returns 400 for invalid transitions (e.g., DELIVERED → SHIPPED).
+- **Admin email HTML injection** — `body.replace(/\n/g, "<br/>")` with no escaping. Added `&`, `<`, `>` escaping before `<br/>` conversion.
+- **Webhook P2002 handling** — Concurrent duplicate webhook delivery caused unhandled P2002 → 500 → noisy retry loop. Added P2002 detection in outer catch, returns 200.
+- **Webhook payment_status** — Missing `s.payment_status !== "paid"` assertion after session re-retrieval. Added defense-in-depth check.
+- **Banned user messaging** — `sendMessage` didn't check `me.banned`. Added guard returning `{ ok: false, error: "suspended" }`.
+- **`/api/whoami` sessionId** — Public endpoint returned Clerk `sessionId`. Removed from response.
+- **Self-favorite** — Seller could favorite own listings (+1 to relevance score). Added seller ownership check before upsert.
+- **`console.log` in favorites** — Debug statements logging internal DB user IDs and roles to Vercel logs. Removed.
+- **Sentry tracesSampleRate** — Was `1` (100%) in all 3 configs. Changed to `0.1` (10%) to reduce cost/quota usage.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
