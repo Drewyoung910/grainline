@@ -7,6 +7,7 @@ import { createNotification } from "@/lib/notifications";
 import { sendVerificationApproved, sendVerificationRejected } from "@/lib/email";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
+import { logAdminAction } from "@/lib/audit";
 
 // ── Shared auth helper ──────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -71,6 +72,8 @@ async function approveGuildMember(formData: FormData) {
     } catch { /* non-fatal */ }
   }
 
+  await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId });
+
   revalidatePath("/admin/verification");
 }
 
@@ -116,17 +119,21 @@ async function rejectGuildMember(formData: FormData) {
     } catch { /* non-fatal */ }
   }
 
+  await logAdminAction({ adminId: me.id, action: "REJECT_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId, reason: reviewNotes ?? undefined });
+
   revalidatePath("/admin/verification");
 }
 
 async function revokeMember(sellerProfileId: string) {
   "use server";
-  await requireAdmin();
+  const me = await requireAdmin();
 
   await prisma.sellerProfile.update({
     where: { id: sellerProfileId },
     data: { guildLevel: "NONE", isVerifiedMaker: false },
   });
+
+  await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
   revalidatePath("/admin/verification");
 }
@@ -178,6 +185,8 @@ async function approveGuildMaster(verificationId: string) {
     } catch { /* non-fatal */ }
   }
 
+  await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: verification.sellerProfileId });
+
   revalidatePath("/admin/verification");
 }
 
@@ -218,17 +227,21 @@ async function rejectGuildMaster(formData: FormData) {
     });
   }
 
+  await logAdminAction({ adminId: me.id, action: "REJECT_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: verification?.sellerProfileId ?? verificationId, reason: reviewNotes ?? undefined });
+
   revalidatePath("/admin/verification");
 }
 
 async function revokeMaster(sellerProfileId: string) {
   "use server";
-  await requireAdmin();
+  const me = await requireAdmin();
 
   await prisma.sellerProfile.update({
     where: { id: sellerProfileId },
     data: { guildLevel: "GUILD_MEMBER" },
   });
+
+  await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
   revalidatePath("/admin/verification");
 }
@@ -244,12 +257,10 @@ async function reinstateGuildMember(formData: FormData) {
     data: { guildLevel: "GUILD_MEMBER", isVerifiedMaker: true },
   });
 
-  // Log the reinstatement
-  const { logAdminAction } = await import("@/lib/audit");
   await logAdminAction({
     adminId: me.id,
     action: "REINSTATE_GUILD_MEMBER",
-    targetType: "SellerProfile",
+    targetType: "SELLER_PROFILE",
     targetId: sellerProfileId,
   });
 
@@ -265,7 +276,6 @@ async function featureMaker(sellerProfileId: string) {
     data: { featuredUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
   });
 
-  const { logAdminAction } = await import("@/lib/audit");
   await logAdminAction({
     adminId: me.id,
     action: "FEATURE_MAKER",
@@ -286,7 +296,6 @@ async function unfeatureMaker(sellerProfileId: string) {
     data: { featuredUntil: null },
   });
 
-  const { logAdminAction } = await import("@/lib/audit");
   await logAdminAction({
     adminId: me.id,
     action: "UNFEATURE_MAKER",

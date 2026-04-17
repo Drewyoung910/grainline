@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const ConnectCreateSchema = z.object({
@@ -11,6 +12,9 @@ const ConnectCreateSchema = z.object({
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success: rlOk, reset } = await safeRateLimit(stripeConnectRatelimit, userId);
+  if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
 
   // Find this user's seller profile
   const seller = await prisma.sellerProfile.findFirst({

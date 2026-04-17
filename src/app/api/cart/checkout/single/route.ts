@@ -24,7 +24,7 @@ const CheckoutSingleSchema = z.object({
   selectedRate: z.object({
     objectId: z.string().min(1),
     amountCents: z.number().int().min(0),
-    displayName: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(100),
     carrier: z.string().max(100),
     estDays: z.number().int().nullable(),
     token: z.string().min(1),
@@ -99,6 +99,14 @@ export async function POST(req: Request) {
     if (listing.seller.vacationMode) {
       return NextResponse.json(
         { error: "This seller is currently on vacation and not accepting new orders." },
+        { status: 400 },
+      );
+    }
+
+    // Stock quantity check for IN_STOCK listings
+    if (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) < body.quantity) {
+      return NextResponse.json(
+        { error: "Not enough stock available for this item." },
         { status: 400 },
       );
     }

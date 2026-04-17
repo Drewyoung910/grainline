@@ -23,6 +23,7 @@
     "@types/pg": "^8.20.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
+    "isomorphic-dompurify": "^3.9.0",
     "maplibre-gl": "^5.22.0",
     "marked": "^17.0.5",
     "next": "^16.2.1",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.13",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

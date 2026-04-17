@@ -66,7 +66,7 @@ export default async function SalesPage({
             },
           },
         },
-        buyer: true,
+        buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
       },
       orderBy: { createdAt: "desc" },
       skip,

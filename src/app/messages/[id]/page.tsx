@@ -91,6 +91,7 @@ export default async function ThreadPage({
 
     const me = await prisma.user.findUnique({ where: { clerkId: userId } });
     if (!me) return { ok: false };
+    if (me.banned) return { ok: false, error: "Your account has been suspended." };
 
     const body = String(formData.get("body") ?? "").trim().slice(0, 2000);
     const raw = String(formData.get("attachments") ?? "[]");
@@ -124,6 +125,8 @@ export default async function ThreadPage({
     // 1) attachments -> each as its own message (JSON payload in body)
     for (const a of atts) {
       if (!a?.url) continue;
+      const R2_ORIGIN = process.env.CLOUDFLARE_R2_PUBLIC_URL;
+      if (R2_ORIGIN && !a.url.startsWith(R2_ORIGIN + "/")) continue; // skip non-R2 URLs
       const payload = JSON.stringify({
         kind: "file",
         url: a.url,

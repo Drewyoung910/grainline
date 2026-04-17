@@ -35,6 +35,16 @@ export async function POST(req: Request) {
     const exists = await prisma.cartItem.findUnique({ where: key });
     if (!exists) return NextResponse.json({ error: "Item not in cart" }, { status: 404 });
 
+    if (quantity > 0) {
+      const listing = await prisma.listing.findUnique({
+        where: { id: listingId },
+        select: { listingType: true, stockQuantity: true },
+      });
+      if (listing?.listingType === "IN_STOCK" && listing.stockQuantity != null && quantity > listing.stockQuantity) {
+        return NextResponse.json({ error: `Only ${listing.stockQuantity} available.` }, { status: 400 });
+      }
+    }
+
     if (quantity === 0) {
       await prisma.cartItem.delete({ where: key });
     } else {

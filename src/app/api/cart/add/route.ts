@@ -37,6 +37,10 @@ export async function POST(req: Request) {
     });
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
 
+    if (listing.status !== "ACTIVE") {
+      return NextResponse.json({ error: "This listing is not available." }, { status: 400 });
+    }
+
     // prevent adding your own listing
     if (listing.seller.userId === me.id) {
       return NextResponse.json({ error: "You cannot add your own listing to cart." }, { status: 400 });

@@ -48,13 +48,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: true });
   }
 
+  const escapedBody = body.body
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br/>");
+
   const htmlBody = `
     <div style="font-family:Georgia,'Times New Roman',serif;max-width:600px;margin:0 auto;background:#FAFAF8;padding:0;">
       <div style="background:#1C1C1A;padding:18px 28px;">
         <span style="color:#F2E6D8;font-size:20px;font-weight:bold;letter-spacing:0.05em;">GRAINLINE</span>
       </div>
       <div style="padding:32px 28px;">
-        <p style="color:#3D3D3A;font-size:15px;line-height:1.7;margin:0;">${body.body.replace(/\n/g, "<br/>")}</p>
+        <p style="color:#3D3D3A;font-size:15px;line-height:1.7;margin:0;">${escapedBody}</p>
       </div>
       <div style="padding:16px 28px;border-top:1px solid #E5E2DC;">
         <p style="color:#9CA3AF;font-size:12px;margin:0;">This message was sent by the Grainline team · <a href="https://thegrainline.com" style="color:#9CA3AF;">thegrainline.com</a></p>

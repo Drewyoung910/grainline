@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 
 export async function POST(
   _req: Request,
@@ -14,6 +15,9 @@ export async function POST(
 
   const user = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
+  if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
 
   await prisma.stockNotification.upsert({
     where: { listingId_userId: { listingId, userId: user.id } },
@@ -35,6 +39,9 @@ export async function DELETE(
 
   const user = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
+  if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
 
   await prisma.stockNotification.deleteMany({
     where: { listingId, userId: user.id },

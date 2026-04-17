@@ -16,7 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const [listings, sellers, blogPosts, openCommissions] = await Promise.all([
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false },
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: 2000,

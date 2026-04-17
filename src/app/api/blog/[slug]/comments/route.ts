@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { createNotification } from "@/lib/notifications";
+import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const AUTHOR_SELECT = {
@@ -84,6 +85,9 @@ export async function POST(
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, name: true, email: true } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success: rlOk, reset } = await safeRateLimit(blogCommentRatelimit, me.id);
+  if (!rlOk) return rateLimitResponse(reset, "Too many comments.");
 
   const post = await prisma.blogPost.findUnique({ where: { slug }, select: { id: true, authorId: true, title: true } });
   if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -69,6 +69,21 @@ export async function POST(
 
     const action = payload.action;
 
+    // Prevent backwards state transitions
+    const validTransitions: Record<string, string[]> = {
+      shipped: ["PENDING", "READY_FOR_PICKUP"],
+      delivered: ["SHIPPED"],
+      ready_for_pickup: ["PENDING"],
+      picked_up: ["READY_FOR_PICKUP"],
+    };
+    const allowed = validTransitions[action];
+    if (allowed && !allowed.includes(authz.order.fulfillmentStatus ?? "PENDING")) {
+      return NextResponse.json(
+        { error: `Cannot transition from ${authz.order.fulfillmentStatus ?? "PENDING"} to ${action}.` },
+        { status: 400 },
+      );
+    }
+
     const data: Record<string, unknown> = {};
     const now = new Date();
 

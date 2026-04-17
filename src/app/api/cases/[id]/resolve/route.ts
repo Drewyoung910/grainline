@@ -71,6 +71,14 @@ export async function POST(
       return NextResponse.json({ error: "Case is already resolved." }, { status: 400 });
     }
 
+    // Partial refund amount cap
+    if (resolution === "REFUND_PARTIAL" && refundAmountCents) {
+      const orderTotal = (caseRecord.order.itemsSubtotalCents ?? 0) + (caseRecord.order.shippingAmountCents ?? 0) + (caseRecord.order.taxAmountCents ?? 0);
+      if (refundAmountCents > orderTotal) {
+        return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
+      }
+    }
+
     let stripeRefundId: string | null = null;
 
     if (resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL") {
@@ -100,7 +108,7 @@ export async function POST(
       .join(" ");
 
     const stockRestoreOps =
-      resolution !== "DISMISSED"
+      resolution === "REFUND_FULL"
         ? caseRecord.order.items
             .filter((it) => it.listing.listingType === "IN_STOCK")
             .map((it) => {
@@ -115,25 +123,33 @@ export async function POST(
             })
         : [];
 
-    const [updatedCase] = await prisma.$transaction([
-      prisma.case.update({
-        where: { id },
-        data: {
-          status: "RESOLVED",
-          resolution,
-          refundAmountCents: refundAmountCents ?? null,
-          stripeRefundId,
-          resolvedAt: now,
-          resolvedById: me.id,
-        },
-        include: { messages: true, order: true },
-      }),
-      prisma.order.update({
-        where: { id: caseRecord.orderId },
-        data: { reviewNeeded: true, reviewNote: resolutionNote },
-      }),
-      ...stockRestoreOps,
-    ]);
+    let updatedCase;
+    try {
+      [updatedCase] = await prisma.$transaction([
+        prisma.case.update({
+          where: { id },
+          data: {
+            status: "RESOLVED",
+            resolution,
+            refundAmountCents: refundAmountCents ?? null,
+            stripeRefundId,
+            resolvedAt: now,
+            resolvedById: me.id,
+          },
+          include: { messages: true, order: true },
+        }),
+        prisma.order.update({
+          where: { id: caseRecord.orderId },
+          data: { reviewNeeded: true, reviewNote: resolutionNote },
+        }),
+        ...stockRestoreOps,
+      ]);
+    } catch (txErr) {
+      if (stripeRefundId) {
+        console.error(`ORPHANED REFUND: ${stripeRefundId} for case ${id}. Manual reconciliation required.`);
+      }
+      throw txErr;
+    }
 
     const resolutionLabel =
       resolution === "REFUND_FULL"

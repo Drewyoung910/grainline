@@ -10,9 +10,9 @@ export async function GET() {
     Boolean(c.get("__session")) ||
     Boolean(h.get("cookie")?.includes("__session"));
 
-  const { userId, sessionId } = await auth(); // <- await in Next 15
+  const { userId } = await auth(); // <- await in Next 15
 
-  return Response.json({ userId, sessionId, hasSessionCookie });
+  return Response.json({ userId, hasSessionCookie });
 }
 
 

@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { shippoRequest } from "@/lib/shippo";
 import { signRate } from "@/lib/shipping-token";
+import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const ShippingQuoteSchema = z.object({
@@ -38,6 +39,9 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { success: rlOk, reset } = await safeRateLimit(shippingQuoteRatelimit, userId);
+    if (!rlOk) return rateLimitResponse(reset, "Too many shipping quote requests.");
 
     // Resolve DB user for cart ownership check
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });

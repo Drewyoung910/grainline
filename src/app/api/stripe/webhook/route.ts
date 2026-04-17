@@ -70,6 +70,9 @@ export async function POST(req: Request) {
         expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate"],
       });
 
+      // Only process paid sessions — skip async/pending payments
+      if (s.payment_status !== "paid") return NextResponse.json({ ok: true });
+
       // Stripe snapshots
       const currency: string = (s.currency || "usd").toLowerCase();
       const itemsSubtotalCents: number = s.amount_subtotal ?? 0;
@@ -193,7 +196,14 @@ export async function POST(req: Request) {
           where: { id: cartId },
           include: {
             items: {
-              include: { listing: true },
+              include: {
+                listing: {
+                  include: {
+                    photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
+                    seller: { select: { displayName: true } },
+                  },
+                },
+              },
               where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
             },
           },
@@ -281,18 +291,31 @@ export async function POST(req: Request) {
                 listingId: it.listingId,
                 quantity: it.quantity,
                 priceCents: it.priceCents,
+                listingSnapshot: {
+                  title: it.listing.title,
+                  description: it.listing.description ?? "",
+                  priceCents: it.listing.priceCents,
+                  imageUrls: it.listing.photos?.map((p: { url: string }) => p.url) ?? [],
+                  category: it.listing.category ?? null,
+                  tags: it.listing.tags ?? [],
+                  sellerName: it.listing.seller?.displayName ?? "",
+                  capturedAt: new Date().toISOString(),
+                },
               },
             });
 
             if (it.listing.listingType === "IN_STOCK") {
-              const newQty = Math.max(0, (it.listing.stockQuantity ?? 0) - it.quantity);
-              await tx.listing.update({
+              const updated = await tx.listing.update({
                 where: { id: it.listingId },
-                data: {
-                  stockQuantity: newQty,
-                  ...(newQty <= 0 ? { status: "SOLD_OUT" } : {}),
-                },
+                data: { stockQuantity: { decrement: it.quantity } },
+                select: { stockQuantity: true },
               });
+              if ((updated.stockQuantity ?? 0) <= 0) {
+                await tx.listing.update({
+                  where: { id: it.listingId },
+                  data: { status: "SOLD_OUT" },
+                });
+              }
             }
           }
 
@@ -474,6 +497,13 @@ export async function POST(req: Request) {
             listingType: true,
             stockQuantity: true,
             shipsWithinDays: true,
+            // Snapshot fields
+            title: true,
+            description: true,
+            category: true,
+            tags: true,
+            photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
+            seller: { select: { displayName: true } },
           },
         });
         const price = priceCentsFromMeta ?? listingData?.priceCents ?? 0;
@@ -515,7 +545,23 @@ export async function POST(req: Request) {
               fulfillmentMethod,
               fulfillmentStatus,
 
-              items: { create: [{ listingId, quantity, priceCents: price }] },
+              items: {
+                create: [{
+                  listingId,
+                  quantity,
+                  priceCents: price,
+                  listingSnapshot: {
+                    title: listingData?.title ?? "",
+                    description: listingData?.description ?? "",
+                    priceCents: listingData?.priceCents ?? price,
+                    imageUrls: listingData?.photos?.map((p: { url: string }) => p.url) ?? [],
+                    category: listingData?.category ?? null,
+                    tags: listingData?.tags ?? [],
+                    sellerName: listingData?.seller?.displayName ?? "",
+                    capturedAt: new Date().toISOString(),
+                  },
+                }],
+              },
 
               shippingCarrier,
               shippingService,
@@ -547,14 +593,17 @@ export async function POST(req: Request) {
           });
 
           if (isInStock) {
-            const newQty = Math.max(0, (listingData?.stockQuantity ?? 0) - quantity);
-            await tx.listing.update({
+            const updated = await tx.listing.update({
               where: { id: listingId },
-              data: {
-                stockQuantity: newQty,
-                ...(newQty <= 0 ? { status: "SOLD_OUT" } : {}),
-              },
+              data: { stockQuantity: { decrement: quantity } },
+              select: { stockQuantity: true },
             });
+            if ((updated.stockQuantity ?? 0) <= 0) {
+              await tx.listing.update({
+                where: { id: listingId },
+                data: { status: "SOLD_OUT" },
+              });
+            }
           }
         });
 
@@ -761,6 +810,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
+    // P2002 = unique constraint violation (duplicate webhook delivery)
+    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002") {
+      return NextResponse.json({ ok: true }); // duplicate, already processed
+    }
     console.error("Stripe webhook handler error:", err);
     return new NextResponse("Webhook error", { status: 500 });
   }

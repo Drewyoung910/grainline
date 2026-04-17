@@ -82,72 +82,100 @@ export async function POST(
       );
     }
 
-    // Issue Stripe refund with automatic fee + transfer reversal
-    const refundParams =
-      type === "FULL"
-        ? { payment_intent: order.stripePaymentIntentId, refund_application_fee: true, reverse_transfer: true }
-        : { payment_intent: order.stripePaymentIntentId, amount: amountCents!, refund_application_fee: true, reverse_transfer: true };
+    // Atomic lock: claim refund slot to prevent double-refund race
+    const lockResult = await prisma.order.updateMany({
+      where: { id: orderId, sellerRefundId: null },
+      data: { sellerRefundId: "pending" },
+    });
+    if (lockResult.count === 0) {
+      return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
+    }
 
-    const refund = await stripe.refunds.create(refundParams);
-
+    // Partial refund amount cap
     const refundAmountCents = type === "FULL"
       ? (order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents)
       : amountCents!;
 
-    const stockRestoreOps =
-      type === "FULL"
-        ? myItems
-            .filter((it) => it.listing.listingType === "IN_STOCK")
-            .map((it) => {
-              const restored = (it.listing.stockQuantity ?? 0) + it.quantity;
-              return prisma.listing.update({
-                where: { id: it.listingId },
+    const orderTotal = (order.itemsSubtotalCents ?? 0) + (order.shippingAmountCents ?? 0) + (order.taxAmountCents ?? 0);
+    if (type === "PARTIAL" && amountCents! > orderTotal) {
+      // Clear the lock
+      await prisma.order.update({ where: { id: orderId }, data: { sellerRefundId: null } }).catch(() => {});
+      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
+    }
+
+    let refundId: string;
+    try {
+      // Issue Stripe refund with automatic fee + transfer reversal
+      const refundParams =
+        type === "FULL"
+          ? { payment_intent: order.stripePaymentIntentId, refund_application_fee: true, reverse_transfer: true }
+          : { payment_intent: order.stripePaymentIntentId, amount: amountCents!, refund_application_fee: true, reverse_transfer: true };
+
+      const refund = await stripe.refunds.create(refundParams);
+      refundId = refund.id;
+
+      const stockRestoreOps =
+        type === "FULL"
+          ? myItems
+              .filter((it) => it.listing.listingType === "IN_STOCK")
+              .map((it) => {
+                const restored = (it.listing.stockQuantity ?? 0) + it.quantity;
+                return prisma.listing.update({
+                  where: { id: it.listingId },
+                  data: {
+                    stockQuantity: restored,
+                    ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
+                  },
+                });
+              })
+          : [];
+
+      // Resolve any open case on this order
+      const existingCase = await prisma.case.findUnique({
+        where: { orderId },
+        select: { id: true, status: true },
+      });
+
+      const now = new Date();
+      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via Stripe (${refund.id})`;
+
+      await prisma.$transaction([
+        prisma.order.update({
+          where: { id: orderId },
+          data: {
+            sellerRefundId: refund.id,
+            sellerRefundAmountCents: refundAmountCents,
+            reviewNeeded: true,
+            reviewNote,
+          },
+        }),
+        ...(existingCase &&
+        existingCase.status !== "RESOLVED" &&
+        existingCase.status !== "CLOSED"
+          ? [
+              prisma.case.update({
+                where: { id: existingCase.id },
                 data: {
-                  stockQuantity: restored,
-                  ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
+                  status: "RESOLVED",
+                  resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
+                  refundAmountCents: refundAmountCents,
+                  stripeRefundId: refund.id,
+                  resolvedAt: now,
+                  resolvedById: me.id,
                 },
-              });
-            })
-        : [];
-
-    // Resolve any open case on this order
-    const existingCase = await prisma.case.findUnique({
-      where: { orderId },
-      select: { id: true, status: true },
-    });
-
-    const now = new Date();
-    const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via Stripe (${refund.id})`;
-
-    await prisma.$transaction([
-      prisma.order.update({
+              }),
+            ]
+          : []),
+        ...stockRestoreOps,
+      ]);
+    } catch (err) {
+      // Clear the lock if Stripe or DB failed
+      await prisma.order.update({
         where: { id: orderId },
-        data: {
-          sellerRefundId: refund.id,
-          sellerRefundAmountCents: refundAmountCents,
-          reviewNeeded: true,
-          reviewNote,
-        },
-      }),
-      ...(existingCase &&
-      existingCase.status !== "RESOLVED" &&
-      existingCase.status !== "CLOSED"
-        ? [
-            prisma.case.update({
-              where: { id: existingCase.id },
-              data: {
-                status: "RESOLVED",
-                resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
-                refundAmountCents: refundAmountCents,
-                stripeRefundId: refund.id,
-                resolvedAt: now,
-                resolvedById: me.id,
-              },
-            }),
-          ]
-        : []),
-      ...stockRestoreOps,
-    ]);
+        data: { sellerRefundId: null },
+      }).catch(() => {});
+      throw err;
+    }
 
     try {
       const buyerUser = await prisma.user.findUnique({
@@ -165,7 +193,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      refundId: refund.id,
+      refundId,
       refundAmountCents,
     });
   } catch (err) {

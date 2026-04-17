@@ -138,6 +138,24 @@ export async function POST(
       );
     }
 
+    // Atomic double-check to prevent concurrent label purchases
+    const labelLockResult: number = await prisma.$executeRaw`
+      UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
+      WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+    `;
+    if (labelLockResult === 0) {
+      return NextResponse.json({ error: "Label already purchased." }, { status: 400 });
+    }
+
+    // Helper to revert the atomic label lock on failure
+    const revertLabelLock = async () => {
+      await prisma.$executeRaw`
+        UPDATE "Order" SET "labelStatus" = NULL
+        WHERE id = ${order.id}
+      `.catch(() => {});
+    };
+
+    try {
     // Determine which rate objectId to use:
     //   1. Caller supplied one explicitly (after a re-quote rate-picker selection)
     //   2. Stored rate is still valid (order under 5 days old)
@@ -148,7 +166,9 @@ export async function POST(
     const effectiveRateObjectId = bodyRateObjectId ?? (storedRateUsable ? order.shippoRateObjectId : null);
 
     if (!effectiveRateObjectId) {
-      // Re-quote path
+      // Re-quote path — clear the lock since we're not purchasing yet
+      await revertLabelLock();
+
       if (!order.shipToLine1 || !order.shipToCity || !order.shipToState || !order.shipToPostalCode) {
         return NextResponse.json(
           { error: "Order is missing shipping address fields required for re-quoting." },
@@ -246,6 +266,8 @@ export async function POST(
     });
 
     if (txn.status !== "SUCCESS") {
+      // Revert lock — label purchase did not succeed
+      await revertLabelLock();
       const msgs = (txn.messages || []).map((m) => m.text).join("; ");
       return NextResponse.json(
         { error: `Shippo label purchase failed: ${msgs || txn.status}` },
@@ -292,6 +314,11 @@ export async function POST(
     }
 
     return NextResponse.json({ ok: true, labelUrl: updated.labelUrl, order: updated });
+    } catch (labelErr) {
+      // Revert lock if label purchase or DB update failed
+      await revertLabelLock();
+      throw labelErr;
+    }
   } catch (err) {
     console.error("POST /api/orders/[id]/label error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

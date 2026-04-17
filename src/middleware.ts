@@ -36,6 +36,7 @@ const isPublic = createRouteMatcher([
   "/api/listings/(.*)/click",  // listing click tracking — fire-and-forget analytics
   "/api/listings/(.*)/similar",       // similar listings — public
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
+  "/api/health",                      // health check — public (UptimeRobot monitoring)
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);

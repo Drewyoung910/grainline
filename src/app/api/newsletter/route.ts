@@ -1,6 +1,7 @@
 // src/app/api/newsletter/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { newsletterRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const NewsletterSchema = z.object({
@@ -12,6 +13,10 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
+    const rl = await safeRateLimitOpen(newsletterRatelimit, ip);
+    if (!rl.success) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+
     let parsed;
     try {
       parsed = NewsletterSchema.parse(await req.json());

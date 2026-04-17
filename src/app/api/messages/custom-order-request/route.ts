@@ -50,8 +50,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 });
   }
 
-  const seller = await prisma.user.findUnique({ where: { id: sellerUserId }, select: { id: true } });
+  const seller = await prisma.user.findUnique({
+    where: { id: sellerUserId },
+    select: { id: true, sellerProfile: { select: { id: true, acceptsCustomOrders: true } } },
+  });
   if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+  if (!seller.sellerProfile) return NextResponse.json({ error: "This user is not a seller." }, { status: 400 });
+  if (!seller.sellerProfile.acceptsCustomOrders) return NextResponse.json({ error: "This seller is not accepting custom orders." }, { status: 400 });
 
   // Upsert conversation (canonical sort, race-safe — same logic as /messages/new)
   const [a, b] = [me.id, sellerUserId].sort((x, y) => (x < y ? -1 : 1));

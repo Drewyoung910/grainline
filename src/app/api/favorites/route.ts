@@ -38,7 +38,14 @@ export async function POST(req: Request) {
   }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  console.log("POST /api/favorites:", { listingId, dbUserId: me.id, role: me.role });
+  // Block self-favoriting (inflates relevance score)
+  const listingOwner = await prisma.listing.findUnique({
+    where: { id: listingId },
+    select: { seller: { select: { userId: true } } },
+  });
+  if (listingOwner?.seller?.userId === me.id) {
+    return NextResponse.json({ error: "Cannot favorite your own listing." }, { status: 400 });
+  }
 
   try {
     await prisma.favorite.upsert({
@@ -62,7 +69,6 @@ export async function POST(req: Request) {
       select: { title: true, seller: { select: { userId: true } } },
     });
     const ownerUserId = listing?.seller?.userId;
-    console.log("POST /api/favorites notify lookup:", { ownerUserId, isSelf: ownerUserId === me.id, hasListing: !!listing, hasSeller: !!listing?.seller });
     if (ownerUserId && ownerUserId !== me.id) {
       const favName = me.name ?? me.email?.split("@")[0] ?? "Someone";
       await createNotification({

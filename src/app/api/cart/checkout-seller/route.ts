@@ -24,7 +24,7 @@ const CheckoutSellerSchema = z.object({
   selectedRate: z.object({
     objectId: z.string().min(1),
     amountCents: z.number().int().min(0),
-    displayName: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(100),
     carrier: z.string().max(100),
     estDays: z.number().int().nullable(),
     token: z.string().min(1),
@@ -102,6 +102,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
     }
 
+    // Block orders to vacationing sellers
+    if (sellerItems[0].listing.seller.vacationMode) {
+      return NextResponse.json(
+        { error: "This seller is currently on vacation and not accepting new orders." },
+        { status: 400 },
+      );
+    }
+
+    // Block self-purchase (Stripe ToS violation)
+    if (sellerItems[0].listing.seller.userId === me.id) {
+      return NextResponse.json(
+        { error: "You cannot purchase your own listings." },
+        { status: 400 },
+      );
+    }
+
     // Only ACTIVE listings are purchasable.
     // Blocks DRAFT, SOLD, SOLD_OUT, HIDDEN, PENDING_REVIEW, REJECTED.
     const inactiveItem = sellerItems.find(
@@ -123,6 +139,18 @@ export async function POST(req: Request) {
     if (privateItem) {
       return NextResponse.json(
         { error: "One or more items in your cart are not available for purchase." },
+        { status: 400 },
+      );
+    }
+
+    // Stock quantity check for IN_STOCK listings
+    const insufficientStock = sellerItems.find(
+      (it) => it.listing.listingType === "IN_STOCK" &&
+        (it.listing.stockQuantity ?? 0) < it.quantity,
+    );
+    if (insufficientStock) {
+      return NextResponse.json(
+        { error: `"${insufficientStock.listing.title}" does not have enough stock.` },
         { status: 400 },
       );
     }
@@ -177,7 +205,7 @@ export async function POST(req: Request) {
       quantity: i.quantity,
       price_data: {
         currency,
-        unit_amount: i.priceCents,
+        unit_amount: i.listing.priceCents,
         product_data: {
           name: i.listing.title,
           images: i.listing.photos?.length ? [i.listing.photos[0]!.url] : undefined,
@@ -199,7 +227,7 @@ export async function POST(req: Request) {
     }
 
     const itemsSubtotalCents = sellerItems.reduce(
-      (sum, it) => sum + it.priceCents * it.quantity,
+      (sum, it) => sum + it.listing.priceCents * it.quantity,
       0
     );
 

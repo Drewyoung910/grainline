@@ -178,6 +178,54 @@ export const shippingAddressRatelimit = new Ratelimit({
   prefix: "rl:shipping_address",
 });
 
+// Shipping quote — Shippo API calls cost money (fail closed)
+export const shippingQuoteRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 s"),
+  analytics: true,
+  prefix: "rl:shipping-quote",
+});
+
+// Newsletter subscribe — public, IP-based (fail open — non-critical)
+export const newsletterRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "60 s"),
+  analytics: true,
+  prefix: "rl:newsletter",
+});
+
+// Blog comment creation (fail closed — abuse has real cost)
+export const blogCommentRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "60 s"),
+  analytics: true,
+  prefix: "rl:blog-comment",
+});
+
+// Stock notification subscribe/unsubscribe (fail closed)
+export const notifyRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 s"),
+  analytics: true,
+  prefix: "rl:notify",
+});
+
+// Stripe Connect account creation/onboarding (fail closed — Stripe API calls)
+export const stripeConnectRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "60 s"),
+  analytics: true,
+  prefix: "rl:stripe-connect",
+});
+
+// Click dedup — 1 per IP+listing per 24h (analytics dedup, fail open)
+export const clickDedupRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(1, "86400 s"),
+  analytics: false,
+  prefix: "rl:click-dedup",
+});
+
 /**
  * Fail CLOSED — if Redis is down, reject the request.
  * Use for: checkout, follow, broadcast, commission create,

@@ -72,7 +72,7 @@ export default async function SellerOrderDetailPage({
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      buyer: true,
+      buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
       items: {
         include: {
           listing: {

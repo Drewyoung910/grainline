@@ -42,7 +42,7 @@ export default async function CheckoutSuccessPage({
           },
         },
       },
-      buyer: true,
+      buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
     },
   });
 
@@ -172,7 +172,7 @@ export default async function CheckoutSuccessPage({
                     },
                   },
                 },
-                buyer: true,
+                buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
               },
             });
           });
@@ -198,7 +198,7 @@ export default async function CheckoutSuccessPage({
                     },
                   },
                 },
-                buyer: true,
+                buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
               },
             });
             if (!order) redirect("/dashboard/orders");
@@ -262,7 +262,7 @@ export default async function CheckoutSuccessPage({
                   },
                 },
               },
-              buyer: true,
+              buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
             },
           });
         } catch (e: unknown) {
@@ -285,7 +285,7 @@ export default async function CheckoutSuccessPage({
                     },
                   },
                 },
-                buyer: true,
+                buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
               },
             });
             if (!order) redirect("/dashboard/orders");
@@ -314,7 +314,7 @@ export default async function CheckoutSuccessPage({
               },
             },
           },
-          buyer: true,
+          buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
         },
       });
     }

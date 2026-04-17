@@ -189,6 +189,12 @@ export default async function CustomListingPage({
   });
   if (!convo) redirect("/messages");
 
+  // Verify reservedForUserId matches the other conversation participant
+  const otherParticipant = convo.userAId === me.id ? convo.userBId : convo.userAId;
+  if (buyerId !== otherParticipant) {
+    redirect("/dashboard");
+  }
+
   // Find the most recent custom_order_request message from the buyer
   const requestMsg = await prisma.message.findFirst({
     where: {

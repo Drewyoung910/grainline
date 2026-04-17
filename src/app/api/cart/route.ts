@@ -55,7 +55,6 @@ export async function GET() {
           sellerId: ci.listing.sellerId,
           sellerName:
             seller?.displayName ??
-            seller?.user?.email ??
             "Seller",
           photos: ci.listing.photos.map((p) => ({ url: p.url })),
           // expose seller shipping knobs so Cart UI can display hints

@@ -93,10 +93,10 @@ async function updateListing(
   const processingTimeMinDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMinDays")) : null;
   const processingTimeMaxDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMaxDays")) : null;
 
-  if (!title || !Number.isFinite(priceCents) || priceCents < 0) {
+  if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
     return { ok: false, error: "Please provide a valid title and price." };
   }
-  if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
+  if (priceCents <= 0) return { ok: false, error: "Price must be greater than zero." };
   if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
   if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) return { ok: false, error: "Processing time cannot exceed 365 days." };
