@@ -2,6 +2,7 @@
 import * as React from "react";
 import { UploadButton } from "@/utils/uploadthing";
 import { BLOG_TYPE_LABELS } from "@/lib/blog";
+import MarkdownToolbar from "./MarkdownToolbar";
 import type { BlogPostType } from "@prisma/client";
 
 const STAFF_TYPES: BlogPostType[] = ["STANDARD", "MAKER_SPOTLIGHT", "BEHIND_THE_BUILD", "GIFT_GUIDE", "WOOD_EDUCATION"];
@@ -126,20 +127,19 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
       {/* Body */}
       <div className="space-y-1">
         <label className="block text-sm font-medium">Body <span className="text-red-500">*</span></label>
-        <textarea
-          name="body"
-          required
-          rows={16}
+        <MarkdownToolbar
           value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Write your post in Markdown…"
-          className="w-full rounded-lg border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-neutral-300 resize-y"
+          onChange={setBody}
+          name="body"
+          placeholder="Write your post..."
+          required
         />
         <p className="text-xs text-neutral-400">
-          Markdown is supported.{" "}
+          Use the toolbar to format, or type{" "}
           <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank" rel="noopener noreferrer" className="underline">
-            Markdown cheat sheet ↗
-          </a>
+            Markdown syntax ↗
+          </a>{" "}
+          directly. Click Preview to see how it will look.
         </p>
       </div>
 
