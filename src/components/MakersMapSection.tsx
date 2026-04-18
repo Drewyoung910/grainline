@@ -3,7 +3,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import AllSellersMap from "./AllSellersMap";
+import dynamic from "next/dynamic";
+
+// Lazy-load the map component — maplibre-gl is ~1MB JS.
+// Deferred until MakersMapSection hydrates client-side.
+const AllSellersMap = dynamic(() => import("./AllSellersMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-stone-100 animate-pulse rounded-2xl" />
+  ),
+});
 
 type Point = {
   id: string;

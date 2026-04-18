@@ -469,7 +469,7 @@ export default async function HomePage() {
                       <div className="h-36 bg-neutral-100 overflow-hidden">
                         {item.photoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
+                          <img src={item.photoUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
@@ -489,7 +489,7 @@ export default async function HomePage() {
                       <div className="h-36 bg-neutral-100 overflow-hidden">
                         {item.coverImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={item.coverImageUrl} alt={item.title} className="w-full h-full object-cover" />
+                          <img src={item.coverImageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
@@ -546,7 +546,7 @@ export default async function HomePage() {
             <div className="rounded-3xl border bg-gradient-to-br from-amber-50 to-stone-50 overflow-hidden">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={featuredMaker.bannerImageUrl} alt="" className="h-48 w-full object-cover" />
+                <img src={featuredMaker.bannerImageUrl} alt="" loading="lazy" className="h-48 w-full object-cover" />
               )}
               <div className={`p-6 sm:p-8 ${featuredListings.length > 0 ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
                 {/* Left column — maker info */}
@@ -557,6 +557,7 @@ export default async function HomePage() {
                       <img
                         src={(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl)!}
                         alt={featuredMaker.displayName ?? ""}
+                        loading="lazy"
                         className="h-20 w-20 rounded-full border-2 border-white shadow object-cover"
                       />
                     ) : (
@@ -621,6 +622,7 @@ export default async function HomePage() {
                             <img
                               src={fl.photos[0].url}
                               alt={fl.title}
+                              loading="lazy"
                               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           ) : (
@@ -763,7 +765,7 @@ export default async function HomePage() {
                       <div className="aspect-[4/3] bg-stone-100 overflow-hidden">
                         {p.coverImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.coverImageUrl} alt={p.title} className="w-full h-full object-cover" />
+                          <img src={p.coverImageUrl} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
@@ -776,7 +778,7 @@ export default async function HomePage() {
                         <div className="flex items-center gap-1.5">
                           {authorAvatar ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={authorAvatar} alt={authorName} className="h-5 w-5 rounded-full object-cover" />
+                            <img src={authorAvatar} alt={authorName} loading="lazy" className="h-5 w-5 rounded-full object-cover" />
                           ) : (
                             <div className="h-5 w-5 rounded-full bg-neutral-200" />
                           )}

@@ -77,6 +77,9 @@ export async function POST(req: NextRequest) {
     Key: key,
     ContentType: contentType,
     ContentLength: size,
+    // Keys include timestamp+random — content is immutable once uploaded.
+    // Long cache + immutable prevents re-fetches from R2 origin.
+    CacheControl: "public, max-age=31536000, immutable",
   });
 
   const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300 });

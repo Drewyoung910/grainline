@@ -59,6 +59,7 @@ export default function RecentlyViewed() {
                     <img
                       src={l.photoUrl}
                       alt={l.title}
+                      loading="lazy"
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -79,6 +80,7 @@ export default function RecentlyViewed() {
                       <img
                         src={l.sellerAvatarImageUrl}
                         alt={l.sellerDisplayName}
+                        loading="lazy"
                         className="h-4 w-4 rounded-full object-cover"
                       />
                     ) : (

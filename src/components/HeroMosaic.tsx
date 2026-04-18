@@ -45,7 +45,7 @@ export default function HeroMosaic({ photos }: Props) {
               src={item.url}
               alt=""
               className="w-full h-full object-cover blur-[4px] scale-105"
-              loading="eager"
+              loading={i < 3 ? "eager" : "lazy"}
             />
           </a>
         ))}
@@ -69,7 +69,7 @@ export default function HeroMosaic({ photos }: Props) {
               src={item.url}
               alt=""
               className="w-full h-full object-cover blur-[4px] scale-105"
-              loading="eager"
+              loading={i < 3 ? "eager" : "lazy"}
             />
           </a>
         ))}

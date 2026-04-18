@@ -148,7 +148,7 @@ function FeedCard({ item }: { item: FeedItem }) {
         <Link href={`/listing/${item.id}`} className="block">
           {item.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.imageUrl} alt={item.title ?? ""} className="w-full aspect-[4/3] object-cover" />
+            <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
           )}
           <div className="p-4 bg-white">
             <p className="font-medium text-neutral-900">{item.title}</p>
@@ -181,7 +181,7 @@ function FeedCard({ item }: { item: FeedItem }) {
         <Link href={`/blog/${item.slug}`} className="block">
           {item.coverImageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.coverImageUrl} alt={item.title ?? ""} className="w-full aspect-[4/3] object-cover" />
+            <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
           )}
           <div className="p-4 bg-white">
             <p className="font-medium text-neutral-900">{item.title}</p>
@@ -211,6 +211,7 @@ function FeedCard({ item }: { item: FeedItem }) {
             <img
               src={item.broadcastImageUrl}
               alt="Shop update"
+              loading="lazy"
               className="mt-3 w-full aspect-[4/3] object-cover"
             />
           )}

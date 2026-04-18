@@ -1,5 +1,4 @@
 /* src/app/globals.css — Tailwind v4 entry */
-@import 'maplibre-gl/dist/maplibre-gl.css';
 @import "tailwindcss";
 
 /* keep the site light and readable */

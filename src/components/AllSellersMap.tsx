@@ -1,5 +1,6 @@
 // src/components/AllSellersMap.tsx
 "use client";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 

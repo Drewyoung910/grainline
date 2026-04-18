@@ -57,6 +57,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
           <img
             alt={l.title}
             src={displayImg}
+            loading="lazy"
             className="w-full aspect-square object-cover transition-all duration-300 group-hover:scale-105"
           />
         </Link>
