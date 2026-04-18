@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import { ListingStatus } from "@prisma/client";
 import GuildBadge from "@/components/GuildBadge";
 import type { GuildLevelValue } from "@/components/GuildBadge";
+import { safeJsonLd } from "@/lib/json-ld";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -177,8 +178,8 @@ export default async function MakersMetroPage({
 
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 
       {/* Breadcrumb */}
       <nav className="mb-5 text-sm text-neutral-500">

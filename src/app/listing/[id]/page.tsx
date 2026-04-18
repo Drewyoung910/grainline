@@ -18,6 +18,7 @@ import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
+import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
@@ -334,12 +335,12 @@ export default async function ListingPage({
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(productLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }}
       />
 
       {/* ── Breadcrumb ───────────────────────────────────────────────────── */}

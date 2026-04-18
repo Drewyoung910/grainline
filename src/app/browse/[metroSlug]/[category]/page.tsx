@@ -11,6 +11,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { safeJsonLd } from "@/lib/json-ld";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -188,8 +189,8 @@ export default async function BrowseMetroCategoryPage({
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 
       {/* Breadcrumb */}
       <nav className="mb-5 text-sm text-neutral-500">

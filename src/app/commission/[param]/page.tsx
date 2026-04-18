@@ -17,6 +17,7 @@ import MarkStatusButtons from "./MarkStatusButtons";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { CommissionStatus } from "@prisma/client";
+import { safeJsonLd } from "@/lib/json-ld";
 
 // ---------------------------------------------------------------------------
 // generateStaticParams — include both active metro slugs and open commission IDs
@@ -200,8 +201,8 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 
       {/* Breadcrumb */}
       <nav className="mb-5 text-sm text-neutral-500">
@@ -418,7 +419,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       <div className="mb-5 text-sm text-neutral-500">
         <Link href="/commission" className="hover:underline">Commission Room</Link>
         <span className="mx-2">›</span>

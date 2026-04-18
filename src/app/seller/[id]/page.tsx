@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
+import { safeJsonLd } from "@/lib/json-ld";
 import { prisma } from "@/lib/db";
 import MapCard from "@/components/MapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
@@ -262,7 +263,7 @@ export default async function SellerPublicPage({
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(businessLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(businessLd) }}
       />
 
       {/* ── Vacation notice ──────────────────────────────────────────────── */}
