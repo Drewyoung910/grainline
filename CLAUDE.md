@@ -2601,6 +2601,12 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 ### Deployment rule
 **Always run `prisma migrate deploy` BEFORE `vercel --prod`** for migrations that add columns or constraints. Index-only migrations are safe to apply after deploy (queries are slower but correct). The pattern: `npx dotenv-cli -e .env -- npx prisma migrate deploy` → verify → `npx vercel --prod`.
 
+### Infrastructure improvements (2026-04-18)
+- **`.github/dependabot.yml`** — weekly npm security updates; minor/patch grouped into single PR; major version bumps ignored (require manual review); 10 open PR limit. Would have caught the Clerk 7.0.7 auth bypass CVE automatically.
+- **`.github/workflows/ci.yml`** — runs `npx tsc --noEmit` + `npm audit --audit-level=critical` on every PR and push to main. Critical CVEs block the PR; high/moderate (like Prisma/hono transitives) don't. No `continue-on-error` on audit — critical means critical.
+- **Webhook oversell detection** — both cart and single-listing webhook paths now log `[OVERSELL]` via `console.error` when pre-decrement stock was insufficient for the ordered quantity. Shows in Vercel logs and Sentry breadcrumbs. No schema change (Order.notes doesn't exist). Oversold orders require manual seller review and potential refund.
+- **Neon connection pooler** — TODO comment in `prisma/schema.prisma` documenting when to switch to pooled connection string (`-pooler` hostname). Current `PrismaPg` adapter in `src/lib/db.ts` uses direct connection via `DATABASE_URL`. Switch when concurrent connections exceed ~50.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
