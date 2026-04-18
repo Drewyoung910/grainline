@@ -159,7 +159,7 @@ export default async function BrowsePage({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const q = sp.q ?? "";
+  const q = (sp.q ?? "").slice(0, 200);
   const page = sp.page ?? "1";
   const min = sp.min ?? "";
   const max = sp.max ?? "";
@@ -175,7 +175,7 @@ export default async function BrowsePage({
     : [rawTag.trim()].filter(Boolean);
 
   const pageNumRaw = Number.parseInt(page || "1", 10);
-  const pageNum = Number.isFinite(pageNumRaw) && pageNumRaw > 0 ? pageNumRaw : 1;
+  const pageNum = Math.min(Number.isFinite(pageNumRaw) && pageNumRaw > 0 ? pageNumRaw : 1, 500);
 
   // New filters
   const categoryRaw = sp.category?.toUpperCase() ?? "";
@@ -201,8 +201,8 @@ export default async function BrowsePage({
   const priceFilter: { gte?: number; lte?: number } = {};
   const minNum = Number(min);
   const maxNum = Number(max);
-  if (Number.isFinite(minNum) && min !== "") priceFilter.gte = Math.round(minNum * 100);
-  if (Number.isFinite(maxNum) && max !== "") priceFilter.lte = Math.round(maxNum * 100);
+  if (Number.isFinite(minNum) && min !== "" && minNum >= 0) priceFilter.gte = Math.round(Math.min(minNum, 100000) * 100);
+  if (Number.isFinite(maxNum) && max !== "" && maxNum >= 0) priceFilter.lte = Math.round(Math.min(maxNum, 100000) * 100);
 
   // Pre-pass: collect seller ID constraints from rating + location filters
   const sellerIdFilters: string[][] = [];

@@ -1,6 +1,7 @@
 // src/app/api/blog/search/suggestions/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -10,7 +11,11 @@ export type BlogSuggestion = {
 };
 
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("bq")?.trim() ?? "";
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
+  const rl = await safeRateLimitOpen(searchRatelimit, ip);
+  if (!rl.success) return NextResponse.json({ suggestions: [] });
+
+  const q = (req.nextUrl.searchParams.get("bq")?.trim() ?? "").slice(0, 200);
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
 
   const [postRows, tagRows, authorRows] = await Promise.all([

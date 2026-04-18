@@ -126,7 +126,7 @@ export default async function ListingPage({
     where: { id },
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
-      seller: { include: { user: true } },
+      seller: { include: { user: { select: { id: true, clerkId: true, email: true, imageUrl: true, banned: true } } } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
     },
@@ -142,6 +142,11 @@ export default async function ListingPage({
     if (!isSeller) {
       return notFound();
     }
+  }
+
+  // Banned sellers' listings are not accessible
+  if (!isPreview && listing.seller.user?.banned) {
+    return notFound();
   }
 
   // Block filter — show "not available" if the viewer has blocked or been blocked by the seller

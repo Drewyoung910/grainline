@@ -20,8 +20,10 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
 
 export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!cronSecret || bearer !== cronSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -96,7 +96,7 @@ export default async function BuyerOrderDetailPage({
         include: {
           messages: {
             include: {
-              author: { select: { name: true, email: true } },
+              author: { select: { name: true, email: true, role: true } },
             },
             orderBy: { createdAt: "asc" },
           },
@@ -403,7 +403,7 @@ export default async function BuyerOrderDetailPage({
               <li key={msg.id} className="px-4 py-3 space-y-1">
                 <div className="flex items-center gap-2 text-xs text-neutral-500">
                   <span className="font-medium text-neutral-700">
-                    {msg.author.name ?? msg.author.email}
+                    {msg.author.name ?? (msg.author.role === "EMPLOYEE" || msg.author.role === "ADMIN" ? "Grainline Staff" : msg.author.email)}
                   </span>
                   <span>·</span>
                   <span><LocalDate date={msg.createdAt} /></span>

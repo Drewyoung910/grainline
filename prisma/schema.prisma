@@ -477,6 +477,8 @@ model Order {
   case  Case?
 
   @@index([buyerId])
+  @@index([paidAt])
+  @@index([fulfillmentStatus])
 
   // Snapshot of the *selected* shipping service
   shippingCarrier  String?    // e.g., "UPS"
@@ -636,6 +638,9 @@ model Case {
   messages              CaseMessage[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+
+  @@index([buyerId])
+  @@index([status, createdAt])
 }
 
 model CaseMessage {
@@ -646,6 +651,8 @@ model CaseMessage {
   author    User     @relation("CaseMessages", fields: [authorId], references: [id])
   body      String
   createdAt DateTime @default(now())
+
+  @@index([caseId])
 }
 
 model SavedSearch {
@@ -659,6 +666,8 @@ model SavedSearch {
   tags        String[]  @default([])
   notifyEmail Boolean   @default(true)
   createdAt   DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model StockNotification {
@@ -836,6 +845,7 @@ model Notification {
 
   @@index([userId, read])
   @@index([userId, createdAt])
+  @@index([read, createdAt])
 }
 
 model ListingViewDaily {

@@ -132,7 +132,12 @@ export default async function SavedPage({
   // Posts tab
   const totalPages = Math.ceil(postTotal / PAGE_SIZE);
   const savedPosts = await prisma.savedBlogPost.findMany({
-    where: { userId: me.id },
+    where: {
+      userId: me.id,
+      ...(blockedSellerIds.length > 0
+        ? { blogPost: { sellerProfileId: { notIn: blockedSellerIds } } }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,

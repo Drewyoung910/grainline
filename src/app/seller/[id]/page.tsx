@@ -97,7 +97,7 @@ export default async function SellerPublicPage({
   const seller = await prisma.sellerProfile.findUnique({
     where: { id },
     include: {
-      user: { select: { id: true, clerkId: true, email: true, name: true, imageUrl: true, role: true, createdAt: true, updatedAt: true, banned: true, bannedAt: true, banReason: true, bannedBy: true, notificationPreferences: true } },
+      user: { select: { id: true, clerkId: true, name: true, imageUrl: true, banned: true } },
       faqs: { orderBy: { sortOrder: "asc" } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },

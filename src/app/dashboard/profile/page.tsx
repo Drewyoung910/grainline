@@ -11,6 +11,7 @@ import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
 import CharCounter from "@/components/CharCounter";
 import ConfirmButton from "@/components/ConfirmButton";
 import RemoveAvatarButton from "./RemoveAvatarButton";
+import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -39,10 +40,14 @@ async function updateSellerProfile(formData: FormData) {
   const displayName = (String(formData.get("displayName") ?? "")).trim();
   if (!displayName) throw new Error("Display name is required.");
 
-  const tagline = toNull(formData.get("tagline"));
-  const bio = toNull(formData.get("bio"));
-  const storyTitle = toNull(formData.get("storyTitle"));
-  const storyBody = toNull(formData.get("storyBody"));
+  const taglineRaw = toNull(formData.get("tagline"));
+  const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
+  const bioRaw = toNull(formData.get("bio"));
+  const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
+  const storyTitleRaw = toNull(formData.get("storyTitle"));
+  const storyTitle = storyTitleRaw ? sanitizeText(storyTitleRaw) : null;
+  const storyBodyRaw = toNull(formData.get("storyBody"));
+  const storyBody = storyBodyRaw ? sanitizeRichText(storyBodyRaw) : null;
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
 
   const bannerImageUrl = toNull(formData.get("bannerImageUrl"));
@@ -55,9 +60,12 @@ async function updateSellerProfile(formData: FormData) {
   const tiktokUrl = toNull(formData.get("tiktokUrl"));
   const websiteUrl = toNull(formData.get("websiteUrl"));
 
-  const returnPolicy = toNull(formData.get("returnPolicy"));
-  const customOrderPolicy = toNull(formData.get("customOrderPolicy"));
-  const shippingPolicy = toNull(formData.get("shippingPolicy"));
+  const returnPolicyRaw = toNull(formData.get("returnPolicy"));
+  const returnPolicy = returnPolicyRaw ? sanitizeRichText(returnPolicyRaw) : null;
+  const customOrderPolicyRaw = toNull(formData.get("customOrderPolicy"));
+  const customOrderPolicy = customOrderPolicyRaw ? sanitizeRichText(customOrderPolicyRaw) : null;
+  const shippingPolicyRaw = toNull(formData.get("shippingPolicy"));
+  const shippingPolicy = shippingPolicyRaw ? sanitizeRichText(shippingPolicyRaw) : null;
 
   const acceptsCustomOrders = toBool(formData.get("acceptsCustomOrders"));
   const acceptingNewOrders = toBool(formData.get("acceptingNewOrders"));
@@ -65,9 +73,13 @@ async function updateSellerProfile(formData: FormData) {
 
   const offersGiftWrapping = toBool(formData.get("offersGiftWrapping"));
   const giftWrappingPriceDollars = toNull(formData.get("giftWrappingPriceCents"));
-  const giftWrappingPriceCents =
+  const giftWrappingPriceCentsRaw =
     giftWrappingPriceDollars !== null
       ? Math.round(parseFloat(giftWrappingPriceDollars) * 100)
+      : null;
+  const giftWrappingPriceCents =
+    giftWrappingPriceCentsRaw !== null
+      ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
       : null;
 
   await prisma.sellerProfile.update({
@@ -160,6 +172,10 @@ async function toggleFeaturedListing(listingId: string) {
   const { userId } = await auth();
   if (!userId) return;
   const { seller } = await ensureSeller();
+
+  // Verify seller owns the listing before featuring it
+  const owned = await prisma.listing.count({ where: { id: listingId, sellerId: seller.id } });
+  if (owned === 0) return;
 
   // Re-fetch to get current featuredListingIds
   const freshSeller = await prisma.sellerProfile.findUnique({

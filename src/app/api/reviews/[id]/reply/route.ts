@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -22,7 +23,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const body = replyParsed.text.trim().slice(0, 2000);
+  const rawBody = replyParsed.text.trim().slice(0, 2000);
+  const body = sanitizeRichText(rawBody);
   if (!body) return NextResponse.json({ error: "Empty reply" }, { status: 400 });
 
   // Find review + ensure current user owns the shop/listing

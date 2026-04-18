@@ -9,7 +9,7 @@ import { z } from "zod";
 
 const BroadcastSchema = z.object({
   message: z.string().min(1).max(500),
-  imageUrl: z.string().min(1).optional().nullable(),
+  imageUrl: z.string().url().regex(/^https:\/\//).optional().nullable(),
   sellersOnly: z.boolean().optional(),
 });
 

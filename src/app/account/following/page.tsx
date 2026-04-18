@@ -34,7 +34,7 @@ export default async function FollowingPage() {
           userId: true,
           guildLevel: true,
           user: { select: { imageUrl: true } },
-          _count: { select: { followers: true, listings: true } },
+          _count: { select: { followers: true, listings: { where: { status: "ACTIVE", isPrivate: false } } } },
           listings: {
             where: { status: "ACTIVE", isPrivate: false },
             orderBy: { createdAt: "desc" },

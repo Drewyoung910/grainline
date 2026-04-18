@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { sanitizeRichText } from "@/lib/sanitize";
 
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
@@ -52,7 +53,7 @@ export async function PATCH(
   await prisma.$transaction(async (tx) => {
     await tx.review.update({
       where: { id },
-      data: { ratingX2, comment },
+      data: { ratingX2, comment: comment ? sanitizeRichText(comment) : undefined },
     });
 
     // Replace photos

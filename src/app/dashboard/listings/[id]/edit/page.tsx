@@ -291,8 +291,11 @@ export default async function EditListingPage(props: {
 }) {
   const { id } = await props.params;
 
-  const listing = await prisma.listing.findUnique({
-    where: { id },
+  const { userId } = await auth();
+  if (!userId) return notFound();
+
+  const listing = await prisma.listing.findFirst({
+    where: { id, seller: { user: { clerkId: userId } } },
     include: { photos: { orderBy: { sortOrder: "asc" } } },
   });
   if (!listing) return notFound();

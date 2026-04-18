@@ -68,12 +68,17 @@ export async function POST(request: Request) {
     </div>
   `;
 
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? "Grainline <hello@thegrainline.com>",
-    to: recipient.email,
-    subject: body.subject,
-    html: htmlBody,
-  });
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM ?? "Grainline <hello@thegrainline.com>",
+      to: recipient.email,
+      subject: body.subject,
+      html: htmlBody,
+    });
+  } catch (err) {
+    console.error("[admin email] send failed:", err);
+    return NextResponse.json({ error: "Email send failed" }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

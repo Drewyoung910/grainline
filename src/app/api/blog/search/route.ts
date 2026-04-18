@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, BlogPostStatus } from "@prisma/client";
+import { searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 
 const POST_SELECT = {
   id: true,
@@ -32,8 +33,12 @@ type PostRow = {
 };
 
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
+  const rl = await safeRateLimitOpen(searchRatelimit, ip);
+  if (!rl.success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
   const url = new URL(req.url);
-  const q = url.searchParams.get("bq")?.trim() ?? "";
+  const q = (url.searchParams.get("bq")?.trim() ?? "").slice(0, 200);
   const type = url.searchParams.get("type")?.trim() ?? "";
   const tagsParam = url.searchParams.get("tags") ?? "";
   const tags = tagsParam ? tagsParam.split(",").map((t) => t.trim()).filter(Boolean) : [];

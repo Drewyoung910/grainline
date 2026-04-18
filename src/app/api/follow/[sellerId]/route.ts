@@ -83,6 +83,12 @@ export async function POST(
   });
   if (blockExists) return NextResponse.json({ error: "Blocked" }, { status: 403 });
 
+  // Check if already following before upsert so we only notify on new follows
+  const existingFollow = await prisma.follow.findUnique({
+    where: { followerId_sellerProfileId: { followerId: me.id, sellerProfileId: sellerProfile.id } },
+    select: { id: true },
+  });
+
   await prisma.follow.upsert({
     where: { followerId_sellerProfileId: { followerId: me.id, sellerProfileId: sellerProfile.id } },
     create: { followerId: me.id, sellerProfileId: sellerProfile.id },
@@ -91,15 +97,17 @@ export async function POST(
 
   const followerCount = await getFollowerCount(sellerProfile.id);
 
-  // Notify the seller
-  const followerName = me.name ?? me.email.split("@")[0] ?? "Someone";
-  await createNotification({
-    userId: sellerProfile.userId,
-    type: "NEW_FOLLOWER",
-    title: `${followerName} started following you`,
-    body: "They can now see your new listings and posts in their feed",
-    link: "/dashboard/analytics",
-  });
+  // Only notify the seller on a new follow (not re-follow via upsert)
+  if (!existingFollow) {
+    const followerName = me.name ?? me.email.split("@")[0] ?? "Someone";
+    await createNotification({
+      userId: sellerProfile.userId,
+      type: "NEW_FOLLOWER",
+      title: `${followerName} started following you`,
+      body: "They can now see your new listings and posts in their feed",
+      link: "/dashboard/analytics",
+    });
+  }
 
   return NextResponse.json({ following: true, followerCount });
 }

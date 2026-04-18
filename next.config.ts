@@ -17,15 +17,15 @@ const securityHeaders = [
       // script-src-elem overrides script-src for <script> elements — list all external script hosts here
       "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com https://cdnjs.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://clerk.thegrainline.com",
-      "font-src 'self' data: https://fonts.gstatic.com",
+      "font-src 'self' data:",
       // Drop plain http: — all legitimate image sources use HTTPS; blob:/data: retained for canvas/uploader
       "img-src 'self' data: blob: https:",
       // All XHR/fetch/WebSocket targets: Clerk, Stripe, R2, Sentry, Upstash, OpenStreetMap, Maplibre tiles
       "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.r2.cloudflarestorage.com https://cdn.thegrainline.com https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.openfreemap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
-      // Stripe payment iframe + Clerk account modal iframe
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com",
+      // Stripe payment iframe + Clerk account modal iframe + YouTube/Vimeo embeds on blog posts
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://www.youtube-nocookie.com https://player.vimeo.com",
       "worker-src 'self' blob:",
-      "media-src 'self'",
+      "media-src 'self' https://cdn.thegrainline.com",
       "object-src 'none'",
       "base-uri 'self'",
       // Clerk sign-in/up forms may POST to clerk domains
