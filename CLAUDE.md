@@ -2498,7 +2498,7 @@ All other POST/PATCH/DELETE routes call `auth()` and return 401 before any data 
 Full-codebase audit across 79 API routes, 8 parallel audit passes. 44 findings identified and fixed in a single commit. Zero TypeScript errors. All fixes deployed to production.
 
 ### Critical fixes
-- **Blog XSS** — `marked.parse()` output was rendered via `dangerouslySetInnerHTML` with no sanitization. Installed `isomorphic-dompurify`, added `DOMPurify.sanitize()` with explicit tag/attribute allowlist before rendering. File: `src/app/blog/[slug]/page.tsx`.
+- **Blog XSS** — `marked.parse()` output was rendered via `dangerouslySetInnerHTML` with no sanitization. Initially fixed with `isomorphic-dompurify`, but jsdom has an ESM/CJS incompatibility that crashes Vercel's serverless runtime ("Failed to load external module jsdom"). Replaced with `sanitize-html` (pure JS, no jsdom dependency). Same tag/attribute allowlist: 28+ allowed tags, 8 attribute groups, `http`/`https`/`mailto` schemes only. File: `src/app/blog/[slug]/page.tsx`.
 - **JSON-LD XSS** — All 12 `dangerouslySetInnerHTML={{ __html: JSON.stringify(...) }}` instances across 6 files were vulnerable to script-tag breakout via user-controlled strings (e.g. listing title `</script><script>alert(1)`). `JSON.stringify` does NOT escape `</`. New `src/lib/json-ld.ts` exports `safeJsonLd()` which replaces `<` with `\u003c` (valid JSON, browser-safe). Applied to all JSON-LD script tags: listing detail, seller profile, makers, commission, metro browse, metro+category browse.
 - **Stock oversell race** — Webhook used `Math.max(0, staleQty - qty)` which is not atomic under concurrent webhooks. Replaced with raw SQL `GREATEST(0, "stockQuantity" - qty)` (floor at 0, prevents negative stock). Both cart and single-listing webhook paths fixed. File: `src/app/api/stripe/webhook/route.ts`.
 - **No stock check at checkout** — Neither checkout route validated `stockQuantity >= requested quantity` for IN_STOCK items. Added guards to both `checkout-seller` and `checkout/single`. Buyers now get 400 "Not enough stock" instead of a Stripe session for unavailable items.
@@ -2563,7 +2563,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **CRON_SECRET undefined bypass** — Both cron routes compared `Bearer ${undefined}` which an attacker could match. Changed to fail-closed: `if (!cronSecret || bearer !== cronSecret)`.
 - **Broadcast imageUrl** — Accepted any string. Changed Zod to `z.string().url().regex(/^https:\/\//)`.
 - **Notification preferences allowlist** — `type` field accepted arbitrary strings; users could silence always-on notifications like `LISTING_APPROVED`. Changed to `z.enum([...34 valid keys...])`.
-- **Browse input bounds** — `q` capped at 200 chars; `pageNum` capped at 500; `minPrice`/`maxPrice` clamped to `[0, 100000]`.
+- **Browse input bounds** — `q` capped at 200 chars; `pageNum` capped at 500; `minPrice`/`maxPrice` clamped to `[0, 500000]` (raised from 100K to 500K for high-value custom furniture).
 - **Blog search rate limiting** — Both `/api/blog/search` and `/api/blog/search/suggestions` now have IP-based `searchRatelimit` + 200-char query cap.
 
 ### Low fixes
@@ -2587,8 +2587,8 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - `Notification(read, createdAt)` — cleanup cron and read/unread filtering
 
 ### Known remaining items (not security-critical)
-- `defu` prototype pollution (transitive via Prisma, build-time only) — awaiting Prisma 7.7+ fix
-- `hono` CVEs (5, transitive via `@prisma/dev`, not in production runtime) — same
+- `defu` prototype pollution (transitive via Prisma) — build-time only, not runtime. Prisma upgraded to 7.7 but `defu` fix requires upstream `c12` update.
+- `hono` CVEs (transitive via `@prisma/dev`) — not in production runtime, dev tooling only
 - `Conversation`/`Message` lack `onDelete: Cascade` — will matter for GDPR account deletion
 - `UserReport` missing `resolvedAt`/`resolvedById` fields — audit trail gap
 
@@ -2603,7 +2603,14 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 
 ### Infrastructure improvements (2026-04-18)
 - **`.github/dependabot.yml`** — weekly npm security updates; minor/patch grouped into single PR; major version bumps ignored (require manual review); 10 open PR limit. Would have caught the Clerk 7.0.7 auth bypass CVE automatically.
-- **`.github/workflows/ci.yml`** — runs `npx tsc --noEmit` + `npm audit --audit-level=critical` on every PR and push to main. Critical CVEs block the PR; high/moderate (like Prisma/hono transitives) don't. No `continue-on-error` on audit — critical means critical.
+- **`.github/workflows/ci.yml`** — runs `prisma generate` → `npx tsc --noEmit` → `npm audit` (informational, `continue-on-error: true`) on every PR and push to main. Node 22. `prisma generate` is required before `tsc` because Prisma 7.7 changed the client generation output. Audit is informational — Dependabot PRs surface actionable fixes.
+
+### Dependency upgrades (via Dependabot PR #2, 2026-04-18)
+- Prisma 7.6.0 → 7.7.0, Stripe SDK 19.0 → 19.3, React 19.2.4 → 19.2.5
+- @sentry/nextjs 10.46 → 10.49, maplibre-gl 5.22 → 5.23, resend 6.1 → 6.12, svix 1.89 → 1.90
+- AWS SDK (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`) and type definition updates
+- **Stripe `apiVersion`**: removed explicit `"2025-09-30.clover"` from `src/lib/stripe.ts` — SDK 19.3 changed the valid type union. Now uses the SDK's default API version.
+- **`tsconfig.json`**: excluded `prisma/seed.ts`, `prisma/seed-bulk.ts`, `prisma/seeds`, and `scripts` directories from tsc. Prisma 7.7 changed PrismaClient import behavior which broke seed file compilation. These are build-only scripts, not runtime code.
 - **Webhook oversell detection** — both cart and single-listing webhook paths now log `[OVERSELL]` via `console.error` when pre-decrement stock was insufficient for the ordered quantity. Shows in Vercel logs and Sentry breadcrumbs. No schema change (Order.notes doesn't exist). Oversold orders require manual seller review and potential refund.
 - **Neon connection pooler** — TODO comment in `prisma/schema.prisma` documenting when to switch to pooled connection string (`-pooler` hostname). Current `PrismaPg` adapter in `src/lib/db.ts` uses direct connection via `DATABASE_URL`. Switch when concurrent connections exceed ~50.
 
@@ -2908,6 +2915,18 @@ export const prisma = new PrismaClient({ adapter, log: [...] })
 
 ### No query API changes
 `findUnique`, `findFirst`, `findMany` and all other query methods behave identically in Prisma 7. The 347 query call sites needed no changes.
+
+## CI/CD
+
+**CI pipeline**: GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` and every PR:
+1. `npm ci` (clean install)
+2. `npx prisma generate` (required before tsc — Prisma 7.7 client generation)
+3. `npx tsc --noEmit` (type check — blocks PR on failure)
+4. `npm audit` (informational, `continue-on-error: true` — does not block)
+
+**Dependabot** (`.github/dependabot.yml`): weekly PRs every Monday for npm minor/patch updates. Major version bumps are ignored (require manual review). Minor/patch updates are grouped into a single PR. Limit: 10 open PRs.
+
+**Deployment**: `npx vercel --prod` from the CLI. For schema migrations: always run `npx dotenv-cli -e .env -- npx prisma migrate deploy` BEFORE `vercel --prod`.
 
 ## Commands
 
