@@ -2614,6 +2614,30 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **Webhook oversell detection** — both cart and single-listing webhook paths now log `[OVERSELL]` via `console.error` when pre-decrement stock was insufficient for the ordered quantity. Shows in Vercel logs and Sentry breadcrumbs. No schema change (Order.notes doesn't exist). Oversold orders require manual seller review and potential refund.
 - **Neon connection pooler** — TODO comment in `prisma/schema.prisma` documenting when to switch to pooled connection string (`-pooler` hostname). Current `PrismaPg` adapter in `src/lib/db.ts` uses direct connection via `DATABASE_URL`. Switch when concurrent connections exceed ~50.
 
+## Performance Optimization — Batch 1 (2026-04-18)
+
+### Image loading
+- **`loading="lazy"`** added to 15 image locations across ListingCard (all listing grids/scroll rows), HeroMosaic (all except first 6 — 3 per row visible above fold), RecentlyViewed, FeedClient (listings, blog, broadcasts), browse featured/list-view, homepage Meet a Maker (banner + avatar), homepage blog covers + author avatars, homepage From Your Makers cards. Previously: 0 images had lazy loading; all ~51 homepage images loaded eagerly.
+- **R2 cache headers**: `CacheControl: "public, max-age=31536000, immutable"` set on all new uploads via `PutObjectCommand` in `src/app/api/upload/presign/route.ts`. Keys include timestamp+random suffix so they are content-addressed and never change. Previously: no cache headers — images may have been re-fetched from R2 origin on every visit. Note: existing images uploaded before this change still lack cache headers; they would need a one-time migration script to set headers on existing R2 objects.
+
+### JavaScript bundle
+- **Maplibre GL lazy-loaded** via `next/dynamic({ ssr: false })` in `MakersMapSection.tsx`. Defers ~1MB maplibre-gl JS bundle until the map section hydrates client-side (below the fold on most viewports). Loading skeleton shown while JS loads. Previously: statically imported — every homepage visitor downloaded the full map library.
+- **Maplibre CSS removed from `globals.css`** (was `@import 'maplibre-gl/dist/maplibre-gl.css'` — 68KB parsed on every page of the entire site). CSS import moved into each map component individually (AllSellersMap, LocationPicker, SellersMap, MapCard, MaplibreMap). With dynamic import, CSS is code-split and only loaded when a map renders. Non-map pages (browse, listing detail, cart, checkout, account, blog) pay zero CSS cost.
+
+### CSS animations
+- **ScrollSection `transition-all` → `transition-[opacity,transform]`** — previously told the browser to watch all CSS properties for changes on every scroll-triggered fade-in animation, causing unnecessary style recalculation. Now only transitions the two properties that actually change.
+
+### Batch 2 (planned, not yet implemented)
+- Deduplicate `getBlockedUserIdsFor` call (called twice per homepage load for logged-in users)
+- Fix `getSellerRatingMap` N+1 on homepage (single JOIN like browse page already does)
+- Parallelize featured maker + seller ratings + logged-in user data queries
+- Add `take: 200` limit on mapPoints query (currently serializes all opted-in sellers into RSC payload)
+
+### Batch 3 (planned, requires external service)
+- Cloudflare Image Resizing (`?width=400&format=webp`) for responsive image delivery
+- Or `next/image` with custom R2 loader
+- `fetchpriority="high"` on LCP images
+
 ## Remaining Security Gaps
 
 | Gap | Status |
