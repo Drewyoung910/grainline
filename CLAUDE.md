@@ -2628,7 +2628,9 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 | Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
 | `X-Powered-By` header removal | ✅ Complete (2026-04-03) — `poweredByHeader: false` in `next.config.ts` |
 | OWASP ZAP scan | ✅ Complete (2026-04-03) — 0 high, 0 medium findings; 2 low (missing `Permissions-Policy` on API routes — headers already set globally) |
-| Neon database password rotation | ✅ Complete (2026-04-03) — rotated in Neon dashboard, `DATABASE_URL` + `DIRECT_URL` updated in Vercel |
+| Neon database password rotation | ⚠️ Vercel updated (2026-04-03) but local `.env` still has old password `npg_a47OSRsFPruJ`. If production works, Vercel has the new password — update local `.env` to match. If unsure, rotate again in Neon dashboard and update both Vercel + local. |
+| `.env.save` / `.env.production` cleanup | ✅ Deleted (2026-04-18) — contained live Clerk secret key, DB password, Stripe keys. Both were gitignored but sitting unencrypted on disk. |
+| `SHIPPING_RATE_SECRET` in Preview | ❌ Missing — add via Vercel dashboard (Settings → Environment Variables → Preview). Without it, preview deploy checkouts 500. |
 
 ### Security Maintenance Rules
 
