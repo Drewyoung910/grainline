@@ -45,7 +45,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
   const state = l.seller.state;
 
   return (
-    <div className="group">
+    <div className="group transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
       {/* Photo */}
       <div
         className="relative rounded-2xl overflow-hidden"
