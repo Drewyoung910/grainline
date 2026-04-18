@@ -2638,6 +2638,16 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - Or `next/image` with custom R2 loader
 - `fetchpriority="high"` on LCP images
 
+## Blog & Commission Room UX Fixes (2026-04-18)
+
+- **`@tailwindcss/typography` installed** — `@plugin "@tailwindcss/typography"` in `globals.css`. Blog post body `prose` classes now functional: paragraph spacing, styled headings, blockquotes, code blocks, lists. Previously all `prose-*` classes were no-ops since blog launch (plugin was never installed).
+- **Blog comment thread borders** — `border-neutral-100` → `border-neutral-300` on L2/L3 reply indent lines in `BlogReplyToggle.tsx`. Threading hierarchy now visible (was white-on-white).
+- **Blog cover images** — fixed `h-44` → `aspect-[16/9]` on grid cards. Consistent proportions regardless of source image shape.
+- **Blog featured post label** — amber "Featured" badge added above the type badge on the hero card. Previously the featured post was larger but had no label.
+- **Commission reference image disclaimer** — added to create form: "Only upload images you own or have permission to share. Reference images are visible to makers who view your request." Addresses the legal gap where buyers upload Pinterest/Google images with no guidance.
+- **Commission interest button** — upgraded from `text-xs border-only` to `text-sm rounded-md bg-neutral-900` filled button. Primary conversion action is now visible and tappable on mobile. Confirmed state also restyled.
+- **Commission reference images** — 64px → 96px with `rounded-lg` on board cards. Reference images are the most compelling visual element on a commission request; they were barely visible before.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
