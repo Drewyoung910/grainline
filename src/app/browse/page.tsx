@@ -201,8 +201,8 @@ export default async function BrowsePage({
   const priceFilter: { gte?: number; lte?: number } = {};
   const minNum = Number(min);
   const maxNum = Number(max);
-  if (Number.isFinite(minNum) && min !== "" && minNum >= 0) priceFilter.gte = Math.round(Math.min(minNum, 100000) * 100);
-  if (Number.isFinite(maxNum) && max !== "" && maxNum >= 0) priceFilter.lte = Math.round(Math.min(maxNum, 100000) * 100);
+  if (Number.isFinite(minNum) && min !== "" && minNum >= 0) priceFilter.gte = Math.round(Math.min(minNum, 500000) * 100);
+  if (Number.isFinite(maxNum) && max !== "" && maxNum >= 0) priceFilter.lte = Math.round(Math.min(maxNum, 500000) * 100);
 
   // Pre-pass: collect seller ID constraints from rating + location filters
   const sellerIdFilters: string[][] = [];

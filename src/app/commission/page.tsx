@@ -92,11 +92,13 @@ export default async function CommissionPage({
   if (tab === "near" && hasLocation) {
     // Near Me: show local requests first, then national ones, filtered by 80km
     const radius = 80000; // 80km
-    // Select query params: $1-$7 (viewerLat, viewerLng, viewerLat, viewerLng, radius, pageSize, offset)
-    // Category appended as $8 if present — never string-interpolated (SQL injection prevention)
+
+    // SECURITY: $queryRawUnsafe is used here because Prisma's $queryRaw
+    // tagged template cannot handle conditional SQL fragments. All user
+    // input (categoryFilter) is passed as bound positional parameters ($8/$4),
+    // never interpolated into the SQL string. categoryFilter is also
+    // validated against CATEGORY_VALUES allowlist before reaching this code.
     const categoryConditionSelect = categoryValid ? `AND cr.category::text = $8` : "";
-    // Count query params: $1-$3 (viewerLat, viewerLng, radius)
-    // Category appended as $4 if present
     const categoryConditionCount = categoryValid ? `AND cr.category::text = $4` : "";
 
     const selectSql = `

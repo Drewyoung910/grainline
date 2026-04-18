@@ -37,6 +37,7 @@ const isPublic = createRouteMatcher([
   "/api/listings/(.*)/similar",       // similar listings — public
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
   "/api/health",                      // health check — public (UptimeRobot monitoring)
+  "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
 ]);
 
 const isAdmin = createRouteMatcher(["/admin(.*)"]);
