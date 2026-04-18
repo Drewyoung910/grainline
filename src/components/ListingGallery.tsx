@@ -93,6 +93,7 @@ export default function ListingGallery({
         <img
           src={activeUrl}
           alt={title}
+          fetchPriority="high"
           className="w-full h-full object-cover"
         />
         {photos.length > 1 && (

@@ -291,6 +291,7 @@ export default async function SellerPublicPage({
           <img
             src={seller.bannerImageUrl}
             alt={`${seller.displayName} banner`}
+            fetchPriority="high"
             className="w-full h-full object-cover"
           />
         ) : (
