@@ -36,6 +36,10 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "prisma/seed.ts",
+    "prisma/seed-bulk.ts",
+    "prisma/seeds",
+    "scripts"
   ]
 }
