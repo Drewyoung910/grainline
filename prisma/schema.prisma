@@ -3,6 +3,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// TODO: Switch to Neon pooled connection string (-pooler hostname)
+// when traffic exceeds ~50 concurrent connections.
+// See: https://neon.tech/docs/connect/connection-pooling
 datasource db {
   provider = "postgresql"
 }

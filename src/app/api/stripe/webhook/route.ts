@@ -330,6 +330,9 @@ export async function POST(req: Request) {
             });
 
             if (it.listing.listingType === "IN_STOCK") {
+              // Read pre-decrement stock to detect oversell after
+              const preStock = it.listing.stockQuantity ?? 0;
+
               // Atomic decrement with floor at 0 — prevents stock going negative
               // under concurrent webhooks. Uses raw SQL WHERE guard.
               const decremented: number = await tx.$executeRaw`
@@ -347,6 +350,18 @@ export async function POST(req: Request) {
                     where: { id: it.listingId },
                     data: { status: "SOLD_OUT" },
                   });
+                }
+
+                // Oversell detection: if pre-decrement stock was already
+                // insufficient for this order, the GREATEST(0) floor hid
+                // a real problem — this buyer paid for items we don't have.
+                if (preStock < orderQuantity) {
+                  console.error(
+                    `[OVERSELL] Order ${order.id}: item "${it.listing.title}" ` +
+                    `(${it.listingId}) may have been oversold. ` +
+                    `Stock was ${preStock}, ordered ${orderQuantity}. ` +
+                    `Manual review required.`
+                  );
                 }
               }
             }
@@ -631,6 +646,9 @@ export async function POST(req: Request) {
           });
 
           if (isInStock) {
+            // Read pre-decrement stock to detect oversell after
+            const preSingleStock = listingData?.stockQuantity ?? 0;
+
             // Atomic decrement with floor at 0 — prevents stock going negative
             const decrementedSingle: number = await tx.$executeRaw`
               UPDATE "Listing"
@@ -647,6 +665,15 @@ export async function POST(req: Request) {
                   where: { id: listingId },
                   data: { status: "SOLD_OUT" },
                 });
+              }
+
+              // Oversell detection
+              if (preSingleStock < quantity) {
+                console.error(
+                  `[OVERSELL] Single-item order for listing ${listingId}: ` +
+                  `stock was ${preSingleStock}, ordered ${quantity}. ` +
+                  `Manual review required.`
+                );
               }
             }
           }
