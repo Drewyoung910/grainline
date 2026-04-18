@@ -2545,6 +2545,53 @@ Full-codebase audit across 79 API routes, 8 parallel audit passes. 44 findings i
 - **`console.log` in favorites** — Debug statements logging internal DB user IDs and roles to Vercel logs. Removed.
 - **Sentry tracesSampleRate** — Was `1` (100%) in all 3 configs. Changed to `0.1` (10%) to reduce cost/quota usage.
 
+## Second Security Audit (2026-04-18)
+
+Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents scanned seller dashboard actions, review/follow/block edge cases, search/browse/listing detail, cron/email/notifications, account pages, and infrastructure/deps/config.
+
+### Critical fixes
+- **@clerk/nextjs 7.0.7 → 7.2.3** — fixes middleware route protection bypass (GHSA-vqx2-fgx2-5wq9). Attacker could access `/dashboard`, `/admin`, etc. without auth.
+- **next 16.2.1 → 16.2.4** — fixes Server Components DoS (GHSA-q4gf-8mx6-v5v3). Crafted request crashes Vercel instance.
+
+### High fixes
+- **Banned seller listings via direct URL** — `listing/[id]/page.tsx` had no `seller.user.banned` check. Added `notFound()` after chargesEnabled check. Contrast: `seller/[id]/page.tsx` already had this.
+- **CSP frame-src** — YouTube (`youtube-nocookie.com`) and Vimeo (`player.vimeo.com`) added for blog video embeds. R2 CDN added to `media-src`. Unused `fonts.gstatic.com` removed from `font-src`.
+
+### Medium fixes
+- **Edit listing page info disclosure** — `dashboard/listings/[id]/edit/page.tsx` loaded any listing by ID with no auth. Now uses `findFirst` with `seller: { user: { clerkId } }` ownership filter.
+- **toggleFeaturedListing** — No ownership check; any listing ID could be featured. Added `prisma.listing.count({ where: { id, sellerId } })` guard.
+- **CRON_SECRET undefined bypass** — Both cron routes compared `Bearer ${undefined}` which an attacker could match. Changed to fail-closed: `if (!cronSecret || bearer !== cronSecret)`.
+- **Broadcast imageUrl** — Accepted any string. Changed Zod to `z.string().url().regex(/^https:\/\//)`.
+- **Notification preferences allowlist** — `type` field accepted arbitrary strings; users could silence always-on notifications like `LISTING_APPROVED`. Changed to `z.enum([...34 valid keys...])`.
+- **Browse input bounds** — `q` capped at 200 chars; `pageNum` capped at 500; `minPrice`/`maxPrice` clamped to `[0, 100000]`.
+- **Blog search rate limiting** — Both `/api/blog/search` and `/api/blog/search/suggestions` now have IP-based `searchRatelimit` + 200-char query cap.
+
+### Low fixes
+- **Review edit/reply sanitization** — PATCH review and seller reply were missing `sanitizeRichText()` (POST had it). Added to both.
+- **Profile text field sanitization** — `dashboard/profile/page.tsx` `updateSellerProfile` was missing `sanitizeText`/`sanitizeRichText` on tagline, bio, storyBody, policies (the `dashboard/seller` version had them). Added.
+- **Gift wrap price bounds** — No min/max validation. Clamped to `[0, $100]` (10000 cents).
+- **Seller/listing page user over-fetch** — `seller/[id]/page.tsx` narrowed from `user: true` (13 fields) to 5 fields. `listing/[id]/page.tsx` narrowed from `user: true` to 5 fields.
+- **Follow re-notification** — `NEW_FOLLOWER` notification fired on every follow POST (including re-follows via upsert update branch). Added `findUnique` check; notification only sent on new follows.
+- **Admin email try/catch** — `resend.emails.send()` was called without try/catch. Wrapped.
+- **Saved posts block filter** — Blog posts tab on `/account/saved` was missing `blockedSellerIds` filter. Added.
+- **Following listing count** — `_count.listings` included DRAFT/HIDDEN/PRIVATE. Changed to `{ where: { status: "ACTIVE", isPrivate: false } }`.
+- **Case thread staff email** — Case message author email leaked to buyers for EMPLOYEE/ADMIN authors. Now shows "Grainline Staff" instead.
+
+### Database indexes (migration `20260416120000_add_performance_indexes`)
+- `Order(paidAt)` — analytics range queries
+- `Order(fulfillmentStatus)` — dashboard/admin order filters
+- `SavedSearch(userId)` — user's saved searches lookup
+- `Case(buyerId)` — buyer order detail case lookup
+- `Case(status, createdAt)` — admin cases queue sort
+- `CaseMessage(caseId)` — case thread message loading
+- `Notification(read, createdAt)` — cleanup cron and read/unread filtering
+
+### Known remaining items (not security-critical)
+- `defu` prototype pollution (transitive via Prisma, build-time only) — awaiting Prisma 7.7+ fix
+- `hono` CVEs (5, transitive via `@prisma/dev`, not in production runtime) — same
+- `Conversation`/`Message` lack `onDelete: Cascade` — will matter for GDPR account deletion
+- `UserReport` missing `resolvedAt`/`resolvedById` fields — audit trail gap
+
 ## Remaining Security Gaps
 
 | Gap | Status |
