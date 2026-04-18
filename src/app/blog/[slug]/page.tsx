@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { marked } from "marked";
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtml from "sanitize-html";
 import type { Metadata } from "next";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import NewsletterSignup from "@/components/NewsletterSignup";
@@ -115,10 +115,20 @@ export default async function BlogPostPage({
 
   // Render markdown body
   const rawHtml = marked.parse(post.body) as string;
-  const htmlBody = DOMPurify.sanitize(rawHtml, {
-    ALLOWED_TAGS: ['p','br','strong','em','b','i','u','ul','ol','li','h1','h2','h3','h4','h5','h6','blockquote','code','pre','a','img','hr','table','thead','tbody','tr','th','td','del','sup','sub','span','div'],
-    ALLOWED_ATTR: ['href','src','alt','class','target','rel','width','height'],
-    ALLOW_DATA_ATTR: false,
+  const htmlBody = sanitizeHtml(rawHtml, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'hr', 'del', 'sup', 'sub', 'table', 'thead',
+      'tbody', 'tr', 'th', 'td', 'pre', 'code',
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      img: ['src', 'alt', 'width', 'height'],
+      a: ['href', 'target', 'rel'],
+      code: ['class'],
+      pre: ['class'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto'],
   });
 
   // Featured listings
