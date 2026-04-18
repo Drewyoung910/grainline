@@ -2592,6 +2592,15 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - `Conversation`/`Message` lack `onDelete: Cascade` — will matter for GDPR account deletion
 - `UserReport` missing `resolvedAt`/`resolvedById` fields — audit trail gap
 
+### Post-audit review fixes (2026-04-18)
+- **Cron routes added to `isPublic`** — `/api/cron(.*)` was missing from middleware's public list. Vercel Cron couldn't reach the guild-metrics and guild-member-check routes because Clerk middleware blocked them before the `CRON_SECRET` check could run. Now functional.
+- **Browse price cap raised $100K → $500K** — high-value custom furniture (dining tables, commissioned pieces) was being filtered out. Upper bound kept to prevent abuse via absurd values in PostgreSQL queries.
+- **Notification preference keys: shared constant** — `VALID_PREFERENCE_KEYS` exported from `src/lib/notifications.ts` as single source of truth. Preferences API imports it instead of duplicating 34 strings. Adding new notification types now requires updating only one file.
+- **`$queryRawUnsafe` security comment** — Added rationale comment to `src/app/commission/page.tsx` explaining why `$queryRawUnsafe` is used and confirming all user input is bound via positional parameters.
+
+### Deployment rule
+**Always run `prisma migrate deploy` BEFORE `vercel --prod`** for migrations that add columns or constraints. Index-only migrations are safe to apply after deploy (queries are slower but correct). The pattern: `npx dotenv-cli -e .env -- npx prisma migrate deploy` → verify → `npx vercel --prod`.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
