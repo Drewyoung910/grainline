@@ -65,9 +65,9 @@ export async function POST(req: Request) {
       });
       if (already) return NextResponse.json({ ok: true });
 
-      // Retrieve with expansions
+      // Retrieve with expansions (line_items needed to derive quantities at payment time)
       const s = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate"],
+        expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate", "line_items"],
       });
 
       // Only process paid sessions — skip async/pending payments
@@ -192,6 +192,23 @@ export async function POST(req: Request) {
       const sellerIdFromMeta: string | undefined = sessionMeta.sellerId;
 
       if (cartId && buyerId) {
+        // Build a map of listingId → {quantity, priceCents} from Stripe's immutable
+        // line_items. This is the authoritative source of what was actually charged.
+        // The live cart may have been modified between session creation and webhook.
+        type StripeLineItem = { quantity?: number | null; price?: { unit_amount?: number | null; product?: { metadata?: Record<string, string> } | string | null } | null };
+        const stripeLineItems: StripeLineItem[] = (s as { line_items?: { data?: StripeLineItem[] } }).line_items?.data ?? [];
+        const paidItemMap = new Map<string, { quantity: number; priceCents: number }>();
+        for (const li of stripeLineItems) {
+          const prod = typeof li.price?.product === "object" ? li.price?.product : null;
+          const lid = prod?.metadata?.listingId;
+          if (lid && li.quantity) {
+            paidItemMap.set(lid, {
+              quantity: li.quantity,
+              priceCents: li.price?.unit_amount ?? 0,
+            });
+          }
+        }
+
         const cart = await prisma.cart.findUnique({
           where: { id: cartId },
           include: {
@@ -285,12 +302,20 @@ export async function POST(req: Request) {
           });
 
           for (const it of cart.items) {
+            // Use Stripe's immutable line_items as authoritative source for
+            // quantity and price. Falls back to cart data only if the listing
+            // wasn't found in Stripe's line items (e.g. gift wrapping line item
+            // doesn't have a listingId).
+            const paid = paidItemMap.get(it.listingId);
+            const orderQuantity = paid?.quantity ?? it.quantity;
+            const orderPriceCents = paid?.priceCents ?? it.priceCents;
+
             await tx.orderItem.create({
               data: {
                 orderId: order.id,
                 listingId: it.listingId,
-                quantity: it.quantity,
-                priceCents: it.priceCents,
+                quantity: orderQuantity,
+                priceCents: orderPriceCents,
                 listingSnapshot: {
                   title: it.listing.title,
                   description: it.listing.description ?? "",
@@ -305,16 +330,24 @@ export async function POST(req: Request) {
             });
 
             if (it.listing.listingType === "IN_STOCK") {
-              const updated = await tx.listing.update({
-                where: { id: it.listingId },
-                data: { stockQuantity: { decrement: it.quantity } },
-                select: { stockQuantity: true },
-              });
-              if ((updated.stockQuantity ?? 0) <= 0) {
-                await tx.listing.update({
+              // Atomic decrement with floor at 0 — prevents stock going negative
+              // under concurrent webhooks. Uses raw SQL WHERE guard.
+              const decremented: number = await tx.$executeRaw`
+                UPDATE "Listing"
+                SET "stockQuantity" = GREATEST(0, "stockQuantity" - ${orderQuantity})
+                WHERE id = ${it.listingId} AND "stockQuantity" IS NOT NULL
+              `;
+              if (decremented > 0) {
+                const after = await tx.listing.findUnique({
                   where: { id: it.listingId },
-                  data: { status: "SOLD_OUT" },
+                  select: { stockQuantity: true },
                 });
+                if ((after?.stockQuantity ?? 0) <= 0) {
+                  await tx.listing.update({
+                    where: { id: it.listingId },
+                    data: { status: "SOLD_OUT" },
+                  });
+                }
               }
             }
           }
@@ -406,17 +439,22 @@ export async function POST(req: Request) {
                 : Promise.resolve(),
             ]);
 
-            // Low-stock alerts for IN_STOCK items that dipped to ≤ 2
+            // Low-stock alerts for IN_STOCK items that dipped to ≤ 2.
+            // Re-read current stock from DB (post-decrement) for accurate counts.
             if (sellerUserId) {
               for (const it of cart.items) {
                 if (it.listing.listingType === "IN_STOCK") {
-                  const newQty = Math.max(0, (it.listing.stockQuantity ?? 0) - it.quantity);
-                  if (newQty > 0 && newQty <= 2) {
+                  const currentListing = await prisma.listing.findUnique({
+                    where: { id: it.listingId },
+                    select: { stockQuantity: true },
+                  });
+                  const currentQty = currentListing?.stockQuantity ?? 0;
+                  if (currentQty > 0 && currentQty <= 2) {
                     await createNotification({
                       userId: sellerUserId,
                       type: "LOW_STOCK",
                       title: `${it.listing.title} is running low`,
-                      body: `Only ${newQty} left in stock`,
+                      body: `Only ${currentQty} left in stock`,
                       link: `/dashboard/inventory`,
                     });
                   }
@@ -593,16 +631,23 @@ export async function POST(req: Request) {
           });
 
           if (isInStock) {
-            const updated = await tx.listing.update({
-              where: { id: listingId },
-              data: { stockQuantity: { decrement: quantity } },
-              select: { stockQuantity: true },
-            });
-            if ((updated.stockQuantity ?? 0) <= 0) {
-              await tx.listing.update({
+            // Atomic decrement with floor at 0 — prevents stock going negative
+            const decrementedSingle: number = await tx.$executeRaw`
+              UPDATE "Listing"
+              SET "stockQuantity" = GREATEST(0, "stockQuantity" - ${quantity})
+              WHERE id = ${listingId} AND "stockQuantity" IS NOT NULL
+            `;
+            if (decrementedSingle > 0) {
+              const afterSingle = await tx.listing.findUnique({
                 where: { id: listingId },
-                data: { status: "SOLD_OUT" },
+                select: { stockQuantity: true },
               });
+              if ((afterSingle?.stockQuantity ?? 0) <= 0) {
+                await tx.listing.update({
+                  where: { id: listingId },
+                  data: { status: "SOLD_OUT" },
+                });
+              }
             }
           }
         });
@@ -687,15 +732,20 @@ export async function POST(req: Request) {
                 : Promise.resolve(),
             ]);
 
-            // Low-stock alert if IN_STOCK item dipped to ≤ 2 after purchase
+            // Low-stock alert if IN_STOCK item dipped to ≤ 2 after purchase.
+            // Re-read current stock from DB (post-decrement) for accurate count.
             if (isInStock && sellerUserId) {
-              const newQty = Math.max(0, (listingData?.stockQuantity ?? 0) - quantity);
-              if (newQty > 0 && newQty <= 2) {
+              const currentSingleListing = await prisma.listing.findUnique({
+                where: { id: listingId },
+                select: { stockQuantity: true },
+              });
+              const currentSingleQty = currentSingleListing?.stockQuantity ?? 0;
+              if (currentSingleQty > 0 && currentSingleQty <= 2) {
                 await createNotification({
                   userId: sellerUserId,
                   type: "LOW_STOCK",
                   title: `${itemTitle} is running low`,
-                  body: `Only ${newQty} left in stock`,
+                  body: `Only ${currentSingleQty} left in stock`,
                   link: `/dashboard/inventory`,
                 });
               }
