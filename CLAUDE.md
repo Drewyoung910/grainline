@@ -2628,11 +2628,13 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 | Cloudflare WAF free tier active (DDoS protection) | Pro WAF ($20/mo) deferred until revenue justifies |
 | `X-Powered-By` header removal | ✅ Complete (2026-04-03) — `poweredByHeader: false` in `next.config.ts` |
 | OWASP ZAP scan | ✅ Complete (2026-04-03) — 0 high, 0 medium findings; 2 low (missing `Permissions-Policy` on API routes — headers already set globally) |
-| Neon database password rotation | ⚠️ Vercel updated (2026-04-03) but local `.env` still has old password [REDACTED — rotate in Neon dashboard]. If production works, Vercel has the new password — update local `.env` to match. If unsure, rotate again in Neon dashboard and update both Vercel + local. |
-| `.env.save` / `.env.production` cleanup | ✅ Deleted (2026-04-18) — contained live Clerk secret key, DB password, Stripe keys. Both were gitignored but sitting unencrypted on disk. |
-| `SHIPPING_RATE_SECRET` in Preview | ❌ Missing — add via Vercel dashboard (Settings → Environment Variables → Preview). Without it, preview deploy checkouts 500. |
+| Neon database password rotation | ✅ Complete (2026-04-18) — rotated in Neon dashboard, `DATABASE_URL` + `DIRECT_URL` updated in Vercel (all environments) and local `.env` |
+| `.env.save` / `.env.production` cleanup | ✅ Deleted (2026-04-18) — contained live secrets. Both were gitignored but sitting unencrypted on disk. |
+| `SHIPPING_RATE_SECRET` in Preview | ✅ Complete (2026-04-18) — added via Vercel dashboard. Preview deploys can now run checkout flows. |
 
 ### Security Maintenance Rules
+
+**NEVER put secrets in CLAUDE.md or any tracked file.** This includes passwords, API keys, tokens, DSNs, connection strings, and secret values — even old/rotated ones. Referencing env var *names* (e.g. `SHIPPING_RATE_SECRET`) is fine; referencing their *values* is not. If a secret needs to be documented, write `[REDACTED]` and describe where to find it (e.g. "in Vercel env vars" or "in Neon dashboard"). This rule applies to all Claude Code output — never echo, log, grep for, or display credential values in conversation responses.
 
 **Set-and-forget infrastructure** (already done — do not touch unless there's a breach):
 - Upstash Redis rate limiters — `safeRateLimit` (fail-closed, used for mutations) vs `safeRateLimitOpen` (fail-open, used for analytics)
