@@ -2,6 +2,17 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* TipTap WYSIWYG editor */
+.tiptap { min-height: 300px; padding: 1rem; }
+.tiptap:focus { outline: none; }
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #aaa;
+  pointer-events: none;
+  height: 0;
+}
+
 /* keep the site light and readable */
 :root { color-scheme: light; }
 html, body {

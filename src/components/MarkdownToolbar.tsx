@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import TipTapLink from "@tiptap/extension-link";
+import TipTapImage from "@tiptap/extension-image";
+import { Markdown } from "tiptap-markdown";
 
 type Props = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  rows?: number;
   name?: string;
   required?: boolean;
 };
@@ -15,176 +18,169 @@ export default function MarkdownToolbar({
   value,
   onChange,
   placeholder,
-  rows = 16,
   name,
-  required,
 }: Props) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [showPreview, setShowPreview] = useState(false);
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TipTapLink.configure({ openOnClick: false }),
+      TipTapImage,
+      Markdown,
+    ],
+    content: value,
+    onUpdate: ({ editor }) => {
+      const storage = editor.storage as { markdown?: { getMarkdown: () => string } };
+      const md = storage.markdown?.getMarkdown() ?? "";
+      onChange(md);
+    },
+    editorProps: {
+      attributes: {
+        class:
+          "prose prose-neutral max-w-none prose-headings:font-semibold " +
+          "prose-a:text-amber-700 prose-img:rounded-xl " +
+          "p-4 min-h-[300px] focus:outline-none",
+        "data-placeholder": placeholder ?? "Write your post...",
+      },
+    },
+  });
 
-  function insertAtCursor(before: string, after = "") {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const selected = value.slice(start, end);
-    const replacement = before + selected + after;
-    const newValue = value.slice(0, start) + replacement + value.slice(end);
-    onChange(newValue);
-    requestAnimationFrame(() => {
-      ta.focus();
-      const cursorPos = selected
-        ? start + replacement.length
-        : start + before.length;
-      ta.setSelectionRange(cursorPos, cursorPos);
-    });
-  }
+  if (!editor) return null;
 
-  function insertAtLineStart(prefix: string) {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
-    const newValue = value.slice(0, lineStart) + prefix + value.slice(lineStart);
-    onChange(newValue);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(start + prefix.length, start + prefix.length);
-    });
-  }
-
-  function handleCodeInsert() {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const selected = value.slice(ta.selectionStart, ta.selectionEnd);
-    if (selected.includes("\n")) {
-      insertAtCursor("```\n", "\n```");
-    } else {
-      insertAtCursor("`", "`");
-    }
-  }
-
-  const buttons: { label: string; title: string; action: () => void; className?: string }[] = [
-    { label: "B", title: "Bold", action: () => insertAtCursor("**", "**"), className: "font-bold" },
-    { label: "I", title: "Italic", action: () => insertAtCursor("*", "*"), className: "italic" },
-    { label: "H2", title: "Heading 2", action: () => insertAtLineStart("## ") },
-    { label: "H3", title: "Heading 3", action: () => insertAtLineStart("### ") },
-    { label: "\u2022", title: "Bullet list", action: () => insertAtLineStart("- ") },
-    { label: "1.", title: "Numbered list", action: () => insertAtLineStart("1. ") },
-    { label: "\uD83D\uDD17", title: "Link", action: () => insertAtCursor("[", "](url)") },
-    { label: "\uD83D\uDDBC", title: "Image", action: () => insertAtCursor("![alt](", ")") },
-    { label: "</>", title: "Code", action: handleCodeInsert },
-    { label: "\u275D", title: "Blockquote", action: () => insertAtLineStart("> ") },
-  ];
+  const btnClass = (active: boolean) =>
+    `px-2 py-1 text-sm rounded-md transition-colors ${
+      active
+        ? "bg-neutral-900 text-white"
+        : "text-neutral-700 hover:bg-neutral-200"
+    }`;
 
   return (
     <div>
-      {/* Hidden input ensures formData includes the body value */}
+      {/* Hidden input for formData submission — always contains markdown */}
       {name && <input type="hidden" name={name} value={value} />}
 
-      {/* Toolbar + Preview toggle */}
-      <div className="flex items-center justify-between border border-neutral-300 rounded-t-lg bg-neutral-50 px-2 py-1.5">
-        <div className="flex items-center gap-0.5 flex-wrap">
-          {buttons.map((btn) => (
-            <button
-              key={btn.title}
-              type="button"
-              title={btn.title}
-              onClick={btn.action}
-              className={`px-2 py-1 text-sm rounded-md hover:bg-neutral-200
-                transition-colors text-neutral-700 ${btn.className ?? ""}`}
-            >
-              {btn.label}
-            </button>
-          ))}
-        </div>
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 flex-wrap border border-neutral-300 rounded-t-lg bg-neutral-50 px-2 py-1.5">
         <button
           type="button"
-          onClick={() => setShowPreview(!showPreview)}
-          className={`text-sm px-3 py-1 rounded-md transition-colors whitespace-nowrap
-            ${showPreview
-              ? "bg-neutral-900 text-white"
-              : "text-neutral-600 hover:bg-neutral-200"
-            }`}
+          title="Bold"
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className={btnClass(editor.isActive("bold"))}
         >
-          {showPreview ? "Edit" : "Preview"}
+          <span className="font-bold">B</span>
+        </button>
+        <button
+          type="button"
+          title="Italic"
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={btnClass(editor.isActive("italic"))}
+        >
+          <span className="italic">I</span>
+        </button>
+        <button
+          type="button"
+          title="Strikethrough"
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          className={btnClass(editor.isActive("strike"))}
+        >
+          <span className="line-through">S</span>
+        </button>
+
+        <div className="w-px h-5 bg-neutral-300 mx-1" />
+
+        <button
+          type="button"
+          title="Heading 2"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          className={btnClass(editor.isActive("heading", { level: 2 }))}
+        >
+          H2
+        </button>
+        <button
+          type="button"
+          title="Heading 3"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          className={btnClass(editor.isActive("heading", { level: 3 }))}
+        >
+          H3
+        </button>
+
+        <div className="w-px h-5 bg-neutral-300 mx-1" />
+
+        <button
+          type="button"
+          title="Bullet list"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={btnClass(editor.isActive("bulletList"))}
+        >
+          &bull;
+        </button>
+        <button
+          type="button"
+          title="Numbered list"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={btnClass(editor.isActive("orderedList"))}
+        >
+          1.
+        </button>
+        <button
+          type="button"
+          title="Blockquote"
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          className={btnClass(editor.isActive("blockquote"))}
+        >
+          &ldquo;
+        </button>
+        <button
+          type="button"
+          title="Code block"
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          className={btnClass(editor.isActive("codeBlock"))}
+        >
+          {"</>"}
+        </button>
+
+        <div className="w-px h-5 bg-neutral-300 mx-1" />
+
+        <button
+          type="button"
+          title="Link"
+          onClick={() => {
+            const url = prompt("Enter URL:");
+            if (url) {
+              editor.chain().focus().setLink({ href: url }).run();
+            }
+          }}
+          className={btnClass(editor.isActive("link"))}
+        >
+          Link
+        </button>
+        <button
+          type="button"
+          title="Image"
+          onClick={() => {
+            const url = prompt("Enter image URL:");
+            if (url) {
+              editor.chain().focus().setImage({ src: url }).run();
+            }
+          }}
+          className={btnClass(false)}
+        >
+          Image
+        </button>
+        <button
+          type="button"
+          title="Horizontal rule"
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          className={btnClass(false)}
+        >
+          &#x2015;
         </button>
       </div>
 
-      {/* Editor or Preview */}
-      {showPreview ? (
-        <PreviewPane markdown={value} />
-      ) : (
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          required={required}
-          rows={rows}
-          className="w-full border border-t-0 border-neutral-300
-            rounded-b-lg p-4 text-sm font-mono resize-y
-            focus:outline-none focus:ring-2 focus:ring-neutral-300"
-        />
-      )}
+      {/* Editor content area */}
+      <div className="border border-t-0 border-neutral-300 rounded-b-lg bg-white">
+        <EditorContent editor={editor} />
+      </div>
     </div>
-  );
-}
-
-function PreviewPane({ markdown }: { markdown: string }) {
-  const [html, setHtml] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      import("marked").then((m) => m.marked),
-      import("sanitize-html"),
-    ]).then(([marked, sanitizeHtml]) => {
-      if (cancelled) return;
-      const raw = marked.parse(markdown) as string;
-      const clean = sanitizeHtml.default(raw, {
-        allowedTags: sanitizeHtml.default.defaults.allowedTags.concat([
-          "img", "h1", "h2", "h3", "h4", "h5", "h6",
-          "hr", "del", "sup", "sub", "table", "thead",
-          "tbody", "tr", "th", "td", "pre", "code",
-        ]),
-        allowedAttributes: {
-          ...sanitizeHtml.default.defaults.allowedAttributes,
-          img: ["src", "alt", "width", "height"],
-          a: ["href", "target", "rel"],
-          code: ["class"],
-          pre: ["class"],
-        },
-        allowedSchemes: ["http", "https", "mailto"],
-      });
-      setHtml(clean);
-    });
-    return () => { cancelled = true; };
-  }, [markdown]);
-
-  if (!html && markdown) {
-    return (
-      <div className="w-full border border-t-0 border-neutral-300 rounded-b-lg p-4 min-h-[300px] bg-white text-sm text-neutral-400">
-        Loading preview...
-      </div>
-    );
-  }
-
-  if (!markdown) {
-    return (
-      <div className="w-full border border-t-0 border-neutral-300 rounded-b-lg p-4 min-h-[300px] bg-white text-sm text-neutral-400 italic">
-        Nothing to preview yet. Switch to Edit and start writing.
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="w-full border border-t-0 border-neutral-300
-        rounded-b-lg p-4 min-h-[300px] prose prose-neutral max-w-none
-        prose-headings:font-semibold prose-a:text-amber-700
-        prose-img:rounded-xl bg-white"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
   );
 }

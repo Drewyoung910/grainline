@@ -20,6 +20,11 @@
     "@stripe/react-stripe-js": "^3.10.0",
     "@stripe/stripe-js": "^4.10.0",
     "@tailwindcss/typography": "^0.5.19",
+    "@tiptap/extension-image": "^3.22.4",
+    "@tiptap/extension-link": "^3.22.4",
+    "@tiptap/pm": "^3.22.4",
+    "@tiptap/react": "^3.22.4",
+    "@tiptap/starter-kit": "^3.22.4",
     "@types/marked": "^5.0.2",
     "@types/pg": "^8.20.0",
     "@types/sanitize-html": "^2.16.1",
@@ -35,6 +40,7 @@
     "sanitize-html": "^2.17.3",
     "stripe": "^19.3.0",
     "svix": "^1.89.0",
+    "tiptap-markdown": "^0.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

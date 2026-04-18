@@ -128,14 +128,14 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
       <div className="space-y-1">
         <label className="block text-sm font-medium">Body <span className="text-red-500">*</span></label>
         <MarkdownToolbar
+          key={defaultValues.body ?? "new"}
           value={body}
           onChange={setBody}
           name="body"
           placeholder="Write your post..."
-          required
         />
         <p className="text-xs text-neutral-400">
-          Use the toolbar to format, or type{" "}
+          Use the toolbar to format text. Bold, headings, and lists appear as you type.{" "}
           <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank" rel="noopener noreferrer" className="underline">
             Markdown syntax ↗
           </a>{" "}
