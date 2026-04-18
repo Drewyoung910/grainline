@@ -326,6 +326,9 @@ export default async function BlogIndexPage({
                 </div>
                 <div className="md:w-1/2 p-6 sm:p-8 flex flex-col justify-center space-y-3">
                   <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-xs font-semibold">
+                      Featured
+                    </span>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[featured.type]}`}>
                       {BLOG_TYPE_LABELS[featured.type]}
                     </span>
@@ -383,7 +386,7 @@ export default async function BlogIndexPage({
                       <SaveBlogButton slug={post.slug} initialSaved={savedSet.has(post.id)} />
                     </div>
                     <Link href={`/blog/${post.slug}`} className="block">
-                      <div className="h-44 bg-neutral-100 overflow-hidden">
+                      <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
                         {post.coverImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img

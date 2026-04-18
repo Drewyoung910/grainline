@@ -369,7 +369,8 @@ export default async function CommissionPage({
                       <img
                         src={r.referenceImageUrls[0]}
                         alt="Reference"
-                        className="w-16 h-16 object-cover border border-stone-200"
+                        loading="lazy"
+                        className="w-24 h-24 object-cover rounded-lg border border-stone-200"
                       />
                     </Link>
                   )}

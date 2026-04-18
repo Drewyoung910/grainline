@@ -165,6 +165,11 @@ export default function NewCommissionPage() {
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Reference images (optional, up to 3)
           </label>
+          <p className="text-xs text-neutral-400 mb-2">
+            Share photos of styles, finishes, or designs you like.
+            Only upload images you own or have permission to share.
+            Reference images are visible to makers who view your request.
+          </p>
           {referenceImageUrls.length < 3 && (
             <UploadButton
               endpoint="listingImage"

@@ -37,7 +37,7 @@ export default function CommissionInterestButton({ requestId, initialInterested 
 
   if (interested) {
     return (
-      <span className="text-xs text-green-700 border border-green-200 bg-green-50 px-3 py-1.5 shrink-0">
+      <span className="text-sm text-green-700 border border-green-200 bg-green-50 rounded-md px-4 py-2 shrink-0 font-medium">
         Interest Sent ✓
       </span>
     );
@@ -47,7 +47,7 @@ export default function CommissionInterestButton({ requestId, initialInterested 
     <button
       onClick={handleClick}
       disabled={loading}
-      className="text-xs border border-neutral-900 px-3 py-1.5 hover:bg-neutral-900 hover:text-white transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
+      className="text-sm font-medium rounded-md bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-700 transition-colors disabled:opacity-50 shrink-0 whitespace-nowrap"
     >
       {loading ? "Sending…" : "Express Interest →"}
     </button>

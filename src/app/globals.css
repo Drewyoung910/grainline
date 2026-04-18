@@ -1,5 +1,6 @@
 /* src/app/globals.css — Tailwind v4 entry */
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* keep the site light and readable */
 :root { color-scheme: light; }

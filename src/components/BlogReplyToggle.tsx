@@ -46,7 +46,7 @@ export default function BlogReplyToggle({
   if (replies.length === 0 && !isSignedIn) return null;
 
   return (
-    <div className="pl-8 border-l border-neutral-100 mt-3 space-y-3">
+    <div className="pl-8 border-l border-neutral-300 mt-3 space-y-3">
       {/* Level-2 replies */}
       {replies.map((r) => {
         const rAvatarUrl = r.author.sellerProfile?.avatarImageUrl ?? r.author.imageUrl;
@@ -81,7 +81,7 @@ export default function BlogReplyToggle({
 
             {/* Level-3 replies (no Reply button) */}
             {r.replies && r.replies.length > 0 && (
-              <div className="pl-10 border-l border-neutral-100 space-y-2">
+              <div className="pl-10 border-l border-neutral-300 space-y-2">
                 {r.replies.map((r3) => {
                   const r3AvatarUrl = r3.author.sellerProfile?.avatarImageUrl ?? r3.author.imageUrl;
                   return (
