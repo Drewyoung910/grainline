@@ -146,35 +146,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Stock reservation: atomically decrement stock at checkout time (not webhook).
-    // If the buyer doesn't pay (session expires), the webhook restores stock.
-    for (const it of sellerItems) {
-      if (it.listing.listingType === "IN_STOCK") {
-        const reserved: number = await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET "stockQuantity" = "stockQuantity" - ${it.quantity}
-          WHERE id = ${it.listing.id}
-            AND "stockQuantity" >= ${it.quantity}
-        `;
-        if (reserved === 0) {
-          // Restore any already-reserved items from this batch
-          for (const r of reservedItems) {
-            await prisma.$executeRaw`
-              UPDATE "Listing"
-              SET "stockQuantity" = "stockQuantity" + ${r.quantity}
-              WHERE id = ${r.listingId}
-                AND "listingType" = 'IN_STOCK'
-            `.catch(() => {});
-          }
-          return NextResponse.json(
-            { error: `"${it.listing.title}" does not have enough stock.` },
-            { status: 400 },
-          );
-        }
-        reservedItems.push({ listingId: it.listing.id, quantity: it.quantity });
-      }
-    }
-
     // Gift wrapping: reject if buyer requested it but seller does not offer it.
     if (giftWrapping && !sellerItems[0].listing.seller.offersGiftWrapping) {
       return NextResponse.json(
@@ -214,6 +185,37 @@ export async function POST(req: Request) {
           { error: rateVerification.error },
           { status: rateVerification.status },
         );
+      }
+    }
+
+    // Stock reservation: atomically decrement stock at checkout time (not webhook).
+    // If the buyer doesn't pay (session expires), the webhook restores stock.
+    // IMPORTANT: This MUST be the last validation before Stripe session creation.
+    // All return-400 paths must be above this point to avoid stock leaks.
+    for (const it of sellerItems) {
+      if (it.listing.listingType === "IN_STOCK") {
+        const reserved: number = await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET "stockQuantity" = "stockQuantity" - ${it.quantity}
+          WHERE id = ${it.listing.id}
+            AND "stockQuantity" >= ${it.quantity}
+        `;
+        if (reserved === 0) {
+          // Restore any already-reserved items from this batch
+          for (const r of reservedItems) {
+            await prisma.$executeRaw`
+              UPDATE "Listing"
+              SET "stockQuantity" = "stockQuantity" + ${r.quantity}
+              WHERE id = ${r.listingId}
+                AND "listingType" = 'IN_STOCK'
+            `.catch(() => {});
+          }
+          return NextResponse.json(
+            { error: `"${it.listing.title}" does not have enough stock.` },
+            { status: 400 },
+          );
+        }
+        reservedItems.push({ listingId: it.listing.id, quantity: it.quantity });
       }
     }
 
@@ -273,8 +275,9 @@ export async function POST(req: Request) {
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       redirect_on_completion: "if_required",
-      // 30-minute expiry — stock is reserved at checkout, restored on expiry.
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      // ~30-minute expiry — stock is reserved at checkout, restored on expiry.
+      // 31 min (not 30) provides a buffer against clock skew — Stripe's minimum is 30.
+      expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       mode: "payment",
       return_url,
       line_items,

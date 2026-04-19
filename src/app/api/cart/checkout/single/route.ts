@@ -107,26 +107,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Stock reservation: atomically decrement stock at checkout time (not webhook).
-    // If the buyer doesn't pay (session expires), the webhook restores stock.
-    // This prevents oversell — two concurrent buyers can't both reserve the last item.
-    if (listing.listingType === "IN_STOCK") {
-      const reserved: number = await prisma.$executeRaw`
-        UPDATE "Listing"
-        SET "stockQuantity" = "stockQuantity" - ${body.quantity}
-        WHERE id = ${listing.id}
-          AND "stockQuantity" >= ${body.quantity}
-      `;
-      if (reserved === 0) {
-        return NextResponse.json(
-          { error: "Not enough stock available for this item." },
-          { status: 400 },
-        );
-      }
-      reservedListingId = listing.id;
-      reservedQuantity = body.quantity;
-    }
-
     const currency = (listing.currency || "usd").toLowerCase();
     const sellerStripeAccountId = listing.seller.stripeAccountId || null;
     const sp = listing.seller;
@@ -173,6 +153,28 @@ export async function POST(req: Request) {
           { status: rateVerification.status },
         );
       }
+    }
+
+    // Stock reservation: atomically decrement stock at checkout time (not webhook).
+    // If the buyer doesn't pay (session expires), the webhook restores stock.
+    // This prevents oversell — two concurrent buyers can't both reserve the last item.
+    // IMPORTANT: This MUST be the last validation before Stripe session creation.
+    // All return-400 paths must be above this point to avoid stock leaks.
+    if (listing.listingType === "IN_STOCK") {
+      const reserved: number = await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET "stockQuantity" = "stockQuantity" - ${body.quantity}
+        WHERE id = ${listing.id}
+          AND "stockQuantity" >= ${body.quantity}
+      `;
+      if (reserved === 0) {
+        return NextResponse.json(
+          { error: "Not enough stock available for this item." },
+          { status: 400 },
+        );
+      }
+      reservedListingId = listing.id;
+      reservedQuantity = body.quantity;
     }
 
     // Resolve shipping amount — fall back to SiteConfig if fallback rate selected
@@ -251,9 +253,9 @@ export async function POST(req: Request) {
       // CRITICAL: "if_required" lets onComplete fire for card payments.
       // "always" (the default) redirects instead of firing onComplete.
       redirect_on_completion: "if_required",
-      // 30-minute expiry — stock is reserved at checkout, restored on expiry.
-      // Default 24h is too long to hold inventory.
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      // ~30-minute expiry — stock is reserved at checkout, restored on expiry.
+      // 31 min (not 30) provides a buffer against clock skew — Stripe's minimum is 30.
+      expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       mode: "payment",
       line_items,
