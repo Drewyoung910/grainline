@@ -71,7 +71,7 @@ export async function generateMetadata({
       description,
       images: img ? [img] : undefined,
     },
-    alternates: { canonical: `https://grainline.co/seller/${id}` },
+    alternates: { canonical: `https://thegrainline.com/seller/${id}` },
   };
 }
 
@@ -223,7 +223,7 @@ export default async function SellerPublicPage({
     "@type": "LocalBusiness",
     name: seller.displayName ?? "Seller",
     description: seller.bio ?? undefined,
-    url: `https://grainline.co/seller/${seller.id}`,
+    url: `https://thegrainline.com/seller/${seller.id}`,
     knowsAbout: "Handmade Woodworking",
     ...(cityState
       ? {

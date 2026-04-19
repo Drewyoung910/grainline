@@ -76,7 +76,7 @@ export async function generateMetadata(
       "product:price:amount": price,
       "product:price:currency": currency,
     },
-    alternates: { canonical: `https://grainline.co/listing/${id}` },
+    alternates: { canonical: `https://thegrainline.com/listing/${id}` },
   };
 }
 
@@ -297,27 +297,27 @@ export default async function ListingPage({
   }
 
   const breadcrumbItems: { "@type": string; position: number; name: string; item: string }[] = [
-    { "@type": "ListItem", position: 1, name: "Home", item: "https://grainline.co" },
+    { "@type": "ListItem", position: 1, name: "Home", item: "https://thegrainline.com" },
   ];
   if (listing.category) {
     breadcrumbItems.push({
       "@type": "ListItem",
       position: 2,
       name: CATEGORY_LABELS[listing.category] ?? listing.category,
-      item: `https://grainline.co/browse?category=${listing.category}`,
+      item: `https://thegrainline.com/browse?category=${listing.category}`,
     });
     breadcrumbItems.push({
       "@type": "ListItem",
       position: 3,
       name: listing.title,
-      item: `https://grainline.co/listing/${id}`,
+      item: `https://thegrainline.com/listing/${id}`,
     });
   } else {
     breadcrumbItems.push({
       "@type": "ListItem",
       position: 2,
       name: listing.title,
-      item: `https://grainline.co/listing/${id}`,
+      item: `https://thegrainline.com/listing/${id}`,
     });
   }
   const breadcrumbLd = {

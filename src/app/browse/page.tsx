@@ -124,13 +124,13 @@ export async function generateMetadata({
   if (q) {
     const title = `Search results for "${q}"`;
     const description = `Find handmade woodworking items matching "${q}" on Grainline`;
-    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://grainline.co/browse?q=${encodeURIComponent(q)}` } };
+    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?q=${encodeURIComponent(q)}` } };
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
     const title = `${label} — Handmade Woodworking`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
-    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://grainline.co/browse?category=${categoryFilter.toLowerCase()}` } };
+    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}` } };
   }
   return {
     title: "Browse Handmade Woodworking",
@@ -139,7 +139,7 @@ export async function generateMetadata({
       title: "Browse Handmade Woodworking",
       description: "Browse thousands of unique handmade woodworking pieces from local artisans",
     },
-    alternates: { canonical: "https://grainline.co/browse" },
+    alternates: { canonical: "https://thegrainline.com/browse" },
   };
 }
 

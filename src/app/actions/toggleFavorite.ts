@@ -13,8 +13,6 @@ export async function toggleFavorite(listingId: string) {
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return { ok: false, error: "User not found in DB" };
 
-  console.log("toggleFavorite start:", { listingId, clerkUserId: userId, dbUserId: me.id });
-
   const key = { userId: me.id, listingId };
 
   // --- Part 1: toggle the favorite record ---
@@ -31,10 +29,8 @@ export async function toggleFavorite(listingId: string) {
   try {
     if (existing) {
       await prisma.favorite.delete({ where: { userId_listingId: key } });
-      console.log("toggleFavorite: removed favorite");
     } else {
       await prisma.favorite.create({ data: key });
-      console.log("toggleFavorite: created favorite");
     }
   } catch (e) {
     console.error("toggleFavorite error toggling favorite record:", e);
@@ -56,7 +52,6 @@ export async function toggleFavorite(listingId: string) {
         },
       });
       const ownerUserId = listing?.seller?.userId;
-      console.log("toggleFavorite notify lookup:", { ownerUserId, isSelf: ownerUserId === me.id, hasListing: !!listing, hasSeller: !!listing?.seller });
       if (ownerUserId && ownerUserId !== me.id) {
         const favName = me.name ?? me.email?.split("@")[0] ?? "Someone";
         await createNotification({
@@ -66,7 +61,6 @@ export async function toggleFavorite(listingId: string) {
           body: listing!.title,
           link: `/listing/${listingId}`,
         });
-        console.log("toggleFavorite: notification sent to", ownerUserId);
       }
     } catch (e) {
       // notification failure must not break the favorite toggle

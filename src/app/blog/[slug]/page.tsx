@@ -37,7 +37,7 @@ export async function generateMetadata({
       images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : undefined,
     },
     twitter: { card: "summary_large_image", title: post.title, description },
-    alternates: { canonical: `https://grainline.co/blog/${slug}` },
+    alternates: { canonical: `https://thegrainline.com/blog/${slug}` },
   };
 }
 
@@ -173,7 +173,7 @@ export default async function BlogPostPage({
   const video = post.videoUrl ? extractVideoId(post.videoUrl) : null;
   const authorName = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff";
   const authorAvatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl ?? null;
-  const postUrl = `https://grainline.co/blog/${slug}`;
+  const postUrl = `https://thegrainline.com/blog/${slug}`;
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">

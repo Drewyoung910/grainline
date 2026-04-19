@@ -13,7 +13,7 @@ import BlogSearchBar from "@/components/BlogSearchBar";
 export const metadata: Metadata = {
   title: "Stories from the Workshop",
   description: "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.",
-  alternates: { canonical: "https://grainline.co/blog" },
+  alternates: { canonical: "https://thegrainline.com/blog" },
 };
 
 const TYPE_TABS: Array<{ label: string; value: string }> = [

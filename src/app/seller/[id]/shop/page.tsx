@@ -48,7 +48,7 @@ export async function generateMetadata({
   return {
     title: { absolute: `${name}'s Shop — Grainline` },
     description: `Browse all handmade woodworking pieces by ${name} on Grainline`,
-    alternates: { canonical: `https://grainline.co/seller/${id}/shop` },
+    alternates: { canonical: `https://thegrainline.com/seller/${id}/shop` },
   };
 }
 

@@ -27,15 +27,12 @@ export async function POST(req: Request) {
     return new NextResponse("Invalid signature", { status: 400 });
   }
 
-  console.log("Webhook received:", event.type, event.id);
-
   // Handle Stripe Workbench Snapshot thin events:
   // thin events only carry { id, object } (≤3 keys) in data.object — retrieve full payload if needed
   const rawDataObj = event.data.object as unknown as Record<string, unknown>;
   if (typeof rawDataObj.id === "string" && Object.keys(rawDataObj).length <= 3) {
     try {
       event = await stripe.events.retrieve(event.id);
-      console.log("Webhook: retrieved full event for thin payload", event.id);
     } catch (retrieveErr) {
       console.error("Webhook: failed to retrieve full event:", retrieveErr);
       return new NextResponse("Failed to retrieve event", { status: 500 });
@@ -412,7 +409,6 @@ export async function POST(req: Request) {
             const firstItemTitle = createdOrder.items[0]?.listing.title ?? "an item";
             const buyerDisplayName = createdOrder.buyer?.name ?? buyerEmail ?? "A buyer";
 
-            console.log('NEW_ORDER notification:', { buyerUserId: createdOrder.buyerId, sellerUserId });
             await Promise.all([
               createNotification({
                 userId: createdOrder.buyerId,
@@ -699,7 +695,6 @@ export async function POST(req: Request) {
             const itemTitle = singleOrder.items[0]?.listing.title ?? "an item";
             const buyerDisplayName = singleOrder.buyer?.name ?? buyerEmail ?? "A buyer";
 
-            console.log('NEW_ORDER notification:', { buyerUserId: singleOrder.buyerId, sellerUserId });
             await Promise.all([
               createNotification({
                 userId: singleOrder.buyerId,
