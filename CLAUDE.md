@@ -2651,6 +2651,33 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **Commission interest button** — upgraded from `text-xs border-only` to `text-sm rounded-md bg-neutral-900` filled button. Primary conversion action is now visible and tappable on mobile. Confirmed state also restyled.
 - **Commission reference images** — 64px → 96px with `rounded-lg` on board cards. Reference images are the most compelling visual element on a commission request; they were barely visible before.
 
+## Stock Reservation System (2026-04-18)
+
+Stock is now reserved at checkout time (session creation), not at payment time (webhook). Eliminates the oversell race condition where two concurrent buyers could both pay for the last item.
+
+### Flow
+1. **Checkout route** (both `checkout/single` and `checkout-seller`): atomic SQL `UPDATE "Listing" SET "stockQuantity" = "stockQuantity" - qty WHERE id = X AND "stockQuantity" >= qty`. If 0 rows affected → 400 "not enough stock". Two concurrent buyers can't both reserve the last item — the SQL WHERE guard is atomic at the database level.
+2. **`checkout.session.completed` webhook**: stock already decremented. Just checks if SOLD_OUT status needed. No decrement.
+3. **`checkout.session.expired` webhook** (NEW): restores reserved stock. Single-item: reads `listingId` + `quantity` from session metadata. Cart: retrieves `line_items.data.price.product` from Stripe (expanded) to get `listingId` per line item. Also restores ACTIVE status if listing was SOLD_OUT with stock > 0.
+4. **Session expiry**: `expires_at` set to 30 minutes (was Stripe's 24h default). Stock shouldn't be held longer than necessary.
+
+### Error handling
+- **Stripe session creation failure**: both checkout routes track reservations (`reservedListingId`/`reservedQuantity` for single, `reservedItems[]` for cart) and restore stock in the `catch` block. Without this, stock would be permanently lost on Stripe outages.
+- **Cart partial batch failure**: if reserving item B fails after item A was reserved, item A's stock is restored before returning 400.
+- **Expired + completed race**: expired handler checks `prisma.order.findFirst({ where: { stripeSessionId } })` before restoring — if the order exists (payment completed), stock is NOT restored.
+- **line_items expansion**: webhook uses `"line_items.data.price.product"` (not just `"line_items"`) to access `product.metadata.listingId`. Without the product expansion, `price.product` is a string ID, not an object with metadata.
+
+### Stripe webhook setup required
+Add `checkout.session.expired` to your Stripe webhook events:
+Stripe Dashboard → Developers → Webhooks → endpoint → Add events → `checkout.session.expired`
+
+Without this, expired sessions won't trigger stock restoration. Stock reserved by abandoned checkouts would be permanently held until manual adjustment.
+
+### Seller experience
+- Sellers see nothing when stock is reserved or restored. No notifications.
+- Sellers only see NEW_ORDER notifications after payment is confirmed (unchanged).
+- If a reservation causes stock to hit 0, the listing shows "Out of Stock" to other buyers during the 30-minute window. If the session expires, stock restores and the listing becomes available again automatically.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
