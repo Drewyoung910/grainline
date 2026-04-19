@@ -2693,6 +2693,29 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - **Missed expired webhook** — if Stripe never delivers `checkout.session.expired` (outage, 3-day retry exhaustion), stock is permanently held. No self-healing cron exists. Mitigation: Stripe's webhook reliability is >99.99%. A nightly reconciliation cron could be added post-launch if this becomes an issue.
 - **`cart/add` allows adding reserved-but-not-sold items** — a listing with all stock reserved (stockQuantity=0, status=ACTIVE) can still be added to cart. Checkout creation is the enforcement point, where the atomic SQL `WHERE stockQuantity >= qty` blocks the buyer.
 
+## Scalability Optimizations (2026-04-18)
+
+### Smart notification polling
+`NotificationBell` uses adaptive polling instead of a fixed interval:
+- **Active tab + recent activity**: poll every 60 seconds
+- **Active tab + idle > 5 min**: poll every 5 minutes
+- **Background tab** (`document.visibilityState === "hidden"`): poll every 15 minutes
+- **Tab refocused**: immediate fetch + reschedule
+- **Dropdown opened**: immediate fetch (unchanged)
+
+Activity tracked via `lastActivityRef` (useRef, not state) — `mousemove`, `keydown`, `click` listeners with 10-second throttle. No re-renders on activity detection. The `setTimeout`-based scheduler reads the ref directly to determine the next interval.
+
+### Homepage query deduplication
+- `getBlockedIdsFor()` (new, `src/lib/blocks.ts`) returns both `blockedUserIds` (Set) and `blockedSellerIds` (string[]) in a single Block table query. Homepage previously called `getBlockedSellerProfileIdsFor()` + `getBlockedUserIdsFor()` separately, which queried the Block table twice per page load for logged-in users. Other pages that only need one set still use the individual functions.
+- MapPoints query: added `take: 200` limit (was unlimited — serialized all opted-in sellers into the RSC payload). Added `user: { banned: false }` filter.
+
+### Neon connection pooler
+Documented in `prisma/schema.prisma`. `DATABASE_URL` should use Neon's pooled endpoint (`-pooler` suffix in hostname) for runtime. `DIRECT_URL` uses the direct endpoint for migrations (PgBouncer doesn't support DDL). Both configured in `prisma.config.ts`. Switch `DATABASE_URL` in Vercel env vars to the pooler endpoint — zero code changes needed.
+
+### Remaining Batch 2 items (not yet done)
+- Fix `getSellerRatingMap` N+1 on homepage (single JOIN like browse page)
+- Parallelize featured maker + seller ratings + logged-in user data queries
+
 ## Remaining Security Gaps
 
 | Gap | Status |
