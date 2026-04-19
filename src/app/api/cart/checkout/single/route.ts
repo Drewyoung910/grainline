@@ -37,6 +37,10 @@ const CheckoutSingleSchema = z.object({
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  // Track stock reservation for rollback on error
+  let reservedListingId: string | null = null;
+  let reservedQuantity = 0;
+
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -119,6 +123,8 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+      reservedListingId = listing.id;
+      reservedQuantity = body.quantity;
     }
 
     const currency = (listing.currency || "usd").toLowerCase();
@@ -317,6 +323,18 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     console.error("POST /api/cart/checkout/single error:", err);
     Sentry.captureException(err);
+
+    // Restore reserved stock if the Stripe session creation failed.
+    // Without this, stock is permanently lost on Stripe/DB errors.
+    if (reservedListingId && reservedQuantity > 0) {
+      await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET "stockQuantity" = "stockQuantity" + ${reservedQuantity}
+        WHERE id = ${reservedListingId}
+          AND "listingType" = 'IN_STOCK'
+      `.catch(() => {}); // best effort — don't mask the original error
+    }
+
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

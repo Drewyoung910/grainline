@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
       // Retrieve with expansions (line_items needed to derive quantities at payment time)
       const s = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate", "line_items"],
+        expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate", "line_items.data.price.product"],
       });
 
       // Only process paid sessions — skip async/pending payments
@@ -882,7 +882,7 @@ export async function POST(req: Request) {
         // line_items in the session. Retrieve them from Stripe.
         try {
           const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
-            expand: ["line_items"],
+            expand: ["line_items.data.price.product"],
           });
           type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
           const expiredLineItems: ExpiredLineItem[] = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];

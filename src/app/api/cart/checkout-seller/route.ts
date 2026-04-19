@@ -37,6 +37,9 @@ const CheckoutSellerSchema = z.object({
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  // Track stock reservations for rollback on error
+  const reservedItems: { listingId: string; quantity: number }[] = [];
+
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -155,21 +158,20 @@ export async function POST(req: Request) {
         `;
         if (reserved === 0) {
           // Restore any already-reserved items from this batch
-          for (const prev of sellerItems) {
-            if (prev === it) break;
-            if (prev.listing.listingType === "IN_STOCK") {
-              await prisma.$executeRaw`
-                UPDATE "Listing"
-                SET "stockQuantity" = "stockQuantity" + ${prev.quantity}
-                WHERE id = ${prev.listing.id}
-              `;
-            }
+          for (const r of reservedItems) {
+            await prisma.$executeRaw`
+              UPDATE "Listing"
+              SET "stockQuantity" = "stockQuantity" + ${r.quantity}
+              WHERE id = ${r.listingId}
+                AND "listingType" = 'IN_STOCK'
+            `.catch(() => {});
           }
           return NextResponse.json(
             { error: `"${it.listing.title}" does not have enough stock.` },
             { status: 400 },
           );
         }
+        reservedItems.push({ listingId: it.listing.id, quantity: it.quantity });
       }
     }
 
@@ -324,6 +326,17 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     Sentry.captureException(err);
     console.error("POST /api/cart/checkout-seller error:", err);
+
+    // Restore reserved stock if the Stripe session creation failed.
+    for (const r of reservedItems) {
+      await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET "stockQuantity" = "stockQuantity" + ${r.quantity}
+        WHERE id = ${r.listingId}
+          AND "listingType" = 'IN_STOCK'
+      `.catch(() => {}); // best effort
+    }
+
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";
     return NextResponse.json(
       { error: msg },
