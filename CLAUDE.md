@@ -2661,11 +2661,15 @@ Stock is now reserved at checkout time (session creation), not at payment time (
 3. **`checkout.session.expired` webhook** (NEW): restores reserved stock. Single-item: reads `listingId` + `quantity` from session metadata. Cart: retrieves `line_items.data.price.product` from Stripe (expanded) to get `listingId` per line item. Also restores ACTIVE status if listing was SOLD_OUT with stock > 0.
 4. **Session expiry**: `expires_at` set to 30 minutes (was Stripe's 24h default). Stock shouldn't be held longer than necessary.
 
+### Validation ordering (critical invariant)
+**Stock reservation MUST be the last validation before `stripe.checkout.sessions.create`.** All 400-return paths (chargesEnabled, offersGiftWrapping, HMAC verification, listing status, isPrivate, self-purchase, vacation mode) must precede the reservation. If a validation returns 400 after stock is reserved but before a session is created, there is no session to expire and no webhook to restore the stock — it is permanently lost. This was a critical bug found in the post-implementation audit and fixed by reordering.
+
 ### Error handling
 - **Stripe session creation failure**: both checkout routes track reservations (`reservedListingId`/`reservedQuantity` for single, `reservedItems[]` for cart) and restore stock in the `catch` block. Without this, stock would be permanently lost on Stripe outages.
 - **Cart partial batch failure**: if reserving item B fails after item A was reserved, item A's stock is restored before returning 400.
 - **Expired + completed race**: expired handler checks `prisma.order.findFirst({ where: { stripeSessionId } })` before restoring — if the order exists (payment completed), stock is NOT restored.
 - **line_items expansion**: webhook uses `"line_items.data.price.product"` (not just `"line_items"`) to access `product.metadata.listingId`. Without the product expansion, `price.product` is a string ID, not an object with metadata.
+- **expires_at = 31 minutes** (not 30): Stripe's minimum is exactly 30 minutes. Clock skew between `Date.now()` and Stripe's server could reject sessions at the 30-minute boundary. 1-minute buffer is standard practice.
 
 ### Stripe webhook setup required
 Add `checkout.session.expired` to your Stripe webhook events:
