@@ -14,7 +14,7 @@ import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
-import { getBlockedSellerProfileIdsFor, getBlockedUserIdsFor } from "@/lib/blocks";
+import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 
 function StarsInline({ value }: { value: number }) {
@@ -94,8 +94,7 @@ export default async function HomePage() {
     const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meDbId = meRow?.id ?? null;
   }
-  const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
-  const blockedUserIds = await getBlockedUserIdsFor(meDbId);
+  const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
 
   const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts, mosaicListings] = await Promise.all([
     prisma.listing.findMany({
@@ -121,12 +120,14 @@ export default async function HomePage() {
       where: {
         publicMapOptIn: true,
         chargesEnabled: true,
+        user: { banned: false },
         lat: { not: null },
         lng: { not: null },
         OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
         ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
       },
       select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
+      take: 200,
     }),
     prisma.$queryRaw<{ tag: string; count: bigint }[]>`
       SELECT tag, COUNT(*) as count

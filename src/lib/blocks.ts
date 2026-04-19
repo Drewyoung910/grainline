@@ -23,3 +23,21 @@ export async function getBlockedSellerProfileIdsFor(meId: string | null): Promis
   });
   return sellers.map(s => s.id);
 }
+
+/**
+ * Returns both blocked user IDs and blocked seller profile IDs
+ * in a single Block table query. Use this on pages that need both
+ * (e.g., homepage) to avoid querying the Block table twice.
+ */
+export async function getBlockedIdsFor(meId: string | null): Promise<{
+  blockedUserIds: Set<string>;
+  blockedSellerIds: string[];
+}> {
+  const blockedUserIds = await getBlockedUserIdsFor(meId);
+  if (blockedUserIds.size === 0) return { blockedUserIds, blockedSellerIds: [] };
+  const sellers = await prisma.sellerProfile.findMany({
+    where: { userId: { in: [...blockedUserIds] } },
+    select: { id: true },
+  });
+  return { blockedUserIds, blockedSellerIds: sellers.map(s => s.id) };
+}

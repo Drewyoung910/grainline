@@ -134,12 +134,64 @@ export default function NotificationBell({
     if (!loaded) fetchNotifications();
   }, [loaded, fetchNotifications, isSignedIn]);
 
-  // Poll every 10 minutes (only when signed in)
+  // Smart polling: adapts interval based on user activity and tab visibility.
+  // Active tab + recent activity: 60s. Idle > 5min: 5min. Background tab: 15min.
+  // Tab refocused: immediate fetch. Dropdown opened: immediate fetch (above).
+  const lastActivityRef = React.useRef(Date.now());
+
+  React.useEffect(() => {
+    const onActivity = () => {
+      // Throttle: only update if > 10 seconds since last recorded activity
+      if (Date.now() - lastActivityRef.current > 10_000) {
+        lastActivityRef.current = Date.now();
+      }
+    };
+    window.addEventListener("mousemove", onActivity, { passive: true });
+    window.addEventListener("keydown", onActivity, { passive: true });
+    window.addEventListener("click", onActivity, { passive: true });
+    return () => {
+      window.removeEventListener("mousemove", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("click", onActivity);
+    };
+  }, []);
+
   React.useEffect(() => {
     if (!isSignedIn) return;
-    const id = setInterval(fetchNotifications, 600000);
-    return () => clearInterval(id);
-  }, [fetchNotifications, isSignedIn]);
+
+    function getInterval() {
+      if (document.visibilityState === "hidden") return 15 * 60 * 1000; // 15 min
+      if (Date.now() - lastActivityRef.current > 5 * 60 * 1000) return 5 * 60 * 1000; // 5 min
+      return 60 * 1000; // 60 seconds
+    }
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    function schedulePoll() {
+      timer = setTimeout(() => {
+        fetchNotifications();
+        schedulePoll();
+      }, getInterval());
+    }
+
+    schedulePoll();
+
+    // Tab refocused: immediate fetch + reschedule
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        lastActivityRef.current = Date.now();
+        fetchNotifications();
+        clearTimeout(timer);
+        schedulePoll();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [isSignedIn, fetchNotifications]);
 
   // Close on Escape
   React.useEffect(() => {

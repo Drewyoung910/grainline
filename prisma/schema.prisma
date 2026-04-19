@@ -3,8 +3,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// TODO: Switch to Neon pooled connection string (-pooler hostname)
-// when traffic exceeds ~50 concurrent connections.
+// Connection setup:
+// - DATABASE_URL (runtime): should use Neon's pooled endpoint (-pooler
+//   suffix in hostname) for connection reuse across serverless functions.
+//   Set in Vercel env vars. PgBouncer multiplexes connections — prevents
+//   connection exhaustion under concurrent load.
+// - DIRECT_URL (migrations only): uses direct endpoint (no pooler).
+//   Required for prisma migrate — PgBouncer doesn't support DDL.
+// Both are configured in prisma.config.ts (Prisma 7 pattern).
 // See: https://neon.tech/docs/connect/connection-pooling
 datasource db {
   provider = "postgresql"
