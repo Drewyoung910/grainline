@@ -2682,6 +2682,17 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - Sellers only see NEW_ORDER notifications after payment is confirmed (unchanged).
 - If a reservation causes stock to hit 0, the listing shows "Out of Stock" to other buyers during the 30-minute window. If the session expires, stock restores and the listing becomes available again automatically.
 
+### Post-implementation audit (2026-04-18)
+- **Stale `grainline.co` domain fixed** — 7 files had the old domain in canonical URLs and JSON-LD structured data (blog, browse, listing detail, seller profile, seller shop). All updated to `thegrainline.com`. Google was receiving wrong canonical URLs on every crawl.
+- **Debug `console.log` removed** — 3 in webhook (debug output), 5 in `toggleFavorite` action (user ID/role logging). `console.error` calls retained for legitimate error logging.
+- **TipTap XSS pipeline verified safe** — pasted HTML in TipTap is preserved in the markdown body, but `sanitize-html` strips all dangerous elements (`<script>`, event handlers, `javascript:` URIs) at render time on the blog detail page. End-to-end safe.
+
+### Known stock reservation limitations (not bugs — documented)
+- **Seller manual restock during live session** — if a seller edits `stockQuantity` via the dashboard while a checkout session holds a reservation, the expired webhook adds back the reserved amount on top of the seller's manual value. Stock can exceed the seller's intended amount. Requires unusual seller + buyer timing.
+- **Multi-seller cart partial failure** — if cart checkout creates sessions sequentially and seller B fails after seller A succeeded, seller A's stock is held for 31 minutes until session expiry. Buyer sees an error and cannot retry until expiry. Acceptable at launch volume.
+- **Missed expired webhook** — if Stripe never delivers `checkout.session.expired` (outage, 3-day retry exhaustion), stock is permanently held. No self-healing cron exists. Mitigation: Stripe's webhook reliability is >99.99%. A nightly reconciliation cron could be added post-launch if this becomes an issue.
+- **`cart/add` allows adding reserved-but-not-sold items** — a listing with all stock reserved (stockQuantity=0, status=ACTIVE) can still be added to cart. Checkout creation is the enforcement point, where the atomic SQL `WHERE stockQuantity >= qty` blocks the buyer.
+
 ## Remaining Security Gaps
 
 | Gap | Status |
