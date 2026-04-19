@@ -52,7 +52,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.2.1 (App Router), React 19, TypeScript
+- **Framework**: Next.js 16.2.4 (App Router), React 19.2.5, TypeScript
 - **Styling**: Tailwind CSS 4
 - **Database**: PostgreSQL via Prisma ORM
 - **Auth**: Clerk (`@clerk/nextjs`)
@@ -584,7 +584,8 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - **`BlogCopyLinkButton`** — Web Share API with clipboard copy fallback
 - **`BlogCommentForm`** — `"use client"`; props: `slug`, `parentId?`, `onCancel?`, `placeholder?`; sends parentId in POST body when provided; success state shows "Close" button when `onCancel` provided; button label: "Post reply" vs "Post comment"
 - **`BlogReplyToggle`** (`src/components/BlogReplyToggle.tsx`) — `"use client"`; renders level-2 replies indented with `pl-8 border-l border-neutral-100`; each level-2 reply has its own Reply button (separate `showingReplyId` state) and its level-3 replies at `pl-10 border-l border-neutral-100`; no Reply button on level-3 comments; root Reply button adds level-2 replies; hidden entirely if no replies and not signed in
-- **`BlogPostForm`** — full create/edit form: title + slug preview, type select (staff: all types; makers: STANDARD + BEHIND_THE_BUILD only), UploadThing cover image upload, video URL, markdown body textarea with cheat sheet link, excerpt (200 char counter), meta description (160 char counter), comma-separated tags, featured listing checkboxes, status select
+- **`BlogPostForm`** — full create/edit form: title + slug preview, type select (staff: all types; makers: STANDARD + BEHIND_THE_BUILD only), cover image upload, video URL, **TipTap WYSIWYG body editor** (bold appears bold, headings appear as headings — replaced plain markdown textarea), excerpt (200 char counter), meta description (160 char counter), comma-separated tags, featured listing checkboxes, status select. Blog body stored as markdown (`tiptap-markdown` handles rich text ↔ markdown conversion). Dependencies: `@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-image`, `@tiptap/pm`, `tiptap-markdown`.
+- **`MarkdownToolbar`** (`src/components/MarkdownToolbar.tsx`) — TipTap-based WYSIWYG editor with toolbar buttons: Bold, Italic, Strikethrough, H2, H3, Bullet list, Ordered list, Blockquote, Code block, Link, Image, Horizontal rule. Active state highlighting on toolbar buttons. Hidden `<input name="body">` contains markdown for formData submission. `key={defaultValues.body}` on the component forces TipTap re-initialization when editing a different post. CSS placeholder via `data-placeholder` attribute in globals.css.
 
 ### Public pages
 - **`/blog`** — gradient hero, type filter tab strip, featured post (large card, first result page 1 only), 12-per-page grid with cover image/badge/excerpt/author/date, pagination, `NewsletterSignup` at bottom; `generateMetadata`. Blog listing page card avatars also resolve `author.sellerProfile.avatarImageUrl ?? author.imageUrl` (author select includes `sellerProfile: { select: { avatarImageUrl, displayName } }`).
@@ -1125,13 +1126,15 @@ These items were identified in a comprehensive 196-item attorney discussion list
 - ✅ Business address — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731 (filled in Terms + Privacy)
 - ✅ DMCA agent registration — DMCA-1071504, registered 2026-04-14, designated agent Joseph Young c/o Registered Agents Inc.
 - ✅ Neon database password rotation
+- ✅ Texas marketplace facilitator registration — completed 2026-04-18. Taxpayer number assigned. Quarterly filing; first return due 2026-07-20. Must file even with zero sales.
+- ✅ Apple Pay domain registration — `thegrainline.com` added to Stripe Payment method domains. Console warning resolved.
+- ✅ `www.thegrainline.com` — 308 permanent redirect to bare domain configured in Vercel. SSL certificate provisioned.
+- ✅ Operating agreement — not legally required for single-member LLC in Texas but recommended. Template sufficient for solo launch.
 - Attorney sign-off on Terms and Privacy Policy (remove DRAFT banner)
 - Clickwrap implementation (attorney decides if browsewrap acceptable)
 - Money transmitter licensing confirmation from attorney
-- Texas marketplace facilitator registration (apply at comptroller.texas.gov)
 - Stripe live mode webhook (after switching to live mode)
 - Clerk webhook production setup (`CLERK_WEBHOOK_SECRET` + register endpoint)
-- Operating agreement for LLC (30 min at attorney meeting)
 - Trademark Class 035 filing (post-launch optional, ~$350)
 - Business insurance — general liability + cyber liability + marketplace product liability (post-launch)
 
@@ -2665,6 +2668,8 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 | Neon database password rotation | ✅ Complete (2026-04-18) — rotated in Neon dashboard, `DATABASE_URL` + `DIRECT_URL` updated in Vercel (all environments) and local `.env` |
 | `.env.save` / `.env.production` cleanup | ✅ Deleted (2026-04-18) — contained live secrets. Both were gitignored but sitting unencrypted on disk. |
 | `SHIPPING_RATE_SECRET` in Preview | ✅ Complete (2026-04-18) — added via Vercel dashboard. Preview deploys can now run checkout flows. |
+| Apple Pay domain registration | ✅ Complete (2026-04-18) — `thegrainline.com` added to Stripe Payment method domains |
+| `www` redirect | ✅ Complete (2026-04-18) — 308 permanent redirect `www.thegrainline.com` → `thegrainline.com` in Vercel. SSL provisioned. |
 
 ### Security Maintenance Rules
 
@@ -2693,8 +2698,11 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 ## Production Deployment
 
 - **Live at**: [thegrainline.com](https://thegrainline.com) — deployed to Vercel, DNS via Cloudflare
-- **Next.js upgraded** to 16.2.1 (security patch for CVE-2025-55182)
-- **Clerk upgraded** to v7: `SignedIn`/`SignedOut` replaced with `<Show when="signed-in/out">` component; `afterSignOutUrl` moved from `<UserButton>` to `<ClerkProvider afterSignOutUrl="/">`; `<Header>` wrapped in `<Suspense>` in layout due to `useSearchParams()` requirement
+- **Next.js** 16.2.4 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3)
+- **Clerk** v7.2.3 (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix)
+- **Stripe SDK** 19.3 (explicit `apiVersion` removed — uses SDK default)
+- **Prisma** 7.7.0 (upgraded from 7.6.0 via Dependabot)
+- **React** 19.2.5, **@sentry/nextjs** 10.49, **maplibre-gl** 5.23, **resend** 6.12
 - **All ESLint/build errors fixed** — zero `any` types, all `<a>` → `<Link>`, unescaped entities fixed, unused imports removed
 - **Stripe webhook** fully working in test mode — root cause of prior failure was webhook registered in live mode while app uses test keys (`sk_test_`); fixed by importing the webhook destination into test mode via Stripe Workbench. All notifications confirmed working: NEW_ORDER, NEW_FAVORITE, NEW_MESSAGE, NEW_REVIEW, LOW_STOCK, ORDER_DELIVERED. Webhook handler updated to handle Workbench Snapshot thin-event format (detects thin payload by key count ≤ 3, retrieves full event via `stripe.events.retrieve`).
 - **⚠️ Live mode webhook still needed** — when switching to live mode (after Stripe identity verification clears), register a new webhook destination in Stripe Dashboard → **Live mode** → Developers → Webhooks → `https://thegrainline.com/api/stripe/webhook`, then update `STRIPE_WEBHOOK_SECRET` in Vercel with the live mode signing secret.
