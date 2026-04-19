@@ -329,40 +329,18 @@ export async function POST(req: Request) {
               },
             });
 
+            // Stock was already decremented at checkout time (reservation).
+            // Just check if we need to mark SOLD_OUT.
             if (it.listing.listingType === "IN_STOCK") {
-              // Read pre-decrement stock to detect oversell after
-              const preStock = it.listing.stockQuantity ?? 0;
-
-              // Atomic decrement with floor at 0 — prevents stock going negative
-              // under concurrent webhooks. Uses raw SQL WHERE guard.
-              const decremented: number = await tx.$executeRaw`
-                UPDATE "Listing"
-                SET "stockQuantity" = GREATEST(0, "stockQuantity" - ${orderQuantity})
-                WHERE id = ${it.listingId} AND "stockQuantity" IS NOT NULL
-              `;
-              if (decremented > 0) {
-                const after = await tx.listing.findUnique({
+              const current = await tx.listing.findUnique({
+                where: { id: it.listingId },
+                select: { stockQuantity: true },
+              });
+              if ((current?.stockQuantity ?? 0) <= 0) {
+                await tx.listing.update({
                   where: { id: it.listingId },
-                  select: { stockQuantity: true },
+                  data: { status: "SOLD_OUT" },
                 });
-                if ((after?.stockQuantity ?? 0) <= 0) {
-                  await tx.listing.update({
-                    where: { id: it.listingId },
-                    data: { status: "SOLD_OUT" },
-                  });
-                }
-
-                // Oversell detection: if pre-decrement stock was already
-                // insufficient for this order, the GREATEST(0) floor hid
-                // a real problem — this buyer paid for items we don't have.
-                if (preStock < orderQuantity) {
-                  console.error(
-                    `[OVERSELL] Order ${order.id}: item "${it.listing.title}" ` +
-                    `(${it.listingId}) may have been oversold. ` +
-                    `Stock was ${preStock}, ordered ${orderQuantity}. ` +
-                    `Manual review required.`
-                  );
-                }
               }
             }
           }
@@ -645,36 +623,18 @@ export async function POST(req: Request) {
             },
           });
 
+          // Stock was already decremented at checkout time (reservation).
+          // Just check if we need to mark SOLD_OUT.
           if (isInStock) {
-            // Read pre-decrement stock to detect oversell after
-            const preSingleStock = listingData?.stockQuantity ?? 0;
-
-            // Atomic decrement with floor at 0 — prevents stock going negative
-            const decrementedSingle: number = await tx.$executeRaw`
-              UPDATE "Listing"
-              SET "stockQuantity" = GREATEST(0, "stockQuantity" - ${quantity})
-              WHERE id = ${listingId} AND "stockQuantity" IS NOT NULL
-            `;
-            if (decrementedSingle > 0) {
-              const afterSingle = await tx.listing.findUnique({
+            const currentSingle = await tx.listing.findUnique({
+              where: { id: listingId },
+              select: { stockQuantity: true },
+            });
+            if ((currentSingle?.stockQuantity ?? 0) <= 0) {
+              await tx.listing.update({
                 where: { id: listingId },
-                select: { stockQuantity: true },
+                data: { status: "SOLD_OUT" },
               });
-              if ((afterSingle?.stockQuantity ?? 0) <= 0) {
-                await tx.listing.update({
-                  where: { id: listingId },
-                  data: { status: "SOLD_OUT" },
-                });
-              }
-
-              // Oversell detection
-              if (preSingleStock < quantity) {
-                console.error(
-                  `[OVERSELL] Single-item order for listing ${listingId}: ` +
-                  `stock was ${preSingleStock}, ordered ${quantity}. ` +
-                  `Manual review required.`
-                );
-              }
             }
           }
         });
@@ -883,6 +843,71 @@ export async function POST(req: Request) {
         });
       }
       return NextResponse.json({ received: true });
+    }
+
+    // CHECKOUT SESSION EXPIRED — restore reserved stock
+    if (event.type === "checkout.session.expired") {
+      const expiredSession = event.data.object as { id: string; metadata?: Record<string, string> };
+      const expiredMeta = expiredSession.metadata ?? {};
+
+      // Check this session didn't already create an order (edge case: completed + expired both fire)
+      const orderExists = await prisma.order.findFirst({
+        where: { stripeSessionId: expiredSession.id },
+        select: { id: true },
+      });
+      if (orderExists) return NextResponse.json({ ok: true }); // paid — don't restore
+
+      // Single-item checkout: restore the listing's stock
+      const expiredListingId = expiredMeta.listingId;
+      const expiredQuantity = Math.max(1, Number(expiredMeta.quantity || 1));
+      if (expiredListingId) {
+        await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET "stockQuantity" = "stockQuantity" + ${expiredQuantity}
+          WHERE id = ${expiredListingId}
+            AND "listingType" = 'IN_STOCK'
+        `;
+        // If stock was 0 (SOLD_OUT from reservation), restore to ACTIVE
+        await prisma.listing.updateMany({
+          where: { id: expiredListingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+          data: { status: "ACTIVE" },
+        });
+      }
+
+      // Cart checkout: restore stock for all items from this seller
+      const expiredCartId = expiredMeta.cartId;
+      const expiredSellerId = expiredMeta.sellerId;
+      if (expiredCartId && expiredSellerId) {
+        // We don't have the exact items from the session, but we stored
+        // line_items in the session. Retrieve them from Stripe.
+        try {
+          const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
+            expand: ["line_items"],
+          });
+          type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
+          const expiredLineItems: ExpiredLineItem[] = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];
+          for (const li of expiredLineItems) {
+            const prod = typeof li.price?.product === "object" ? li.price?.product : null;
+            const lid = prod?.metadata?.listingId;
+            if (lid && li.quantity) {
+              await prisma.$executeRaw`
+                UPDATE "Listing"
+                SET "stockQuantity" = "stockQuantity" + ${li.quantity}
+                WHERE id = ${lid}
+                  AND "listingType" = 'IN_STOCK'
+              `;
+              await prisma.listing.updateMany({
+                where: { id: lid, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+                data: { status: "ACTIVE" },
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to restore stock for expired cart session:", err);
+        }
+      }
+
+      return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ received: true });

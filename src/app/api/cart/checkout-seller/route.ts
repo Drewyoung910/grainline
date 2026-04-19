@@ -143,16 +143,34 @@ export async function POST(req: Request) {
       );
     }
 
-    // Stock quantity check for IN_STOCK listings
-    const insufficientStock = sellerItems.find(
-      (it) => it.listing.listingType === "IN_STOCK" &&
-        (it.listing.stockQuantity ?? 0) < it.quantity,
-    );
-    if (insufficientStock) {
-      return NextResponse.json(
-        { error: `"${insufficientStock.listing.title}" does not have enough stock.` },
-        { status: 400 },
-      );
+    // Stock reservation: atomically decrement stock at checkout time (not webhook).
+    // If the buyer doesn't pay (session expires), the webhook restores stock.
+    for (const it of sellerItems) {
+      if (it.listing.listingType === "IN_STOCK") {
+        const reserved: number = await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET "stockQuantity" = "stockQuantity" - ${it.quantity}
+          WHERE id = ${it.listing.id}
+            AND "stockQuantity" >= ${it.quantity}
+        `;
+        if (reserved === 0) {
+          // Restore any already-reserved items from this batch
+          for (const prev of sellerItems) {
+            if (prev === it) break;
+            if (prev.listing.listingType === "IN_STOCK") {
+              await prisma.$executeRaw`
+                UPDATE "Listing"
+                SET "stockQuantity" = "stockQuantity" + ${prev.quantity}
+                WHERE id = ${prev.listing.id}
+              `;
+            }
+          }
+          return NextResponse.json(
+            { error: `"${it.listing.title}" does not have enough stock.` },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // Gift wrapping: reject if buyer requested it but seller does not offer it.
@@ -253,6 +271,8 @@ export async function POST(req: Request) {
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       redirect_on_completion: "if_required",
+      // 30-minute expiry — stock is reserved at checkout, restored on expiry.
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       mode: "payment",
       return_url,
       line_items,

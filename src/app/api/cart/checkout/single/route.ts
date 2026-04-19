@@ -103,12 +103,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // Stock quantity check for IN_STOCK listings
-    if (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) < body.quantity) {
-      return NextResponse.json(
-        { error: "Not enough stock available for this item." },
-        { status: 400 },
-      );
+    // Stock reservation: atomically decrement stock at checkout time (not webhook).
+    // If the buyer doesn't pay (session expires), the webhook restores stock.
+    // This prevents oversell — two concurrent buyers can't both reserve the last item.
+    if (listing.listingType === "IN_STOCK") {
+      const reserved: number = await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET "stockQuantity" = "stockQuantity" - ${body.quantity}
+        WHERE id = ${listing.id}
+          AND "stockQuantity" >= ${body.quantity}
+      `;
+      if (reserved === 0) {
+        return NextResponse.json(
+          { error: "Not enough stock available for this item." },
+          { status: 400 },
+        );
+      }
     }
 
     const currency = (listing.currency || "usd").toLowerCase();
@@ -235,6 +245,9 @@ export async function POST(req: Request) {
       // CRITICAL: "if_required" lets onComplete fire for card payments.
       // "always" (the default) redirects instead of firing onComplete.
       redirect_on_completion: "if_required",
+      // 30-minute expiry — stock is reserved at checkout, restored on expiry.
+      // Default 24h is too long to hold inventory.
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       mode: "payment",
       line_items,
