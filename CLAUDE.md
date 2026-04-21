@@ -2723,6 +2723,27 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - **Zero-listing sellers excluded** — query now requires `listings: { some: { status: "ACTIVE", isPrivate: false } }`.
 - **Banner image** — card image now uses `seller.bannerImageUrl` first, falling back to most recent listing photo, then placeholder. Was always using listing photo even when banner was set.
 
+### Low-priority UX improvements
+- **"Message Buyer"** — links to `/messages/new?to=buyerId` (was linking to inbox)
+- **Inventory stale UI** — `router.refresh()` after stock save so status badges update immediately
+- **Old orders $0.00** — fallback to `items.reduce(priceCents * quantity)` when subtotal fields are 0
+- **Messages "Sent" tab** — renamed to "Awaiting Reply" (was misleading — filtered by "last message was mine")
+- **Order item 404 links** — non-ACTIVE listings render as plain text instead of clickable links to deleted/hidden pages
+- **Browse no-results featured** — added `chargesEnabled + vacationMode + banned` seller filters
+- **Browse popular tags** — same seller safety filters added
+- **About page "Become a Maker"** — links to `/sign-up` for signed-out users, `/dashboard` for signed-in
+- **`sendWelcomeSeller`** — confirmed NOT dead code (called in Clerk webhook on `user.created`)
+- **Multi-seller success page** — deferred. Only shows last seller's receipt. Fixing requires checkout flow refactor; other orders visible via "View my orders".
+
+### Final homepage safety audit (2026-04-21)
+- **Mosaic photo query** — added `seller: { chargesEnabled, vacationMode: false, banned: false }` (banned/vacation seller photos could appear in hero background)
+- **Featured maker fallback SQL** — added SellerProfile + User JOINs with safety filters (banned most-reviewed seller could be featured in Meet a Maker spotlight)
+- **From Your Makers** — added seller safety filters to both `recentListings` and `recentBlogPosts` queries
+
+### Dead code identified (not removed — low priority)
+- `src/app/actions/toggleFavorite.ts` — orphaned server action; `FavoriteButton` uses REST routes. Zero import sites.
+- `src/app/api/checkout/route.ts` — legacy single-item checkout was deleted in Phase 6. If this still exists, it's unreferenced dead code.
+
 ## Notification & Email Fixes (2026-04-21)
 
 ### Approval gating
