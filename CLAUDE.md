@@ -2693,6 +2693,23 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - **Missed expired webhook** — if Stripe never delivers `checkout.session.expired` (outage, 3-day retry exhaustion), stock is permanently held. No self-healing cron exists. Mitigation: Stripe's webhook reliability is >99.99%. A nightly reconciliation cron could be added post-launch if this becomes an issue.
 - **`cart/add` allows adding reserved-but-not-sold items** — a listing with all stock reserved (stockQuantity=0, status=ACTIVE) can still be added to cart. Checkout creation is the enforcement point, where the atomic SQL `WHERE stockQuantity >= qty` blocks the buyer.
 
+## Local Pickup + Display Name Warning (2026-04-21)
+
+### Local Pickup as a Shipping Option
+- **Quote route** (`/api/shipping/quote`): injects "Local Pickup (Free)" as a synthetic $0 rate when `seller.allowLocalPickup === true`. HMAC-signed via `signRate()` with `objectId: "pickup"`. Shows first in the ShippingRateSelector radio list via `unshift`.
+- **Checkout flow**: no changes needed. Buyer still enters address (Stripe requires it for tax calculation). The `$0` shipping rate flows through HMAC verification and Stripe session creation unchanged.
+- **Webhook detection**: already handles pickup — `shippingTitle.toLowerCase().includes("pickup")` matches "Local Pickup (Free)" and sets `fulfillmentMethod: "PICKUP"`.
+- **Fulfillment**: pickup orders follow the existing `ready_for_pickup → picked_up` status flow with notifications + emails (fixed earlier in this session).
+- **Seller setup**: `allowLocalPickup` toggle in Shop Settings (`/dashboard/seller`). No new fields needed.
+
+### Display Name Soft Uniqueness Warning
+- **On save** (`/dashboard/profile` server action): case-insensitive `findFirst` checks for another seller with the same `displayName`. Save always proceeds (soft warning, not hard block).
+- **UI**: if duplicate found, redirects to `?warning=duplicate-name`. Amber banner suggests adding location/specialty (e.g. "Oak & Iron Woodworks — Austin").
+- **No DB constraint** — display names are not unique at the schema level. This is a UX nudge, not enforcement. Multiple sellers can still have identical names (like Etsy).
+
+### Shipping options variability (documented, no fix needed)
+- Shippo API returns live carrier rates that fluctuate in real-time. The `street1: "Placeholder"` in the quote route does not affect rate accuracy (rates are zip-to-zip based). Residential/commercial classification may be slightly off but is buyer-favorable. This is normal carrier API behavior, not a bug.
+
 ## Data Integrity & UX Fixes (2026-04-21)
 
 ### Security & data integrity
