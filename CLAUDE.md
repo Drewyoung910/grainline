@@ -3267,3 +3267,25 @@ Sellers can restrict shipping quotes to specific carriers.
 - Carrier filter applied to raw Shippo rates BEFORE the `.map()` that signs them (before HMAC signing, so filtered rates never get signed unnecessarily)
 - Uses case-insensitive `.includes()` matching (e.g. "usps" matches "USPS" in carrier name)
 - Local pickup option always passes through regardless of carrier preferences
+
+## Reporting & Admin Email (2026-04-21)
+
+### Report buttons on reviews and blog comments
+- **Reviews** — `BlockReportButton` added to each review in `ReviewsSection.tsx` with `targetType: "REVIEW"`. Gated on `meId !== reviewer.id` (can't report your own review). Positioned after the date.
+- **Blog comments** — `BlockReportButton` added to top-level comments in `blog/[slug]/page.tsx` and L2/L3 replies in `BlogReplyToggle.tsx` with `targetType: "BLOG_COMMENT"`. `BlogReplyToggle` accepts new `meId` prop.
+- **Report labels** — `BlockReportButton` now shows "Report this review" and "Report this comment" for the new target types.
+- **Admin reports** — batch-resolves `REVIEW` → `listingId` and `BLOG_COMMENT` → post `slug` for contextual links ("View listing" / "View post") in the admin reports queue.
+
+### Reporting coverage (complete)
+| Surface | targetType | Component |
+|---|---|---|
+| Seller profiles | `SELLER` | `BlockReportButton` on `/seller/[id]` |
+| Listings | `LISTING` | `BlockReportButton` on `/listing/[id]` |
+| Message threads | `MESSAGE_THREAD` | `BlockReportButton` in `/messages/[id]` |
+| Reviews | `REVIEW` | `BlockReportButton` in `ReviewsSection` |
+| Blog comments | `BLOG_COMMENT` | `BlockReportButton` in blog detail + `BlogReplyToggle` |
+
+### Admin email to any user
+- **`AdminEmailForm`** — accepts optional `defaultTo` (pre-fills email) and `defaultOpen` (auto-expands) props. Renders a "To" email input when no `userId` is provided.
+- **Admin email API** — Zod schema now accepts `userId` OR `email` (refined: at least one required). Handles both lookup paths.
+- **Admin users page** — "Email" link per user row navigates to `?email=user@example.com`. Standalone `AdminEmailForm` renders at the top of the page when the email param is present, auto-opened with pre-filled recipient.
