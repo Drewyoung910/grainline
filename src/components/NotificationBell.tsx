@@ -135,15 +135,34 @@ export default function NotificationBell({
   }, [loaded, fetchNotifications, isSignedIn]);
 
   // Smart polling: adapts interval based on user activity and tab visibility.
-  // Active tab + recent activity: 60s. Idle > 5min: 5min. Background tab: 15min.
-  // Tab refocused: immediate fetch. Dropdown opened: immediate fetch (above).
+  // Active + recent activity: 60s. Idle > 5min: 5min. Background tab: 15min.
+  // Idle > 30min: stop entirely. Resume on activity or tab focus: immediate fetch.
   const lastActivityRef = React.useRef(Date.now());
+  const pollingStopped = React.useRef(false);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Restart polling — called when activity resumes after a stop
+  const restartPolling = React.useCallback(() => {
+    if (!pollingStopped.current) return;
+    pollingStopped.current = false;
+    fetchNotifications();
+    // schedulePoll is defined in the effect below and called via ref
+    schedulePollRef.current?.();
+  }, [fetchNotifications]);
+
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const schedulePollRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     const onActivity = () => {
+      const now = Date.now();
       // Throttle: only update if > 10 seconds since last recorded activity
-      if (Date.now() - lastActivityRef.current > 10_000) {
-        lastActivityRef.current = Date.now();
+      if (now - lastActivityRef.current > 10_000) {
+        lastActivityRef.current = now;
+        // If polling was stopped due to 30min idle, restart it
+        if (pollingStopped.current) {
+          restartPolling();
+        }
       }
     };
     window.addEventListener("mousemove", onActivity, { passive: true });
@@ -154,26 +173,34 @@ export default function NotificationBell({
       window.removeEventListener("keydown", onActivity);
       window.removeEventListener("click", onActivity);
     };
-  }, []);
+  }, [restartPolling]);
 
   React.useEffect(() => {
     if (!isSignedIn) return;
 
-    function getInterval() {
+    function getInterval(): number | null {
       if (document.visibilityState === "hidden") return 15 * 60 * 1000; // 15 min
-      if (Date.now() - lastActivityRef.current > 5 * 60 * 1000) return 5 * 60 * 1000; // 5 min
-      return 60 * 1000; // 60 seconds
+      const idleMs = Date.now() - lastActivityRef.current;
+      if (idleMs > 30 * 60 * 1000) return null; // > 30 min: stop polling
+      if (idleMs > 5 * 60 * 1000) return 5 * 60 * 1000; // > 5 min: 5 min
+      return 60 * 1000; // active: 60 seconds
     }
-
-    let timer: ReturnType<typeof setTimeout>;
 
     function schedulePoll() {
-      timer = setTimeout(() => {
+      const interval = getInterval();
+      if (interval === null) {
+        // Stop polling — will be restarted by activity listener or visibility change
+        pollingStopped.current = true;
+        return;
+      }
+      pollingStopped.current = false;
+      timerRef.current = setTimeout(() => {
         fetchNotifications();
         schedulePoll();
-      }, getInterval());
+      }, interval);
     }
 
+    schedulePollRef.current = schedulePoll;
     schedulePoll();
 
     // Tab refocused: immediate fetch + reschedule
@@ -181,14 +208,14 @@ export default function NotificationBell({
       if (document.visibilityState === "visible") {
         lastActivityRef.current = Date.now();
         fetchNotifications();
-        clearTimeout(timer);
+        if (timerRef.current) clearTimeout(timerRef.current);
         schedulePoll();
       }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      clearTimeout(timer);
+      if (timerRef.current) clearTimeout(timerRef.current);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [isSignedIn, fetchNotifications]);
