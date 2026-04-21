@@ -2693,6 +2693,36 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - **Missed expired webhook** — if Stripe never delivers `checkout.session.expired` (outage, 3-day retry exhaustion), stock is permanently held. No self-healing cron exists. Mitigation: Stripe's webhook reliability is >99.99%. A nightly reconciliation cron could be added post-launch if this becomes an issue.
 - **`cart/add` allows adding reserved-but-not-sold items** — a listing with all stock reserved (stockQuantity=0, status=ACTIVE) can still be added to cart. Checkout creation is the enforcement point, where the atomic SQL `WHERE stockQuantity >= qty` blocks the buyer.
 
+## Data Integrity & UX Fixes (2026-04-21)
+
+### Security & data integrity
+- **Map page** — added `vacationMode: false` + `user: { banned: false }` filters. Vacation/banned sellers no longer appear as map pins.
+- **SellerRefundPanel** — hidden when the case already has `stripeRefundId` (admin refund). Prevents double-refund via the seller panel after admin already resolved.
+- **Seller rating** — now includes private/custom listing reviews. Previous query filtered by public listing IDs only, excluding all custom work reviews from the seller's average. Changed to query by `listing.sellerId` directly.
+- **Case API** — blocks case creation when `fulfillmentStatus === "PENDING"`. Buyers must wait until the order has shipped/been prepared.
+
+### Display & count accuracy
+- **Homepage maker count** — filters `chargesEnabled: true`, `vacationMode: false`, `user: { banned: false }`. Was counting all sellers with an ACTIVE listing including banned/vacation.
+- **Sales list total** — uses `mySubtotalCents` (this seller's items only) instead of `order.itemsSubtotalCents` (all sellers). Was inflated for multi-seller orders.
+- **"See all N pieces"** on seller profile — counts only ACTIVE + non-private listings. Was including SOLD/SOLD_OUT that buyers can't see on the shop page.
+- **"In Stock · null available"** — fixed to show "In Stock" without count when `stockQuantity` is null.
+
+### Seller dashboard
+- **Guild badge revocation explanation** — both cron routes now update `MakerVerification.status` to `REJECTED`/`GUILD_MASTER_REJECTED` on revocation. Dashboard shows "Your Guild badge was revoked" banner with re-apply guidance.
+- **Mark delivered** — button only visible when `fulfillmentStatus === "SHIPPED"` (was always visible regardless of status).
+- **Mark sold** — only available from ACTIVE/SOLD_OUT (was allowing DRAFT → SOLD). Guard added to both dashboard and shop actions.
+- **Inventory badges** — DRAFT, HIDDEN, Under Review, and Rejected listings now show status badges in the inventory view (were silently bucketed as "Active").
+- **Restock HIDDEN → ACTIVE** — documented limitation: restocking always promotes to ACTIVE; seller must re-hide manually if the listing was previously HIDDEN.
+- **displayName sanitization** — `sanitizeText()` applied on profile page (was already applied on seller settings page).
+
+### Buyer experience
+- **Cart unavailable items** — cart API now returns listing `status` and `sellerVacationMode`. Cart page shows inline warnings ("This item is no longer available" / "Maker is on vacation") and disables "Continue to shipping" when unavailable items are present.
+- **Browse filter conflict** — `shipsFilter` no longer overwrites explicit `typeFilter`. Searching for `type=MADE_TO_ORDER&ships=3` no longer returns IN_STOCK results.
+
+### Makers page
+- **Zero-listing sellers excluded** — query now requires `listings: { some: { status: "ACTIVE", isPrivate: false } }`.
+- **Banner image** — card image now uses `seller.bannerImageUrl` first, falling back to most recent listing photo, then placeholder. Was always using listing photo even when banner was set.
+
 ## Notification & Email Fixes (2026-04-21)
 
 ### Approval gating
