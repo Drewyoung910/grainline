@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import type { FulfillmentStatus } from "@prisma/client";
+import LocalDate from "@/components/LocalDate";
 
 const PAGE_SIZE = 25;
 
@@ -117,7 +118,7 @@ export default async function SalesPage({
                         <StatusBadge status={status} />
                       </div>
                       <div className="text-neutral-500">
-                        {o.createdAt.toLocaleString()}
+                        <LocalDate date={o.createdAt} />
                         {o.paidAt ? " · Paid" : " · Unpaid"}
                       </div>
                       <div className="text-xs text-neutral-500">

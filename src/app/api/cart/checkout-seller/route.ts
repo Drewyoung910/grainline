@@ -267,7 +267,7 @@ export async function POST(req: Request) {
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
     const sellerTransferAmount = itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
 
-    const return_url = `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+    const return_url = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 
     const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")
       .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();

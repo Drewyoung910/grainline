@@ -256,7 +256,7 @@ export async function POST(req: Request) {
       // ~30-minute expiry — stock is reserved at checkout, restored on expiry.
       // 31 min (not 30) provides a buffer against clock skew — Stripe's minimum is 30.
       expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       mode: "payment",
       line_items,
       shipping_options: [

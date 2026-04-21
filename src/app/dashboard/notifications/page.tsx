@@ -18,6 +18,7 @@ import {
   User,
 } from "@/components/icons";
 import type { NotificationType } from "@prisma/client";
+import LocalDate from "@/components/LocalDate";
 
 const PAGE_SIZE = 20;
 
@@ -138,7 +139,7 @@ export default async function NotificationsPage({
                   <p className="text-sm font-medium leading-tight">{n.title}</p>
                   <p className="text-sm text-neutral-600 mt-0.5">{n.body}</p>
                   <p className="text-xs text-neutral-400 mt-1">
-                    {new Date(n.createdAt).toLocaleString()}
+                    <LocalDate date={n.createdAt} />
                   </p>
                 </div>
               </li>

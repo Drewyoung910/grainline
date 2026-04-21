@@ -9,6 +9,7 @@ import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
 import { ArrowLeft, Gift } from "@/components/icons";
+import LocalDate from "@/components/LocalDate";
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {
@@ -149,7 +150,7 @@ export default async function SellerOrderDetailPage({
         </h1>
         <div className="flex items-center gap-2 text-sm text-neutral-600">
           <span>
-            Placed {order.createdAt.toLocaleString()} · {order.paidAt ? "Paid" : "Unpaid"}
+            Placed <LocalDate date={order.createdAt} /> · {order.paidAt ? "Paid" : "Unpaid"}
           </span>
           <Badge>{method}</Badge>
           <Badge>{status.replaceAll("_", " ")}</Badge>
@@ -288,7 +289,7 @@ export default async function SellerOrderDetailPage({
                       {label}
                     </span>
                     <span>·</span>
-                    <span>{msg.createdAt.toLocaleString()}</span>
+                    <span><LocalDate date={msg.createdAt} /></span>
                   </div>
                   <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
                 </li>
@@ -438,7 +439,7 @@ export default async function SellerOrderDetailPage({
           <div className="text-neutral-700">Coordinate pickup with the buyer via Messages.</div>
           {order.pickupReadyAt && (
             <div className="mt-2 text-neutral-600">
-              Ready for pickup since {order.pickupReadyAt.toLocaleString()}
+              Ready for pickup since <LocalDate date={order.pickupReadyAt} />
             </div>
           )}
         </div>

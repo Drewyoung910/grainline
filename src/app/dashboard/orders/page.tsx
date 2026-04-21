@@ -19,22 +19,27 @@ export default async function OrdersPage() {
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect("/sign-in?redirect_url=/dashboard/orders");
 
-  const orders = await prisma.order.findMany({
-    where: { buyerId: me.id },
-    include: {
-      items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { displayName: true } },
+  const LIMIT = 20;
+  const [totalOrders, orders] = await Promise.all([
+    prisma.order.count({ where: { buyerId: me.id } }),
+    prisma.order.findMany({
+      where: { buyerId: me.id },
+      include: {
+        items: {
+          include: {
+            listing: {
+              include: {
+                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                seller: { select: { displayName: true } },
+              },
             },
           },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+      take: LIMIT,
+    }),
+  ]);
 
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
@@ -58,7 +63,8 @@ export default async function OrdersPage() {
           No orders yet — find something you love in the browse page.
         </div>
       ) : (
-        <ul className="space-y-4">
+        <>
+          <ul className="space-y-4">
           {orders.map((o) => {
             const currency = o.currency ?? "usd";
             const itemsSubtotal =
@@ -152,6 +158,14 @@ export default async function OrdersPage() {
             );
           })}
         </ul>
+        {totalOrders > LIMIT && (
+          <div className="text-center pt-4">
+            <Link href="/account/orders" className="text-sm text-neutral-500 hover:text-neutral-700 underline">
+              View all {totalOrders} orders →
+            </Link>
+          </div>
+        )}
+        </>
       )}
     </main>
   );

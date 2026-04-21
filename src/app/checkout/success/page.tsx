@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
+import LocalDate from "@/components/LocalDate";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -23,9 +24,14 @@ export default async function CheckoutSuccessPage({
   const sessionId = sp?.session_id;
   if (!sessionId) redirect("/cart");
 
-  const s = await stripe.checkout.sessions.retrieve(sessionId, {
-    expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate"],
-  });
+  let s: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
+  try {
+    s = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate"],
+    });
+  } catch {
+    redirect("/cart");
+  }
 
   if (s.payment_status !== "paid") redirect("/cart");
 
@@ -371,7 +377,7 @@ export default async function CheckoutSuccessPage({
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="text-sm">
             <div className="font-medium">Receipt</div>
-            <div className="text-neutral-500">{order.createdAt.toLocaleString()}</div>
+            <div className="text-neutral-500"><LocalDate date={order.createdAt} /></div>
             <div className="text-xs text-neutral-500">Buyer: {order.buyer.name ?? order.buyer.email}</div>
           </div>
           <div className="text-sm font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
