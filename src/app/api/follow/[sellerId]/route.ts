@@ -97,16 +97,26 @@ export async function POST(
 
   const followerCount = await getFollowerCount(sellerProfile.id);
 
-  // Only notify the seller on a new follow (not re-follow via upsert)
+  // Only notify the seller on a new follow (not re-follow via upsert), with 24h dedup
   if (!existingFollow) {
     const followerName = me.name ?? me.email.split("@")[0] ?? "Someone";
-    await createNotification({
-      userId: sellerProfile.userId,
-      type: "NEW_FOLLOWER",
-      title: `${followerName} started following you`,
-      body: "They can now see your new listings and posts in their feed",
-      link: "/dashboard/analytics",
+    const recentFollowNotif = await prisma.notification.findFirst({
+      where: {
+        userId: sellerProfile.userId,
+        type: "NEW_FOLLOWER",
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        title: { contains: followerName },
+      },
     });
+    if (!recentFollowNotif) {
+      await createNotification({
+        userId: sellerProfile.userId,
+        type: "NEW_FOLLOWER",
+        title: `${followerName} started following you`,
+        body: "They can now see your new listings and posts in their feed",
+        link: "/dashboard/analytics",
+      });
+    }
   }
 
   return NextResponse.json({ following: true, followerCount });

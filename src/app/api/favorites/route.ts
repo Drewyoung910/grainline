@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
 
-  // Notify listing owner (non-fatal)
+  // Notify listing owner (non-fatal, 24h dedup per listing)
   try {
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
@@ -70,14 +70,24 @@ export async function POST(req: Request) {
     });
     const ownerUserId = listing?.seller?.userId;
     if (ownerUserId && ownerUserId !== me.id) {
-      const favName = me.name ?? me.email?.split("@")[0] ?? "Someone";
-      await createNotification({
-        userId: ownerUserId,
-        type: "NEW_FAVORITE",
-        title: `${favName} hearted your listing`,
-        body: listing!.title,
-        link: `/listing/${listingId}`,
+      const recentFavNotif = await prisma.notification.findFirst({
+        where: {
+          userId: ownerUserId,
+          type: "NEW_FAVORITE",
+          link: `/listing/${listingId}`,
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
       });
+      if (!recentFavNotif) {
+        const favName = me.name ?? me.email?.split("@")[0] ?? "Someone";
+        await createNotification({
+          userId: ownerUserId,
+          type: "NEW_FAVORITE",
+          title: `${favName} hearted your listing`,
+          body: listing!.title,
+          link: `/listing/${listingId}`,
+        });
+      }
     }
   } catch (e) {
     console.error("POST /api/favorites notification error (non-fatal):", (e as Error).message);

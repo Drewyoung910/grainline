@@ -238,44 +238,51 @@ async function createListing(formData: FormData) {
     }
   } catch { /* non-fatal */ }
 
-  // Notify followers — fire-and-forget (don't await)
-  void (async () => {
-    try {
-      const followers = await prisma.follow.findMany({
-        where: { sellerProfileId: seller.id },
-        select: { followerId: true, follower: { select: { email: true, name: true } } },
-      });
-      const sellerDisplay = seller.displayName ?? "A maker you follow";
-      await Promise.all(
-        followers.map((f) =>
-          createNotification({
-            userId: f.followerId,
-            type: "FOLLOWED_MAKER_NEW_LISTING",
-            title: `New listing from ${sellerDisplay}`,
-            body: created.title,
-            link: `/listing/${created.id}`,
-          })
-        )
-      );
-      const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/listing/${created.id}`;
-      const listingPrice = `$${(created.priceCents / 100).toFixed(2)}`;
-      await Promise.allSettled(
-        followers.slice(0, 500)
-          .filter((f) => f.follower?.email)
-          .map(async (f) => {
-            if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
-              return sendNewListingFromFollowedMakerEmail({
-                to: f.follower.email!,
-                makerName: sellerDisplay,
-                listingTitle: created.title,
-                listingPrice,
-                listingUrl,
-              });
-            }
-          })
-      );
-    } catch { /* non-fatal */ }
-  })();
+  // Only notify followers if the listing went live (not held for review)
+  const finalListing = await prisma.listing.findUnique({
+    where: { id: created.id },
+    select: { status: true },
+  });
+  if (finalListing?.status === "ACTIVE") {
+    // Notify followers — fire-and-forget (don't await)
+    void (async () => {
+      try {
+        const followers = await prisma.follow.findMany({
+          where: { sellerProfileId: seller.id },
+          select: { followerId: true, follower: { select: { email: true, name: true } } },
+        });
+        const sellerDisplay = seller.displayName ?? "A maker you follow";
+        await Promise.all(
+          followers.map((f) =>
+            createNotification({
+              userId: f.followerId,
+              type: "FOLLOWED_MAKER_NEW_LISTING",
+              title: `New listing from ${sellerDisplay}`,
+              body: created.title,
+              link: `/listing/${created.id}`,
+            })
+          )
+        );
+        const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/listing/${created.id}`;
+        const listingPrice = `$${(created.priceCents / 100).toFixed(2)}`;
+        await Promise.allSettled(
+          followers.slice(0, 500)
+            .filter((f) => f.follower?.email)
+            .map(async (f) => {
+              if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
+                return sendNewListingFromFollowedMakerEmail({
+                  to: f.follower.email!,
+                  makerName: sellerDisplay,
+                  listingTitle: created.title,
+                  listingPrice,
+                  listingUrl,
+                });
+              }
+            })
+        );
+      } catch { /* non-fatal */ }
+    })();
+  }
 
   redirect(`/listing/${created.id}`);
 }

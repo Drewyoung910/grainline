@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
+import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
 import { z } from "zod";
 
 const FulfillmentSchema = z.object({
@@ -162,17 +162,44 @@ export async function POST(
         body: "Enjoy your new piece — leave a review to help other buyers",
         link: `/dashboard/orders/${id}`,
       });
+      if (buyerEmail) {
+        try {
+          await sendOrderDelivered({
+            order: { id },
+            buyer: { name: updated.buyer?.name, email: buyerEmail },
+          });
+        } catch { /* non-fatal */ }
+      }
     }
 
-    if (action === "ready_for_pickup" && buyerEmail) {
-      const sellerName = updated.items[0]?.listing.seller.displayName;
-      try {
-        await sendReadyForPickup({
-          order: { id },
-          buyer: { name: updated.buyer?.name, email: buyerEmail },
-          seller: { displayName: sellerName },
-        });
-      } catch { /* non-fatal */ }
+    if (action === "picked_up") {
+      await createNotification({
+        userId: updated.buyerId,
+        type: "ORDER_DELIVERED",
+        title: "Order picked up!",
+        body: "Your order has been picked up. Enjoy!",
+        link: `/dashboard/orders/${id}`,
+      });
+    }
+
+    if (action === "ready_for_pickup") {
+      await createNotification({
+        userId: updated.buyerId,
+        type: "ORDER_SHIPPED",
+        title: "Ready for pickup!",
+        body: "Your order is ready for pickup.",
+        link: `/dashboard/orders/${id}`,
+      });
+      if (buyerEmail) {
+        const sellerName = updated.items[0]?.listing.seller.displayName;
+        try {
+          await sendReadyForPickup({
+            order: { id },
+            buyer: { name: updated.buyer?.name, email: buyerEmail },
+            seller: { displayName: sellerName },
+          });
+        } catch { /* non-fatal */ }
+      }
     }
 
     return NextResponse.redirect(

@@ -72,38 +72,86 @@ export async function POST(
       }),
     ]);
 
-    // Notify the OTHER party
-    const recipientId = me.id === caseRecord.buyerId ? caseRecord.sellerId : caseRecord.buyerId;
-    const caseLink =
-      me.id === caseRecord.buyerId
-        ? `/dashboard/sales/${caseRecord.orderId}`
-        : `/dashboard/orders/${caseRecord.orderId}`;
+    // Notify the appropriate party/parties
+    const senderName = me.name ?? me.email?.split("@")[0] ?? "Someone";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
 
-    await createNotification({
-      userId: recipientId,
-      type: "CASE_MESSAGE",
-      title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} sent a message in your case`,
-      body: messageBody.slice(0, 60),
-      link: caseLink,
-    });
+    if (isStaff && !isParty) {
+      // Staff message — notify both buyer and seller
+      await createNotification({
+        userId: caseRecord.buyerId,
+        type: "CASE_MESSAGE",
+        title: "Grainline Staff sent a message in your case",
+        body: messageBody.slice(0, 60),
+        link: `/dashboard/orders/${caseRecord.orderId}`,
+      });
+      await createNotification({
+        userId: caseRecord.sellerId,
+        type: "CASE_MESSAGE",
+        title: "Grainline Staff sent a message in your case",
+        body: messageBody.slice(0, 60),
+        link: `/dashboard/sales/${caseRecord.orderId}`,
+      });
 
-    try {
-      if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {
-        const recipient = await prisma.user.findUnique({
-          where: { id: recipientId },
-          select: { name: true, email: true },
-        });
-        if (recipient?.email) {
+      // Send emails to both parties
+      try {
+        const [buyer, seller] = await Promise.all([
+          prisma.user.findUnique({ where: { id: caseRecord.buyerId }, select: { name: true, email: true } }),
+          prisma.user.findUnique({ where: { id: caseRecord.sellerId }, select: { name: true, email: true } }),
+        ]);
+        if (buyer?.email && await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_MESSAGE")) {
           await sendCaseMessage({
-            recipientName: recipient.name,
-            recipientEmail: recipient.email,
-            senderName: me.name,
-            caseLink: `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${caseLink}`,
+            recipientName: buyer.name,
+            recipientEmail: buyer.email,
+            senderName: "Grainline Staff",
+            caseLink: `${appUrl}/dashboard/orders/${caseRecord.orderId}`,
             messageSnippet: messageBody,
           });
         }
-      }
-    } catch { /* non-fatal */ }
+        if (seller?.email && await shouldSendEmail(caseRecord.sellerId, "EMAIL_CASE_MESSAGE")) {
+          await sendCaseMessage({
+            recipientName: seller.name,
+            recipientEmail: seller.email,
+            senderName: "Grainline Staff",
+            caseLink: `${appUrl}/dashboard/sales/${caseRecord.orderId}`,
+            messageSnippet: messageBody,
+          });
+        }
+      } catch { /* non-fatal */ }
+    } else {
+      // Buyer or seller message — notify the other party
+      const recipientId = me.id === caseRecord.buyerId ? caseRecord.sellerId : caseRecord.buyerId;
+      const caseLink =
+        me.id === caseRecord.buyerId
+          ? `/dashboard/sales/${caseRecord.orderId}`
+          : `/dashboard/orders/${caseRecord.orderId}`;
+
+      await createNotification({
+        userId: recipientId,
+        type: "CASE_MESSAGE",
+        title: `${senderName} sent a message in your case`,
+        body: messageBody.slice(0, 60),
+        link: caseLink,
+      });
+
+      try {
+        if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {
+          const recipient = await prisma.user.findUnique({
+            where: { id: recipientId },
+            select: { name: true, email: true },
+          });
+          if (recipient?.email) {
+            await sendCaseMessage({
+              recipientName: recipient.name,
+              recipientEmail: recipient.email,
+              senderName: me.name,
+              caseLink: `${appUrl}${caseLink}`,
+              messageSnippet: messageBody,
+            });
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
 
     return NextResponse.json(message, { status: 201 });
   } catch (err) {

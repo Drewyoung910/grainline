@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
+import { createNotification } from "@/lib/notifications";
 
 async function approveComment(commentId: string) {
   "use server";
@@ -13,6 +14,51 @@ async function approveComment(commentId: string) {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { role: true } });
   if (!me || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
   await prisma.blogComment.update({ where: { id: commentId }, data: { approved: true } });
+
+  // Send notification now that the comment is approved
+  try {
+    const comment = await prisma.blogComment.findUnique({
+      where: { id: commentId },
+      select: {
+        body: true,
+        parentId: true,
+        authorId: true,
+        author: { select: { name: true, email: true } },
+        post: { select: { slug: true, title: true, authorId: true } },
+      },
+    });
+    if (comment) {
+      const commenterName = comment.author.name ?? comment.author.email?.split("@")[0] ?? "Someone";
+      if (comment.parentId) {
+        // Reply — notify the parent comment author
+        const parent = await prisma.blogComment.findUnique({
+          where: { id: comment.parentId },
+          select: { authorId: true },
+        });
+        if (parent && parent.authorId !== comment.authorId) {
+          await createNotification({
+            userId: parent.authorId,
+            type: "BLOG_COMMENT_REPLY",
+            title: `${commenterName} replied to your comment`,
+            body: comment.body.slice(0, 60),
+            link: `/blog/${comment.post.slug}`,
+          });
+        }
+      } else {
+        // Top-level comment — notify the post author
+        if (comment.post.authorId !== comment.authorId) {
+          await createNotification({
+            userId: comment.post.authorId,
+            type: "NEW_BLOG_COMMENT",
+            title: `${commenterName} commented on your post`,
+            body: comment.body.slice(0, 60),
+            link: `/blog/${comment.post.slug}`,
+          });
+        }
+      }
+    }
+  } catch { /* non-fatal — approval succeeded even if notification fails */ }
+
   revalidatePath("/admin/blog");
 }
 

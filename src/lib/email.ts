@@ -20,6 +20,17 @@ function esc(s: string) {
     .replaceAll("'", "&#039;");
 }
 
+/** Strip HTML-like characters from user content in email subjects */
+function safeSubject(s: string) {
+  return s.replace(/[<>"'&]/g, "");
+}
+
+/** Validate and escape a URL for use in img src attributes */
+function safeImgUrl(url: string | undefined | null): string | null {
+  if (!url || !url.startsWith("https://")) return null;
+  return url.replace(/"/g, "%22");
+}
+
 function fmtCents(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
@@ -233,6 +244,23 @@ export async function sendReadyForPickup(opts: {
   await send(buyer.email, "Your order is ready for pickup!", baseTemplate("Ready for Pickup", body));
 }
 
+export async function sendOrderDelivered(opts: {
+  order: { id: string };
+  buyer: { name?: string | null; email: string };
+}) {
+  const { order, buyer } = opts;
+  const name = buyer.name || "there";
+  const orderUrl = `${APP_URL}/dashboard/orders/${order.id}`;
+
+  const body = `
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order has been delivered!</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">We hope you love your new piece. If you have a moment, leaving a review helps support the maker and other buyers.</p>
+    ${btn("View order & leave a review", orderUrl)}
+  `;
+
+  await send(buyer.email, "Your piece has been delivered! 🎉", baseTemplate("Order Delivered", body));
+}
+
 export async function sendCaseOpened(opts: {
   orderId: string;
   seller: { name?: string | null; email: string };
@@ -273,7 +301,7 @@ export async function sendCaseMessage(opts: {
     ${btn("View conversation", caseLink)}
   `;
 
-  await send(recipientEmail, `${sender} sent a message in your case`, baseTemplate("New Case Message", body));
+  await send(recipientEmail, `${safeSubject(sender)} sent a message in your case`, baseTemplate("New Case Message", body));
 }
 
 export async function sendCaseResolved(opts: {
@@ -326,7 +354,7 @@ export async function sendCustomOrderRequest(opts: {
     ${btn("View request", convoUrl)}
   `;
 
-  await send(seller.email, `${buyer} wants a custom piece!`, baseTemplate("New Custom Order Request", body));
+  await send(seller.email, `${safeSubject(buyer)} wants a custom piece!`, baseTemplate("New Custom Order Request", body));
 }
 
 export async function sendCustomOrderReady(opts: {
@@ -366,7 +394,7 @@ export async function sendBackInStock(opts: {
     ${btn("Shop now", listingUrl)}
   `;
 
-  await send(buyer.email, `${listingTitle} is back in stock!`, baseTemplate("Back in Stock", body));
+  await send(buyer.email, `${safeSubject(listingTitle)} is back in stock!`, baseTemplate("Back in Stock", body));
 }
 
 export async function sendVerificationApproved(opts: {
@@ -599,8 +627,9 @@ export async function sendNewListingFromFollowedMakerEmail(opts: {
 }) {
   const { to, makerName, listingTitle, listingPrice, listingUrl, listingImageUrl } = opts;
 
-  const imageSection = listingImageUrl
-    ? `<p style="margin:0 0 16px;"><img src="${listingImageUrl}" alt="${esc(listingTitle)}" style="max-width:100%;max-height:240px;display:block;" /></p>`
+  const validImgUrl = safeImgUrl(listingImageUrl);
+  const imageSection = validImgUrl
+    ? `<p style="margin:0 0 16px;"><img src="${validImgUrl}" alt="${esc(listingTitle)}" style="max-width:100%;max-height:240px;display:block;" /></p>`
     : "";
 
   const body = `
@@ -611,7 +640,7 @@ export async function sendNewListingFromFollowedMakerEmail(opts: {
     ${btn("View Listing", listingUrl)}
   `;
 
-  await send(to, `${makerName} just posted a new listing on Grainline`, baseTemplate("New Listing", body));
+  await send(to, `${safeSubject(makerName)} just posted a new listing on Grainline`, baseTemplate("New Listing", body));
 }
 
 export async function sendNewMessageEmail(opts: {
@@ -632,7 +661,7 @@ export async function sendNewMessageEmail(opts: {
     ${btn("View Conversation", conversationUrl)}
   `;
 
-  await send(recipientEmail, `New message from ${sender} on Grainline`, baseTemplate("New Message", body));
+  await send(recipientEmail, `New message from ${safeSubject(sender)} on Grainline`, baseTemplate("New Message", body));
 }
 
 export async function sendNewReviewEmail(opts: {
@@ -657,5 +686,5 @@ export async function sendNewReviewEmail(opts: {
     ${btn("View Review", reviewUrl)}
   `;
 
-  await send(sellerEmail, `New ${ratingDisplay}-star review from ${buyer} on Grainline`, baseTemplate("New Review", body));
+  await send(sellerEmail, `New ${ratingDisplay}-star review from ${safeSubject(buyer)} on Grainline`, baseTemplate("New Review", body));
 }

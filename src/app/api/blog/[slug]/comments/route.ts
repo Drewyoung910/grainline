@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
-import { createNotification } from "@/lib/notifications";
 import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -145,29 +144,8 @@ export async function POST(
     select: { id: true, body: true, createdAt: true, approved: true },
   });
 
-  if (effectiveParentId) {
-    // Notify effective parent comment author (if different from replier)
-    if (notifyAuthorId) {
-      await createNotification({
-        userId: notifyAuthorId,
-        type: "BLOG_COMMENT_REPLY",
-        title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} replied to your comment`,
-        body: text.slice(0, 60),
-        link: `/blog/${slug}`,
-      });
-    }
-  } else {
-    // Notify post author (if they're not the commenter)
-    if (post.authorId !== me.id) {
-      await createNotification({
-        userId: post.authorId,
-        type: "NEW_BLOG_COMMENT",
-        title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} commented on your post`,
-        body: text.slice(0, 60),
-        link: `/blog/${slug}`,
-      });
-    }
-  }
+  // Notifications are sent when the comment is approved by admin (see admin/blog/page.tsx),
+  // not here — unapproved comments should not trigger notifications.
 
   return NextResponse.json({ comment }, { status: 201 });
 }

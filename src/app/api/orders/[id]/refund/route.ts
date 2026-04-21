@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendRefundIssued } from "@/lib/email";
+import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
 
 const RefundSchema = z.object({
@@ -176,6 +177,17 @@ export async function POST(
       }).catch(() => {});
       throw err;
     }
+
+    // In-app notification for the buyer
+    try {
+      await createNotification({
+        userId: order.buyerId,
+        type: "CASE_RESOLVED",
+        title: "Refund issued",
+        body: `A refund of $${(refundAmountCents / 100).toFixed(2)} has been issued for your order.`,
+        link: `/dashboard/orders/${orderId}`,
+      });
+    } catch { /* non-fatal */ }
 
     try {
       const buyerUser = await prisma.user.findUnique({
