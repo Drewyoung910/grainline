@@ -2824,6 +2824,38 @@ Activity tracked via `lastActivityRef` (useRef, not state) — `mousemove`, `key
 ### Neon connection pooler
 Documented in `prisma/schema.prisma`. `DATABASE_URL` should use Neon's pooled endpoint (`-pooler` suffix in hostname) for runtime. `DIRECT_URL` uses the direct endpoint for migrations (PgBouncer doesn't support DDL). Both configured in `prisma.config.ts`. Switch `DATABASE_URL` in Vercel env vars to the pooler endpoint — zero code changes needed.
 
+### Pagination audit (2026-04-21)
+Safety caps added to 12 previously unbounded `findMany` queries. These prevent full-table scans at scale without requiring full pagination UI:
+
+| Page | Query | Cap |
+|---|---|---|
+| `dashboard/inventory` | Seller's IN_STOCK listings | `take: 100` |
+| `messages` | Conversations inbox | `take: 50` |
+| `dashboard/blog` | Author's blog posts | `take: 50` |
+| `account/following` | Followed sellers | `take: 50` |
+| `account/commissions` | Buyer's commission requests | `take: 30` |
+| `account/blocked` | Blocked users | `take: 50` |
+| `admin/reports` | Open reports | `take: 50` |
+| `admin/blog` | All posts + pending comments | `take: 50` + `take: 30` |
+| `admin/verification` | 4 application/member queries | `take: 50` each |
+| `seller/[id]` profile | All seller listings | `take: 100` |
+| `dashboard` | Saved searches | `take: 20` |
+
+Already paginated (no change needed): `dashboard/sales` (PAGE_SIZE=25), `dashboard/notifications` (PAGE_SIZE=20), `dashboard/orders` (take:20), `admin/audit` (perPage), `admin/broadcasts` (pageSize), `account/saved` (PAGE_SIZE=24), `account/orders` (PAGE_SIZE=20), `browse` (paginated), `seller/shop` (paginated), `blog` (paginated), `admin/cases` (paginated), `admin/orders` (paginated), `admin/users` (paginated), `account/feed` (cursor-based).
+
+Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts grow past the safety caps.
+
+### UTC timestamp fixes (2026-04-21)
+5 server-side `toLocaleString()` calls replaced with `LocalDate` client component (renders in buyer/seller's local timezone instead of Vercel's UTC):
+- `dashboard/sales/[orderId]` — order date, case message timestamps, pickup time
+- `dashboard/sales` — order list date
+- `checkout/success` — receipt date
+- `dashboard/notifications` — notification timestamps
+
+### Other fixes (2026-04-21)
+- `checkout/success`: wrapped `stripe.checkout.sessions.retrieve` in try/catch — invalid/expired session_id redirects to `/cart` instead of showing error page
+- Both checkout routes: `NEXT_PUBLIC_APP_URL` fallback to `"https://thegrainline.com"` (prevents `undefined/checkout/success` URL on missing env var)
+
 ### Remaining Batch 2 items (not yet done)
 - Fix `getSellerRatingMap` N+1 on homepage (single JOIN like browse page)
 - Parallelize featured maker + seller ratings + logged-in user data queries
