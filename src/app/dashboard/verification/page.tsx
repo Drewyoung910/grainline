@@ -222,15 +222,23 @@ export default async function VerificationPage() {
 
         {!isMemberActive && !isMemberPending && (
           <>
+            {/* Badge revocation notice — shown when they previously held a badge */}
+            {guildLevel === "NONE" && fullSeller.guildMemberApprovedAt && !isMemberRejected && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <span className="font-medium">Your Guild badge was revoked.</span>{" "}
+                You can re-apply when you meet all requirements below.
+              </div>
+            )}
+
             {isMemberRejected && verification?.reviewNotes && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                <span className="font-medium">Previous application not approved.</span>{" "}
-                {verification.reviewNotes}
+                <span className="font-medium">Your Guild badge was revoked.</span>{" "}
+                {verification.reviewNotes} You can re-apply when you meet all requirements.
               </div>
             )}
             {isMemberRejected && !verification?.reviewNotes && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                Your previous application was not approved. You may reapply below.
+                Your Guild badge was revoked. You can re-apply when you meet all requirements.
               </div>
             )}
 

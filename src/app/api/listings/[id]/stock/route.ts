@@ -64,6 +64,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Only IN_STOCK listings have quantity" }, { status: 400 });
     }
 
+    // NOTE: restocking always promotes SOLD_OUT → ACTIVE. If listing was
+    // previously HIDDEN before going SOLD_OUT, seller must re-hide manually.
+    // Tracking pre-SOLD_OUT status would require a schema change.
     const newStatus =
       quantity <= 0
         ? "SOLD_OUT"

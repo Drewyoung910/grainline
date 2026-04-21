@@ -59,6 +59,15 @@ export async function POST(req: Request) {
       );
     }
 
+    // Block case if order hasn't been shipped yet
+    const fulfillmentStatus = order.fulfillmentStatus ?? "PENDING";
+    if (fulfillmentStatus === "PENDING") {
+      return NextResponse.json(
+        { error: "Please wait until your order has shipped before opening a case." },
+        { status: 400 }
+      );
+    }
+
     // Block case if estimated delivery date is still in the future
     if (order.estimatedDeliveryDate && order.estimatedDeliveryDate > new Date()) {
       return NextResponse.json(

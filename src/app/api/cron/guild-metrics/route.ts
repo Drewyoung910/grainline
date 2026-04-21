@@ -99,15 +99,21 @@ export async function GET(request: NextRequest) {
               warned++;
             } else {
               // Second consecutive failure — revoke Guild Master
-              await prisma.sellerProfile.update({
-                where: { id: seller.id },
-                data: {
-                  guildLevel: "GUILD_MEMBER",
-                  consecutiveMetricFailures: 0,
-                  metricWarningSentAt: null,
-                  lastMetricCheckAt: now,
-                },
-              });
+              await prisma.$transaction([
+                prisma.sellerProfile.update({
+                  where: { id: seller.id },
+                  data: {
+                    guildLevel: "GUILD_MEMBER",
+                    consecutiveMetricFailures: 0,
+                    metricWarningSentAt: null,
+                    lastMetricCheckAt: now,
+                  },
+                }),
+                prisma.makerVerification.updateMany({
+                  where: { sellerProfileId: seller.id },
+                  data: { status: "GUILD_MASTER_REJECTED", reviewNotes: "Metrics fell below requirements for two consecutive months." },
+                }),
+              ]);
 
               await createNotification({
                 userId: seller.userId,

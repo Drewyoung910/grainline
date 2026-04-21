@@ -77,6 +77,26 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
               Out of stock
             </span>
           )}
+          {listing.status === "DRAFT" && (
+            <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-600">
+              Draft
+            </span>
+          )}
+          {listing.status === "HIDDEN" && (
+            <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-neutral-600">
+              Hidden
+            </span>
+          )}
+          {listing.status === "PENDING_REVIEW" && (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">
+              Under Review
+            </span>
+          )}
+          {listing.status === "REJECTED" && (
+            <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-red-700">
+              Rejected
+            </span>
+          )}
         </div>
         <div className="text-[11px] text-neutral-400 mt-0.5">
           👁 {listing.viewCount} · 🖱 {listing.clickCount} · ♥ {listing._count.favorites} · 🔔 {listing._count.stockNotifications}

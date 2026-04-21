@@ -76,6 +76,8 @@ export async function unhideListingAction(listingId: string) {
 export async function markSoldAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
+  // Only ACTIVE and SOLD_OUT can be marked as sold
+  if (listing.status !== "ACTIVE" && listing.status !== "SOLD_OUT") return;
   await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.SOLD } });
   await syncThreshold(listing.sellerId);
   revalidatePath(`/seller/${listing.sellerId}/shop`);

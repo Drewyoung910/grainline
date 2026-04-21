@@ -28,7 +28,9 @@ type CartItem = {
     id: string;
     title: string;
     sellerId: string;
+    status?: string;
     sellerName?: string;
+    sellerVacationMode?: boolean;
     photos?: { url: string }[];
     offersGiftWrapping?: boolean;
     giftWrappingPriceCents?: number | null;
@@ -252,6 +254,13 @@ function CartPage() {
                     {i.listing.title}
                   </a>
 
+                  {(i.listing.status && i.listing.status !== "ACTIVE") && (
+                    <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>
+                  )}
+                  {i.listing.sellerVacationMode && (
+                    <div className="text-xs text-amber-700 mt-0.5">Maker is on vacation</div>
+                  )}
+
                   <div className="mt-1 flex items-center gap-3 text-sm text-neutral-700">
                     <span>${(i.priceCents / 100).toFixed(2)} each</span>
 
@@ -394,7 +403,11 @@ function CartPage() {
       )}
 
       {/* Step 1: Review */}
-      {step === "review" && (
+      {step === "review" && (() => {
+        const hasUnavailable = items.some(
+          (i) => (i.listing.status && i.listing.status !== "ACTIVE") || i.listing.sellerVacationMode
+        );
+        return (
         <>
           {renderSellerSections()}
 
@@ -403,18 +416,25 @@ function CartPage() {
             <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
           </div>
 
+          {hasUnavailable && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Some items in your cart are no longer available. Please remove them before continuing.
+            </div>
+          )}
+
           <button
             onClick={() => {
               setStep("address");
               router.replace("/cart?step=address", { scroll: false });
             }}
-            disabled={items.length === 0}
+            disabled={items.length === 0 || hasUnavailable}
             className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
           >
             Continue to shipping →
           </button>
         </>
-      )}
+        );
+      })()}
 
       {/* Step 2: Address */}
       {step === "address" && (

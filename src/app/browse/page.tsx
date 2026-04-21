@@ -268,7 +268,10 @@ export default async function BrowsePage({
   if (categoryFilter) where.category = categoryFilter;
   if (typeFilter) where.listingType = typeFilter;
   if (shipsFilter && Number.isFinite(shipsFilter)) {
-    where.listingType = ListingType.IN_STOCK;
+    // Only set IN_STOCK listingType when no explicit type filter is set
+    if (!typeFilter) {
+      where.listingType = ListingType.IN_STOCK;
+    }
     where.shipsWithinDays = { lte: shipsFilter };
   }
 

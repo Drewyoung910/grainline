@@ -53,9 +53,11 @@ export async function GET() {
           id: ci.listing.id,
           title: ci.listing.title,
           sellerId: ci.listing.sellerId,
+          status: ci.listing.status,
           sellerName:
             seller?.displayName ??
             "Seller",
+          sellerVacationMode: !!(seller as { vacationMode?: boolean })?.vacationMode,
           photos: ci.listing.photos.map((p) => ({ url: p.url })),
           // expose seller shipping knobs so Cart UI can display hints
           shippingFlatRate: seller?.shippingFlatRate ?? null,      // dollars

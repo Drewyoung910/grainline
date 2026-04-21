@@ -183,7 +183,7 @@ export default async function SellerPublicPage({
       .filter((l): l is (typeof listings)[0] => l !== undefined);
   }
 
-  // ── Seller-wide rating (across ALL their listings) ─────────────────────────
+  // ── Seller-wide rating (across ALL their listings, including private) ───────
   const listingIds = listings.map((l) => l.id);
 
   // Saved set for current viewer
@@ -196,25 +196,17 @@ export default async function SellerPublicPage({
     for (const f of favs) savedSet.add(f.listingId);
   }
 
+  // Query reviews by sellerId so private listing reviews are included
   let shopRating: { avg: number; count: number } | null = null;
-  if (listingIds.length > 0) {
-    const perListing = await prisma.review.groupBy({
-      by: ["listingId"],
-      where: { listingId: { in: listingIds } },
-      _avg: { ratingX2: true },
-      _count: { _all: true },
-    });
-    let total = 0;
-    let sumX2 = 0;
-    for (const r of perListing) {
-      const c = r._count._all;
-      const a = r._avg.ratingX2 ?? 0;
-      if (c > 0 && a > 0) {
-        total += c;
-        sumX2 += a * c;
-      }
-    }
-    if (total > 0) shopRating = { avg: (sumX2 / total) / 2, count: total };
+  const ratingResult = await prisma.$queryRaw<Array<{ avg: number; count: bigint }>>`
+    SELECT AVG(r."ratingX2")::float / 2.0 AS avg, COUNT(r.id) AS count
+    FROM "Review" r
+    JOIN "Listing" l ON l.id = r."listingId"
+    WHERE l."sellerId" = ${seller.id}
+    HAVING COUNT(r.id) > 0
+  `;
+  if (ratingResult.length > 0 && Number(ratingResult[0].count) > 0) {
+    shopRating = { avg: ratingResult[0].avg, count: Number(ratingResult[0].count) };
   }
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
@@ -627,17 +619,24 @@ export default async function SellerPublicPage({
 
         {/* ── All Listings ───────────────────────────────────────────────── */}
         <section>
+          {(() => {
+            const activePublicCount = listings.filter(
+              (l) => l.status === "ACTIVE" && !l.isPrivate
+            ).length;
+            return (
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">All Listings</h2>
-            {listings.length > 0 && (
+            {activePublicCount > 0 && (
               <Link
                 href={`/seller/${id}/shop`}
                 className="text-sm text-neutral-600 underline hover:text-neutral-900"
               >
-                See all {listings.length} {listings.length === 1 ? "piece" : "pieces"} →
+                See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
               </Link>
             )}
           </div>
+            );
+          })()}
           {listings.length === 0 ? (
             <div className="rounded-xl border p-6 text-neutral-600">
               No listings yet.
@@ -674,16 +673,21 @@ export default async function SellerPublicPage({
               ))}
             </ul>
           )}
-          {listings.length > 8 && (
-            <div className="mt-4 text-center">
-              <Link
-                href={`/seller/${id}/shop`}
-                className="inline-block rounded border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
-              >
-                See all {listings.length} pieces →
-              </Link>
-            </div>
-          )}
+          {(() => {
+            const activePublicCount = listings.filter(
+              (l) => l.status === "ACTIVE" && !l.isPrivate
+            ).length;
+            return activePublicCount > 8 ? (
+              <div className="mt-4 text-center">
+                <Link
+                  href={`/seller/${id}/shop`}
+                  className="inline-block rounded border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
+                >
+                  See all {activePublicCount} pieces →
+                </Link>
+              </div>
+            ) : null;
+          })()}
         </section>
       </div>
     </main>

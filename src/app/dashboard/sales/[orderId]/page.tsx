@@ -491,8 +491,8 @@ export default async function SellerOrderDetailPage({
         </div>
       ) : null}
 
-      {/* Refund panel — shown when order is paid and not already fully refunded */}
-      {order.paidAt && !order.sellerRefundId && (
+      {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
+      {order.paidAt && !order.sellerRefundId && !activeCase?.stripeRefundId && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
@@ -574,12 +574,14 @@ export default async function SellerOrderDetailPage({
           </div>
         )}
 
-        <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="flex gap-2">
-          <input type="hidden" name="action" value="delivered" />
-          <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
-            Mark delivered
-          </button>
-        </form>
+        {status === "SHIPPED" && (
+          <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="flex gap-2">
+            <input type="hidden" name="action" value="delivered" />
+            <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+              Mark delivered
+            </button>
+          </form>
+        )}
 
         <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="space-y-2">
           <input type="hidden" name="action" value="update_notes" />

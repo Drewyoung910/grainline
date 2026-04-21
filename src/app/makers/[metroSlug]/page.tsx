@@ -88,6 +88,7 @@ export default async function MakersMetroPage({
     chargesEnabled: true,
     vacationMode: false,
     user: { banned: false },
+    listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
   };
 
@@ -102,6 +103,7 @@ export default async function MakersMetroPage({
       city: true,
       state: true,
       avatarImageUrl: true,
+      bannerImageUrl: true,
       guildLevel: true,
       isVerifiedMaker: true,
       user: { select: { imageUrl: true } },
@@ -215,7 +217,7 @@ export default async function MakersMetroPage({
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {sellers.map((seller) => {
             const avatar = seller.avatarImageUrl ?? seller.user?.imageUrl;
-            const coverPhoto = seller.listings[0]?.photos[0]?.url;
+            const coverPhoto = seller.bannerImageUrl ?? seller.listings[0]?.photos[0]?.url;
             const activeCount = seller._count.listings;
             return (
               <li key={seller.id} className="border border-neutral-200">

@@ -419,7 +419,7 @@ export default async function ListingPage({
               </div>
             ) : (
               <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1 text-sm font-medium text-green-700">
-                In Stock · {listing.stockQuantity} available
+                {listing.stockQuantity != null ? `In Stock · ${listing.stockQuantity} available` : "In Stock"}
               </div>
             )
           ) : (

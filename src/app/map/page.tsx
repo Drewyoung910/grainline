@@ -72,6 +72,8 @@ export default async function AllSellersMapPage({
     where: {
       publicMapOptIn: true,
       chargesEnabled: true,
+      vacationMode: false,
+      user: { banned: false },
       lat: { not: null },
       lng: { not: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }],

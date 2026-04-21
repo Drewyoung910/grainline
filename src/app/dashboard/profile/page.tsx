@@ -37,8 +37,9 @@ async function updateSellerProfile(formData: FormData) {
     return String(v ?? "") === "on";
   }
 
-  const displayName = (String(formData.get("displayName") ?? "")).trim();
-  if (!displayName) throw new Error("Display name is required.");
+  const displayNameRaw = (String(formData.get("displayName") ?? "")).trim();
+  if (!displayNameRaw) throw new Error("Display name is required.");
+  const displayName = sanitizeText(displayNameRaw);
 
   const taglineRaw = toNull(formData.get("tagline"));
   const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;

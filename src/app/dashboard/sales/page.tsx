@@ -99,8 +99,8 @@ export default async function SalesPage({
               const currency = o.currency ?? "usd";
               const shipping = o.shippingAmountCents ?? 0;
               const tax = o.taxAmountCents ?? 0;
-              const orderTotal =
-                (o.itemsSubtotalCents || mySubtotalCents) + shipping + tax;
+              // Use this seller's items subtotal (not all-seller itemsSubtotalCents)
+              const orderTotal = mySubtotalCents + shipping + tax;
               const status = o.fulfillmentStatus ?? "PENDING";
 
               return (

@@ -501,11 +501,14 @@ export default async function DashboardPage() {
                       {/* REJECTED: only Edit + Resubmit + Delete — no Hide/Unhide/Mark sold */}
                       {l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
                         <>
-                          <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
-                            <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
-                              Mark sold
-                            </button>
-                          </form>
+                          {/* Mark sold only for ACTIVE and SOLD_OUT — not DRAFT or HIDDEN */}
+                          {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
+                            <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
+                              <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+                                Mark sold
+                              </button>
+                            </form>
+                          )}
 
                           <form action={hideAction}>
                             <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">

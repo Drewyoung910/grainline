@@ -84,15 +84,21 @@ async function revokeMember(
   seller: { id: string; userId: string; user: { name?: string | null; email?: string | null } | null },
   reason: string
 ) {
-  await prisma.sellerProfile.update({
-    where: { id: seller.id },
-    data: {
-      guildLevel: "NONE",
-      isVerifiedMaker: false,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-    },
-  });
+  await prisma.$transaction([
+    prisma.sellerProfile.update({
+      where: { id: seller.id },
+      data: {
+        guildLevel: "NONE",
+        isVerifiedMaker: false,
+        consecutiveMetricFailures: 0,
+        metricWarningSentAt: null,
+      },
+    }),
+    prisma.makerVerification.updateMany({
+      where: { sellerProfileId: seller.id },
+      data: { status: "REJECTED", reviewNotes: reason },
+    }),
+  ]);
 
   await createNotification({
     userId: seller.userId,

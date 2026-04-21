@@ -139,7 +139,7 @@ export default async function HomePage() {
     `,
     Promise.all([
       prisma.listing.count({ where: { status: ListingStatus.ACTIVE, isPrivate: false } }),
-      prisma.sellerProfile.count({ where: { listings: { some: { status: ListingStatus.ACTIVE } } } }),
+      prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false }, listings: { some: { status: ListingStatus.ACTIVE } } } }),
       prisma.order.count({ where: { paidAt: { not: null } } }),
     ]),
     prisma.blogPost.findMany({
