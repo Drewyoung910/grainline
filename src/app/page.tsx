@@ -153,7 +153,7 @@ export default async function HomePage() {
       },
     }),
     prisma.listing.findMany({
-      where: { status: "ACTIVE", isPrivate: false },
+      where: { status: "ACTIVE", isPrivate: false, seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
       orderBy: { createdAt: "desc" },
       take: 16,
       select: {
@@ -214,11 +214,16 @@ export default async function HomePage() {
   }
 
   if (!featuredMaker) {
-    // Fall back to most-reviewed seller
+    // Fall back to most-reviewed seller (chargesEnabled, not on vacation, not banned)
     const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
       SELECT l."sellerId", COUNT(r.id) as review_count
       FROM "Listing" l
+      JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+      JOIN "User" u ON u.id = sp."userId"
       LEFT JOIN "Review" r ON r."listingId" = l.id
+      WHERE sp."chargesEnabled" = true
+        AND sp."vacationMode" = false
+        AND u.banned = false
       GROUP BY l."sellerId"
       ORDER BY review_count DESC
       LIMIT 1
@@ -282,7 +287,7 @@ export default async function HomePage() {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const [recentListings, recentPosts] = await Promise.all([
         prisma.listing.findMany({
-          where: { sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff } },
+          where: { sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff }, seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
           orderBy: { createdAt: "desc" },
           take: 6,
           select: {
@@ -292,7 +297,7 @@ export default async function HomePage() {
           },
         }),
         prisma.blogPost.findMany({
-          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff } },
+          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff }, sellerProfile: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
           orderBy: { publishedAt: "desc" },
           take: 6,
           select: {
