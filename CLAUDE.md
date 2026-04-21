@@ -2693,6 +2693,26 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - **Missed expired webhook** — if Stripe never delivers `checkout.session.expired` (outage, 3-day retry exhaustion), stock is permanently held. No self-healing cron exists. Mitigation: Stripe's webhook reliability is >99.99%. A nightly reconciliation cron could be added post-launch if this becomes an issue.
 - **`cart/add` allows adding reserved-but-not-sold items** — a listing with all stock reserved (stockQuantity=0, status=ACTIVE) can still be added to cart. Checkout creation is the enforcement point, where the atomic SQL `WHERE stockQuantity >= qty` blocks the buyer.
 
+## UI Polish — Emoji Removal + Fixes (2026-04-21)
+
+### Emoji → Icons (80+ instances, 28 files)
+All emoji replaced with SVG icon components from `src/components/icons/` or plain text:
+- Dashboard stats `👁🖱♥🔔` → `Eye`/`Heart`/`Bell` icon components + "clicks" text
+- Gift labels `🎁` → `Gift` icon; Shipping `🚚` → `Truck` icon
+- Custom order `🎨🔨` → `Palette`/`Hammer` icons; Location `📍` → `MapPin` icon
+- Decorative `🪵🪚🎉📢📋` → icon components or removed entirely
+- Message snippets `🖼📄📎` → plain text ("Photo", "PDF", "Attachment")
+- Error/404 pages → `Wrench`/`Logs` icons; Onboarding → `Hammer` icon
+- Unicode characters `★☆✓✗✕•○` are NOT emoji — these were kept as-is
+
+### Other UI fixes
+- **Cart label**: "Grand total (items only)" → "Subtotal (items only)" (shipping not yet calculated at that step)
+- **TipTap toolbar**: transaction listener forces re-render so `isActive()` reflects current state immediately after toggling bold/italic/etc.
+- **ListingGallery mobile**: `style={{ height: "500px" }}` → `h-[350px] sm:h-[400px] md:h-[500px]`. Was portrait-cropping on mobile (500px tall × 375px wide).
+- **Back buttons**: "Back to Sales" / "Back to Orders" links added to order detail pages
+- **Refund button**: partial refund confirm changed from `bg-neutral-900` → `bg-red-600` (destructive action color match)
+- **R2UploadButton**: error state added — shows user-facing error message on upload failure, clears on retry/success
+
 ## Local Pickup + Display Name Warning (2026-04-21)
 
 ### Local Pickup as a Shipping Option
