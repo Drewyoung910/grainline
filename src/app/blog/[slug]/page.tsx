@@ -14,6 +14,7 @@ import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
+import BlockReportButton from "@/components/BlockReportButton";
 
 export async function generateMetadata({
   params,
@@ -347,11 +348,21 @@ export default async function BlogPostPage({
                     <div className="h-8 w-8 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
                   )}
                   <div className="flex-1">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{c.author.name ?? "User"}</span>
                       <span className="text-xs text-neutral-400">
                         {new Date(c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                       </span>
+                      {meId && meId !== c.author.id && (
+                        <span className="ml-auto">
+                          <BlockReportButton
+                            targetUserId={c.author.id}
+                            targetName={c.author.name ?? "this user"}
+                            targetType="BLOG_COMMENT"
+                            targetId={c.id}
+                          />
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{c.body}</p>
                   </div>
@@ -361,6 +372,7 @@ export default async function BlogPostPage({
                   parentId={c.id}
                   replies={c.replies}
                   isSignedIn={!!meId}
+                  meId={meId}
                 />
               </li>
               );

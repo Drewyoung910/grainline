@@ -8,9 +8,12 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const Schema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
+  email: z.string().email().optional(),
   subject: z.string().min(1).max(200),
   body: z.string().min(1).max(5000),
+}).refine((data) => data.userId || data.email, {
+  message: "Either userId or email is required",
 });
 
 export async function POST(request: Request) {
@@ -35,12 +38,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const recipient = await prisma.user.findUnique({
-    where: { id: body.userId },
-    select: { email: true, name: true },
-  });
-  if (!recipient?.email) {
-    return NextResponse.json({ error: "User not found or no email" }, { status: 404 });
+  let recipientEmail: string;
+  let recipientName: string | null = null;
+
+  if (body.userId) {
+    const recipient = await prisma.user.findUnique({
+      where: { id: body.userId },
+      select: { email: true, name: true },
+    });
+    if (!recipient?.email) {
+      return NextResponse.json({ error: "User not found or no email" }, { status: 404 });
+    }
+    recipientEmail = recipient.email;
+    recipientName = recipient.name;
+  } else if (body.email) {
+    recipientEmail = body.email;
+    // Try to find the user's name for logging purposes
+    const user = await prisma.user.findFirst({
+      where: { email: body.email },
+      select: { name: true },
+    });
+    recipientName = user?.name ?? null;
+  } else {
+    return NextResponse.json({ error: "Either userId or email is required" }, { status: 400 });
   }
 
   if (!process.env.RESEND_API_KEY) {
@@ -71,7 +91,7 @@ export async function POST(request: Request) {
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM ?? "Grainline <hello@thegrainline.com>",
-      to: recipient.email,
+      to: recipientEmail,
       subject: body.subject,
       html: htmlBody,
     });

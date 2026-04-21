@@ -58,6 +58,8 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
   const reportLabel =
     targetType === "LISTING" ? "Report this listing"
     : targetType === "MESSAGE_THREAD" ? "Report this conversation"
+    : targetType === "REVIEW" ? "Report this review"
+    : targetType === "BLOG_COMMENT" ? "Report this comment"
     : `Report ${targetName}`;
 
   return (

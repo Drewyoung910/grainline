@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { BanUserButton } from "@/components/BanUserButton";
 import { AdminEmailForm } from "@/components/admin/AdminEmailForm";
+import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Users — Admin" };
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: "Users — Admin" };
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; email?: string }>;
 }) {
   const { userId } = await auth();
   if (!userId) redirect("/");
@@ -21,7 +22,7 @@ export default async function AdminUsersPage({
   });
   if (!admin || admin.role !== "ADMIN") redirect("/");
 
-  const { q, page: pageStr } = await searchParams;
+  const { q, page: pageStr, email: emailParam } = await searchParams;
   const page = Math.max(1, parseInt(pageStr ?? "1", 10));
   const perPage = 30;
 
@@ -57,12 +58,40 @@ export default async function AdminUsersPage({
 
   const totalPages = Math.ceil(total / perPage);
 
+  // If ?email= is present, look up user for standalone email form
+  let emailTarget: { id: string; name: string | null; email: string } | null = null;
+  if (emailParam) {
+    const found = await prisma.user.findFirst({
+      where: { email: emailParam },
+      select: { id: true, name: true, email: true },
+    });
+    emailTarget = found;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Users</h1>
         <span className="text-sm text-neutral-500">{total} total</span>
       </div>
+
+      {/* Standalone email form when ?email= param is present */}
+      {emailParam && (
+        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+          {emailTarget ? (
+            <AdminEmailForm
+              userId={emailTarget.id}
+              userName={emailTarget.name ?? emailTarget.email}
+              defaultOpen
+            />
+          ) : (
+            <AdminEmailForm
+              defaultTo={emailParam}
+              defaultOpen
+            />
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <form method="get" className="flex gap-2">
@@ -141,7 +170,7 @@ export default async function AdminUsersPage({
                     <span className="text-xs text-green-700 font-medium">Active</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 space-y-1">
                   {u.role !== "ADMIN" && (
                     <BanUserButton
                       userId={u.id}
@@ -149,7 +178,12 @@ export default async function AdminUsersPage({
                       userName={u.name ?? u.email}
                     />
                   )}
-                  <AdminEmailForm userId={u.id} userName={u.name ?? u.email ?? "User"} />
+                  <Link
+                    href={`/admin/users?email=${encodeURIComponent(u.email)}`}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Email
+                  </Link>
                 </td>
               </tr>
             ))}

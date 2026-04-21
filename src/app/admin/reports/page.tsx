@@ -33,6 +33,37 @@ export default async function AdminReportsPage() {
     },
   });
 
+  // Batch-resolve context URLs for REVIEW and BLOG_COMMENT reports
+  const reviewTargetIds = reports
+    .filter((r) => r.targetType === "REVIEW" && r.targetId)
+    .map((r) => r.targetId!);
+  const blogCommentTargetIds = reports
+    .filter((r) => r.targetType === "BLOG_COMMENT" && r.targetId)
+    .map((r) => r.targetId!);
+
+  const reviewListingMap = new Map<string, string>();
+  const blogCommentSlugMap = new Map<string, string>();
+
+  if (reviewTargetIds.length > 0) {
+    const reviews = await prisma.review.findMany({
+      where: { id: { in: reviewTargetIds } },
+      select: { id: true, listingId: true },
+    });
+    for (const rv of reviews) {
+      reviewListingMap.set(rv.id, rv.listingId);
+    }
+  }
+
+  if (blogCommentTargetIds.length > 0) {
+    const comments = await prisma.blogComment.findMany({
+      where: { id: { in: blogCommentTargetIds } },
+      select: { id: true, post: { select: { slug: true } } },
+    });
+    for (const bc of comments) {
+      blogCommentSlugMap.set(bc.id, bc.post.slug);
+    }
+  }
+
   return (
     <main className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-semibold font-display mb-6">User Reports ({reports.length} open)</h1>
@@ -70,6 +101,12 @@ export default async function AdminReportsPage() {
                     )}
                     {r.targetType === "BLOG_POST" && (
                       <Link href={`/blog/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View post →</Link>
+                    )}
+                    {r.targetType === "REVIEW" && reviewListingMap.has(r.targetId) && (
+                      <Link href={`/listing/${reviewListingMap.get(r.targetId)}#reviews`} target="_blank" className="text-xs text-blue-600 hover:underline">View review →</Link>
+                    )}
+                    {r.targetType === "BLOG_COMMENT" && blogCommentSlugMap.has(r.targetId) && (
+                      <Link href={`/blog/${blogCommentSlugMap.get(r.targetId)}`} target="_blank" className="text-xs text-blue-600 hover:underline">View blog post →</Link>
                     )}
                   </div>
                 )}

@@ -4,6 +4,7 @@ import ReviewComposer from "@/components/ReviewComposer";
 import { HelpfulButton, SellerReplyForm } from "@/components/ReviewItemClient";
 import Link from "next/link";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import BlockReportButton from "@/components/BlockReportButton";
 
 function quarterRound(n: number) {
   return Math.min(5, Math.max(0, Math.round(n * 4) / 4));
@@ -263,8 +264,18 @@ export default async function ReviewsSection({
                       {r.verified && (
                         <span className="ml-2 rounded-full border px-2 py-0.5 text-[11px]">Verified purchase</span>
                       )}
-                      <span className="ml-auto text-xs text-neutral-500">
-                        {new Date(r.createdAt).toLocaleDateString()}
+                      <span className="ml-auto flex items-center gap-1">
+                        <span className="text-xs text-neutral-500">
+                          {new Date(r.createdAt).toLocaleDateString()}
+                        </span>
+                        {meId && meId !== r.reviewer.id && (
+                          <BlockReportButton
+                            targetUserId={r.reviewer.id}
+                            targetName={r.reviewer.name ?? "this user"}
+                            targetType="REVIEW"
+                            targetId={r.id}
+                          />
+                        )}
                       </span>
                     </div>
 

@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import BlogCommentForm from "./BlogCommentForm";
+import BlockReportButton from "./BlockReportButton";
 
 interface Level3Reply {
   id: string;
@@ -32,11 +33,13 @@ export default function BlogReplyToggle({
   parentId,
   replies,
   isSignedIn,
+  meId,
 }: {
   slug: string;
   parentId: string;
   replies: Reply[];
   isSignedIn: boolean;
+  meId?: string | null;
 }) {
   // Toggle state for adding a level-2 reply to this level-1 comment
   const [showingRoot, setShowingRoot] = React.useState(false);
@@ -65,7 +68,7 @@ export default function BlogReplyToggle({
                 <div className="h-7 w-7 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
               )}
               <div className="flex-1">
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{r.author.name ?? "User"}</span>
                   <span className="text-xs text-neutral-400">
                     {new Date(r.createdAt).toLocaleDateString(undefined, {
@@ -74,6 +77,16 @@ export default function BlogReplyToggle({
                       year: "numeric",
                     })}
                   </span>
+                  {meId && meId !== r.author.id && (
+                    <span className="ml-auto">
+                      <BlockReportButton
+                        targetUserId={r.author.id}
+                        targetName={r.author.name ?? "this user"}
+                        targetType="BLOG_COMMENT"
+                        targetId={r.id}
+                      />
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{r.body}</p>
               </div>
@@ -97,7 +110,7 @@ export default function BlogReplyToggle({
                         <div className="h-6 w-6 rounded-full bg-neutral-200 shrink-0 mt-0.5" />
                       )}
                       <div className="flex-1">
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{r3.author.name ?? "User"}</span>
                           <span className="text-xs text-neutral-400">
                             {new Date(r3.createdAt).toLocaleDateString(undefined, {
@@ -106,6 +119,16 @@ export default function BlogReplyToggle({
                               year: "numeric",
                             })}
                           </span>
+                          {meId && meId !== r3.author.id && (
+                            <span className="ml-auto">
+                              <BlockReportButton
+                                targetUserId={r3.author.id}
+                                targetName={r3.author.name ?? "this user"}
+                                targetType="BLOG_COMMENT"
+                                targetId={r3.id}
+                              />
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-neutral-700 mt-0.5 whitespace-pre-wrap">{r3.body}</p>
                       </div>
