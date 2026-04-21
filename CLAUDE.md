@@ -2693,6 +2693,30 @@ Without this, expired sessions won't trigger stock restoration. Stock reserved b
 - **Missed expired webhook** — if Stripe never delivers `checkout.session.expired` (outage, 3-day retry exhaustion), stock is permanently held. No self-healing cron exists. Mitigation: Stripe's webhook reliability is >99.99%. A nightly reconciliation cron could be added post-launch if this becomes an issue.
 - **`cart/add` allows adding reserved-but-not-sold items** — a listing with all stock reserved (stockQuantity=0, status=ACTIVE) can still be added to cart. Checkout creation is the enforcement point, where the atomic SQL `WHERE stockQuantity >= qty` blocks the buyer.
 
+## Notification & Email Fixes (2026-04-21)
+
+### Approval gating
+- **Listing follower notifications** — gated on `finalListing.status === "ACTIVE"` after AI review. PENDING_REVIEW listings no longer trigger `FOLLOWED_MAKER_NEW_LISTING` notifications or emails. Previously, followers received notifications linking to 404 pages.
+- **Blog comment notifications** — moved from POST handler (fires on creation with `approved: false`) to the `approveComment` server action in `src/app/admin/blog/page.tsx`. `NEW_BLOG_COMMENT` and `BLOG_COMMENT_REPLY` now fire only when an admin approves the comment.
+
+### Notification dedup
+- **Favorites** — `NEW_FAVORITE` notifications check for existing notification with same `type` + `link` within 24 hours before creating. Prevents spam on favorite/unfavorite toggle cycles.
+- **Follows** — `NEW_FOLLOWER` notifications check for existing notification with same `type` + follower name within 24 hours. Prevents spam on follow/unfollow/refollow.
+
+### Fulfillment notification matrix (complete)
+| Action | Status | In-app notification | Email |
+|---|---|---|---|
+| `shipped` | SHIPPED | `ORDER_SHIPPED` to buyer | `sendOrderShipped` |
+| `delivered` | DELIVERED | `ORDER_DELIVERED` to buyer | `sendOrderDelivered` (NEW) |
+| `ready_for_pickup` | READY_FOR_PICKUP | `ORDER_SHIPPED` to buyer (NEW) | `sendReadyForPickup` |
+| `picked_up` | PICKED_UP | `ORDER_DELIVERED` to buyer (NEW) | — |
+
+### Other fixes
+- **Staff case messages** — now notify both buyer AND seller (was buyer only). Staff role detected via `me.role`. Buyer link → `/dashboard/orders/`, seller link → `/dashboard/sales/`.
+- **Seller refund notification** — `CASE_RESOLVED` notification sent to buyer with refund amount when seller issues a refund via `/api/orders/[id]/refund`.
+- **Email subject escaping** — `safeSubject()` helper strips `<>"'&` from user names/titles in 6 email subjects.
+- **Email img src escaping** — `safeImgUrl()` validates HTTPS + escapes quotes before inserting into `<img src>`.
+
 ## Scalability Optimizations (2026-04-18)
 
 ### Smart notification polling
