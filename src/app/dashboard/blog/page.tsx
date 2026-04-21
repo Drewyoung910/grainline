@@ -34,6 +34,7 @@ export default async function DashboardBlogPage() {
   const posts = await prisma.blogPost.findMany({
     where: { authorId: me.id },
     orderBy: { updatedAt: "desc" },
+    take: 50,
     select: {
       id: true, slug: true, title: true, type: true, status: true,
       publishedAt: true, readingTimeMinutes: true,

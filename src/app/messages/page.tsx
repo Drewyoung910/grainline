@@ -135,6 +135,7 @@ export default async function MessagesPage({
   const convos = await prisma.conversation.findMany({
     where,
     orderBy: { updatedAt: "desc" },
+    take: 50,
     include: {
       userA: { select: { id: true, name: true, email: true, imageUrl: true } },
       userB: { select: { id: true, name: true, email: true, imageUrl: true } },

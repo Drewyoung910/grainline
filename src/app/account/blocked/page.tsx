@@ -17,6 +17,7 @@ export default async function BlockedUsersPage() {
   const blocks = await prisma.block.findMany({
     where: { blockerId: me.id },
     orderBy: { createdAt: "desc" },
+    take: 50,
     select: {
       id: true,
       blockedId: true,

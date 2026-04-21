@@ -175,6 +175,7 @@ export default async function DashboardPage() {
     prisma.savedSearch.findMany({
       where: { userId: me.id },
       orderBy: { createdAt: "desc" },
+      take: 20,
     }),
     prisma.makerVerification.findUnique({
       where: { sellerProfileId: seller.id },

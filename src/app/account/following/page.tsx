@@ -20,6 +20,7 @@ export default async function FollowingPage() {
   const follows = await prisma.follow.findMany({
     where: { followerId: me.id },
     orderBy: { createdAt: "desc" },
+    take: 50,
     select: {
       id: true,
       createdAt: true,

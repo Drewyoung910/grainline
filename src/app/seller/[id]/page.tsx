@@ -163,11 +163,12 @@ export default async function SellerPublicPage({
     select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },
   });
 
-  // Fetch all listings
+  // Fetch all listings (capped — very large shops use the /seller/[id]/shop paginated page)
   const listings = await prisma.listing.findMany({
     where: { sellerId: seller.id, status: { in: ["ACTIVE", "SOLD", "SOLD_OUT"] }, isPrivate: false },
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
     orderBy: { updatedAt: "desc" },
+    take: 100,
   });
 
   // Fetch featured listings in order

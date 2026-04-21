@@ -313,6 +313,7 @@ export default async function AdminVerificationPage() {
     prisma.makerVerification.findMany({
       where: { status: "PENDING" },
       orderBy: { appliedAt: "asc" },
+      take: 50,
       include: {
         sellerProfile: { select: { displayName: true, id: true } },
       },
@@ -320,6 +321,7 @@ export default async function AdminVerificationPage() {
     prisma.makerVerification.findMany({
       where: { status: "GUILD_MASTER_PENDING" },
       orderBy: { appliedAt: "asc" },
+      take: 50,
       include: {
         sellerProfile: { select: { displayName: true, id: true, guildMasterAppliedAt: true } },
       },
@@ -328,11 +330,13 @@ export default async function AdminVerificationPage() {
       where: { guildLevel: "GUILD_MEMBER" },
       select: { id: true, displayName: true, guildMemberApprovedAt: true, featuredUntil: true },
       orderBy: { guildMemberApprovedAt: "desc" },
+      take: 50,
     }),
     prisma.sellerProfile.findMany({
       where: { guildLevel: "GUILD_MASTER" },
       select: { id: true, displayName: true, guildMasterApprovedAt: true, featuredUntil: true },
       orderBy: { guildMasterApprovedAt: "desc" },
+      take: 50,
     }),
     prisma.sellerProfile.findMany({
       where: { guildLevel: "NONE", guildMemberApprovedAt: { not: null } },

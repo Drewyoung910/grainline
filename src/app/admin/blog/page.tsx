@@ -75,6 +75,7 @@ async function deleteComment(commentId: string) {
 export default async function AdminBlogPage() {
   const posts = await prisma.blogPost.findMany({
     orderBy: { updatedAt: "desc" },
+    take: 50,
     select: {
       id: true, slug: true, title: true, type: true, status: true,
       publishedAt: true,
@@ -86,6 +87,7 @@ export default async function AdminBlogPage() {
   const pendingComments = await prisma.blogComment.findMany({
     where: { approved: false },
     orderBy: { createdAt: "asc" },
+    take: 30,
     select: {
       id: true, body: true, createdAt: true,
       author: { select: { name: true, email: true } },

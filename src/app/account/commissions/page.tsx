@@ -35,6 +35,7 @@ export default async function MyCommissionsPage() {
   const requests = await prisma.commissionRequest.findMany({
     where: { buyerId: me.id },
     orderBy: { createdAt: "desc" },
+    take: 30,
     select: {
       id: true,
       title: true,

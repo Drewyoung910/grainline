@@ -18,6 +18,7 @@ export default async function InventoryPage() {
       _count: { select: { favorites: true, stockNotifications: true } },
     },
     orderBy: { updatedAt: "desc" },
+    take: 100,
   });
 
   const active = listings.filter((l) => l.status !== "SOLD_OUT" && l.status !== "SOLD");
