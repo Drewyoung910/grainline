@@ -358,12 +358,18 @@ export default async function SellerOrderDetailPage({
                   <div className="h-16 w-16 rounded border bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <a
-                    href={`/listing/${it.listingId}`}
-                    className="block truncate text-sm font-medium hover:underline"
-                  >
-                    {it.listing.title}
-                  </a>
+                  {it.listing.status === "ACTIVE" ? (
+                    <Link
+                      href={`/listing/${it.listingId}`}
+                      className="block truncate text-sm font-medium hover:underline"
+                    >
+                      {it.listing.title}
+                    </Link>
+                  ) : (
+                    <span className="block truncate text-sm font-medium text-neutral-500">
+                      {it.listing.title}
+                    </span>
+                  )}
                   <div className="mt-1 text-sm text-neutral-700">
                     {fmtMoney(it.priceCents, currency)} × {it.quantity}
                   </div>
@@ -606,7 +612,7 @@ export default async function SellerOrderDetailPage({
           Back to sales
         </Link>
         <Link
-          href="/messages"
+          href={`/messages/new?to=${order.buyer.id}`}
           className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Message buyer

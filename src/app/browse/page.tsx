@@ -310,9 +310,13 @@ export default async function BrowsePage({
     ]);
   }
 
-  // Popular tags (always from all active listings)
+  // Popular tags (always from all active listings with connected sellers)
   const tagRows = await prisma.listing.findMany({
-    where: { status: ListingStatus.ACTIVE, isPrivate: false },
+    where: {
+      status: ListingStatus.ACTIVE,
+      isPrivate: false,
+      seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } },
+    },
     select: { tags: true },
     take: 500,
     orderBy: { createdAt: "desc" },
@@ -392,7 +396,11 @@ export default async function BrowsePage({
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
     const featured = await prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false },
+      where: {
+        status: ListingStatus.ACTIVE,
+        isPrivate: false,
+        seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } },
+      },
       orderBy: { favorites: { _count: "desc" } },
       take: 4,
       include: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },

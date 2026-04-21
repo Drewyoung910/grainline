@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Listing = {
   id: string;
@@ -16,6 +17,7 @@ type Listing = {
 };
 
 export default function InventoryRow({ listing }: { listing: Listing }) {
+  const router = useRouter();
   const [qty, setQty] = React.useState<string>(String(listing.stockQuantity ?? 0));
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -43,6 +45,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
         throw new Error(data?.error || "Save failed");
       }
       setSaved(true);
+      router.refresh();
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       setError((e as Error).message);

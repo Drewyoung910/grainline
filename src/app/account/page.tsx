@@ -33,9 +33,9 @@ export default async function AccountPage() {
         currency: true,
         fulfillmentStatus: true,
         items: {
-          take: 1,
           select: {
             priceCents: true,
+            quantity: true,
             listing: {
               select: {
                 id: true,
@@ -171,8 +171,11 @@ export default async function AccountPage() {
             {recentOrders.map((order) => {
               const firstItem = order.items[0];
               const thumb = firstItem?.listing.photos[0]?.url;
-              const total =
-                order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+              const computedTotal =
+                (order.itemsSubtotalCents || 0) + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0);
+              const total = computedTotal > 0
+                ? computedTotal
+                : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
 
               return (
                 <li key={order.id} className="flex items-center gap-4 p-3 hover:bg-neutral-50 transition-colors">

@@ -239,12 +239,18 @@ export default async function BuyerOrderDetailPage({
                   <div className="h-16 w-16 rounded border bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <a
-                    href={`/listing/${it.listingId}`}
-                    className="block truncate text-sm font-medium hover:underline"
-                  >
-                    {it.listing.title}
-                  </a>
+                  {it.listing.status === "ACTIVE" ? (
+                    <Link
+                      href={`/listing/${it.listingId}`}
+                      className="block truncate text-sm font-medium hover:underline"
+                    >
+                      {it.listing.title}
+                    </Link>
+                  ) : (
+                    <span className="block truncate text-sm font-medium text-neutral-500">
+                      {it.listing.title}
+                    </span>
+                  )}
                   <div className="text-xs text-neutral-500">
                     Seller: {it.listing.seller.displayName}
                   </div>

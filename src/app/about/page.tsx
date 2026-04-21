@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
 export const metadata: Metadata = {
@@ -9,6 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default async function AboutPage() {
+  const { userId } = await auth();
+  const makerLink = userId ? "/dashboard" : "/sign-up";
+
   const [listingCount, sellerCount] = await Promise.all([
     prisma.listing.count({ where: { status: "ACTIVE", isPrivate: false } }),
     prisma.sellerProfile.count({ where: { chargesEnabled: true } }),
@@ -67,7 +71,7 @@ export default async function AboutPage() {
             Browse the Workshop
           </Link>
           <Link
-            href="/dashboard/onboarding"
+            href={makerLink}
             className="inline-flex items-center rounded-full border-2 border-[#2C1F1A] px-6 py-3 text-sm font-medium text-[#2C1F1A] hover:bg-[#2C1F1A] hover:text-white"
           >
             Become a Maker

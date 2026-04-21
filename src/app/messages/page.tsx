@@ -229,7 +229,7 @@ export default async function MessagesPage({
               tab === "sent" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
             }`}
           >
-            Sent{" "}
+            Awaiting Reply{" "}
             {sentTotal > 0 && (
               <span className="ml-1 rounded-full bg-neutral-800 px-2 py-[2px] text-xs text-white">
                 {sentTotal}

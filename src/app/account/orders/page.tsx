@@ -115,8 +115,11 @@ export default async function AccountOrdersPage({
       ) : (
         <ul className="space-y-4">
           {orders.map((order) => {
-            const total =
-              order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+            const computedTotal =
+              (order.itemsSubtotalCents || 0) + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0);
+            const total = computedTotal > 0
+              ? computedTotal
+              : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
 
             return (
               <li key={order.id} className="border border-neutral-200">
