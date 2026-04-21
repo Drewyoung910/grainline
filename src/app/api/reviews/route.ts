@@ -7,6 +7,7 @@ import { sendNewReviewEmail } from "@/lib/email";
 import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { containsProfanity } from "@/lib/profanity";
 import { z } from "zod";
 
 const ReviewSchema = z.object({
@@ -37,6 +38,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { listingId, ratingX2, comment, photoUrls } = parsed;
+
+  // Profanity check (log-only — does not block submission)
+  if (comment) {
+    const profanityResult = containsProfanity(comment);
+    if (profanityResult.flagged) {
+      console.error(`[PROFANITY] Review comment flagged — matches: ${profanityResult.matches.join(", ")}`);
+    }
+  }
 
   // Who am I?
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });

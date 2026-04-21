@@ -75,12 +75,23 @@ export default function SellerRefundPanel({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ type, ...(amountCents != null ? { amountCents } : {}) }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Refund failed");
-      setResult({ refundAmountCents: data.refundAmountCents });
+      let data: Record<string, unknown> | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        // non-JSON response
+      }
+      if (!res.ok) {
+        const msg =
+          (typeof data?.error === "string" && data.error) ||
+          (typeof data?.message === "string" && data.message) ||
+          `Refund failed (${res.status})`;
+        throw new Error(msg);
+      }
+      setResult({ refundAmountCents: (data as Record<string, number>).refundAmountCents });
       setMode("idle");
     } catch (e) {
-      setError((e as Error).message);
+      setError((e as Error).message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

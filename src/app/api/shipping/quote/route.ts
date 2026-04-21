@@ -61,6 +61,7 @@ export async function POST(req: Request) {
 
     let sellerId: string | null = null;
     let sellerAllowsPickup = false;
+    let sellerPreferredCarriers: string[] = [];
     let totalWeightGrams = 0;
     let lengthCm: number | null = null;
     let widthCm: number | null = null;
@@ -141,12 +142,14 @@ export async function POST(req: Request) {
           defaultPkgWidthCm: true,
           defaultPkgHeightCm: true,
           allowLocalPickup: true,
+          preferredCarriers: true,
         },
       });
 
       if (!seller) return NextResponse.json({ rates: [] });
 
       sellerAllowsPickup = seller.allowLocalPickup;
+      sellerPreferredCarriers = seller.preferredCarriers ?? [];
 
       shipFrom = {
         name: seller.shipFromName,
@@ -202,12 +205,14 @@ export async function POST(req: Request) {
           defaultPkgWidthCm: true,
           defaultPkgHeightCm: true,
           allowLocalPickup: true,
+          preferredCarriers: true,
         },
       });
 
       if (!seller) return NextResponse.json({ rates: [] });
 
       sellerAllowsPickup = seller.allowLocalPickup;
+      sellerPreferredCarriers = seller.preferredCarriers ?? [];
 
       shipFrom = {
         name: seller.shipFromName,
@@ -299,8 +304,16 @@ export async function POST(req: Request) {
     const contextId: string =
       mode === "single" ? (body.listingId ?? "") : (sellerId ?? "");
 
+    // Filter by seller's preferred carriers (if set) before signing
+    const preferredLower = sellerPreferredCarriers.map((c) => c.toLowerCase());
+
     const out = rates
       .filter((r) => String(r.currency || "").toLowerCase() === currency)
+      .filter((r) => {
+        if (preferredLower.length === 0) return true; // no preference = show all
+        const carrier = (r.provider || r.carrier || "").toLowerCase();
+        return preferredLower.some((pc) => carrier.includes(pc));
+      })
       .slice(0, 12)
       .map((r) => {
         const label = `${r.provider || r.carrier} ${r.servicelevel?.name || r.service} (${

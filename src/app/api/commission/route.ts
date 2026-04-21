@@ -6,6 +6,7 @@ import { CommissionStatus, Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { commissionCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { containsProfanity } from "@/lib/profanity";
 import { z } from "zod";
 
 const CommissionCreateSchema = z.object({
@@ -83,6 +84,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = parsed;
+
+  // Profanity check (log-only — does not block submission)
+  {
+    const profanityResult = containsProfanity(`${title} ${description}`);
+    if (profanityResult.flagged) {
+      console.error(`[PROFANITY] Commission request flagged — matches: ${profanityResult.matches.join(", ")}`);
+    }
+  }
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin ? Math.round(Number(budgetMin) * 100) : null;

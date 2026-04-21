@@ -10,6 +10,7 @@ import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
+import OrderTimeline from "@/components/OrderTimeline";
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {
@@ -20,7 +21,7 @@ function fmtMoney(cents: number, currency = "usd") {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium">
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium">
       {children}
     </span>
   );
@@ -168,6 +169,18 @@ export default async function SellerOrderDetailPage({
         {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
         {status === "PICKED_UP" && "Picked up — great work!"}
       </div>
+
+      <OrderTimeline
+        placedAt={order.createdAt}
+        shippedAt={order.shippedAt}
+        deliveredAt={order.deliveredAt}
+        pickupReadyAt={order.pickupReadyAt}
+        pickedUpAt={order.pickedUpAt}
+        fulfillmentMethod={method}
+        fulfillmentStatus={status}
+        trackingNumber={order.trackingNumber}
+        trackingCarrier={order.trackingCarrier}
+      />
 
       {order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -523,82 +536,91 @@ export default async function SellerOrderDetailPage({
       )}
 
       {/* Actions */}
-      <section className="rounded-xl border bg-white p-4 space-y-3">
-        <div className="font-medium">Fulfillment actions</div>
+      {(status !== "DELIVERED" && status !== "PICKED_UP") && (
+        <section className="rounded-xl border bg-white p-4 space-y-3">
+          <div className="font-medium">Fulfillment actions</div>
 
-        {isPickup ? (
-          <div className="flex flex-wrap gap-2">
+          {method === "PICKUP" && status === "PENDING" && (
             <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
               <input type="hidden" name="action" value="ready_for_pickup" />
               <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
                 Mark ready for pickup
               </button>
             </form>
+          )}
+
+          {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
             <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
               <input type="hidden" name="action" value="picked_up" />
               <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
                 Mark picked up
               </button>
             </form>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <LabelSection
-              orderId={order.id}
-              labelStatus={order.labelStatus ?? null}
-              labelUrl={order.labelUrl ?? null}
-              labelCarrier={order.labelCarrier ?? null}
-              labelTrackingNumber={order.labelTrackingNumber ?? null}
-              labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
-              fulfillmentStatus={status}
-              shippingAmountCents={shipping}
-              currency={currency}
-            />
+          )}
 
-            <div className="border-t pt-3 space-y-2">
-              <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-                Already shipped? Enter tracking manually
-              </div>
-              <form
-                method="post"
-                action={`/api/orders/${order.id}/fulfillment`}
-                className="space-y-2"
-              >
-                <input type="hidden" name="action" value="shipped" />
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    name="trackingCarrier"
-                    placeholder="Carrier (e.g., UPS)"
-                    className="rounded border px-2 py-1 text-sm"
-                  />
-                  <input
-                    name="trackingNumber"
-                    placeholder="Tracking number"
-                    className="rounded border px-2 py-1 text-sm"
-                  />
-                  <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
-                    Mark shipped
-                  </button>
+          {method === "SHIPPING" && status === "PENDING" && (
+            <div className="space-y-4">
+              <LabelSection
+                orderId={order.id}
+                labelStatus={order.labelStatus ?? null}
+                labelUrl={order.labelUrl ?? null}
+                labelCarrier={order.labelCarrier ?? null}
+                labelTrackingNumber={order.labelTrackingNumber ?? null}
+                labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
+                fulfillmentStatus={status}
+                shippingAmountCents={shipping}
+                currency={currency}
+              />
+
+              <div className="border-t pt-3 space-y-2">
+                <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                  Already shipped? Enter tracking manually
                 </div>
-              </form>
+                <form
+                  method="post"
+                  action={`/api/orders/${order.id}/fulfillment`}
+                  className="space-y-2"
+                >
+                  <input type="hidden" name="action" value="shipped" />
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      name="trackingCarrier"
+                      placeholder="Carrier (e.g., UPS)"
+                      className="rounded border px-2 py-1 text-sm"
+                    />
+                    <input
+                      name="trackingNumber"
+                      placeholder="Tracking number"
+                      className="rounded border px-2 py-1 text-sm"
+                    />
+                    <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+                      Mark shipped
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {status === "SHIPPED" && (
-          <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="flex gap-2">
-            <input type="hidden" name="action" value="delivered" />
-            <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
-              Mark delivered
-            </button>
-          </form>
-        )}
+          {method === "SHIPPING" && status === "SHIPPED" && (
+            <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="flex gap-2">
+              <input type="hidden" name="action" value="delivered" />
+              <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+                Mark delivered
+              </button>
+            </form>
+          )}
+        </section>
+      )}
 
+      {/* Seller notes */}
+      <section className="rounded-xl border bg-white p-4 space-y-3">
+        <div className="font-medium">Seller notes</div>
         <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="space-y-2">
           <input type="hidden" name="action" value="update_notes" />
           <textarea
             name="sellerNotes"
-            placeholder="Notes visible to your team (not emailed for now)…"
+            placeholder="Notes visible to your team (not emailed for now)..."
             className="w-full rounded border px-2 py-1 text-sm"
             defaultValue={order.sellerNotes ?? ""}
             rows={3}

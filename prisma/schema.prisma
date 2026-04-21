@@ -160,6 +160,9 @@ model SellerProfile {
   // Use live carrier rates (Shippo) instead of flat rate by default
   useCalculatedShipping Boolean @default(false)
 
+  // Preferred carriers for shipping quotes (empty = show all)
+  preferredCarriers String[] @default([])
+
   // Rich profile / personalization
   tagline                   String?
   bannerImageUrl            String?

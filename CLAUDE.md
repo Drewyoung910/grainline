@@ -3235,3 +3235,35 @@ Also applied amber gradient to browse (`src/app/browse/page.tsx`) and listing de
 **Glass `SearchBar` variant**: `SearchBar` accepts `variant?: "default" | "glass"` prop. Glass variant: `bg-white/15 backdrop-blur-sm border-white/40`, white text + placeholder, submit button `bg-white/20`. Passed as `<SearchBar variant={mosaicPhotos.length >= 12 ? "glass" : "default"} />` in hero.
 
 **Header**: `bg-white` → `bg-gradient-to-b from-amber-50 to-white` for subtle warmth on all pages.
+
+## Bad Word Filter (complete — 2026-04-21)
+
+`src/lib/profanity.ts` — simple word-list profanity filter using whole-word `\b` regex boundaries. Prevents false positives like "class" matching "ass" or "passionate" matching "ass".
+
+- **`containsProfanity(text)`** — returns `{ flagged: boolean; matches: string[] }`
+- **Log-only** — does not block submissions; logs `console.error("[PROFANITY] ...")` with matched words
+- **Word list**: common profanity, slurs (racial, homophobic, ableist), sexual terms, harassment phrases ("kill yourself", "kys")
+- **Applied to 4 routes** (after Zod parse, before DB create):
+  1. `POST /api/reviews` — checks `comment` text
+  2. `POST /api/blog/[slug]/comments` — checks `body` text
+  3. `POST /api/commission` — checks `title + description`
+  4. `POST /api/reviews/[id]/reply` — checks seller reply text
+
+## Seller Preferred Carriers (complete — 2026-04-21)
+
+Sellers can restrict shipping quotes to specific carriers.
+
+### Schema
+- **`SellerProfile.preferredCarriers String[] @default([])`** — list of preferred carrier names (e.g. `["UPS", "USPS"]`); empty = show all carriers
+- Migration: `20260421232433_add_preferred_carriers`
+
+### Seller settings UI (`/dashboard/seller`)
+- "Preferred carriers" checkbox group (UPS, USPS, FedEx, DHL) added below the "Use calculated shipping" toggle in the Shipping & Tax section
+- Helper text: "Only show rates from selected carriers. Leave all unchecked to show all available carriers."
+- Server action reads `formData.getAll("preferredCarriers")` and saves to profile
+
+### Quote route filtering (`POST /api/shipping/quote`)
+- `preferredCarriers` added to seller select in both cart and single mode queries
+- Carrier filter applied to raw Shippo rates BEFORE the `.map()` that signs them (before HMAC signing, so filtered rates never get signed unnecessarily)
+- Uses case-insensitive `.includes()` matching (e.g. "usps" matches "USPS" in carrier name)
+- Local pickup option always passes through regardless of carrier preferences

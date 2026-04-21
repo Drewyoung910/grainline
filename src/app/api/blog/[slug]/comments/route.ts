@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { containsProfanity } from "@/lib/profanity";
 import { z } from "zod";
 
 const AUTHOR_SELECT = {
@@ -102,6 +103,14 @@ export async function POST(
   }
   const text = parsed.body.trim();
   const { parentId } = parsed;
+
+  // Profanity check (log-only — does not block submission)
+  {
+    const profanityResult = containsProfanity(text);
+    if (profanityResult.flagged) {
+      console.error(`[PROFANITY] Blog comment flagged — matches: ${profanityResult.matches.join(", ")}`);
+    }
+  }
 
   // Validate parent and determine effective parentId for depth enforcement
   let effectiveParentId: string | null = null;

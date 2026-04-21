@@ -74,16 +74,16 @@ export default function FavoriteButton({
         className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]"
         xmlns="http://www.w3.org/2000/svg"
       >
-        {/* Grey heart background for contrast on light photos */}
+        {/* Grey heart background for contrast on all photo backgrounds */}
         <path
           fill="rgba(0,0,0,0.25)"
-          d="M12 21s-1-.6-2.1-1.5C6.3 16.8 2 13.7 2 9.5 2 7 4 5 6.5 5c1.7 0 3.3.9 4.1 2.3C11.2 5.9 12.8 5 14.5 5 17 5 19 7 19 9.5c0 4.2-4.3 7.3-7.9 10C13 20.4 12 21 12 21z"
+          d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 3.78 3.4 6.86 8.55 11.54l.95.86.95-.86C18.6 15.36 22 12.28 22 8.5A5.5 5.5 0 0 0 16.5 3z"
         />
         {saved ? (
           <path
             fill="currentColor"
             className="text-red-500"
-            d="M12 21s-1-.6-2.1-1.5C6.3 16.8 2 13.7 2 9.5 2 7 4 5 6.5 5c1.7 0 3.3.9 4.1 2.3C11.2 5.9 12.8 5 14.5 5 17 5 19 7 19 9.5c0 4.2-4.3 7.3-7.9 10C13 20.4 12 21 12 21z"
+            d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 3.78 3.4 6.86 8.55 11.54l.95.86.95-.86C18.6 15.36 22 12.28 22 8.5A5.5 5.5 0 0 0 16.5 3z"
           />
         ) : (
           <path

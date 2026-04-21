@@ -9,6 +9,7 @@ import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
 import { ArrowLeft, Truck, Gift } from "@/components/icons";
+import OrderTimeline from "@/components/OrderTimeline";
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {
@@ -19,7 +20,7 @@ function fmtMoney(cents: number, currency = "usd") {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium">
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium">
       {children}
     </span>
   );
@@ -41,7 +42,7 @@ function CaseStatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${color}`}
     >
       {status.replaceAll("_", " ")}
     </span>
@@ -200,6 +201,18 @@ export default async function BuyerOrderDetailPage({
         {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
         {status === "PICKED_UP" && "Picked up — enjoy!"}
       </div>
+
+      <OrderTimeline
+        placedAt={order.createdAt}
+        shippedAt={order.shippedAt}
+        deliveredAt={order.deliveredAt}
+        pickupReadyAt={order.pickupReadyAt}
+        pickedUpAt={order.pickedUpAt}
+        fulfillmentMethod={method}
+        fulfillmentStatus={status}
+        trackingNumber={order.trackingNumber}
+        trackingCarrier={order.trackingCarrier}
+      />
 
       {hasRefund && (
         <div className="rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-900">

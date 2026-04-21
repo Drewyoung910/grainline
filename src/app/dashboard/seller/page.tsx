@@ -67,6 +67,9 @@ async function updateSellerProfile(formData: FormData) {
   const shipFromPostal = toNull(formData.get("shipFromPostal"));
   const shipFromCountry = toNull(formData.get("shipFromCountry")) ?? "US";
 
+  // Preferred carriers
+  const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
+
   // Gallery images
   const galleryImageUrls = formData.getAll("galleryImageUrls").map(String).filter(Boolean);
 
@@ -97,7 +100,8 @@ async function updateSellerProfile(formData: FormData) {
       shippingFlatRate,
       freeShippingOver,
       allowLocalPickup,
-      useCalculatedShipping, // 👈 NEW
+      useCalculatedShipping,
+      preferredCarriers,
 
       // ship-from
       shipFromName,
@@ -283,7 +287,6 @@ export default async function SellerSettingsPage() {
             </label>
           </div>
 
-          {/* 👇 NEW: Calculated shipping toggle */}
           <div className="flex items-center gap-2">
             <input
               id="useCalculatedShipping"
@@ -294,6 +297,24 @@ export default async function SellerSettingsPage() {
             <label htmlFor="useCalculatedShipping" className="text-sm">
               Use calculated shipping (Shippo)
             </label>
+          </div>
+
+          {/* Preferred Carriers */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Preferred carriers</label>
+            <p className="text-xs text-neutral-500">Only show rates from selected carriers. Leave all unchecked to show all available carriers.</p>
+            {["UPS", "USPS", "FedEx", "DHL"].map((c) => (
+              <label key={c} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="preferredCarriers"
+                  value={c}
+                  defaultChecked={row?.preferredCarriers?.includes(c)}
+                  className="accent-neutral-900"
+                />
+                {c}
+              </label>
+            ))}
           </div>
         </div>
 
