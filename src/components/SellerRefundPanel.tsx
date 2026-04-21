@@ -165,7 +165,7 @@ export default function SellerRefundPanel({
             <button
               onClick={() => submit("PARTIAL")}
               disabled={loading || !partialAmount}
-              className="rounded bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+              className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
             >
               {loading ? "Processing…" : "Confirm Partial Refund"}
             </button>

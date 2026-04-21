@@ -3,6 +3,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { Eye, Heart, Bell } from "@/components/icons";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -694,8 +695,8 @@ export default function AnalyticsPage() {
                       {l.unitsSold !== 1 ? "s" : ""}
                     </p>
                     <p className="text-xs text-neutral-400 mt-0.5">
-                      👁 {l.viewCount.toLocaleString()} · 🖱 {l.clickCount.toLocaleString()} · ♥{" "}
-                      {l.favoritesCount} · 🔔 {l.stockNotificationCount}
+                      <Eye size={11} className="inline align-middle" /> {l.viewCount.toLocaleString()} · clicks {l.clickCount.toLocaleString()} · <Heart size={11} className="inline align-middle" />{" "}
+                      {l.favoritesCount} · <Bell size={11} className="inline align-middle" /> {l.stockNotificationCount}
                       {l.revenuePerActiveDayCents > 0 && (
                         <>
                           {" "}

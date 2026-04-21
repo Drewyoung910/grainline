@@ -86,7 +86,7 @@ export default async function SalesPage({
       </header>
 
       {total === 0 ? (
-        <div className="rounded-xl border p-8 text-neutral-600">No orders yet — your first sale is right around the corner 🪵</div>
+        <div className="rounded-xl border p-8 text-neutral-600">No orders yet — your first sale is right around the corner</div>
       ) : (
         <>
           <ul className="space-y-4">

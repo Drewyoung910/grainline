@@ -22,6 +22,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
+import { Gift, Hammer } from "@/components/icons";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -384,7 +385,7 @@ export default async function ListingPage({
           {/* Private listing banners */}
           {reservedForMe && (
             <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 font-medium">
-              🎨 This piece was made just for you!
+              This piece was made just for you!
             </div>
           )}
           {reservedForOther && (
@@ -474,8 +475,8 @@ export default async function ListingPage({
 
           {/* Seller offers gift wrapping */}
           {listing.seller.offersGiftWrapping && canBuy && (
-            <p className="text-xs text-neutral-500">
-              🎁 Gift wrapping available
+            <p className="text-xs text-neutral-500 flex items-center gap-1">
+              <Gift size={13} className="text-neutral-400" /> Gift wrapping available
               {listing.seller.giftWrappingPriceCents
                 ? ` · $${(listing.seller.giftWrappingPriceCents / 100).toFixed(2)}`
                 : ""}
@@ -499,7 +500,7 @@ export default async function ListingPage({
                   sellerName={sellerName}
                   listingId={id}
                   listingTitle={listing.title}
-                  triggerLabel="🔨 Request Something Similar"
+                  triggerLabel="Request Something Similar"
                   triggerClassName="inline-flex items-center gap-2 border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 />
               ) : (
@@ -507,7 +508,8 @@ export default async function ListingPage({
                   href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
                   className="inline-flex items-center gap-2 border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 >
-                  🔨 Request Something Similar
+                  <Hammer size={15} />
+                  Request Something Similar
                 </Link>
               )}
             </div>

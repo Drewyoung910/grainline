@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TipTapLink from "@tiptap/extension-link";
@@ -43,6 +44,15 @@ export default function MarkdownToolbar({
       },
     },
   });
+
+  // Force re-render on every editor transaction so isActive() reflects current state
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!editor) return;
+    const handler = () => setTick((t) => t + 1);
+    editor.on("transaction", handler);
+    return () => { editor.off("transaction", handler); };
+  }, [editor]);
 
   if (!editor) return null;
 

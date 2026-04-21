@@ -8,6 +8,7 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderReady } from "@/lib/email";
 import ImagesUploader from "@/components/ImagesUploader";
 import ListingTypeFields from "@/components/ListingTypeFields";
+import { Palette } from "@/components/icons";
 import type { ListingType } from "@prisma/client";
 
 // unit converters
@@ -237,7 +238,7 @@ export default async function CustomListingPage({
       {/* Buyer's request context */}
       {requestData && (
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-          <div className="text-sm font-semibold text-amber-800">🎨 Buyer&apos;s Request</div>
+          <div className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><Palette size={14} /> Buyer&apos;s Request</div>
           <p className="text-sm text-amber-900">{requestData.description}</p>
           {requestData.dimensions && (
             <p className="text-xs text-amber-700">

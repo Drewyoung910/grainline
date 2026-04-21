@@ -412,7 +412,7 @@ function CartPage() {
           {renderSellerSections()}
 
           <div className="flex items-center justify-end gap-4">
-            <div className="text-sm text-neutral-600">Grand total (items only)</div>
+            <div className="text-sm text-neutral-600">Subtotal (items only)</div>
             <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
           </div>
 

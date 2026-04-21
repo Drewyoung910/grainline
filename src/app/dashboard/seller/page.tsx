@@ -243,7 +243,7 @@ export default async function SellerSettingsPage() {
           </p>
         </div>
 
-        {/* 🚚 Shipping & Tax Settings */}
+        {/* Shipping & Tax Settings */}
         <div className="border-t pt-4 space-y-4">
           <h2 className="text-lg font-medium">Shipping & Tax</h2>
 
@@ -318,7 +318,7 @@ export default async function SellerSettingsPage() {
           </div>
         </div>
 
-        {/* 📦 Default package (cm / g) */}
+        {/* Default package (cm / g) */}
         <div className="border-t pt-4 space-y-3">
           <h2 className="text-lg font-medium">Default package (cm / g)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

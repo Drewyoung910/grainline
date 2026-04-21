@@ -10,7 +10,7 @@ import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import FavoriteButton from "@/components/FavoriteButton";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { Instagram, Facebook, Pinterest, TikTok, Globe } from "@/components/icons";
+import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer, MapPin } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
 import FollowButton from "@/components/FollowButton";
 import BlockReportButton from "@/components/BlockReportButton";
@@ -378,7 +378,7 @@ export default async function SellerPublicPage({
               <CustomOrderRequestForm
                 sellerUserId={seller.userId}
                 sellerName={seller.displayName}
-                triggerLabel="🔨 Request a Custom Piece"
+                triggerLabel="Request a Custom Piece"
                 triggerClassName="inline-flex items-center gap-2 rounded-lg bg-amber-800 text-white px-4 py-2 text-sm font-medium hover:bg-amber-700"
               />
             ) : !meId ? (
@@ -386,7 +386,8 @@ export default async function SellerPublicPage({
                 href={`/sign-in?redirect_url=/seller/${id}`}
                 className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
               >
-                🔨 Request a Custom Piece
+                <Hammer size={15} />
+                Request a Custom Piece
               </Link>
             ) : null}
           </div>
@@ -414,7 +415,7 @@ export default async function SellerPublicPage({
         {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
           <section className="mb-8 border border-teal-200 bg-teal-50 p-4">
             <div className="text-xs text-teal-600 font-medium mb-1">
-              📢 Shop Update ·{" "}
+              Shop Update ·{" "}
               {latestBroadcast.sentAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
             </div>
             <p className="text-sm text-neutral-700 whitespace-pre-line">{latestBroadcast.message}</p>

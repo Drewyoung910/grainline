@@ -85,7 +85,7 @@ export default function CustomOrderRequestForm({
           "inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         }
       >
-        {triggerLabel ?? "🔨 Request a Custom Piece"}
+        {triggerLabel ?? "Request a Custom Piece"}
       </button>
 
       {open && (
@@ -110,7 +110,6 @@ export default function CustomOrderRequestForm({
 
             {success ? (
               <div className="p-6 space-y-4 text-center">
-                <div className="text-4xl">🎨</div>
                 <h3 className="text-lg font-semibold">Request sent!</h3>
                 <p className="text-sm text-neutral-600">
                   Your custom order request has been sent to {sellerName}. Check your messages for

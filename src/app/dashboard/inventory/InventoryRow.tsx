@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Eye, Heart, Bell } from "@/components/icons";
 
 type Listing = {
   id: string;
@@ -102,7 +103,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
           )}
         </div>
         <div className="text-[11px] text-neutral-400 mt-0.5">
-          👁 {listing.viewCount} · 🖱 {listing.clickCount} · ♥ {listing._count.favorites} · 🔔 {listing._count.stockNotifications}
+          <Eye size={11} className="inline align-middle" /> {listing.viewCount} · clicks {listing.clickCount} · <Heart size={11} className="inline align-middle" /> {listing._count.favorites} · <Bell size={11} className="inline align-middle" /> {listing._count.stockNotifications}
         </div>
       </div>
 

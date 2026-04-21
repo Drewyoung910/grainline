@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
-import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart } from "@/components/icons";
+import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart, Eye, Heart } from "@/components/icons";
 import { createNotification } from "@/lib/notifications";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
@@ -473,8 +473,8 @@ export default async function DashboardPage() {
                       ) : l.status}
                     </div>
 
-                    <div className="text-xs text-neutral-400">
-                      👁 {l.viewCount} · 🖱 {l.clickCount} · ♥ {l._count.favorites} · 🔔 {l._count.stockNotifications}
+                    <div className="text-xs text-neutral-400 flex items-center gap-1 flex-wrap">
+                      <Eye size={11} className="inline align-middle" /> {l.viewCount} · clicks {l.clickCount} · <Heart size={11} className="inline align-middle" /> {l._count.favorites} · <Bell size={11} className="inline align-middle" /> {l._count.stockNotifications}
                     </div>
 
                     <div className="pt-3 flex flex-wrap gap-2">

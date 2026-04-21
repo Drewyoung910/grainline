@@ -8,6 +8,7 @@ import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
+import { ArrowLeft, Truck, Gift } from "@/components/icons";
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {
@@ -176,6 +177,9 @@ export default async function BuyerOrderDetailPage({
 
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
+      <Link href="/dashboard/orders" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+        <ArrowLeft size={14} /> Back to Orders
+      </Link>
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">
           Order <span className="font-mono">#{order.id.slice(-8)}</span>
@@ -191,8 +195,8 @@ export default async function BuyerOrderDetailPage({
 
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
         {status === "PENDING" && "Your maker is preparing your piece"}
-        {status === "SHIPPED" && "Your piece is on its way! 🚚"}
-        {status === "DELIVERED" && "Delivered — enjoy your piece! 🎉"}
+        {status === "SHIPPED" && <span className="flex items-center gap-1.5"><Truck size={14} className="inline shrink-0" /> Your piece is on its way!</span>}
+        {status === "DELIVERED" && "Delivered — enjoy your piece!"}
         {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
         {status === "PICKED_UP" && "Picked up — enjoy!"}
       </div>
@@ -215,7 +219,7 @@ export default async function BuyerOrderDetailPage({
 
       {(order.giftNote || order.giftWrapping) && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm space-y-1">
-          <div className="font-medium text-amber-800">🎁 Gift order</div>
+          <div className="font-medium text-amber-800 flex items-center gap-1.5"><Gift size={14} className="inline" /> Gift order</div>
           {order.giftWrapping && <div className="text-amber-700">Gift wrapping requested</div>}
           {order.giftNote && <div className="text-amber-700">Note: &ldquo;{order.giftNote}&rdquo;</div>}
         </div>

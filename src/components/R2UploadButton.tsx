@@ -34,11 +34,22 @@ export default function R2UploadButton({
   content,
   disabled,
 }: Props) {
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+
   const { startUpload, isUploading, progress } = useR2Upload({
     endpoint,
-    onUploadComplete: onClientUploadComplete,
-    onUploadError,
-    onUploadBegin,
+    onUploadComplete: (files) => {
+      setUploadError(null);
+      onClientUploadComplete?.(files);
+    },
+    onUploadError: (err) => {
+      setUploadError(err.message ?? "Upload failed. Please try a smaller file.");
+      onUploadError?.(err);
+    },
+    onUploadBegin: (filename) => {
+      setUploadError(null);
+      onUploadBegin?.(filename);
+    },
   });
 
   // Forward progress to caller if provided
@@ -92,6 +103,9 @@ export default function R2UploadButton({
       >
         {buttonLabel}
       </button>
+      {uploadError && (
+        <p className="text-xs text-red-600 mt-1">{uploadError}</p>
+      )}
     </div>
   );
 }

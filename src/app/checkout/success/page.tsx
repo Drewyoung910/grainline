@@ -325,7 +325,7 @@ export default async function CheckoutSuccessPage({
       <main className="mx-auto max-w-3xl p-8 space-y-6">
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">
-            Payment successful! 🎉
+            Payment successful!
           </h1>
           <p className="text-neutral-600 text-sm">
             Your order is being processed and will appear
@@ -360,7 +360,7 @@ export default async function CheckoutSuccessPage({
   return (
     <main className="mx-auto max-w-3xl p-8 space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Thanks for your purchase! 🎉</h1>
+        <h1 className="text-2xl font-semibold">Thanks for your purchase!</h1>
         <p className="text-neutral-600 text-sm">
           Order <span className="font-mono">#{order.id.slice(-8)}</span>{" "}
           {order.paidAt ? "has been paid." : "is pending."}

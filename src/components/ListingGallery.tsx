@@ -80,8 +80,7 @@ export default function ListingGallery({
     <>
       {/* Main photo */}
       <div
-        className="relative w-full rounded-lg overflow-hidden cursor-zoom-in"
-        style={{ height: "500px" }}
+        className="relative w-full rounded-lg overflow-hidden cursor-zoom-in h-[350px] sm:h-[400px] md:h-[500px]"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {

@@ -198,7 +198,7 @@ function FeedCard({ item }: { item: FeedItem }) {
     return (
       <div className="card-section">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
-          <span className="text-xs font-medium text-teal-700">📢 Shop Update</span>
+          <span className="text-xs font-medium text-teal-700">Shop Update</span>
           <Link href={sellerHref} className="text-xs text-neutral-500 hover:underline">
             {item.sellerName}
           </Link>

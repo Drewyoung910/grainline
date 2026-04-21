@@ -47,9 +47,9 @@ function formatSnippet(body?: string | null) {
   const f = parseFilePayload(txt.trim());
   if (f) {
     const isImg = (f.type?.startsWith("image/") ?? false) || isImageUrl(f.url);
-    if (isImg) return "🖼 Photo";
-    if (f.type === "application/pdf" || isPdfUrl(f.url)) return `📄 ${f.name ?? "PDF"}`;
-    return `📎 ${f.name ?? "Attachment"}`;
+    if (isImg) return "Photo";
+    if (f.type === "application/pdf" || isPdfUrl(f.url)) return f.name ?? "PDF";
+    return f.name ?? "Attachment";
   }
 
   // Detect structured message types by JSON shape
@@ -62,8 +62,8 @@ function formatSnippet(body?: string | null) {
     }
   } catch {}
 
-  if (isImageUrl(txt)) return "🖼 Photo";
-  if (isPdfUrl(txt)) return "📄 PDF";
+  if (isImageUrl(txt)) return "Photo";
+  if (isPdfUrl(txt)) return "PDF";
   return txt;
 }
 

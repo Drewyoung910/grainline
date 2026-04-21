@@ -32,7 +32,7 @@ export default function NotifyMeButton({
     return (
       <div className="flex items-center gap-3">
         <span className="text-sm text-neutral-600">
-          🔔 You&apos;ll be notified when this is back in stock
+          You&apos;ll be notified when this is back in stock
         </span>
         <button
           onClick={toggle}

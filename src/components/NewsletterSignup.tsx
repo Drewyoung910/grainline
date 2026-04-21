@@ -43,7 +43,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
 
       {status === "success" ? (
         <div className="rounded-xl bg-white border border-green-200 px-4 py-3 text-green-800 font-medium">
-          You&apos;re on the list! 🎉
+          You&apos;re on the list!
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">

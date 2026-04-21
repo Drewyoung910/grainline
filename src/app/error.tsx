@@ -3,6 +3,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { Wrench } from "@/components/icons";
 
 export default function Error({
   error,
@@ -17,7 +18,7 @@ export default function Error({
 
   return (
     <main className="flex min-h-[60vh] flex-col items-center justify-center px-8 text-center space-y-6">
-      <div className="text-5xl">🪚</div>
+      <div className="text-neutral-400"><Wrench size={48} /></div>
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           Something splintered.

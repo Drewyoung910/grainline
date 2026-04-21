@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
+import { Hammer } from "@/components/icons";
 import { saveStep1, saveStep2, advanceStep, completeOnboarding } from "./actions";
 
 interface Props {
@@ -149,7 +150,7 @@ export default function OnboardingWizard({
         {/* ── Step 0: Welcome ─────────────────────────────────── */}
         {step === 0 && (
           <div className="border border-neutral-200 bg-white p-8 text-center">
-            <div className="text-5xl mb-4">🪵</div>
+            <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
             <h1 className="text-2xl font-bold mb-2">
               Welcome to Grainline, {displayName}!
             </h1>
@@ -499,7 +500,7 @@ export default function OnboardingWizard({
         {/* ── Step 5: All set! ─────────────────────────────────── */}
         {step === 5 && (
           <div className="border border-neutral-200 bg-white p-8 text-center">
-            <div className="text-5xl mb-4">🎉</div>
+            <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
             <h2 className="text-2xl font-bold mb-2">Your shop is ready!</h2>
             <p className="text-neutral-600 mb-6">Here&apos;s a summary of what you set up:</p>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Palette, Hammer, Logs } from "@/components/icons";
 
 type Msg = {
   id: string;
@@ -230,7 +231,7 @@ export default function ThreadMessages({
             return (
               <li key={m.id} className="max-w-[90%]">
                 <div className="border-l-4 border-teal-400 bg-neutral-50 p-4 space-y-2">
-                  <div className="text-xs font-semibold text-teal-700 uppercase tracking-wide">📋 Commission Interest</div>
+                  <div className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Commission Interest</div>
                   <p className="text-sm text-neutral-700">
                     <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
                   </p>
@@ -280,7 +281,7 @@ export default function ThreadMessages({
             return (
               <li key={m.id} className="max-w-[90%]">
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                  <div className="text-sm font-semibold text-amber-800">🎨 Custom Order Request</div>
+                  <div className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><Palette size={15} /> Custom Order Request</div>
                   {req.description && (
                     <p className="text-sm text-amber-900">{req.description}</p>
                   )}
@@ -332,7 +333,7 @@ export default function ThreadMessages({
             return (
               <li key={m.id} className={`max-w-[90%] ${mine ? "ml-auto" : ""}`}>
                 <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-2 shadow-sm">
-                  <div className="text-sm font-semibold text-neutral-800">🪵 Custom Piece Ready</div>
+                  <div className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5"><Logs size={15} /> Custom Piece Ready</div>
                   {link.title && (
                     <p className="text-sm font-medium text-neutral-700">{link.title}</p>
                   )}

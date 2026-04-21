@@ -7,6 +7,7 @@ import { CommissionStatus, Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
+import { MapPin } from "@/components/icons";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -303,7 +304,7 @@ export default async function CommissionPage({
                 : "border-transparent text-neutral-500 hover:text-neutral-700"
             }`}
           >
-            📍 Near Me
+            <span className="flex items-center gap-1"><MapPin size={13} /> Near Me</span>
           </Link>
         )}
       </div>
@@ -421,13 +422,13 @@ export default async function CommissionPage({
                       <span>{r.interestedCount} maker{r.interestedCount !== 1 ? "s" : ""} interested</span>
                       {/* Local distance badge */}
                       {!r.isNational && r.distanceMeters != null && r.distanceMeters < 80000 && (
-                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-                          📍 {Math.round(r.distanceMeters / 1609)} mi away
+                        <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
+                          <MapPin size={11} /> {Math.round(r.distanceMeters / 1609)} mi away
                         </span>
                       )}
                       {!r.isNational && r.distanceMeters == null && (
-                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
-                          📍 Local request
+                        <span className="inline-flex items-center gap-0.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5">
+                          <MapPin size={11} /> Local request
                         </span>
                       )}
                     </div>

@@ -10,7 +10,7 @@ import SearchBar from "@/components/SearchBar";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { ScrollSection } from "@/components/ScrollSection";
 import GuildBadge from "@/components/GuildBadge";
-import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette } from "@/components/icons";
+import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette, MapPin } from "@/components/icons";
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
@@ -587,8 +587,9 @@ export default async function HomePage() {
                     )}
 
                     {(featuredMaker.city || featuredMaker.state) && (
-                      <p className="text-xs text-neutral-500">
-                        📍 {[featuredMaker.city, featuredMaker.state].filter(Boolean).join(", ")}
+                      <p className="text-xs text-neutral-500 flex items-center gap-1">
+                        <MapPin size={12} className="shrink-0" />
+                        {[featuredMaker.city, featuredMaker.state].filter(Boolean).join(", ")}
                       </p>
                     )}
 

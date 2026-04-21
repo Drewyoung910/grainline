@@ -1,10 +1,11 @@
 // src/app/not-found.tsx
 import Link from "next/link";
+import { Logs } from "@/components/icons";
 
 export default function NotFound() {
   return (
     <main className="flex min-h-[60vh] flex-col items-center justify-center px-8 text-center space-y-6">
-      <div className="text-5xl">🪵</div>
+      <div className="text-neutral-400"><Logs size={48} /></div>
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           Looks like this page got sanded down.
