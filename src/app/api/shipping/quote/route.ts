@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     const currency = (body.currency ?? "usd").toLowerCase();
 
     let sellerId: string | null = null;
+    let sellerAllowsPickup = false;
     let totalWeightGrams = 0;
     let lengthCm: number | null = null;
     let widthCm: number | null = null;
@@ -139,10 +140,13 @@ export async function POST(req: Request) {
           defaultPkgLengthCm: true,
           defaultPkgWidthCm: true,
           defaultPkgHeightCm: true,
+          allowLocalPickup: true,
         },
       });
 
       if (!seller) return NextResponse.json({ rates: [] });
+
+      sellerAllowsPickup = seller.allowLocalPickup;
 
       shipFrom = {
         name: seller.shipFromName,
@@ -197,10 +201,13 @@ export async function POST(req: Request) {
           defaultPkgLengthCm: true,
           defaultPkgWidthCm: true,
           defaultPkgHeightCm: true,
+          allowLocalPickup: true,
         },
       });
 
       if (!seller) return NextResponse.json({ rates: [] });
+
+      sellerAllowsPickup = seller.allowLocalPickup;
 
       shipFrom = {
         name: seller.shipFromName,
@@ -327,6 +334,31 @@ export async function POST(req: Request) {
           expiresAt,
         };
       });
+
+    // Local pickup option — injected as a synthetic rate if seller allows it
+    if (sellerAllowsPickup) {
+      const pickupLabel = "Local Pickup (Free)";
+      const { token: pickupToken, expiresAt: pickupExpiresAt } = signRate({
+        objectId: "pickup",
+        amountCents: 0,
+        displayName: pickupLabel,
+        carrier: "pickup",
+        estDays: null,
+        contextId,
+        buyerPostal: shipTo.postal,
+      });
+      out.unshift({
+        label: pickupLabel,
+        amountCents: 0,
+        carrier: "pickup",
+        service: "pickup",
+        estDays: null,
+        taxBehavior: "exclusive" as const,
+        objectId: "pickup",
+        token: pickupToken,
+        expiresAt: pickupExpiresAt,
+      });
+    }
 
     return NextResponse.json({ rates: out });
   } catch (err) {

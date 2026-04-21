@@ -83,6 +83,15 @@ async function updateSellerProfile(formData: FormData) {
       ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
       : null;
 
+  // Soft uniqueness check — warn (don't block) if another seller has the same name
+  const duplicate = await prisma.sellerProfile.findFirst({
+    where: {
+      displayName: { equals: displayName, mode: "insensitive" },
+      id: { not: seller.id },
+    },
+    select: { id: true },
+  });
+
   await prisma.sellerProfile.update({
     where: { id: seller.id },
     data: {
@@ -113,6 +122,10 @@ async function updateSellerProfile(formData: FormData) {
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
+
+  if (duplicate) {
+    redirect("/dashboard/profile?warning=duplicate-name");
+  }
 }
 
 async function addFaq(formData: FormData) {
@@ -205,7 +218,11 @@ async function toggleFeaturedListing(listingId: string) {
 // Page
 // ──────────────────────────────────────────────────────────────────────────────
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ warning?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
 
@@ -225,10 +242,18 @@ export default async function ProfilePage() {
 
   if (!fullSeller) redirect("/dashboard");
 
+  const sp = await searchParams;
   const featured = new Set(fullSeller.featuredListingIds ?? []);
 
   return (
     <main className="max-w-3xl mx-auto p-8 space-y-10">
+      {sp.warning === "duplicate-name" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Another maker already uses this display name. Consider adding your location
+          or specialty to stand out (e.g. &quot;Oak &amp; Iron Woodworks — Austin&quot;).
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Shop Profile</h1>
         <Link
