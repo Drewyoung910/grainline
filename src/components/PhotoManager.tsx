@@ -105,7 +105,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                 <img
                   src={photo.url}
                   alt={photo.altText || `Photo ${i + 1}`}
-                  className="h-32 w-full object-cover"
+                  className="aspect-square w-full object-cover"
                 />
                 {i === 0 && (
                   <span className="absolute left-2 top-2 rounded bg-black/80 px-2 py-0.5 text-xs text-white">
@@ -134,15 +134,18 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               </div>
 
               {/* Alt text input */}
-              <div className="px-2 pt-1.5">
+              <div className="p-2 space-y-1">
                 <input
                   type="text"
                   value={photo.altText}
                   onChange={(e) => updateAltText(i, e.target.value)}
-                  placeholder="Alt text (optional)"
+                  placeholder="Describe this image (e.g. 'Hand-carved walnut dining table')"
                   maxLength={200}
-                  className="w-full text-xs border border-neutral-200 rounded-md px-2 py-1"
+                  className="w-full text-xs border border-neutral-200 rounded-md px-2.5 py-1.5 placeholder:text-neutral-400"
                 />
+                <p className="text-[10px] text-neutral-400">
+                  Alt text improves visibility in Google Image Search
+                </p>
               </div>
 
               {/* Reorder + cover controls */}

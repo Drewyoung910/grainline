@@ -1,20 +1,20 @@
 // src/app/browse/loading.tsx
 export default function BrowseLoading() {
   return (
-    <main className="p-8 max-w-6xl mx-auto">
+    <main className="p-4 sm:p-6 max-w-7xl mx-auto">
       <header className="mb-6 flex items-end justify-between">
         <div className="h-7 w-32 rounded bg-neutral-200 animate-pulse" />
         <div className="h-4 w-20 rounded bg-neutral-200 animate-pulse" />
       </header>
 
-      <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <li key={i} className="border rounded-xl overflow-hidden">
-            <div className="h-48 w-full bg-neutral-200 animate-pulse" />
-            <div className="p-4 space-y-3">
-              <div className="h-4 w-2/3 bg-neutral-200 rounded animate-pulse" />
+      <ul className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <li key={i}>
+            <div className="rounded-2xl bg-neutral-200 aspect-square animate-pulse" />
+            <div className="mt-3 space-y-2 px-1">
+              <div className="h-4 w-3/4 bg-neutral-200 rounded animate-pulse" />
               <div className="h-4 w-1/3 bg-neutral-200 rounded animate-pulse" />
-              <div className="h-6 w-40 bg-neutral-200 rounded-full animate-pulse" />
+              <div className="h-3 w-1/2 bg-neutral-200 rounded animate-pulse" />
             </div>
           </li>
         ))}

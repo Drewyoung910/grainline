@@ -194,109 +194,11 @@ export default async function AccountSettingsPage() {
         </section>
       </div>
 
-      {/* ── Shop notifications (sellers only) ────────────────── */}
       {hasSeller && (
-        <div className="border-t border-neutral-100 pt-6">
-          <h2 className="text-lg font-semibold font-display">Shop notifications</h2>
-          <p className="text-sm text-neutral-500 mt-1 mb-4">Notifications about your shop and listings.</p>
-
-          {/* In-App: Your Shop */}
-          <section className="card-section p-5 mb-4">
-            <h3 className="text-base font-semibold mb-0.5">Your Shop</h3>
-            <p className="text-xs text-neutral-400 mb-3">In-app</p>
-            <Row
-              type="NEW_MESSAGE"
-              label="New messages"
-              description="When someone sends you a message"
-            />
-            <Row
-              type="NEW_REVIEW"
-              label="New reviews"
-              description="When a buyer leaves a review on one of your listings"
-            />
-            <Row
-              type="NEW_FOLLOWER"
-              label="New followers"
-              description="When someone starts following your shop"
-            />
-            <Row
-              type="CUSTOM_ORDER_REQUEST"
-              label="Custom order requests"
-              description="When a buyer requests a custom piece from you"
-            />
-            <Row
-              type="NEW_FAVORITE"
-              label="Someone saves your listing"
-              description="When a buyer hearts one of your pieces (off by default)"
-            />
-            <Row
-              type="CASE_OPENED"
-              label="Cases opened"
-              description="When a buyer opens a case on one of your orders"
-            />
-            <div className="flex items-center justify-between py-3 border-b border-neutral-100">
-              <div>
-                <p className="text-sm font-medium text-neutral-800">Listing approved</p>
-                <p className="text-xs text-neutral-400 mt-0.5">When a listing passes admin review — always sent</p>
-              </div>
-              <span className="text-xs text-neutral-400 italic">Always on</span>
-            </div>
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm font-medium text-neutral-800">Listing rejected</p>
-                <p className="text-xs text-neutral-400 mt-0.5">When a listing does not pass admin review — always sent</p>
-              </div>
-              <span className="text-xs text-neutral-400 italic">Always on</span>
-            </div>
-          </section>
-
-          {/* In-App: Blog */}
-          <section className="card-section p-5 mb-4">
-            <h3 className="text-base font-semibold mb-0.5">Blog</h3>
-            <p className="text-xs text-neutral-400 mb-3">In-app</p>
-            <Row
-              type="NEW_BLOG_COMMENT"
-              label="New comments on your posts"
-              description="When someone comments on a blog post you wrote (off by default)"
-            />
-            <Row
-              type="BLOG_COMMENT_REPLY"
-              label="Replies to your comments"
-              description="When someone replies to a comment you left (off by default)"
-            />
-          </section>
-
-          {/* Email: Shop */}
-          <section className="card-section p-5 mb-4">
-            <h3 className="text-base font-semibold mb-0.5">Shop emails</h3>
-            <p className="text-xs text-neutral-400 mb-3">Email</p>
-            <EmailRow
-              type="EMAIL_NEW_ORDER"
-              label="New orders"
-              description="Email when a buyer purchases from your shop"
-            />
-            <EmailRow
-              type="EMAIL_CUSTOM_ORDER"
-              label="Custom order requests"
-              description="Email when a buyer sends you a custom order request"
-            />
-            <EmailRow
-              type="EMAIL_CASE_OPENED"
-              label="Cases opened against you"
-              description="Email when a buyer opens a case on one of your orders"
-            />
-            <EmailRow
-              type="EMAIL_NEW_REVIEW"
-              label="New reviews"
-              description="Email when a buyer leaves a review on one of your listings"
-            />
-            <EmailRow
-              type="EMAIL_NEW_FOLLOWER"
-              label="New followers"
-              description="Email when someone starts following your shop (off by default)"
-            />
-          </section>
-        </div>
+        <p className="text-xs text-neutral-400">
+          Seller-specific notifications are managed in{" "}
+          <a href="/dashboard/seller" className="underline hover:text-neutral-600">Shop Settings</a>.
+        </p>
       )}
 
       <p className="text-xs text-neutral-400">

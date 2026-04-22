@@ -1,10 +1,12 @@
 // src/app/dashboard/listings/[id]/edit/page.tsx
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import AddPhotosButton from "@/components/AddPhotosButton";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
+import CharCounter, { InputCharCounter } from "@/components/CharCounter";
+import EditPhotoGrid from "@/components/EditPhotoGrid";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
@@ -96,6 +98,20 @@ async function updateListing(
   const processingTimeMinDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMinDays")) : null;
   const processingTimeMaxDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMaxDays")) : null;
 
+  // Meta description
+  const metaDescription = sanitizeText(String(formData.get("metaDescription") ?? "").trim()).slice(0, 160) || null;
+
+  // Materials (comma-separated string → array)
+  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
+  const materials = materialsRaw
+    ? materialsRaw.split(",").map((s: string) => s.trim()).filter(Boolean).slice(0, 20)
+    : [];
+
+  // Product dimensions (inches)
+  const productLengthIn = toFloat(formData.get("productLengthIn"));
+  const productWidthIn = toFloat(formData.get("productWidthIn"));
+  const productHeightIn = toFloat(formData.get("productHeightIn"));
+
   if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
     return { ok: false, error: "Please provide a valid title and price." };
   }
@@ -125,6 +141,11 @@ async function updateListing(
       description,
       priceCents,
       tags,
+      metaDescription,
+      materials,
+      productLengthIn,
+      productWidthIn,
+      productHeightIn,
       packagedLengthCm,
       packagedWidthCm,
       packagedHeightCm,
@@ -183,35 +204,47 @@ async function updateListing(
   }
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
+  revalidatePath(`/listing/${listingId}`);
   revalidatePath("/dashboard");
   revalidatePath("/browse");
 
-  return { ok: true };
+  redirect(`/listing/${listingId}`);
 }
 
-async function deletePhoto(photoId: string, listingId: string) {
+
+async function reorderPhotos(listingId: string, photoIds: string[]) {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
 
-  // Guard ownership
+  const listing = await prisma.listing.findFirst({
+    where: { id: listingId, seller: { user: { clerkId: userId } } },
+  });
+  if (!listing) return;
+
+  await Promise.all(
+    photoIds.map((id, i) =>
+      prisma.photo.update({ where: { id }, data: { sortOrder: i } })
+    )
+  );
+
+  revalidatePath(`/dashboard/listings/${listingId}/edit`);
+  revalidatePath(`/listing/${listingId}`);
+  revalidatePath("/browse");
+  revalidatePath("/dashboard");
+}
+
+async function deletePhotoAction(listingId: string, photoId: string) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId) return;
+
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
   });
   if (!ok) return;
 
   await prisma.photo.delete({ where: { id: photoId } });
-
-  // Repack sortOrder to keep it contiguous
-  const photos = await prisma.photo.findMany({
-    where: { listingId },
-    orderBy: { sortOrder: "asc" },
-  });
-  await Promise.all(
-    photos.map((p, i) =>
-      prisma.photo.update({ where: { id: p.id }, data: { sortOrder: i } })
-    )
-  );
 
   // Re-trigger AI review if listing is ACTIVE (image removed)
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
@@ -258,40 +291,7 @@ async function deletePhoto(photoId: string, listingId: string) {
   revalidatePath("/dashboard");
 }
 
-async function saveAltTexts(
-  listingId: string,
-  _prev: unknown,
-  formData: FormData,
-): Promise<SaveResult> {
-  "use server";
-
-  const { userId } = await auth();
-  if (!userId) return { ok: false, error: "Not signed in" };
-
-  // Guard ownership
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, seller: { user: { clerkId: userId } } },
-  });
-  if (!listing) return { ok: false, error: "Not allowed" };
-
-  const existingPhotos = await prisma.photo.findMany({
-    where: { listingId },
-    select: { id: true, altText: true },
-  });
-  for (const p of existingPhotos) {
-    const newAlt = (formData.get(`altText-${p.id}`) as string | null)?.trim() ?? null;
-    const current = p.altText ?? null;
-    if ((newAlt || null) !== current) {
-      await prisma.photo.update({ where: { id: p.id }, data: { altText: newAlt || null } });
-    }
-  }
-
-  revalidatePath(`/dashboard/listings/${listingId}/edit`);
-  revalidatePath(`/listing/${listingId}`);
-  return { ok: true };
-}
-
-async function setCoverPhoto(listingId: string, photoId: string) {
+async function saveAltTextsAction(listingId: string, altTexts: Record<string, string>) {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
@@ -301,25 +301,15 @@ async function setCoverPhoto(listingId: string, photoId: string) {
   });
   if (!listing) return;
 
-  const photos = await prisma.photo.findMany({
-    where: { listingId },
-    orderBy: { sortOrder: "asc" },
-  });
-
-  const pick = photos.find((p) => p.id === photoId);
-  if (!pick) return;
-
-  const reordered = [pick, ...photos.filter((p) => p.id !== photoId)];
-  await Promise.all(
-    reordered.map((p, i) =>
-      prisma.photo.update({ where: { id: p.id }, data: { sortOrder: i } })
-    )
-  );
+  for (const [photoId, text] of Object.entries(altTexts)) {
+    await prisma.photo.update({
+      where: { id: photoId },
+      data: { altText: text.trim() || null },
+    });
+  }
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
-  revalidatePath("/browse");
-  revalidatePath("/dashboard");
 }
 
 export default async function EditListingPage(props: {
@@ -359,17 +349,12 @@ export default async function EditListingPage(props: {
 
       <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10">
         <div>
-          <label className="block text-sm mb-1">Title</label>
-          <input
-            name="title"
-            defaultValue={listing.title}
-            required
-            className="w-full border rounded px-3 py-2"
-          />
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
+          <InputCharCounter name="title" maxLength={100} defaultValue={listing.title} required />
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Price (USD)</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Price (USD)</label>
           <input
             name="price"
             type="number"
@@ -377,18 +362,18 @@ export default async function EditListingPage(props: {
             min="0"
             defaultValue={(listing.priceCents / 100).toFixed(2)}
             required
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Tags</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Tags</label>
           <TagsInput initial={listing.tags ?? []} />
         </div>
 
         {/* Listing type */}
-        <div className="border rounded p-3">
-          <div className="font-medium mb-2">Listing type</div>
+        <div className="card-section p-4">
+          <div className="text-sm font-medium text-neutral-700 mb-2">Listing type</div>
           <ListingTypeFields
             listingType={listing.listingType}
             minDays={listing.processingTimeMinDays}
@@ -400,32 +385,73 @@ export default async function EditListingPage(props: {
         </div>
 
         {/* Packaged dims/weight */}
-        <div>
-          <label className="block text-sm font-medium mb-2">Packaged dimensions (cm / g)</label>
+        <div className="card-section p-4">
+          <label className="block text-sm font-medium text-neutral-700 mb-2">Packaged dimensions (cm / g)</label>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="packagedLengthCm" type="number" step="0.1" placeholder="Length (cm)"
-                   defaultValue={listing.packagedLengthCm ?? ""} className="w-full border rounded px-3 py-2" />
+                   defaultValue={listing.packagedLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="packagedWidthCm" type="number" step="0.1" placeholder="Width (cm)"
-                   defaultValue={listing.packagedWidthCm ?? ""} className="w-full border rounded px-3 py-2" />
+                   defaultValue={listing.packagedWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="packagedHeightCm" type="number" step="0.1" placeholder="Height (cm)"
-                   defaultValue={listing.packagedHeightCm ?? ""} className="w-full border rounded px-3 py-2" />
+                   defaultValue={listing.packagedHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="packagedWeightGrams" type="number" step="1" placeholder="Weight (g)"
-                   defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border rounded px-3 py-2" />
+                   defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-400 mt-1">
             These should be the finished, ready-to-ship package size/weight per unit.
             If left blank, your seller default package will be used.
           </p>
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Description</label>
-          <textarea
-            name="description"
-            rows={4}
-            defaultValue={listing.description ?? ""}
-            className="w-full border rounded px-3 py-2"
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
+          <CharCounter name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Meta description
+            <span className="text-neutral-400 ml-1 font-normal">
+              — helps your listing rank in search results
+            </span>
+          </label>
+          <CharCounter
+            name="metaDescription"
+            maxLength={160}
+            rows={2}
+            defaultValue={listing.metaDescription ?? ""}
+            placeholder="Briefly describe your piece for Google search results (160 chars max)"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Materials used</label>
+          <input
+            name="materials"
+            defaultValue={(listing.materials ?? []).join(", ")}
+            placeholder="e.g. walnut, maple, brass hardware"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-neutral-400 mt-1">Comma-separated. Helps buyers find your piece.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Product dimensions (inches)
+            <span className="text-neutral-400 ml-1 font-normal">optional</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <input name="productLengthIn" type="number" step="0.1" min="0"
+              defaultValue={listing.productLengthIn ?? ""}
+              placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+            <input name="productWidthIn" type="number" step="0.1" min="0"
+              defaultValue={listing.productWidthIn ?? ""}
+              placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+            <input name="productHeightIn" type="number" step="0.1" min="0"
+              defaultValue={listing.productHeightIn ?? ""}
+              placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+          </div>
+          <p className="text-xs text-neutral-400 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <SubmitButton>Save changes</SubmitButton>
@@ -441,62 +467,13 @@ export default async function EditListingPage(props: {
           Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
         </p>
 
-        {listing.photos.length === 0 ? (
-          <p className="text-sm text-gray-500">No photos yet.</p>
-        ) : (
-          <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {listing.photos.map((p, idx) => (
-              <li key={p.id} className="rounded border overflow-hidden">
-                <div className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.url} alt="" className="h-32 w-full object-cover" />
-                  {idx === 0 && (
-                    <span className="absolute left-2 top-2 rounded bg-black/80 px-2 py-0.5 text-xs text-white">
-                      Cover
-                    </span>
-                  )}
-                </div>
-
-                <div className="px-2 pt-1.5">
-                  <input
-                    type="text"
-                    form="alt-text-form"
-                    name={`altText-${p.id}`}
-                    defaultValue={p.altText ?? ""}
-                    placeholder="Describe this image for SEO..."
-                    className="w-full text-xs border border-neutral-200 rounded-md px-2 py-1"
-                  />
-                </div>
-
-                <div className="p-2 flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2">
-                    <form action={setCoverPhoto.bind(null, id, p.id)}>
-                      <button
-                        className="rounded border px-2 py-1 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={idx === 0}
-                        title={idx === 0 ? "Already cover" : "Make cover"}
-                      >
-                        Make cover
-                      </button>
-                    </form>
-                  </div>
-
-                  <form action={deletePhoto.bind(null, p.id, id)}>
-                    <button className="rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300">
-                      Remove
-                    </button>
-                  </form>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {listing.photos.length > 0 && (
-          <ActionForm id="alt-text-form" action={saveAltTexts.bind(null, id)} className="mt-4">
-            <SubmitButton>Save alt texts</SubmitButton>
-          </ActionForm>
-        )}
+        <EditPhotoGrid
+          photos={listing.photos.map((p) => ({ id: p.id, url: p.url, altText: p.altText }))}
+          listingId={id}
+          onReorder={reorderPhotos.bind(null, id)}
+          onDelete={deletePhotoAction.bind(null, id)}
+          onSaveAltTexts={saveAltTextsAction.bind(null, id)}
+        />
       </section>
     </main>
   );

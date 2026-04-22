@@ -202,7 +202,7 @@ export default async function SellerShopPage({
   const avatarSrc = seller.avatarImageUrl ?? seller.user?.imageUrl ?? null;
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-6">
+    <main className="max-w-7xl mx-auto px-4 py-6">
       {/* ── Vacation notice ──────────────────────────────────────────── */}
       {seller.vacationMode && (
         <div className="mb-6 border border-amber-300 bg-amber-50 px-5 py-4">

@@ -38,6 +38,7 @@ export async function generateMetadata(
     select: {
       title: true,
       description: true,
+      metaDescription: true,
       priceCents: true,
       currency: true,
       photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
@@ -53,7 +54,7 @@ export async function generateMetadata(
   }
   const sellerName = listing.seller.displayName ?? "Maker";
   const title = `${listing.title} by ${sellerName}`;
-  const desc = (listing.description ?? "").slice(0, 160);
+  const desc = listing.metaDescription || (listing.description ?? "").slice(0, 160);
   const img = listing.photos[0]?.url;
   const price = (listing.priceCents / 100).toFixed(2);
   const currency = (listing.currency || "usd").toUpperCase();
@@ -705,6 +706,24 @@ export default async function ListingPage({
               <>
                 <dt className="text-neutral-500 font-medium">Processing</dt>
                 <dd className="text-neutral-800">{processingLabel}</dd>
+              </>
+            )}
+            {listing.materials && listing.materials.length > 0 && (
+              <>
+                <dt className="text-neutral-500 font-medium">Materials</dt>
+                <dd className="text-neutral-800">{listing.materials.join(", ")}</dd>
+              </>
+            )}
+            {(listing.productLengthIn || listing.productWidthIn || listing.productHeightIn) && (
+              <>
+                <dt className="text-neutral-500 font-medium">Dimensions</dt>
+                <dd className="text-neutral-800">
+                  {[
+                    listing.productLengthIn && `${listing.productLengthIn}" L`,
+                    listing.productWidthIn && `${listing.productWidthIn}" W`,
+                    listing.productHeightIn && `${listing.productHeightIn}" H`,
+                  ].filter(Boolean).join(" × ")}
+                </dd>
               </>
             )}
             {cityState && (

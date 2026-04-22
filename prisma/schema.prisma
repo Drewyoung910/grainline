@@ -310,6 +310,13 @@ model Listing {
   reviewedAt        DateTime?
   rejectionReason   String?
 
+  // SEO & product details
+  metaDescription   String?
+  materials         String[]  @default([])
+  productLengthIn   Float?
+  productWidthIn    Float?
+  productHeightIn   Float?
+
   // Quality score (recalculated daily by cron)
   qualityScore      Float     @default(0)
 

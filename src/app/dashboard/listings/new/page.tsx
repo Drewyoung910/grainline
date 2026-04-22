@@ -9,6 +9,7 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import PhotoManager from "@/components/PhotoManager";
+import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
@@ -67,6 +68,20 @@ async function createListing(formData: FormData) {
   if (typeof altJson === "string" && altJson.length) {
     try { imageAltTexts = (JSON.parse(altJson) as string[]).filter((v) => typeof v === "string"); } catch {}
   }
+
+  // Meta description
+  const metaDescription = sanitizeText(String(formData.get("metaDescription") ?? "").trim()).slice(0, 160) || null;
+
+  // Materials (comma-separated string → array)
+  const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
+  const materials = materialsRaw
+    ? materialsRaw.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20)
+    : [];
+
+  // Product dimensions (inches — stored directly, separate from packaged dims)
+  const productLengthIn = Number(String(formData.get("productLengthIn") ?? "").trim()) || null;
+  const productWidthIn = Number(String(formData.get("productWidthIn") ?? "").trim()) || null;
+  const productHeightIn = Number(String(formData.get("productHeightIn") ?? "").trim()) || null;
 
   // Tags
   let tags: string[] = [];
@@ -135,6 +150,11 @@ async function createListing(formData: FormData) {
       description,
       priceCents,
       tags,
+      metaDescription,
+      materials,
+      productLengthIn,
+      productWidthIn,
+      productHeightIn,
       packagedLengthCm,
       packagedWidthCm,
       packagedHeightCm,
@@ -210,7 +230,6 @@ async function createListing(formData: FormData) {
     const isFirstListing = listingCount <= 1
 
     const { reviewListingWithAI } = await import('@/lib/ai-review')
-    const { logAdminAction: logAction } = await import('@/lib/audit')
 
     const aiResult = await reviewListingWithAI({
       sellerId: seller.id,
@@ -241,16 +260,6 @@ async function createListing(formData: FormData) {
           aiReviewScore: aiResult.confidence,
         }
       })
-      await logAction({
-        adminId: seller.userId,
-        action: 'AI_HOLD_LISTING',
-        targetType: 'LISTING',
-        targetId: created.id,
-        reason: isFirstListing
-          ? 'First listing from seller — requires admin review'
-          : `AI flagged: ${aiResult.reason}`,
-        metadata: { aiFlags: aiResult.flags, confidence: aiResult.confidence, isFirstListing },
-      }).catch(() => {})
     }
 
     // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text
@@ -357,21 +366,60 @@ export default async function NewListingPage({
       <form action={createListing} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
-          <input name="title" required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          <InputCharCounter name="title" maxLength={100} required />
         </div>
 
         <div>
-          <label className="block text-sm mb-1">
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
             Description <span className="text-neutral-400 font-normal">(optional)</span>
           </label>
-          <textarea
+          <CharCounter
             name="description"
-            rows={6}
             maxLength={2000}
+            rows={6}
             placeholder="Describe your piece — materials, dimensions, technique, story behind it..."
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 resize-y"
           />
-          <p className="text-xs text-neutral-400 mt-1">Up to 2,000 characters</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Meta description
+            <span className="text-neutral-400 ml-1 font-normal">
+              — helps your listing rank in search results
+            </span>
+          </label>
+          <CharCounter
+            name="metaDescription"
+            maxLength={160}
+            rows={2}
+            placeholder="Briefly describe your piece for Google search results (160 chars max)"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Materials used</label>
+          <input
+            name="materials"
+            placeholder="e.g. walnut, maple, brass hardware"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          />
+          <p className="text-xs text-neutral-400 mt-1">Comma-separated. Helps buyers find your piece.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Product dimensions (inches)
+            <span className="text-neutral-400 ml-1 font-normal">optional</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <input name="productLengthIn" type="number" step="0.1" min="0"
+              placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+            <input name="productWidthIn" type="number" step="0.1" min="0"
+              placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+            <input name="productHeightIn" type="number" step="0.1" min="0"
+              placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          </div>
+          <p className="text-xs text-neutral-400 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div>

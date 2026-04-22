@@ -76,7 +76,7 @@ export default function TagsInput({
   };
 
   return (
-    <div className="rounded-md border px-2 py-2">
+    <div className="rounded-md border border-neutral-200 px-2 py-2">
       <div className="flex flex-wrap items-center gap-2">
         {tags.map((t) => (
           <span

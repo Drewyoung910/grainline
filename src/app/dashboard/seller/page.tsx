@@ -13,7 +13,9 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
+import { NotificationToggle } from "@/components/NotificationToggle";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { ensureUser } from "@/lib/ensureUser";
 
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -146,11 +148,24 @@ export default async function SellerSettingsPage() {
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/seller");
 
   const { seller } = await ensureSeller();
-  const [row, followerCount, draftCount] = await Promise.all([
+  const me = await ensureUser();
+  const [row, followerCount, draftCount, userRow] = await Promise.all([
     prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
+    me ? prisma.user.findUnique({ where: { id: me.id }, select: { notificationPreferences: true } }) : null,
   ]);
+
+  const prefs = (userRow?.notificationPreferences as Record<string, boolean>) ?? {};
+  const SELLER_DEFAULT_OFF = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY", "EMAIL_NEW_FOLLOWER"];
+  function isEnabled(type: string) {
+    if (SELLER_DEFAULT_OFF.includes(type)) return prefs[type] === true;
+    return prefs[type] !== false;
+  }
+  function getEmailPref(key: string): boolean {
+    if (key in prefs) return prefs[key] as boolean;
+    return !["EMAIL_NEW_FOLLOWER"].includes(key);
+  }
 
   return (
     <main className="max-w-2xl mx-auto p-8 space-y-6">
@@ -388,6 +403,55 @@ export default async function SellerSettingsPage() {
           Save
         </button>
       </form>
+
+      {/* Shop Notifications */}
+      <section className="card-section p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold font-display">Shop Notifications</h2>
+          <p className="text-sm text-neutral-500 mt-1">Notifications about your shop and listings.</p>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-neutral-700 mb-2">In-app</h3>
+          {[
+            { type: "NEW_MESSAGE", label: "New messages", desc: "When someone sends you a message" },
+            { type: "NEW_REVIEW", label: "New reviews", desc: "When a buyer leaves a review" },
+            { type: "NEW_FOLLOWER", label: "New followers", desc: "When someone follows your shop" },
+            { type: "CUSTOM_ORDER_REQUEST", label: "Custom order requests", desc: "When a buyer requests a custom piece" },
+            { type: "NEW_FAVORITE", label: "Someone saves your listing", desc: "When a buyer hearts one of your pieces (off by default)" },
+            { type: "CASE_OPENED", label: "Cases opened", desc: "When a buyer opens a case on one of your orders" },
+            { type: "NEW_BLOG_COMMENT", label: "Blog comments", desc: "When someone comments on your blog post (off by default)" },
+            { type: "BLOG_COMMENT_REPLY", label: "Blog replies", desc: "When someone replies to your comment (off by default)" },
+          ].map((r) => (
+            <div key={r.type} className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+              <div>
+                <p className="text-sm font-medium text-neutral-800">{r.label}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">{r.desc}</p>
+              </div>
+              <NotificationToggle type={r.type} enabled={isEnabled(r.type)} />
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-neutral-100 pt-4">
+          <h3 className="text-sm font-semibold text-neutral-700 mb-2">Email</h3>
+          {[
+            { type: "EMAIL_NEW_ORDER", label: "New orders", desc: "Email when a buyer purchases from your shop" },
+            { type: "EMAIL_CUSTOM_ORDER", label: "Custom order requests", desc: "Email when a buyer sends you a custom order request" },
+            { type: "EMAIL_CASE_OPENED", label: "Cases opened", desc: "Email when a buyer opens a case" },
+            { type: "EMAIL_NEW_REVIEW", label: "New reviews", desc: "Email when a buyer leaves a review" },
+            { type: "EMAIL_NEW_FOLLOWER", label: "New followers", desc: "Email when someone follows your shop (off by default)" },
+          ].map((r) => (
+            <div key={r.type} className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
+              <div>
+                <p className="text-sm font-medium text-neutral-800">{r.label}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">{r.desc}</p>
+              </div>
+              <NotificationToggle type={r.type} enabled={getEmailPref(r.type)} />
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Shop Updates / Broadcasts */}
       <section className="card-section p-6 space-y-4">

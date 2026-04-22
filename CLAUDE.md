@@ -2195,6 +2195,69 @@ Replaced raw `rounded-xl border` / `rounded-xl border bg-white` / `border border
 | `admin/blog/page.tsx` | Pending comment cards + empty state: `rounded-xl border bg-white` → `card-section` |
 | `admin/verification/page.tsx` | Empty states, application cards, seller rows: 7 instances of `rounded-xl border` → `card-section` |
 
+## Listing Form + UX Fixes (2026-04-22)
+
+### Schema additions (migration `20260422231209_add_listing_seo_fields`)
+- `Listing.metaDescription String?` — custom SEO meta description (160 chars max)
+- `Listing.materials String[]` — comma-separated materials list (e.g. walnut, maple, brass hardware)
+- `Listing.productLengthIn Float?`, `productWidthIn Float?`, `productHeightIn Float?` — actual product dimensions in inches (separate from packaged dimensions used for shipping)
+
+### Edit listing redirect
+- `updateListing` server action now calls `redirect(/listing/${listingId})` after saving — previously stayed on the edit page
+
+### Character counters
+- `CharCounter` component updated with `required` prop and design system border styling
+- New `InputCharCounter` export for single-line text inputs with character count
+- Applied to: Title (100 chars), Description (2000 chars), Meta description (160 chars) on both create and edit pages
+
+### Wider content width
+- `seller/[id]/page.tsx` and `seller/[id]/shop/page.tsx`: `max-w-6xl` → `max-w-7xl`
+- Homepage and browse already used `max-w-7xl`
+
+### AI_HOLD_LISTING removed from audit log
+- `logAdminAction` call with `AI_HOLD_LISTING` removed from `dashboard/listings/new/page.tsx` — AI review hold is automated and shouldn't clutter the admin audit trail
+
+### Loading skeletons modernized
+- `browse/loading.tsx`: removed `border` from skeleton cards, added `rounded-2xl` photo placeholders, wider `max-w-7xl`, 4-column grid
+- `listing/[id]/loading.tsx`: same treatment
+
+### Edit listing page styling
+- All inputs: `border border-neutral-200 rounded-md` (was `border rounded`)
+- Labels: `text-sm font-medium text-neutral-700` (was `text-sm`)
+- Listing type and packaged dims sections: `card-section p-4` (was `border rounded p-3`)
+
+### TagsInput styling
+- Border: `border border-neutral-200` (was bare `border`)
+
+### Notification preferences split
+- `/account/settings` now shows ONLY buyer-relevant preferences (From Makers You Follow, Orders & Cases, buyer email prefs)
+- Seller notification preferences moved to `/dashboard/seller` under new "Shop Notifications" section with in-app and email subsections
+- Link from `/account/settings` to `/dashboard/seller` for sellers
+
+### AI alt text backfill fix
+- `ai-review.ts`: both the no-API-key early return and the catch block now explicitly return `altTexts: []` — prevents `undefined` from silently skipping alt text backfill
+
+### Edit page photo management (`EditPhotoGrid` component)
+- New `src/components/EditPhotoGrid.tsx` — "use client" component with:
+  - HTML5 drag-and-drop reorder (drag photos between positions)
+  - Arrow button reorder (fallback for mobile/accessibility)
+  - Inline alt text editing per photo with "Save alt texts" button
+  - Delete photos with X button
+  - "Make cover" to move any photo to first position
+  - Toast notifications for all actions
+- Replaced the old server-rendered photo grid + separate `ActionForm` for alt texts
+- Old server actions `deletePhoto`, `saveAltTexts`, `setCoverPhoto` replaced with `reorderPhotos`, `deletePhotoAction`, `saveAltTextsAction`
+
+### Alt text input styling (both create + edit)
+- Placeholder: "Describe this image (e.g. 'Hand-carved walnut dining table')"
+- Helper text: "Alt text improves visibility in Google Image Search"
+- Consistent styling across `PhotoManager` and `EditPhotoGrid`
+
+### Materials and dimensions on listing detail
+- Materials shown in Details table when present (comma-separated)
+- Product dimensions shown as `L × W × H` in inches when present
+- `generateMetadata` uses `metaDescription` when available, falls back to `description.slice(0, 160)`
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
