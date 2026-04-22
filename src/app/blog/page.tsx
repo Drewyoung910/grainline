@@ -307,12 +307,16 @@ export default async function BlogIndexPage({
         <>
           {/* Featured post (only on first page, no search, no tag filter) */}
           {featured && (
+            <div className="relative mb-10">
+            <div className="absolute top-3 right-3 z-10">
+              <SaveBlogButton slug={featured.slug} initialSaved={savedSet.has(featured.id)} />
+            </div>
             <Link
               href={`/blog/${featured.slug}`}
-              className="group block mb-10 rounded-2xl border overflow-hidden hover:shadow-md transition-shadow"
+              className="group block rounded-2xl border overflow-hidden hover:shadow-md transition-shadow"
             >
               <div className="md:flex">
-                <div className="md:w-1/2 h-56 md:h-auto bg-neutral-100 overflow-hidden">
+                <div className="md:w-1/2 aspect-[16/9] md:aspect-auto md:h-auto bg-neutral-100 overflow-hidden">
                   {featured.coverImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -369,6 +373,7 @@ export default async function BlogIndexPage({
                 </div>
               </div>
             </Link>
+            </div>
           )}
 
           {/* Post grid */}

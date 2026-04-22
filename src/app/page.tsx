@@ -14,6 +14,7 @@ import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette, MapPin }
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
+import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 
@@ -141,13 +142,14 @@ export default async function HomePage() {
       prisma.listing.count({ where: { status: ListingStatus.ACTIVE, isPrivate: false } }),
       prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false }, listings: { some: { status: ListingStatus.ACTIVE } } } }),
       prisma.order.count({ where: { paidAt: { not: null } } }),
+      prisma.user.count({ where: { banned: false } }),
     ]),
     prisma.blogPost.findMany({
       where: { status: "PUBLISHED", ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}) },
       orderBy: { publishedAt: "desc" },
       take: 3,
       select: {
-        slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true,
+        id: true, slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true,
         author: { select: { name: true, imageUrl: true } },
         sellerProfile: { select: { displayName: true, avatarImageUrl: true } },
       },
@@ -167,7 +169,7 @@ export default async function HomePage() {
     }),
   ]);
 
-  const [activeListingsCount, sellersCount, ordersCount] = statsResults;
+  const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;
   const trendingTags = trendingTagsRaw.map((r) => r.tag);
 
   const mosaicPhotos: { url: string; listingId: string }[] = mosaicListings
@@ -262,6 +264,7 @@ export default async function HomePage() {
   }
 
   let saved = new Set<string>();
+  let savedBlogSlugs = new Set<string>();
   type FromYourMakersItem =
     | { kind: "listing"; id: string; title: string; priceCents: number; currency: string; photoUrl: string | null; sellerName: string; sellerProfileId: string }
     | { kind: "blog"; slug: string; title: string; coverImageUrl: string | null; sellerName: string; sellerProfileId: string };
@@ -269,7 +272,8 @@ export default async function HomePage() {
 
   if (meDbId) {
     const ids = [...fresh.map((f) => f.id), ...topSaved.map((t) => t.id)];
-    const [favs, follows] = await Promise.all([
+    const blogPostIds = recentBlogPosts.map((p) => p.id);
+    const [favs, follows, savedBlogRows] = await Promise.all([
       prisma.favorite.findMany({
         where: { userId: meDbId, listingId: { in: ids } },
         select: { listingId: true },
@@ -279,8 +283,18 @@ export default async function HomePage() {
         select: { sellerProfileId: true },
         take: 50,
       }),
+      blogPostIds.length > 0
+        ? prisma.savedBlogPost.findMany({
+            where: { userId: meDbId, blogPostId: { in: blogPostIds } },
+            select: { blogPostId: true },
+          })
+        : Promise.resolve([]),
     ]);
     saved = new Set(favs.map((f) => f.listingId));
+    const savedBlogIdSet = new Set(savedBlogRows.map((s) => s.blogPostId));
+    savedBlogSlugs = new Set(
+      recentBlogPosts.filter((p) => savedBlogIdSet.has(p.id)).map((p) => p.slug)
+    );
 
     if (follows.length >= 3) {
       const followedIds = follows.map((f) => f.sellerProfileId);
@@ -431,6 +445,11 @@ export default async function HomePage() {
           </div>
           <span className="text-amber-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString()}</span>
+            <span className="text-sm text-stone-500">members</span>
+          </div>
+          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
             <span className="text-sm text-stone-500">orders fulfilled</span>
           </div>
@@ -461,7 +480,7 @@ export default async function HomePage() {
         {fromYourMakers.length > 0 && (
           <ScrollSection>
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">From Your Makers</h2>
+              <h2 className="text-xl font-semibold font-display">Makers You Follow</h2>
               <Link href="/account/feed" className="text-sm text-neutral-600 hover:underline">
                 See full feed →
               </Link>
@@ -767,7 +786,10 @@ export default async function HomePage() {
                 const authorName = p.sellerProfile?.displayName ?? p.author.name ?? "Staff";
                 const authorAvatar = p.sellerProfile?.avatarImageUrl ?? p.author.imageUrl;
                 return (
-                  <li key={p.slug} className="card-listing">
+                  <li key={p.slug} className="relative card-listing">
+                    <div className="absolute top-2 right-2 z-10">
+                      <SaveBlogButton slug={p.slug} initialSaved={savedBlogSlugs.has(p.slug)} />
+                    </div>
                     <Link href={`/blog/${p.slug}`} className="block">
                       <div className="aspect-[4/3] bg-stone-100 overflow-hidden">
                         {p.coverImageUrl ? (

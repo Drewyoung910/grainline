@@ -6,6 +6,7 @@ type Step = {
   detail?: string | null;
   completed: boolean;
   current: boolean;
+  isRefund?: boolean;
 };
 
 type Props = {
@@ -18,6 +19,8 @@ type Props = {
   fulfillmentStatus: string;
   trackingNumber?: string | null;
   trackingCarrier?: string | null;
+  refundedAt?: string | Date | null;
+  refundAmountCents?: number | null;
 };
 
 function carrierTrackingUrl(
@@ -46,6 +49,13 @@ function fmtDate(d: string | Date): string {
   });
 }
 
+function fmtMoney(cents: number) {
+  return (cents / 100).toLocaleString(undefined, {
+    style: "currency",
+    currency: "USD",
+  });
+}
+
 function buildSteps(props: Props): Step[] {
   const {
     placedAt,
@@ -55,6 +65,8 @@ function buildSteps(props: Props): Step[] {
     pickedUpAt,
     fulfillmentMethod,
     fulfillmentStatus,
+    refundedAt,
+    refundAmountCents,
   } = props;
 
   const isPickup = fulfillmentMethod === "PICKUP";
@@ -65,6 +77,8 @@ function buildSteps(props: Props): Step[] {
     completed: true,
     current: false,
   };
+
+  let steps: Step[];
 
   if (isPickup) {
     const readyCompleted =
@@ -87,31 +101,46 @@ function buildSteps(props: Props): Step[] {
       current: readyCompleted && !pickedUpCompleted,
     };
 
-    return [orderPlaced, readyStep, pickedUpStep];
+    steps = [orderPlaced, readyStep, pickedUpStep];
+  } else {
+    // SHIPPING
+    const shippedCompleted =
+      fulfillmentStatus === "SHIPPED" ||
+      fulfillmentStatus === "DELIVERED" ||
+      !!shippedAt;
+    const deliveredCompleted = fulfillmentStatus === "DELIVERED" || !!deliveredAt;
+
+    const shippedStep: Step = {
+      label: "Shipped",
+      date: shippedAt,
+      completed: shippedCompleted,
+      current: !shippedCompleted && fulfillmentStatus === "PENDING",
+    };
+
+    const deliveredStep: Step = {
+      label: "Delivered",
+      date: deliveredAt,
+      completed: deliveredCompleted,
+      current: shippedCompleted && !deliveredCompleted,
+    };
+
+    steps = [orderPlaced, shippedStep, deliveredStep];
   }
 
-  // SHIPPING
-  const shippedCompleted =
-    fulfillmentStatus === "SHIPPED" ||
-    fulfillmentStatus === "DELIVERED" ||
-    !!shippedAt;
-  const deliveredCompleted = fulfillmentStatus === "DELIVERED" || !!deliveredAt;
+  // Add refund step if a refund was issued
+  if (refundAmountCents != null || refundedAt) {
+    const refundStep: Step = {
+      label: "Refund issued",
+      date: null,
+      detail: refundAmountCents != null ? fmtMoney(refundAmountCents) : null,
+      completed: true,
+      current: false,
+      isRefund: true,
+    };
+    steps.push(refundStep);
+  }
 
-  const shippedStep: Step = {
-    label: "Shipped",
-    date: shippedAt,
-    completed: shippedCompleted,
-    current: !shippedCompleted && fulfillmentStatus === "PENDING",
-  };
-
-  const deliveredStep: Step = {
-    label: "Delivered",
-    date: deliveredAt,
-    completed: deliveredCompleted,
-    current: shippedCompleted && !deliveredCompleted,
-  };
-
-  return [orderPlaced, shippedStep, deliveredStep];
+  return steps;
 }
 
 export default function OrderTimeline(props: Props) {
@@ -131,7 +160,9 @@ export default function OrderTimeline(props: Props) {
 
           // Dot colors
           let dotClass: string;
-          if (step.completed) {
+          if (step.isRefund) {
+            dotClass = "bg-red-500 border-red-500";
+          } else if (step.completed) {
             dotClass = "bg-green-500 border-green-500";
           } else if (step.current) {
             dotClass = "bg-amber-400 border-amber-400";
@@ -166,7 +197,9 @@ export default function OrderTimeline(props: Props) {
               <div className={`-mt-0.5 pb-2 ${isLast ? "" : "pb-4"}`}>
                 <div
                   className={`text-sm font-medium ${
-                    step.completed
+                    step.isRefund
+                      ? "text-red-700"
+                      : step.completed
                       ? "text-neutral-900"
                       : step.current
                       ? "text-amber-700"

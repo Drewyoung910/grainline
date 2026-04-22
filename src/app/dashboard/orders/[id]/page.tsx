@@ -212,6 +212,7 @@ export default async function BuyerOrderDetailPage({
         fulfillmentStatus={status}
         trackingNumber={order.trackingNumber}
         trackingCarrier={order.trackingCarrier}
+        refundAmountCents={hasRefund ? refundCents : null}
       />
 
       {hasRefund && (

@@ -8,6 +8,7 @@ import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
+import SellerNotesForm from "@/components/SellerNotesForm";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
@@ -180,6 +181,7 @@ export default async function SellerOrderDetailPage({
         fulfillmentStatus={status}
         trackingNumber={order.trackingNumber}
         trackingCarrier={order.trackingCarrier}
+        refundAmountCents={hasRefund ? refundCents : null}
       />
 
       {order.reviewNeeded && (
@@ -583,11 +585,18 @@ export default async function SellerOrderDetailPage({
                 >
                   <input type="hidden" name="action" value="shipped" />
                   <div className="flex flex-wrap gap-2">
-                    <input
+                    <select
                       name="trackingCarrier"
-                      placeholder="Carrier (e.g., UPS)"
-                      className="rounded border px-2 py-1 text-sm"
-                    />
+                      className="rounded border px-2 py-1 text-sm bg-white"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>Carrier</option>
+                      <option value="UPS">UPS</option>
+                      <option value="USPS">USPS</option>
+                      <option value="FedEx">FedEx</option>
+                      <option value="DHL">DHL</option>
+                      <option value="Other">Other</option>
+                    </select>
                     <input
                       name="trackingNumber"
                       placeholder="Tracking number"
@@ -616,19 +625,7 @@ export default async function SellerOrderDetailPage({
       {/* Seller notes */}
       <section className="rounded-xl border bg-white p-4 space-y-3">
         <div className="font-medium">Seller notes</div>
-        <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="space-y-2">
-          <input type="hidden" name="action" value="update_notes" />
-          <textarea
-            name="sellerNotes"
-            placeholder="Notes visible to your team (not emailed for now)..."
-            className="w-full rounded border px-2 py-1 text-sm"
-            defaultValue={order.sellerNotes ?? ""}
-            rows={3}
-          />
-          <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
-            Save notes
-          </button>
-        </form>
+        <SellerNotesForm orderId={order.id} initialNotes={order.sellerNotes ?? ""} />
       </section>
 
       <div className="flex gap-3">

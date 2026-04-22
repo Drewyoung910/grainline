@@ -23,6 +23,7 @@ export default async function AdminReviewsPage() {
     include: {
       reviewer: { select: { name: true, email: true } },
       listing: { select: { id: true, title: true } },
+      photos: { orderBy: { sortOrder: "asc" } },
     },
   });
 
@@ -51,6 +52,20 @@ export default async function AdminReviewsPage() {
                 </div>
                 {r.comment && (
                   <p className="text-sm text-neutral-700 mt-1 line-clamp-3">{r.comment}</p>
+                )}
+                {r.photos.length > 0 && (
+                  <div className="flex gap-1.5 mt-2">
+                    {r.photos.map((photo) => (
+                      <a key={photo.id} href={photo.url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={photo.url}
+                          alt=""
+                          className="h-12 w-12 rounded border object-cover hover:opacity-80 transition-opacity"
+                        />
+                      </a>
+                    ))}
+                  </div>
                 )}
               </div>
               <DeleteReviewButton reviewId={r.id} />
