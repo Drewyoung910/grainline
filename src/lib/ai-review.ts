@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/db'
 
-interface AIReviewResult {
+export interface AIReviewResult {
   approved: boolean
   flags: string[]
   confidence: number
   reason: string
+  altTexts?: string[]
 }
 
 export async function reviewListingWithAI(listing: {
@@ -133,12 +134,16 @@ LENIENCY FOR NEW SELLERS:
 - Always reject clear violations regardless of seller experience
 - After 3+ listings, apply standard strictness
 
+ALT TEXT GENERATION:
+For each image provided, also generate a brief SEO-friendly alt text description (10-20 words) describing the item shown. Focus on materials, colors, and the type of woodworking piece. Return these in an "altTexts" array in your JSON response, one entry per image in order. If no images are provided, omit the "altTexts" field or return an empty array.
+
 Respond with ONLY valid JSON, no other text:
 {
   "approved": true or false,
   "flags": ["specific-issue-category-keys"],
   "confidence": 0.0 to 1.0,
-  "reason": "one-sentence explanation"
+  "reason": "one-sentence explanation",
+  "altTexts": ["brief alt text for image 1", "brief alt text for image 2"]
 }`
 
   try {
@@ -167,7 +172,7 @@ Respond with ONLY valid JSON, no other text:
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: messageContent }],
-        max_tokens: 300,
+        max_tokens: 500,
         temperature: 0.1,
       })
     })

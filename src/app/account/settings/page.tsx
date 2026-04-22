@@ -1,6 +1,7 @@
 // src/app/account/settings/page.tsx
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { NotificationToggle } from "@/components/NotificationToggle";
@@ -76,21 +77,27 @@ export default async function AccountSettingsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-6 md:p-8 space-y-8">
+      <div>
+        <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 inline-flex items-center gap-1">
+          ← My Account
+        </Link>
+      </div>
       <header>
-        <h1 className="text-3xl font-bold">Notification Preferences</h1>
+        <h1 className="text-3xl font-bold font-display">Notification Preferences</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Choose which notifications you receive from Grainline.
         </p>
       </header>
 
-      {/* ── In-App Notifications ──────────────────────────────── */}
+      {/* ── Your notifications (all users) ───────────────────── */}
       <div>
-        <h2 className="text-lg font-semibold mb-1">In-App Notifications</h2>
-        <p className="text-sm text-neutral-500 mb-4">These appear in your notification bell.</p>
+        <h2 className="text-lg font-semibold font-display">Your notifications</h2>
+        <p className="text-sm text-neutral-500 mt-1 mb-4">These appear in your notification bell and are sent to your email.</p>
 
-        {/* Group 1 — From Makers You Follow */}
+        {/* In-App: From Makers You Follow */}
         <section className="card-section p-5 mb-4">
-          <h3 className="text-base font-semibold mb-3">From Makers You Follow</h3>
+          <h3 className="text-base font-semibold mb-0.5">From Makers You Follow</h3>
+          <p className="text-xs text-neutral-400 mb-3">In-app</p>
           <Row
             type="FOLLOWED_MAKER_NEW_LISTING"
             label="New listings"
@@ -108,13 +115,14 @@ export default async function AccountSettingsPage() {
           />
         </section>
 
-        {/* Group 2 — Orders & Cases */}
+        {/* In-App: Orders & Cases */}
         <section className="card-section p-5 mb-4">
-          <h3 className="text-base font-semibold mb-3">Orders &amp; Cases</h3>
+          <h3 className="text-base font-semibold mb-0.5">Orders &amp; Cases</h3>
+          <p className="text-xs text-neutral-400 mb-3">In-app</p>
           <Row
             type="NEW_ORDER"
-            label="New orders"
-            description="Order confirmations when someone purchases from you"
+            label="Order confirmed"
+            description="Confirmation when you place an order"
           />
           <Row
             type="ORDER_SHIPPED"
@@ -126,13 +134,6 @@ export default async function AccountSettingsPage() {
             label="Delivery notices"
             description="When your order has been delivered"
           />
-          {hasSeller && (
-            <Row
-              type="CASE_OPENED"
-              label="Cases opened"
-              description="When a buyer opens a case on one of your orders"
-            />
-          )}
           <Row
             type="CASE_MESSAGE"
             label="Case messages"
@@ -143,12 +144,66 @@ export default async function AccountSettingsPage() {
             label="Case resolutions"
             description="When a case you are involved in is resolved"
           />
+          <Row
+            type="CUSTOM_ORDER_LINK"
+            label="Custom piece ready"
+            description="When a maker sends you a custom listing to purchase"
+          />
+          <Row
+            type="COMMISSION_INTEREST"
+            label="Commission interest"
+            description="When a maker expresses interest in your commission request"
+          />
         </section>
 
-        {/* Group 3 — Your Shop (sellers only) */}
-        {hasSeller && (
+        {/* Email: buyer-facing */}
+        <section className="card-section p-5 mb-4">
+          <h3 className="text-base font-semibold mb-0.5">Messages &amp; Orders</h3>
+          <p className="text-xs text-neutral-400 mb-3">Email · Order confirmations and shipping updates are always sent</p>
+          <EmailRow
+            type="EMAIL_NEW_MESSAGE"
+            label="New messages"
+            description="Email when someone sends you a message (5-minute active-conversation throttle)"
+          />
+          <EmailRow
+            type="EMAIL_CASE_MESSAGE"
+            label="Case messages"
+            description="Email when someone sends a message in an open case"
+          />
+          <EmailRow
+            type="EMAIL_CASE_RESOLVED"
+            label="Case resolutions"
+            description="Email when a case you are involved in is resolved"
+          />
+        </section>
+
+        {/* Email: From Makers You Follow */}
+        <section className="card-section p-5 mb-4">
+          <h3 className="text-base font-semibold mb-0.5">From Makers You Follow</h3>
+          <p className="text-xs text-neutral-400 mb-3">Email</p>
+          <EmailRow
+            type="EMAIL_FOLLOWED_MAKER_NEW_LISTING"
+            label="New listings from followed makers"
+            description="Email when a maker you follow posts a new piece"
+          />
+          <EmailRow
+            type="EMAIL_SELLER_BROADCAST"
+            label="Shop updates from followed makers"
+            description="Email broadcasts and announcements (off by default)"
+          />
+        </section>
+      </div>
+
+      {/* ── Shop notifications (sellers only) ────────────────── */}
+      {hasSeller && (
+        <div className="border-t border-neutral-100 pt-6">
+          <h2 className="text-lg font-semibold font-display">Shop notifications</h2>
+          <p className="text-sm text-neutral-500 mt-1 mb-4">Notifications about your shop and listings.</p>
+
+          {/* In-App: Your Shop */}
           <section className="card-section p-5 mb-4">
-            <h3 className="text-base font-semibold mb-3">Your Shop</h3>
+            <h3 className="text-base font-semibold mb-0.5">Your Shop</h3>
+            <p className="text-xs text-neutral-400 mb-3">In-app</p>
             <Row
               type="NEW_MESSAGE"
               label="New messages"
@@ -170,19 +225,14 @@ export default async function AccountSettingsPage() {
               description="When a buyer requests a custom piece from you"
             />
             <Row
-              type="CUSTOM_ORDER_LINK"
-              label="Custom order ready"
-              description="When a maker sends you a custom listing to purchase"
-            />
-            <Row
-              type="COMMISSION_INTEREST"
-              label="Commission interest"
-              description="When a maker expresses interest in your commission request"
-            />
-            <Row
               type="NEW_FAVORITE"
               label="Someone saves your listing"
               description="When a buyer hearts one of your pieces (off by default)"
+            />
+            <Row
+              type="CASE_OPENED"
+              label="Cases opened"
+              description="When a buyer opens a case on one of your orders"
             />
             <div className="flex items-center justify-between py-3 border-b border-neutral-100">
               <div>
@@ -199,12 +249,11 @@ export default async function AccountSettingsPage() {
               <span className="text-xs text-neutral-400 italic">Always on</span>
             </div>
           </section>
-        )}
 
-        {/* Group 4 — Blog (sellers only) */}
-        {hasSeller && (
+          {/* In-App: Blog */}
           <section className="card-section p-5 mb-4">
-            <h3 className="text-base font-semibold mb-3">Blog</h3>
+            <h3 className="text-base font-semibold mb-0.5">Blog</h3>
+            <p className="text-xs text-neutral-400 mb-3">In-app</p>
             <Row
               type="NEW_BLOG_COMMENT"
               label="New comments on your posts"
@@ -216,97 +265,39 @@ export default async function AccountSettingsPage() {
               description="When someone replies to a comment you left (off by default)"
             />
           </section>
-        )}
-      </div>
 
-      {/* ── Email Notifications ───────────────────────────────── */}
-      <div className="border-t border-neutral-100 pt-6">
-        <h2 className="text-lg font-semibold mb-1">Email Notifications</h2>
-        <p className="text-sm text-neutral-500 mb-1">These are sent to your email address.</p>
-        <p className="text-xs text-neutral-400 mb-4">
-          Order confirmations, shipping updates, refund notifications, and case resolutions are always sent and cannot be disabled.
-        </p>
-
-        {/* Messages & Orders */}
-        <section className="card-section p-5 mb-4">
-          <h3 className="text-base font-semibold mb-3">Messages &amp; Orders</h3>
-          <EmailRow
-            type="EMAIL_NEW_MESSAGE"
-            label="New messages"
-            description="Email when someone sends you a message (5-minute active-conversation throttle)"
-          />
-          {hasSeller && (
+          {/* Email: Shop */}
+          <section className="card-section p-5 mb-4">
+            <h3 className="text-base font-semibold mb-0.5">Shop emails</h3>
+            <p className="text-xs text-neutral-400 mb-3">Email</p>
             <EmailRow
               type="EMAIL_NEW_ORDER"
               label="New orders"
               description="Email when a buyer purchases from your shop"
             />
-          )}
-          {hasSeller && (
             <EmailRow
               type="EMAIL_CUSTOM_ORDER"
-              label="Custom order requests &amp; links"
-              description="Email for custom order requests (sellers) and custom pieces ready to purchase (buyers)"
+              label="Custom order requests"
+              description="Email when a buyer sends you a custom order request"
             />
-          )}
-        </section>
-
-        {/* Cases & Reviews */}
-        <section className="card-section p-5 mb-4">
-          <h3 className="text-base font-semibold mb-3">Cases &amp; Reviews</h3>
-          {hasSeller && (
             <EmailRow
               type="EMAIL_CASE_OPENED"
               label="Cases opened against you"
               description="Email when a buyer opens a case on one of your orders"
             />
-          )}
-          <EmailRow
-            type="EMAIL_CASE_MESSAGE"
-            label="Case messages"
-            description="Email when someone sends a message in an open case"
-          />
-          <EmailRow
-            type="EMAIL_CASE_RESOLVED"
-            label="Case resolutions"
-            description="Email when a case you are involved in is resolved"
-          />
-          {hasSeller && (
             <EmailRow
               type="EMAIL_NEW_REVIEW"
               label="New reviews"
               description="Email when a buyer leaves a review on one of your listings"
             />
-          )}
-        </section>
-
-        {/* From Makers You Follow */}
-        <section className="card-section p-5 mb-4">
-          <h3 className="text-base font-semibold mb-3">From Makers You Follow</h3>
-          <EmailRow
-            type="EMAIL_FOLLOWED_MAKER_NEW_LISTING"
-            label="New listings from followed makers"
-            description="Email when a maker you follow posts a new piece"
-          />
-          <EmailRow
-            type="EMAIL_SELLER_BROADCAST"
-            label="Shop updates from followed makers"
-            description="Email broadcasts and announcements (off by default)"
-          />
-        </section>
-
-        {/* Your Shop — sellers only */}
-        {hasSeller && (
-          <section className="card-section p-5">
-            <h3 className="text-base font-semibold mb-3">Your Shop</h3>
             <EmailRow
               type="EMAIL_NEW_FOLLOWER"
               label="New followers"
               description="Email when someone starts following your shop (off by default)"
             />
           </section>
-        )}
-      </div>
+        </div>
+      )}
 
       <p className="text-xs text-neutral-400">
         Changes take effect immediately. Security and account notices cannot be disabled.

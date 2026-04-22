@@ -4,6 +4,18 @@ import AllSellersMap from "@/components/AllSellersMap";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Find Local Woodworkers Near You | Grainline Makers Map",
+  description: "Discover handmade woodworking makers in your area. Browse makers by city and find someone local to commission custom furniture, home decor, and more.",
+  alternates: { canonical: "https://thegrainline.com/map" },
+  openGraph: {
+    title: "Find Local Woodworkers Near You | Grainline",
+    description: "Discover handmade woodworking makers in your area.",
+    type: "website",
+  },
+};
 
 type Point = {
   id: string;
@@ -104,14 +116,14 @@ export default async function AllSellersMapPage({
     <main className="max-w-6xl mx-auto p-6 space-y-6">
       <header className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Makers near you</h1>
+          <h1 className="text-2xl font-semibold font-display">Makers near you</h1>
           <p className="text-sm text-neutral-500 mt-1">
             Showing {points.length} maker{points.length === 1 ? "" : "s"} with exact pickup locations.
           </p>
         </div>
       </header>
 
-      <section className="rounded-xl border overflow-hidden">
+      <section className="rounded-lg border border-stone-200/60 overflow-hidden">
         {/* Client map; no SSR */}
         <AllSellersMap
           points={points}

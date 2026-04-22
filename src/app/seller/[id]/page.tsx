@@ -657,7 +657,7 @@ export default async function SellerPublicPage({
             );
           })()}
           {listings.length === 0 ? (
-            <div className="rounded-xl border p-6 text-neutral-600">
+            <div className="card-section p-6 text-neutral-600">
               No listings yet.
             </div>
           ) : (

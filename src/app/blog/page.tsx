@@ -27,12 +27,13 @@ const TYPE_TABS: Array<{ label: string; value: string }> = [
 export default async function BlogIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; page?: string; bq?: string; tags?: string; sort?: string }>;
+  searchParams: Promise<{ type?: string; page?: string; bq?: string; tags?: string; sort?: string; author?: string }>;
 }) {
   const sp = await searchParams;
   const q = sp.bq?.trim() ?? "";
   const typeFilter = sp.type ?? "";
   const tagsFilter = sp.tags ? sp.tags.split(",").filter(Boolean) : [];
+  const authorFilter = sp.author ?? "";
   const sort = sp.sort ?? (q ? "relevant" : "newest");
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
   const pageSize = 12;
@@ -50,10 +51,11 @@ export default async function BlogIndexPage({
   const blockedUserIds = await getBlockedUserIdsFor(meDbId);
   const blockedUserIdList = [...blockedUserIds];
 
-  // Base where clause (type + tag filters apply always)
+  // Base where clause (type + tag + author filters apply always)
   const baseFilters = {
     ...(typeValid ? { type: typeFilter as BlogPostType } : {}),
     ...(tagsFilter.length > 0 ? { tags: { hasSome: tagsFilter } } : {}),
+    ...(authorFilter ? { sellerProfileId: authorFilter } : {}),
     ...(blockedUserIdList.length > 0 ? { authorId: { notIn: blockedUserIdList } } : {}),
   };
 
@@ -166,6 +168,7 @@ export default async function BlogIndexPage({
     if (typeFilter) p.set("type", typeFilter);
     if (q) p.set("bq", q);
     if (tagsFilter.length) p.set("tags", tagsFilter.join(","));
+    if (authorFilter) p.set("author", authorFilter);
     if (sort && sort !== "newest") p.set("sort", sort);
     if (page > 1) p.set("page", String(page));
     for (const [k, v] of Object.entries(overrides)) {
@@ -184,7 +187,7 @@ export default async function BlogIndexPage({
     return "text-xs text-neutral-500";
   }
 
-  const isSearching = q || tagsFilter.length > 0;
+  const isSearching = q || tagsFilter.length > 0 || authorFilter;
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16">

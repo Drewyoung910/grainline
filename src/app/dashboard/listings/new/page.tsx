@@ -8,10 +8,11 @@ import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
-import ImagesUploader from "@/components/ImagesUploader";
+import PhotoManager from "@/components/PhotoManager";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
+import type { AIReviewResult } from "@/lib/ai-review";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import type { Metadata } from "next";
 
@@ -59,6 +60,13 @@ async function createListing(formData: FormData) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
   imageUrls = imageUrls.slice(0, 8);
+
+  // Alt texts (from PhotoManager hidden input)
+  let imageAltTexts: string[] = [];
+  const altJson = formData.get("imageAltTextsJson");
+  if (typeof altJson === "string" && altJson.length) {
+    try { imageAltTexts = (JSON.parse(altJson) as string[]).filter((v) => typeof v === "string"); } catch {}
+  }
 
   // Tags
   let tags: string[] = [];
@@ -138,7 +146,11 @@ async function createListing(formData: FormData) {
       processingTimeMinDays,
       processingTimeMaxDays,
       status: saveAsDraft ? "DRAFT" : "ACTIVE",
-      photos: { create: imageUrls.map((url, i) => ({ url, sortOrder: i })) },
+      photos: { create: imageUrls.map((url, i) => ({
+        url,
+        sortOrder: i,
+        altText: imageAltTexts[i]?.trim() || null,
+      })) },
     },
   });
 
@@ -210,11 +222,12 @@ async function createListing(formData: FormData) {
       sellerName: sellerInfo?.displayName ?? 'Unknown',
       listingCount,
       imageUrls: imageUrls.slice(0, 4),
-    }).catch(() => ({
+    }).catch((): AIReviewResult => ({
       approved: false,
       flags: ['AI review error'],
       confidence: 0,
-      reason: 'AI error — sending to admin review'
+      reason: 'AI error — sending to admin review',
+      altTexts: [],
     }))
 
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8
@@ -238,6 +251,25 @@ async function createListing(formData: FormData) {
           : `AI flagged: ${aiResult.reason}`,
         metadata: { aiFlags: aiResult.flags, confidence: aiResult.confidence, isFirstListing },
       }).catch(() => {})
+    }
+
+    // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text
+    if (aiResult.altTexts?.length) {
+      try {
+        const photos = await prisma.photo.findMany({
+          where: { listingId: created.id },
+          orderBy: { sortOrder: 'asc' },
+          select: { id: true, altText: true },
+        })
+        for (let i = 0; i < Math.min(photos.length, aiResult.altTexts.length); i++) {
+          if (aiResult.altTexts[i] && !photos[i].altText) {
+            await prisma.photo.update({
+              where: { id: photos[i].id },
+              data: { altText: aiResult.altTexts[i].slice(0, 200) },
+            })
+          }
+        }
+      } catch { /* non-fatal — alt text backfill failure doesn't block listing creation */ }
     }
   } catch { /* non-fatal */ }
 
@@ -349,7 +381,7 @@ export default async function NewListingPage({
 
         <div>
           <label className="block text-sm mb-1">Photos</label>
-          <ImagesUploader max={8} fieldName="imageUrls" />
+          <PhotoManager max={8} />
           <p className="mt-1 text-xs text-neutral-500">
             Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
           </p>

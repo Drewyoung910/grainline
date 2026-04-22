@@ -99,7 +99,7 @@ export default function SellerRefundPanel({
   }
 
   return (
-    <div className="rounded-xl border bg-white p-4 space-y-3">
+    <div className="card-section p-4 space-y-3">
       <div className="font-medium text-neutral-800">Cancel &amp; Refund Order</div>
 
       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">

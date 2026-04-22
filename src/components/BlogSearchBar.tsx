@@ -92,6 +92,12 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
       if (searchParams.get("type")) p.set("type", searchParams.get("type")!);
       p.set("tags", s.tag);
       router.push(`/blog?${p}`);
+    } else if (s.type === "author" && s.sellerProfileId) {
+      const p = new URLSearchParams();
+      if (searchParams.get("type")) p.set("type", searchParams.get("type")!);
+      p.set("author", s.sellerProfileId);
+      p.set("bq", s.label);
+      router.push(`/blog?${p}`);
     } else {
       setValue(s.label);
       navigate(s.label);

@@ -45,7 +45,6 @@ export const metadata: Metadata = {
     siteName: "Grainline",
     title: "Grainline — Handmade Woodworking Marketplace",
     description: "Discover unique handmade woodworking pieces from local artisans.",
-    images: [{ url: "/og-image.jpg", width: 1200, height: 630, alt: "Grainline Marketplace" }],
   },
   twitter: {
     card: "summary_large_image",

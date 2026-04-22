@@ -507,6 +507,17 @@ function CartPage() {
                   <span className="text-neutral-600">Items</span>
                   <span className="font-medium">${(grandTotal / 100).toFixed(2)}</span>
                 </div>
+                {groups.some((g) => giftBySeller[g.sellerId]?.giftWrapping) && (
+                  <div className="flex justify-between text-sm text-neutral-600">
+                    <span>Gift wrapping</span>
+                    <span>
+                      ${(groups.reduce((sum, g) => {
+                        if (!giftBySeller[g.sellerId]?.giftWrapping) return sum;
+                        return sum + (g.items[0]?.listing.giftWrappingPriceCents ?? 0);
+                      }, 0) / 100).toFixed(2)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Shipping</span>
                   <span className="font-medium">

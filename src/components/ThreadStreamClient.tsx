@@ -63,7 +63,7 @@ export default function ThreadStreamClient({
   }, [id]); // only on mount/unmount for this convo
 
   return (
-    <section className="rounded-xl border bg-white p-4">
+    <section className="card-section p-4">
       <ul className="space-y-3">
         {msgs.map((m) => {
           const mine = m.senderId === meId;

@@ -8,6 +8,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -265,8 +266,46 @@ export default async function CommissionPage({
     return `/commission${qs ? `?${qs}` : ""}`;
   }
 
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "How do custom woodworking commissions work on Grainline?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Post a request describing the custom piece you want, including details like dimensions, wood type, and budget. Skilled makers browse requests and express interest. You review their profiles, past work, and ratings, then connect directly via messages to discuss your project and finalize details.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "How much does a custom woodworking commission cost?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Pricing varies based on the complexity, size, wood species, and maker experience. You set your own budget range when posting a request, and makers who can work within that range will express interest. Most custom pieces range from $100 for small items to several thousand dollars for large furniture.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "How long does a custom commission take?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Timelines depend on the maker's schedule and the complexity of your piece. Simple items may take 1-2 weeks, while complex furniture can take 2-3 months. You can specify your preferred timeline when posting a request, and makers will let you know if they can meet it.",
+        },
+      },
+    ],
+  };
+
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+      {/* FAQ JSON-LD */}
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(faqLd) }}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -155,7 +155,7 @@ export default async function ListingPage({
     return notFound();
   }
 
-  const [ratingAgg, sellerRatingAgg, moreFromSeller] = await Promise.all([
+  const [ratingAgg, sellerRatingAgg, moreFromSeller, topReviews] = await Promise.all([
     prisma.review.aggregate({
       where: { listingId: id },
       _avg: { ratingX2: true },
@@ -177,6 +177,18 @@ export default async function ListingPage({
       take: 4,
       include: {
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+      },
+    }),
+    prisma.review.findMany({
+      where: { listingId: id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        ratingX2: true,
+        comment: true,
+        createdAt: true,
+        reviewer: { select: { name: true } },
       },
     }),
   ]);
@@ -315,6 +327,19 @@ export default async function ListingPage({
       ratingValue: sellerAvgRaw.toFixed(1),
       reviewCount: sellerReviewCount,
     };
+  }
+  if (topReviews.length > 0) {
+    productLd.review = topReviews.map((r) => ({
+      "@type": "Review",
+      author: { "@type": "Person", name: r.reviewer.name ?? "Grainline Buyer" },
+      datePublished: r.createdAt.toISOString(),
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: (r.ratingX2 / 2).toFixed(1),
+        bestRating: "5",
+      },
+      ...(r.comment ? { reviewBody: r.comment.slice(0, 200) } : {}),
+    }));
   }
 
   const breadcrumbItems: { "@type": string; position: number; name: string; item: string }[] = [

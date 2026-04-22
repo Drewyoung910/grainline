@@ -8,6 +8,7 @@ export type BlogSuggestion = {
   label: string;
   slug?: string;
   tag?: string;
+  sellerProfileId?: string;
 };
 
 export async function GET(req: NextRequest) {
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     // Author / seller display name matches
     prisma.sellerProfile.findMany({
       where: { displayName: { contains: q, mode: "insensitive" } },
-      select: { displayName: true },
+      select: { id: true, displayName: true },
       take: 3,
     }),
   ]);
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
     const key = `author:${r.displayName.toLowerCase()}`;
     if (!seen.has(key)) {
       seen.add(key);
-      suggestions.push({ type: "author", label: r.displayName });
+      suggestions.push({ type: "author", label: r.displayName, sellerProfileId: r.id });
     }
   }
 

@@ -66,8 +66,11 @@ export default async function MyCommissionsPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+        ← My Account
+      </Link>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">My Commission Requests</h1>
+        <h1 className="text-2xl font-bold font-display text-neutral-900">My Commission Requests</h1>
         <Link
           href="/commission/new"
           className="text-sm bg-neutral-900 text-white px-4 py-2 hover:bg-neutral-700 transition-colors"

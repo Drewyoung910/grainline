@@ -341,7 +341,7 @@ export default async function DashboardPage() {
             </Link>
 
             <Link
-              href="/dashboard/saved"
+              href="/account/saved"
               className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               Saved items
@@ -361,9 +361,9 @@ export default async function DashboardPage() {
             <p className="font-medium text-amber-900 text-sm">Your listings are not visible to buyers yet</p>
             <p className="text-amber-700 text-xs mt-0.5">Connect Stripe to receive payments and make your listings public</p>
           </div>
-          <a href="/seller/payouts" className="text-xs font-medium text-amber-900 underline whitespace-nowrap ml-4">
+          <Link href="/dashboard/seller" className="text-xs font-medium text-amber-900 underline whitespace-nowrap ml-4">
             Connect Stripe →
-          </a>
+          </Link>
         </div>
       )}
 

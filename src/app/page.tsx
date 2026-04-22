@@ -729,7 +729,7 @@ export default async function HomePage() {
           </div>
 
           {fresh.length === 0 ? (
-            <div className="rounded-xl border bg-white p-6 text-neutral-600">
+            <div className="card-section p-6 text-neutral-600">
               Nothing listed yet — check back soon.
             </div>
           ) : (
@@ -823,11 +823,11 @@ export default async function HomePage() {
           </ScrollSection>
         )}
 
-        {/* ── Stories from the Workshop ────────────────────────────────────── */}
+        {/* ── From the Blog ────────────────────────────────────────────────── */}
         {recentBlogPosts.length > 0 && (
           <ScrollSection className="bg-amber-50/30 rounded-xl px-4 py-6 -mx-4">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Stories from the Workshop</h2>
+              <h2 className="text-xl font-semibold font-display">From the Blog</h2>
               <Link href="/blog" className="text-sm text-neutral-600 hover:underline">
                 Read more stories
               </Link>

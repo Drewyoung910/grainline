@@ -56,17 +56,20 @@ export default async function FollowingPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
+      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+        ← My Account
+      </Link>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Makers You Follow</h1>
+        <h1 className="text-2xl font-bold font-display">Makers You Follow</h1>
         <Link href="/account/feed" className="text-sm text-amber-700 hover:underline">
           View Feed →
         </Link>
       </div>
 
       {follows.length === 0 ? (
-        <div className="rounded-xl border p-10 text-center space-y-4">
+        <div className="card-section p-10 text-center space-y-4">
           <p className="text-neutral-500">You&apos;re not following any makers yet.</p>
-          <Link href="/sellers" className="inline-block bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
+          <Link href="/sellers" className="inline-block bg-amber-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-amber-700 transition-colors">
             Find Makers to Follow
           </Link>
         </div>
@@ -76,7 +79,7 @@ export default async function FollowingPage() {
             const avatar = s.avatarImageUrl ?? s.user?.imageUrl ?? null;
             const location = [s.city, s.state].filter(Boolean).join(", ");
             return (
-              <li key={s.id} className="rounded-xl border p-4 flex items-center gap-4">
+              <li key={s.id} className="card-section p-4 flex items-center gap-4">
                 <Link href={`/seller/${s.id}`} className="flex-none">
                   {avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element

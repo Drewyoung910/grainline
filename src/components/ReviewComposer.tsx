@@ -96,7 +96,7 @@ export default function ReviewComposer(props: {
   }
 
   return (
-    <form onSubmit={onSubmit} className="rounded-xl border bg-white p-4 space-y-3">
+    <form onSubmit={onSubmit} className="card-section p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-medium">{editing ? "Edit your review" : "Write a review"}</h3>
         {/* Star preview + numeric select */}
