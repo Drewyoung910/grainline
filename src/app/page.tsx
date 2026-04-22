@@ -489,9 +489,9 @@ export default async function HomePage() {
             <ul className="flex snap-x snap-mandatory gap-4 pb-0" style={{ width: "max-content" }}>
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
-                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start card-listing">
+                  <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link href={`/listing/${item.id}`} className="block">
-                      <div className="h-36 bg-neutral-100 overflow-hidden">
+                      <div className="aspect-square bg-neutral-100 overflow-hidden">
                         {item.photoUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={item.photoUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
@@ -499,7 +499,7 @@ export default async function HomePage() {
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-2 bg-white">
+                      <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
                         <p className="text-xs text-neutral-500">
                           {(item.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: item.currency })}
@@ -509,9 +509,9 @@ export default async function HomePage() {
                     </Link>
                   </ClickTracker>
                 ) : (
-                  <li key={item.slug} className="w-44 flex-none snap-start card-listing">
+                  <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link href={`/blog/${item.slug}`} className="block">
-                      <div className="h-36 bg-neutral-100 overflow-hidden">
+                      <div className="aspect-square bg-neutral-100 overflow-hidden">
                         {item.coverImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={item.coverImageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
@@ -519,7 +519,7 @@ export default async function HomePage() {
                           <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                         )}
                       </div>
-                      <div className="p-2 bg-white">
+                      <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
                         <p className="text-xs text-amber-600">Blog post</p>
                         <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
@@ -641,7 +641,7 @@ export default async function HomePage() {
                 {featuredListings.length > 0 && (
                   <div className="grid grid-cols-3 gap-3 self-start">
                     {featuredListings.map((fl) => (
-                      <Link key={fl.id} href={`/listing/${fl.id}`} className="card-listing block group">
+                      <Link key={fl.id} href={`/listing/${fl.id}`} className="card-listing block group hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                         <div className="aspect-square overflow-hidden">
                           {fl.photos[0]?.url ? (
                             // eslint-disable-next-line @next/next/no-img-element

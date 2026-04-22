@@ -87,7 +87,7 @@ export default async function SalesPage({
       </header>
 
       {total === 0 ? (
-        <div className="rounded-xl border p-8 text-neutral-600">No orders yet — your first sale is right around the corner</div>
+        <div className="card-section p-8 text-neutral-600">No orders yet — your first sale is right around the corner</div>
       ) : (
         <>
           <ul className="space-y-4">
@@ -105,7 +105,7 @@ export default async function SalesPage({
               const status = o.fulfillmentStatus ?? "PENDING";
 
               return (
-                <li key={o.id} className="rounded-xl border bg-white">
+                <li key={o.id} className="card-section">
                   <div className="flex items-center justify-between border-b px-4 py-3">
                     <div className="text-sm">
                       <div className="flex items-center gap-2 font-medium">

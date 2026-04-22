@@ -342,7 +342,7 @@ export default async function CommissionPage({
       </div>
 
       {requests.length === 0 ? (
-        <div className="border border-neutral-200 p-12 text-center">
+        <div className="card-section p-12 text-center">
           <p className="text-lg font-medium text-neutral-700 mb-2">No commission requests yet</p>
           <p className="text-sm text-neutral-500 mb-6">
             Be the first to post a custom piece request. Describe what you&apos;re looking for

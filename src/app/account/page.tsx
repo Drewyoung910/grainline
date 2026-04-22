@@ -160,7 +160,7 @@ export default async function AccountPage() {
         </div>
 
         {recentOrders.length === 0 ? (
-          <div className="border border-neutral-200 p-6 text-neutral-600 text-sm space-y-2">
+          <div className="card-section p-6 text-neutral-600 text-sm space-y-2">
             <p>No orders yet.</p>
             <Link href="/browse" className="underline hover:text-neutral-900">
               Start browsing →
@@ -225,7 +225,7 @@ export default async function AccountPage() {
         </div>
 
         {savedItems.length === 0 ? (
-          <div className="border border-neutral-200 p-6 text-neutral-600 text-sm">
+          <div className="card-section p-6 text-neutral-600 text-sm">
             No saved items yet. Heart pieces while browsing to save them here.
           </div>
         ) : (

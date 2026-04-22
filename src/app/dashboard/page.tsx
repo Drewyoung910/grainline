@@ -206,7 +206,7 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <Link
               href="/dashboard/listings/new"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium shadow-sm hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Store size={20} className="sm:hidden shrink-0" />
               <Store size={16} className="hidden sm:block shrink-0" />
@@ -215,7 +215,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/profile"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <User size={20} className="sm:hidden shrink-0" />
               <User size={16} className="hidden sm:block shrink-0" />
@@ -224,7 +224,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/seller"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Package size={20} className="sm:hidden shrink-0" />
               <Package size={16} className="hidden sm:block shrink-0" />
@@ -233,7 +233,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/sales"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Tag size={20} className="sm:hidden shrink-0" />
               <Tag size={16} className="hidden sm:block shrink-0" />
@@ -242,7 +242,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/inventory"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Grid size={20} className="sm:hidden shrink-0" />
               <Grid size={16} className="hidden sm:block shrink-0" />
@@ -251,7 +251,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/analytics"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <BarChart size={20} className="sm:hidden shrink-0" />
               <BarChart size={16} className="hidden sm:block shrink-0" />
@@ -260,7 +260,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/blog"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Edit size={20} className="sm:hidden shrink-0" />
               <Edit size={16} className="hidden sm:block shrink-0" />
@@ -270,7 +270,7 @@ export default async function DashboardPage() {
             {guildLevel === "GUILD_MASTER" ? (
               <Link
                 href="/dashboard/verification"
-                className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+                className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 !border-indigo-300 !bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
               >
                 <Sparkles size={20} className="sm:hidden shrink-0" />
                 <Sparkles size={16} className="hidden sm:block shrink-0" />
@@ -279,7 +279,7 @@ export default async function DashboardPage() {
             ) : guildLevel === "GUILD_MEMBER" ? (
               <Link
                 href="/dashboard/verification"
-                className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+                className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 !border-amber-300 !bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
               >
                 <Sparkles size={20} className="sm:hidden shrink-0" />
                 <Sparkles size={16} className="hidden sm:block shrink-0" />
@@ -288,7 +288,7 @@ export default async function DashboardPage() {
             ) : (
               <Link
                 href="/dashboard/verification"
-                className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+                className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
               >
                 <Sparkles size={20} className="sm:hidden shrink-0" />
                 <Sparkles size={16} className="hidden sm:block shrink-0" />
@@ -307,7 +307,7 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <Link
               href="/dashboard/orders"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Package size={20} className="sm:hidden shrink-0" />
               <Package size={16} className="hidden sm:block shrink-0" />
@@ -316,7 +316,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/messages"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <MessageCircle size={20} className="sm:hidden shrink-0" />
               <MessageCircle size={16} className="hidden sm:block shrink-0" />
@@ -325,7 +325,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/notifications"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               <Bell size={20} className="sm:hidden shrink-0" />
               <Bell size={16} className="hidden sm:block shrink-0" />
@@ -339,7 +339,7 @@ export default async function DashboardPage() {
 
             <Link
               href="/dashboard/saved"
-              className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 rounded-lg border px-4 py-3 sm:py-2 text-sm font-medium hover:bg-neutral-50 min-h-[56px] sm:min-h-0 text-center sm:text-left"
+              className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
               Saved items
             </Link>
@@ -413,7 +413,7 @@ export default async function DashboardPage() {
         )}
 
         {listings.length === 0 ? (
-          <div className="rounded-xl border p-8 text-neutral-600">
+          <div className="card-section p-8 text-neutral-600">
             Your workshop is empty — list your first piece and start selling.
           </div>
         ) : (
@@ -540,7 +540,7 @@ export default async function DashboardPage() {
       <section className="mt-10">
         <h2 className="text-xl font-semibold font-display mb-4">Saved Searches</h2>
         {savedSearches.length === 0 ? (
-          <div className="rounded-xl border p-6 text-neutral-600 text-sm">
+          <div className="card-section p-6 text-neutral-600 text-sm">
             No saved searches yet.{" "}<Link href="/browse" className="underline">Browse listings</Link>{" "}and click &quot;Save search&quot; to save a search.
           </div>
         ) : (

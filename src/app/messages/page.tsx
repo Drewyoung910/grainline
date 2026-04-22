@@ -270,7 +270,7 @@ export default async function MessagesPage({
       </div>
 
       {list.length === 0 ? (
-        <div className="rounded-xl border bg-white p-6 text-neutral-600">
+        <div className="card-section p-6 text-neutral-600">
           {q ? (
             <>
               No results for “<span className="font-medium">{q}</span>”.
@@ -286,7 +286,7 @@ export default async function MessagesPage({
           )}
         </div>
       ) : (
-        <ul className="divide-y rounded-xl border bg-white">
+        <ul className="divide-y card-section">
           {list.map(({ c, other, latest, unreadCount, ctxThumb }) => {
             const title = other?.name || other?.email || "User";
             const snippet = formatSnippet(latest?.body);

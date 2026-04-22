@@ -282,7 +282,7 @@ export default async function BlogIndexPage({
       )}
 
       {allPosts.length === 0 ? (
-        <div className="rounded-xl border p-12 text-center">
+        <div className="card-section p-12 text-center">
           <p className="text-neutral-500 mb-4">
             {q ? `No posts found for "${q}"` : "No posts yet — check back soon."}
           </p>
@@ -313,7 +313,7 @@ export default async function BlogIndexPage({
             </div>
             <Link
               href={`/blog/${featured.slug}`}
-              className="group block rounded-2xl border overflow-hidden hover:shadow-md transition-shadow"
+              className="group block card-listing hover:shadow-md transition-shadow"
             >
               <div className="md:flex">
                 <div className="md:w-1/2 aspect-[16/9] md:aspect-auto md:h-auto bg-neutral-100 overflow-hidden">

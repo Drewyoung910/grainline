@@ -59,7 +59,7 @@ export default async function OrdersPage() {
       </header>
 
       {orders.length === 0 ? (
-        <div className="rounded-xl border p-8 text-neutral-600">
+        <div className="card-section p-8 text-neutral-600">
           No orders yet — find something you love in the browse page.
         </div>
       ) : (
@@ -76,7 +76,7 @@ export default async function OrdersPage() {
             const total = itemsSubtotal + shipping + tax;
 
             return (
-              <li key={o.id} className="rounded-xl border bg-white">
+              <li key={o.id} className="card-section">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                   <div className="text-sm">
                     <div className="font-medium">
