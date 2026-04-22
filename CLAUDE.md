@@ -3312,3 +3312,21 @@ Sellers can restrict shipping quotes to specific carriers.
 - Blog card hover states — already covered by `.card-listing:hover` CSS rule
 - Upload error handling — R2UploadButton already has `uploadError` state with user-facing messages
 - Fulfillment button gating — already working via status-based JSX visibility + route redirect
+
+## Styling Consistency Pass (2026-04-22)
+
+### Card surface unification
+All card surfaces across the site now use the design system's `card-section` class (warm shadow + subtle border) instead of raw `border border-neutral-200 rounded-lg/xl`:
+- **Dashboard orders** — order cards + empty state
+- **Dashboard sales** — order cards + empty state
+- **Messages inbox** — conversation list + empty state
+- **Dashboard nav buttons** — all 12 buttons (Your Shop + Your Account), now with `hover:shadow-md transition-shadow`
+- **Commission room** — empty state
+- **Account page** — section empty states
+- **Blog page** — featured card + no-results state
+
+### Visual consistency fixes
+- **Mosaic animation seam** — `translateX(-50%)` → `translateX(-50.05%)` in both keyframes. Sub-pixel overlap hides the vertical line where the duplicated row meets itself.
+- **SearchBar button** — added `rounded-none` to the submit button. The outer `rounded-full overflow-hidden` container clips it; the global `button { border-radius }` rule was creating visible inner-left corners.
+- **"Makers You Follow" cards** — `h-36` fixed height → `aspect-square`, `rounded-2xl overflow-hidden`, hover lift effect. Matches ListingCard modern look.
+- **Meet a Maker featured listings** — added `hover:shadow-lg hover:-translate-y-1 transition-all` hover lift.
