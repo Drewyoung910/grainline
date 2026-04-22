@@ -116,15 +116,10 @@ export default async function SellerPublicPage({
     meId = me?.id ?? null;
   }
 
-  // Block check
+  // Block check — return 404 if the viewer has blocked or been blocked by the seller
   const blockedUserIds = await getBlockedUserIdsFor(meId);
   if (seller.user?.id && blockedUserIds.has(seller.user.id)) {
-    return (
-      <main className="max-w-2xl mx-auto p-8 text-center space-y-4">
-        <p className="text-neutral-500">This maker&apos;s profile is not available.</p>
-        <Link href="/browse" className="text-sm text-amber-700 underline">Browse other makers →</Link>
-      </main>
-    );
+    return notFound();
   }
 
   // Follow data
@@ -528,9 +523,12 @@ export default async function SellerPublicPage({
         {(seller.cityMetro ?? seller.metro) && (() => {
           const m = seller.cityMetro ?? seller.metro!;
           return (
-            <div className="mb-8">
-              <Link href={`/makers/${m.slug}`} className="text-sm text-neutral-600 hover:underline">
+            <div className="mb-8 space-y-1">
+              <Link href={`/makers/${m.slug}`} className="text-sm text-neutral-600 hover:underline block">
                 More makers in {m.name}, {m.state} →
+              </Link>
+              <Link href={`/browse/${m.slug}`} className="text-sm text-neutral-600 hover:underline block">
+                Browse {m.name}, {m.state} listings →
               </Link>
             </div>
           );

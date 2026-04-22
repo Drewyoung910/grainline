@@ -95,13 +95,13 @@ export default async function AdminBroadcastsPage({
       </form>
 
       {broadcasts.length === 0 ? (
-        <div className="rounded-xl border p-10 text-center text-neutral-500">
+        <div className="card-section p-10 text-center text-neutral-500">
           No broadcasts found.
         </div>
       ) : (
         <div className="space-y-3">
           {broadcasts.map((b) => (
-            <div key={b.id} className="rounded-xl border p-4 bg-white">
+            <div key={b.id} className="card-section p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

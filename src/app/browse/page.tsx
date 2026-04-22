@@ -151,13 +151,13 @@ export async function generateMetadata({
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
 
   if (q) {
-    const title = `Search results for "${q}"`;
+    const title = `${q} — Handmade Woodworking | Grainline`;
     const description = `Find handmade woodworking items matching "${q}" on Grainline`;
     return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?q=${encodeURIComponent(q)}` } };
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
-    const title = `${label} — Handmade Woodworking`;
+    const title = `Handmade ${label} | Grainline`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
     return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}` } };
   }

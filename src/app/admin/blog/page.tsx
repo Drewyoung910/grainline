@@ -118,7 +118,7 @@ export default async function AdminBlogPage() {
           </h2>
           <div className="space-y-3">
             {pendingComments.map((c) => (
-              <div key={c.id} className="rounded-xl border bg-white p-4 space-y-2">
+              <div key={c.id} className="card-section p-4 space-y-2">
                 <div className="flex items-start justify-between gap-4">
                   <div className="text-xs text-neutral-500">
                     <span className="font-medium text-neutral-700">{c.author.name ?? c.author.email}</span>
@@ -153,7 +153,7 @@ export default async function AdminBlogPage() {
       <section>
         <h2 className="text-lg font-semibold mb-3">All Posts ({posts.length})</h2>
         {posts.length === 0 ? (
-          <div className="rounded-xl border p-8 text-neutral-500 text-sm">No posts yet.</div>
+          <div className="card-section p-8 text-neutral-500 text-sm">No posts yet.</div>
         ) : (
           <ul className="divide-y border rounded-xl overflow-hidden">
             {posts.map((p) => (

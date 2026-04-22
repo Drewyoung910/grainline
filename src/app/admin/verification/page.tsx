@@ -371,11 +371,11 @@ export default async function AdminVerificationPage() {
         </h2>
 
         {memberPending.length === 0 ? (
-          <div className="rounded-xl border p-6 text-neutral-500 text-sm">No pending Guild Member applications.</div>
+          <div className="card-section p-6 text-neutral-500 text-sm">No pending Guild Member applications.</div>
         ) : (
           <div className="space-y-4">
             {memberPending.map((v) => (
-              <div key={v.id} className="rounded-xl border bg-white p-6 space-y-4">
+              <div key={v.id} className="card-section p-6 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="font-semibold text-base">{v.sellerProfile.displayName}</div>
@@ -482,14 +482,14 @@ export default async function AdminVerificationPage() {
         </h2>
 
         {masterPending.length === 0 ? (
-          <div className="rounded-xl border p-6 text-neutral-500 text-sm">No pending Guild Master applications.</div>
+          <div className="card-section p-6 text-neutral-500 text-sm">No pending Guild Master applications.</div>
         ) : (
           <div className="space-y-4">
             {masterPending.map((v) => {
               const m = masterMetricsMap.get(v.id);
               const mc = m ? meetsGuildMasterRequirements(m) : null;
               return (
-              <div key={v.id} className="rounded-xl border bg-white p-6 space-y-4">
+              <div key={v.id} className="card-section p-6 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="font-semibold text-base">{v.sellerProfile.displayName}</div>
@@ -591,7 +591,7 @@ export default async function AdminVerificationPage() {
           </h2>
           <div className="space-y-2">
             {memberActive.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-xl border px-5 py-3">
+              <div key={s.id} className="flex items-center justify-between card-section px-5 py-3">
                 <div>
                   <div className="font-medium text-sm">{s.displayName}</div>
                   {s.guildMemberApprovedAt && (
@@ -627,7 +627,7 @@ export default async function AdminVerificationPage() {
           </h2>
           <div className="space-y-2">
             {masterActive.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-xl border px-5 py-3">
+              <div key={s.id} className="flex items-center justify-between card-section px-5 py-3">
                 <div>
                   <div className="font-medium text-sm">{s.displayName}</div>
                   {s.guildMasterApprovedAt && (
@@ -662,7 +662,7 @@ export default async function AdminVerificationPage() {
           </h2>
           <div className="space-y-2">
             {revokedMembers.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-xl border px-5 py-3">
+              <div key={s.id} className="flex items-center justify-between card-section px-5 py-3">
                 <div>
                   <div className="font-medium text-sm">{s.displayName}</div>
                   {s.guildMemberApprovedAt && (

@@ -150,17 +150,12 @@ export default async function ListingPage({
     return notFound();
   }
 
-  // Block filter — show "not available" if the viewer has blocked or been blocked by the seller
+  // Block filter — return 404 if the viewer has blocked or been blocked by the seller
   if (!isPreview && listing.seller.user?.id && blockedUserIds.has(listing.seller.user.id)) {
-    return (
-      <main className="max-w-2xl mx-auto p-8 text-center space-y-4">
-        <p className="text-neutral-500">This listing is not available.</p>
-        <Link href="/browse" className="text-sm text-amber-700 underline">Browse other pieces →</Link>
-      </main>
-    );
+    return notFound();
   }
 
-  const [ratingAgg, sellerRatingAgg] = await Promise.all([
+  const [ratingAgg, sellerRatingAgg, moreFromSeller] = await Promise.all([
     prisma.review.aggregate({
       where: { listingId: id },
       _avg: { ratingX2: true },
@@ -170,6 +165,19 @@ export default async function ListingPage({
       where: { listing: { sellerId: listing.sellerId } },
       _avg: { ratingX2: true },
       _count: { _all: true },
+    }),
+    prisma.listing.findMany({
+      where: {
+        sellerId: listing.sellerId,
+        status: "ACTIVE",
+        isPrivate: false,
+        id: { not: listing.id },
+      },
+      orderBy: { qualityScore: "desc" },
+      take: 4,
+      include: {
+        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+      },
     }),
   ]);
 
@@ -746,6 +754,34 @@ export default async function ListingPage({
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.customOrderPolicy}</p>
               </details>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* ── More from this maker ────────────────────────────────────────── */}
+      {moreFromSeller.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-xl font-semibold font-display mb-4">
+            More from {sellerName}
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {moreFromSeller.map((ml) => (
+              <Link key={ml.id} href={`/listing/${ml.id}`} className="group">
+                <div className="rounded-2xl overflow-hidden aspect-square bg-neutral-100">
+                  {ml.photos[0]?.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  ) : (
+                    <div className="w-full h-full bg-neutral-200" />
+                  )}
+                </div>
+                <p className="mt-2 text-sm font-medium text-neutral-900 line-clamp-1">{ml.title}</p>
+                <p className="text-sm text-neutral-500">
+                  ${(ml.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                </p>
+              </Link>
+            ))}
           </div>
         </section>
       )}

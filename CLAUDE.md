@@ -2156,6 +2156,45 @@ Seven bugs fixed across seller shop, dashboard, and blog pages. Zero TypeScript 
 
 - **Blog post author avatar used Clerk image only** (`blog/[slug]/page.tsx`): Added `sellerProfile: { select: { avatarImageUrl, displayName } }` to the `author` select. Updated resolution: `authorAvatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl`; `authorName = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff"`. No layout changes.
 
+## SEO & Styling Audit Fixes (complete — 2026-04-16)
+
+Six fixes applied across SEO gaps and card-section styling consistency. Zero TypeScript errors.
+
+### SEO FIX 1: "More from this maker" on listing detail
+- `src/app/listing/[id]/page.tsx` — added `moreFromSeller` query (up to 4 ACTIVE non-private listings from same seller, ordered by `qualityScore desc`, excluding current listing) to the existing `Promise.all` alongside rating aggregates
+- New section rendered between "About this piece"/"Details"/"Shop Policies" and "You might also like" (SimilarItems): 2x4 grid of seller's other listings with rounded photo, title, price
+- Creates strong internal links between a seller's listings, improving crawl depth and cross-sell
+
+### SEO FIX 2: Blocked pages return 404 instead of thin 200
+- `src/app/listing/[id]/page.tsx` — blocked-seller check now calls `notFound()` instead of rendering a thin `<main>` with "This listing is not available" (was indexable 200 with zero content)
+- `src/app/seller/[id]/page.tsx` — same fix for blocked seller profiles
+
+### SEO FIX 3: Browse category title redundancy removed
+- `src/app/browse/page.tsx` `generateMetadata` — category title changed from `${label} — Handmade Woodworking` (redundant "Handmade X — Handmade Woodworking") to `Handmade ${label} | Grainline`
+- Search results title changed from `Search results for "${q}"` to `${q} — Handmade Woodworking | Grainline` (adds brand, removes generic prefix)
+
+### SEO FIX 4: Blog OG image fallback
+- `src/app/blog/[slug]/page.tsx` `generateMetadata` — when no `coverImageUrl` exists, OG images now fall back to `https://thegrainline.com/og-image.jpg` instead of `undefined`
+- Twitter card images also use the same fallback
+
+### SEO FIX 5: Seller profile city browse link
+- `src/app/seller/[id]/page.tsx` — added a second link below "More makers in [City]" that reads "Browse [City], [State] listings →" linking to `/browse/[metroSlug]`
+- Creates bidirectional internal links between seller profiles and city browse pages
+
+### STYLING FIX 6: card-section/card-listing migration (9 files)
+Replaced raw `rounded-xl border` / `rounded-xl border bg-white` / `border border-neutral-200` with design system classes:
+
+| File | What changed |
+|---|---|
+| `checkout/success/page.tsx` | Receipt section: `rounded-xl border bg-white` → `card-section` |
+| `blog/[slug]/page.tsx` | Featured listing cards + related post cards: `rounded-xl border overflow-hidden hover:shadow-sm` → `card-listing` |
+| `commission/[param]/page.tsx` | Empty state container: `border border-neutral-200 p-8` → `card-section p-8` |
+| `account/feed/FeedClient.tsx` | Skeleton cards: `border border-neutral-200` → `card-section` |
+| `dashboard/verification/page.tsx` | Eligibility checklist, application forms, metrics info boxes: 6 instances of `rounded-xl border` → `card-section` |
+| `admin/broadcasts/page.tsx` | Empty state + broadcast cards: `rounded-xl border` → `card-section` |
+| `admin/blog/page.tsx` | Pending comment cards + empty state: `rounded-xl border bg-white` → `card-section` |
+| `admin/verification/page.tsx` | Empty states, application cards, seller rows: 7 instances of `rounded-xl border` → `card-section` |
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

@@ -376,7 +376,7 @@ export default async function CheckoutSuccessPage({
         </p>
       </header>
 
-      <section className="rounded-xl border bg-white">
+      <section className="card-section">
         <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div className="text-sm">
             <div className="font-medium">Receipt</div>

@@ -246,7 +246,7 @@ export default async function VerificationPage() {
             )}
 
             {/* ── Eligibility checklist ── */}
-            <div className="rounded-xl border p-5 space-y-3">
+            <div className="card-section p-5 space-y-3">
               <p className="text-sm font-semibold text-neutral-800">Requirements</p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-center gap-2">
@@ -300,7 +300,7 @@ export default async function VerificationPage() {
             </div>
 
             {allCriteriaMet && (
-              <form action={applyForGuildMember} className="space-y-5 rounded-xl border p-6">
+              <form action={applyForGuildMember} className="space-y-5 card-section p-6">
                 <div className="space-y-1.5">
                   <label htmlFor="craftDescription" className="block text-sm font-medium">
                     About your craft <span className="text-red-500">*</span>
@@ -385,7 +385,7 @@ export default async function VerificationPage() {
 
           {/* Requirements + live metrics */}
           {!isMasterActive && masterMetrics && masterCriteria && (
-            <div className="rounded-xl border p-5 space-y-3">
+            <div className="card-section p-5 space-y-3">
               <p className="text-sm font-semibold text-neutral-800">Requirements</p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-center gap-2">
@@ -508,7 +508,7 @@ export default async function VerificationPage() {
               )}
 
               {/* ── Last check / next check info ── */}
-              <div className="rounded-xl border px-5 py-3 text-xs text-neutral-500 space-y-1">
+              <div className="card-section px-5 py-3 text-xs text-neutral-500 space-y-1">
                 {fullSeller.lastMetricCheckAt ? (
                   <p>
                     Last metrics check:{" "}
@@ -542,7 +542,7 @@ export default async function VerificationPage() {
 
           {/* ── Last check info (for Guild Members not yet Guild Master) ── */}
           {!isMasterActive && fullSeller.lastMetricCheckAt && (
-            <div className="rounded-xl border px-5 py-3 text-xs text-neutral-500">
+            <div className="card-section px-5 py-3 text-xs text-neutral-500">
               Last metrics check:{" "}
               <span className="text-neutral-700 font-medium">
                 {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString(undefined, {
@@ -572,7 +572,7 @@ export default async function VerificationPage() {
               {masterCriteria && !masterCriteria.allMet && null /* form hidden until requirements met */}
 
               {(!masterCriteria || masterCriteria.allMet) && (
-              <form action={applyForGuildMaster} className="space-y-5 rounded-xl border p-6">
+              <form action={applyForGuildMaster} className="space-y-5 card-section p-6">
                 <div className="space-y-1.5">
                   <label htmlFor="craftBusiness" className="block text-sm font-medium">
                     Describe your craft business <span className="text-red-500">*</span>

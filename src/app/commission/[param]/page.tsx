@@ -230,7 +230,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       )}
 
       {count === 0 ? (
-        <div className="border border-neutral-200 p-8 text-center mb-10">
+        <div className="card-section p-8 text-center mb-10">
           <p className="text-neutral-500 mb-4">No open commission requests in {cityName} yet.</p>
           <Link
             href="/commission/new"

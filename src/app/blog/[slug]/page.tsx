@@ -30,15 +30,18 @@ export async function generateMetadata({
   if (!post) return {};
 
   const description = post.metaDescription ?? post.excerpt ?? "";
+  const ogImages = post.coverImageUrl
+    ? [{ url: post.coverImageUrl }]
+    : [{ url: "https://thegrainline.com/og-image.jpg" }];
   return {
     title: post.title,
     description,
     openGraph: {
       title: post.title,
       description,
-      images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : undefined,
+      images: ogImages,
     },
-    twitter: { card: "summary_large_image", title: post.title, description },
+    twitter: { card: "summary_large_image", title: post.title, description, images: ogImages.map((i) => i.url) },
     alternates: { canonical: `https://thegrainline.com/blog/${slug}` },
   };
 }
@@ -321,7 +324,7 @@ export default async function BlogPostPage({
           <h2 className="text-lg font-semibold mb-4">Featured in this post</h2>
           <ul className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {featuredListings.map((l) => (
-              <li key={l.id} className="rounded-xl border overflow-hidden hover:shadow-sm transition-shadow">
+              <li key={l.id} className="card-listing">
                 <Link href={`/listing/${l.id}`} className="block">
                   <div className="h-36 bg-neutral-100 overflow-hidden">
                     {l.photos[0]?.url ? (
@@ -421,7 +424,7 @@ export default async function BlogPostPage({
               const rName = r.sellerProfile?.displayName ?? r.author.name ?? "Staff";
               const rAvatar = r.sellerProfile?.avatarImageUrl ?? r.author.imageUrl;
               return (
-                <li key={r.slug} className="rounded-xl border overflow-hidden hover:shadow-sm transition-shadow">
+                <li key={r.slug} className="card-listing">
                   <Link href={`/blog/${r.slug}`} className="block">
                     <div className="h-32 bg-neutral-100 overflow-hidden">
                       {r.coverImageUrl ? (
