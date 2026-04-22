@@ -290,14 +290,22 @@ export default async function ListingPage({
         ? "https://schema.org/PreOrder"
         : "https://schema.org/InStock",
       url: siteUrl(`/listing/${listing.id}`),
-      seller: { "@type": "Person", name: sellerName },
+      seller: { "@type": "Organization", name: sellerName, url: `https://thegrainline.com/seller/${listing.sellerId}` },
     },
   };
-  if (avgStarsRaw != null && countReviews > 0) {
+  if (countReviews > 0 && avgStarsRaw != null) {
+    // Listing-specific rating
     productLd.aggregateRating = {
       "@type": "AggregateRating",
       ratingValue: (Math.round(avgStarsRaw * 10) / 10).toFixed(1),
       reviewCount: countReviews,
+    };
+  } else if (sellerAvgRaw != null && sellerReviewCount > 0) {
+    // Fallback to seller rating
+    productLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: sellerAvgRaw.toFixed(1),
+      reviewCount: sellerReviewCount,
     };
   }
 

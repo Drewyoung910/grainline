@@ -96,16 +96,20 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
   });
 }
 
-function scoreListings(listings: ListingWithIncludes[]) {
-  const now = Date.now();
-  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+function scoreListings(listings: ListingWithIncludes[], query?: string) {
+  const qLower = (query ?? "").toLowerCase().trim();
   return listings
     .map((l) => {
-      let score = 1.0;
-      score += (l._count?.favorites ?? 0) * 0.3;
-      score += (l.viewCount ?? 0) * 0.1;
-      if (new Date(l.createdAt).getTime() > now - thirtyDaysMs) score += 0.2;
-      if (l.status === "SOLD_OUT") score -= 0.5;
+      // Primary factor: pre-computed qualityScore
+      let score = l.qualityScore ?? 0;
+      // Text-match bonus for search relevance
+      if (qLower) {
+        const titleLower = (l.title ?? "").toLowerCase();
+        if (titleLower === qLower) score += 0.5; // exact title match
+        else if (titleLower.startsWith(qLower)) score += 0.3; // title starts with query
+        else if (titleLower.includes(qLower)) score += 0.15; // title contains query
+        if ((l.tags ?? []).some((t) => t.toLowerCase() === qLower)) score += 0.2; // exact tag match
+      }
       return { listing: l, score };
     })
     .sort((a, b) => b.score - a.score);
@@ -289,6 +293,7 @@ export default async function BrowsePage({
     sort === "price_asc" ? { priceCents: "asc" as const }
     : sort === "price_desc" ? { priceCents: "desc" as const }
     : sort === "popular" ? { favorites: { _count: "desc" as const } }
+    : sort === "relevant" ? { qualityScore: "desc" as const }
     : { createdAt: "desc" as const };
 
   // Fetch listings
@@ -296,9 +301,9 @@ export default async function BrowsePage({
   let total: number;
 
   if (sort === "relevant" && q) {
-    // Fetch up to 200, score in JS, paginate
-    const all = await fetchListings(where, { createdAt: "desc" }, 200, 0, true);
-    const scored = scoreListings(all);
+    // Search relevance: fetch up to 200, re-score with text-match bonus, paginate
+    const all = await fetchListings(where, { qualityScore: "desc" }, 200, 0, true);
+    const scored = scoreListings(all, q);
     total = scored.length;
     listings = scored
       .slice((pageNum - 1) * PAGE_SIZE, pageNum * PAGE_SIZE)

@@ -109,8 +109,8 @@ export default async function HomePage() {
       },
     }),
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, favorites: { some: {} }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
-      orderBy: { createdAt: "desc" },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
+      orderBy: { qualityScore: "desc" },
       take: 6,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
@@ -699,10 +699,10 @@ export default async function HomePage() {
           </ScrollSection>
         )}
 
-        {/* ── Fresh from the Workshop ───────────────────────────────────────── */}
+        {/* ── New Arrivals ───────────────────────────────────────── */}
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold font-display">Fresh from the Workshop</h2>
+            <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
             <Link href="/browse" className="text-sm text-neutral-600 hover:underline">Browse all</Link>
           </div>
 
@@ -753,11 +753,11 @@ export default async function HomePage() {
           )}
         </ScrollSection>
 
-        {/* ── Buyer Favorites ───────────────────────────────────────────── */}
+        {/* ── Top Picks ───────────────────────────────────────────── */}
         {topSaved.length > 0 && (
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-semibold font-display">Buyer Favorites</h2>
+              <h2 className="text-xl font-semibold font-display">Top Picks</h2>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">

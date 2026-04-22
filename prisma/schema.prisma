@@ -310,6 +310,9 @@ model Listing {
   reviewedAt        DateTime?
   rejectionReason   String?
 
+  // Quality score (recalculated daily by cron)
+  qualityScore      Float     @default(0)
+
   // Metro geography (set automatically on create/update from seller location)
   metroId     String?
   metro       Metro?   @relation("ListingMetro", fields: [metroId], references: [id])
@@ -322,6 +325,7 @@ model Listing {
   @@index([category, status])
   @@index([viewCount])
   @@index([clickCount])
+  @@index([status, isPrivate, qualityScore])
 }
 
 model Photo {
