@@ -290,7 +290,7 @@ export default async function VerificationPage() {
               </ul>
 
               {!allCriteriaMet && (
-                <p className="text-xs text-neutral-500 border-t pt-3">
+                <p className="text-xs text-neutral-500 border-t border-neutral-100 pt-3">
                   Complete the requirements above to unlock your Guild Member application.
                 </p>
               )}
@@ -445,11 +445,11 @@ export default async function VerificationPage() {
                 </li>
               </ul>
               {!masterCriteria.allMet && (
-                <p className="text-xs text-neutral-500 border-t pt-3">
+                <p className="text-xs text-neutral-500 border-t border-neutral-100 pt-3">
                   Meet all requirements above to unlock the Guild Master application.
                 </p>
               )}
-              <p className="text-xs text-indigo-700 border-t pt-3">
+              <p className="text-xs text-indigo-700 border-t border-neutral-100 pt-3">
                 Guild Master status is subject to ongoing review and may be revoked if standards are not maintained.
               </p>
             </div>

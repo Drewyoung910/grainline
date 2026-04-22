@@ -374,7 +374,7 @@ export default async function CheckoutSuccessPage({
       </header>
 
       <section className="rounded-xl border bg-white">
-        <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div className="text-sm">
             <div className="font-medium">Receipt</div>
             <div className="text-neutral-500"><LocalDate date={order.createdAt} /></div>
@@ -383,7 +383,7 @@ export default async function CheckoutSuccessPage({
           <div className="text-sm font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
         </div>
 
-        <ul className="divide-y">
+        <ul className="divide-y divide-neutral-100">
           {order.items.map((it) => {
             const img = it.listing.photos[0]?.url;
             return (
@@ -407,7 +407,7 @@ export default async function CheckoutSuccessPage({
           })}
         </ul>
 
-        <div className="px-4 py-3 border-t space-y-1">
+        <div className="px-4 py-3 border-t border-neutral-100 space-y-1">
           <div className="flex items-center justify-between text-sm">
             <div className="text-neutral-600">Items subtotal</div>
             <div className="font-medium">{fmtMoney(itemsSubtotalCents, currency)}</div>

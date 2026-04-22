@@ -18,6 +18,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import SellerGallery from "@/components/SellerGallery";
 import CoverLightbox from "@/components/CoverLightbox";
 import ListingCard from "@/components/ListingCard";
+import LocalDate from "@/components/LocalDate";
 
 export async function generateMetadata({
   params,
@@ -265,7 +266,7 @@ export default async function SellerPublicPage({
           <p className="font-medium text-amber-900">This maker is currently on vacation and not accepting new orders.</p>
           {seller.vacationReturnDate && (
             <p className="text-amber-800 text-sm mt-0.5">
-              Expected return: {new Date(seller.vacationReturnDate).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+              Expected return: <LocalDate date={seller.vacationReturnDate} />
             </p>
           )}
           {seller.vacationMessage && (
@@ -417,7 +418,7 @@ export default async function SellerPublicPage({
           <section className="mb-8 border border-teal-200 bg-teal-50 p-4">
             <div className="text-xs text-teal-600 font-medium mb-1">
               Shop Update ·{" "}
-              {latestBroadcast.sentAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+              <LocalDate date={latestBroadcast.sentAt} />
             </div>
             <p className="text-sm text-neutral-700 whitespace-pre-line">{latestBroadcast.message}</p>
             {latestBroadcast.imageUrl && (
@@ -531,7 +532,7 @@ export default async function SellerPublicPage({
         {/* ── Shop Policies ──────────────────────────────────────────────── */}
         {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
           <section className="mb-8 card-section">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b">Shop Policies</h2>
+            <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">Shop Policies</h2>
             {seller.returnPolicy && (
               <details className="border-b last:border-b-0">
                 <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
@@ -568,7 +569,7 @@ export default async function SellerPublicPage({
         {/* ── FAQs ──────────────────────────────────────────────────────── */}
         {seller.faqs.length > 0 && (
           <section className="mb-8 card-section">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b">
+            <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">
               Frequently Asked Questions
             </h2>
             {seller.faqs.map((faq) => (
@@ -608,7 +609,7 @@ export default async function SellerPublicPage({
                       {p.excerpt && <p className="text-xs text-neutral-500 line-clamp-2">{p.excerpt}</p>}
                       {p.publishedAt && (
                         <div className="text-xs text-neutral-400">
-                          {new Date(p.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                          <LocalDate date={p.publishedAt} />
                         </div>
                       )}
                     </div>

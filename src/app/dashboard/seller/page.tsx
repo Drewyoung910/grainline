@@ -248,7 +248,7 @@ export default async function SellerSettingsPage() {
         </div>
 
         {/* Shipping & Tax Settings */}
-        <div className="border-t pt-4 space-y-4">
+        <div className="border-t border-neutral-100 pt-4 space-y-4">
           <h2 className="text-lg font-medium">Shipping & Tax</h2>
 
           <div>
@@ -319,7 +319,7 @@ export default async function SellerSettingsPage() {
         </div>
 
         {/* 🏷️ Ship-from address */}
-        <div className="border-t pt-4 space-y-3">
+        <div className="border-t border-neutral-100 pt-4 space-y-3">
           <h2 className="text-lg font-medium">Ship from address</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input name="shipFromName" placeholder="Sender name"
@@ -340,7 +340,7 @@ export default async function SellerSettingsPage() {
         </div>
 
         {/* Default package (cm / g) */}
-        <div className="border-t pt-4 space-y-3">
+        <div className="border-t border-neutral-100 pt-4 space-y-3">
           <h2 className="text-lg font-medium">Default package (cm / g)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="defaultPkgLengthCm" type="number" step="0.1" placeholder="Length (cm)"
@@ -368,7 +368,7 @@ export default async function SellerSettingsPage() {
         </div>
 
         {/* Workshop Gallery */}
-        <div className="border-t pt-4 space-y-3">
+        <div className="border-t border-neutral-100 pt-4 space-y-3">
           <div>
             <h2 className="text-lg font-medium">Workshop Gallery</h2>
             <p className="text-sm text-neutral-500 mt-0.5">

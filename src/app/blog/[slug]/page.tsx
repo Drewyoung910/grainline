@@ -207,7 +207,7 @@ export default async function BlogPostPage({
       </div>
 
       {/* Author card */}
-      <div className="flex items-center gap-3 mb-8 pb-6 border-b">
+      <div className="flex items-center gap-3 mb-8 pb-6 border-b border-neutral-100">
         {authorAvatar ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={authorAvatar} alt={authorName} className="h-10 w-10 rounded-full object-cover" />
@@ -271,7 +271,7 @@ export default async function BlogPostPage({
       />
 
       {/* Social share */}
-      <div className="flex flex-wrap items-center gap-3 py-6 border-t border-b mb-8">
+      <div className="flex flex-wrap items-center gap-3 py-6 border-t border-b border-neutral-100 mb-8">
         <span className="text-sm font-medium text-neutral-700">Share:</span>
         <a
           href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(postUrl)}`}

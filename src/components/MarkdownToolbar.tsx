@@ -195,7 +195,7 @@ export default function MarkdownToolbar({
                 });
                 editor.chain().focus().setImage({ src: publicUrl }).run();
               } catch {
-                // Silent fail — user can try again
+                alert("Image upload failed. The file may be too large (max 4MB).");
               }
             };
             input.click();

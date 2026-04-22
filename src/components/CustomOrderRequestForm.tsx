@@ -96,7 +96,7 @@ export default function CustomOrderRequestForm({
           }}
         >
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
               <h2 className="text-lg font-semibold">Request a Custom Piece</h2>
               <button
                 type="button"

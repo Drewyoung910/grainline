@@ -71,6 +71,7 @@ export default async function ThreadPage({
   const messages = await prisma.message.findMany({
     where: { conversationId: convo.id },
     orderBy: { createdAt: "asc" },
+    take: 200,
     select: {
       id: true,
       senderId: true,

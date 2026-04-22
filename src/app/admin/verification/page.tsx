@@ -365,7 +365,7 @@ export default async function AdminVerificationPage() {
 
       {/* ── Guild Member Applications ── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold border-b pb-2">
+        <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2">
           Guild Member Applications{" "}
           <span className="text-sm font-normal text-neutral-500">({memberPending.length} pending)</span>
         </h2>
@@ -436,7 +436,7 @@ export default async function AdminVerificationPage() {
                   </ul>
                 </div>
 
-                <div className="flex flex-wrap items-start gap-3 pt-2 border-t">
+                <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
                   <form action={approveGuildMember} className="flex flex-col gap-2">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <div className="flex items-center gap-2 text-xs text-neutral-600">
@@ -476,7 +476,7 @@ export default async function AdminVerificationPage() {
 
       {/* ── Guild Master Applications ── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold border-b pb-2">
+        <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2">
           Guild Master Applications{" "}
           <span className="text-sm font-normal text-neutral-500">({masterPending.length} pending)</span>
         </h2>
@@ -557,7 +557,7 @@ export default async function AdminVerificationPage() {
                   </div>
                 )}
 
-                <div className="flex flex-wrap items-start gap-3 pt-2 border-t">
+                <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
                   <form action={approveGuildMaster.bind(null, v.id)}>
                     <button type="submit" className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600">
                       Approve Guild Master
@@ -586,7 +586,7 @@ export default async function AdminVerificationPage() {
       {/* ── Active Guild Members (revocable) ── */}
       {memberActive.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2 text-amber-800">
+          <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-amber-800">
             Active Guild Members ({memberActive.length})
           </h2>
           <div className="space-y-2">
@@ -622,7 +622,7 @@ export default async function AdminVerificationPage() {
       {/* ── Active Guild Masters (revocable) ── */}
       {masterActive.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2 text-indigo-800">
+          <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-indigo-800">
             Active Guild Masters ({masterActive.length})
           </h2>
           <div className="space-y-2">
@@ -657,7 +657,7 @@ export default async function AdminVerificationPage() {
       {/* ── Revoked Guild Members (reinstateable) ── */}
       {revokedMembers.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2 text-neutral-600">
+          <h2 className="text-lg font-semibold border-b border-neutral-100 pb-2 text-neutral-600">
             Revoked Guild Members ({revokedMembers.length})
           </h2>
           <div className="space-y-2">

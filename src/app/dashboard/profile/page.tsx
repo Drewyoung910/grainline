@@ -534,7 +534,7 @@ export default async function ProfilePage({
 
       {/* ── FAQs ───────────────────────────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-lg font-medium border-b pb-2">FAQs</h2>
+        <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">FAQs</h2>
 
         {fullSeller.faqs.length === 0 ? (
           <p className="text-sm text-neutral-500">No FAQs yet.</p>

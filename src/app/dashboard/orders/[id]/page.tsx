@@ -378,11 +378,7 @@ export default async function BuyerOrderDetailPage({
           {order.shippedAt && (
             <div className="mt-2 text-neutral-700">
               <span className="font-medium">Shipped on:</span>{" "}
-              {order.shippedAt.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              <LocalDate date={order.shippedAt} />
             </div>
           )}
           {status === "DELIVERED" ? (
@@ -391,20 +387,12 @@ export default async function BuyerOrderDetailPage({
             status === "SHIPPED" ? (
               <div className="mt-2 text-blue-700">
                 <span className="font-medium">In Transit</span> — Estimated delivery:{" "}
-                {order.estimatedDeliveryDate.toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
+                <LocalDate date={order.estimatedDeliveryDate} />
               </div>
             ) : (
               <div className="mt-2 text-neutral-600">
                 <span className="font-medium">Estimated delivery:</span>{" "}
-                {order.estimatedDeliveryDate.toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
+                <LocalDate date={order.estimatedDeliveryDate} />
               </div>
             )
           ) : null}
@@ -482,11 +470,7 @@ export default async function BuyerOrderDetailPage({
             You can open a case if there&apos;s an issue with your order after the estimated
             delivery date of{" "}
             <span className="font-medium">
-              {order.estimatedDeliveryDate!.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              <LocalDate date={order.estimatedDeliveryDate!} />
             </span>
             .
           </div>

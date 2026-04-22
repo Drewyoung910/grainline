@@ -337,7 +337,7 @@ export default async function BrowseMetroPage({
 
       {/* Nearby areas */}
       {nearbyWithContent.length > 0 && (
-        <section className="border-t pt-8 mb-8">
+        <section className="border-t border-neutral-100 pt-8 mb-8">
           <h2 className="text-sm font-semibold text-neutral-700 mb-3">Also see makers in</h2>
           <div className="flex flex-wrap gap-2">
             {nearbyWithContent.map((m) => (
@@ -354,7 +354,7 @@ export default async function BrowseMetroPage({
       )}
 
       {/* Makers link */}
-      <div className="border-t pt-8">
+      <div className="border-t border-neutral-100 pt-8">
         <Link href={`/makers/${metroSlug}`} className="text-sm text-neutral-600 hover:underline">
           Meet the woodworkers in {cityName} →
         </Link>

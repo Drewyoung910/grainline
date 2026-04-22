@@ -498,20 +498,15 @@ export default async function SellerOrderDetailPage({
               !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status);
             return (
               <div className={`mt-2 font-medium ${overdue ? "text-red-700" : "text-amber-700"}`}>
-                {overdue
-                  ? `Overdue — should have shipped by ${order.processingDeadline.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
-                  : `Ship by ${order.processingDeadline.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`}
+                {overdue ? "Overdue — should have shipped by " : "Ship by "}
+                <LocalDate date={order.processingDeadline} />
               </div>
             );
           })()}
           {order.estimatedDeliveryDate && (
             <div className="mt-1 text-xs text-neutral-500">
               Estimated delivery to buyer:{" "}
-              {order.estimatedDeliveryDate.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              <LocalDate date={order.estimatedDeliveryDate} />
             </div>
           )}
         </div>

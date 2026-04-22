@@ -269,7 +269,7 @@ export default async function MakersMetroPage({
 
       {/* Nearby areas */}
       {nearbyWithContent.length > 0 && (
-        <section className="border-t pt-8 mb-8">
+        <section className="border-t border-neutral-100 pt-8 mb-8">
           <h2 className="text-sm font-semibold text-neutral-700 mb-3">Also see makers in</h2>
           <div className="flex flex-wrap gap-2">
             {nearbyWithContent.map((m) => (
@@ -286,7 +286,7 @@ export default async function MakersMetroPage({
       )}
 
       {/* Map + browse links */}
-      <div className="border-t pt-8 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div className="border-t border-neutral-100 pt-8 flex flex-col sm:flex-row sm:items-center gap-4">
         <Link href={`/browse/${metroSlug}`} className="text-sm text-neutral-600 hover:underline">
           Browse handmade pieces in {cityName} →
         </Link>

@@ -292,7 +292,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
 
       {/* Nearby areas */}
       {nearbyFiltered.length > 0 && (
-        <section className="border-t pt-8">
+        <section className="border-t border-neutral-100 pt-8">
           <h2 className="text-sm font-semibold text-neutral-700 mb-3">Also see commissions in</h2>
           <div className="flex flex-wrap gap-2">
             {nearbyFiltered.map((m) => (
@@ -451,7 +451,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-neutral-500 mb-6 pb-6 border-b">
+      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-neutral-500 mb-6 pb-6 border-b border-neutral-100">
         {request.category && (
           <span className="border border-neutral-200 rounded-full px-3 py-0.5 text-xs">
             {CATEGORY_LABELS[request.category]}
@@ -484,7 +484,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         </section>
       )}
 
-      <section className="mb-6 pb-6 border-b">
+      <section className="mb-6 pb-6 border-b border-neutral-100">
         <h2 className="font-semibold text-neutral-800 mb-2">Posted by</h2>
         <div className="flex items-center gap-2">
           {request.buyer.imageUrl ? (
@@ -539,7 +539,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       )}
 
       {isOwner && request.status === "OPEN" && (
-        <div className="flex gap-3 pt-4 border-t">
+        <div className="flex gap-3 pt-4 border-t border-neutral-100">
           <MarkStatusButtons requestId={request.id} />
         </div>
       )}

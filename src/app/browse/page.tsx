@@ -712,7 +712,7 @@ async function BrowseByCity() {
   const children = metros.filter((m) => m.parentMetroId);
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 border-t">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 border-t border-neutral-100">
       <h2 className="text-base font-semibold text-neutral-800 mb-4">Browse by city</h2>
       <div className="space-y-4">
         {majors.map((major) => {

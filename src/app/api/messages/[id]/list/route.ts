@@ -38,6 +38,7 @@ export async function GET(
       ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}),
     },
     orderBy: { createdAt: "asc" },
+    take: 200,
     select: {
       id: true,
       senderId: true,

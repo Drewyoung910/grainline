@@ -501,12 +501,12 @@ export default async function ListingPage({
                   listingId={id}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  triggerClassName="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
-                  className="inline-flex items-center gap-2 border px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  className="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 >
                   <Hammer size={15} />
                   Request Something Similar

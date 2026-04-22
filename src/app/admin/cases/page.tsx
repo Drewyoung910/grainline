@@ -136,7 +136,7 @@ export default async function AdminCasesPage({
         <>
           <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-neutral-50 text-left">
+              <thead className="border-b border-neutral-100 bg-neutral-50 text-left">
                 <tr>
                   <th className="px-4 py-3 font-medium text-neutral-500">Case</th>
                   <th className="px-4 py-3 font-medium text-neutral-500">Order</th>

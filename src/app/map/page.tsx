@@ -121,7 +121,7 @@ export default async function AllSellersMapPage({
       </section>
 
       {majorMetros.length > 0 && (
-        <section className="border-t pt-6">
+        <section className="border-t border-neutral-100 pt-6">
           <h2 className="text-sm font-semibold text-neutral-700 mb-4">Browse makers by city</h2>
           <div className="space-y-4">
             {majorMetros.map((major) => {
