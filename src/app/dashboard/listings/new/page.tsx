@@ -13,6 +13,9 @@ import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function normalizeTag(input: string) {
   return input.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "").slice(0, 24);

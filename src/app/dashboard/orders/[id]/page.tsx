@@ -10,6 +10,9 @@ import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
 import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {

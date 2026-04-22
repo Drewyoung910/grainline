@@ -124,7 +124,7 @@ export default function ListingGallery({
               aria-label={`View photo ${i + 1}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.url} alt="" className="w-full h-full object-cover" />
+              <img src={p.url} alt={p.altText ?? `${title} — photo ${i + 1}`} className="w-full h-full object-cover" />
             </button>
           ))}
         </div>

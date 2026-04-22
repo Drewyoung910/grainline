@@ -8,6 +8,9 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import ProfileBannerUploader from "@/components/ProfileBannerUploader";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
 import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import ConfirmButton from "@/components/ConfirmButton";
 import RemoveAvatarButton from "./RemoveAvatarButton";

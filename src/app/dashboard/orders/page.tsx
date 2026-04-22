@@ -4,6 +4,9 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {

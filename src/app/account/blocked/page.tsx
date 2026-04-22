@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { unblockUser } from "./actions";
 
-export const metadata: Metadata = { title: "Blocked Users" };
+export const metadata: Metadata = { title: "Blocked Users", robots: { index: false, follow: false } };
 
 export default async function BlockedUsersPage() {
   const { userId } = await auth();

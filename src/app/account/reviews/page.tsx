@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ensureUser } from "@/lib/ensureUser";
 
-export const metadata: Metadata = { title: "My Reviews" };
+export const metadata: Metadata = { title: "My Reviews", robots: { index: false, follow: false } };
 
 export default async function MyReviewsPage() {
   const { userId } = await auth();

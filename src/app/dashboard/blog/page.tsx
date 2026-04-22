@@ -6,6 +6,9 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import ConfirmButton from "@/components/ConfirmButton";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 async function deletePost(postId: string) {
   "use server";

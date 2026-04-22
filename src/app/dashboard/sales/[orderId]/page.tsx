@@ -12,6 +12,9 @@ import SellerNotesForm from "@/components/SellerNotesForm";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {

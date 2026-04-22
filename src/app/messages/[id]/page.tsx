@@ -8,6 +8,9 @@ import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import MarkReadClient from "@/components/MarkReadClient";
 import ThreadMessages from "@/components/ThreadMessages";
 import MessageComposer from "@/components/MessageComposer";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import Link from "next/link";
 import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
 import BlockReportButton from "@/components/BlockReportButton";

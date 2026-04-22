@@ -8,6 +8,7 @@ import FollowButton from "@/components/FollowButton";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
+  robots: { index: false, follow: false },
 };
 
 export default async function FollowingPage() {

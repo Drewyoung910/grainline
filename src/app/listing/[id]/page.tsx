@@ -284,7 +284,11 @@ export default async function ListingPage({
       "@type": "Offer",
       priceCurrency: (listing.currency || "usd").toUpperCase(),
       price: (listing.priceCents / 100).toFixed(2),
-      availability: "https://schema.org/InStock",
+      availability: isOutOfStock
+        ? "https://schema.org/OutOfStock"
+        : listing.listingType === "MADE_TO_ORDER"
+        ? "https://schema.org/PreOrder"
+        : "https://schema.org/InStock",
       url: siteUrl(`/listing/${listing.id}`),
       seller: { "@type": "Person", name: sellerName },
     },

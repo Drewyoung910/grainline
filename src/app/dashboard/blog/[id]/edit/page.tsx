@@ -6,6 +6,9 @@ import { calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function EditBlogPostPage({
   params,

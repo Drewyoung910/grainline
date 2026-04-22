@@ -4,6 +4,9 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const REQUIRED_LISTINGS = 5;
 const REQUIRED_SALES_CENTS = 25000; // $250

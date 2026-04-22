@@ -7,7 +7,7 @@ import type { Metadata } from "next";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import type { CommissionStatus } from "@prisma/client";
 
-export const metadata: Metadata = { title: "My Commission Requests" };
+export const metadata: Metadata = { title: "My Commission Requests", robots: { index: false, follow: false } };
 
 const STATUS_LABELS: Record<CommissionStatus, string> = {
   OPEN: "Open",

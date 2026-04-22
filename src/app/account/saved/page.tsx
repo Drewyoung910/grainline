@@ -13,6 +13,7 @@ import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 
 export const metadata: Metadata = {
   title: "Saved",
+  robots: { index: false, follow: false },
 };
 
 const PAGE_SIZE = 24;

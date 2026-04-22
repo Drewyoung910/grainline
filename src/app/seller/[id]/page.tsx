@@ -233,6 +233,24 @@ export default async function SellerPublicPage({
       : {}),
   };
 
+  // Add aggregate rating to JSON-LD if reviews exist
+  if (shopRating && shopRating.count > 0) {
+    businessLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: (Math.round(shopRating.avg * 10) / 10).toFixed(1),
+      reviewCount: shopRating.count,
+    };
+  }
+
+  // Add social links to JSON-LD
+  const sameAs: string[] = [];
+  if (seller.instagramUrl) sameAs.push(seller.instagramUrl);
+  if (seller.facebookUrl) sameAs.push(seller.facebookUrl);
+  if (seller.pinterestUrl) sameAs.push(seller.pinterestUrl);
+  if (seller.tiktokUrl) sameAs.push(seller.tiktokUrl);
+  if (seller.websiteUrl) sameAs.push(seller.websiteUrl);
+  if (sameAs.length > 0) businessLd.sameAs = sameAs;
+
   // Social links
   type SocialLink = { label: string; url: string; Icon: (p: { size?: number; className?: string }) => React.ReactElement };
   const socialLinks: SocialLink[] = (

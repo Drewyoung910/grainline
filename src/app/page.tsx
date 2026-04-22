@@ -17,6 +17,7 @@ import ListingCard from "@/components/ListingCard";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
+import { safeJsonLd } from "@/lib/json-ld";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -363,7 +364,35 @@ export default async function HomePage() {
 
   return (
     <main>
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      {/* JSON-LD: Organization */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Grainline",
+          url: "https://thegrainline.com",
+          logo: "https://thegrainline.com/logo-espresso.svg",
+          description: "Marketplace for handmade woodworking pieces from independent makers across the country.",
+        }) }}
+      />
+      {/* JSON-LD: WebSite with SearchAction */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Grainline",
+          url: "https://thegrainline.com",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: { "@type": "EntryPoint", urlTemplate: "https://thegrainline.com/browse?q={search_term_string}" },
+            "query-input": "required name=search_term_string",
+          },
+        }) }}
+      />
+
+      {/* ── Hero ───────────────────────────────────��─────────────────────── */}
       <section className={`relative border-b flex flex-col justify-center min-h-[60vh] ${
         mosaicPhotos.length >= 12
           ? "bg-[#1C1C1A]"
@@ -571,7 +600,7 @@ export default async function HomePage() {
             <div className="rounded-3xl border bg-gradient-to-br from-amber-50 to-stone-50 overflow-hidden">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={featuredMaker.bannerImageUrl} alt="" loading="lazy" className="h-48 w-full object-cover" />
+                <img src={featuredMaker.bannerImageUrl} alt={`${featuredMaker.displayName ?? "Maker"} workshop`} loading="lazy" className="h-48 w-full object-cover" />
               )}
               <div className={`p-6 sm:p-8 ${featuredListings.length > 0 ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
                 {/* Left column — maker info */}

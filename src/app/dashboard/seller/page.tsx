@@ -8,6 +8,9 @@ import SellerLocationSection from "@/components/SellerLocationSection";
 import VacationModeForm from "./VacationModeForm";
 import BroadcastComposer from "@/components/BroadcastComposer";
 import GalleryUploader from "@/components/GalleryUploader";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";

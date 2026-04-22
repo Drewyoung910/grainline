@@ -6,6 +6,9 @@ import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import MessageTime from "@/components/MessageTime";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function parseFilePayload(body: string):
   | { kind: "file"; url: string; name: string | null; type: string | null }

@@ -6,6 +6,7 @@ import FeedClient from "./FeedClient";
 
 export const metadata: Metadata = {
   title: "Your Feed",
+  robots: { index: false, follow: false },
 };
 
 export default async function FeedPage() {

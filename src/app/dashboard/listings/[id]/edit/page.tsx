@@ -10,6 +10,9 @@ import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 type SaveResult = { ok: boolean; error?: string };
 

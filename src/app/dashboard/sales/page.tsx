@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const PAGE_SIZE = 25;
 

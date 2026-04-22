@@ -11,6 +11,9 @@ import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, B
 import { createNotification } from "@/lib/notifications";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 // Server action: set status (Active / Hidden / Sold)
 async function setStatus(listingId: string, nextStatus: ListingStatus) {

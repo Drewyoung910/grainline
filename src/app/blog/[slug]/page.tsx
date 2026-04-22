@@ -15,6 +15,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export async function generateMetadata({
   params,
@@ -176,8 +177,30 @@ export default async function BlogPostPage({
   const authorAvatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl ?? null;
   const postUrl = `https://thegrainline.com/blog/${slug}`;
 
+  const articleLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.excerpt ?? post.metaDescription ?? "",
+    ...(post.coverImageUrl ? { image: post.coverImageUrl } : {}),
+    datePublished: post.publishedAt?.toISOString(),
+    dateModified: post.updatedAt.toISOString(),
+    author: { "@type": "Person", name: authorName },
+    publisher: {
+      "@type": "Organization",
+      name: "Grainline",
+      url: "https://thegrainline.com",
+      logo: { "@type": "ImageObject", url: "https://thegrainline.com/logo-espresso.svg" },
+    },
+  };
+
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+      {/* JSON-LD: Article */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(articleLd) }}
+      />
       {/* Breadcrumb */}
       <div className="mb-6 text-sm text-neutral-500">
         <Link href="/blog" className="hover:underline">Blog</Link>

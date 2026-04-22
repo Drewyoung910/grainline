@@ -8,6 +8,9 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderReady } from "@/lib/email";
 import ImagesUploader from "@/components/ImagesUploader";
 import ListingTypeFields from "@/components/ListingTypeFields";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 import { Palette } from "@/components/icons";
 import type { ListingType } from "@prisma/client";
 

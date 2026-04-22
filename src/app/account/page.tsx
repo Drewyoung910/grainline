@@ -9,6 +9,7 @@ import ClickTracker from "@/components/ClickTracker";
 
 export const metadata: Metadata = {
   title: "My Account",
+  robots: { index: false, follow: false },
 };
 
 export default async function AccountPage() {

@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
