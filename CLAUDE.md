@@ -3511,3 +3511,21 @@ Seller field in offers uses `Organization` type with profile URL.
 
 ### RecentlyViewed styling
 Updated to modern floating-text cards: `rounded-2xl overflow-hidden aspect-square`, no borders, photo hover zoom, text floating on page background.
+
+### New Listing Bump + New Seller Bonus (2026-04-22)
+
+Added to `qualityScore` formula in `src/lib/quality-score.ts`:
+
+- **New listing bump**: +0.15 for the first 14 days, linear decay to 0 by day 30. Prevents new listings from being permanently buried by established ones. Mirrors Etsy's documented "new listing boost" approach.
+- **New seller bonus**: additional +0.05 for sellers with zero reviews. First-time sellers need more visibility than established sellers adding their 50th listing. Disappears after first review.
+
+Combined effect at launch:
+- Brand-new seller's first listing: ~0.62 (competitive with established top sellers at ~0.70)
+- After 14 days with no engagement: bump starts fading
+- After 30 days: listing must stand on its own merits (rating, favorites, conversion)
+
+Gaming risk analysis: relisting abuse (delete + recreate for permanent bump) is mitigated by AI review duplicate title detection, the 14-day window being too short to sustain, and the bump being additive (not multiplicative).
+
+New Arrivals section on homepage now prefers listings from the last 30 days with fallback to newest if fewer than 6 recent results.
+
+`sellerReviewCount` added to the quality score SQL query (used for the new seller bonus calculation).
