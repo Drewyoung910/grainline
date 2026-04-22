@@ -255,6 +255,39 @@ async function deletePhoto(photoId: string, listingId: string) {
   revalidatePath("/dashboard");
 }
 
+async function saveAltTexts(
+  listingId: string,
+  _prev: unknown,
+  formData: FormData,
+): Promise<SaveResult> {
+  "use server";
+
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "Not signed in" };
+
+  // Guard ownership
+  const listing = await prisma.listing.findFirst({
+    where: { id: listingId, seller: { user: { clerkId: userId } } },
+  });
+  if (!listing) return { ok: false, error: "Not allowed" };
+
+  const existingPhotos = await prisma.photo.findMany({
+    where: { listingId },
+    select: { id: true, altText: true },
+  });
+  for (const p of existingPhotos) {
+    const newAlt = (formData.get(`altText-${p.id}`) as string | null)?.trim() ?? null;
+    const current = p.altText ?? null;
+    if ((newAlt || null) !== current) {
+      await prisma.photo.update({ where: { id: p.id }, data: { altText: newAlt || null } });
+    }
+  }
+
+  revalidatePath(`/dashboard/listings/${listingId}/edit`);
+  revalidatePath(`/listing/${listingId}`);
+  return { ok: true };
+}
+
 async function setCoverPhoto(listingId: string, photoId: string) {
   "use server";
   const { userId } = await auth();
@@ -421,6 +454,17 @@ export default async function EditListingPage(props: {
                   )}
                 </div>
 
+                <div className="px-2 pt-1.5">
+                  <input
+                    type="text"
+                    form="alt-text-form"
+                    name={`altText-${p.id}`}
+                    defaultValue={p.altText ?? ""}
+                    placeholder="Describe this image for SEO..."
+                    className="w-full text-xs border border-neutral-200 rounded-md px-2 py-1"
+                  />
+                </div>
+
                 <div className="p-2 flex justify-between items-center text-sm">
                   <div className="flex items-center gap-2">
                     <form action={setCoverPhoto.bind(null, id, p.id)}>
@@ -443,6 +487,12 @@ export default async function EditListingPage(props: {
               </li>
             ))}
           </ul>
+        )}
+
+        {listing.photos.length > 0 && (
+          <ActionForm id="alt-text-form" action={saveAltTexts.bind(null, id)} className="mt-4">
+            <SubmitButton>Save alt texts</SubmitButton>
+          </ActionForm>
         )}
       </section>
     </main>

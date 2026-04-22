@@ -168,10 +168,37 @@ export default function MarkdownToolbar({
           type="button"
           title="Image"
           onClick={() => {
-            const url = prompt("Enter image URL:");
-            if (url) {
-              editor.chain().focus().setImage({ src: url }).run();
-            }
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "image/*";
+            input.onchange = async () => {
+              const file = input.files?.[0];
+              if (!file) return;
+              try {
+                const presignRes = await fetch("/api/upload/presign", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    endpoint: "galleryImage",
+                    filename: file.name,
+                    contentType: file.type,
+                    size: file.size,
+                    fileIndex: 0,
+                  }),
+                });
+                if (!presignRes.ok) return;
+                const { presignedUrl, publicUrl } = await presignRes.json();
+                await fetch(presignedUrl, {
+                  method: "PUT",
+                  body: file,
+                  headers: { "Content-Type": file.type },
+                });
+                editor.chain().focus().setImage({ src: publicUrl }).run();
+              } catch {
+                // Silent fail — user can try again
+              }
+            };
+            input.click();
           }}
           className={btnClass(false)}
         >

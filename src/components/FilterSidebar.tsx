@@ -78,7 +78,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <select
           name="category"
           defaultValue={currentCategory}
-          className="w-full rounded border px-2 py-1.5 text-sm"
+          className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
         >
           <option value="">All categories</option>
           {CATEGORY_VALUES.map((v) => (
@@ -104,6 +104,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
                 name="type"
                 value={value}
                 defaultChecked={currentType === value}
+                className="accent-neutral-900"
               />
               {label}
             </label>
@@ -120,7 +121,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           min="1"
           defaultValue={currentShips}
           placeholder="e.g. 7"
-          className="w-full rounded border px-2 py-1.5"
+          className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
         />
       </div>
 
@@ -130,7 +131,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <select
           name="rating"
           defaultValue={currentRating}
-          className="w-full rounded border px-2 py-1.5"
+          className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
         >
           <option value="">Any rating</option>
           <option value="4">★★★★ and up</option>
@@ -150,7 +151,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             min="0"
             defaultValue={currentMin}
             placeholder="Min"
-            className="w-full rounded border px-2 py-1.5"
+            className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <span className="text-neutral-400 shrink-0">–</span>
           <input
@@ -160,7 +161,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             min="0"
             defaultValue={currentMax}
             placeholder="Max"
-            className="w-full rounded border px-2 py-1.5"
+            className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
         </div>
       </div>
@@ -171,7 +172,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <select
           name="sort"
           defaultValue={currentSort}
-          className="w-full rounded border px-2 py-1.5"
+          className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
         >
           {q && <option value="relevant">Most relevant</option>}
           <option value="newest">Newest</option>
@@ -188,7 +189,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           <button
             type="button"
             onClick={detectLocation}
-            className="rounded border px-2.5 py-1 text-xs hover:bg-neutral-50 min-h-[44px]"
+            className="rounded-md border border-neutral-200 px-2.5 py-1 text-xs hover:bg-neutral-50 min-h-[44px]"
           >
             {locating ? "Detecting…" : "Use my location"}
           </button>
@@ -203,7 +204,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             min="1"
             defaultValue={currentRadius}
             placeholder="Radius (miles)"
-            className="w-full rounded border px-2 py-1.5"
+            className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
         </div>
       </div>
@@ -211,13 +212,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
       <div className="flex gap-2">
         <button
           type="submit"
-          className="flex-1 rounded border px-3 py-1.5 font-medium hover:bg-neutral-50 min-h-[44px]"
+          className="flex-1 bg-neutral-900 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-neutral-800 min-h-[44px]"
         >
           Apply
         </button>
         <Link
           href={q ? `/browse?q=${encodeURIComponent(q)}` : "/browse"}
-          className="rounded border px-3 py-1.5 text-neutral-600 hover:bg-neutral-50 min-h-[44px] flex items-center"
+          className="text-sm text-neutral-500 hover:text-neutral-700 min-h-[44px] flex items-center px-3"
         >
           Reset
         </Link>

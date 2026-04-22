@@ -244,9 +244,9 @@ function CartPage() {
               <li key={i.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                  <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
                 ) : (
-                  <div className="h-16 w-16 rounded border bg-neutral-100" />
+                  <div className="h-16 w-16 rounded bg-neutral-100" />
                 )}
 
                 <div className="min-w-0 flex-1">
@@ -261,12 +261,12 @@ function CartPage() {
                     <div className="text-xs text-amber-700 mt-0.5">Maker is on vacation</div>
                   )}
 
-                  <div className="mt-1 flex items-center gap-3 text-sm text-neutral-700">
-                    <span>${(i.priceCents / 100).toFixed(2)} each</span>
+                  <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
+                    <span className="shrink-0">${(i.priceCents / 100).toFixed(2)} each</span>
 
-                    <label className="ml-2 text-xs text-neutral-500">Qty</label>
+                    <label className="text-xs text-neutral-500 shrink-0">Qty</label>
                     <select
-                      className="rounded border px-2 py-1 text-sm"
+                      className="rounded-md border border-neutral-200 px-2 py-1 text-sm"
                       value={i.quantity}
                       onChange={(e) => setQuantity(i.listing.id, Number(e.target.value))}
                     >
@@ -280,7 +280,7 @@ function CartPage() {
 
                     <button
                       type="button"
-                      className="ml-2 text-xs text-red-600 underline"
+                      className="text-xs text-red-600 underline shrink-0"
                       onClick={() => setQuantity(i.listing.id, 0)}
                     >
                       Remove
@@ -288,7 +288,7 @@ function CartPage() {
                   </div>
                 </div>
 
-                <div className="text-sm font-medium">
+                <div className="text-sm font-medium shrink-0">
                   ${(lineCents / 100).toFixed(2)}
                 </div>
               </li>

@@ -114,8 +114,6 @@ export default async function SellerOrderDetailPage({
       ? order.itemsSubtotalCents
       : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const orderTotal = itemsSubtotal + shipping + tax;
-  const maxRefundCents = itemsSubtotal + shipping;
-
   const hasAddress =
     !!(order.shipToLine1 || order.shipToCity || order.shipToPostalCode || order.shipToCountry);
   const isPickup =
@@ -375,9 +373,9 @@ export default async function SellerOrderDetailPage({
               <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                  <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
                 ) : (
-                  <div className="h-16 w-16 rounded border bg-neutral-100" />
+                  <div className="h-16 w-16 rounded bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
                   {it.listing.status === "ACTIVE" ? (
@@ -525,7 +523,6 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          maxRefundCents={maxRefundCents}
           alreadyRefundedId={null}
           alreadyRefundedCents={null}
         />
@@ -535,7 +532,6 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          maxRefundCents={maxRefundCents}
           alreadyRefundedId={order.sellerRefundId}
           alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
         />

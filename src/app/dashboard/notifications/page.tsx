@@ -118,11 +118,11 @@ export default async function NotificationsPage({
       </div>
 
       {notifications.length === 0 ? (
-        <div className="rounded-xl border p-10 text-center text-neutral-500 text-sm">
+        <div className="card-section p-10 text-center text-neutral-500 text-sm">
           No notifications yet — check back after your first sale or message.
         </div>
       ) : (
-        <ul className="divide-y border rounded-xl overflow-hidden">
+        <ul className="divide-y divide-neutral-100 card-section overflow-hidden">
           {notifications.map((n) => {
             const { Icon, color } = typeIcon(n.type);
             const row = (
@@ -162,7 +162,7 @@ export default async function NotificationsPage({
           {page > 1 && (
             <Link
               href={`/dashboard/notifications?page=${page - 1}`}
-              className="rounded border px-3 py-1 text-sm hover:bg-neutral-50"
+              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               Previous
             </Link>
@@ -173,7 +173,7 @@ export default async function NotificationsPage({
           {page < totalPages && (
             <Link
               href={`/dashboard/notifications?page=${page + 1}`}
-              className="rounded border px-3 py-1 text-sm hover:bg-neutral-50"
+              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               Next
             </Link>

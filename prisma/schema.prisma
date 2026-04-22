@@ -329,6 +329,7 @@ model Photo {
   listingId String
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   url       String
+  altText   String?
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
@@ -412,6 +413,7 @@ model ReviewPhoto {
   reviewId  String
   review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   url       String
+  altText   String?
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 

@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
+import { ArrowLeft } from "@/components/icons";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 
@@ -80,6 +81,9 @@ export default async function SavedPage({
 
     return (
       <main className="max-w-4xl mx-auto px-4 py-8">
+        <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+          <ArrowLeft size={14} /> Back to My Account
+        </Link>
         <h1 className="text-2xl font-bold mb-6">Saved</h1>
         <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
@@ -161,6 +165,9 @@ export default async function SavedPage({
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-8">
+      <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
+        <ArrowLeft size={14} /> Back to My Account
+      </Link>
       <h1 className="text-2xl font-bold mb-6">Saved</h1>
       <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 

@@ -6,8 +6,6 @@ type Props = {
   orderId: string;
   currency: string;
   orderTotalCents: number;
-  /** Maximum refundable amount (items + shipping, excluding tax). Falls back to orderTotalCents if not provided. */
-  maxRefundCents?: number;
   alreadyRefundedId: string | null;
   alreadyRefundedCents: number | null;
 };
@@ -23,11 +21,10 @@ export default function SellerRefundPanel({
   orderId,
   currency,
   orderTotalCents,
-  maxRefundCents,
   alreadyRefundedId,
   alreadyRefundedCents,
 }: Props) {
-  const effectiveMax = maxRefundCents ?? orderTotalCents;
+  const effectiveMax = orderTotalCents;
   const [mode, setMode] = React.useState<"idle" | "full" | "partial">("idle");
   const [partialAmount, setPartialAmount] = React.useState("");
   const [loading, setLoading] = React.useState(false);

@@ -16,10 +16,12 @@ export default function ActionForm({
   action,
   children,
   className,
+  id,
 }: {
   action: (prevState: unknown, formData: FormData) => Promise<{ ok: boolean; error?: string }>;
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   const [state, formAction] = useActionState(action, { ok: false });
   const [show, setShow] = useState(false);
@@ -42,7 +44,7 @@ export default function ActionForm({
           Saved
         </div>
       )}
-      <form action={formAction} className={className}>{children}</form>
+      <form action={formAction} className={className} id={id}>{children}</form>
     </>
   );
 }

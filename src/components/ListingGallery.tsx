@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 
-type Photo = { id: string; url: string };
+type Photo = { id: string; url: string; altText?: string | null };
 
 export default function ListingGallery({
   photos,
@@ -91,7 +91,7 @@ export default function ListingGallery({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={activeUrl}
-          alt={title}
+          alt={photos[activeIndex]?.altText ?? title}
           fetchPriority="high"
           className="w-full h-full object-cover"
         />
@@ -175,7 +175,7 @@ export default function ListingGallery({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={photos[lightboxIndex]?.url}
-              alt={`${title} — photo ${lightboxIndex + 1}`}
+              alt={photos[lightboxIndex]?.altText ?? `${title} — photo ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
             />
             {photos.length > 1 && (

@@ -316,7 +316,7 @@ export default async function BlogIndexPage({
               className="group block card-listing hover:shadow-md transition-shadow"
             >
               <div className="md:flex">
-                <div className="md:w-1/2 aspect-[16/9] md:aspect-auto md:h-auto bg-neutral-100 overflow-hidden">
+                <div className="md:w-1/2 aspect-[16/9] overflow-hidden bg-neutral-100">
                   {featured.coverImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

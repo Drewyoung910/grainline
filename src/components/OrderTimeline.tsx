@@ -151,7 +151,7 @@ export default function OrderTimeline(props: Props) {
     trackingNumber ? carrierTrackingUrl(trackingCarrier, trackingNumber) : null;
 
   return (
-    <div className="rounded-xl border bg-white p-4 sm:p-5">
+    <div className="card-section p-4 sm:p-5">
       <div className="font-medium text-neutral-800 mb-4">Order progress</div>
 
       <div className="relative">
