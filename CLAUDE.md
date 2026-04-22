@@ -3419,3 +3419,40 @@ Replaced `toLocaleDateString()` with `LocalDate` client component in:
 - `dashboard/orders/[id]`: shippedAt, estimatedDeliveryDate (3 instances)
 - `dashboard/sales/[orderId]`: processingDeadline, estimatedDeliveryDate
 - `seller/[id]`: vacation return date, broadcast date, blog post dates
+
+## SEO Comprehensive Audit (2026-04-22)
+
+### noindex on private pages (30 files)
+Added `robots: { index: false, follow: false }` to all server component pages under `/dashboard/*` (17), `/account/*` (9), `/messages/*` (3), and `/checkout/success`. Prevents Google from indexing "Sign in required" pages and wasting crawl budget. Client components (`dashboard/analytics`, `cart`) are already blocked by `robots.txt` Disallow rules.
+
+### Structured data additions
+- **Homepage**: Organization JSON-LD (name, url, logo, description) + WebSite JSON-LD with SearchAction targeting `/browse?q={search_term_string}`. Enables Google sitelinks search box and brand knowledge panel.
+- **Blog posts**: Article JSON-LD with headline, description, image, datePublished, dateModified, author (Person), publisher (Organization with logo). Enables rich snippets, Google Discover, and news carousel.
+- **Listing detail**: Product availability now mapped dynamically — `InStock` (active + stock > 0), `OutOfStock` (sold out), `PreOrder` (made to order). Was hardcoded to "InStock" regardless of status.
+- **Seller profile**: `aggregateRating` (ratingValue + reviewCount) added to LocalBusiness JSON-LD when reviews exist. `sameAs` array of social URLs (Instagram, Facebook, Pinterest, TikTok, website) added.
+
+### Sitemap additions
+Added `/terms` (monthly, 0.3), `/privacy` (monthly, 0.3), `/map` (weekly, 0.5). `/blog` was already present.
+
+### Alt text improvements
+- Homepage Meet a Maker banner: `alt=""` → `alt="${displayName} workshop"`
+- ListingGallery thumbnails: `alt=""` → `alt="${altText ?? title} — photo N"`
+
+### SEO coverage summary
+| Feature | Status |
+|---|---|
+| Sitemap | ✅ Complete — all public pages, listings, sellers, blog posts, commissions, metro pages, terms, privacy, map |
+| Robots.txt | ✅ Blocks /dashboard, /admin, /cart, /checkout, /api, AI bots |
+| Canonical URLs | ✅ On all 14 public page types |
+| OpenGraph | ✅ Root layout + per-page on listings, sellers, blog, browse, commission |
+| JSON-LD Product | ✅ On listings with dynamic availability + aggregateRating |
+| JSON-LD LocalBusiness | ✅ On seller profiles with aggregateRating + sameAs |
+| JSON-LD Article | ✅ On blog posts with author + publisher + dates |
+| JSON-LD Organization | ✅ On homepage |
+| JSON-LD WebSite + SearchAction | ✅ On homepage (sitelinks search box) |
+| JSON-LD BreadcrumbList | ✅ On listings, metro browse, metro makers, metro+category |
+| JSON-LD ItemList | ✅ On metro browse pages |
+| JSON-LD Service | ✅ On commission detail pages |
+| noindex on private pages | ✅ 30 pages |
+| Alt text on images | ✅ Gallery photos use altText ?? title. Key images have meaningful alt. |
+| metadataBase | ✅ https://thegrainline.com |
