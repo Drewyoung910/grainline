@@ -3330,3 +3330,27 @@ All card surfaces across the site now use the design system's `card-section` cla
 - **SearchBar button** — added `rounded-none` to the submit button. The outer `rounded-full overflow-hidden` container clips it; the global `button { border-radius }` rule was creating visible inner-left corners.
 - **"Makers You Follow" cards** — `h-36` fixed height → `aspect-square`, `rounded-2xl overflow-hidden`, hover lift effect. Matches ListingCard modern look.
 - **Meet a Maker featured listings** — added `hover:shadow-lg hover:-translate-y-1 transition-all` hover lift.
+
+## Visual Polish — Hover Fix + Dividers + Dashboard (2026-04-22)
+
+### ListingCard hover fix
+Removed `hover:shadow-lg hover:-translate-y-1` from outer container. Hover now ONLY zooms the photo via `group-hover:scale-105`. No card emergence effect — text floats on the page background with no white card appearing around it. This matches the design intent of "floating cards" not "contained cards."
+
+### Light dividers (site-wide)
+All heavy default borders replaced with `border-neutral-100`:
+- NotificationBell dropdown: header, list dividers, footer
+- Messages inbox: conversation list dividers
+- UserAvatarMenu dropdown: container, header, section separator
+- Header hamburger drawer: top and bottom borders
+
+### SearchBar button seamless
+Added `style={{ borderRadius: 0 }}` inline on the submit button. The global `button { border-radius: 0.375rem }` CSS rule was overriding Tailwind's `rounded-none` in v4 cascade. Inline style guarantees no inner corners.
+
+### Dashboard pages → card-section
+- Analytics: all 14+ stat/chart/table containers
+- Inventory: list containers + empty states + dividers
+- Blog: post list + empty state
+- Seller settings: Shop Updates section
+
+### Mosaic seam
+Increased overlap from `-50.05%` to `-50.1%` in both keyframes.
