@@ -3582,3 +3582,39 @@ New Arrivals section on homepage now prefers listings from the last 30 days with
 - 40% qualityScore: among matching results, higher-quality listings rank first.
 
 Search terms capped at 6 words. Partial tag unnest query now includes seller safety filters (chargesEnabled, vacationMode, banned).
+
+## Photo Management + AI Alt Text + SEO + UX (2026-04-22)
+
+### Photo management on create listing
+New `PhotoManager` component (`src/components/PhotoManager.tsx`) replaces `ImagesUploader` on the create listing page:
+- Upload photos via existing R2 pipeline
+- Reorder with left/right arrow buttons
+- Delete with X button
+- "Cover" badge on first photo, "Make cover" button on others
+- Alt text input per photo (max 200 chars, placeholder "Describe this image for SEO...")
+- Hidden inputs serialize ordered URLs + alt texts as JSON for form submission
+- Server action reads `imageAltTextsJson` and saves to `Photo.altText` on creation
+
+### AI-generated alt text
+`reviewListingWithAI` in `src/lib/ai-review.ts` now returns `altTexts?: string[]` — 10-20 word SEO-friendly descriptions per image. GPT-4o-mini already receives images for safety review; alt text is near-zero additional cost (~$0.00015/image). After listing creation, AI alt texts backfill photos that have no seller-provided alt text. Seller's manual alt text always takes priority. `max_tokens` increased from 300 to 500 to accommodate the alt text array.
+
+### Review JSON-LD (SEO)
+Top 5 reviews added to Product JSON-LD on listing detail pages. Each review includes `Review` type with author, datePublished, reviewRating, and reviewBody (truncated to 200 chars). Enables Google's review carousel in search results.
+
+### FAQ schema on commission pages (SEO)
+`FAQPage` JSON-LD on `/commission` with 3 Q&As: how commissions work, pricing, timelines. Enables Google's FAQ rich snippets (expandable Q&A in search results).
+
+### Blog search by maker
+Clicking a maker name in blog search suggestions now navigates to `?author=sellerProfileId` (was text search by name only). Blog page filters by `sellerProfileId` when the `author` URL param is present. Suggestions API returns `sellerProfileId` for author-type suggestions.
+
+### Gift wrap display in cart
+Gift wrapping now shows as a separate line item in the cart order summary (shipping step) with the total cost across all sellers. Previously the price was only shown in the GiftNoteSection toggle.
+
+### Section rename
+"Stories from the Workshop" → "From the Blog" on the homepage.
+
+### Notification preferences split
+Settings page (`/account/settings`) now has two distinct sections:
+- **"Your notifications"** (all users): From Makers You Follow, Orders & Cases, buyer email prefs
+- **"Shop notifications"** (sellers only): Your Shop, Blog, seller email prefs
+`CUSTOM_ORDER_LINK` and `COMMISSION_INTEREST` moved from seller to buyer section (they're buyer-facing notifications).
