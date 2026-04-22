@@ -174,9 +174,9 @@ async function createListing(formData: FormData) {
     console.error("[geo-metro] Failed to assign metro to listing:", e);
   }
 
-  // 4. Draft: skip ALL side effects and redirect immediately
+  // 4. Draft: redirect to preview so seller can see what it looks like
   if (saveAsDraft) {
-    redirect("/dashboard");
+    redirect(`/listing/${created.id}?preview=1`);
   }
 
   // Non-draft: run all side effects unchanged
@@ -356,8 +356,8 @@ export default async function NewListingPage({
 
       <form action={createListing} className="space-y-4">
         <div>
-          <label className="block text-sm mb-1">Title</label>
-          <input name="title" required className="w-full border rounded px-3 py-2" />
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
+          <input name="title" required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
         </div>
 
         <div>
@@ -369,14 +369,14 @@ export default async function NewListingPage({
             rows={6}
             maxLength={2000}
             placeholder="Describe your piece — materials, dimensions, technique, story behind it..."
-            className="w-full border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-y"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 resize-y"
           />
           <p className="text-xs text-neutral-400 mt-1">Up to 2,000 characters</p>
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Price (USD)</label>
-          <input name="price" type="number" step="0.01" min="0" required className="w-full border rounded px-3 py-2" />
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Price (USD)</label>
+          <input name="price" type="number" step="0.01" min="0" required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
         </div>
 
         <div>
@@ -392,29 +392,29 @@ export default async function NewListingPage({
           <TagsInput />
         </div>
 
-        <div className="border rounded p-3">
-          <div className="font-medium mb-2">Listing type</div>
+        <div className="card-section p-4">
+          <div className="text-sm font-medium text-neutral-700 mb-2">Listing type</div>
           <ListingTypeFields />
         </div>
 
-        <div className="border rounded p-3">
-          <div className="font-medium mb-2">Packaged size &amp; weight (for calculated shipping)</div>
+        <div className="card-section p-4">
+          <div className="text-sm font-medium text-neutral-700 mb-2">Packaged size &amp; weight (for calculated shipping)</div>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
               <div className="mb-1">Length (in)</div>
-              <input name="pkgLengthIn" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 24" />
+              <input name="pkgLengthIn" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Width (in)</div>
-              <input name="pkgWidthIn" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 12" />
+              <input name="pkgWidthIn" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Height (in)</div>
-              <input name="pkgHeightIn" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 8" />
+              <input name="pkgHeightIn" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Weight (lb)</div>
-              <input name="pkgWeightLb" type="number" step="0.1" min="0" className="w-full border rounded px-3 py-2" placeholder="e.g. 5.5" />
+              <input name="pkgWeightLb" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">
@@ -426,12 +426,12 @@ export default async function NewListingPage({
           <p className="text-sm text-red-600">{errorMessage}</p>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             type="submit"
             name="saveAsDraft"
             value="false"
-            className="flex-1 rounded px-4 py-2 bg-black text-white hover:bg-neutral-800"
+            className="flex-1 rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800"
           >
             Publish
           </button>
@@ -439,7 +439,7 @@ export default async function NewListingPage({
             type="submit"
             name="saveAsDraft"
             value="true"
-            className="flex-1 rounded border border-neutral-300 px-4 py-2 bg-white text-neutral-700 hover:bg-neutral-50"
+            className="flex-1 rounded-md border border-neutral-200 px-4 py-2.5 bg-white text-neutral-700 text-sm font-medium hover:bg-neutral-50"
           >
             Save as Draft
           </button>
