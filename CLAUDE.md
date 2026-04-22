@@ -3377,3 +3377,25 @@ All three order list pages (buyer dashboard, seller sales, account orders) now s
 
 ### Part E: Refund max excludes tax
 `SellerRefundPanel` now accepts `maxRefundCents` prop (items + shipping, excluding tax). Helper text added: "Tax is refunded automatically by Stripe in proportion to the refund amount." Seller sales detail page computes and passes the correct max.
+
+## Final Polish Batch (2026-04-22)
+
+### Styling
+- **Notifications page** — `card-section` + `divide-neutral-100`
+- **OrderTimeline** — `card-section` container
+- **Order/sales item photos** — removed black border outline (kept rounded + object-cover)
+- **Saved page** — "Back to My Account" link with ArrowLeft icon
+- **Browse FilterSidebar** — consistent `rounded-md border border-neutral-200` on all inputs/selects, `accent-neutral-900` on radios, proper Apply/Reset button styling
+- **List view thumbnails** — forced `aspect-square` on thumbnail containers (was non-square)
+- **Featured blog card** — `aspect-[16/9] overflow-hidden` (was using original image proportions)
+- **Cart mobile** — `flex-wrap gap-2` on price/qty/remove row + `shrink-0` on prices. Prevents overlap on large amounts.
+
+### Functionality
+- **Blog toolbar image upload** — Image button now opens a file picker, uploads to R2 via presign route, and inserts the public URL into the editor. Replaces the URL prompt. Link button unchanged.
+- **Refund max** — restored full order total (items + shipping + tax) as the maximum refundable amount. Stripe allows refunding the full charge. Helper text about tax proportional refund kept.
+
+### Alt Text for Images (SEO)
+- **Schema**: `altText String?` added to both `Photo` and `ReviewPhoto` models. Migration: `20260422042621_add_photo_alt_text`.
+- **ListingGallery** — main photo and lightbox use `photo.altText ?? title` for alt attribute.
+- **Listing edit page** — alt text input field below each photo thumbnail. "Save alt texts" server action updates each photo's `altText` field. Ownership guard on the save action.
+- **ActionForm** — `id` prop support added for form-attribute linking.
