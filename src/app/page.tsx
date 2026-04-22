@@ -99,14 +99,36 @@ export default async function HomePage() {
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
 
   const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts, mosaicListings] = await Promise.all([
+    // New Arrivals: prefer last 30 days, fall back to newest if fewer than 6
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
+      where: {
+        status: ListingStatus.ACTIVE, isPrivate: false,
+        createdAt: { gte: new Date(Date.now() - 30 * 86400000) },
+        seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+        ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
         seller: { include: { user: true } },
       },
+    }).then(async (results) => {
+      if (results.length >= 6) return results;
+      // Fall back to newest without date filter
+      return prisma.listing.findMany({
+        where: {
+          status: ListingStatus.ACTIVE, isPrivate: false,
+          seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+          ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        include: {
+          photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
+          seller: { include: { user: true } },
+        },
+      });
     }),
     prisma.listing.findMany({
       where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },

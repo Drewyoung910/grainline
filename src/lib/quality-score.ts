@@ -12,7 +12,9 @@
 //     dampenedCtr * 0.10 +
 //     guildBonus * 0.05 +
 //     photoScore * 0.05 +
-//     descScore * 0.05
+//     descScore * 0.05 +
+//     newListingBump (0.15 for 14 days, linear decay to 0 by day 30) +
+//     newSellerBonus (0.05 if seller has zero reviews)
 
 import { prisma } from "@/lib/db";
 
@@ -32,6 +34,7 @@ interface ListingRow {
   createdAt: Date;
   guildLevel: string;
   sellerAvgRating: number | null;
+  sellerReviewCount: bigint;
 }
 
 interface GlobalMeans {
@@ -96,7 +99,8 @@ async function fetchAllActiveListings(): Promise<ListingRow[]> {
       COALESCE(LENGTH(l.description), 0) AS "descLength",
       l."createdAt",
       sp."guildLevel",
-      sr."avgRating" AS "sellerAvgRating"
+      sr."avgRating" AS "sellerAvgRating",
+      COALESCE(sr."reviewCount", 0) AS "sellerReviewCount"
     FROM "Listing" l
     JOIN "SellerProfile" sp ON sp.id = l."sellerId"
     LEFT JOIN LATERAL (
@@ -111,7 +115,8 @@ async function fetchAllActiveListings(): Promise<ListingRow[]> {
       FROM "Photo" p WHERE p."listingId" = l.id
     ) ph ON true
     LEFT JOIN LATERAL (
-      SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating"
+      SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating",
+             COUNT(r.id) AS "reviewCount"
       FROM "Review" r
       JOIN "Listing" rl ON r."listingId" = rl.id
       WHERE rl."sellerId" = l."sellerId"
@@ -166,7 +171,23 @@ function scoreRow(row: ListingRow, globals: GlobalMeans, now: number): number {
   // Description score
   const descScore = Math.min(1.0, (row.descLength ?? 0) / 200);
 
-  // Weighted sum
+  // New listing bump: +0.15 for first 14 days, linear decay to 0 by day 30.
+  // Gives new listings enough impressions to collect real engagement data.
+  // Mirrors Etsy's "new listing boost" approach.
+  const newListingBump =
+    ageInDays <= 14
+      ? 0.15
+      : ageInDays <= 30
+        ? 0.15 * (1.0 - (ageInDays - 14) / 16)
+        : 0;
+
+  // New seller bonus: +0.05 for sellers with zero reviews.
+  // First-time sellers need more help than Guild Masters adding their 50th listing.
+  // Disappears once the seller gets their first review.
+  const sellerReviews = Number(row.sellerReviewCount ?? 0);
+  const newSellerBonus = sellerReviews === 0 ? 0.05 : 0;
+
+  // Weighted sum + discovery bumps
   const score =
     dampenedConversion * 0.25 +
     sellerRating * 0.2 +
@@ -175,7 +196,9 @@ function scoreRow(row: ListingRow, globals: GlobalMeans, now: number): number {
     dampenedCtr * 0.1 +
     guildBonus * 0.05 +
     photoScore * 0.05 +
-    descScore * 0.05;
+    descScore * 0.05 +
+    newListingBump +
+    newSellerBonus;
 
   return score;
 }
