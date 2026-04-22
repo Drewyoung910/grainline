@@ -3289,3 +3289,26 @@ Sellers can restrict shipping quotes to specific carriers.
 - **`AdminEmailForm`** — accepts optional `defaultTo` (pre-fills email) and `defaultOpen` (auto-expands) props. Renders a "To" email input when no `userId` is provided.
 - **Admin email API** — Zod schema now accepts `userId` OR `email` (refined: at least one required). Handles both lookup paths.
 - **Admin users page** — "Email" link per user row navigates to `?email=user@example.com`. Standalone `AdminEmailForm` renders at the top of the page when the email param is present, auto-opened with pre-filled recipient.
+
+## UX Fixes Batch — Order Management, Blog, Counts (2026-04-21)
+
+### Order management
+- **SellerNotesForm** (`src/components/SellerNotesForm.tsx`) — new client component replaces raw HTML form POST for order notes. Uses `fetch()` with "Saving..." / "Saved!" feedback. Keeps text in textarea after save (persistent notes).
+- **Carrier dropdown** — replaced free-text carrier input with `<select>` (UPS, USPS, FedEx, DHL, Other). Eliminates case sensitivity issues and typos.
+- **OrderTimeline refund step** — when `sellerRefundId` exists, a "Refund issued" step with a red dot and the refund amount is appended to the timeline. Applied to both buyer and seller order detail pages.
+- **Review images in admin** — admin reviews page and account reviews page now query and display review photo thumbnails.
+
+### Blog
+- **Featured blog card image** — `h-56` → `aspect-[16/9]` for consistent proportions on mobile.
+- **SaveBlogButton on homepage** — added to each blog card in "Stories from the Workshop" section. Saved state queried via `SavedBlogPost` for signed-in users.
+- **SaveBlogButton on featured blog card** — added to the featured post card on `/blog`.
+
+### Counts & naming
+- **About page seller count** — added `vacationMode: false`, `user: { banned: false }`, `listings: { some: { status: "ACTIVE" } }` filters. Added member count (`prisma.user.count({ where: { banned: false } })`).
+- **Homepage stats bar** — added member count between "active makers" and "orders fulfilled".
+- **"From Your Makers" → "Makers You Follow"** — renamed for clarity.
+
+### Already done (no changes needed)
+- Blog card hover states — already covered by `.card-listing:hover` CSS rule
+- Upload error handling — R2UploadButton already has `uploadError` state with user-facing messages
+- Fulfillment button gating — already working via status-based JSX visibility + route redirect
