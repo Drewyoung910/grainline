@@ -3399,3 +3399,23 @@ All three order list pages (buyer dashboard, seller sales, account orders) now s
 - **ListingGallery** — main photo and lightbox use `photo.altText ?? title` for alt attribute.
 - **Listing edit page** — alt text input field below each photo thumbnail. "Save alt texts" server action updates each photo's `altText` field. Ownership guard on the save action.
 - **ActionForm** — `id` prop support added for form-attribute linking.
+
+## Site-Wide Border Audit + Final Fixes (2026-04-22)
+
+### Border color consistency (16 files, ~35 edits)
+Every remaining bare `border-b`, `border-t`, and `divide-y` across the site now has an explicit color class. No more inherited dark borders:
+- All dividers: `border-neutral-100` (light grey)
+- All button/container borders: `border-neutral-200`
+- Files fixed: listing detail, checkout success, seller profile, commission detail, admin pages (cases/flagged/orders/verification), blog detail, seller settings, dashboard verification, map, metro browse, browse, homepage, makers, profile edit, custom order form
+
+### Message thread query limit
+`take: 200` added to both `messages/[id]/page.tsx` and `api/messages/[id]/list/route.ts`. Prevents unbounded query on long conversations (was loading all messages with no limit).
+
+### Blog image upload error handling
+`MarkdownToolbar.tsx` image upload catch block now shows `alert("Image upload failed. The file may be too large (max 4MB).")` instead of silently failing.
+
+### Server-side dates → LocalDate (3 files)
+Replaced `toLocaleDateString()` with `LocalDate` client component in:
+- `dashboard/orders/[id]`: shippedAt, estimatedDeliveryDate (3 instances)
+- `dashboard/sales/[orderId]`: processingDeadline, estimatedDeliveryDate
+- `seller/[id]`: vacation return date, broadcast date, blog post dates
