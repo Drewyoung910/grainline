@@ -3456,3 +3456,58 @@ Added `/terms` (monthly, 0.3), `/privacy` (monthly, 0.3), `/map` (weekly, 0.5). 
 | noindex on private pages | ✅ 30 pages |
 | Alt text on images | ✅ Gallery photos use altText ?? title. Key images have meaningful alt. |
 | metadataBase | ✅ https://thegrainline.com |
+
+## Quality Score Ranking Infrastructure (2026-04-22)
+
+### Schema
+- `Listing.qualityScore Float @default(0)` — precomputed composite quality score
+- Compound index `@@index([status, isPrivate, qualityScore])` for fast `ORDER BY qualityScore DESC` queries
+- Migration: `20260422171857_add_quality_score`
+
+### Scoring formula (`src/lib/quality-score.ts`)
+8-factor weighted scoring with Bayesian dampening (C=50):
+
+| Factor | Weight | Signal |
+|---|---|---|
+| Conversion rate (dampened) | 25% | orders ÷ views, pulled to site mean when views < 50 |
+| Seller rating | 20% | average rating / 5.0 |
+| Favorites (normalized) | 15% | min(1, favCount / 50) |
+| Recency | 15% | 1/(1 + ageDays/60) — hyperbolic, reaches 0.5 at 60 days |
+| Click-through rate (dampened) | 10% | clicks ÷ views, pulled to site mean |
+| Guild status | 5% | GUILD_MASTER=1.0, GUILD_MEMBER=0.6, NONE=0 |
+| Photo completeness | 5% | min(1, photoCount/4) × (hasAltText ? 1.0 : 0.8) |
+| Description completeness | 5% | min(1, descLength/200) |
+
+**Bayesian dampening**: `dampened = (views × raw + C × globalMean) / (views + C)`. When a listing has few views, the score is pulled toward the site average. As views increase, the listing's actual rate dominates. This means the formula works correctly from 20 listings to 100K — noise is suppressed when data is sparse, real signals emerge as traffic grows.
+
+### Cron job
+- `GET /api/cron/quality-score` — recalculates all scores daily
+- Schedule: `0 6 * * *` (6am UTC) in `vercel.json`
+- CRON_SECRET auth (same safe pattern as other crons)
+- Zeros out inactive/private listings
+
+### Homepage sections
+- **"New Arrivals"** (was "Fresh from the Workshop") — newest ACTIVE listings, `orderBy: createdAt desc`
+- **"Top Picks"** (was "Collector Favorites") — `orderBy: qualityScore desc`. Shows the highest-quality listings based on the composite score.
+- **"Makers You Follow"** — unchanged (personalized, follow-based)
+
+### Browse relevance
+- **No search query + relevance sort**: `ORDER BY qualityScore DESC` with standard Prisma pagination. Eliminates the 200-listing JS scoring limit. Every listing is ranked.
+- **Search query + relevance sort**: fetch 200 candidates by qualityScore, then apply text-match bonuses (exact title +0.5, starts-with +0.3, contains +0.15, exact tag +0.2) in JS.
+
+### Listing JSON-LD rating fallback
+```
+if (listing has reviews) → use listing rating
+else if (seller has reviews) → use seller rating  
+else → omit aggregateRating
+```
+Seller field in offers uses `Organization` type with profile URL.
+
+### Scaling path
+- **Current** (launch): formula works with sparse data via dampening. Conversion/CTR contribute minimally. Seller rating, favorites, recency drive ranking.
+- **500+ listings**: conversion/CTR signals become meaningful for popular listings. Formula auto-adapts — no code changes.
+- **10K+ listings**: consider adding `engagementScore` (favorites + views in last 7 days) for a "Trending" section.
+- **100K+ listings**: consider hourly score updates for trending, daily for quality. Batch update via raw SQL instead of individual Prisma updates.
+
+### RecentlyViewed styling
+Updated to modern floating-text cards: `rounded-2xl overflow-hidden aspect-square`, no borders, photo hover zoom, text floating on page background.
