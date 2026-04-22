@@ -3354,3 +3354,26 @@ Added `style={{ borderRadius: 0 }}` inline on the submit button. The global `but
 
 ### Mosaic seam
 Increased overlap from `-50.05%` to `-50.1%` in both keyframes.
+
+## Full Site Card/Divider Audit + Fixes (2026-04-22)
+
+### Part A: Card-section applied to 15+ pages
+Every remaining content container across the site now uses `card-section` or `card-listing` instead of raw `border border-neutral-200 rounded-xl`. All dividers use `border-neutral-100` (light grey) instead of default dark:
+
+**Order pages**: buyer detail, seller detail, buyer list, seller list — all containers, receipt sections, item lists, case threads, fulfillment sections.
+**Dashboard**: nav buttons, listing cards, profile form sections, FAQ items, featured listings.
+**Account**: saved items (listings + blog posts), commissions, settings (all 8 preference sections).
+**Public**: commission room, blog page (tag cloud, pagination), cart (seller sections, summary, dividers).
+**Components**: FilterSidebar, MobileFilterBar (sheet headers, tag pills), NotificationBell (outer border removed — shadow only).
+
+### Part B: Notification toggle mobile sizing
+`NotificationToggle.tsx`: added `min-w-[44px] shrink-0` to prevent flexbox from compressing toggle buttons to varying sizes based on label text length on mobile.
+
+### Part C: Message preview timestamp fix
+New `MessageTime.tsx` client component replaces server-side `formatWhen()` in the messages inbox. Server-side `toLocaleString()` rendered UTC on Vercel — now renders in the user's local timezone. Also fixed `account/orders/page.tsx` timestamps with existing `LocalDate` component.
+
+### Part D: Order list refund display
+All three order list pages (buyer dashboard, seller sales, account orders) now show `Refund: -$X.XX` in red when `sellerRefundAmountCents > 0`. Added `sellerRefundAmountCents` to the account orders query.
+
+### Part E: Refund max excludes tax
+`SellerRefundPanel` now accepts `maxRefundCents` prop (items + shipping, excluding tax). Helper text added: "Tax is refunded automatically by Stripe in proportion to the refund amount." Seller sales detail page computes and passes the correct max.
