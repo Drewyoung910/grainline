@@ -3529,3 +3529,17 @@ Gaming risk analysis: relisting abuse (delete + recreate for permanent bump) is 
 New Arrivals section on homepage now prefers listings from the last 30 days with fallback to newest if fewer than 6 recent results.
 
 `sellerReviewCount` added to the quality score SQL query (used for the new seller bonus calculation).
+
+### Browse Search — Word-Level Matching (2026-04-22)
+
+**Before**: `ILIKE '%walnut dining table%'` — only matched if the exact phrase appeared in order. "Custom Walnut Table for Dining Room" would NOT match the query "walnut dining table."
+
+**After**: query is split into individual words. Each word is matched independently against title, tags, and description via Prisma `OR` conditions. "walnut dining table" finds anything with "walnut" OR "dining" OR "table" in any field.
+
+**WHERE clause**: per-word `contains` (ILIKE) on title + description, per-word exact tag match (`has`), partial tag matches via `ILIKE ANY(patterns)` on unnest, full-phrase match kept for exact-title bonus, seller name match kept.
+
+**Scoring** (when search query exists):
+- 60% text relevance: exact full-phrase title +0.5, full phrase in title +0.25, per-word in title +0.2, per-word exact tag +0.25, per-word partial tag +0.1, per-word in description +0.05. Normalized by term count.
+- 40% qualityScore: among matching results, higher-quality listings rank first.
+
+Search terms capped at 6 words. Partial tag unnest query now includes seller safety filters (chargesEnabled, vacationMode, banned).
