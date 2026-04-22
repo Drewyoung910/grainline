@@ -232,7 +232,7 @@ function LineChartSection({
         </div>
       </div>
 
-      <div className="border border-neutral-200 p-4 relative" ref={containerRef}>
+      <div className="card-section p-4 relative" ref={containerRef}>
         {!hasData && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
             <p className="text-sm text-neutral-400">No data for this period</p>
@@ -534,19 +534,19 @@ export default function AnalyticsPage() {
             </>
           ) : data ? (
             <>
-              <div className="border border-neutral-200 p-5">
+              <div className="card-section p-5">
                 <p className="text-2xl font-bold">{fmt(data.overview.totalRevenueCents)}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Total Revenue</p>
               </div>
-              <div className="border border-neutral-200 p-5">
+              <div className="card-section p-5">
                 <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString()}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Total Orders</p>
               </div>
-              <div className="border border-neutral-200 p-5">
+              <div className="card-section p-5">
                 <p className="text-2xl font-bold">{fmt(data.overview.avgOrderValueCents)}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Avg. Order Value</p>
               </div>
-              <div className="border border-neutral-200 p-5">
+              <div className="card-section p-5">
                 <p className="text-2xl font-bold">{data.overview.activeListings}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Active Listings</p>
               </div>
@@ -566,7 +566,7 @@ export default function AnalyticsPage() {
           </div>
         ) : data ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            <div className="border border-neutral-200 p-3">
+            <div className="card-section p-3">
               <p className="text-xl font-bold">{data.engagement.totalViews.toLocaleString()}</p>
               <p className="text-xs font-medium text-neutral-700 mt-0.5">Listing Views</p>
               <p className="text-[10px] text-neutral-400">times your listing page was opened</p>
@@ -624,7 +624,7 @@ export default function AnalyticsPage() {
                 note: "order to shipped · this period",
               },
             ].map((stat) => (
-              <div key={stat.label} className="border border-neutral-200 p-3">
+              <div key={stat.label} className="card-section p-3">
                 <p className="text-xl font-bold">{stat.value}</p>
                 <p className="text-xs font-medium text-neutral-700 mt-0.5">{stat.label}</p>
                 <p className="text-[10px] text-neutral-400">{stat.note}</p>
@@ -666,11 +666,11 @@ export default function AnalyticsPage() {
           </div>
         ) : data ? (
           data.topListings.length === 0 ? (
-            <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
+            <div className="card-section p-6 text-sm text-neutral-500">
               No sales data yet.
             </div>
           ) : (
-            <ul className="divide-y border border-neutral-200">
+            <ul className="divide-y divide-neutral-100 card-section">
               {data.topListings.slice(0, 5).map((l) => (
                 <li key={l.id} className="flex items-center gap-4 p-3">
                   {l.imageUrl ? (
@@ -726,7 +726,7 @@ export default function AnalyticsPage() {
           <Skeleton className="h-40 w-full" />
         ) : data ? (
           <>
-            <div className="border border-neutral-200 divide-y divide-neutral-100">
+            <div className="card-section divide-y divide-neutral-100">
               {[
                 {
                   label: "Average Rating",
@@ -787,7 +787,7 @@ export default function AnalyticsPage() {
                   </Link>
                 </div>
               ) : data.guildMasterFailures.length > 0 ? (
-                <div className="border border-neutral-200 px-5 py-3">
+                <div className="card-section px-5 py-3">
                   <p className="text-sm font-medium text-neutral-700 mb-2">
                     Guild Master criteria not yet met:
                   </p>
@@ -810,7 +810,7 @@ export default function AnalyticsPage() {
       {!loading && data && data.ratingOverTime.length > 0 && (
         <section>
           <h2 className="text-xl font-semibold mb-4">Rating Over Time</h2>
-          <div className="border border-neutral-200 divide-y divide-neutral-100">
+          <div className="card-section divide-y divide-neutral-100">
             {data.ratingOverTime.map((r) => (
               <div key={r.label} className="flex items-center justify-between px-5 py-2 text-sm">
                 <span className="text-neutral-600">{r.label}</span>
@@ -905,13 +905,13 @@ function RecentSales() {
       {loading ? (
         <Skeleton className="h-40 w-full" />
       ) : !sales || sales.length === 0 ? (
-        <div className="border border-neutral-200 p-6 text-sm text-neutral-500">
+        <div className="card-section p-6 text-sm text-neutral-500">
           No completed sales yet.
         </div>
       ) : (
-        <div className="border border-neutral-200 overflow-x-auto">
+        <div className="card-section overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-stone-50 border-b border-neutral-200">
+            <thead className="bg-stone-50 border-b border-neutral-100">
               <tr>
                 <th className="text-left px-4 py-2 font-medium text-neutral-600">Date</th>
                 <th className="text-left px-4 py-2 font-medium text-neutral-600">Item</th>

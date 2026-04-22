@@ -73,9 +73,9 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       </button>
 
       {open && (
-        <div className={`absolute right-0 z-[200] w-52 rounded-xl border bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}>
+        <div className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}>
           {/* Header — avatar + name */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
             <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
               {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -123,7 +123,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
                 Admin
               </Link>
             )}
-            <div className="border-t my-1" />
+            <div className="border-t border-neutral-100 my-1" />
 
             <button
               type="button"

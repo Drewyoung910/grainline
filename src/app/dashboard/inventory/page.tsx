@@ -38,11 +38,11 @@ export default async function InventoryPage() {
           Active ({active.length})
         </h2>
         {active.length === 0 ? (
-          <div className="rounded-lg border px-4 py-6 text-sm text-neutral-500">
+          <div className="card-section px-4 py-6 text-sm text-neutral-500">
             No active in-stock listings.
           </div>
         ) : (
-          <ul className="divide-y rounded-xl border bg-white">
+          <ul className="divide-y divide-neutral-100 card-section">
             {active.map((l) => (
               <InventoryRow key={l.id} listing={l} />
             ))}
@@ -55,11 +55,11 @@ export default async function InventoryPage() {
           Out of Stock ({outOfStock.length})
         </h2>
         {outOfStock.length === 0 ? (
-          <div className="rounded-lg border px-4 py-6 text-sm text-neutral-500">
+          <div className="card-section px-4 py-6 text-sm text-neutral-500">
             No out-of-stock listings.
           </div>
         ) : (
-          <ul className="divide-y rounded-xl border bg-white">
+          <ul className="divide-y divide-neutral-100 card-section">
             {outOfStock.map((l) => (
               <InventoryRow key={l.id} listing={l} />
             ))}

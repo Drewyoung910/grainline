@@ -387,7 +387,7 @@ export default async function SellerSettingsPage() {
       </form>
 
       {/* Shop Updates / Broadcasts */}
-      <section className="rounded-xl border p-6 space-y-4">
+      <section className="card-section p-6 space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Shop Updates</h2>
           <p className="text-sm text-neutral-500 mt-1">

@@ -65,14 +65,14 @@ export default async function DashboardBlogPage() {
       </div>
 
       {posts.length === 0 ? (
-        <div className="rounded-xl border p-10 text-center text-neutral-500">
+        <div className="card-section p-10 text-center text-neutral-500">
           No posts yet.{" "}
           <Link href="/dashboard/blog/new" className="underline text-neutral-700">
             Write your first post
           </Link>
         </div>
       ) : (
-        <ul className="divide-y border rounded-xl overflow-hidden">
+        <ul className="divide-y divide-neutral-100 card-section">
           {posts.map((p) => (
             <li key={p.id} className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-neutral-50">
               <div className="flex-1 min-w-0">

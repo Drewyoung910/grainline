@@ -286,7 +286,7 @@ export default async function MessagesPage({
           )}
         </div>
       ) : (
-        <ul className="divide-y card-section">
+        <ul className="divide-y divide-neutral-100 card-section">
           {list.map(({ c, other, latest, unreadCount, ctxThumb }) => {
             const title = other?.name || other?.email || "User";
             const snippet = formatSnippet(latest?.body);

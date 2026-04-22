@@ -276,7 +276,7 @@ export default function Header() {
           {/* Panel */}
           <div className="fixed right-0 top-0 z-[1001] flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden">
             {/* Header row */}
-            <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
               <Link
                 href="/"
                 className="flex items-center"
@@ -392,7 +392,7 @@ export default function Header() {
 
             {/* Avatar + inline actions at bottom — no dropdown to avoid overflow-hidden clipping */}
             <Show when="signed-in">
-              <div className="border-t px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
+              <div className="border-t border-neutral-100 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-1">
                 {/* Avatar + name row — display only */}
                 <div className="flex items-center gap-3 px-0 py-2">
                   <div className="h-9 w-9 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
