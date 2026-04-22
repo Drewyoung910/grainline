@@ -88,7 +88,7 @@ export default async function AccountSettingsPage() {
         <p className="text-sm text-neutral-500 mb-4">These appear in your notification bell.</p>
 
         {/* Group 1 — From Makers You Follow */}
-        <section className="border border-neutral-200 p-5 mb-4">
+        <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-3">From Makers You Follow</h3>
           <Row
             type="FOLLOWED_MAKER_NEW_LISTING"
@@ -108,7 +108,7 @@ export default async function AccountSettingsPage() {
         </section>
 
         {/* Group 2 — Orders & Cases */}
-        <section className="border border-neutral-200 p-5 mb-4">
+        <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-3">Orders &amp; Cases</h3>
           <Row
             type="NEW_ORDER"
@@ -146,7 +146,7 @@ export default async function AccountSettingsPage() {
 
         {/* Group 3 — Your Shop (sellers only) */}
         {hasSeller && (
-          <section className="border border-neutral-200 p-5 mb-4">
+          <section className="card-section p-5 mb-4">
             <h3 className="text-base font-semibold mb-3">Your Shop</h3>
             <Row
               type="NEW_MESSAGE"
@@ -202,7 +202,7 @@ export default async function AccountSettingsPage() {
 
         {/* Group 4 — Blog (sellers only) */}
         {hasSeller && (
-          <section className="border border-neutral-200 p-5 mb-4">
+          <section className="card-section p-5 mb-4">
             <h3 className="text-base font-semibold mb-3">Blog</h3>
             <Row
               type="NEW_BLOG_COMMENT"
@@ -219,7 +219,7 @@ export default async function AccountSettingsPage() {
       </div>
 
       {/* ── Email Notifications ───────────────────────────────── */}
-      <div className="border-t pt-6">
+      <div className="border-t border-neutral-100 pt-6">
         <h2 className="text-lg font-semibold mb-1">Email Notifications</h2>
         <p className="text-sm text-neutral-500 mb-1">These are sent to your email address.</p>
         <p className="text-xs text-neutral-400 mb-4">
@@ -227,7 +227,7 @@ export default async function AccountSettingsPage() {
         </p>
 
         {/* Messages & Orders */}
-        <section className="border border-neutral-200 p-5 mb-4">
+        <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-3">Messages &amp; Orders</h3>
           <EmailRow
             type="EMAIL_NEW_MESSAGE"
@@ -251,7 +251,7 @@ export default async function AccountSettingsPage() {
         </section>
 
         {/* Cases & Reviews */}
-        <section className="border border-neutral-200 p-5 mb-4">
+        <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-3">Cases &amp; Reviews</h3>
           {hasSeller && (
             <EmailRow
@@ -280,7 +280,7 @@ export default async function AccountSettingsPage() {
         </section>
 
         {/* From Makers You Follow */}
-        <section className="border border-neutral-200 p-5 mb-4">
+        <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-3">From Makers You Follow</h3>
           <EmailRow
             type="EMAIL_FOLLOWED_MAKER_NEW_LISTING"
@@ -296,7 +296,7 @@ export default async function AccountSettingsPage() {
 
         {/* Your Shop — sellers only */}
         {hasSeller && (
-          <section className="border border-neutral-200 p-5">
+          <section className="card-section p-5">
             <h3 className="text-base font-semibold mb-3">Your Shop</h3>
             <EmailRow
               type="EMAIL_NEW_FOLLOWER"

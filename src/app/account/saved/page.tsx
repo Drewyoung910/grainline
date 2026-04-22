@@ -84,7 +84,7 @@ export default async function SavedPage({
         <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
         {favorites.length === 0 ? (
-          <div className="rounded-xl border p-10 text-center text-neutral-500">
+          <div className="card-section p-10 text-center text-neutral-500">
             Nothing saved yet — start hearting pieces you love while browsing.
           </div>
         ) : (
@@ -165,7 +165,7 @@ export default async function SavedPage({
       <Tabs tab={tab} tabHref={tabHref} listingTotal={listingTotal} postTotal={postTotal} />
 
       {savedPosts.length === 0 ? (
-        <div className="rounded-xl border p-10 text-center text-neutral-500">
+        <div className="card-section p-10 text-center text-neutral-500">
           No saved posts yet — bookmark posts from the blog to read later.
         </div>
       ) : (
@@ -176,7 +176,7 @@ export default async function SavedPage({
               const avatar = p.sellerProfile?.avatarImageUrl ?? p.author.imageUrl;
               const name = p.sellerProfile?.displayName ?? p.author.name ?? "Staff";
               return (
-                <li key={p.id} className="relative rounded-xl border overflow-hidden hover:shadow-sm transition-shadow">
+                <li key={p.id} className="relative card-listing">
                   <div className="absolute top-2 right-2 z-10">
                     <SaveBlogButton slug={p.slug} initialSaved={true} />
                   </div>
@@ -239,7 +239,7 @@ function Tabs({
   postTotal: number;
 }) {
   return (
-    <div className="flex gap-1 mb-6 border-b">
+    <div className="flex gap-1 mb-6 border-b border-neutral-100">
       {(["listings", "posts"] as const).map((t) => {
         const label = t === "listings" ? `Listings (${listingTotal})` : `Blog Posts (${postTotal})`;
         const active = tab === t;
@@ -274,15 +274,15 @@ function Pagination({
   return (
     <div className="flex justify-center gap-2 mt-8">
       {page > 1 && (
-        <Link href={`${baseHref}&page=${page - 1}`} className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page - 1}`} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
           ← Previous
         </Link>
       )}
-      <span className="rounded-lg border px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+      <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
         Page {page} of {totalPages}
       </span>
       {page < totalPages && (
-        <Link href={`${baseHref}&page=${page + 1}`} className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50">
+        <Link href={`${baseHref}&page=${page + 1}`} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
           Next →
         </Link>
       )}

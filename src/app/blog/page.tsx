@@ -444,18 +444,18 @@ export default async function BlogIndexPage({
               {page > 1 && (
                 <Link
                   href={buildHref({ page: String(page - 1) })}
-                  className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50"
+                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
                 >
                   ← Previous
                 </Link>
               )}
-              <span className="rounded-lg border px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+              <span className="rounded-lg border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
                 Page {page} of {totalPages}
               </span>
               {page < totalPages && (
                 <Link
                   href={buildHref({ page: String(page + 1) })}
-                  className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50"
+                  className="rounded-lg border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50"
                 >
                   Next →
                 </Link>
@@ -467,7 +467,7 @@ export default async function BlogIndexPage({
 
       {/* Browse by Topic tag cloud — only shown when not searching */}
       {!isSearching && tagCloud.length > 0 && (
-        <section className="mb-12 pt-8 border-t">
+        <section className="mb-12 pt-8 border-t border-neutral-100">
           <h2 className="text-lg font-semibold text-neutral-800 mb-4">Browse by Topic</h2>
           <div className="flex flex-wrap gap-2">
             {tagCloud.map((t) => (

@@ -226,7 +226,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
   );
 
   const tagsSection = popularTags.length > 0 && (
-    <div className="mt-5 pt-4 border-t">
+    <div className="mt-5 pt-4 border-t border-neutral-100">
       <div className="font-medium mb-2 text-sm">Popular tags</div>
       <div className="flex flex-wrap gap-1.5">
         {popularTags.map((t) => {
@@ -235,8 +235,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             <Link
               key={t}
               href={tagToggleHref(t)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50 ${
-                active ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+              className={`rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs hover:bg-neutral-50 ${
+                active ? "bg-neutral-900 text-white hover:bg-neutral-900 border-neutral-900" : ""
               }`}
             >
               #{t}
@@ -265,7 +265,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     <>
       {/* ── Desktop sidebar (md+) ── */}
       <aside className="hidden md:block w-52 lg:w-56 shrink-0">
-        <div className="rounded-xl border p-4 sticky top-4">
+        <div className="card-section p-4 sticky top-4">
           {form}
           {tagsSection}
         </div>

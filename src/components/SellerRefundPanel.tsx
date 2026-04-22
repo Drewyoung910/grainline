@@ -6,6 +6,8 @@ type Props = {
   orderId: string;
   currency: string;
   orderTotalCents: number;
+  /** Maximum refundable amount (items + shipping, excluding tax). Falls back to orderTotalCents if not provided. */
+  maxRefundCents?: number;
   alreadyRefundedId: string | null;
   alreadyRefundedCents: number | null;
 };
@@ -21,9 +23,11 @@ export default function SellerRefundPanel({
   orderId,
   currency,
   orderTotalCents,
+  maxRefundCents,
   alreadyRefundedId,
   alreadyRefundedCents,
 }: Props) {
+  const effectiveMax = maxRefundCents ?? orderTotalCents;
   const [mode, setMode] = React.useState<"idle" | "full" | "partial">("idle");
   const [partialAmount, setPartialAmount] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -61,8 +65,8 @@ export default function SellerRefundPanel({
         return;
       }
       amountCents = Math.round(parsed * 100);
-      if (amountCents > orderTotalCents) {
-        setError("Refund amount cannot exceed the order total.");
+      if (amountCents > effectiveMax) {
+        setError(`Refund amount cannot exceed ${fmtMoney(effectiveMax, currency)}.`);
         return;
       }
     }
@@ -117,7 +121,7 @@ export default function SellerRefundPanel({
             onClick={() => { setMode("full"); setError(null); }}
             className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50"
           >
-            Full Refund ({fmtMoney(orderTotalCents, currency)})
+            Full Refund ({fmtMoney(effectiveMax, currency)})
           </button>
           <button
             onClick={() => { setMode("partial"); setError(null); }}
@@ -131,8 +135,8 @@ export default function SellerRefundPanel({
       {mode === "full" && (
         <div className="space-y-2">
           <p className="text-sm text-neutral-700">
-            Refund the full order amount of{" "}
-            <span className="font-medium">{fmtMoney(orderTotalCents, currency)}</span> to the buyer?
+            Refund{" "}
+            <span className="font-medium">{fmtMoney(effectiveMax, currency)}</span> to the buyer?
           </p>
           <div className="flex gap-2">
             <button
@@ -161,7 +165,7 @@ export default function SellerRefundPanel({
               type="number"
               step="0.01"
               min="0.01"
-              max={(orderTotalCents / 100).toFixed(2)}
+              max={(effectiveMax / 100).toFixed(2)}
               value={partialAmount}
               onChange={(e) => { setPartialAmount(e.target.value); setError(null); }}
               placeholder="0.00"
@@ -169,9 +173,12 @@ export default function SellerRefundPanel({
               autoFocus
             />
             <span className="text-xs text-neutral-400">
-              max {fmtMoney(orderTotalCents, currency)}
+              max {fmtMoney(effectiveMax, currency)}
             </span>
           </div>
+          <p className="text-xs text-neutral-500">
+            Tax is refunded automatically by Stripe in proportion to the refund amount.
+          </p>
           <div className="flex gap-2">
             <button
               onClick={() => submit("PARTIAL")}

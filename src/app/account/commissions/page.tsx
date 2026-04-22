@@ -77,7 +77,7 @@ export default async function MyCommissionsPage() {
       </div>
 
       {requests.length === 0 ? (
-        <div className="border border-neutral-200 p-12 text-center">
+        <div className="card-section p-12 text-center">
           <p className="text-neutral-500 mb-4">You haven&apos;t posted any commission requests yet.</p>
           <Link
             href="/commission/new"
@@ -89,7 +89,7 @@ export default async function MyCommissionsPage() {
       ) : (
         <div className="space-y-4">
           {requests.map((r) => (
-            <div key={r.id} className="border border-neutral-200 p-4">
+            <div key={r.id} className="card-section p-4">
               <div className="flex items-start justify-between gap-3 mb-2">
                 <Link href={`/commission/${r.id}`} className="font-semibold text-neutral-900 hover:underline flex-1">
                   {r.title}

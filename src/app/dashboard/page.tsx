@@ -481,14 +481,14 @@ export default async function DashboardPage() {
                     <div className="pt-3 flex flex-wrap gap-2">
                       <Link
                         href={`/dashboard/listings/${l.id}/edit`}
-                        className="text-xs rounded border px-2 py-1 hover:bg-neutral-50"
+                        className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
                       >
                         Edit
                       </Link>
                       {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
                         <Link
                           href={`/listing/${l.id}?preview=1`}
-                          className="text-xs rounded border px-2 py-1 hover:bg-neutral-50"
+                          className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
                           target="_blank"
                         >
                           Preview →
@@ -505,14 +505,14 @@ export default async function DashboardPage() {
                           {/* Mark sold only for ACTIVE and SOLD_OUT — not DRAFT or HIDDEN */}
                           {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
                             <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
-                              <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+                              <button className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50">
                                 Mark sold
                               </button>
                             </form>
                           )}
 
                           <form action={hideAction}>
-                            <button className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+                            <button className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50">
                               {l.status === "HIDDEN" ? "Unhide" : "Hide"}
                             </button>
                           </form>

@@ -5,16 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
-
-function formatWhen(d?: Date | null) {
-  if (!d) return "";
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(d);
-}
+import MessageTime from "@/components/MessageTime";
 
 function parseFilePayload(body: string):
   | { kind: "file"; url: string; name: string | null; type: string | null }
@@ -290,7 +281,7 @@ export default async function MessagesPage({
           {list.map(({ c, other, latest, unreadCount, ctxThumb }) => {
             const title = other?.name || other?.email || "User";
             const snippet = formatSnippet(latest?.body);
-            const when = latest ? formatWhen(latest.createdAt) : "";
+            const hasTime = !!latest;
             const isUnread = unreadCount > 0;
 
             return (
@@ -338,7 +329,11 @@ export default async function MessagesPage({
                           <img src={ctxThumb} alt="" className="h-full w-full object-cover" />
                         </div>
                       ) : null}
-                      <div className="hidden sm:block whitespace-nowrap text-xs text-neutral-500">{when}</div>
+                      {hasTime && (
+                        <div className="hidden sm:block whitespace-nowrap text-xs text-neutral-500">
+                          <MessageTime date={latest!.createdAt} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Link>

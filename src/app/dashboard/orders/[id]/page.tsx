@@ -20,7 +20,7 @@ function fmtMoney(cents: number, currency = "usd") {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium">
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-neutral-200 px-2 py-0.5 text-xs font-medium">
       {children}
     </span>
   );
@@ -239,13 +239,13 @@ export default async function BuyerOrderDetailPage({
         </div>
       )}
 
-      <section className="rounded-xl border bg-white">
-        <div className="flex items-center justify-between border-b px-4 py-3">
+      <section className="card-section">
+        <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div className="text-sm font-medium">Receipt</div>
           <div className="text-sm font-semibold">{fmtMoney(total, currency)}</div>
         </div>
 
-        <ul className="divide-y">
+        <ul className="divide-y divide-neutral-100">
           {order.items.map((it) => {
             const img = it.listing.photos[0]?.url;
             return (
@@ -284,7 +284,7 @@ export default async function BuyerOrderDetailPage({
           })}
         </ul>
 
-        <div className="px-4 py-3 border-t space-y-1 text-sm">
+        <div className="px-4 py-3 border-t border-neutral-100 space-y-1 text-sm">
           <div className="flex items-center justify-between">
             <div className="text-neutral-600">Items subtotal</div>
             <div className="font-medium">{fmtMoney(itemsSubtotal, currency)}</div>
@@ -308,7 +308,7 @@ export default async function BuyerOrderDetailPage({
             <div className="text-neutral-600">Tax</div>
             <div className="font-medium">{fmtMoney(tax, currency)}</div>
           </div>
-          <hr className="my-1" />
+          <hr className="my-1 border-neutral-100" />
           {hasRefund && refundCents != null && (
             <div className="flex items-center justify-between text-green-700">
               <div>Refund issued</div>
@@ -330,7 +330,7 @@ export default async function BuyerOrderDetailPage({
       </section>
 
       {method === "PICKUP" ? (
-        <section className="rounded-md bg-neutral-50 border px-4 py-3 text-sm">
+        <section className="card-section bg-neutral-50 px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800">Local pickup</div>
           <div className="text-neutral-700">
             Your maker will coordinate pickup with you via Messages.
@@ -342,7 +342,7 @@ export default async function BuyerOrderDetailPage({
           )}
         </section>
       ) : hasAddress ? (
-        <section className="rounded-md bg-neutral-50 border px-4 py-3 text-sm">
+        <section className="card-section bg-neutral-50 px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800 mb-1">Ship to</div>
           <div className="text-neutral-700">
             {order.shipToLine1}
@@ -413,8 +413,8 @@ export default async function BuyerOrderDetailPage({
 
       {/* ── Case section ── */}
       {activeCase ? (
-        <section className="rounded-xl border space-y-0 overflow-hidden">
-          <div className="flex items-center gap-3 border-b bg-white px-4 py-3">
+        <section className="card-section space-y-0">
+          <div className="flex items-center gap-3 border-b border-neutral-100 bg-white px-4 py-3">
             <div className="text-sm font-semibold">Case</div>
             <CaseStatusBadge status={activeCase.status} />
             <div className="text-xs text-neutral-500">
@@ -422,7 +422,7 @@ export default async function BuyerOrderDetailPage({
             </div>
           </div>
 
-          <ul className="divide-y bg-white">
+          <ul className="divide-y divide-neutral-100 bg-white">
             {activeCase.messages.map((msg) => (
               <li key={msg.id} className="px-4 py-3 space-y-1">
                 <div className="flex items-center gap-2 text-xs text-neutral-500">
@@ -438,13 +438,13 @@ export default async function BuyerOrderDetailPage({
           </ul>
 
           {caseOpen && (
-            <div className="border-t bg-neutral-50 px-4 py-4">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
               <CaseReplyBox caseId={activeCase.id} />
             </div>
           )}
 
           {(activeCase.status === "IN_DISCUSSION" || activeCase.status === "PENDING_CLOSE") && (
-            <div className="border-t bg-neutral-50 px-4 py-3 space-y-2">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
               {activeCase.buyerMarkedResolved && !activeCase.sellerMarkedResolved ? (
                 <p className="text-sm text-neutral-500">
                   Waiting for seller to confirm resolution.
@@ -461,13 +461,13 @@ export default async function BuyerOrderDetailPage({
           )}
 
           {activeCase.status === "UNDER_REVIEW" && (
-            <div className="border-t bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
               This case is under review by Grainline staff.
             </div>
           )}
 
           {(activeCase.status === "RESOLVED" || activeCase.status === "CLOSED") && (
-            <div className="border-t bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
               This case is {activeCase.status.toLowerCase()}.
             </div>
           )}
@@ -504,13 +504,13 @@ export default async function BuyerOrderDetailPage({
       <div className="flex gap-3">
         <Link
           href="/dashboard/orders"
-          className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Back to orders
         </Link>
         <Link
           href="/messages"
-          className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Message maker
         </Link>

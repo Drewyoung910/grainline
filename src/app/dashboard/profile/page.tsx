@@ -268,7 +268,7 @@ export default async function ProfilePage({
       <form action={updateSellerProfile} className="space-y-10">
         {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b pb-2">Shop Identity</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Shop Identity</h2>
 
           <div>
             <label className="block text-sm font-medium mb-2">Profile avatar</label>
@@ -337,7 +337,7 @@ export default async function ProfilePage({
 
         {/* ── B. Your Story ─────────────────────────────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b pb-2">Your Story</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Your Story</h2>
 
           <div>
             <label className="block text-sm font-medium mb-1">Bio</label>
@@ -382,7 +382,7 @@ export default async function ProfilePage({
 
         {/* ── C. Social Links ───────────────────────────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b pb-2">Social Links</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Social Links</h2>
 
           {(
             [
@@ -408,7 +408,7 @@ export default async function ProfilePage({
 
         {/* ── D. Shop Policies ──────────────────────────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b pb-2">Shop Policies</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Shop Policies</h2>
 
           <div>
             <label className="block text-sm font-medium mb-1">Return policy</label>
@@ -446,7 +446,7 @@ export default async function ProfilePage({
 
         {/* ── E. Custom Orders & Availability ───────────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b pb-2">Custom Orders &amp; Availability</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Custom Orders &amp; Availability</h2>
 
           <div className="flex items-center gap-2">
             <input
@@ -488,7 +488,7 @@ export default async function ProfilePage({
 
         {/* ── F. Gift Wrapping ───────────────────────────────────────────────── */}
         <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b pb-2">Gift Wrapping</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Gift Wrapping</h2>
 
           <div className="flex items-center gap-2">
             <input
@@ -543,7 +543,7 @@ export default async function ProfilePage({
             {fullSeller.faqs.map((faq) => (
               <li
                 key={faq.id}
-                className="rounded-xl border p-4 flex items-start justify-between gap-4"
+                className="card-section p-4 flex items-start justify-between gap-4"
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{faq.question}</p>
@@ -563,7 +563,7 @@ export default async function ProfilePage({
         )}
 
         {/* Add FAQ form */}
-        <form action={addFaq} className="space-y-3 rounded-xl border p-4">
+        <form action={addFaq} className="space-y-3 card-section p-4">
           <h3 className="text-sm font-medium">Add a FAQ</h3>
           <div>
             <label className="block text-xs text-neutral-500 mb-1">Question</label>
@@ -596,7 +596,7 @@ export default async function ProfilePage({
       {/* ── Featured Listings ──────────────────────────────────────────────── */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-medium border-b pb-2">Featured Listings</h2>
+          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Featured Listings</h2>
           <p className="text-sm text-neutral-500 mt-1">
             Select up to 6 active listings to feature at the top of your profile.
           </p>
@@ -612,7 +612,7 @@ export default async function ProfilePage({
               return (
                 <li
                   key={listing.id}
-                  className={`relative overflow-hidden rounded-xl border ${
+                  className={`relative card-listing ${
                     isFeatured ? "ring-2 ring-amber-400" : ""
                   }`}
                 >

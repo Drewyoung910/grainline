@@ -284,7 +284,7 @@ export default async function CommissionPage({
       </div>
 
       {/* Tab strip */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div className="flex gap-1 mb-6 border-b border-neutral-100">
         <Link
           href={buildHref({ tab: "", page: "" })}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
@@ -453,15 +453,15 @@ export default async function CommissionPage({
       {totalPages > 1 && (
         <div className="flex justify-center gap-2 mt-8">
           {page > 1 && (
-            <Link href={buildHref({ page: String(page - 1) })} className="border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page - 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
               ← Previous
             </Link>
           )}
-          <span className="border px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
+          <span className="border border-neutral-200 px-4 py-2 text-sm bg-neutral-50 text-neutral-500">
             Page {page} of {totalPages}
           </span>
           {page < totalPages && (
-            <Link href={buildHref({ page: String(page + 1) })} className="border px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href={buildHref({ page: String(page + 1) })} className="border border-neutral-200 px-4 py-2 text-sm hover:bg-neutral-50">
               Next →
             </Link>
           )}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
+import LocalDate from "@/components/LocalDate";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -40,6 +41,7 @@ export default async function AccountOrdersPage({
         itemsSubtotalCents: true,
         shippingAmountCents: true,
         taxAmountCents: true,
+        sellerRefundAmountCents: true,
         fulfillmentStatus: true,
         labelTrackingNumber: true,
         labelCarrier: true,
@@ -131,7 +133,7 @@ export default async function AccountOrdersPage({
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-neutral-500">
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      <LocalDate date={order.createdAt} />
                     </span>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}>
                       {formatStatus(order.fulfillmentStatus)}
@@ -181,6 +183,14 @@ export default async function AccountOrdersPage({
                         currency: order.currency,
                       })}
                     </span>
+                    {(order.sellerRefundAmountCents ?? 0) > 0 && (
+                      <span className="text-sm text-red-600 ml-2">
+                        (Refund: -{(order.sellerRefundAmountCents! / 100).toLocaleString(undefined, {
+                          style: "currency",
+                          currency: order.currency,
+                        })})
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     {order.labelTrackingNumber && (

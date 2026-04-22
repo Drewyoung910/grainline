@@ -22,7 +22,7 @@ function fmtMoney(cents: number, currency = "usd") {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium">
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-neutral-200 px-2 py-0.5 text-xs font-medium">
       {children}
     </span>
   );
@@ -109,10 +109,12 @@ export default async function SellerOrderDetailPage({
   const myItemsSubtotal = myItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shipping = order.shippingAmountCents ?? 0;
   const tax = order.taxAmountCents ?? 0;
-  const orderTotal =
-    (order.itemsSubtotalCents && order.itemsSubtotalCents > 0
+  const itemsSubtotal =
+    order.itemsSubtotalCents && order.itemsSubtotalCents > 0
       ? order.itemsSubtotalCents
-      : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0)) + shipping + tax;
+      : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+  const orderTotal = itemsSubtotal + shipping + tax;
+  const maxRefundCents = itemsSubtotal + shipping;
 
   const hasAddress =
     !!(order.shipToLine1 || order.shipToCity || order.shipToPostalCode || order.shipToCountry);
@@ -282,10 +284,10 @@ export default async function SellerOrderDetailPage({
 
       {/* ── Case thread ── */}
       {activeCase && (
-        <section className="rounded-xl border overflow-hidden">
-          <div className="border-b bg-white px-4 py-3 text-sm font-semibold">Case thread</div>
+        <section className="card-section">
+          <div className="border-b border-neutral-100 bg-white px-4 py-3 text-sm font-semibold">Case thread</div>
 
-          <ul className="divide-y bg-white">
+          <ul className="divide-y divide-neutral-100 bg-white">
             {activeCase.messages.map((msg) => {
               const label = msgLabel(msg.author.id);
               const isMe = label === "You (Seller)";
@@ -315,7 +317,7 @@ export default async function SellerOrderDetailPage({
           {(activeCase.status === "OPEN" ||
             activeCase.status === "IN_DISCUSSION" ||
             activeCase.status === "PENDING_CLOSE") && (
-            <div className="border-t bg-neutral-50 px-4 py-4">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
               <CaseReplyBox caseId={activeCase.id} />
             </div>
           )}
@@ -328,7 +330,7 @@ export default async function SellerOrderDetailPage({
             const waitingForBuyer =
               activeCase.sellerMarkedResolved && !activeCase.buyerMarkedResolved;
             return (
-              <div className="border-t bg-neutral-50 px-4 py-3 space-y-2">
+              <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
                 {waitingForBuyer ? (
                   <p className="text-sm text-neutral-500">
                     Waiting for buyer to confirm resolution.
@@ -346,13 +348,13 @@ export default async function SellerOrderDetailPage({
           })()}
 
           {activeCase.status === "UNDER_REVIEW" && (
-            <div className="border-t bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
               Awaiting staff review. You may not add messages at this time.
             </div>
           )}
 
           {(activeCase.status === "RESOLVED" || activeCase.status === "CLOSED") && (
-            <div className="border-t bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
               This case is {activeCase.status.toLowerCase()}.
             </div>
           )}
@@ -360,13 +362,13 @@ export default async function SellerOrderDetailPage({
       )}
 
       {/* Items */}
-      <section className="rounded-xl border bg-white">
-        <div className="flex items-center justify-between border-b px-4 py-3">
+      <section className="card-section">
+        <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div className="text-sm font-medium">Items you sold in this order</div>
           <div className="text-sm font-semibold">{fmtMoney(myItemsSubtotal, currency)}</div>
         </div>
 
-        <ul className="divide-y">
+        <ul className="divide-y divide-neutral-100">
           {myItems.map((it) => {
             const img = it.listing.photos[0]?.url;
             return (
@@ -403,7 +405,7 @@ export default async function SellerOrderDetailPage({
         </ul>
 
         {/* Totals */}
-        <div className="px-4 py-3 border-t text-sm space-y-1">
+        <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-neutral-600">Order items subtotal</span>
             <span className="font-medium">
@@ -429,7 +431,7 @@ export default async function SellerOrderDetailPage({
             <span className="text-neutral-600">Tax</span>
             <span className="font-medium">{fmtMoney(tax, currency)}</span>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
             <span className="text-neutral-800">Order total</span>
             <span className="text-base font-semibold">{fmtMoney(orderTotal, currency)}</span>
           </div>
@@ -449,7 +451,7 @@ export default async function SellerOrderDetailPage({
 
       {/* Fulfillment context */}
       {isPickup ? (
-        <div className="rounded-md bg-neutral-50 border px-4 py-3 text-sm">
+        <div className="card-section bg-neutral-50 px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800">Local pickup selected</div>
           <div className="text-neutral-700">Coordinate pickup with the buyer via Messages.</div>
           {order.pickupReadyAt && (
@@ -459,7 +461,7 @@ export default async function SellerOrderDetailPage({
           )}
         </div>
       ) : hasAddress ? (
-        <div className="rounded-md bg-neutral-50 border px-4 py-3 text-sm">
+        <div className="card-section bg-neutral-50 px-4 py-3 text-sm">
           <div className="font-medium text-neutral-800 mb-1">Ship to</div>
           <div className="text-neutral-700">
             {order.shipToLine1}
@@ -523,6 +525,7 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
+          maxRefundCents={maxRefundCents}
           alreadyRefundedId={null}
           alreadyRefundedCents={null}
         />
@@ -532,6 +535,7 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
+          maxRefundCents={maxRefundCents}
           alreadyRefundedId={order.sellerRefundId}
           alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
         />
@@ -539,7 +543,7 @@ export default async function SellerOrderDetailPage({
 
       {/* Actions */}
       {(status !== "DELIVERED" && status !== "PICKED_UP") && (
-        <section className="rounded-xl border bg-white p-4 space-y-3">
+        <section className="card-section p-4 space-y-3">
           <div className="font-medium">Fulfillment actions</div>
 
           {method === "PICKUP" && status === "PENDING" && (
@@ -574,7 +578,7 @@ export default async function SellerOrderDetailPage({
                 currency={currency}
               />
 
-              <div className="border-t pt-3 space-y-2">
+              <div className="border-t border-neutral-100 pt-3 space-y-2">
                 <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
                   Already shipped? Enter tracking manually
                 </div>
@@ -623,7 +627,7 @@ export default async function SellerOrderDetailPage({
       )}
 
       {/* Seller notes */}
-      <section className="rounded-xl border bg-white p-4 space-y-3">
+      <section className="card-section p-4 space-y-3">
         <div className="font-medium">Seller notes</div>
         <SellerNotesForm orderId={order.id} initialNotes={order.sellerNotes ?? ""} />
       </section>
@@ -631,13 +635,13 @@ export default async function SellerOrderDetailPage({
       <div className="flex gap-3">
         <Link
           href="/dashboard/sales"
-          className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Back to sales
         </Link>
         <Link
           href={`/messages/new?to=${order.buyer.id}`}
-          className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Message buyer
         </Link>

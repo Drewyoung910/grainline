@@ -286,7 +286,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   );
 
   const tagsSection = popularTags.length > 0 && (
-    <div className="mt-5 pt-4 border-t">
+    <div className="mt-5 pt-4 border-t border-neutral-100">
       <div className="font-medium mb-2 text-sm">Popular tags</div>
       <div className="flex flex-wrap gap-1.5">
         {popularTags.map((t) => {
@@ -295,8 +295,8 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             <Link
               key={t}
               href={tagToggleHref(t)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs hover:bg-neutral-50 ${
-                active ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+              className={`rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs hover:bg-neutral-50 ${
+                active ? "bg-neutral-900 text-white hover:bg-neutral-900 border-neutral-900" : ""
               }`}
             >
               #{t}
@@ -338,7 +338,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         </div>
 
         {/* Header row */}
-        <div className="flex items-center justify-between px-4 pb-3 border-b shrink-0">
+        <div className="flex items-center justify-between px-4 pb-3 border-b border-neutral-100 shrink-0">
           <span className="font-semibold text-sm">Filters</span>
           <button
             onClick={() => setMobileOpen(false)}
@@ -374,7 +374,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 pb-3 border-b shrink-0">
+        <div className="flex items-center justify-between px-4 pb-3 border-b border-neutral-100 shrink-0">
           <span className="font-semibold text-sm">Sort by</span>
           <button
             onClick={() => setSortOpen(false)}

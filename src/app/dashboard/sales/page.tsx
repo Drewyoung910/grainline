@@ -106,7 +106,7 @@ export default async function SalesPage({
 
               return (
                 <li key={o.id} className="card-section">
-                  <div className="flex items-center justify-between border-b px-4 py-3">
+                  <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
                     <div className="text-sm">
                       <div className="flex items-center gap-2 font-medium">
                         <Link
@@ -130,7 +130,7 @@ export default async function SalesPage({
                     </div>
                   </div>
 
-                  <ul className="divide-y">
+                  <ul className="divide-y divide-neutral-100">
                     {myItems.map((it) => {
                       const img = it.listing.photos[0]?.url;
                       return (
@@ -160,7 +160,7 @@ export default async function SalesPage({
                     })}
                   </ul>
 
-                  <div className="px-4 py-3 border-t text-sm space-y-2">
+                  <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-neutral-600">Items subtotal (your items)</span>
                       <span className="font-medium">{fmtMoney(mySubtotalCents, currency)}</span>
@@ -175,12 +175,20 @@ export default async function SalesPage({
                       <span className="text-neutral-600">Tax</span>
                       <span className="font-medium">{fmtMoney(tax, currency)}</span>
                     </div>
-                    <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
                       <span className="text-neutral-800">Order total</span>
                       <span className="text-base font-semibold">
                         {fmtMoney(orderTotal, currency)}
                       </span>
                     </div>
+                    {(o.sellerRefundAmountCents ?? 0) > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-red-600">Refund issued</span>
+                        <span className="text-sm text-red-600">
+                          -{fmtMoney(o.sellerRefundAmountCents!, currency)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </li>
               );

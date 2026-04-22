@@ -224,8 +224,8 @@ function CartPage() {
   // Render seller item list (used in review and shipping steps)
   function renderSellerSections() {
     return groups.map((g) => (
-      <section key={g.sellerId} className="rounded-lg border">
-        <header className="flex items-center justify-between border-b px-4 py-3">
+      <section key={g.sellerId} className="card-section">
+        <header className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div className="text-sm text-neutral-700">
             <span className="text-neutral-500">Seller:</span>{" "}
             <span className="font-medium">{g.sellerName}</span>
@@ -235,7 +235,7 @@ function CartPage() {
           </div>
         </header>
 
-        <ul className="divide-y">
+        <ul className="divide-y divide-neutral-100">
           {g.items.map((i) => {
             const img = i.listing.photos?.[0]?.url;
             const lineCents = i.priceCents * i.quantity;
@@ -297,7 +297,7 @@ function CartPage() {
         </ul>
 
         {/* Gift note */}
-        <div className="px-4 py-3 border-t">
+        <div className="px-4 py-3 border-t border-neutral-100">
           <GiftNoteSection
             offersGiftWrapping={!!(g.items[0]?.listing.offersGiftWrapping)}
             giftWrappingPriceCents={g.items[0]?.listing.giftWrappingPriceCents ?? null}
@@ -521,7 +521,7 @@ function CartPage() {
                   <span className="text-neutral-600">Tax</span>
                   <span className="text-neutral-400">Calculated at checkout</span>
                 </div>
-                <hr />
+                <hr className="border-neutral-100" />
                 <div className="flex justify-between text-base">
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
