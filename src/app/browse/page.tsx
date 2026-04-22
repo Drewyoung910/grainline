@@ -98,18 +98,43 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
 
 function scoreListings(listings: ListingWithIncludes[], query?: string) {
   const qLower = (query ?? "").toLowerCase().trim();
+  const searchTerms = qLower.split(/\s+/).filter(Boolean).slice(0, 6);
+
   return listings
     .map((l) => {
-      // Primary factor: pre-computed qualityScore
-      let score = l.qualityScore ?? 0;
-      // Text-match bonus for search relevance
-      if (qLower) {
-        const titleLower = (l.title ?? "").toLowerCase();
-        if (titleLower === qLower) score += 0.5; // exact title match
-        else if (titleLower.startsWith(qLower)) score += 0.3; // title starts with query
-        else if (titleLower.includes(qLower)) score += 0.15; // title contains query
-        if ((l.tags ?? []).some((t) => t.toLowerCase() === qLower)) score += 0.2; // exact tag match
+      // Primary factor: pre-computed qualityScore (40% weight when searching)
+      const qualityBase = l.qualityScore ?? 0;
+
+      if (!qLower || searchTerms.length === 0) {
+        return { listing: l, score: qualityBase };
       }
+
+      // Text relevance: score per search term, then normalize (60% weight)
+      const titleLower = (l.title ?? "").toLowerCase();
+      const descLower = (l.description ?? "").toLowerCase();
+      const tagsLower = (l.tags ?? []).map((t) => t.toLowerCase());
+      let textScore = 0;
+
+      // Bonus for exact full-phrase match in title
+      if (titleLower === qLower) textScore += 0.5;
+      else if (titleLower.includes(qLower)) textScore += 0.25;
+
+      // Per-word scoring
+      for (const term of searchTerms) {
+        // Title matches (highest weight)
+        if (titleLower.includes(term)) textScore += 0.2;
+        // Tag matches (medium weight)
+        if (tagsLower.includes(term)) textScore += 0.25;
+        else if (tagsLower.some((t) => t.includes(term))) textScore += 0.1;
+        // Description matches (low weight)
+        if (descLower.includes(term)) textScore += 0.05;
+      }
+
+      // Normalize by term count so 3-word queries don't auto-score 3x
+      const normalizedText = textScore / Math.max(1, searchTerms.length);
+
+      // Blend: 60% text relevance, 40% quality
+      const score = normalizedText * 0.6 + qualityBase * 0.4;
       return { listing: l, score };
     })
     .sort((a, b) => b.score - a.score);
@@ -238,16 +263,24 @@ export default async function BrowsePage({
     sellerIdFilters.push(rows.map((r) => r.id));
   }
 
-  // Partial tag matches via unnest
+  // Partial tag matches via unnest — match any search word against tags
   let partialTagMatches: string[] = [];
   if (q) {
-    const rows = await prisma.$queryRaw<Array<{ tag: string }>>`
-      SELECT DISTINCT tag
-      FROM "Listing", unnest(tags) as tag
-      WHERE status = 'ACTIVE' AND "isPrivate" = false AND tag ILIKE ${`%${q}%`}
-      LIMIT 20
-    `;
-    partialTagMatches = rows.map((r) => r.tag);
+    const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+    if (searchWords.length > 0) {
+      const patterns = searchWords.map((w) => `%${w}%`);
+      const rows = await prisma.$queryRaw<Array<{ tag: string }>>`
+        SELECT DISTINCT tag
+        FROM "Listing" l
+        JOIN "SellerProfile" sp ON sp.id = l."sellerId" AND sp."chargesEnabled" = true AND sp."vacationMode" = false
+        JOIN "User" u ON u.id = sp."userId" AND u.banned = false,
+        unnest(l.tags) AS tag
+        WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+          AND tag ILIKE ANY(${patterns}::text[])
+        LIMIT 20
+      `;
+      partialTagMatches = rows.map((r) => r.tag);
+    }
   }
 
   // Build WHERE
@@ -259,11 +292,29 @@ export default async function BrowsePage({
   };
 
   if (q) {
+    // Split query into individual words for broad matching.
+    // "walnut dining table" matches listings with ANY of those words
+    // in title, tags, description, or seller name — not just exact phrase.
+    const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+    const wordConditions: Prisma.ListingWhereInput[] = searchWords.flatMap((word) => [
+      { title: { contains: word, mode: "insensitive" as const } },
+      { description: { contains: word, mode: "insensitive" as const } },
+    ]);
+    // Tag matching: check each word against tags individually
+    const tagWordConditions: Prisma.ListingWhereInput[] = searchWords.map((word) => ({
+      tags: { has: word.toLowerCase() },
+    }));
+
     where.OR = [
+      // Full phrase match (highest relevance, scored in JS)
       { title: { contains: q, mode: "insensitive" as const } },
-      { description: { contains: q, mode: "insensitive" as const } },
-      { tags: { has: q.toLowerCase() } },
+      // Individual word matches in title and description
+      ...wordConditions,
+      // Individual word matches in tags
+      ...tagWordConditions,
+      // Partial tag matches (existing logic)
       ...(partialTagMatches.length > 0 ? [{ tags: { hasSome: partialTagMatches } }] : []),
+      // Seller name match
       { seller: { displayName: { contains: q, mode: "insensitive" as const } } },
     ];
   }
