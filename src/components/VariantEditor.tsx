@@ -150,7 +150,8 @@ export default function VariantEditor({
                     value={opt.priceAdjustCents === 0 ? "" : (opt.priceAdjustCents / 100).toFixed(2)}
                     onChange={(e) => {
                       const val = e.target.value;
-                      updateOption(gi, oi, "priceAdjustCents", val === "" ? 0 : Math.round(parseFloat(val) * 100));
+                      const parsed = parseFloat(val);
+                      updateOption(gi, oi, "priceAdjustCents", val === "" || isNaN(parsed) ? 0 : Math.round(parsed * 100));
                     }}
                     placeholder="+0.00"
                     className="w-full border border-neutral-200 rounded-md pl-6 pr-2 py-1.5 text-sm"

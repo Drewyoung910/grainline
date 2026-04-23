@@ -8,13 +8,10 @@ import MapCard from "@/components/MapCard";
 import type { Metadata } from "next";
 import ReviewsSection from "@/components/ReviewsSection";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
-import BuyNowButton from "@/components/BuyNowButton";
-import AddToCartButton from "@/components/AddToCartButton";
 import ListingPurchasePanel from "@/components/ListingPurchasePanel";
 import ListingViewTracker from "@/components/ListingViewTracker";
 import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 import { CATEGORY_LABELS } from "@/lib/categories";
-import NotifyMeButton from "@/components/NotifyMeButton";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
 import GuildBadge from "@/components/GuildBadge";
@@ -23,7 +20,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
-import { Gift, Hammer } from "@/components/icons";
+import { Hammer } from "@/components/icons";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -445,7 +442,7 @@ export default async function ListingPage({
             </div>
           )}
 
-          {/* Price + Variants */}
+          {/* Price + Variants + Buy Buttons */}
           <ListingPurchasePanel
             basePriceCents={listing.priceCents}
             variantGroups={listing.variantGroups.map((g) => ({
@@ -458,100 +455,25 @@ export default async function ListingPage({
                 inStock: o.inStock,
               })),
             }))}
-          >
-            {({ selectedOptionIds, allVariantsSelected }) => (
-              <>
-          {stars && (
-              <a
-                href="#reviews"
-                className="flex items-center gap-1.5 group"
-                aria-label={`${stars.display.toFixed(1)} out of 5, ${countReviews} reviews`}
-              >
-                <StarDisplay value={stars.quarter} count={countReviews} />
-                <span className="text-sm text-neutral-700 group-hover:underline">
-                  {stars.display.toFixed(1)}{" "}
-                  <span className="text-neutral-400">({countReviews})</span>
-                </span>
-              </a>
-          )}
-
-          {/* Stock status */}
-          {listing.listingType === "IN_STOCK" ? (
-            isOutOfStock ? (
-              <div className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-full px-3 py-1 text-sm font-medium text-red-700">
-                Out of Stock
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-3 py-1 text-sm font-medium text-green-700">
-                {listing.stockQuantity != null ? `In Stock · ${listing.stockQuantity} available` : "In Stock"}
-              </div>
-            )
-          ) : (
-            <div className="inline-flex items-center gap-1.5 bg-neutral-100 border border-neutral-200 rounded-full px-3 py-1 text-sm font-medium text-neutral-700">
-              Made to order
-            </div>
-          )}
-
-          {processingLabel && (
-            <p className="text-sm text-neutral-600">{processingLabel}</p>
-          )}
-
-          {/* Buy buttons */}
-          {isActive && !isOwnListing && isOutOfStock && (
-            <NotifyMeButton
-              listingId={id}
-              initialSubscribed={isNotified}
-              signedIn={!!userId}
-            />
-          )}
-          {canBuy && (
-            <div className="flex flex-col gap-2">
-              {userId ? (
-                <BuyNowButton
-                  listingId={id}
-                  listingTitle={listing.title}
-                  listingImageUrl={listing.photos[0]?.url}
-                  sellerName={sellerName}
-                  sellerId={listing.sellerId}
-                  priceCents={listing.priceCents}
-                  offersGiftWrapping={listing.seller.offersGiftWrapping}
-                  giftWrappingPriceCents={listing.seller.giftWrappingPriceCents}
-                  selectedVariantOptionIds={selectedOptionIds}
-                  variantRequired={listing.variantGroups.length > 0}
-                  className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
-                >
-                  Buy now
-                </BuyNowButton>
-              ) : (
-                <Link
-                  href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
-                  className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
-                >
-                  Sign in to buy
-                </Link>
-              )}
-              <AddToCartButton
-                listingId={id}
-                signedIn={!!userId}
-                selectedVariantOptionIds={selectedOptionIds}
-                variantRequired={listing.variantGroups.length > 0}
-                className="w-full rounded-md border border-neutral-300 px-4 py-3 text-sm font-medium min-h-[48px] hover:bg-neutral-50 transition-colors"
-              />
-            </div>
-          )}
-
-          {/* Seller offers gift wrapping */}
-          {listing.seller.offersGiftWrapping && canBuy && (
-            <p className="text-xs text-neutral-500 flex items-center gap-1">
-              <Gift size={13} className="text-neutral-400" /> Gift wrapping available
-              {listing.seller.giftWrappingPriceCents
-                ? ` · $${(listing.seller.giftWrappingPriceCents / 100).toFixed(2)}`
-                : ""}
-            </p>
-          )}
-              </>
-            )}
-          </ListingPurchasePanel>
+            listingId={id}
+            listingTitle={listing.title}
+            listingImageUrl={listing.photos[0]?.url}
+            sellerId={listing.sellerId}
+            sellerName={sellerName}
+            userId={userId}
+            canBuy={canBuy}
+            isActive={isActive}
+            isOwnListing={isOwnListing}
+            isOutOfStock={isOutOfStock}
+            isNotified={isNotified}
+            listingType={listing.listingType}
+            stockQuantity={listing.stockQuantity}
+            processingLabel={processingLabel}
+            offersGiftWrapping={listing.seller.offersGiftWrapping}
+            giftWrappingPriceCents={listing.seller.giftWrappingPriceCents}
+            ratingDisplay={stars ? stars.display.toFixed(1) : null}
+            ratingCount={countReviews}
+          />
 
           {/* Custom order */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (
