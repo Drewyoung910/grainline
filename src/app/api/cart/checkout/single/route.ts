@@ -215,6 +215,9 @@ export async function POST(req: Request) {
       }
     }
     const unitPriceCents = listing.priceCents + variantAdjustCents;
+    if (unitPriceCents < 1) {
+      return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
+    }
     const itemsSubtotalCents = unitPriceCents * body.quantity;
 
     // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
@@ -345,7 +348,17 @@ export async function POST(req: Request) {
         giftNote: body.giftNote ?? "",
         giftWrapping: body.giftWrapping ? "true" : "false",
         giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
-        selectedVariants: selectedVariantsSnapshot.length > 0 ? JSON.stringify(selectedVariantsSnapshot) : "",
+        selectedVariants: (() => {
+          if (selectedVariantsSnapshot.length === 0) return "";
+          const json = JSON.stringify(selectedVariantsSnapshot);
+          return json.length <= 500 ? json : JSON.stringify(
+            selectedVariantsSnapshot.map((v) => ({
+              groupName: v.groupName.slice(0, 20),
+              optionLabel: v.optionLabel.slice(0, 20),
+              priceAdjustCents: v.priceAdjustCents,
+            }))
+          ).slice(0, 500);
+        })(),
       },
     });
 

@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       where: { userId: me.id },
       include: {
         items: {
-          include: { listing: { include: { seller: true, photos: true } } },
+          include: { listing: { include: { seller: true, photos: true, variantGroups: { include: { options: true } } } } },
         },
       },
     });
@@ -223,19 +223,32 @@ export async function POST(req: Request) {
     const line_items: {
       quantity: number;
       price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
-    }[] = sellerItems.map((i) => ({
+    }[] = sellerItems.map((i) => {
+      // Resolve variant labels for Stripe product name
+      const variantLabels: string[] = [];
+      if (i.selectedVariantOptionIds?.length) {
+        for (const optId of i.selectedVariantOptionIds) {
+          for (const g of (i.listing.variantGroups ?? [])) {
+            const opt = g.options.find((o: { id: string }) => o.id === optId);
+            if (opt) variantLabels.push((opt as { label: string }).label);
+          }
+        }
+      }
+      const variantSuffix = variantLabels.length > 0 ? ` (${variantLabels.join(", ")})` : "";
+      return {
       quantity: i.quantity,
       price_data: {
         currency,
-        unit_amount: i.listing.priceCents,
+        unit_amount: i.priceCents, // uses cart item price (includes variant adjustments)
         product_data: {
-          name: i.listing.title,
+          name: `${i.listing.title}${variantSuffix}`,
           images: i.listing.photos?.length ? [i.listing.photos[0]!.url] : undefined,
           metadata: { listingId: i.listing.id },
           tax_code: "txcd_99999999", // General - Tangible Personal Property
         },
       },
-    }));
+    };
+    });
 
     if (giftWrapping && giftWrappingPriceCents > 0) {
       line_items.push({
@@ -249,7 +262,7 @@ export async function POST(req: Request) {
     }
 
     const itemsSubtotalCents = sellerItems.reduce(
-      (sum, it) => sum + it.listing.priceCents * it.quantity,
+      (sum, it) => sum + it.priceCents * it.quantity, // cart price includes variant adjustments
       0
     );
 

@@ -85,6 +85,9 @@ export async function POST(req: Request) {
       }
     }
     const totalPriceCents = listing.priceCents + variantAdjustCents;
+    if (totalPriceCents < 1) {
+      return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
+    }
 
     // Variant key for unique constraint — sorted option IDs
     const variantKey = selectedVariantOptionIds.length > 0
