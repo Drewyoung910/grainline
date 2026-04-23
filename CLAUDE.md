@@ -2450,6 +2450,11 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - **Seller checkout price fix** — `checkout-seller/route.ts` was using `listing.priceCents` (base price) instead of `cartItem.priceCents` (variant-adjusted price) for both Stripe `unit_amount` and `itemsSubtotalCents`. Fixed to use `i.priceCents`. Also added variant labels to Stripe product name and `variantGroups` to cart query include.
 - **Negative price floor** — `cart/add` and `checkout/single` now reject variant-adjusted prices below $0.01. Prevents negative totals from large negative adjustments.
 - **Stripe metadata size limit** — `selectedVariants` JSON in Stripe session metadata truncated to 500 bytes (Stripe's per-value limit). Group names and option labels truncated to 20 chars each if the full JSON exceeds 500 bytes.
+- **CRITICAL: ListingPurchasePanel render prop crash** — `ListingPurchasePanel` used a render prop `children: (ctx) => ReactNode` which is a function. Next.js server components cannot pass functions to client components. Crashed ALL listing detail pages with "Functions cannot be passed directly to Client Components." Fix: rewrote as self-contained client component with 20+ serializable props (strings, numbers, booleans). Renders price, variant selector, stock status, buy buttons, gift wrapping internally. Removed unused imports from listing page (BuyNowButton, AddToCartButton, NotifyMeButton, Gift).
+- **VariantEditor NaN fix** — `parseFloat` of invalid input in price adjustment field could produce `NaN`. Added `isNaN()` guard, defaults to 0.
+
+### Architecture lesson learned
+**Never use render props (children-as-function) in Next.js server components.** Functions cannot cross the server/client serialization boundary. Use self-contained client components with serializable props instead. If a client component needs server-computed data, pass it as props — don't wrap server JSX in a client render prop.
 
 ## Pending Tasks
 
