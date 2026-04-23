@@ -2386,6 +2386,66 @@ All checks are log-only (`console.error("[PROFANITY]")`) — they don't block su
 - No borders on skeleton cards — `rounded-2xl bg-neutral-200` photo placeholders
 - `max-w-[1600px]` width matching live pages
 
+## Listing Variants (2026-04-23)
+
+Full variant system allowing sellers to add custom option groups (like Etsy "Variations").
+
+### Schema (migration `20260423_add_listing_variants`)
+- **`ListingVariantGroup`** — `id`, `listingId` → `Listing` (cascade), `name` (seller-defined, e.g. "Size", "Wood Type"), `sortOrder`; `@@index([listingId, sortOrder])`
+- **`ListingVariantOption`** — `id`, `groupId` → `ListingVariantGroup` (cascade), `label` (seller-defined, e.g. "Large", "Walnut"), `priceAdjustCents Int @default(0)` (positive or negative), `sortOrder`, `inStock Boolean @default(true)`; `@@index([groupId, sortOrder])`
+- **`Listing`**: `variantGroups ListingVariantGroup[]` back-relation
+- **`CartItem`**: `selectedVariantOptionIds String[] @default([])`, `variantKey String @default("")`; unique constraint changed from `@@unique([cartId, listingId])` to `@@unique([cartId, listingId, variantKey])` — allows same listing with different variant selections as separate cart items
+- **`OrderItem`**: `selectedVariants Json?` — snapshot of `[{ groupName, optionLabel, priceAdjustCents }]` preserved even if seller changes variants later
+
+### Limits
+- **3 groups max** per listing (e.g. Size + Wood Type + Finish)
+- **10 options max** per group
+- Group name: 50 chars max
+- Option label: 50 chars max
+- Price adjustment: any integer (positive = surcharge, negative = discount, 0 = no change)
+
+### Components
+- **`VariantEditor`** (`src/components/VariantEditor.tsx`) — `"use client"` form component for create/edit pages; manages groups + options in local state; card-section per group; "Add variant group" button (max 3); per-option: label input, price adjustment ($), in-stock checkbox, remove button; serializes to hidden `variantGroupsJson` input
+- **`VariantSelector`** (`src/components/VariantSelector.tsx`) — `"use client"` buyer-facing pill selector; per-group row of option buttons (selected = `border-neutral-900 bg-neutral-900 text-white`, out-of-stock = strikethrough + disabled); shows price adjustment inline (e.g. "+$50.00"); fires `onSelectionChange(ids, totalPriceCents)`
+- **`ListingPurchasePanel`** (`src/components/ListingPurchasePanel.tsx`) — `"use client"` wrapper for listing detail page; manages variant selection state; displays live price (base + adjustments, shows strikethrough base when adjusted); render prop pattern passes `{ totalPriceCents, selectedOptionIds, allVariantsSelected }` to children (buy buttons)
+
+### Create listing flow
+- `VariantEditor` rendered in card-section on create page
+- `createListing` server action reads `variantGroupsJson`, validates (3 groups max, 10 options max, sanitized text), creates groups + options via nested `prisma.listing.create({ data: { variantGroups: { create: [...] } } })`
+
+### Edit listing flow
+- `VariantEditor` pre-populated with `initialGroups` from listing query (includes `variantGroups → options`)
+- `updateListing` server action deletes all existing groups (cascade deletes options) then recreates from form data
+
+### Listing detail page
+- `ListingPurchasePanel` wraps price + variant selector + buy buttons
+- Price updates live as buyer selects options
+- `BuyNowButton` + `AddToCartButton` accept `selectedVariantOptionIds` and `variantRequired` props
+- Both buttons gate on `allVariantsSelected` — show alert if variants exist but not all selected
+
+### Cart
+- `POST /api/cart/add` accepts `selectedVariantOptionIds[]`; validates each option exists and is in stock; calculates adjusted price; uses `variantKey` (sorted option IDs joined by comma) for unique constraint
+- `POST /api/cart/update` rewritten to use `cartItemId` (supports multiple cart items for same listing with different variants); falls back to `listingId` for backward compat
+- `GET /api/cart` returns `variantLabels[]` per item (resolved from option IDs to "Group: Label" strings)
+- Cart page shows variant labels below item title
+
+### Checkout
+- `POST /api/cart/checkout/single` accepts `selectedVariantOptionIds[]`; calculates variant-adjusted `unitPriceCents`; appends variant labels to Stripe product name (e.g. "Walnut Table (Large, Dark Stain)"); stores `selectedVariants` JSON in session metadata
+- Checkout-seller route: variant price is already correct in `CartItem.priceCents` (snapshotted at add-to-cart time with adjustments included)
+
+### Webhook
+- Cart path: resolves `it.selectedVariantOptionIds` against `it.listing.variantGroups → options` to build `selectedVariants` snapshot on OrderItem
+- Single (buy-now) path: parses `selectedVariants` from Stripe session metadata onto OrderItem
+
+### Order display
+- Buyer order detail (`dashboard/orders/[id]`): shows "Group: Option · Group: Option" below item title when `selectedVariants` exists
+- Seller order detail (`dashboard/sales/[orderId]`): same display
+
+### Performance impact
+- 3 groups × 10 options = 30 rows max per listing. Loaded via `include: { variantGroups: { include: { options: true } } }` — adds <1ms to queries
+- Cart item price includes variant adjustment — no recalculation needed at checkout
+- `variantKey` index enables fast upsert on add-to-cart
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
