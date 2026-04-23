@@ -2485,6 +2485,45 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - Platform no longer absorbs the ~3% Stripe processing fee
 - Note: estimate is on pre-tax total (slightly underestimates since Stripe charges on post-tax). Difference is negligible and in platform's favor.
 
+## Audit Hardening Pass (2026-04-23)
+
+### Blog post rate limit
+- `blogCreateRatelimit` in `src/lib/ratelimit.ts`: 3 posts per 24h per author, sliding window
+- Wired in `dashboard/blog/new/page.tsx` `createBlogPost` server action
+
+### AI duplicate title normalization
+- `normalizeTitle()` in `ai-review.ts`: lowercase, strip punctuation/emoji, collapse whitespace
+- "Walnut Bowl." and "walnut bowl" now match as duplicates
+- Uses `findMany` + JS filter (was `prisma.count` with `mode: 'insensitive'` which couldn't normalize punctuation)
+
+### Fulfillment method guard
+- `api/orders/[id]/fulfillment/route.ts`: blocks `ready_for_pickup` and `picked_up` actions when `fulfillmentMethod === "SHIPPING"`
+- Prevents shipping orders from being incorrectly marked as pickup
+
+### Case auto-close cron
+- **`GET /api/cron/case-auto-close`** — daily at 7am UTC (`vercel.json`)
+- PENDING_CLOSE cases older than 7 days → RESOLVED (DISMISSED)
+- OPEN cases where `sellerRespondBy` passed 14+ days ago → UNDER_REVIEW (escalated for admin)
+- CRON_SECRET auth (same pattern as other crons)
+
+### Seller refund notification
+- `api/orders/[id]/refund/route.ts`: notification title changed from "Refund issued" to "Refund from maker" — distinguishes from admin case resolution notifications
+
+### Image URL R2 origin enforcement
+- `api/seller/broadcast/route.ts`: `imageUrl` Zod refine checks `startsWith(CLOUDFLARE_R2_PUBLIC_URL)`
+- `api/reviews/route.ts`: `photoUrls` array elements validated against R2 origin
+- `api/listings/[id]/photos/route.ts`: already done in previous commit
+
+### AI alt text sanitization
+- `ai-review.ts` `generateAltText()`: strips HTML tags from AI response (`replace(/<[^>]*>/g, "")`)
+- `dashboard/listings/new/page.tsx` alt text backfill: applies `sanitizeText()` before saving
+
+### Private listing cart guard
+- `api/cart/add/route.ts`: blocks `isPrivate && reservedForUserId !== me.id` — private/custom listings can only be added by the reserved buyer
+
+### MADE_TO_ORDER quantity cap
+- `api/cart/add/route.ts`: `listingType === "MADE_TO_ORDER" && quantity > 1` → 400 error. Made-to-order items limited to 1 per add-to-cart (seller makes each one individually)
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
