@@ -278,7 +278,14 @@ export async function POST(req: Request) {
 
     const giftWrapCents = giftWrapping ? giftWrappingPriceCents : 0;
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
-    const sellerTransferAmount = itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
+
+    // Estimated Stripe processing fee (2.9% + 30¢) on pre-tax total — passed to seller
+    const preTaxTotal = itemsSubtotalCents + shippingAmountCents + giftWrapCents;
+    const estimatedStripeFee = Math.round(preTaxTotal * 0.029 + 30);
+
+    const sellerTransferAmount = Math.max(1,
+      preTaxTotal - platformFee - estimatedStripeFee
+    );
 
     const return_url = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 

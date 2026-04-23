@@ -71,6 +71,17 @@ export async function POST(
       return NextResponse.json({ error: "Case is already resolved." }, { status: 400 });
     }
 
+    // Block refund if seller already issued one
+    if (
+      (resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL") &&
+      caseRecord.order.sellerRefundId
+    ) {
+      return NextResponse.json(
+        { error: "A refund has already been issued for this order by the seller." },
+        { status: 400 }
+      );
+    }
+
     // Partial refund amount cap
     if (resolution === "REFUND_PARTIAL" && refundAmountCents) {
       const orderTotal = (caseRecord.order.itemsSubtotalCents ?? 0) + (caseRecord.order.shippingAmountCents ?? 0) + (caseRecord.order.taxAmountCents ?? 0);
@@ -181,6 +192,19 @@ export async function POST(
           });
         }
       }
+    } catch { /* non-fatal */ }
+
+    // Audit log
+    try {
+      const { logAdminAction } = await import("@/lib/audit");
+      await logAdminAction({
+        adminId: me.id,
+        action: "RESOLVE_CASE",
+        targetType: "CASE",
+        targetId: id,
+        reason: `${resolution}${refundAmountCents ? ` ($${(refundAmountCents / 100).toFixed(2)})` : ""}`,
+        metadata: { resolution, refundAmountCents, stripeRefundId },
+      });
     } catch { /* non-fatal */ }
 
     return NextResponse.json(updatedCase);

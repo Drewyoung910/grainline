@@ -59,6 +59,14 @@ export async function POST(req: Request) {
       );
     }
 
+    // Block case if seller already refunded
+    if (order.sellerRefundId) {
+      return NextResponse.json(
+        { error: "A refund has already been issued for this order." },
+        { status: 400 }
+      );
+    }
+
     // Block case if order hasn't been shipped yet
     const fulfillmentStatus = order.fulfillmentStatus ?? "PENDING";
     if (fulfillmentStatus === "PENDING") {

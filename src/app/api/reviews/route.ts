@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   });
   if (exists) return NextResponse.json({ error: "Already reviewed" }, { status: 409 });
 
-  // Gate: must have a PAID order for this listing within 90 days
+  // Gate: must have a PAID + DELIVERED/PICKED_UP order for this listing within 90 days
   const since = new Date(Date.now() - REVIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const orderItem = await prisma.orderItem.findFirst({
     where: {
@@ -77,12 +77,13 @@ export async function POST(req: NextRequest) {
         buyerId: me.id,
         paidAt: { not: null },
         createdAt: { gte: since },
+        fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
       },
     },
     select: { id: true },
   });
   if (!orderItem) {
-    return NextResponse.json({ error: "Not eligible to review" }, { status: 403 });
+    return NextResponse.json({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
   }
 
   const urls = (photoUrls ?? []).filter(Boolean).slice(0, 6);

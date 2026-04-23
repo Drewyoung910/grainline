@@ -100,5 +100,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email send failed" }, { status: 500 });
   }
 
+  // Audit log
+  try {
+    const { logAdminAction } = await import("@/lib/audit");
+    await logAdminAction({
+      adminId: admin.id,
+      action: "SEND_EMAIL",
+      targetType: "USER",
+      targetId: recipientEmail,
+      reason: body.subject,
+      metadata: {},
+    });
+  } catch { /* non-fatal */ }
+
   return NextResponse.json({ ok: true });
 }

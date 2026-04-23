@@ -5,8 +5,13 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+const R2_ORIGIN = process.env.CLOUDFLARE_R2_PUBLIC_URL ?? "";
+
 const PhotosSchema = z.object({
-  urls: z.array(z.string().min(1)).max(8).optional(),
+  urls: z.array(z.string().url().refine(
+    (u) => !R2_ORIGIN || u.startsWith(R2_ORIGIN),
+    { message: "Invalid photo URL origin" }
+  )).max(8).optional(),
 });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {

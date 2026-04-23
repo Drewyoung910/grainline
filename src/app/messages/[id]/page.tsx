@@ -97,6 +97,11 @@ export default async function ThreadPage({
     if (!me) return { ok: false };
     if (me.banned) return { ok: false, error: "Your account has been suspended." };
 
+    // Rate limit: 30 messages per 5 minutes
+    const { safeRateLimit, messageRatelimit } = await import("@/lib/ratelimit");
+    const { success: rlOk } = await safeRateLimit(messageRatelimit, me.id);
+    if (!rlOk) return { ok: false, error: "You're sending messages too quickly. Please wait a moment." };
+
     const body = String(formData.get("body") ?? "").trim().slice(0, 2000);
     const raw = String(formData.get("attachments") ?? "[]");
     let atts: Array<{ url: string; name?: string; type?: string }> = [];

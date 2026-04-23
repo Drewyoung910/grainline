@@ -223,10 +223,15 @@ export async function POST(req: Request) {
     // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
 
-    // Seller receives items + shipping + gift wrap - platform fee.
+    // Estimated Stripe processing fee (2.9% + 30¢) on pre-tax total — passed to seller
+    const preTaxTotal = itemsSubtotalCents + shippingAmountCents + giftWrapCents;
+    const estimatedStripeFee = Math.round(preTaxTotal * 0.029 + 30);
+
+    // Seller receives items + shipping + gift wrap - platform fee - Stripe fee.
     // Tax is excluded — platform retains tax (marketplace facilitator).
-    const sellerTransferAmount =
-      itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
+    const sellerTransferAmount = Math.max(1,
+      preTaxTotal - platformFee - estimatedStripeFee
+    );
 
     // Variant description suffix for Stripe line item name
     const variantDesc = selectedVariantLabels.length > 0
