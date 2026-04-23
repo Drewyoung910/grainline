@@ -380,7 +380,7 @@ export default async function ListingPage({
         Preview mode — this is how your listing appears to buyers. It is not yet published.
       </div>
     )}
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-6">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-6">
       <ListingViewTracker listingId={id} />
       <RecentlyViewedTracker listingId={id} />
       {/* JSON-LD */}

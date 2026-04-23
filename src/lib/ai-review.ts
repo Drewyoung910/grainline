@@ -198,3 +198,49 @@ Respond with ONLY valid JSON, no other text:
     }
   }
 }
+
+/**
+ * Lightweight alt text generator for a single image.
+ * ~$0.00003 per call (1 image at low detail).
+ */
+export async function generateAltText(imageUrl: string): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 80,
+        temperature: 0.1,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Describe this woodworking or handmade item in 10-20 words for an image alt text. Focus on materials, colors, wood species, and the type of piece. Return ONLY the description text, no quotes or formatting.",
+              },
+              {
+                type: "image_url",
+                image_url: { url: imageUrl, detail: "low" },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content?.trim() ?? null;
+    return text ? text.slice(0, 200) : null;
+  } catch {
+    return null;
+  }
+}

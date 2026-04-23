@@ -93,6 +93,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     } catch { /* non-fatal */ }
   }
 
+  // Generate alt text for new photos (fire-and-forget, non-blocking)
+  try {
+    const { generateAltText } = await import("@/lib/ai-review");
+    const newPhotos = await prisma.photo.findMany({
+      where: { listingId, altText: null, url: { in: toAdd } },
+      select: { id: true, url: true },
+    });
+    for (const p of newPhotos) {
+      const alt = await generateAltText(p.url);
+      if (alt) {
+        await prisma.photo.update({ where: { id: p.id }, data: { altText: alt } });
+      }
+    }
+  } catch { /* non-fatal */ }
+
   // Revalidate pages that show these photos
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/listings/${listingId}/edit`);

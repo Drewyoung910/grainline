@@ -484,7 +484,7 @@ export default async function HomePage() {
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
       <div className="border-b bg-amber-50">
-        <ScrollSection className="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
+        <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
             <span className="text-sm text-stone-500">pieces listed</span>
@@ -509,11 +509,11 @@ export default async function HomePage() {
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
       <ScrollSection className="py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-6">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-6">
           <h2 className="text-2xl sm:text-3xl font-bold font-display text-neutral-900">Find Makers Near You</h2>
           <p className="text-neutral-500 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}
             heading="Explore the map"
@@ -525,7 +525,7 @@ export default async function HomePage() {
 
       {/* ── Main content ──────────────────────────────────────────────────── */}
       <div className="bg-gradient-to-b from-amber-50/20 via-white to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 space-y-10">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
 
         {/* ── From Your Makers ─────────────────────────────────────────────── */}
         {fromYourMakers.length > 0 && (
@@ -653,7 +653,7 @@ export default async function HomePage() {
                     </div>
 
                     {featuredMaker.tagline && (
-                      <p className="text-sm text-neutral-600 italic">&ldquo;{featuredMaker.tagline}&rdquo;</p>
+                      <p className="text-sm text-neutral-600 italic border-l-2 border-amber-300 pl-3">&ldquo;{featuredMaker.tagline}&rdquo;</p>
                     )}
 
                     {(featuredMaker.city || featuredMaker.state) && (
@@ -680,7 +680,7 @@ export default async function HomePage() {
                     <div className="pt-1">
                       <Link
                         href={`/seller/${featuredMaker.id}`}
-                        className="inline-flex items-center rounded-md bg-amber-600 px-4 py-2 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
+                        className="inline-flex items-center rounded-md bg-stone-700 px-4 py-2 text-xs font-medium text-white hover:bg-stone-800 transition-colors"
                       >
                         Visit Their Workshop →
                       </Link>

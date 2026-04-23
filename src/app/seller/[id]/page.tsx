@@ -265,7 +265,7 @@ export default async function SellerPublicPage({
   }).catch(() => {});
 
   return (
-    <main className="max-w-7xl mx-auto">
+    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
       {/* JSON-LD */}
       <script
         type="application/ld+json"

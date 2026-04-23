@@ -464,7 +464,7 @@ export default async function BrowsePage({
 
     return (
       <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
-      <main className="p-8 max-w-7xl mx-auto">
+      <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={popularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
           <div className="sticky top-4 self-start">
@@ -657,7 +657,7 @@ export default async function BrowsePage({
 
   return (
     <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
-    <main className="p-4 sm:p-6 max-w-7xl mx-auto">
+    <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
       <MobileFilterBar popularTags={popularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
@@ -736,7 +736,7 @@ export default async function BrowsePage({
       </div>
 
       {/* Recently Viewed */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <Suspense>
           <RecentlyViewed />
         </Suspense>
@@ -768,7 +768,7 @@ async function BrowseByCity() {
   const children = metros.filter((m) => m.parentMetroId);
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 border-t border-neutral-100">
+    <section className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-10 border-t border-neutral-100">
       <h2 className="text-base font-semibold text-neutral-800 mb-4">Browse by city</h2>
       <div className="space-y-4">
         {majors.map((major) => {

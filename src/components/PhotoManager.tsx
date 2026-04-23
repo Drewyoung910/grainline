@@ -128,16 +128,20 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
             <li
               key={`${photo.url}-${i}`}
               draggable
-              onDragStart={() => handleDragStart(i)}
+              onDragStart={(e) => {
+                handleDragStart(i);
+                const img = e.currentTarget.querySelector("img");
+                if (img) e.dataTransfer.setDragImage(img, 50, 50);
+              }}
               onDragOver={(e) => handleDragOver(e, i)}
               onDrop={handleDrop}
               onDragEnd={() => {
                 dragItem.current = null;
                 dragOverItem.current = null;
               }}
-              className="rounded-lg border border-neutral-200 overflow-hidden bg-white cursor-grab active:cursor-grabbing"
+              className="rounded-lg border border-neutral-200 overflow-hidden bg-white select-none cursor-grab active:cursor-grabbing"
             >
-              <div className="relative">
+              <div className="relative" draggable={false}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={photo.url}
@@ -164,7 +168,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               </div>
 
               {/* Bottom controls */}
-              <div className="p-2 flex items-center justify-between text-xs">
+              <div className="p-2 flex items-center justify-between text-xs" draggable={false}>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
