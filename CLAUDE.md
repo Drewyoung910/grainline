@@ -2446,6 +2446,11 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - Cart item price includes variant adjustment — no recalculation needed at checkout
 - `variantKey` index enables fast upsert on add-to-cart
 
+### Variant bug fixes (2026-04-23)
+- **Seller checkout price fix** — `checkout-seller/route.ts` was using `listing.priceCents` (base price) instead of `cartItem.priceCents` (variant-adjusted price) for both Stripe `unit_amount` and `itemsSubtotalCents`. Fixed to use `i.priceCents`. Also added variant labels to Stripe product name and `variantGroups` to cart query include.
+- **Negative price floor** — `cart/add` and `checkout/single` now reject variant-adjusted prices below $0.01. Prevents negative totals from large negative adjustments.
+- **Stripe metadata size limit** — `selectedVariants` JSON in Stripe session metadata truncated to 500 bytes (Stripe's per-value limit). Group names and option labels truncated to 20 chars each if the full JSON exceeds 500 bytes.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
