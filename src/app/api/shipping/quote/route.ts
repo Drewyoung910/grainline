@@ -312,7 +312,8 @@ export async function POST(req: Request) {
       .filter((r) => {
         if (preferredLower.length === 0) return true; // no preference = show all
         const carrier = (r.provider || r.carrier || "").toLowerCase();
-        return preferredLower.some((pc) => carrier.includes(pc));
+        // Exact match on carrier name (not substring — prevents "UPS" matching "UPSERT")
+        return preferredLower.some((pc) => carrier === pc || carrier.startsWith(pc + " "));
       })
       .slice(0, 12)
       .map((r) => {

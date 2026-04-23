@@ -64,9 +64,47 @@ export default async function AdminReportsPage() {
     }
   }
 
+  // Top reporters in last 30 days (abuse detection)
+  const topReporters = await prisma.userReport.groupBy({
+    by: ["reporterId"],
+    where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
+    _count: { id: true },
+    orderBy: { _count: { id: "desc" } },
+    take: 5,
+  });
+  const reporterUsers = topReporters.length > 0
+    ? await prisma.user.findMany({
+        where: { id: { in: topReporters.map((r) => r.reporterId) } },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+  const reporterMap = new Map(reporterUsers.map((u) => [u.id, u]));
+
   return (
     <main className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold font-display mb-6">User Reports ({reports.length} open)</h1>
+
+      {/* Top reporters — abuse detection */}
+      {topReporters.length > 0 && topReporters[0]._count.id >= 3 && (
+        <div className="card-section p-4 mb-6">
+          <h2 className="text-sm font-semibold text-neutral-700 mb-2">Top reporters (last 30 days)</h2>
+          <div className="flex flex-wrap gap-3">
+            {topReporters.map((tr) => {
+              const u = reporterMap.get(tr.reporterId);
+              return (
+                <div key={tr.reporterId} className="text-xs text-neutral-600">
+                  <span className="font-medium">{u?.name ?? u?.email ?? "Unknown"}</span>
+                  {" "}
+                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tr._count.id >= 10 ? "bg-red-100 text-red-700" : tr._count.id >= 5 ? "bg-amber-100 text-amber-700" : "bg-neutral-100 text-neutral-600"}`}>
+                    {tr._count.id} reports
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {reports.map((r) => (
           <div key={r.id} className="border border-neutral-200 rounded-lg p-4">

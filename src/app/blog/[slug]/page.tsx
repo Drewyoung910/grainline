@@ -47,9 +47,10 @@ export async function generateMetadata({
 }
 
 function extractVideoId(url: string): { type: "youtube" | "vimeo"; id: string } | null {
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  // Supports: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/, youtube.com/embed/, youtube.com/v/
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (yt) return { type: "youtube", id: yt[1] };
-  const vm = url.match(/vimeo\.com\/(\d+)/);
+  const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
   if (vm) return { type: "vimeo", id: vm[1] };
   return null;
 }

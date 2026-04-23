@@ -41,6 +41,13 @@ export async function undoAdminAction({
   const hoursAgo = (Date.now() - log.createdAt.getTime()) / 3600000
   if (hoursAgo > 24) throw new Error('Undo window expired (24 hours)')
 
+  // Atomic lock: only one undo can succeed (prevents race between two admins)
+  const locked = await prisma.adminAuditLog.updateMany({
+    where: { id: logId, undone: false },
+    data: { undone: true, undoneAt: new Date(), undoneBy: adminId, undoneReason: reason },
+  })
+  if (locked.count === 0) throw new Error('Already undone (concurrent request)')
+
   switch (log.action) {
     case 'BAN_USER':
       await prisma.user.update({
@@ -71,10 +78,7 @@ export async function undoAdminAction({
       throw new Error(`Action '${log.action}' cannot be undone`)
   }
 
-  await prisma.adminAuditLog.update({
-    where: { id: logId },
-    data: { undone: true, undoneAt: new Date(), undoneBy: adminId, undoneReason: reason }
-  })
+  // undone flag already set atomically at the top of this function
 
   await logAdminAction({
     adminId,
