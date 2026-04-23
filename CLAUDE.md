@@ -2258,6 +2258,134 @@ Replaced raw `rounded-xl border` / `rounded-xl border bg-white` / `border border
 - Product dimensions shown as `L × W × H` in inches when present
 - `generateMetadata` uses `metaDescription` when available, falls back to `description.slice(0, 160)`
 
+## Homepage Styling Pass (2026-04-22)
+
+### Map section
+- Removed double-border (homepage wrapper + MakersMapSection inner border)
+- `MakersMapSection.tsx`: `rounded-3xl border bg-white` → `rounded-2xl bg-stone-50` (warm, no border)
+- "Use my location" button: `bg-[#2C1F1A] hover:bg-[#3A2A24]` (espresso brand color, was amber/orange)
+- "Open Makers Map" button: `border-neutral-300 bg-white hover:bg-neutral-50`
+
+### Categories
+- Tiles: `bg-amber-50 hover:bg-amber-100` with `text-amber-700` icons, no borders
+- "Browse all" tile: same amber styling with arrow icon
+
+### Meet a Maker
+- Outer card: `bg-stone-50 rounded-2xl` (was `bg-white shadow-sm border`)
+- Featured listings: `rounded-xl` photos floating on warm background (was `card-listing` with borders)
+- Tagline: added `border-l-2 border-amber-300 pl-3` accent for visual emphasis
+- "Visit Their Workshop" button: espresso `bg-[#2C1F1A]` (matches hero)
+
+## Wider Layout Pass (2026-04-22/23)
+
+All major public-facing and dashboard pages widened to `max-w-[1600px]` (was `max-w-7xl`/1280px):
+- Homepage (all content sections below hero)
+- Browse (both main and no-results variants, metro browse sections)
+- Listing detail
+- Seller profile + seller shop
+- Blog index
+- Commission room
+- Makers map pages
+- Dashboard (home, analytics, sales, inventory, blog)
+- Account (home, orders, saved items)
+- Admin (reports, reviews)
+
+Pages intentionally kept narrow: messages, checkout, cart, blog post detail, about, terms/privacy, profile editing, blog writing, onboarding.
+
+## Admin PIN Gate (2026-04-23)
+
+Session-scoped PIN verification for all admin pages. Free alternative to Clerk Pro 2FA.
+
+### Components
+- **`AdminPinGate`** (`src/components/AdminPinGate.tsx`) — `"use client"` wrapper around admin layout; shows PIN input before any admin content renders; session-scoped via `sessionStorage` (persists in tab, clears on close); client-side lockout after 5 failed attempts; Enter key submits
+- **`/api/admin/verify-pin`** (`src/app/api/admin/verify-pin/route.ts`) — POST route; ADMIN role required; rate limited 5 attempts per 15 minutes via `safeRateLimit`; constant-time PIN comparison (prevents timing attacks); returns 401 for incorrect PIN, 429 for rate limit
+
+### Wiring
+- `src/app/admin/layout.tsx` wraps `{children}` in `<AdminPinGate>` after existing role check
+- If `ADMIN_PIN` env var is not set, access is allowed (dev mode / not configured)
+
+### Security layers (combined, all free)
+1. Clerk auth (session cookies, CSRF protection)
+2. Clerk authenticator app 2FA (TOTP — free tier, enable in Clerk Dashboard → Multi-factor)
+3. ADMIN role check in admin layout (DB query)
+4. PIN gate with rate limiting (5 attempts / 15 min)
+5. Client-side lockout after 5 failures
+6. Session-scoped (new tab = new PIN entry)
+
+### ENV required
+`ADMIN_PIN` — 6-digit numeric PIN. Set in Vercel → Settings → Environment Variables (all environments).
+
+## AI Alt Text Improvements (2026-04-22/23)
+
+### `generateAltText` function (`src/lib/ai-review.ts`)
+New lightweight export for generating alt text for individual images. Uses GPT-4o-mini with a single image at `detail: "low"`. Cost: ~$0.00003/image (vs ~$0.0006 for full review with 4 images). Returns a 10-20 word description or `null` on error.
+
+### Alt text on edit page photo upload
+`POST /api/listings/[id]/photos` now calls `generateAltText()` for each newly uploaded photo that has no alt text. Runs after photo creation, before page revalidation. Non-fatal on error.
+
+### Alt text on create listing
+Full AI review (`reviewListingWithAI`) returns `altTexts[]` for all images. Prompt strengthened: "You MUST generate an altTexts array" with explicit example. Both error paths now return `altTexts: []`. Console logging added: `[ai-review]` shows approved/flags/altTexts count, `[ai-alt-text]` shows backfill count per listing.
+
+### Alt text UX — popup modal
+Both `PhotoManager` (create) and `EditPhotoGrid` (edit) now use a popup modal for alt text instead of inline input:
+- "Alt" button on each photo card (shows "Alt ✓" when text exists)
+- Click opens a centered modal with image preview, textarea, and helper text
+- Helper text: "If left blank, AI will generate alt text automatically and you can see it on the edit page."
+- Backdrop click or "Done" button closes
+
+## Drag-and-Drop Fix (2026-04-23)
+
+Both `PhotoManager` and `EditPhotoGrid` drag handlers rewritten:
+- `e.dataTransfer.effectAllowed = "move"` + `dropEffect = "move"` — tells browser this is a move operation
+- `e.dataTransfer.setDragImage(img, 50, 50)` — drag ghost shows only the photo thumbnail, not the entire card with buttons
+- `e.preventDefault()` in `handleDrop` — prevents browser from navigating to dragged content
+- `select-none` on `<li>` — prevents text selection during drag
+- `draggable={false}` on child `<div>` elements — prevents child elements from being independently draggable (was causing "connected to text below" bug)
+- `handleDragStart` and `handleDrop` capture `from`/`to` into local variables before nulling refs — prevents race condition
+
+## ListingTypeFields Redesign (2026-04-22)
+
+`src/components/ListingTypeFields.tsx` fully rewritten:
+- Radio buttons replaced with card-style toggle buttons (`border-neutral-900 bg-neutral-50` when selected, `border-neutral-200` when not)
+- Hidden `<input name="listingType">` carries the value (radio inputs removed)
+- Category select: `border-neutral-200 rounded-md`
+- All inputs: `border-neutral-200 rounded-md text-sm`
+- Labels: `text-neutral-700`
+
+## Profanity Filter Expansion (2026-04-23)
+
+`containsProfanity()` from `src/lib/profanity.ts` now applied to 7 routes (was 4):
+
+| Route | Field | Added |
+|---|---|---|
+| `POST /api/reviews` | comment | Existing |
+| `POST /api/reviews/[id]/reply` | reply text | Existing |
+| `POST /api/commission` | title + description | Existing |
+| `POST /api/blog/[slug]/comments` | body | Existing |
+| `dashboard/blog/new createBlogPost` | title + excerpt + body | **New** |
+| `messages/[id] sendMessage` | body | **New** |
+| `POST /api/seller/broadcast` | message | **New** |
+
+All checks are log-only (`console.error("[PROFANITY]")`) — they don't block submission.
+
+## Styling Audit (2026-04-22/23)
+
+### LocationPicker (`src/components/LocationPicker.tsx`)
+- Search input: `border border-neutral-200 rounded-md text-sm`
+- Search button: `border border-neutral-200 rounded-md hover:bg-neutral-50`
+- Map container: `border border-neutral-200` (was bare `border` = black)
+- Lat/lng readonly inputs: `border border-neutral-200 rounded-md text-sm`
+
+### MapCard (`src/components/MapCard.tsx`)
+- Default className: `border border-neutral-200` (was bare `border` = black outline)
+
+### Seller settings pickup location label
+- `block text-sm mb-2` → `block text-sm font-medium text-neutral-700 mb-2`
+
+### Loading skeletons (`browse/loading.tsx`, `listing/[id]/loading.tsx`)
+- No borders on skeleton cards — `rounded-2xl bg-neutral-200` photo placeholders
+- `max-w-[1600px]` width matching live pages
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
