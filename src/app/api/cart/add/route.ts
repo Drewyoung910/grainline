@@ -7,6 +7,7 @@ import { z } from "zod";
 const CartAddSchema = z.object({
   listingId: z.string().min(1),
   quantity: z.number().int().min(1).max(99).optional(),
+  selectedVariantOptionIds: z.array(z.string()).max(30).optional(),
 });
 
 export const runtime = "nodejs";
@@ -30,10 +31,14 @@ export async function POST(req: Request) {
 
     const listingId = parsed.listingId;
     const quantity = parsed.quantity ?? 1;
+    const selectedVariantOptionIds = parsed.selectedVariantOptionIds ?? [];
 
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
-      include: { seller: true },
+      include: {
+        seller: true,
+        variantGroups: { include: { options: true } },
+      },
     });
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
 
@@ -51,18 +56,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "This seller is currently on vacation and not accepting new orders." }, { status: 400 });
     }
 
+    // Validate variant selections — if listing has variants, buyer must select one per group
+    if (listing.variantGroups.length > 0) {
+      const allGroupIds = new Set(listing.variantGroups.map((g) => g.id));
+      const selectedGroups = new Set<string>();
+      for (const optId of selectedVariantOptionIds) {
+        for (const g of listing.variantGroups) {
+          const opt = g.options.find((o) => o.id === optId);
+          if (opt) {
+            if (!opt.inStock) {
+              return NextResponse.json({ error: `Option "${opt.label}" is out of stock.` }, { status: 400 });
+            }
+            selectedGroups.add(g.id);
+          }
+        }
+      }
+      if (selectedGroups.size !== allGroupIds.size) {
+        return NextResponse.json({ error: "Please select one option from each variant group." }, { status: 400 });
+      }
+    }
+
+    // Calculate price with variant adjustments
+    let variantAdjustCents = 0;
+    for (const optId of selectedVariantOptionIds) {
+      for (const g of listing.variantGroups) {
+        const opt = g.options.find((o) => o.id === optId);
+        if (opt) variantAdjustCents += opt.priceAdjustCents;
+      }
+    }
+    const totalPriceCents = listing.priceCents + variantAdjustCents;
+
+    // Variant key for unique constraint — sorted option IDs
+    const variantKey = selectedVariantOptionIds.length > 0
+      ? [...selectedVariantOptionIds].sort().join(",")
+      : "";
+
     // ensure cart
     let cart = await prisma.cart.findUnique({ where: { userId: me.id } });
     if (!cart) cart = await prisma.cart.create({ data: { userId: me.id } });
 
     const item = await prisma.cartItem.upsert({
-      where: { cartId_listingId: { cartId: cart.id, listingId } },
+      where: {
+        cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+      },
       update: { quantity: { increment: quantity } },
       create: {
         cartId: cart.id,
         listingId,
         quantity,
-        priceCents: listing.priceCents, // snapshot
+        priceCents: totalPriceCents,
+        selectedVariantOptionIds,
+        variantKey,
       },
       include: { listing: true },
     });
@@ -73,8 +117,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Server error adding to cart" }, { status: 500 });
   }
 }
-
-
-
-
-

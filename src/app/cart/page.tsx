@@ -24,6 +24,7 @@ type CartItem = {
   id: string;
   quantity: number;
   priceCents: number;
+  variantLabels?: string[];
   listing: {
     id: string;
     title: string;
@@ -253,6 +254,9 @@ function CartPage() {
                   <a href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
                     {i.listing.title}
                   </a>
+                  {(i.variantLabels ?? []).length > 0 && (
+                    <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
+                  )}
 
                   {(i.listing.status && i.listing.status !== "ACTIVE") && (
                     <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>

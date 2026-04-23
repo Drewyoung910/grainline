@@ -275,6 +275,11 @@ export default async function BuyerOrderDetailPage({
                   <div className="text-xs text-neutral-500">
                     Seller: {it.listing.seller.displayName}
                   </div>
+                  {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {(it.selectedVariants as { groupName: string; optionLabel: string }[]).map((v) => `${v.groupName}: ${v.optionLabel}`).join(" · ")}
+                    </p>
+                  )}
                   <div className="mt-1 text-sm text-neutral-700">
                     {fmtMoney(it.priceCents, currency)} × {it.quantity}
                   </div>

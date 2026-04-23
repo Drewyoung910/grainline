@@ -5,7 +5,8 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { z } from "zod";
 
 const CartUpdateSchema = z.object({
-  listingId: z.string().min(1),
+  cartItemId: z.string().min(1).optional(),
+  listingId: z.string().min(1).optional(),
   quantity: z.number().int().min(0).max(99),
 });
 
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
     const me = await ensureUserByClerkId(userId);
 
     let parsed;
@@ -26,18 +28,23 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const { listingId, quantity } = parsed;
+    const { cartItemId, listingId, quantity } = parsed;
+    if (!cartItemId && !listingId) {
+      return NextResponse.json({ error: "cartItemId or listingId required" }, { status: 400 });
+    }
 
     const cart = await prisma.cart.findUnique({ where: { userId: me.id } });
     if (!cart) return NextResponse.json({ error: "Cart not found" }, { status: 404 });
 
-    const key = { cartId_listingId: { cartId: cart.id, listingId } };
-    const exists = await prisma.cartItem.findUnique({ where: key });
-    if (!exists) return NextResponse.json({ error: "Item not in cart" }, { status: 404 });
+    // Find the cart item — prefer cartItemId, fall back to listingId
+    const item = cartItemId
+      ? await prisma.cartItem.findFirst({ where: { id: cartItemId, cartId: cart.id } })
+      : await prisma.cartItem.findFirst({ where: { cartId: cart.id, listingId: listingId! } });
+    if (!item) return NextResponse.json({ error: "Item not in cart" }, { status: 404 });
 
     if (quantity > 0) {
       const listing = await prisma.listing.findUnique({
-        where: { id: listingId },
+        where: { id: item.listingId },
         select: { listingType: true, stockQuantity: true },
       });
       if (listing?.listingType === "IN_STOCK" && listing.stockQuantity != null && quantity > listing.stockQuantity) {
@@ -46,9 +53,9 @@ export async function POST(req: Request) {
     }
 
     if (quantity === 0) {
-      await prisma.cartItem.delete({ where: key });
+      await prisma.cartItem.delete({ where: { id: item.id } });
     } else {
-      await prisma.cartItem.update({ where: key, data: { quantity } });
+      await prisma.cartItem.update({ where: { id: item.id }, data: { quantity } });
     }
 
     return NextResponse.json({ ok: true });
@@ -57,8 +64,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Server error updating cart" }, { status: 500 });
   }
 }
-
-
-
-
-

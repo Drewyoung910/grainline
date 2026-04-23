@@ -215,6 +215,7 @@ export async function POST(req: Request) {
                   include: {
                     photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
                     seller: { select: { displayName: true } },
+                    variantGroups: { include: { options: true } },
                   },
                 },
               },
@@ -307,6 +308,23 @@ export async function POST(req: Request) {
             const orderQuantity = paid?.quantity ?? it.quantity;
             const orderPriceCents = paid?.priceCents ?? it.priceCents;
 
+            // Resolve variant selections from cart item option IDs
+            const variantSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
+            if (it.selectedVariantOptionIds?.length) {
+              for (const optId of it.selectedVariantOptionIds) {
+                for (const g of (it.listing.variantGroups ?? [])) {
+                  const opt = (g.options ?? []).find((o: { id: string }) => o.id === optId);
+                  if (opt) {
+                    variantSnapshot.push({
+                      groupName: g.name,
+                      optionLabel: (opt as { label: string }).label,
+                      priceAdjustCents: (opt as { priceAdjustCents: number }).priceAdjustCents,
+                    });
+                  }
+                }
+              }
+            }
+
             await tx.orderItem.create({
               data: {
                 orderId: order.id,
@@ -323,6 +341,7 @@ export async function POST(req: Request) {
                   sellerName: it.listing.seller?.displayName ?? "",
                   capturedAt: new Date().toISOString(),
                 },
+                selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
               },
             });
 
@@ -587,6 +606,13 @@ export async function POST(req: Request) {
                     sellerName: listingData?.seller?.displayName ?? "",
                     capturedAt: new Date().toISOString(),
                   },
+                  selectedVariants: (() => {
+                    try {
+                      const sv = sessionMeta.selectedVariants;
+                      if (typeof sv === "string" && sv.length > 2) return JSON.parse(sv);
+                    } catch { /* skip */ }
+                    return undefined;
+                  })(),
                 }],
               },
 

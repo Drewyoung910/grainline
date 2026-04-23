@@ -32,6 +32,7 @@ const CheckoutSingleSchema = z.object({
   }),
   giftNote: z.string().max(200).optional().nullable(),
   giftWrapping: z.boolean().optional().default(false),
+  selectedVariantOptionIds: z.array(z.string()).max(30).optional().default([]),
 });
 
 export const runtime = "nodejs";
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
             giftWrappingPriceCents: true,
           },
         },
+        variantGroups: { include: { options: true } },
       },
     });
     if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
@@ -193,7 +195,27 @@ export async function POST(req: Request) {
     const giftWrapCents = body.giftWrapping
       ? (listing.seller.giftWrappingPriceCents ?? 0)
       : 0;
-    const itemsSubtotalCents = listing.priceCents * body.quantity;
+
+    // Calculate variant-adjusted price
+    let variantAdjustCents = 0;
+    const selectedVariantLabels: string[] = [];
+    const selectedVariantsSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
+    for (const optId of body.selectedVariantOptionIds) {
+      for (const g of listing.variantGroups) {
+        const opt = g.options.find((o) => o.id === optId);
+        if (opt) {
+          variantAdjustCents += opt.priceAdjustCents;
+          selectedVariantLabels.push(opt.label);
+          selectedVariantsSnapshot.push({
+            groupName: g.name,
+            optionLabel: opt.label,
+            priceAdjustCents: opt.priceAdjustCents,
+          });
+        }
+      }
+    }
+    const unitPriceCents = listing.priceCents + variantAdjustCents;
+    const itemsSubtotalCents = unitPriceCents * body.quantity;
 
     // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
@@ -202,6 +224,11 @@ export async function POST(req: Request) {
     // Tax is excluded — platform retains tax (marketplace facilitator).
     const sellerTransferAmount =
       itemsSubtotalCents + shippingAmountCents + giftWrapCents - platformFee;
+
+    // Variant description suffix for Stripe line item name
+    const variantDesc = selectedVariantLabels.length > 0
+      ? ` (${selectedVariantLabels.join(", ")})`
+      : "";
 
     // Line items
     const line_items: {
@@ -216,9 +243,9 @@ export async function POST(req: Request) {
         quantity: body.quantity,
         price_data: {
           currency,
-          unit_amount: listing.priceCents,
+          unit_amount: unitPriceCents,
           product_data: {
-            name: listing.title,
+            name: `${listing.title}${variantDesc}`,
             images: listing.photos.length ? [listing.photos[0].url] : undefined,
             metadata: { listingId: listing.id },
             tax_code: "txcd_99999999", // General - Tangible Personal Property
@@ -318,6 +345,7 @@ export async function POST(req: Request) {
         giftNote: body.giftNote ?? "",
         giftWrapping: body.giftWrapping ? "true" : "false",
         giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
+        selectedVariants: selectedVariantsSnapshot.length > 0 ? JSON.stringify(selectedVariantsSnapshot) : "",
       },
     });
 

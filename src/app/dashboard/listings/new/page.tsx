@@ -10,6 +10,7 @@ import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import PhotoManager from "@/components/PhotoManager";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
+import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
@@ -134,6 +135,28 @@ async function createListing(formData: FormData) {
   const processingTimeMinDays = listingType === "MADE_TO_ORDER" && Number.isFinite(minDaysRaw) && minDaysRaw > 0 ? minDaysRaw : null;
   const processingTimeMaxDays = listingType === "MADE_TO_ORDER" && Number.isFinite(maxDaysRaw) && maxDaysRaw > 0 ? maxDaysRaw : null;
 
+  // Variants (up to 3 groups × 10 options)
+  let variantGroups: Array<{
+    name: string;
+    options: Array<{ label: string; priceAdjustCents: number; inStock: boolean }>;
+  }> = [];
+  const variantsJson = formData.get("variantGroupsJson");
+  if (typeof variantsJson === "string" && variantsJson.length > 2) {
+    try {
+      const parsed = JSON.parse(variantsJson);
+      if (Array.isArray(parsed)) {
+        variantGroups = parsed.slice(0, 3).map((g: Record<string, unknown>) => ({
+          name: sanitizeText(String(g.name ?? "")).slice(0, 50),
+          options: (Array.isArray(g.options) ? g.options : []).slice(0, 10).map((o: Record<string, unknown>) => ({
+            label: sanitizeText(String(o.label ?? "")).slice(0, 50),
+            priceAdjustCents: Math.round(Number(o.priceAdjustCents) || 0),
+            inStock: Boolean(o.inStock ?? true),
+          })),
+        })).filter((g) => g.name && g.options.some((o) => o.label));
+      }
+    } catch { /* invalid JSON — skip variants */ }
+  }
+
   if (!title || !imageUrls.length || !Number.isFinite(priceCents) || priceCents <= 0) {
     throw new Error("Please fill title, price, and upload at least one photo.");
   }
@@ -171,6 +194,20 @@ async function createListing(formData: FormData) {
         sortOrder: i,
         altText: imageAltTexts[i]?.trim() || null,
       })) },
+      variantGroups: variantGroups.length > 0 ? {
+        create: variantGroups.map((g, gi) => ({
+          name: g.name,
+          sortOrder: gi,
+          options: {
+            create: g.options.filter((o) => o.label).map((o, oi) => ({
+              label: o.label,
+              priceAdjustCents: o.priceAdjustCents,
+              sortOrder: oi,
+              inStock: o.inStock,
+            })),
+          },
+        })),
+      } : undefined,
     },
   });
 
@@ -449,6 +486,10 @@ export default async function NewListingPage({
         <div className="card-section p-4">
           <div className="text-sm font-medium text-neutral-700 mb-2">Listing type</div>
           <ListingTypeFields />
+        </div>
+
+        <div className="card-section p-4">
+          <VariantEditor />
         </div>
 
         <div className="card-section p-4">

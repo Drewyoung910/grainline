@@ -7,21 +7,33 @@ export default function AddToCartButton({
   signedIn,
   className = "",
   redirectToCart = false,
+  selectedVariantOptionIds = [],
+  variantRequired = false,
 }: {
   listingId: string;
   signedIn: boolean;
   className?: string;
   redirectToCart?: boolean;
+  selectedVariantOptionIds?: string[];
+  variantRequired?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
 
   async function add() {
+    if (variantRequired && selectedVariantOptionIds.length === 0) {
+      alert("Please select all variant options first.");
+      return;
+    }
     try {
       setLoading(true);
       const res = await fetch("/api/cart/add", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ listingId, quantity: 1 }),
+        body: JSON.stringify({
+          listingId,
+          quantity: 1,
+          selectedVariantOptionIds,
+        }),
       });
       const text = await res.text();
       let data: { error?: string; raw?: string } = {};

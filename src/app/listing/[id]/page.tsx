@@ -10,6 +10,7 @@ import ReviewsSection from "@/components/ReviewsSection";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BuyNowButton from "@/components/BuyNowButton";
 import AddToCartButton from "@/components/AddToCartButton";
+import ListingPurchasePanel from "@/components/ListingPurchasePanel";
 import ListingViewTracker from "@/components/ListingViewTracker";
 import RecentlyViewedTracker from "@/components/RecentlyViewedTracker";
 import { CATEGORY_LABELS } from "@/lib/categories";
@@ -131,6 +132,10 @@ export default async function ListingPage({
       seller: { include: { user: { select: { id: true, clerkId: true, email: true, imageUrl: true, banned: true } } } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
+      variantGroups: {
+        orderBy: { sortOrder: "asc" },
+        include: { options: { orderBy: { sortOrder: "asc" } } },
+      },
     },
   });
   if (!listing) return notFound();
@@ -440,10 +445,23 @@ export default async function ListingPage({
             </div>
           )}
 
-          {/* Price */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="text-3xl font-semibold">${(listing.priceCents / 100).toFixed(2)}</div>
-            {stars && (
+          {/* Price + Variants */}
+          <ListingPurchasePanel
+            basePriceCents={listing.priceCents}
+            variantGroups={listing.variantGroups.map((g) => ({
+              id: g.id,
+              name: g.name,
+              options: g.options.map((o) => ({
+                id: o.id,
+                label: o.label,
+                priceAdjustCents: o.priceAdjustCents,
+                inStock: o.inStock,
+              })),
+            }))}
+          >
+            {({ selectedOptionIds, allVariantsSelected }) => (
+              <>
+          {stars && (
               <a
                 href="#reviews"
                 className="flex items-center gap-1.5 group"
@@ -455,8 +473,7 @@ export default async function ListingPage({
                   <span className="text-neutral-400">({countReviews})</span>
                 </span>
               </a>
-            )}
-          </div>
+          )}
 
           {/* Stock status */}
           {listing.listingType === "IN_STOCK" ? (
@@ -499,6 +516,8 @@ export default async function ListingPage({
                   priceCents={listing.priceCents}
                   offersGiftWrapping={listing.seller.offersGiftWrapping}
                   giftWrappingPriceCents={listing.seller.giftWrappingPriceCents}
+                  selectedVariantOptionIds={selectedOptionIds}
+                  variantRequired={listing.variantGroups.length > 0}
                   className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
                 >
                   Buy now
@@ -514,6 +533,8 @@ export default async function ListingPage({
               <AddToCartButton
                 listingId={id}
                 signedIn={!!userId}
+                selectedVariantOptionIds={selectedOptionIds}
+                variantRequired={listing.variantGroups.length > 0}
                 className="w-full rounded-md border border-neutral-300 px-4 py-3 text-sm font-medium min-h-[48px] hover:bg-neutral-50 transition-colors"
               />
             </div>
@@ -528,6 +549,9 @@ export default async function ListingPage({
                 : ""}
             </p>
           )}
+              </>
+            )}
+          </ListingPurchasePanel>
 
           {/* Custom order */}
           {!isOwnListing && !reservedForOther && listing.seller.acceptsCustomOrders && (

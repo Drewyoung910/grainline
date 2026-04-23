@@ -14,6 +14,8 @@ type Props = {
   quantity?: number;
   offersGiftWrapping?: boolean;
   giftWrappingPriceCents?: number | null;
+  selectedVariantOptionIds?: string[];
+  variantRequired?: boolean;
   className?: string;
   children?: React.ReactNode;
 };
@@ -28,6 +30,8 @@ export default function BuyNowButton({
   quantity = 1,
   offersGiftWrapping = false,
   giftWrappingPriceCents = null,
+  selectedVariantOptionIds = [],
+  variantRequired = false,
   className = "",
   children,
 }: Props) {
@@ -40,8 +44,10 @@ export default function BuyNowButton({
         type="button"
         disabled={!isLoaded}
         onClick={() => {
-          // Gate before opening modal — saves buyer from
-          // completing address + shipping only to hit 401
+          if (variantRequired && selectedVariantOptionIds.length === 0) {
+            alert("Please select all variant options first.");
+            return;
+          }
           if (!isSignedIn) {
             window.location.href = `/sign-in?redirect_url=${encodeURIComponent(
               window.location.pathname,
@@ -68,6 +74,7 @@ export default function BuyNowButton({
         quantity={quantity}
         offersGiftWrapping={offersGiftWrapping}
         giftWrappingPriceCents={giftWrappingPriceCents}
+        selectedVariantOptionIds={selectedVariantOptionIds}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         isSignedIn={isSignedIn ?? false}

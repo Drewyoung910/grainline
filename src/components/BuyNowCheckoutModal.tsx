@@ -23,6 +23,7 @@ type Props = {
   quantity: number;
   offersGiftWrapping: boolean;
   giftWrappingPriceCents: number | null;
+  selectedVariantOptionIds?: string[];
   isOpen: boolean;
   onClose: () => void;
   isSignedIn: boolean;
@@ -38,6 +39,7 @@ export default function BuyNowCheckoutModal({
   quantity,
   offersGiftWrapping,
   giftWrappingPriceCents,
+  selectedVariantOptionIds = [],
   isOpen,
   onClose,
   isSignedIn,
@@ -94,6 +96,7 @@ export default function BuyNowCheckoutModal({
           selectedRate,
           giftNote: giftNote || "",
           giftWrapping,
+          selectedVariantOptionIds,
         }),
       });
       const data = await res.json();

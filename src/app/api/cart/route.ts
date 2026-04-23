@@ -26,6 +26,7 @@ export async function GET() {
                     user: true,
                   },
                 },
+                variantGroups: { include: { options: true } },
               },
             },
           },
@@ -45,10 +46,21 @@ export async function GET() {
         user?: { email?: string | null } | null;
       };
       const freeOverDollars = seller?.freeShippingOver ?? null;
+      // Resolve variant option labels
+      const variantLabels: string[] = [];
+      if (ci.selectedVariantOptionIds?.length) {
+        for (const optId of ci.selectedVariantOptionIds) {
+          for (const g of ci.listing.variantGroups ?? []) {
+            const opt = g.options.find((o: { id: string }) => o.id === optId);
+            if (opt) variantLabels.push(`${g.name}: ${(opt as { label: string }).label}`);
+          }
+        }
+      }
       return {
         id: ci.id,
         quantity: ci.quantity,
         priceCents: ci.priceCents,
+        variantLabels,
         listing: {
           id: ci.listing.id,
           title: ci.listing.title,

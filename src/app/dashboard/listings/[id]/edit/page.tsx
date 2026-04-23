@@ -7,6 +7,7 @@ import AddPhotosButton from "@/components/AddPhotosButton";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import EditPhotoGrid from "@/components/EditPhotoGrid";
+import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Category, ListingType } from "@prisma/client";
@@ -112,6 +113,28 @@ async function updateListing(
   const productWidthIn = toFloat(formData.get("productWidthIn"));
   const productHeightIn = toFloat(formData.get("productHeightIn"));
 
+  // Variants
+  let variantGroups: Array<{
+    name: string;
+    options: Array<{ label: string; priceAdjustCents: number; inStock: boolean }>;
+  }> = [];
+  const variantsJson = formData.get("variantGroupsJson");
+  if (typeof variantsJson === "string" && variantsJson.length > 2) {
+    try {
+      const parsed = JSON.parse(variantsJson);
+      if (Array.isArray(parsed)) {
+        variantGroups = parsed.slice(0, 3).map((g: Record<string, unknown>) => ({
+          name: sanitizeText(String(g.name ?? "")).slice(0, 50),
+          options: (Array.isArray(g.options) ? g.options : []).slice(0, 10).map((o: Record<string, unknown>) => ({
+            label: sanitizeText(String(o.label ?? "")).slice(0, 50),
+            priceAdjustCents: Math.round(Number(o.priceAdjustCents) || 0),
+            inStock: Boolean(o.inStock ?? true),
+          })),
+        })).filter((g) => g.name && g.options.some((o) => o.label));
+      }
+    } catch { /* skip */ }
+  }
+
   if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
     return { ok: false, error: "Please provide a valid title and price." };
   }
@@ -158,6 +181,28 @@ async function updateListing(
       processingTimeMaxDays,
     },
   });
+
+  // Update variants — delete existing and recreate
+  await prisma.listingVariantGroup.deleteMany({ where: { listingId } });
+  for (let gi = 0; gi < variantGroups.length; gi++) {
+    const g = variantGroups[gi];
+    if (!g.name || g.options.length === 0) continue;
+    await prisma.listingVariantGroup.create({
+      data: {
+        listingId,
+        name: g.name,
+        sortOrder: gi,
+        options: {
+          create: g.options.filter((o) => o.label).map((o, oi) => ({
+            label: o.label,
+            priceAdjustCents: o.priceAdjustCents,
+            sortOrder: oi,
+            inStock: o.inStock,
+          })),
+        },
+      },
+    });
+  }
 
   // Re-trigger AI review if ACTIVE listing had substantive content changes
   if (listing.status === "ACTIVE" && substantiveChange) {
@@ -322,7 +367,13 @@ export default async function EditListingPage(props: {
 
   const listing = await prisma.listing.findFirst({
     where: { id, seller: { user: { clerkId: userId } } },
-    include: { photos: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      photos: { orderBy: { sortOrder: "asc" } },
+      variantGroups: {
+        orderBy: { sortOrder: "asc" },
+        include: { options: { orderBy: { sortOrder: "asc" } } },
+      },
+    },
   });
   if (!listing) return notFound();
 
@@ -381,6 +432,22 @@ export default async function EditListingPage(props: {
             stockQuantity={listing.stockQuantity}
             shipsWithinDays={listing.shipsWithinDays}
             category={listing.category}
+          />
+        </div>
+
+        {/* Variants */}
+        <div className="card-section p-4">
+          <VariantEditor
+            initialGroups={listing.variantGroups.map((g) => ({
+              id: g.id,
+              name: g.name,
+              options: g.options.map((o) => ({
+                id: o.id,
+                label: o.label,
+                priceAdjustCents: o.priceAdjustCents,
+                inStock: o.inStock,
+              })),
+            }))}
           />
         </div>
 

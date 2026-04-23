@@ -317,6 +317,9 @@ model Listing {
   productWidthIn    Float?
   productHeightIn   Float?
 
+  // Variants (up to 3 groups × 10 options each)
+  variantGroups ListingVariantGroup[]
+
   // Quality score (recalculated daily by cron)
   qualityScore      Float     @default(0)
 
@@ -564,7 +567,8 @@ model OrderItem {
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   quantity   Int      @default(1)
   priceCents Int
-  listingSnapshot Json?
+  listingSnapshot    Json?
+  selectedVariants   Json?    // [{ groupName, optionLabel, priceAdjustCents }]
   createdAt  DateTime @default(now())
 
   @@index([orderId])
@@ -590,12 +594,37 @@ model CartItem {
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   quantity   Int      @default(1)
   priceCents Int
+  selectedVariantOptionIds String[]  @default([])
+  variantKey               String    @default("") // sorted option IDs, for unique constraint
   createdAt  DateTime @default(now())
 
-  @@unique([cartId, listingId])
+  @@unique([cartId, listingId, variantKey])
   @@index([cartId])
 }
 
+
+model ListingVariantGroup {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  name      String   // seller-defined: "Size", "Wood Type", "Finish", etc.
+  sortOrder Int      @default(0)
+  options   ListingVariantOption[]
+
+  @@index([listingId, sortOrder])
+}
+
+model ListingVariantOption {
+  id               String              @id @default(cuid())
+  groupId          String
+  group            ListingVariantGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  label            String              // seller-defined: "Large", "Walnut", "Dark Stain", etc.
+  priceAdjustCents Int                 @default(0) // +5000 = +$50, -2000 = -$20, 0 = no change
+  sortOrder        Int                 @default(0)
+  inStock          Boolean             @default(true)
+
+  @@index([groupId, sortOrder])
+}
 
 model SiteConfig {
   id                    Int @id @default(1)
