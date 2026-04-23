@@ -134,8 +134,8 @@ LENIENCY FOR NEW SELLERS:
 - Always reject clear violations regardless of seller experience
 - After 3+ listings, apply standard strictness
 
-ALT TEXT GENERATION:
-For each image provided, also generate a brief SEO-friendly alt text description (10-20 words) describing the item shown. Focus on materials, colors, and the type of woodworking piece. Return these in an "altTexts" array in your JSON response, one entry per image in order. If no images are provided, omit the "altTexts" field or return an empty array.
+ALT TEXT GENERATION (REQUIRED):
+You MUST generate an "altTexts" array in your JSON response. For each image provided, write a brief SEO-friendly alt text (10-20 words) describing the item shown. Focus on materials, colors, wood species, and the type of woodworking piece. Example: "Hand-carved walnut cutting board with live edge and mineral oil finish". Always include exactly one alt text per image. If no images are provided, return "altTexts": [].
 
 Respond with ONLY valid JSON, no other text:
 {

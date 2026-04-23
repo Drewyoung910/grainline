@@ -514,14 +514,12 @@ export default async function HomePage() {
           <p className="text-neutral-500 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="rounded-2xl overflow-hidden shadow-sm border border-neutral-200/60">
-            <MakersMapSection
-              points={mapPoints}
-              heading="Explore the map"
-              subheading="Pin your location to find makers nearby — or browse the full map."
-              headingClassName="font-display"
-            />
-          </div>
+          <MakersMapSection
+            points={mapPoints}
+            heading="Explore the map"
+            subheading="Pin your location to find makers nearby — or browse the full map."
+            headingClassName="font-display"
+          />
         </div>
       </ScrollSection>
 
@@ -596,18 +594,18 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-white shadow-sm border border-neutral-200/60 p-4 text-center hover:shadow-md transition-shadow flex-none w-28 sm:w-auto"
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-amber-50 p-4 sm:p-5 text-center hover:bg-amber-100 transition-colors flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-neutral-700" />
+                  <c.Icon size={28} className="text-amber-700" />
                   <span className="text-xs font-medium text-neutral-800">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-white shadow-sm border border-neutral-200/60 p-4 text-center hover:shadow-md transition-shadow flex-none w-28 sm:w-auto"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-amber-50 p-4 sm:p-5 text-center hover:bg-amber-100 transition-colors flex-none w-28 sm:w-auto"
               >
-                <span className="text-3xl text-neutral-500">→</span>
-                <span className="text-xs font-medium text-neutral-700">Browse all</span>
+                <span className="text-2xl text-amber-700">→</span>
+                <span className="text-xs font-medium text-neutral-800">Browse all</span>
               </Link>
             </div>
           </div>
@@ -621,7 +619,7 @@ export default async function HomePage() {
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="rounded-2xl bg-white shadow-sm border border-neutral-200/60 overflow-hidden">
+            <div className="rounded-2xl bg-stone-50 overflow-hidden">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt={`${featuredMaker.displayName ?? "Maker"} workshop`} loading="lazy" className="h-48 w-full object-cover" />
@@ -682,7 +680,7 @@ export default async function HomePage() {
                     <div className="pt-1">
                       <Link
                         href={`/seller/${featuredMaker.id}`}
-                        className="inline-flex items-center rounded-full bg-neutral-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
+                        className="inline-flex items-center rounded-md bg-amber-600 px-4 py-2 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
                       >
                         Visit Their Workshop →
                       </Link>
@@ -694,8 +692,8 @@ export default async function HomePage() {
                 {featuredListings.length > 0 && (
                   <div className="grid grid-cols-3 gap-3 self-start">
                     {featuredListings.map((fl) => (
-                      <Link key={fl.id} href={`/listing/${fl.id}`} className="card-listing block group hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-                        <div className="aspect-square overflow-hidden">
+                      <Link key={fl.id} href={`/listing/${fl.id}`} className="block group">
+                        <div className="aspect-square overflow-hidden rounded-xl">
                           {fl.photos[0]?.url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -708,7 +706,7 @@ export default async function HomePage() {
                             <div className="h-full w-full bg-stone-100" />
                           )}
                         </div>
-                        <div className="p-2 bg-white">
+                        <div className="pt-2">
                           <div className="font-medium text-xs text-neutral-900 line-clamp-1">{fl.title}</div>
                           <div className="text-xs text-neutral-600">
                             ${(fl.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}

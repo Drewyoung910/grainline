@@ -56,7 +56,7 @@ export default function MakersMapSection({
   };
 
   return (
-    <section className="mt-10 rounded-3xl border bg-white shadow-sm overflow-hidden">
+    <section className="rounded-2xl bg-stone-50 overflow-hidden">
       <div className="p-6 sm:p-8 flex flex-col lg:flex-row gap-6 lg:gap-10">
         <div className="lg:w-[38%]">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
@@ -67,13 +67,13 @@ export default function MakersMapSection({
             <button
               type="button"
               onClick={onUseMyLocation}
-              className="inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+              className="inline-flex items-center rounded-md bg-amber-600 text-white px-4 py-2 text-sm font-medium hover:bg-amber-700 transition-colors"
             >
               Use my location
             </button>
             <a
               href="/map"
-              className="inline-flex items-center rounded-full border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+              className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 transition-colors"
             >
               Open Makers Map
             </a>
