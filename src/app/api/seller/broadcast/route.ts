@@ -44,6 +44,13 @@ export async function POST(req: NextRequest) {
 
   if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
 
+  // Profanity check (log-only)
+  const { containsProfanity } = await import("@/lib/profanity");
+  const profCheck = containsProfanity(message);
+  if (profCheck.flagged) {
+    console.error(`[PROFANITY] Broadcast by seller ${seller.id}: ${profCheck.matches.join(", ")}`);
+  }
+
   // Enforce 7-day rate limit between broadcasts
   const lastBroadcast = await prisma.sellerBroadcast.findFirst({
     where: { sellerProfileId: seller.id },

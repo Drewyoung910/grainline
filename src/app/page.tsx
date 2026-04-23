@@ -680,7 +680,7 @@ export default async function HomePage() {
                     <div className="pt-1">
                       <Link
                         href={`/seller/${featuredMaker.id}`}
-                        className="inline-flex items-center rounded-md bg-stone-700 px-4 py-2 text-xs font-medium text-white hover:bg-stone-800 transition-colors"
+                        className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-xs font-medium text-white hover:bg-[#3A2A24] transition-colors"
                       >
                         Visit Their Workshop →
                       </Link>

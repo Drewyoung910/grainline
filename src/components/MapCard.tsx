@@ -141,7 +141,7 @@ export default function MapCard({
   return (
     <div
       ref={containerRef}
-      className={className ?? "h-48 w-full rounded-xl border overflow-hidden"}
+      className={className ?? "h-48 w-full rounded-xl border border-neutral-200 overflow-hidden"}
     />
   );
 }

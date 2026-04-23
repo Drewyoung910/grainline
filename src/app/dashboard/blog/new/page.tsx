@@ -51,6 +51,13 @@ export default async function NewBlogPostPage() {
 
     if (!title || !body) return;
 
+    // Profanity check (log-only)
+    const { containsProfanity } = await import("@/lib/profanity");
+    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body}`);
+    if (profCheck.flagged) {
+      console.error(`[PROFANITY] Blog post by ${uid}: ${profCheck.matches.join(", ")}`);
+    }
+
     // Validate type
     const allowedTypes: BlogPostType[] = isStaffUser
       ? Object.values(BlogPostType)

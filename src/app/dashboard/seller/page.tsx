@@ -253,7 +253,7 @@ export default async function SellerSettingsPage() {
 
         {/* Location picker */}
         <div>
-          <label className="block text-sm mb-2">Pickup location</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-2">Pickup location</label>
           <SellerLocationSection
             defaultLat={row?.lat != null ? Number(row.lat) : null}
             defaultLng={row?.lng != null ? Number(row.lng) : null}

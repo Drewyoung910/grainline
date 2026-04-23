@@ -38,26 +38,31 @@ export default function EditPhotoGrid({
     setTimeout(() => setToast(null), 1800);
   }
 
-  function handleDragStart(idx: number) {
+  function handleDragStart(e: React.DragEvent, idx: number) {
     dragItem.current = idx;
+    e.dataTransfer.effectAllowed = "move";
+    const img = e.currentTarget.querySelector("img");
+    if (img) e.dataTransfer.setDragImage(img, 50, 50);
   }
 
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
     dragOverItem.current = idx;
   }
 
-  function handleDrop() {
-    if (dragItem.current === null || dragOverItem.current === null) return;
-    if (dragItem.current === dragOverItem.current) return;
-
-    const newPhotos = [...photos];
-    const [dragged] = newPhotos.splice(dragItem.current, 1);
-    newPhotos.splice(dragOverItem.current, 0, dragged);
-    setPhotos(newPhotos);
-
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const from = dragItem.current;
+    const to = dragOverItem.current;
     dragItem.current = null;
     dragOverItem.current = null;
+    if (from === null || to === null || from === to) return;
+
+    const newPhotos = [...photos];
+    const [dragged] = newPhotos.splice(from, 1);
+    newPhotos.splice(to, 0, dragged);
+    setPhotos(newPhotos);
 
     startSaving(async () => {
       await onReorder(newPhotos.map((p) => p.id));
@@ -111,13 +116,9 @@ export default function EditPhotoGrid({
               <li
                 key={p.id}
                 draggable
-                onDragStart={(e) => {
-                  handleDragStart(idx);
-                  const img = e.currentTarget.querySelector("img");
-                  if (img) e.dataTransfer.setDragImage(img, 50, 50);
-                }}
+                onDragStart={(e) => handleDragStart(e, idx)}
                 onDragOver={(e) => handleDragOver(e, idx)}
-                onDrop={handleDrop}
+                onDrop={(e) => handleDrop(e)}
                 onDragEnd={() => {
                   dragItem.current = null;
                   dragOverItem.current = null;

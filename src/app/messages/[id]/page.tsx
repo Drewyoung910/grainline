@@ -105,6 +105,13 @@ export default async function ThreadPage({
       if (!Array.isArray(atts)) atts = [];
     } catch {}
 
+    // Profanity check (log-only)
+    if (body) {
+      const { containsProfanity } = await import("@/lib/profanity");
+      const p = containsProfanity(body);
+      if (p.flagged) console.error(`[PROFANITY] Message by ${userId}: ${p.matches.join(", ")}`);
+    }
+
     // Validate participation
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },

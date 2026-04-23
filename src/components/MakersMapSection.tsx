@@ -67,7 +67,7 @@ export default function MakersMapSection({
             <button
               type="button"
               onClick={onUseMyLocation}
-              className="inline-flex items-center rounded-md bg-stone-700 text-white px-4 py-2 text-sm font-medium hover:bg-stone-800 transition-colors"
+              className="inline-flex items-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24] transition-colors"
             >
               Use my location
             </button>

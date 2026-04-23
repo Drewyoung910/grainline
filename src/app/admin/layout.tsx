@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
+import AdminPinGate from "@/components/AdminPinGate";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -26,6 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
 
   return (
+    <AdminPinGate>
     <div className="flex flex-col md:flex-row min-h-screen bg-neutral-100">
       {/* ── Mobile tab strip (< md) ── */}
       <AdminMobileNav
@@ -153,5 +155,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       <div className="flex-1 overflow-auto p-4 md:p-8">{children}</div>
     </div>
+    </AdminPinGate>
   );
 }

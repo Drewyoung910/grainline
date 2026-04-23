@@ -148,7 +148,7 @@ export default function LocationPicker({
         <input
           type="text"
           placeholder="Search address or place"
-          className="flex-1 border rounded px-3 py-2"
+          className="flex-1 border border-neutral-200 rounded-md px-3 py-2 text-sm"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -158,7 +158,7 @@ export default function LocationPicker({
         />
         <button
           type="button"
-          className="border rounded px-3 py-2"
+          className="border border-neutral-200 rounded-md px-3 py-2 text-sm hover:bg-neutral-50"
           onClick={() => {
             const el = document.activeElement as HTMLInputElement;
             search(el?.value ?? "");
@@ -168,7 +168,7 @@ export default function LocationPicker({
         </button>
       </div>
 
-      <div className="rounded-xl overflow-hidden border">
+      <div className="rounded-xl overflow-hidden border border-neutral-200">
         <div ref={containerRef} style={{ height: 260, width: "100%" }} />
       </div>
 
@@ -181,7 +181,7 @@ export default function LocationPicker({
           <label className="block text-xs mb-1">Latitude</label>
           <input
             readOnly
-            className="w-full border rounded px-3 py-2 bg-neutral-50"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm bg-neutral-50"
             value={pos[0].toFixed(6)}
           />
         </div>
@@ -189,7 +189,7 @@ export default function LocationPicker({
           <label className="block text-xs mb-1">Longitude</label>
           <input
             readOnly
-            className="w-full border rounded px-3 py-2 bg-neutral-50"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm bg-neutral-50"
             value={pos[1].toFixed(6)}
           />
         </div>

@@ -17,28 +17,33 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
-  function handleDragStart(idx: number) {
+  function handleDragStart(e: React.DragEvent, idx: number) {
     dragItem.current = idx;
+    e.dataTransfer.effectAllowed = "move";
+    const img = e.currentTarget.querySelector("img");
+    if (img) e.dataTransfer.setDragImage(img, 50, 50);
   }
 
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
     dragOverItem.current = idx;
   }
 
-  function handleDrop() {
-    if (dragItem.current === null || dragOverItem.current === null) return;
-    if (dragItem.current === dragOverItem.current) return;
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const from = dragItem.current;
+    const to = dragOverItem.current;
+    dragItem.current = null;
+    dragOverItem.current = null;
+    if (from === null || to === null || from === to) return;
 
     setPhotos((prev) => {
       const next = [...prev];
-      const [dragged] = next.splice(dragItem.current!, 1);
-      next.splice(dragOverItem.current!, 0, dragged);
+      const [dragged] = next.splice(from, 1);
+      next.splice(to, 0, dragged);
       return next;
     });
-
-    dragItem.current = null;
-    dragOverItem.current = null;
   }
 
   const moveUp = useCallback((index: number) => {
@@ -128,13 +133,9 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
             <li
               key={`${photo.url}-${i}`}
               draggable
-              onDragStart={(e) => {
-                handleDragStart(i);
-                const img = e.currentTarget.querySelector("img");
-                if (img) e.dataTransfer.setDragImage(img, 50, 50);
-              }}
+              onDragStart={(e) => handleDragStart(e, i)}
               onDragOver={(e) => handleDragOver(e, i)}
-              onDrop={handleDrop}
+              onDrop={(e) => handleDrop(e)}
               onDragEnd={() => {
                 dragItem.current = null;
                 dragOverItem.current = null;
