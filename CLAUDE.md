@@ -2456,6 +2456,35 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 ### Architecture lesson learned
 **Never use render props (children-as-function) in Next.js server components.** Functions cannot cross the server/client serialization boundary. Use self-contained client components with serializable props instead. If a client component needs server-computed data, pass it as props — don't wrap server JSX in a client render prop.
 
+## Security + Financial Audit Fixes (2026-04-23)
+
+### Review fulfillment gate
+- `POST /api/reviews` now requires `fulfillmentStatus IN (DELIVERED, PICKED_UP)` on the order. Prevents reviews before the item arrives.
+
+### Double-refund guard
+- `POST /api/cases/[id]/resolve` checks `order.sellerRefundId` before issuing Stripe refund. Returns 400 if seller already refunded. Prevents seller refund + admin case resolve double-dip.
+
+### Case creation blocks refunded orders
+- `POST /api/cases` checks `order.sellerRefundId`. Returns 400 if refund already issued. Prevents opening cases on already-refunded orders.
+
+### Photo URL R2 origin validation
+- `POST /api/listings/[id]/photos` Zod schema: `z.string().url().refine(u => u.startsWith(R2_ORIGIN))`. Blocks SSRF via arbitrary URLs forwarded to OpenAI's image fetcher. Uses `CLOUDFLARE_R2_PUBLIC_URL` env var.
+
+### Audit logging additions
+- **Case resolve**: `logAdminAction({ action: "RESOLVE_CASE" })` with resolution type + refund amount
+- **Admin email**: `logAdminAction({ action: "SEND_EMAIL" })` with recipient + subject
+
+### sendMessage rate limit
+- `sendMessage` server action in `messages/[id]/page.tsx` now uses `messageRatelimit` (30/60s). Prevents message spam.
+
+### Stripe processing fee passed to seller
+- Both `checkout-seller` and `checkout/single` now deduct estimated Stripe fee (2.9% + 30¢) from `transfer_data.amount`
+- Formula: `sellerTransferAmount = preTaxTotal - platformFee - estimatedStripeFee`
+- `estimatedStripeFee = Math.round(preTaxTotal * 0.029 + 30)`
+- `Math.max(1)` floor prevents negative/zero transfers
+- Platform no longer absorbs the ~3% Stripe processing fee
+- Note: estimate is on pre-tax total (slightly underestimates since Stripe charges on post-tax). Difference is negligible and in platform's favor.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
