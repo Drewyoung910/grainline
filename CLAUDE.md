@@ -2524,6 +2524,27 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 ### MADE_TO_ORDER quantity cap
 - `api/cart/add/route.ts`: `listingType === "MADE_TO_ORDER" && quantity > 1` → 400 error. Made-to-order items limited to 1 per add-to-cart (seller makes each one individually)
 
+## Final Audit Cleanup (2026-04-23)
+
+### Mass-report detection
+- Admin reports page (`admin/reports/page.tsx`): "Top reporters (last 30 days)" section shown when any user has 3+ reports
+- `prisma.userReport.groupBy` by reporterId with count, top 5
+- Color-coded badges: 10+ reports red, 5+ amber, 3+ neutral
+
+### YouTube shorts/embed regex
+- `blog/[slug]/page.tsx` `extractVideoId()`: regex updated to support `/shorts/`, `/embed/`, `/v/` paths (was only `/watch?v=` and `youtu.be/`). Vimeo also supports `/video/` prefix.
+
+### Carrier preferred filter — exact match
+- `api/shipping/quote/route.ts`: changed from `carrier.includes(pc)` (substring) to `carrier === pc || carrier.startsWith(pc + " ")` (exact match with space-delimited service name). Prevents theoretical false positives.
+
+### Admin undo race — atomic lock
+- `src/lib/audit.ts` `undoAdminAction()`: `updateMany({ where: { id, undone: false } })` as atomic lock at function start. If the update affects 0 rows, throws "Already undone (concurrent request)". Removed duplicate `update` call that was setting the same fields after the undo action.
+
+### Items assessed as not bugs
+- **SearchBar race**: already calls `setOpen(false)` before `router.push` on both Enter and form submit. Not a bug.
+- **Quality score totalOrders**: already filters `WHERE il.status = 'ACTIVE' AND il."isPrivate" = false`. Not a bug.
+- **Cart reservation DoS**: `checkoutRatelimit` (10/60s per user) + Cloudflare DDoS protection + 31-min session expiry provides adequate defense. Multi-account coordinated attacks require Cloudflare WAF ($20/mo) — not worth it pre-launch.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
