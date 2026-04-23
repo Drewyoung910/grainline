@@ -83,7 +83,7 @@ export default async function SalesPage({
   const safePage = Math.min(page, totalPages);
 
   return (
-    <main className="mx-auto max-w-5xl p-8 space-y-6">
+    <main className="mx-auto max-w-7xl p-8 space-y-6">
       <header>
         <h1 className="text-2xl font-semibold">My sales</h1>
         <p className="text-sm text-neutral-600">Orders containing your listings.</p>

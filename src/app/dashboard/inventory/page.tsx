@@ -28,7 +28,7 @@ export default async function InventoryPage() {
   const outOfStock = listings.filter((l) => l.status === "SOLD_OUT");
 
   return (
-    <main className="mx-auto max-w-4xl p-8 space-y-8">
+    <main className="mx-auto max-w-7xl p-8 space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">Inventory</h1>
         <p className="text-sm text-neutral-500 mt-1">

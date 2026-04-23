@@ -298,7 +298,7 @@ export default async function CommissionPage({
   };
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
       {/* FAQ JSON-LD */}
       <script
         type="application/ld+json"

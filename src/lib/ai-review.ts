@@ -184,7 +184,9 @@ Respond with ONLY valid JSON, no other text:
     const data = await response.json()
     const text = data.choices?.[0]?.message?.content ?? ''
     const clean = text.replace(/```json|```/g, '').trim()
-    return JSON.parse(clean) as AIReviewResult
+    const result = JSON.parse(clean) as AIReviewResult
+    console.log(`[ai-review] approved=${result.approved}, flags=${result.flags?.length ?? 0}, altTexts=${result.altTexts?.length ?? 0}`)
+    return result
   } catch (error) {
     console.error('AI review failed:', error instanceof Error ? error.message : error)
     return {

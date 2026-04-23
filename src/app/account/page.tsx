@@ -134,7 +134,7 @@ export default async function AccountPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-6 md:p-8 space-y-10">
+    <main className="max-w-7xl mx-auto p-6 md:p-8 space-y-10">
       {/* ── Header ── */}
       <header className="flex items-center gap-4">
         {me.imageUrl && (

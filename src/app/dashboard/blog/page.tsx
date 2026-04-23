@@ -51,7 +51,7 @@ export default async function DashboardBlogPage() {
   };
 
   return (
-    <main className="max-w-4xl mx-auto p-8">
+    <main className="max-w-7xl mx-auto p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold">My Blog Posts</h1>

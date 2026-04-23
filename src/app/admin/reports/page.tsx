@@ -65,7 +65,7 @@ export default async function AdminReportsPage() {
   }
 
   return (
-    <main className="p-6 max-w-5xl mx-auto">
+    <main className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold font-display mb-6">User Reports ({reports.length} open)</h1>
       <div className="space-y-3">
         {reports.map((r) => (

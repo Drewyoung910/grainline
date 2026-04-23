@@ -508,18 +508,20 @@ export default async function HomePage() {
       </div>
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
-      <ScrollSection className="bg-amber-50/40 border-b py-12">
+      <ScrollSection className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 mb-6">
           <h2 className="text-2xl sm:text-3xl font-bold font-display text-neutral-900">Find Makers Near You</h2>
-          <p className="text-neutral-600 mt-1">Discover woodworkers in your neighborhood</p>
+          <p className="text-neutral-500 mt-1">Discover woodworkers in your neighborhood</p>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <MakersMapSection
-            points={mapPoints}
-            heading="Explore the map"
-            subheading="Pin your location to find makers nearby — or browse the full map."
-            headingClassName="font-display"
-          />
+          <div className="rounded-2xl overflow-hidden shadow-sm border border-neutral-200/60">
+            <MakersMapSection
+              points={mapPoints}
+              heading="Explore the map"
+              subheading="Pin your location to find makers nearby — or browse the full map."
+              headingClassName="font-display"
+            />
+          </div>
         </div>
       </ScrollSection>
 
@@ -594,17 +596,17 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-amber-100 p-4 text-center hover:bg-amber-100 hover:shadow-md hover:shadow-amber-100/50 transition-all flex-none w-28 sm:w-auto bg-amber-50"
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-white shadow-sm border border-neutral-200/60 p-4 text-center hover:shadow-md transition-shadow flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-amber-700" />
+                  <c.Icon size={28} className="text-neutral-700" />
                   <span className="text-xs font-medium text-neutral-800">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-amber-200 p-4 text-center hover:bg-amber-100 hover:shadow-md transition-all flex-none w-28 sm:w-auto bg-amber-50/50"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-white shadow-sm border border-neutral-200/60 p-4 text-center hover:shadow-md transition-shadow flex-none w-28 sm:w-auto"
               >
-                <span className="text-3xl">→</span>
+                <span className="text-3xl text-neutral-500">→</span>
                 <span className="text-xs font-medium text-neutral-700">Browse all</span>
               </Link>
             </div>
@@ -613,13 +615,13 @@ export default async function HomePage() {
 
         {/* ── Meet a Maker ─────────────────────────────────────────────────── */}
         {featuredMaker && (
-          <ScrollSection className="bg-amber-50/60 rounded-xl px-4 py-6 -mx-4 border border-amber-100">
+          <ScrollSection>
             <div className="mb-5 space-y-0.5">
               <h2 className="text-xl font-semibold font-display">Meet a Maker</h2>
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="rounded-3xl border bg-gradient-to-br from-amber-50 to-stone-50 overflow-hidden">
+            <div className="rounded-2xl bg-white shadow-sm border border-neutral-200/60 overflow-hidden">
               {featuredMaker.bannerImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={featuredMaker.bannerImageUrl} alt={`${featuredMaker.displayName ?? "Maker"} workshop`} loading="lazy" className="h-48 w-full object-cover" />

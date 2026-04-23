@@ -26,7 +26,7 @@ export default async function SellersMapPage() {
   }));
 
   return (
-    <main className="max-w-6xl mx-auto p-8 space-y-6">
+    <main className="max-w-7xl mx-auto p-8 space-y-6">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Find makers near you</h1>

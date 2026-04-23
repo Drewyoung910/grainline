@@ -97,7 +97,7 @@ export default async function AccountOrdersPage({
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-6 md:p-8">
+    <main className="max-w-7xl mx-auto p-6 md:p-8">
       <div className="mb-6 flex items-center gap-4">
         <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700">
           ← My Account

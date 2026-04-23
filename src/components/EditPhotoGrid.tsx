@@ -27,6 +27,7 @@ export default function EditPhotoGrid({
   );
   const [saving, startSaving] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
+  const [altModalIdx, setAltModalIdx] = useState<number | null>(null);
 
   // Drag state
   const dragItem = useRef<number | null>(null);
@@ -123,7 +124,7 @@ export default function EditPhotoGrid({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={p.url}
-                    alt={p.altText || ""}
+                    alt={altTexts[p.id] || ""}
                     className="aspect-square w-full object-cover"
                     draggable={false}
                   />
@@ -145,25 +146,8 @@ export default function EditPhotoGrid({
                   </button>
                 </div>
 
-                {/* Alt text */}
-                <div className="p-2 space-y-1">
-                  <input
-                    type="text"
-                    value={altTexts[p.id] ?? ""}
-                    onChange={(e) =>
-                      setAltTexts((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                    placeholder="Describe this image (e.g. 'Hand-carved walnut dining table')"
-                    maxLength={200}
-                    className="w-full text-xs border border-neutral-200 rounded-md px-2.5 py-1.5 placeholder:text-neutral-400"
-                  />
-                  <p className="text-[10px] text-neutral-400">
-                    Alt text improves visibility in Google Image Search
-                  </p>
-                </div>
-
-                {/* Reorder + cover controls */}
-                <div className="px-2 pb-2 flex items-center justify-between text-xs">
+                {/* Bottom controls */}
+                <div className="p-2 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -184,15 +168,25 @@ export default function EditPhotoGrid({
                       →
                     </button>
                   </div>
-                  {idx !== 0 && (
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => movePhoto(idx, 0)}
+                      onClick={() => setAltModalIdx(idx)}
                       className="rounded border border-neutral-200 px-2 py-0.5 hover:bg-neutral-50"
+                      title="Edit alt text"
                     >
-                      Make cover
+                      {altTexts[p.id] ? "Alt \u2713" : "Alt"}
                     </button>
-                  )}
+                    {idx !== 0 && (
+                      <button
+                        type="button"
+                        onClick={() => movePhoto(idx, 0)}
+                        className="rounded border border-neutral-200 px-2 py-0.5 hover:bg-neutral-50"
+                      >
+                        Cover
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}
@@ -207,6 +201,52 @@ export default function EditPhotoGrid({
             {saving ? "Saving\u2026" : "Save alt texts"}
           </button>
         </>
+      )}
+
+      {/* Alt text modal */}
+      {altModalIdx !== null && photos[altModalIdx] && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40"
+          onClick={() => setAltModalIdx(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-neutral-800">
+              Alt text — Photo {altModalIdx + 1}
+            </h3>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photos[altModalIdx].url}
+              alt=""
+              className="w-full aspect-video object-cover rounded-md"
+            />
+            <textarea
+              value={altTexts[photos[altModalIdx].id] ?? ""}
+              onChange={(e) =>
+                setAltTexts((prev) => ({
+                  ...prev,
+                  [photos[altModalIdx].id]: e.target.value,
+                }))
+              }
+              placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
+              maxLength={200}
+              rows={3}
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-400"
+            />
+            <p className="text-xs text-neutral-400">
+              Improves visibility in Google Image Search. If left blank, AI will generate alt text automatically and you can see it on the edit page.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAltModalIdx(null)}
+              className="w-full rounded-md bg-neutral-900 text-white py-2 text-sm hover:bg-neutral-800"
+            >
+              Done
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -223,30 +223,30 @@ export default async function SellerSettingsPage() {
 
       <form action={updateSellerProfile} className="space-y-6">
         <div>
-          <label className="block text-sm mb-1">Display name</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Display name</label>
           <input
             name="displayName"
             required
             defaultValue={row?.displayName ?? ""}
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm mb-1">City</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">City</label>
             <input
               name="city"
               defaultValue={row?.city ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="block text-sm mb-1">State</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">State</label>
             <input
               name="state"
               defaultValue={row?.state ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
             />
           </div>
         </div>
@@ -267,28 +267,28 @@ export default async function SellerSettingsPage() {
 
         {/* Shipping & Tax Settings */}
         <div className="border-t border-neutral-100 pt-4 space-y-4">
-          <h2 className="text-lg font-medium">Shipping & Tax</h2>
+          <h2 className="text-lg font-semibold font-display">Shipping & Tax</h2>
 
           <div>
-            <label className="block text-sm mb-1">Flat shipping rate ($)</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Flat shipping rate ($)</label>
             <input
               type="number"
               step="0.01"
               name="shippingFlatRate"
               defaultValue={row?.shippingFlatRate ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. 7.00"
             />
           </div>
 
           <div>
-            <label className="block text-sm mb-1">Free shipping over ($)</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Free shipping over ($)</label>
             <input
               type="number"
               step="0.01"
               name="freeShippingOver"
               defaultValue={row?.freeShippingOver ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. 50.00"
             />
           </div>
@@ -338,37 +338,37 @@ export default async function SellerSettingsPage() {
 
         {/* 🏷️ Ship-from address */}
         <div className="border-t border-neutral-100 pt-4 space-y-3">
-          <h2 className="text-lg font-medium">Ship from address</h2>
+          <h2 className="text-lg font-semibold font-display">Ship from address</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input name="shipFromName" placeholder="Sender name"
-                   defaultValue={row?.shipFromName ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.shipFromName ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="shipFromLine1" placeholder="Address line 1 *"
-                   defaultValue={row?.shipFromLine1 ?? ""} className="rounded border px-3 py-2 md:col-span-2" />
+                   defaultValue={row?.shipFromLine1 ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm md:col-span-2" />
             <input name="shipFromLine2" placeholder="Address line 2"
-                   defaultValue={row?.shipFromLine2 ?? ""} className="rounded border px-3 py-2 md:col-span-2" />
+                   defaultValue={row?.shipFromLine2 ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm md:col-span-2" />
             <input name="shipFromCity" placeholder="City *"
-                   defaultValue={row?.shipFromCity ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.shipFromCity ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="shipFromState" placeholder="State * (e.g., TX)"
-                   defaultValue={row?.shipFromState ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.shipFromState ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="shipFromPostal" placeholder="Postal code *"
-                   defaultValue={row?.shipFromPostal ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.shipFromPostal ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="shipFromCountry" placeholder="Country *"
-                   defaultValue={row?.shipFromCountry ?? "US"} className="rounded border px-3 py-2" />
+                   defaultValue={row?.shipFromCountry ?? "US"} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
 
         {/* Default package (cm / g) */}
         <div className="border-t border-neutral-100 pt-4 space-y-3">
-          <h2 className="text-lg font-medium">Default package (cm / g)</h2>
+          <h2 className="text-lg font-semibold font-display">Default package (cm / g)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="defaultPkgLengthCm" type="number" step="0.1" placeholder="Length (cm)"
-                   defaultValue={row?.defaultPkgLengthCm ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.defaultPkgLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="defaultPkgWidthCm" type="number" step="0.1" placeholder="Width (cm)"
-                   defaultValue={row?.defaultPkgWidthCm ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.defaultPkgWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="defaultPkgHeightCm" type="number" step="0.1" placeholder="Height (cm)"
-                   defaultValue={row?.defaultPkgHeightCm ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.defaultPkgHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="defaultPkgWeightGrams" type="number" step="1" placeholder="Weight (g)"
-                   defaultValue={row?.defaultPkgWeightGrams ?? ""} className="rounded border px-3 py-2" />
+                   defaultValue={row?.defaultPkgWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
           <p className="text-xs text-neutral-500">
             These defaults are used for live carrier quotes when a listing doesn’t specify its own packaged size/weight.
@@ -376,19 +376,19 @@ export default async function SellerSettingsPage() {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Bio</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Bio</label>
           <textarea
             name="bio"
             rows={5}
             defaultValue={row?.bio ?? ""}
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
           />
         </div>
 
         {/* Workshop Gallery */}
         <div className="border-t border-neutral-100 pt-4 space-y-3">
           <div>
-            <h2 className="text-lg font-medium">Workshop Gallery</h2>
+            <h2 className="text-lg font-semibold font-display">Workshop Gallery</h2>
             <p className="text-sm text-neutral-500 mt-0.5">
               Show buyers your workspace and craftsmanship (up to 8 photos)
             </p>
@@ -399,8 +399,8 @@ export default async function SellerSettingsPage() {
           />
         </div>
 
-        <button type="submit" className="rounded px-4 py-2 bg-black text-white">
-          Save
+        <button type="submit" className="rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800">
+          Save settings
         </button>
       </form>
 

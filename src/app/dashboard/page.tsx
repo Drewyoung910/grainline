@@ -196,7 +196,7 @@ export default async function DashboardPage() {
   const chargesEnabled = guildSeller?.chargesEnabled ?? false;
 
   return (
-    <main className="max-w-6xl mx-auto p-8">
+    <main className="max-w-7xl mx-auto p-8">
       <header className="mb-10">
         <h1 className="text-4xl font-bold font-display">
           Workshop — {me.name ?? me.email.split("@")[0]}

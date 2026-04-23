@@ -188,7 +188,7 @@ export default async function BrowseMetroCategoryPage({
   };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 pb-16 pt-8">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 pt-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(itemListLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbLd) }} />
 

@@ -113,7 +113,7 @@ export default async function AllSellersMapPage({
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
+    <main className="max-w-7xl mx-auto p-6 space-y-6">
       <header className="flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-semibold font-display">Makers near you</h1>

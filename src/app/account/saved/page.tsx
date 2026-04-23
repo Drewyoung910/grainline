@@ -81,7 +81,7 @@ export default async function SavedPage({
     });
 
     return (
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8">
         <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
           <ArrowLeft size={14} /> Back to My Account
         </Link>
@@ -165,7 +165,7 @@ export default async function SavedPage({
   });
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8">
+    <main className="max-w-7xl mx-auto px-4 py-8">
       <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
         <ArrowLeft size={14} /> Back to My Account
       </Link>

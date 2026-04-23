@@ -28,7 +28,7 @@ export default async function AdminReviewsPage() {
   });
 
   return (
-    <main className="p-6 max-w-5xl mx-auto">
+    <main className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-semibold font-display mb-6">All Reviews</h1>
       <div className="space-y-3">
         {reviews.map((r) => (
