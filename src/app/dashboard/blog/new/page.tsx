@@ -37,6 +37,11 @@ export default async function NewBlogPostPage() {
 
     const isStaffUser = author.role === "EMPLOYEE" || author.role === "ADMIN";
 
+    // Rate limit: 3 blog posts per day
+    const { safeRateLimit, blogCreateRatelimit } = await import("@/lib/ratelimit");
+    const { success: rlOk } = await safeRateLimit(blogCreateRatelimit, author.id);
+    if (!rlOk) throw new Error("You can publish up to 3 blog posts per day.");
+
     const title = String(formData.get("title") ?? "").trim();
     const body = String(formData.get("body") ?? "").trim();
     const excerpt = String(formData.get("excerpt") ?? "").trim().slice(0, 200) || null;

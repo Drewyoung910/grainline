@@ -14,7 +14,10 @@ const ReviewSchema = z.object({
   listingId: z.string().min(1),
   ratingX2: z.number().int().min(2).max(10),
   comment: z.string().max(2000).optional().nullable(),
-  photoUrls: z.array(z.string().min(1)).max(6).optional(),
+  photoUrls: z.array(z.string().url().refine(
+    (u) => !process.env.CLOUDFLARE_R2_PUBLIC_URL || u.startsWith(process.env.CLOUDFLARE_R2_PUBLIC_URL),
+    { message: "Invalid photo URL" }
+  )).max(6).optional(),
 });
 
 const REVIEW_WINDOW_DAYS = 90;

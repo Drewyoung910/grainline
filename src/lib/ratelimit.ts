@@ -91,6 +91,14 @@ export const listingCreateRatelimit = new Ratelimit({
   prefix: "rl:listing_create",
 });
 
+// Blog post creation — prevent blog spam
+export const blogCreateRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "24 h"),
+  analytics: true,
+  prefix: "rl:blog_create",
+});
+
 // Commission creation — prevent request spam
 export const commissionCreateRatelimit = new Ratelimit({
   redis,

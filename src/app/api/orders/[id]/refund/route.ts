@@ -183,8 +183,8 @@ export async function POST(
       await createNotification({
         userId: order.buyerId,
         type: "CASE_RESOLVED",
-        title: "Refund issued",
-        body: `A refund of $${(refundAmountCents / 100).toFixed(2)} has been issued for your order.`,
+        title: "Refund from maker",
+        body: `Your maker issued a refund of $${(refundAmountCents / 100).toFixed(2)} for your order.`,
         link: `/dashboard/orders/${orderId}`,
       });
     } catch { /* non-fatal */ }

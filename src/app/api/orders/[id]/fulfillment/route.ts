@@ -84,6 +84,15 @@ export async function POST(
       );
     }
 
+    // Guard: shipping orders can only use shipped/delivered actions, not pickup
+    const currentMethod = authz.order.fulfillmentMethod ?? "SHIPPING";
+    if ((action === "ready_for_pickup" || action === "picked_up") && currentMethod === "SHIPPING") {
+      return NextResponse.json(
+        { error: "Cannot use pickup actions on a shipping order." },
+        { status: 400 },
+      );
+    }
+
     const data: Record<string, unknown> = {};
     const now = new Date();
 

@@ -24,14 +24,22 @@ export async function reviewListingWithAI(listing: {
   }
 
   // Duplicate detection — catch spammers posting same listing repeatedly
+  // Normalize: lowercase, collapse whitespace, strip punctuation/emoji
+  const normalizeTitle = (t: string) =>
+    t.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
   try {
-    const duplicateCount = await prisma.listing.count({
+    // Fetch recent titles from same seller for normalized comparison
+    const recentListings = await prisma.listing.findMany({
       where: {
         sellerId: listing.sellerId,
-        title: { equals: listing.title, mode: 'insensitive' },
-        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-      }
-    })
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      select: { title: true },
+    });
+    const normalizedNew = normalizeTitle(listing.title);
+    const duplicateCount = recentListings.filter(
+      (l) => normalizeTitle(l.title) === normalizedNew
+    ).length;
 
     if (duplicateCount >= 2) {
       return {
@@ -239,7 +247,9 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
     if (!res.ok) return null;
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content?.trim() ?? null;
-    return text ? text.slice(0, 200) : null;
+    if (!text) return null;
+    // Strip any HTML tags or script injection from AI response
+    return text.replace(/<[^>]*>/g, "").slice(0, 200);
   } catch {
     return null;
   }

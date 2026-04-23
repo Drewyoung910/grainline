@@ -56,6 +56,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "This seller is currently on vacation and not accepting new orders." }, { status: 400 });
     }
 
+    // Block private/reserved listings
+    if (listing.isPrivate && listing.reservedForUserId !== me.id) {
+      return NextResponse.json({ error: "This listing is not available." }, { status: 400 });
+    }
+
+    // Cap made-to-order quantity at 1
+    if (listing.listingType === "MADE_TO_ORDER" && quantity > 1) {
+      return NextResponse.json({ error: "Made-to-order items can only be ordered one at a time." }, { status: 400 });
+    }
+
     // Validate variant selections — if listing has variants, buyer must select one per group
     if (listing.variantGroups.length > 0) {
       const allGroupIds = new Set(listing.variantGroups.map((g) => g.id));

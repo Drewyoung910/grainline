@@ -311,9 +311,10 @@ async function createListing(formData: FormData) {
         let updated = 0
         for (let i = 0; i < Math.min(photos.length, aiResult.altTexts.length); i++) {
           if (aiResult.altTexts[i] && !photos[i].altText) {
+            const { sanitizeText: sanitizeAlt } = await import("@/lib/sanitize");
             await prisma.photo.update({
               where: { id: photos[i].id },
-              data: { altText: aiResult.altTexts[i].slice(0, 200) },
+              data: { altText: sanitizeAlt(aiResult.altTexts[i]).slice(0, 200) },
             })
             updated++
           }

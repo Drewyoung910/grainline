@@ -9,7 +9,10 @@ import { z } from "zod";
 
 const BroadcastSchema = z.object({
   message: z.string().min(1).max(500),
-  imageUrl: z.string().url().regex(/^https:\/\//).optional().nullable(),
+  imageUrl: z.string().url().regex(/^https:\/\//).refine(
+    (u) => !process.env.CLOUDFLARE_R2_PUBLIC_URL || u.startsWith(process.env.CLOUDFLARE_R2_PUBLIC_URL),
+    { message: "Invalid image URL origin" }
+  ).optional().nullable(),
   sellersOnly: z.boolean().optional(),
 });
 
