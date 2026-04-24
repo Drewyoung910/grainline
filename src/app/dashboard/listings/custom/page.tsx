@@ -33,12 +33,22 @@ async function createCustomListing(formData: FormData) {
     throw new Error("Missing conversation or buyer context.");
   }
 
+  // Guard: seller must have Stripe connected and not be on vacation/banned
+  if (!seller.chargesEnabled) throw new Error("Connect your bank account in Shop Settings to create listings.");
+  if (seller.vacationMode) throw new Error("Turn off vacation mode before creating listings.");
+
   // Verify seller is a participant in this conversation
   const convo = await prisma.conversation.findFirst({
     where: { id: conversationId, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    select: { id: true },
+    select: { id: true, userAId: true, userBId: true },
   });
   if (!convo) throw new Error("Conversation not found.");
+
+  // Validate reservedForUserId is the OTHER participant in this conversation
+  const otherUserId = convo.userAId === me.id ? convo.userBId : convo.userAId;
+  if (reservedForUserId !== otherUserId) {
+    throw new Error("Reserved user must be the conversation participant.");
+  }
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useToast } from "@/components/Toast";
 
 export default function AddToCartButton({
   listingId,
@@ -18,10 +19,11 @@ export default function AddToCartButton({
   variantRequired?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   async function add() {
     if (variantRequired && selectedVariantOptionIds.length === 0) {
-      alert("Please select all variant options first.");
+      toast("Please select all variant options first.", "error");
       return;
     }
     try {
@@ -43,15 +45,14 @@ export default function AddToCartButton({
         data = { raw: text };
       }
       if (!res.ok) throw new Error(data?.error || "Failed to add to cart");
-      // update header badge
       window.dispatchEvent(new Event("cart:updated"));
       if (redirectToCart) {
         window.location.href = "/cart";
       } else {
-        alert("Added to cart!");
+        toast("Added to cart!", "success");
       }
     } catch (e) {
-      alert((e as Error).message);
+      toast((e as Error).message, "error");
     } finally {
       setLoading(false);
     }

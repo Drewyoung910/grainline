@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useToast } from "@/components/Toast";
 
 export default function FavoriteButton({
   listingId,
@@ -14,6 +15,7 @@ export default function FavoriteButton({
 }) {
   const [saved, setSaved] = useState(initialSaved);
   const [isPending, startTransition] = useTransition();
+  const { toast } = useToast();
 
   const toggle = () => {
     if (isPending) return;
@@ -45,12 +47,12 @@ export default function FavoriteButton({
           setSaved(!next);
           const msg = await res.text();
           console.error("Favorite failed:", msg);
-          alert("Couldn’t update favorites. Please try again.");
+          toast("Couldn’t update favorites. Please try again.", "error");
         }
       } catch (err) {
         setSaved(!next);
         console.error(err);
-        alert("Network error. Please try again.");
+        toast("Network error. Please try again.", "error");
       }
     });
   };

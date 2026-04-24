@@ -419,13 +419,13 @@ export async function sendVerificationApproved(opts: {
   const profileUrl = `${APP_URL}/seller/${profileId}`;
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Congratulations, ${esc(name)}! You are now a <strong>Verified Maker</strong> on Grainline.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the Verified Maker badge, letting buyers know your craft is authentic and recognized by our team.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Congratulations, ${esc(name)}! You are now a <strong>Guild Member</strong> on Grainline.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">Your profile now displays the Guild Member badge, letting buyers know your craft is authentic and recognized by our team.</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">This badge builds trust with buyers and helps your work stand out in search results.</p>
     ${btn("View your profile", profileUrl)}
   `;
 
-  await send(seller.email, "You are now a Verified Maker! ✓", baseTemplate("You're a Verified Maker!", body));
+  await send(seller.email, "You are now a Guild Member! ✓", baseTemplate("You're a Guild Member!", body));
 }
 
 export async function sendVerificationRejected(opts: {
@@ -441,13 +441,13 @@ export async function sendVerificationRejected(opts: {
     : "";
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your Verified Maker application.</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, we've reviewed your Guild Member application.</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Unfortunately we weren't able to approve your application at this time. You're welcome to update your application and reapply whenever you're ready.</p>
     ${notesSection}
     ${btn("Reapply", applyUrl)}
   `;
 
-  await send(seller.email, "Update on your Verified Maker application", baseTemplate("Verification Update", body));
+  await send(seller.email, "Update on your Guild Member application", baseTemplate("Verification Update", body));
 }
 
 export async function sendRefundIssued(opts: {

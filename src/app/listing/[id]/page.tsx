@@ -28,9 +28,13 @@ function siteUrl(path: string) {
 }
 
 export async function generateMetadata(
-  { params }: { params: Promise<{ id: string }> }
+  { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[]>> }
 ): Promise<Metadata> {
   const { id } = await params;
+  const sp = await searchParams;
+  if (sp.preview === "1") {
+    return { robots: { index: false, follow: false } };
+  }
   const listing = await prisma.listing.findUnique({
     where: { id },
     select: {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useToast } from "@/components/Toast";
 import BuyNowCheckoutModal from "./BuyNowCheckoutModal";
 
 type Props = {
@@ -37,6 +38,7 @@ export default function BuyNowButton({
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const { isSignedIn, isLoaded } = useUser();
+  const { toast } = useToast();
 
   return (
     <>
@@ -45,7 +47,7 @@ export default function BuyNowButton({
         disabled={!isLoaded}
         onClick={() => {
           if (variantRequired && selectedVariantOptionIds.length === 0) {
-            alert("Please select all variant options first.");
+            toast("Please select all variant options first.", "error");
             return;
           }
           if (!isSignedIn) {

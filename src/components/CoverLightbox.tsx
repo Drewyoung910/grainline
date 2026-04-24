@@ -43,6 +43,9 @@ export default function CoverLightbox({
 
       {open && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image lightbox"
           className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
           onClick={() => setOpen(false)}
         >

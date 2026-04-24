@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 
 export const viewport: Viewport = {
   themeColor: "#1C1917",
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
