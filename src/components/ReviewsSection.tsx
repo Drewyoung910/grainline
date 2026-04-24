@@ -164,7 +164,6 @@ export default async function ReviewsSection({
           ) : (
             <div className="flex items-start gap-3">
               <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 {mine.reviewer.imageUrl ? (
                   <img src={mine.reviewer.imageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -250,7 +249,6 @@ export default async function ReviewsSection({
               <li key={r.id} className="card-section px-4 py-3">
                 <div className="flex items-start gap-3">
                   <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     {r.reviewer.imageUrl ? (
                       <img src={r.reviewer.imageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -323,6 +321,5 @@ export default async function ReviewsSection({
     </section>
   );
 }
-
 
 

@@ -1144,7 +1144,7 @@ A standalone guide exists for re-adding Canada when demand justifies it (~1–2 
 
 ## UptimeRobot Monitoring (complete)
 
-UptimeRobot configured to ping `https://thegrainline.com/api/health` every 10 minutes. `/api/health` is a static endpoint (`force-static`, no DB, no auth, <5ms response). NotificationBell polls reduced to 10min (600000ms). UnreadBadge polls reduced to 10min (600000ms, was 15s).
+UptimeRobot configured to ping `https://thegrainline.com/api/health` every 10 minutes. `/api/health` is a dynamic deep health endpoint (`force-dynamic`) that checks PostgreSQL with `SELECT 1` and Upstash Redis with `redis.ping()`. It returns 200 when dependencies are healthy and 503 when any check fails. NotificationBell polls reduced to 10min (600000ms). UnreadBadge polls reduced to 10min (600000ms, was 15s).
 
 ## UX Restructuring (complete — 2026-03-30)
 
@@ -2633,7 +2633,7 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - `npx prisma generate` passed.
 - `npx tsc --noEmit --incremental false` passed.
 - Targeted ESLint on all touched files passed with 0 errors.
-- Full `npm run lint` still fails on pre-existing unrelated lint errors (`<a>` instead of `Link`, unescaped entities, old unused vars). No new lint errors were introduced in touched files.
+- Superseded by the 2026-04-24 stabilization pass: full `npm run lint` now exits 0 with warnings.
 
 ## Opus 4.7 Audit Compliance Pass (2026-04-24)
 
@@ -2727,6 +2727,29 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - Case status human-readable labels in UI
 - "Verified Maker" → "Guild Member" in 2 email templates
 
+## Stabilization Pass (2026-04-24)
+
+Small cleanup pass before continuing the larger Opus audit backlog. Goal: make the repo easier and safer for future agents and deployment work without changing product behavior.
+
+### Lint and framework tooling
+- `eslint-config-next` updated from 15.5.15 to 16.2.4 to match Next.js 16.2.4.
+- `eslint.config.mjs` now imports Next's native flat configs (`eslint-config-next/core-web-vitals` and `eslint-config-next/typescript`) instead of using the old `FlatCompat` bridge.
+- Next 16 enables several React Compiler-oriented rules as errors by default. These are disabled for now (`react-hooks/immutability`, `react-hooks/purity`, `react-hooks/set-state-in-effect`, `react-hooks/static-components`) because the existing app has many stable client-effect patterns that should be migrated deliberately, not churned during unrelated fixes.
+- Full `npm run lint` now exits 0. Remaining lint output is 30 warnings only.
+- Fixed the previous blocking lint errors by replacing internal `<a>` navigation with `next/link` and escaping JSX quotes/apostrophes. Also ran ESLint's safe autofix to remove stale disable comments.
+
+### Documentation and launch operations
+- `README.md` replaced the create-next-app boilerplate with Grainline-specific setup, verification, migration, and deployment instructions.
+- `.env.example` expanded from one variable to the full known env surface used by the app.
+- Added `docs/launch-checklist.md` covering production env vars, vendor setup, Prisma deploy, Vercel deploy, and smoke tests.
+- Corrected stale docs that still described `/api/health` as static. It is now a dynamic deep health check for DB + Upstash Redis and returns 503 on dependency failure.
+- Corrected stale business checklist entries: Texas marketplace facilitator registration is complete, and the single-member operating agreement is not a launch blocker for the current launch plan.
+
+### Verification
+- `npx tsc --noEmit --incremental false` passed.
+- `npm run lint` passed with 30 warnings and 0 errors.
+- `npm run build` passed outside the sandbox. The sandboxed build failed first due a Turbopack internal-process port bind restriction (`Operation not permitted`), not a code error.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
@@ -2751,7 +2774,7 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 
 4. **OWASP ZAP scan** — run against preview deployment before go-live
 5. **End-to-end checkout testing** — 10 purchases in Stripe test mode covering: single item, multi-item cart, gift wrapping, made-to-order, pickup, custom order flow
-6. **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars
+6. **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars if not already rotated after exposure
 7. **Add noindex to dev data** — add `robots: { index: false }` to test listings / seller profiles before Google indexes fake data
 
 ### Platform features
@@ -2760,14 +2783,14 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 
 ### Legal / business
 
-- **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars **(LAUNCH BLOCKER)**
+- **Rotate Neon database password** — credentials were visible in terminal output; rotate in Neon dashboard + update Vercel env vars if not already rotated after exposure **(LAUNCH BLOCKER until confirmed current)**
 - **Attorney review** of Terms / Privacy — budget $1,500–$3,000; bring 5-page pre-launch checklist + 196-item attorney discussion list **(LAUNCH BLOCKER)**
 - **EIN** ✅ obtained
 - **Business bank account** ✅ opened
 - **Business address** ✅ — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731
 - **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
-- **Texas marketplace facilitator registration** — required before collecting sales tax **(LAUNCH BLOCKER)**
-- **Operating agreement** — create at attorney meeting **(LAUNCH BLOCKER)**
+- **Texas marketplace facilitator registration** ✅ completed 2026-04-18; first quarterly return due 2026-07-20 and must be filed even with zero sales
+- **Operating agreement** ✅ template sufficient for solo launch; not a launch blocker for single-member Texas LLC
 - **Clickwrap implementation** — build checkbox before account creation; attorney decides if required for launch
 - **Trademark Class 035** filing — ~$350; clearance search first (conflict risk with "Grainline Studio")
 - **Business insurance** — general liability ($30–60/mo) + cyber liability + marketplace product liability
@@ -2910,7 +2933,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 **CSP maintenance**: When adding new third-party services, add their domains to `next.config.ts` `securityHeaders`. Any violations in production appear in Sentry under tag `csp_violation`.
 
-## Business (2026-04-01, updated 2026-04-14)
+## Business (2026-04-01, updated 2026-04-24)
 
 - **Texas LLC filed** ✅
 - **EIN obtained** ✅
@@ -2918,8 +2941,8 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 - **Business address** ✅ — Registered Agents Inc., 5900 Balcones Drive STE 100, Austin, TX 78731; filled in Terms + Privacy (was "[YOUR ADDRESS]")
 - **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
 - **Geo-block**: US-only (Canada removed from middleware + Terms + Privacy)
-- **Operating agreement**: create at attorney meeting — LAUNCH BLOCKER
-- **Texas marketplace facilitator registration**: required before sales tax collection — LAUNCH BLOCKER
+- **Operating agreement** ✅ — template sufficient for solo launch; attorney can polish later
+- **Texas marketplace facilitator registration** ✅ — completed 2026-04-18. First quarterly return due 2026-07-20; file even with zero sales.
 - **Attorney review**: budget $1,500–$3,000; bring pre-launch checklist + 196-item discussion list — LAUNCH BLOCKER
 - **Trademark Class 035 filing**: ~$350 when ready (clearance search needed — "Grainline Studio" conflict)
 - **Business insurance**: general liability + cyber liability + marketplace product liability
@@ -3006,7 +3029,7 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 - **Header `cart:updated` listener gated on `isLoggedIn`**: only fires `loadCartCount` when `loadAll` confirmed sign-in — eliminates signed-out cart 401s on add-to-cart events
 - **`UserAvatarMenu` dropdown z-index confirmed** at `z-[200]`; Clerk modal CSS overrides confirmed in `globals.css` (`z-index: 9999`, `min-width: min(90vw, 800px)`)
 - **ISR not applied** — block filtering requires per-user server rendering on all public listing/browse pages. Per-user caching is the correct future optimization when traffic justifies it.
-- **`/api/health`** — static endpoint (`force-static`, no DB, no auth) for UptimeRobot monitoring
+- **`/api/health`** — dynamic deep endpoint (`force-dynamic`) for UptimeRobot monitoring; checks DB + Upstash Redis and returns 503 on dependency failure
 
 ## Input Validation — Zod (complete — 2026-04-01)
 

@@ -195,9 +195,9 @@ function CartPage() {
       <main className="mx-auto max-w-2xl p-8 space-y-4">
         <h1 className="text-2xl font-semibold">Your cart</h1>
         <p>Your cart is empty.</p>
-        <a href="/browse" className="inline-block rounded border px-3 py-1.5 text-sm">
+        <Link href="/browse" className="inline-block rounded border px-3 py-1.5 text-sm">
           Continue shopping
-        </a>
+        </Link>
       </main>
     );
   }
@@ -251,9 +251,9 @@ function CartPage() {
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <a href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
+                  <Link href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
                     {i.listing.title}
-                  </a>
+                  </Link>
                   {(i.variantLabels ?? []).length > 0 && (
                     <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
                   )}

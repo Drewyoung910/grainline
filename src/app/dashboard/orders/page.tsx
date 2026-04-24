@@ -53,12 +53,12 @@ export default async function OrdersPage() {
             View purchases you’ve made on Grainline.
           </p>
         </div>
-        <a
+        <Link
           href="/browse"
           className="inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50 w-full sm:w-auto text-center shrink-0"
         >
           Continue shopping
-        </a>
+        </Link>
       </header>
 
       {orders.length === 0 ? (
@@ -116,12 +116,12 @@ export default async function OrdersPage() {
                           <div className="h-16 w-16 rounded border bg-neutral-100" />
                         )}
                         <div className="min-w-0 flex-1">
-                          <a
+                          <Link
                             href={`/listing/${it.listingId}`}
                             className="block truncate text-sm font-medium hover:underline"
                           >
                             {it.listing.title}
-                          </a>
+                          </Link>
                           <div className="text-xs text-neutral-500">
                             Seller: {it.listing.seller.displayName}
                           </div>
@@ -181,7 +181,6 @@ export default async function OrdersPage() {
     </main>
   );
 }
-
 
 
 

@@ -31,7 +31,7 @@ export default function FeedClient() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [loading, hasMore, cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, hasMore, cursor]);
 
   // Load first batch on mount
   useEffect(() => {

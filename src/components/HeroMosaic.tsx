@@ -32,7 +32,6 @@ export default function HeroMosaic({ photos }: Props) {
         className="absolute top-0 left-0 h-1/2 flex gap-0 animate-scroll-left w-max"
       >
         {row1.map((item, i) => (
-          // eslint-disable-next-line jsx-a11y/anchor-is-valid
           <a
             key={i}
             href={`/listing/${item.listingId}`}
@@ -56,7 +55,6 @@ export default function HeroMosaic({ photos }: Props) {
         className="absolute bottom-0 left-0 h-1/2 flex gap-0 animate-scroll-right w-max"
       >
         {row2.map((item, i) => (
-          // eslint-disable-next-line jsx-a11y/anchor-is-valid
           <a
             key={i}
             href={`/listing/${item.listingId}`}

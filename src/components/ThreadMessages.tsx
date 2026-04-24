@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Palette, Hammer, Logs } from "@/components/icons";
+import Link from "next/link";
+import { Palette, Logs } from "@/components/icons";
 
 type Msg = {
   id: string;
@@ -236,7 +237,7 @@ export default function ThreadMessages({
                     <strong>{card.sellerName ?? "A maker"}</strong> expressed interest in your commission request
                   </p>
                   {card.commissionTitle && (
-                    <p className="text-sm font-medium text-neutral-900">"{card.commissionTitle}"</p>
+                    <p className="text-sm font-medium text-neutral-900">&ldquo;{card.commissionTitle}&rdquo;</p>
                   )}
                   {(card.budgetMinCents || card.budgetMaxCents) && (
                     <p className="text-xs text-neutral-500">
@@ -252,12 +253,12 @@ export default function ThreadMessages({
                     <p className="text-xs text-neutral-500">Timeline: {card.timeline}</p>
                   )}
                   {card.commissionId && (
-                    <a
+                    <Link
                       href={`/commission/${card.commissionId}`}
                       className="inline-flex items-center gap-1 text-xs text-teal-700 underline hover:text-teal-900 mt-1"
                     >
                       View full request →
-                    </a>
+                    </Link>
                   )}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-400">
@@ -306,12 +307,12 @@ export default function ThreadMessages({
                     </p>
                   )}
                   {isSeller && (
-                    <a
+                    <Link
                       href={`/dashboard/listings/custom?conversationId=${convoId}&buyerId=${m.senderId}`}
                       className="inline-flex items-center gap-1 rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 mt-1"
                     >
                       Create Custom Listing →
-                    </a>
+                    </Link>
                   )}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">
@@ -344,12 +345,12 @@ export default function ThreadMessages({
                     </p>
                   )}
                   {link.listingId && (
-                    <a
+                    <Link
                       href={`/listing/${link.listingId}`}
                       className="inline-flex items-center gap-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 mt-1"
                     >
                       Purchase This Piece →
-                    </a>
+                    </Link>
                   )}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">
@@ -465,7 +466,6 @@ export default function ThreadMessages({
     </div>
   );
 }
-
 
 
 

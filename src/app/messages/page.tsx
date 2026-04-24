@@ -296,7 +296,6 @@ export default async function MessagesPage({
                   <div className="flex items-start gap-3">
                     {/* Avatar */}
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       {other?.imageUrl ? (
                         <img src={other.imageUrl} alt="" className="h-full w-full object-cover" />
                       ) : null}
@@ -348,6 +347,5 @@ export default async function MessagesPage({
     </main>
   );
 }
-
 
 

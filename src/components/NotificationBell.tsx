@@ -150,7 +150,6 @@ export default function NotificationBell({
     schedulePollRef.current?.();
   }, [fetchNotifications]);
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   const schedulePollRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {

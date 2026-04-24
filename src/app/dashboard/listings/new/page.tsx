@@ -1,5 +1,6 @@
 // src/app/dashboard/listings/new/page.tsx
 import { auth } from "@clerk/nextjs/server";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
@@ -405,7 +406,7 @@ export default async function NewListingPage({
       {!chargesEnabled && (
         <div className="mb-6 bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 rounded">
           Connect your bank account in{" "}
-          <a href="/dashboard/seller" className="underline font-medium">Shop Settings</a>{" "}
+          <Link href="/dashboard/seller" className="underline font-medium">Shop Settings</Link>{" "}
           to publish. You can still save drafts — they won&apos;t be visible to buyers until published.
         </div>
       )}
@@ -519,7 +520,7 @@ export default async function NewListingPage({
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">
-            Enter the dimensions/weight of the packaged item (ready to ship). We'll convert to cm/grams internally.
+            Enter the dimensions/weight of the packaged item (ready to ship). We&apos;ll convert to cm/grams internally.
           </p>
         </div>
 

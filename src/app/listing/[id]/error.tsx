@@ -1,6 +1,8 @@
 // src/app/listing/[id]/error.tsx
 "use client";
 
+import Link from "next/link";
+
 export default function ListingError({
   error,
   reset,
@@ -30,9 +32,9 @@ export default function ListingError({
           >
             Try again
           </button>
-          <a href="/browse" className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+          <Link href="/browse" className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
             Back to Browse
-          </a>
+          </Link>
         </div>
 
         {process.env.NODE_ENV === "development" && (
