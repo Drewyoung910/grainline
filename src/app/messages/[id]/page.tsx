@@ -14,6 +14,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import Link from "next/link";
 import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
 import BlockReportButton from "@/components/BlockReportButton";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 
 export default async function ThreadPage({
   params,
@@ -141,8 +142,7 @@ export default async function ThreadPage({
     // 1) attachments -> each as its own message (JSON payload in body)
     for (const a of atts) {
       if (!a?.url) continue;
-      const R2_ORIGIN = process.env.CLOUDFLARE_R2_PUBLIC_URL;
-      if (R2_ORIGIN && !a.url.startsWith(R2_ORIGIN + "/")) continue; // skip non-R2 URLs
+      if (!isR2PublicUrl(a.url)) continue;
       const payload = JSON.stringify({
         kind: "file",
         url: a.url,
@@ -362,7 +362,6 @@ export default async function ThreadPage({
     </main>
   );
 }
-
 
 
 

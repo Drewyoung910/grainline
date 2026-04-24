@@ -2,7 +2,15 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
+function assertNonProductionSeed() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("Refusing to run seed in production.");
+  }
+}
+
 async function main() {
+  assertNonProductionSeed();
+
   // Create a dummy user/seller (not tied to Clerk)
   const user = await prisma.user.upsert({
     where: { clerkId: "seed_clerk_user" },

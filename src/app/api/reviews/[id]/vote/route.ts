@@ -47,12 +47,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
         await tx.reviewVote.delete({
           where: { reviewId_userId: { reviewId: id, userId: me.id } },
         });
-        const reviewUpdated = await tx.review.update({
+        await tx.$executeRaw`
+          UPDATE "Review"
+          SET "helpfulCount" = GREATEST("helpfulCount" - 1, 0)
+          WHERE id = ${id}
+        `;
+        const reviewUpdated = await tx.review.findUnique({
           where: { id },
-          data: { helpfulCount: { decrement: 1 } },
           select: { helpfulCount: true },
         });
-        return { helpfulCount: reviewUpdated.helpfulCount, voted: false };
+        return { helpfulCount: reviewUpdated?.helpfulCount ?? 0, voted: false };
       }
       await tx.reviewVote.create({
         data: { reviewId: id, userId: me.id, value: 1 },

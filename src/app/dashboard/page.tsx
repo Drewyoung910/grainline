@@ -3,13 +3,11 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart, Eye, Heart } from "@/components/icons";
-import { createNotification } from "@/lib/notifications";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
@@ -33,8 +31,10 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
   });
   if (!listing || listing.seller.userId !== me.id) return;
 
-  // REJECTED listings cannot be unhidden or set active — must go through resubmit/AI review flow
-  if (listing.status === "REJECTED" && (nextStatus === "ACTIVE" || nextStatus === "HIDDEN")) return;
+  // Seller-initiated reactivation must go through publishListingAction so AI/admin
+  // moderation cannot be bypassed by forged server-action posts.
+  if (nextStatus === "ACTIVE") return;
+  if (listing.status === "REJECTED" && nextStatus === "HIDDEN") return;
 
   await prisma.listing.update({
     where: { id: listingId },
@@ -61,31 +61,6 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
         data: { listingsBelowThresholdSince: null },
       });
     }
-  }
-
-  // Notify followers when a listing becomes active for the first time
-  if (nextStatus === "ACTIVE" && listing.status !== "ACTIVE") {
-    after(async () => {
-      try {
-        const followers = await prisma.follow.findMany({
-          where: { sellerProfileId: listing.sellerId },
-          select: { followerId: true },
-        });
-        if (followers.length > 0) {
-          await Promise.all(
-            followers.map((f) =>
-              createNotification({
-                userId: f.followerId,
-                type: "FOLLOWED_MAKER_NEW_LISTING",
-                title: `New listing from ${listing.seller.displayName}`,
-                body: listing.title,
-                link: `/listing/${listing.id}`,
-              })
-            )
-          );
-        }
-      } catch { /* non-fatal */ }
-    });
   }
 
   revalidatePath("/dashboard");
@@ -426,10 +401,6 @@ export default async function DashboardPage() {
           <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
             {listings.map((l) => {
               const thumb = l.photos[0]?.url;
-              const hideAction =
-                l.status === "HIDDEN"
-                  ? setStatus.bind(null, l.id, ListingStatus.ACTIVE)
-                  : setStatus.bind(null, l.id, ListingStatus.HIDDEN);
 
               return (
                 <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
@@ -517,11 +488,15 @@ export default async function DashboardPage() {
                             </form>
                           )}
 
-                          <form action={hideAction}>
-                            <button className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50">
-                              {l.status === "HIDDEN" ? "Unhide" : "Hide"}
-                            </button>
-                          </form>
+                          {l.status === "HIDDEN" ? (
+                            <ResubmitButton listingId={l.id} label="Unhide" />
+                          ) : l.status !== "DRAFT" ? (
+                            <form action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}>
+                              <button className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50">
+                                Hide
+                              </button>
+                            </form>
+                          ) : null}
                         </>
                       )}
 
@@ -601,7 +576,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

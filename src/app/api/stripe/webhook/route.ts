@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       type StripeSession = {
         id: string;
         currency?: string | null;
@@ -862,7 +862,13 @@ export async function POST(req: Request) {
     }
 
     if (event.type === "account.updated") {
-      const account = event.data.object as { id: string; charges_enabled?: boolean };
+      const account = event.data.object as {
+        id: string;
+        charges_enabled?: boolean;
+        payouts_enabled?: boolean;
+        details_submitted?: boolean;
+        requirements?: { disabled_reason?: string | null } | null;
+      };
       if (account.id) {
         const seller = await prisma.sellerProfile.findFirst({
           where: { stripeAccountId: account.id },
@@ -874,7 +880,12 @@ export async function POST(req: Request) {
         });
 
         if (seller) {
-          const newChargesEnabled = account.charges_enabled ?? false;
+          const newChargesEnabled = Boolean(
+            account.charges_enabled &&
+            account.payouts_enabled &&
+            account.details_submitted &&
+            !account.requirements?.disabled_reason
+          );
           if (seller.chargesEnabled !== newChargesEnabled) {
             await prisma.sellerProfile.update({
               where: { id: seller.id },
@@ -890,6 +901,103 @@ export async function POST(req: Request) {
               });
             }
           }
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as {
+        id?: string;
+        amount_refunded?: number;
+        refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null }> };
+      };
+      if (charge.id) {
+        const latestRefund = charge.refunds?.data?.find((refund) => refund.status !== "failed");
+        const latestRefundId = latestRefund?.id ?? `external:${charge.id}`;
+        const existingOrder = await prisma.order.findFirst({
+          where: { stripeChargeId: charge.id },
+          select: { id: true, sellerRefundId: true },
+        });
+        if (existingOrder && existingOrder.sellerRefundId !== latestRefundId) {
+          await prisma.order.update({
+            where: { id: existingOrder.id },
+            data: {
+              sellerRefundId: latestRefundId,
+              sellerRefundAmountCents: charge.amount_refunded ?? latestRefund?.amount ?? 0,
+              reviewNeeded: true,
+              reviewNote: "Stripe refund was created outside Grainline.",
+            },
+          });
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type.startsWith("charge.dispute.")) {
+      const dispute = event.data.object as { id?: string; charge?: string | { id?: string } | null; amount?: number | null; reason?: string | null };
+      const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+      if (chargeId) {
+        const order = await prisma.order.findFirst({
+          where: { stripeChargeId: chargeId },
+          select: {
+            id: true,
+            items: {
+              take: 1,
+              select: {
+                listing: {
+                  select: {
+                    seller: {
+                      select: { userId: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (order) {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: {
+              reviewNeeded: true,
+              reviewNote: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
+            },
+          });
+          const sellerUserId = order.items[0]?.listing.seller.userId;
+          if (sellerUserId) {
+            await createNotification({
+              userId: sellerUserId,
+              type: "CASE_OPENED",
+              title: "Payment dispute opened",
+              body: `Stripe reported a dispute for order ${order.id}.`,
+              link: `/dashboard/sales/${order.id}`,
+            });
+          }
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "payout.failed") {
+      const accountId = (event as { account?: string }).account;
+      if (accountId) {
+        const seller = await prisma.sellerProfile.findFirst({
+          where: { stripeAccountId: accountId },
+          select: { userId: true },
+        });
+        if (seller) {
+          await prisma.sellerProfile.updateMany({
+            where: { stripeAccountId: accountId },
+            data: { chargesEnabled: false, vacationMode: true },
+          });
+          await createNotification({
+            userId: seller.userId,
+            type: "VERIFICATION_REJECTED",
+            title: "Payout failed",
+            body: "Stripe could not complete a payout. Update your Stripe account before taking new orders.",
+            link: "/dashboard/seller",
+          });
         }
       }
       return NextResponse.json({ received: true });
@@ -981,14 +1089,24 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    // P2002 = unique constraint violation (duplicate webhook delivery)
-    if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "P2002") {
-      return NextResponse.json({ ok: true }); // duplicate, already processed
+    // Only stripeSessionId P2002s are duplicate webhook deliveries. Other unique
+    // constraint failures are real bugs and must surface.
+    const p2002Target = err && typeof err === "object" && "meta" in err
+      ? (err as { meta?: { target?: string[] | string } }).meta?.target
+      : undefined;
+    const duplicateSession =
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: string }).code === "P2002" &&
+      (Array.isArray(p2002Target)
+        ? p2002Target.includes("stripeSessionId")
+        : typeof p2002Target === "string" && p2002Target.includes("stripeSessionId"));
+    if (duplicateSession) {
+      return NextResponse.json({ ok: true });
     }
     console.error("Stripe webhook handler error:", err);
     Sentry.captureException(err, { tags: { source: "stripe_webhook" } });
     return new NextResponse("Webhook error", { status: 500 });
   }
 }
-
-

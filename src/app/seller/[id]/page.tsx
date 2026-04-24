@@ -154,7 +154,7 @@ export default async function SellerPublicPage({
 
   // Fetch published blog posts by this seller
   const sellerBlogPosts = await prisma.blogPost.findMany({
-    where: { sellerProfileId: seller.id, status: "PUBLISHED" },
+    where: { sellerProfileId: seller.id, status: "PUBLISHED", author: { banned: false, deletedAt: null } },
     orderBy: { publishedAt: "desc" },
     take: 3,
     select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },

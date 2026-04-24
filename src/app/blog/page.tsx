@@ -57,6 +57,7 @@ export default async function BlogIndexPage({
     ...(tagsFilter.length > 0 ? { tags: { hasSome: tagsFilter } } : {}),
     ...(authorFilter ? { sellerProfileId: authorFilter } : {}),
     ...(blockedUserIdList.length > 0 ? { authorId: { notIn: blockedUserIdList } } : {}),
+    author: { banned: false, deletedAt: null },
   };
 
   type PostSelect = {
@@ -88,14 +89,17 @@ export default async function BlogIndexPage({
     // GIN full-text ranked search
     type RankedRow = { id: string };
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
-      SELECT id FROM "BlogPost"
-      WHERE status = 'PUBLISHED'
+      SELECT "BlogPost".id FROM "BlogPost"
+      JOIN "User" ON "User".id = "BlogPost"."authorId"
+      WHERE "BlogPost".status = 'PUBLISHED'
+        AND "User".banned = false
+        AND "User"."deletedAt" IS NULL
         AND to_tsvector('english',
-          coalesce(title, '') || ' ' || coalesce(excerpt, '') || ' ' || coalesce(body, '')
+          coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
         ) @@ plainto_tsquery('english', ${q})
       ORDER BY ts_rank(
         to_tsvector('english',
-          coalesce(title, '') || ' ' || coalesce(excerpt, '') || ' ' || coalesce(body, '')
+          coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
         ),
         plainto_tsquery('english', ${q})
       ) DESC

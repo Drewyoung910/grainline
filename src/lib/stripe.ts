@@ -5,6 +5,5 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  // apiVersion defaults to SDK bundled version
+  apiVersion: "2025-10-29.clover",
 });
-

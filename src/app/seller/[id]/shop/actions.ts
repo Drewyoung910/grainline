@@ -2,8 +2,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
-import { createNotification } from "@/lib/notifications";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { ListingStatus } from "@prisma/client";
 
@@ -46,34 +44,11 @@ export async function hideListingAction(listingId: string) {
 export async function unhideListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
-  // REJECTED listings cannot be unhidden — seller must edit and resubmit for review
+  // Seller-initiated reactivation must go through AI/admin review.
   if (listing.status === "REJECTED") return;
   // Soft-deleted listings (isPrivate=true + HIDDEN) cannot be unhidden — they're "deleted"
   if (listing.status === "HIDDEN" && listing.isPrivate) return;
-  await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
-  await syncThreshold(listing.sellerId);
-  // Notify followers
-  after(async () => {
-    try {
-      const followers = await prisma.follow.findMany({
-        where: { sellerProfileId: listing.sellerId },
-        select: { followerId: true },
-      });
-      if (followers.length > 0) {
-        await Promise.all(
-          followers.map((f) =>
-            createNotification({
-              userId: f.followerId,
-              type: "FOLLOWED_MAKER_NEW_LISTING",
-              title: `New listing from ${listing.seller.displayName}`,
-              body: listing.title,
-              link: `/listing/${listing.id}`,
-            })
-          )
-        );
-      }
-    } catch { /* non-fatal */ }
-  });
+  await publishListingAction(listingId);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
 }
 
@@ -106,10 +81,9 @@ export async function deleteListingAction(listingId: string) {
 export async function markAvailableAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
-  // REJECTED listings cannot bypass moderation via markAvailable
+  // Seller-initiated reactivation must go through AI/admin review.
   if (listing.status === "REJECTED") return;
-  await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
-  await syncThreshold(listing.sellerId);
+  await publishListingAction(listingId);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
   revalidatePath("/dashboard");
 }
@@ -184,17 +158,21 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         metadata: { flags: aiResult.flags, confidence: aiResult.confidence },
       });
       revalidatePath(`/seller/${listing.sellerId}/shop`);
+      revalidatePath("/dashboard");
       return { status: "PENDING_REVIEW" };
     } else {
       await prisma.listing.update({ where: { id: listingId }, data: { status: "ACTIVE", rejectionReason: null } });
       await syncThreshold(listing.sellerId);
       revalidatePath(`/seller/${listing.sellerId}/shop`);
+      revalidatePath("/dashboard");
+      revalidatePath("/browse");
       return { status: "ACTIVE" };
     }
   } catch {
     // Fail closed: AI review error → send to admin review (not ACTIVE)
     await prisma.listing.update({ where: { id: listingId }, data: { status: "PENDING_REVIEW", rejectionReason: null } });
     revalidatePath(`/seller/${listing.sellerId}/shop`);
+    revalidatePath("/dashboard");
     return { status: "PENDING_REVIEW" as const };
   }
 }

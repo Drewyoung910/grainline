@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
+import { verifyCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function GET(req: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  const bearer = req.headers.get("authorization");
-  if (!cronSecret || bearer !== `Bearer ${cronSecret}`) {
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -29,4 +28,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

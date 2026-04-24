@@ -1,7 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
+function assertNonProductionSeed() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("Refusing to run destructive seed in production.");
+  }
+}
+
 async function main() {
+  assertNonProductionSeed();
+
   // Ensure you (User) exist – visit /dashboard once before seeding
   const me = await prisma.user.findFirst();
   if (!me) throw new Error("No user yet. Visit /dashboard once while signed in, then re-run.");
@@ -62,4 +70,3 @@ async function main() {
 }
 
 main().finally(() => prisma.$disconnect());
-

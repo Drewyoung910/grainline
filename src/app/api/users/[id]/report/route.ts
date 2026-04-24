@@ -8,7 +8,7 @@ import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
   details: z.string().max(500).optional(),
-  targetType: z.string().max(50).optional(),
+  targetType: z.enum(["USER", "LISTING", "ORDER", "MESSAGE", "BLOG_POST", "REVIEW", "COMMISSION_REQUEST"]).optional(),
   targetId: z.string().max(100).optional(),
 });
 
@@ -28,11 +28,61 @@ export async function POST(
   const { id: reportedId } = await params;
   if (reportedId === me.id) return NextResponse.json({ error: "Cannot report yourself" }, { status: 400 });
 
+  const reportedUser = await prisma.user.findUnique({
+    where: { id: reportedId },
+    select: { id: true, deletedAt: true },
+  });
+  if (!reportedUser || reportedUser.deletedAt) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
   let body;
   try {
     body = Schema.parse(await req.json());
   } catch {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
+  if ((body.targetType && !body.targetId) || (!body.targetType && body.targetId)) {
+    return NextResponse.json({ error: "targetType and targetId must be provided together" }, { status: 400 });
+  }
+
+  if (body.targetType && body.targetId) {
+    let exists = false;
+    switch (body.targetType) {
+      case "USER":
+        exists = body.targetId === reportedId;
+        break;
+      case "LISTING":
+        exists = await prisma.listing.count({ where: { id: body.targetId, seller: { userId: reportedId } } }) > 0;
+        break;
+      case "ORDER":
+        exists = await prisma.order.count({ where: { id: body.targetId, OR: [{ buyerId: reportedId }, { items: { some: { listing: { seller: { userId: reportedId } } } } }] } }) > 0;
+        break;
+      case "MESSAGE":
+        exists = await prisma.message.count({ where: { id: body.targetId, OR: [{ senderId: reportedId }, { recipientId: reportedId }] } }) > 0;
+        break;
+      case "BLOG_POST":
+        exists = await prisma.blogPost.count({ where: { id: body.targetId, authorId: reportedId } }) > 0;
+        break;
+      case "REVIEW":
+        exists = await prisma.review.count({
+          where: {
+            id: body.targetId,
+            OR: [
+              { reviewerId: reportedId },
+              { listing: { seller: { userId: reportedId } } },
+            ],
+          },
+        }) > 0;
+        break;
+      case "COMMISSION_REQUEST":
+        exists = await prisma.commissionRequest.count({ where: { id: body.targetId, buyerId: reportedId } }) > 0;
+        break;
+    }
+    if (!exists) {
+      return NextResponse.json({ error: "Invalid report target" }, { status: 400 });
+    }
   }
 
   await prisma.userReport.create({

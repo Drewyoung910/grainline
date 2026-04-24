@@ -31,8 +31,12 @@ export async function POST(req: Request) {
   const { success, reset } = await safeRateLimit(customOrderRequestRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many custom order requests. Try again later.");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, name: true, email: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, name: true, email: true, banned: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   let parsed;
   try {
@@ -44,7 +48,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { sellerUserId, description, dimensions, budget, timeline, listingId, listingTitle } = parsed;
+  const { sellerUserId, description, dimensions, budget, timeline, listingId } = parsed;
 
   if (me.id === sellerUserId) {
     return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 });
@@ -65,11 +69,45 @@ export async function POST(req: Request) {
 
   const seller = await prisma.user.findUnique({
     where: { id: sellerUserId },
-    select: { id: true, sellerProfile: { select: { id: true, acceptsCustomOrders: true } } },
+    select: {
+      id: true,
+      banned: true,
+      sellerProfile: {
+        select: {
+          id: true,
+          acceptsCustomOrders: true,
+          chargesEnabled: true,
+          vacationMode: true,
+        },
+      },
+    },
   });
   if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+  if (seller.banned) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
   if (!seller.sellerProfile) return NextResponse.json({ error: "This user is not a seller." }, { status: 400 });
   if (!seller.sellerProfile.acceptsCustomOrders) return NextResponse.json({ error: "This seller is not accepting custom orders." }, { status: 400 });
+  if (!seller.sellerProfile.chargesEnabled || seller.sellerProfile.vacationMode) {
+    return NextResponse.json({ error: "This seller is not accepting new orders right now." }, { status: 400 });
+  }
+
+  let contextListingId: string | null = null;
+  let contextListingTitle: string | null = null;
+  if (listingId) {
+    const listing = await prisma.listing.findFirst({
+      where: {
+        id: listingId,
+        sellerId: seller.sellerProfile.id,
+        status: "ACTIVE",
+        isPrivate: false,
+      },
+      select: { id: true, title: true },
+    });
+    if (!listing) {
+      return NextResponse.json({ error: "Invalid listing context." }, { status: 400 });
+    }
+    contextListingId = listing.id;
+    contextListingTitle = listing.title;
+  }
 
   // Upsert conversation (canonical sort, race-safe — same logic as /messages/new)
   const [a, b] = [me.id, sellerUserId].sort((x, y) => (x < y ? -1 : 1));
@@ -82,7 +120,7 @@ export async function POST(req: Request) {
         data: {
           userAId: a,
           userBId: b,
-          contextListingId: listingId ?? undefined,
+          contextListingId: contextListingId ?? undefined,
         },
       });
     } catch (e) {
@@ -98,10 +136,10 @@ export async function POST(req: Request) {
   if (!convo) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
 
   // Attach listing context if not already set
-  if (listingId && !convo.contextListingId) {
+  if (contextListingId && !convo.contextListingId) {
     await prisma.conversation.update({
       where: { id: convo.id },
-      data: { contextListingId: listingId },
+      data: { contextListingId },
     });
   }
 
@@ -115,8 +153,8 @@ export async function POST(req: Request) {
     budget: budgetNum,
     timeline: timelineStr,
     timelineLabel,
-    listingId: listingId ?? null,
-    listingTitle: listingTitle ?? null,
+    listingId: contextListingId,
+    listingTitle: contextListingTitle,
   });
 
   await prisma.message.create({

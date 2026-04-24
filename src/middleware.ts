@@ -47,6 +47,17 @@ const isAdminPage = createRouteMatcher(["/admin(.*)"]);
 const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
 
+function isGeoAllowedApiPath(pathname: string): boolean {
+  return (
+    pathname === "/api/health" ||
+    pathname === "/api/health/deep" ||
+    pathname === "/api/csp-report" ||
+    pathname.startsWith("/api/cron") ||
+    pathname === "/api/clerk/webhook" ||
+    pathname === "/api/stripe/webhook"
+  );
+}
+
 export default clerkMiddleware(async (auth, req) => {
   // Geo-blocking — US only. Next 16 no longer exposes request.geo, so use
   // Vercel's country header when present.
@@ -56,7 +67,7 @@ export default clerkMiddleware(async (auth, req) => {
     // Allow not-available page, static assets, and API routes needed for the page
     const isAllowed =
       pathname.startsWith("/not-available") ||
-      pathname.startsWith("/api") ||          // API routes must never be geo-blocked (Stripe/Clerk webhooks, etc.)
+      isGeoAllowedApiPath(pathname) ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/favicon") ||
       pathname.startsWith("/logo") ||

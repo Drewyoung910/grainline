@@ -9,7 +9,7 @@ function normalizedUrl(input: string): URL | null {
 }
 
 export function isR2PublicUrl(input: string): boolean {
-  if (!R2_PUBLIC_URL) return true;
+  if (!R2_PUBLIC_URL) return false;
 
   const candidate = normalizedUrl(input);
   const r2Base = normalizedUrl(R2_PUBLIC_URL);

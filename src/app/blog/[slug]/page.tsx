@@ -25,9 +25,16 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = await prisma.blogPost.findUnique({
     where: { slug },
-    select: { title: true, metaDescription: true, excerpt: true, coverImageUrl: true },
+    select: {
+      title: true,
+      metaDescription: true,
+      excerpt: true,
+      coverImageUrl: true,
+      status: true,
+      author: { select: { banned: true, deletedAt: true } },
+    },
   });
-  if (!post) return {};
+  if (!post || post.status !== "PUBLISHED" || post.author.banned || post.author.deletedAt) return {};
 
   const description = post.metaDescription ?? post.excerpt ?? "";
   const ogImages = post.coverImageUrl
@@ -65,7 +72,7 @@ export default async function BlogPostPage({
   const post = await prisma.blogPost.findUnique({
     where: { slug },
     include: {
-      author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
+      author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
         where: { approved: true, parentId: null },
@@ -99,7 +106,7 @@ export default async function BlogPostPage({
       },
     },
   });
-  if (!post || post.status !== "PUBLISHED") return notFound();
+  if (!post || post.status !== "PUBLISHED" || post.author.banned || post.author.deletedAt) return notFound();
 
   // Auth
   const { userId } = await auth();
@@ -460,4 +467,3 @@ export default async function BlogPostPage({
     </main>
   );
 }
-

@@ -9,6 +9,7 @@ import {
   ADMIN_PIN_MAX_AGE_SECONDS,
   createAdminPinCookieValue,
 } from "@/lib/adminPin";
+import { createHash, timingSafeEqual } from "crypto";
 
 // 5 attempts per 15 minutes per user — fail closed
 const pinRatelimit = new Ratelimit({
@@ -42,7 +43,10 @@ export async function POST(req: Request) {
   const adminPin = process.env.ADMIN_PIN;
 
   if (!adminPin) {
-    if (process.env.NODE_ENV === "production") {
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.ALLOW_DEV_ADMIN_PIN_BYPASS !== "true"
+    ) {
       return NextResponse.json({ error: "Admin PIN is not configured" }, { status: 503 });
     }
 
@@ -63,13 +67,9 @@ export async function POST(req: Request) {
   }
 
   // Constant-time comparison to prevent timing attacks
-  if (pin.length !== adminPin.length) {
-    return NextResponse.json({}, { status: 401 });
-  }
-  let match = true;
-  for (let i = 0; i < pin.length; i++) {
-    if (pin[i] !== adminPin[i]) match = false;
-  }
+  const pinDigest = createHash("sha256").update(pin).digest();
+  const adminPinDigest = createHash("sha256").update(adminPin).digest();
+  const match = timingSafeEqual(pinDigest, adminPinDigest);
   if (!match) {
     return NextResponse.json({}, { status: 401 });
   }

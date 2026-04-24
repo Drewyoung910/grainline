@@ -7,6 +7,7 @@ import { calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
+import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -22,9 +23,10 @@ export default async function EditBlogPostPage({
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, banned: true },
   });
   if (!me) redirect("/sign-in");
+  if (me.banned) redirect("/dashboard");
 
   const post = await prisma.blogPost.findUnique({
     where: { id },
@@ -48,10 +50,17 @@ export default async function EditBlogPostPage({
     "use server";
     const { userId: uid } = await auth();
     if (!uid) redirect("/sign-in");
-    const author = await prisma.user.findUnique({ where: { clerkId: uid }, select: { id: true, role: true } });
+    const author = await prisma.user.findUnique({
+      where: { clerkId: uid },
+      select: { id: true, role: true, banned: true },
+    });
     if (!author) redirect("/sign-in");
+    if (author.banned) throw new Error("Account is suspended.");
 
-    const existing = await prisma.blogPost.findUnique({ where: { id }, select: { authorId: true, status: true, publishedAt: true, slug: true } });
+    const existing = await prisma.blogPost.findUnique({
+      where: { id },
+      select: { authorId: true, status: true, publishedAt: true, slug: true, sellerProfileId: true },
+    });
     if (!existing || existing.authorId !== author.id) return;
 
     const isStaffUser = author.role === "EMPLOYEE" || author.role === "ADMIN";
@@ -60,8 +69,8 @@ export default async function EditBlogPostPage({
     const body = String(formData.get("body") ?? "").trim();
     const excerpt = String(formData.get("excerpt") ?? "").trim().slice(0, 200) || null;
     const metaDescription = String(formData.get("metaDescription") ?? "").trim().slice(0, 160) || null;
-    const coverImageUrl = String(formData.get("coverImageUrl") ?? "").trim() || null;
-    const videoUrl = String(formData.get("videoUrl") ?? "").trim() || null;
+    const coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"));
+    const videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
     const type = (formData.get("type") as BlogPostType) ?? "STANDARD";
     const newStatus = (formData.get("status") as "DRAFT" | "PUBLISHED" | "ARCHIVED") ?? "DRAFT";
     const tagsRaw = String(formData.get("tags") ?? "").trim();
@@ -76,6 +85,20 @@ export default async function EditBlogPostPage({
     if (!allowedTypes.includes(type)) return;
 
     const readingTimeMinutes = calculateReadingTime(body);
+    const uniqueFeaturedListingIds = [...new Set(featuredListingIds)].slice(0, 6);
+    const verifiedFeaturedListings = uniqueFeaturedListingIds.length
+      ? await prisma.listing.findMany({
+          where: {
+            id: { in: uniqueFeaturedListingIds },
+            status: "ACTIVE",
+            ...(isStaffUser ? {} : { sellerId: existing.sellerProfileId ?? "__none" }),
+          },
+          select: { id: true },
+        })
+      : [];
+    const verifiedFeaturedListingIds = uniqueFeaturedListingIds.filter((featuredId) =>
+      verifiedFeaturedListings.some((listing) => listing.id === featuredId)
+    );
 
     // Set publishedAt if transitioning to PUBLISHED
     let publishedAt: Date | null | undefined = undefined;
@@ -97,7 +120,7 @@ export default async function EditBlogPostPage({
         type,
         status: newStatus,
         tags,
-        featuredListingIds,
+        featuredListingIds: verifiedFeaturedListingIds,
         readingTimeMinutes,
         ...(publishedAt !== undefined ? { publishedAt } : {}),
       },

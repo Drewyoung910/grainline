@@ -2,7 +2,13 @@
 import { useState, useTransition } from "react";
 import { publishListingAction } from "@/app/seller/[id]/shop/actions";
 
-export default function ResubmitButton({ listingId }: { listingId: string }) {
+export default function ResubmitButton({
+  listingId,
+  label = "Resubmit",
+}: {
+  listingId: string;
+  label?: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
@@ -29,7 +35,7 @@ export default function ResubmitButton({ listingId }: { listingId: string }) {
         }}
         className="text-xs rounded border border-amber-400 text-amber-700 px-2 py-1 hover:bg-amber-50 disabled:opacity-50"
       >
-        {isPending ? "..." : "Resubmit"}
+        {isPending ? "..." : label}
       </button>
       {message && <span className="text-[10px] text-neutral-500">{message}</span>}
     </>

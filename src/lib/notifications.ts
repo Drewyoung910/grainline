@@ -38,7 +38,7 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
     return prefs[prefKey] !== false;
   } catch (e) {
     console.error("Failed to check email preference:", e);
-    return true;
+    return false;
   }
 }
 

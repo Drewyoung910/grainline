@@ -38,7 +38,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.blogPost.findMany({
-      where: { status: "PUBLISHED" },
+      where: { status: "PUBLISHED", author: { banned: false, deletedAt: null } },
       select: { slug: true, publishedAt: true, updatedAt: true },
       orderBy: { publishedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,

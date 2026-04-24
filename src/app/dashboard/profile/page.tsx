@@ -14,6 +14,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -62,6 +63,14 @@ async function updateSellerProfile(formData: FormData) {
     parsed.hash = "";
     return parsed.toString();
   }
+  function normalizeR2ImageUrl(v: FormDataEntryValue | null): string | null {
+    const raw = toNull(v);
+    if (!raw) return null;
+    if (!isR2PublicUrl(raw)) {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    return raw;
+  }
 
   const displayNameRaw = (String(formData.get("displayName") ?? "")).trim();
   if (!displayNameRaw) throw new Error("Display name is required.");
@@ -77,9 +86,9 @@ async function updateSellerProfile(formData: FormData) {
   const storyBody = storyBodyRaw ? sanitizeRichText(storyBodyRaw) : null;
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
 
-  const bannerImageUrl = toNull(formData.get("bannerImageUrl"));
-  const avatarImageUrl = toNull(formData.get("avatarImageUrl"));
-  const workshopImageUrl = toNull(formData.get("workshopImageUrl"));
+  const bannerImageUrl = normalizeR2ImageUrl(formData.get("bannerImageUrl"));
+  const avatarImageUrl = normalizeR2ImageUrl(formData.get("avatarImageUrl"));
+  const workshopImageUrl = normalizeR2ImageUrl(formData.get("workshopImageUrl"));
 
   const instagramUrl = normalizeHttpsUrl(formData.get("instagramUrl"), ["instagram.com"]);
   const facebookUrl = normalizeHttpsUrl(formData.get("facebookUrl"), ["facebook.com", "fb.com"]);
@@ -282,7 +291,7 @@ export default async function ProfilePage({
 
       {sp.warning === "invalid-url" && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Enter valid https:// links for your website and social profiles.
+          Enter valid https:// links for your website/social profiles, and use uploaded Grainline images for profile photos.
         </div>
       )}
 

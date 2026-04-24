@@ -13,8 +13,22 @@ const REQUIRED_ACCOUNT_DAYS = 30;
 const VerificationApplySchema = z.object({
   craftDescription: z.string().min(1).max(500),
   yearsExperience: z.number().int().min(0).max(100),
-  portfolioUrl: z.string().min(1).max(500).optional().nullable(),
+  portfolioUrl: z.string().max(500).optional().nullable(),
 });
+
+function normalizeHttpsUrl(input: string | null | undefined): string | null {
+  const raw = input?.trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:") return null;
+  url.hash = "";
+  return url.toString();
+}
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +46,10 @@ export async function POST(req: Request) {
 
     const craftDescription = verParsed.craftDescription.trim().slice(0, 500);
     const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
-    const portfolioUrl = verParsed.portfolioUrl?.trim() || null;
+    const portfolioUrl = normalizeHttpsUrl(verParsed.portfolioUrl);
+    if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {
+      return NextResponse.json({ error: "Portfolio URL must be a valid https:// URL." }, { status: 400 });
+    }
 
     // ── Server-side eligibility check ─────────────────────────────────────
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);

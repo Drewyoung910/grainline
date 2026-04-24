@@ -67,8 +67,12 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true },
+  });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
+  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   const request = await prisma.commissionRequest.findUnique({
     where: { id },
@@ -100,6 +104,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { status } = patchParsed;
+  if ((status as CommissionStatus) === CommissionStatus.FULFILLED && request.interests.length === 0) {
+    return NextResponse.json({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
+  }
 
   const updated = await prisma.commissionRequest.update({
     where: { id },

@@ -4364,3 +4364,47 @@ Settings page (`/account/settings`) now has two distinct sections:
 - **"Your notifications"** (all users): From Makers You Follow, Orders & Cases, buyer email prefs
 - **"Shop notifications"** (sellers only): Your Shop, Blog, seller email prefs
 `CUSTOM_ORDER_LINK` and `COMMISSION_INTEREST` moved from seller to buyer section (they're buyer-facing notifications).
+
+## Audit Pass — Rounds 1-7 Follow-Up Hardening (2026-04-24)
+
+Read this section before continuing the remaining 300+ item audit queue. This pass intentionally avoided risky schema/migration rewrites and focused on high-confidence security, moderation, webhook, and operational fixes that could be verified immediately.
+
+### Fixed in this pass
+- **R2 URL validation now fails closed**: `isR2PublicUrl()` returns false when `CLOUDFLARE_R2_PUBLIC_URL` is missing instead of accepting arbitrary URLs.
+- **Email preference checks fail closed**: `shouldSendEmail()` now returns false on DB/preference lookup failure, preventing opt-out bypasses for default-off/banned users.
+- **Seller guard blocks banned users**: `ensureSeller()` now throws for banned local users before creating or returning seller profile access.
+- **Admin PIN comparison hardened**: `/api/admin/verify-pin` now hashes both submitted and configured PINs and compares fixed-length digests with `timingSafeEqual`; implicit dev bypass now requires `ALLOW_DEV_ADMIN_PIN_BYPASS=true`.
+- **Geo-block API bypass narrowed**: non-US traffic can bypass geo-blocking only for health, CSP reports, cron, Clerk webhook, and Stripe webhook routes, not every `/api/*` route.
+- **Seller listing ACTIVE transitions hardened**: dashboard `setStatus` can no longer set `ACTIVE`; HIDDEN/SOLD reactivation now goes through `publishListingAction()` so AI/admin review cannot be bypassed by forged server-action posts.
+- **Review edit photo validation**: review PATCH now requires edited photo URLs to be valid R2 public URLs and blocks banned reviewers.
+- **Profile image validation**: seller avatar/banner/workshop image URLs must be R2 public URLs; social/website URL validation remains HTTPS-only with host checks for social platforms.
+- **Verification portfolio URL validation**: portfolio links must be valid `https://` URLs before storing/rendering for admins.
+- **Commission/custom-order banned and seller-state guards**: commission create/patch/interest and custom-order request routes now block banned users; commission interest requires seller Stripe charges enabled and vacation mode off; custom-order requests require seller not banned, not on vacation, charges enabled, and accepting custom orders.
+- **Custom-order listing context verified**: custom-order request `listingId` must belong to the target seller and be active/public; client-supplied listing titles are no longer trusted.
+- **Blog input hardening**: blog cover images must be uploaded Grainline/R2 images; videos must be HTTPS YouTube/Vimeo URLs; maker featured listing IDs are verified against owned active listings before storage; banned authors cannot create/edit posts.
+- **Public blog banned-author filters**: `/blog`, `/blog/[slug]`, homepage blog blocks, seller profile blog blocks, and sitemap blog URLs now exclude banned/deleted authors.
+- **Stripe API version pinned**: Stripe client now uses `2025-10-29.clover` instead of floating with the SDK default.
+- **Webhook duplicate handling narrowed**: webhook catch now treats only `P2002` on `stripeSessionId` as duplicate delivery; other unique constraint bugs surface to Sentry/500.
+- **Webhook event coverage improved**: `checkout.session.async_payment_succeeded` now enters the order creation flow; `account.updated` now requires charges, payouts, details submitted, and no disabled reason; basic `charge.refunded`, `charge.dispute.*`, and `payout.failed` handlers mark orders/sellers for review and notify where possible.
+- **Unban no longer blind-restores payments**: `unbanUser()` now retrieves Stripe account state before restoring `chargesEnabled`; failed/incomplete accounts stay disabled and vacationed.
+- **Seed scripts guarded**: `prisma/seed.ts` and `prisma/seed-bulk.ts` refuse to run when `NODE_ENV=production` or `VERCEL_ENV=production`.
+- **Health check deepened**: `/api/health` now checks DB, Redis, and R2 instead of DB/Redis only.
+- **Cron auth timing-safe helper**: cron routes now use `verifyCronRequest()` with digest + `timingSafeEqual` instead of raw string comparison.
+- **User report validation**: user reports now require an existing non-deleted target user, restrict `targetType` to known values, require `targetType` + `targetId` together, and verify reported content belongs to the reported user.
+- **Review vote floor**: helpful-count decrements now use `GREATEST(helpfulCount - 1, 0)` to avoid negative counts under races.
+- **Message attachments**: message attachment URL checks now use shared R2 URL validation instead of `startsWith`.
+- **Onboarding state hardening**: onboarding actions sanitize profile/policy text, validate avatar URLs through R2, prevent direct jumps beyond the next step, and prevent direct completion before step 5.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `npm run lint` ✅ with existing warnings only
+- `npm run build` ✅ when run outside sandbox; sandbox build fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / needs separate migration pass
+- Conversation/Message/Case/CaseMessage deletion semantics need a schema/migration pass. Do not patch casually; coordinate with the account-deletion/anonymization policy so order and case retention remain legally safe.
+- Raw partial unique index migration `20260424_add_performance_indexes_v2` still is not represented cleanly in Prisma schema. Avoid changing applied migration names without verifying `_prisma_migrations` in production.
+- Stripe webhook still needs a durable webhook event idempotency table for non-checkout events.
+- `checkout.session.async_payment_failed` should restore stock/locks through the same session-line-item restoration path used for expired sessions.
+- `payout.failed` currently reuses an existing notification enum type; a future schema migration should add explicit payment/admin notification types.
+- Legal/business items remain non-code blockers: attorney sign-off, money-transmitter confirmation, INFORM workflow/legal alignment, and business insurance.

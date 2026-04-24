@@ -25,6 +25,7 @@ export async function ensureSeller() {
       data: { clerkId: userId, email, name, imageUrl },
     });
   }
+  if (me.banned) throw new Error("Account is suspended");
 
   // 2) Ensure we have a SellerProfile row
   let seller = await prisma.sellerProfile.findUnique({ where: { userId: me.id } });
@@ -39,6 +40,5 @@ export async function ensureSeller() {
 
   return { me, seller };
 }
-
 
 

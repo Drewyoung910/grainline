@@ -6,14 +6,12 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { recalculateAllQualityScores } from "@/lib/quality-score";
+import { verifyCronRequest } from "@/lib/cronAuth";
 
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

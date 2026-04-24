@@ -5,11 +5,14 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
   comment: z.string().max(2000).optional().nullable(),
-  photos: z.array(z.string().min(1)).max(6).optional(),
+  photos: z.array(
+    z.string().url().refine((url) => isR2PublicUrl(url), { message: "Invalid image URL" })
+  ).max(6).optional(),
 });
 
 export async function PATCH(
@@ -32,8 +35,12 @@ export async function PATCH(
   const { ratingX2, comment, photos = [] } = reviewPatchParsed;
 
   // ensure owner & editable
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   const r = await prisma.review.findUnique({
     where: { id },

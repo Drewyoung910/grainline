@@ -25,6 +25,16 @@ export async function GET() {
     checks.redis = "fail";
   }
 
+  // R2 check
+  try {
+    const { HeadBucketCommand } = await import("@aws-sdk/client-s3");
+    const { r2, R2_BUCKET } = await import("@/lib/r2");
+    await r2.send(new HeadBucketCommand({ Bucket: R2_BUCKET }));
+    checks.r2 = "ok";
+  } catch {
+    checks.r2 = "fail";
+  }
+
   const allOk = Object.values(checks).every((v) => v === "ok");
 
   return NextResponse.json(

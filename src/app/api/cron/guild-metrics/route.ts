@@ -16,15 +16,13 @@ import {
   sendGuildMasterWarningEmail,
   sendGuildMasterRevokedEmail,
 } from "@/lib/email";
+import { verifyCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!cronSecret || bearer !== cronSecret) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

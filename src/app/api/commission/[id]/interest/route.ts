@@ -22,10 +22,30 @@ export async function POST(
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, name: true, sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true } } },
+    select: {
+      id: true,
+      name: true,
+      banned: true,
+      sellerProfile: {
+        select: {
+          id: true,
+          displayName: true,
+          avatarImageUrl: true,
+          chargesEnabled: true,
+          vacationMode: true,
+        },
+      },
+    },
   });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
+  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
   if (!me.sellerProfile) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+  if (!me.sellerProfile.chargesEnabled) {
+    return NextResponse.json({ error: "Connect Stripe before expressing interest." }, { status: 403 });
+  }
+  if (me.sellerProfile.vacationMode) {
+    return NextResponse.json({ error: "Turn off vacation mode before expressing interest." }, { status: 403 });
+  }
 
   const commissionRequest = await prisma.commissionRequest.findUnique({
     where: { id },
@@ -49,6 +69,19 @@ export async function POST(
   if (commissionRequest.buyerId === me.id) {
     logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/commission/interest", reason: "interest on own commission" });
     return NextResponse.json({ error: "Cannot express interest in your own request" }, { status: 400 });
+  }
+
+  const blockExists = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: commissionRequest.buyerId },
+        { blockerId: commissionRequest.buyerId, blockedId: me.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blockExists) {
+    return NextResponse.json({ error: "Unable to express interest." }, { status: 403 });
   }
 
   // Check if already expressed interest

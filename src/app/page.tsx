@@ -168,7 +168,11 @@ export default async function HomePage() {
       prisma.user.count({ where: { banned: false } }),
     ]),
     prisma.blogPost.findMany({
-      where: { status: "PUBLISHED", ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}) },
+      where: {
+        status: "PUBLISHED",
+        author: { banned: false, deletedAt: null },
+        ...(blockedUserIds.size > 0 ? { authorId: { notIn: [...blockedUserIds] } } : {}),
+      },
       orderBy: { publishedAt: "desc" },
       take: 3,
       select: {
@@ -334,7 +338,7 @@ export default async function HomePage() {
           },
         }),
         prisma.blogPost.findMany({
-          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff }, sellerProfile: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
+          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff }, author: { banned: false, deletedAt: null }, sellerProfile: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
           orderBy: { publishedAt: "desc" },
           take: 6,
           select: {
