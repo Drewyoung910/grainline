@@ -229,6 +229,7 @@ export default async function SellerSettingsPage() {
           <input
             name="displayName"
             required
+            autoComplete="name"
             defaultValue={row?.displayName ?? ""}
             className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
           />
@@ -239,6 +240,7 @@ export default async function SellerSettingsPage() {
             <label className="block text-sm font-medium text-neutral-700 mb-1">City</label>
             <input
               name="city"
+              autoComplete="address-level2"
               defaultValue={row?.city ?? ""}
               className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
             />
@@ -247,6 +249,7 @@ export default async function SellerSettingsPage() {
             <label className="block text-sm font-medium text-neutral-700 mb-1">State</label>
             <input
               name="state"
+              autoComplete="address-level1"
               defaultValue={row?.state ?? ""}
               className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
             />
@@ -277,6 +280,7 @@ export default async function SellerSettingsPage() {
               type="number"
               step="0.01"
               name="shippingFlatRate"
+              autoComplete="off"
               defaultValue={row?.shippingFlatRateCents != null ? (row.shippingFlatRateCents / 100).toFixed(2) : ""}
               className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. 7.00"
@@ -289,6 +293,7 @@ export default async function SellerSettingsPage() {
               type="number"
               step="0.01"
               name="freeShippingOver"
+              autoComplete="off"
               defaultValue={row?.freeShippingOverCents != null ? (row.freeShippingOverCents / 100).toFixed(2) : ""}
               className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. 50.00"
@@ -342,19 +347,19 @@ export default async function SellerSettingsPage() {
         <div className="border-t border-neutral-100 pt-4 space-y-3">
           <h2 className="text-lg font-semibold font-display">Ship from address</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input name="shipFromName" placeholder="Sender name"
+            <input name="shipFromName" autoComplete="name" placeholder="Sender name"
                    defaultValue={row?.shipFromName ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromLine1" placeholder="Address line 1 *"
+            <input name="shipFromLine1" autoComplete="address-line1" placeholder="Address line 1 *"
                    defaultValue={row?.shipFromLine1 ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm md:col-span-2" />
-            <input name="shipFromLine2" placeholder="Address line 2"
+            <input name="shipFromLine2" autoComplete="address-line2" placeholder="Address line 2"
                    defaultValue={row?.shipFromLine2 ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm md:col-span-2" />
-            <input name="shipFromCity" placeholder="City *"
+            <input name="shipFromCity" autoComplete="address-level2" placeholder="City *"
                    defaultValue={row?.shipFromCity ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromState" placeholder="State * (e.g., TX)"
+            <input name="shipFromState" autoComplete="address-level1" placeholder="State * (e.g., TX)"
                    defaultValue={row?.shipFromState ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromPostal" placeholder="Postal code *"
+            <input name="shipFromPostal" autoComplete="postal-code" placeholder="Postal code *"
                    defaultValue={row?.shipFromPostal ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromCountry" placeholder="Country *"
+            <input name="shipFromCountry" autoComplete="country" placeholder="Country *"
                    defaultValue={row?.shipFromCountry ?? "US"} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
         </div>
@@ -364,12 +369,16 @@ export default async function SellerSettingsPage() {
           <h2 className="text-lg font-semibold font-display">Default package (cm / g)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="defaultPkgLengthCm" type="number" step="0.1" placeholder="Length (cm)"
+                   autoComplete="off"
                    defaultValue={row?.defaultPkgLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="defaultPkgWidthCm" type="number" step="0.1" placeholder="Width (cm)"
+                   autoComplete="off"
                    defaultValue={row?.defaultPkgWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="defaultPkgHeightCm" type="number" step="0.1" placeholder="Height (cm)"
+                   autoComplete="off"
                    defaultValue={row?.defaultPkgHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
             <input name="defaultPkgWeightGrams" type="number" step="1" placeholder="Weight (g)"
+                   autoComplete="off"
                    defaultValue={row?.defaultPkgWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
           <p className="text-xs text-neutral-500">
@@ -381,6 +390,7 @@ export default async function SellerSettingsPage() {
           <label className="block text-sm font-medium text-neutral-700 mb-1">Bio</label>
           <textarea
             name="bio"
+            autoComplete="off"
             rows={5}
             defaultValue={row?.bio ?? ""}
             className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
@@ -468,7 +478,6 @@ export default async function SellerSettingsPage() {
     </main>
   );
 }
-
 
 
 

@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/case-auto-close",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/commission-expire",
+      "schedule": "15 7 * * *"
     }
   ]
 }

@@ -5,6 +5,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function NewCommissionPage() {
   const router = useRouter();
@@ -77,6 +78,7 @@ export default function NewCommissionPage() {
           </label>
           <input
             value={title}
+            autoComplete="off"
             onChange={(e) => setTitle(e.target.value)}
             maxLength={100}
             placeholder="e.g. Custom walnut dining table for 8"
@@ -93,6 +95,7 @@ export default function NewCommissionPage() {
           </label>
           <textarea
             value={description}
+            autoComplete="off"
             onChange={(e) => setDescription(e.target.value)}
             maxLength={1000}
             rows={5}
@@ -108,6 +111,7 @@ export default function NewCommissionPage() {
           <label className="block text-sm font-medium text-neutral-700 mb-1">Category (optional)</label>
           <select
             value={category}
+            autoComplete="off"
             onChange={(e) => setCategory(e.target.value)}
             className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           >
@@ -126,6 +130,7 @@ export default function NewCommissionPage() {
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">$</span>
               <input
                 type="number"
+                autoComplete="off"
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
                 min="0"
@@ -138,6 +143,7 @@ export default function NewCommissionPage() {
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">$</span>
               <input
                 type="number"
+                autoComplete="off"
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
                 min="0"
@@ -153,6 +159,7 @@ export default function NewCommissionPage() {
           <label className="block text-sm font-medium text-neutral-700 mb-1">Timeline (optional)</label>
           <input
             value={timeline}
+            autoComplete="off"
             onChange={(e) => setTimeline(e.target.value)}
             maxLength={100}
             placeholder="e.g. Within 3 months, flexible"
@@ -185,7 +192,7 @@ export default function NewCommissionPage() {
                   .filter(Boolean);
                 setReferenceImageUrls((prev) => [...prev, ...newUrls].slice(0, 3));
               }}
-              onUploadError={() => {}}
+              onUploadError={(e) => emitToast(e.message || "Upload failed", "error")}
             />
           )}
           {referenceImageUrls.length > 0 && (

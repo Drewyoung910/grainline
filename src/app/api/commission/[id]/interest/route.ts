@@ -1,10 +1,12 @@
 // src/app/api/commission/[id]/interest/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { commissionInterestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { logSecurityEvent } from "@/lib/security";
 
 export async function POST(
@@ -33,6 +35,7 @@ export async function POST(
       title: true,
       description: true,
       status: true,
+      expiresAt: true,
       budgetMinCents: true,
       budgetMaxCents: true,
       timeline: true,
@@ -40,7 +43,7 @@ export async function POST(
     },
   });
   if (!commissionRequest) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (commissionRequest.status !== "OPEN") {
+  if (commissionRequest.status !== "OPEN" || commissionIsExpired(commissionRequest)) {
     return NextResponse.json({ error: "Commission request is no longer open" }, { status: 400 });
   }
   if (commissionRequest.buyerId === me.id) {
@@ -101,32 +104,36 @@ export async function POST(
 
   // Send a structured system message to the buyer
   const sellerDisplayName = me.sellerProfile.displayName ?? me.name ?? "A maker";
-  void prisma.message.create({
-    data: {
-      conversationId: convo.id,
-      senderId: me.id,
-      recipientId: commissionRequest.buyerId,
-      body: JSON.stringify({
-        commissionId: id,
-        commissionTitle: commissionRequest.title,
-        sellerName: sellerDisplayName,
-        budgetMinCents: commissionRequest.budgetMinCents,
-        budgetMaxCents: commissionRequest.budgetMaxCents,
-        timeline: commissionRequest.timeline,
-      }),
-      kind: "commission_interest_card",
-      isSystemMessage: true,
-    },
-  }).catch(() => {});
-
-  // Notify the buyer
   const sellerName = me.sellerProfile.displayName ?? me.name ?? "A maker";
-  void createNotification({
-    userId: commissionRequest.buyerId,
-    type: "COMMISSION_INTEREST",
-    title: `${sellerName} is interested in your commission`,
-    body: `"${commissionRequest.title}" — view the conversation`,
-    link: `/messages/${convo.id}`,
+  after(async () => {
+    try {
+      await Promise.all([
+        prisma.message.create({
+          data: {
+            conversationId: convo.id,
+            senderId: me.id,
+            recipientId: commissionRequest.buyerId,
+            body: JSON.stringify({
+              commissionId: id,
+              commissionTitle: commissionRequest.title,
+              sellerName: sellerDisplayName,
+              budgetMinCents: commissionRequest.budgetMinCents,
+              budgetMaxCents: commissionRequest.budgetMaxCents,
+              timeline: commissionRequest.timeline,
+            }),
+            kind: "commission_interest_card",
+            isSystemMessage: true,
+          },
+        }),
+        createNotification({
+          userId: commissionRequest.buyerId,
+          type: "COMMISSION_INTEREST",
+          title: `${sellerName} is interested in your commission`,
+          body: `"${commissionRequest.title}" — view the conversation`,
+          link: `/messages/${convo.id}`,
+        }),
+      ]);
+    } catch { /* non-fatal */ }
   });
 
   return NextResponse.json({ conversationId: convo.id, alreadyInterested: false });

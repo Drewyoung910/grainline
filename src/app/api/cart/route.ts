@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { resolveListingVariantSelection } from "@/lib/listingVariants";
 
 export const runtime = "nodejs";
 
@@ -57,10 +58,19 @@ export async function GET() {
           }
         }
       }
+      const variantResolution = resolveListingVariantSelection(
+        ci.listing.variantGroups,
+        ci.selectedVariantOptionIds ?? [],
+      );
+      const livePriceCents = variantResolution.ok
+        ? ci.listing.priceCents + variantResolution.variantAdjustCents
+        : ci.listing.priceCents;
       return {
         id: ci.id,
         quantity: ci.quantity,
         priceCents: ci.priceCents,
+        livePriceCents,
+        priceChanged: livePriceCents !== ci.priceCents,
         variantLabels,
         listing: {
           id: ci.listing.id,
@@ -89,7 +99,6 @@ export async function GET() {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-
 
 
 

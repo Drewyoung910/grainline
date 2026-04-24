@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export function ReviewListingButtons({ listingId }: { listingId: string }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
 
   async function handle(action: "approve" | "reject") {
@@ -24,7 +26,7 @@ export function ReviewListingButtons({ listingId }: { listingId: string }) {
         router.refresh();
       } else {
         const data = await res.json();
-        alert(data.error || "Failed");
+        toast(data.error || "Failed", "error");
       }
     } finally {
       setLoading(null);

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "@/lib/email";
@@ -270,7 +271,6 @@ async function createListing(formData: FormData) {
     })
 
     const listingCount = sellerInfo?._count.listings ?? 0
-    const isFirstListing = listingCount <= 1
 
     const { reviewListingWithAI } = await import('@/lib/ai-review')
 
@@ -338,8 +338,8 @@ async function createListing(formData: FormData) {
     select: { status: true },
   });
   if (finalListing?.status === "ACTIVE") {
-    // Notify followers — fire-and-forget (don't await)
-    void (async () => {
+    // Notify followers after the response so listing creation stays responsive.
+    after(async () => {
       try {
         const followers = await prisma.follow.findMany({
           where: { sellerProfileId: seller.id },
@@ -375,7 +375,7 @@ async function createListing(formData: FormData) {
             })
         );
       } catch { /* non-fatal */ }
-    })();
+    });
   }
 
   redirect(`/listing/${created.id}`);

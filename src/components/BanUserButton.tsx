@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useToast } from "@/components/Toast";
 
 export function BanUserButton({
   userId,
@@ -12,6 +13,7 @@ export function BanUserButton({
 }) {
   const [banned, setBanned] = useState(isBanned);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   async function handleToggle() {
     const reason = window.prompt(
@@ -32,7 +34,7 @@ export function BanUserButton({
         setBanned(!banned);
       } else {
         const data = await res.json();
-        alert(data.error || "Failed");
+        toast(data.error || "Failed", "error");
       }
     } finally {
       setLoading(false);

@@ -46,6 +46,7 @@ export default function OnboardingWizard({
   const [step, setStep] = useState(initialStep);
   const [loading, setLoading] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Track what was completed during the session (for summary on step 5)
   const [completed, setCompleted] = useState({
@@ -59,8 +60,13 @@ export default function OnboardingWizard({
 
   async function advance(targetStep: number) {
     setLoading(true);
+    setActionError(null);
     try {
-      await advanceStep(targetStep);
+      const result = await advanceStep(targetStep);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
       setStep(targetStep);
     } finally {
       setLoading(false);
@@ -71,8 +77,13 @@ export default function OnboardingWizard({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     setLoading(true);
+    setActionError(null);
     try {
-      await saveStep1(formData);
+      const result = await saveStep1(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
       setCompleted((c) => ({ ...c, step1: true }));
       setStep(2);
     } finally {
@@ -84,8 +95,13 @@ export default function OnboardingWizard({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     setLoading(true);
+    setActionError(null);
     try {
-      await saveStep2(formData);
+      const result = await saveStep2(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
       setCompleted((c) => ({ ...c, step2: true }));
       setStep(3);
     } finally {
@@ -95,6 +111,7 @@ export default function OnboardingWizard({
 
   async function handleConnectStripe() {
     setConnectingStripe(true);
+    setActionError(null);
     try {
       const res = await fetch("/api/stripe/connect/create", {
         method: "POST",
@@ -104,7 +121,12 @@ export default function OnboardingWizard({
       const data = await res.json();
       if (data.url) {
         // Advance step before redirecting so they return to step 4
-        await advanceStep(4);
+        const result = await advanceStep(4);
+        if (!result.ok) {
+          setActionError(result.error);
+          setConnectingStripe(false);
+          return;
+        }
         window.location.href = data.url;
       }
     } catch {
@@ -114,8 +136,13 @@ export default function OnboardingWizard({
 
   async function handleComplete() {
     setLoading(true);
+    setActionError(null);
     try {
-      await completeOnboarding();
+      const result = await completeOnboarding();
+      if (!result.ok) {
+        setActionError(result.error);
+        setLoading(false);
+      }
     } catch {
       setLoading(false);
     }
@@ -131,6 +158,13 @@ export default function OnboardingWizard({
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-start py-12 px-4">
       <div className="w-full max-w-xl">
+        {/* Action errors */}
+        {actionError && (
+          <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {actionError}
+          </div>
+        )}
+
         {/* Progress bar — visible on steps 1–4 */}
         {step > 0 && step < TOTAL_STEPS && (
           <div className="mb-6">
@@ -183,6 +217,7 @@ export default function OnboardingWizard({
                   id="displayName"
                   name="displayName"
                   type="text"
+                  autoComplete="name"
                   defaultValue={displayName}
                   maxLength={100}
                   className={inputClass}
@@ -199,6 +234,7 @@ export default function OnboardingWizard({
                   id="tagline"
                   name="tagline"
                   type="text"
+                  autoComplete="off"
                   defaultValue={tagline ?? ""}
                   maxLength={100}
                   className={inputClass}
@@ -214,6 +250,7 @@ export default function OnboardingWizard({
                 <textarea
                   id="bio"
                   name="bio"
+                  autoComplete="off"
                   defaultValue={bio ?? ""}
                   maxLength={500}
                   rows={4}
@@ -272,6 +309,7 @@ export default function OnboardingWizard({
                     id="city"
                     name="city"
                     type="text"
+                    autoComplete="address-level2"
                     defaultValue={city ?? ""}
                     className={inputClass}
                     placeholder="Austin"
@@ -286,6 +324,7 @@ export default function OnboardingWizard({
                     id="state"
                     name="state"
                     type="text"
+                    autoComplete="address-level1"
                     defaultValue={state ?? ""}
                     className={inputClass}
                     placeholder="TX"
@@ -302,6 +341,7 @@ export default function OnboardingWizard({
                   id="yearsInBusiness"
                   name="yearsInBusiness"
                   type="number"
+                  autoComplete="off"
                   min="0"
                   max="100"
                   defaultValue={yearsInBusiness ?? ""}
@@ -318,6 +358,7 @@ export default function OnboardingWizard({
                 <textarea
                   id="returnPolicy"
                   name="returnPolicy"
+                  autoComplete="off"
                   defaultValue={returnPolicy ?? ""}
                   rows={3}
                   className={inputClass}
@@ -333,6 +374,7 @@ export default function OnboardingWizard({
                 <textarea
                   id="shippingPolicy"
                   name="shippingPolicy"
+                  autoComplete="off"
                   defaultValue={shippingPolicy ?? ""}
                   rows={3}
                   className={inputClass}

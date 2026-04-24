@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const R2_ORIGIN = process.env.CLOUDFLARE_R2_PUBLIC_URL ?? "";
@@ -17,6 +18,8 @@ const PhotosSchema = z.object({
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { success, reset } = await safeRateLimit(listingMutationRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many listing updates.");
 
   const { id: listingId } = await ctx.params;
 

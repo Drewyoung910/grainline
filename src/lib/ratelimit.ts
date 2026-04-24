@@ -2,7 +2,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 
-const redis = new Redis({
+export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
@@ -42,6 +42,13 @@ export const checkoutRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(10, "60 s"),
   analytics: true,
   prefix: "rl:checkout",
+});
+
+export const cartMutationRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "10 m"),
+  analytics: true,
+  prefix: "rl:cart_mutation",
 });
 
 export const messageRatelimit = new Ratelimit({
@@ -165,6 +172,20 @@ export const caseMessageRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(30, "60 m"),
   analytics: true,
   prefix: "rl:case_message",
+});
+
+export const caseActionRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 m"),
+  analytics: true,
+  prefix: "rl:case_action",
+});
+
+export const listingMutationRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 m"),
+  analytics: true,
+  prefix: "rl:listing_mutation",
 });
 
 // Custom order request — messaging a seller with a request (fail closed)

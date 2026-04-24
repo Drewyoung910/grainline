@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function VideoUploader({ name = "videoUrl" }: { name?: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -19,7 +20,7 @@ export default function VideoUploader({ name = "videoUrl" }: { name?: string }) 
         }}
         onUploadError={(e) => {
           setBusy(false);
-          alert(e.message);
+          emitToast(e.message, "error");
         }}
       />
       <p className="text-xs text-gray-500">Optional video (max 100MB).</p>

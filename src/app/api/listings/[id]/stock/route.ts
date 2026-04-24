@@ -1,9 +1,11 @@
 // src/app/api/listings/[id]/stock/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendBackInStock } from "@/lib/email";
+import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
@@ -42,6 +44,8 @@ export async function PATCH(
     const { id } = await params;
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { success, reset } = await safeRateLimit(listingMutationRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many listing updates.");
 
     let stockParsed;
     try {
@@ -96,28 +100,32 @@ export async function PATCH(
 
     // If transitioning from SOLD_OUT → ACTIVE, notify subscribers
     if (listing.status === "SOLD_OUT" && newStatus === "ACTIVE") {
-      const subscribers = await prisma.stockNotification.findMany({
-        where: { listingId: id },
-        select: { userId: true, user: { select: { name: true, email: true } } },
-      });
-      for (const sub of subscribers) {
-        await createNotification({
-          userId: sub.userId,
-          type: "BACK_IN_STOCK",
-          title: `${updated.title} is back in stock!`,
-          body: "The piece you saved is available again",
-          link: `/listing/${id}`,
-        });
-        if (sub.user?.email) {
-          try {
-            await sendBackInStock({
-              buyer: { name: sub.user.name, email: sub.user.email },
-              listingTitle: updated.title,
-              listingId: id,
+      after(async () => {
+        try {
+          const subscribers = await prisma.stockNotification.findMany({
+            where: { listingId: id },
+            select: { userId: true, user: { select: { name: true, email: true } } },
+          });
+          for (const sub of subscribers) {
+            await createNotification({
+              userId: sub.userId,
+              type: "BACK_IN_STOCK",
+              title: `${updated.title} is back in stock!`,
+              body: "The piece you saved is available again",
+              link: `/listing/${id}`,
             });
-          } catch { /* non-fatal */ }
-        }
-      }
+            if (sub.user?.email) {
+              try {
+                await sendBackInStock({
+                  buyer: { name: sub.user.name, email: sub.user.email },
+                  listingTitle: updated.title,
+                  listingId: id,
+                });
+              } catch { /* non-fatal */ }
+            }
+          }
+        } catch { /* non-fatal */ }
+      });
     }
 
     return NextResponse.json(updated);

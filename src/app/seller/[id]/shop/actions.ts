@@ -2,7 +2,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createNotification } from "@/lib/notifications";
+import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { ListingStatus } from "@prisma/client";
 
 // Ensure the calling user owns this listing; returns listing + seller or null
@@ -51,7 +53,7 @@ export async function unhideListingAction(listingId: string) {
   await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
   await syncThreshold(listing.sellerId);
   // Notify followers
-  void (async () => {
+  after(async () => {
     try {
       const followers = await prisma.follow.findMany({
         where: { sellerProfileId: listing.sellerId },
@@ -71,7 +73,7 @@ export async function unhideListingAction(listingId: string) {
         );
       }
     } catch { /* non-fatal */ }
-  })();
+  });
   revalidatePath(`/seller/${listing.sellerId}/shop`);
 }
 
@@ -88,11 +90,8 @@ export async function markSoldAction(listingId: string) {
 export async function deleteListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
-  // Soft delete: preserves order history (OrderItem references)
-  await prisma.listing.update({
-    where: { id: listingId },
-    data: { status: "HIDDEN", isPrivate: true },
-  });
+  // Soft delete: preserve order history, remove current shopping intent records.
+  await softDeleteListingWithCleanup(listingId);
   const activeCount = await prisma.listing.count({ where: { sellerId: listing.sellerId, status: "ACTIVE" } });
   const sp = await prisma.sellerProfile.findUnique({
     where: { id: listing.sellerId },
@@ -136,7 +135,6 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       },
     });
     const listingCount = sellerInfo?._count.listings ?? 0;
-    const isFirstListing = listingCount === 0;
 
     const { reviewListingWithAI } = await import("@/lib/ai-review");
     const { logAdminAction } = await import("@/lib/audit");

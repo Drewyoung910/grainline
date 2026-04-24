@@ -6,6 +6,7 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingWhere } from "@/lib/listingVisibility";
 
 const BASE_URL = "https://thegrainline.com";
+const SITEMAP_ENTRY_LIMIT = 50_000;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -23,7 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: publicListingWhere(),
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
-      take: 2000,
+      take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.sellerProfile.findMany({
       where: {
@@ -34,19 +35,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
-      take: 2000,
+      take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.blogPost.findMany({
       where: { status: "PUBLISHED" },
       select: { slug: true, publishedAt: true, updatedAt: true },
       orderBy: { publishedAt: "desc" },
-      take: 2000,
+      take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.commissionRequest.findMany({
-      where: { status: CommissionStatus.OPEN },
+      where: {
+        status: CommissionStatus.OPEN,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
-      take: 500,
+      take: SITEMAP_ENTRY_LIMIT,
     }),
   ]);
 
@@ -71,8 +75,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: {
         isActive: true,
         OR: [
-          { commissions: { some: { status: CommissionStatus.OPEN } } },
-          { commissionCityMetros: { some: { status: CommissionStatus.OPEN } } },
+          { commissions: { some: { status: CommissionStatus.OPEN, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } } },
+          { commissionCityMetros: { some: { status: CommissionStatus.OPEN, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },

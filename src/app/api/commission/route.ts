@@ -2,11 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { CommissionStatus, Category } from "@prisma/client";
+import { Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { commissionCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
+import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { z } from "zod";
 
 const CommissionCreateSchema = z.object({
@@ -31,10 +32,9 @@ export async function GET(req: NextRequest) {
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
 
-  const where = {
-    status: CommissionStatus.OPEN,
+  const where = openCommissionWhere({
     ...(categoryValid ? { category: category as Category } : {}),
-  };
+  });
 
   const [requests, total] = await Promise.all([
     prisma.commissionRequest.findMany({
@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
       budgetMaxCents,
       timeline: timeline?.trim() || null,
       referenceImageUrls: images,
+      expiresAt: commissionExpiresAt(),
       isNational: reqIsNational,
       lat: reqLat,
       lng: reqLng,

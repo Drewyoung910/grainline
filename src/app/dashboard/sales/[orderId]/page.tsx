@@ -12,6 +12,7 @@ import SellerNotesForm from "@/components/SellerNotesForm";
 import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
+import { caseStatusLabel } from "@/lib/caseLabels";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -356,7 +357,7 @@ export default async function SellerOrderDetailPage({
 
           {(activeCase.status === "RESOLVED" || activeCase.status === "CLOSED") && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
-              This case is {activeCase.status.toLowerCase()}.
+              This case is {caseStatusLabel(activeCase.status).toLowerCase()}.
             </div>
           )}
         </section>

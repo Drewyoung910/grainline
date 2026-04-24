@@ -24,6 +24,8 @@ type CartItem = {
   id: string;
   quantity: number;
   priceCents: number;
+  livePriceCents?: number;
+  priceChanged?: boolean;
   variantLabels?: string[];
   listing: {
     id: string;
@@ -215,7 +217,7 @@ function CartPage() {
         };
       }
       acc[key].items.push(it);
-      acc[key].subtotalCents += it.priceCents * it.quantity;
+      acc[key].subtotalCents += (it.livePriceCents ?? it.priceCents) * it.quantity;
       return acc;
     }, {} as Record<string, Group>)
   );
@@ -239,7 +241,8 @@ function CartPage() {
         <ul className="divide-y divide-neutral-100">
           {g.items.map((i) => {
             const img = i.listing.photos?.[0]?.url;
-            const lineCents = i.priceCents * i.quantity;
+            const unitPriceCents = i.livePriceCents ?? i.priceCents;
+            const lineCents = unitPriceCents * i.quantity;
 
             return (
               <li key={i.id} className="flex items-center gap-3 px-4 py-3">
@@ -266,7 +269,12 @@ function CartPage() {
                   )}
 
                   <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
-                    <span className="shrink-0">${(i.priceCents / 100).toFixed(2)} each</span>
+                    <span className="shrink-0">${(unitPriceCents / 100).toFixed(2)} each</span>
+                    {i.priceChanged && (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
+                        Updated from ${(i.priceCents / 100).toFixed(2)}
+                      </span>
+                    )}
 
                     <label className="text-xs text-neutral-500 shrink-0">Qty</label>
                     <select

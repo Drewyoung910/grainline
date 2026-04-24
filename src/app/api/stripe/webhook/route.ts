@@ -10,6 +10,7 @@ import {
   sendOrderConfirmedSeller,
   sendFirstSaleCongrats,
 } from "@/lib/email";
+import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import type { FulfillmentStatus } from "@prisma/client";
 
 
@@ -246,6 +247,7 @@ export async function POST(req: Request) {
         });
 
         if (!cart || cart.items.length === 0) {
+          await releaseCheckoutLock(sessionMeta.checkoutLockKey);
           return NextResponse.json({ ok: true });
         }
 
@@ -408,6 +410,8 @@ export async function POST(req: Request) {
           console.error("Webhook cart cleanup failed:", err);
         }
 
+        await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+
         // Notify buyer + seller after cart checkout
         try {
           const createdOrder = await prisma.order.findFirst({
@@ -475,25 +479,31 @@ export async function POST(req: Request) {
             ]);
 
             // Low-stock alerts for IN_STOCK items that dipped to ≤ 2.
-            // Re-read current stock from DB (post-decrement) for accurate counts.
+            // Re-read current stock from DB in one batch (post-decrement).
             if (sellerUserId) {
+              const inStockItemTitles = new Map<string, string>();
               for (const it of cart.items) {
                 if (it.listing.listingType === "IN_STOCK") {
-                  const currentListing = await prisma.listing.findUnique({
-                    where: { id: it.listingId },
-                    select: { stockQuantity: true },
-                  });
-                  const currentQty = currentListing?.stockQuantity ?? 0;
-                  if (currentQty > 0 && currentQty <= 2) {
-                    await createNotification({
-                      userId: sellerUserId,
-                      type: "LOW_STOCK",
-                      title: `${it.listing.title} is running low`,
-                      body: `Only ${currentQty} left in stock`,
-                      link: `/dashboard/inventory`,
-                    });
-                  }
+                  inStockItemTitles.set(it.listingId, it.listing.title);
                 }
+              }
+              const lowStockListings = inStockItemTitles.size
+                ? await prisma.listing.findMany({
+                    where: {
+                      id: { in: [...inStockItemTitles.keys()] },
+                      stockQuantity: { gt: 0, lte: 2 },
+                    },
+                    select: { id: true, stockQuantity: true },
+                  })
+                : [];
+              for (const lowStockListing of lowStockListings) {
+                await createNotification({
+                  userId: sellerUserId,
+                  type: "LOW_STOCK",
+                  title: `${inStockItemTitles.get(lowStockListing.id) ?? "A listing"} is running low`,
+                  body: `Only ${lowStockListing.stockQuantity ?? 0} left in stock`,
+                  link: `/dashboard/inventory`,
+                });
               }
             }
 
@@ -703,6 +713,8 @@ export async function POST(req: Request) {
           console.error("Webhook cart cleanup failed:", err);
         }
 
+        await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+
         // Notify buyer + seller after single-listing checkout
         try {
           const singleOrder = await prisma.order.findFirst({
@@ -905,7 +917,10 @@ export async function POST(req: Request) {
         where: { stripeSessionId: expiredSession.id },
         select: { id: true },
       });
-      if (orderExists) return NextResponse.json({ ok: true }); // paid — don't restore
+      if (orderExists) {
+        await releaseCheckoutLock(expiredMeta.checkoutLockKey);
+        return NextResponse.json({ ok: true }); // paid — don't restore
+      }
 
       // Single-item checkout: restore the listing's stock
       const expiredListingId = expiredMeta.listingId;
@@ -957,6 +972,8 @@ export async function POST(req: Request) {
         }
       }
 
+      await releaseCheckoutLock(expiredMeta.checkoutLockKey);
+
       return NextResponse.json({ ok: true });
     }
 
@@ -971,7 +988,6 @@ export async function POST(req: Request) {
     return new NextResponse("Webhook error", { status: 500 });
   }
 }
-
 
 
 

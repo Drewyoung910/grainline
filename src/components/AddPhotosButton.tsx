@@ -3,6 +3,7 @@
 
 import { useRouter } from "next/navigation";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function AddPhotosButton({
   listingId,
@@ -48,8 +49,7 @@ export default function AddPhotosButton({
 
         router.refresh();
       }}
-      onUploadError={(e) => alert(e.message)}
+      onUploadError={(e) => emitToast(e.message, "error")}
     />
   );
 }
-

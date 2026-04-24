@@ -8,6 +8,14 @@ import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
+import {
+  acquireCheckoutLock,
+  cartCheckoutLockKey,
+  checkoutPayloadHash,
+  getCheckoutLock,
+  markCheckoutLockReady,
+  releaseCheckoutLock,
+} from "@/lib/checkoutSessionLock";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -40,6 +48,8 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   // Track stock reservations for rollback on error
   const reservedItems: { listingId: string; quantity: number }[] = [];
+  let checkoutLockKeyValue: string | null = null;
+  let checkoutLockAcquired = false;
 
   try {
     const { userId } = await auth();
@@ -302,6 +312,65 @@ export async function POST(req: Request) {
       );
     }
 
+    checkoutLockKeyValue = cartCheckoutLockKey(cart.id, sellerId);
+    const payloadHash = checkoutPayloadHash({
+      buyerId: me.id,
+      cartId: cart.id,
+      sellerId,
+      items: resolvedSellerItems.map((it) => ({
+        cartItemId: it.id,
+        listingId: it.listingId,
+        quantity: it.quantity,
+        variantKey: it.variantKey,
+        unitPriceCents: it.unitPriceCents,
+      })),
+      shippingAddress: body.shippingAddress,
+      selectedRate: {
+        objectId: body.selectedRate.objectId,
+        amountCents: shippingAmountCents,
+        estDays: body.selectedRate.estDays,
+      },
+      giftWrapping,
+      giftNote,
+    });
+
+    const existingCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
+    if (existingCheckoutLock) {
+      if (
+        existingCheckoutLock.payloadHash === payloadHash &&
+        existingCheckoutLock.state === "ready" &&
+        existingCheckoutLock.clientSecret
+      ) {
+        return NextResponse.json({
+          clientSecret: existingCheckoutLock.clientSecret,
+          reused: true,
+        });
+      }
+      return NextResponse.json(
+        { error: "A checkout session is already open for this seller. Complete it or wait a few minutes before trying again." },
+        { status: 409 },
+      );
+    }
+
+    checkoutLockAcquired = await acquireCheckoutLock(checkoutLockKeyValue, payloadHash);
+    if (!checkoutLockAcquired) {
+      const racedCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
+      if (
+        racedCheckoutLock?.payloadHash === payloadHash &&
+        racedCheckoutLock.state === "ready" &&
+        racedCheckoutLock.clientSecret
+      ) {
+        return NextResponse.json({
+          clientSecret: racedCheckoutLock.clientSecret,
+          reused: true,
+        });
+      }
+      return NextResponse.json(
+        { error: "A checkout session is already being prepared. Please try again in a moment." },
+        { status: 409 },
+      );
+    }
+
     // Stock reservation: atomically decrement stock at checkout time (not webhook).
     // All validation-return paths must stay above this point; later failures
     // should throw so the catch block restores this reservation.
@@ -323,6 +392,7 @@ export async function POST(req: Request) {
                 AND "listingType" = 'IN_STOCK'
             `.catch(() => {});
           }
+          await releaseCheckoutLock(checkoutLockKeyValue);
           return NextResponse.json(
             { error: `"${it.listing.title}" does not have enough stock.` },
             { status: 400 },
@@ -387,8 +457,20 @@ export async function POST(req: Request) {
         giftNote: giftNote ?? "",
         giftWrapping: giftWrapping ? "true" : "false",
         giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
+        checkoutLockKey: checkoutLockKeyValue,
       },
     });
+
+    try {
+      await markCheckoutLockReady(
+        checkoutLockKeyValue,
+        payloadHash,
+        session.id,
+        session.client_secret,
+      );
+    } catch (lockErr) {
+      Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
+    }
 
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
@@ -403,6 +485,10 @@ export async function POST(req: Request) {
         WHERE id = ${r.listingId}
           AND "listingType" = 'IN_STOCK'
       `.catch(() => {}); // best effort
+    }
+
+    if (checkoutLockAcquired) {
+      await releaseCheckoutLock(checkoutLockKeyValue);
     }
 
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";

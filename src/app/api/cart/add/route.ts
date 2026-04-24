@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const CartAddSchema = z.object({
@@ -19,6 +20,8 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
     const me = await ensureUserByClerkId(userId);
+    const { success, reset } = await safeRateLimit(cartMutationRatelimit, me.id);
+    if (!success) return rateLimitResponse(reset, "Too many cart updates.");
 
     let parsed;
     try {

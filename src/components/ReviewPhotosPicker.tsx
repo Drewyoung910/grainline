@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { useR2Upload } from "@/hooks/useR2Upload";
+import { emitToast } from "@/components/Toast";
 
 type Att = { id: string; name: string; url?: string; uploading: boolean };
 
@@ -27,7 +28,7 @@ export default function ReviewPhotosPicker({
 
   const ut = useR2Upload({
     endpoint: "reviewPhoto",
-    onUploadError: (e) => alert(e?.message ?? "Upload failed"),
+    onUploadError: (e) => emitToast(e?.message ?? "Upload failed", "error"),
   });
 
   const urls = atts.filter((a) => a.url && !a.uploading).map((a) => a.url!) as string[];

@@ -2797,6 +2797,67 @@ Focused launch-blocker pass after reconciling the 300-item Opus audit against al
 - `npm run build` passed outside the sandbox. The sandboxed build failed first due Turbopack's internal worker port bind restriction (`Operation not permitted`), not a code error.
 - `DOTENV_CONFIG_PATH=.env node -r dotenv/config ./node_modules/.bin/prisma migrate deploy` applied `20260424153000_user_lifecycle_compliance` successfully.
 
+## Opus Round 4 Actionable Fix Pass (2026-04-24)
+
+Follow-up implementation pass for the Opus Round 4 findings after auditing each item against the current repo. Scope focused on launch-blocker and high/medium-priority items that were still real in code. No Prisma schema migration was required.
+
+### Checkout/session safety
+- Added a Redis-backed checkout session lock (`src/lib/checkoutSessionLock.ts`) for cart and single-listing checkout.
+- Checkout locks are scoped to buyer/cart or buyer/listing and include a request payload hash so a stale session cannot be reused for a changed cart, address, shipping method, or rate.
+- Matching in-progress sessions return HTTP 409; matching ready sessions return the existing Stripe `clientSecret` instead of reserving stock again.
+- Stripe session metadata includes `checkoutLockKey`; the webhook releases locks on paid completion, expired checkout sessions, empty-cart fallback paths, and existing-order edge cases.
+- Existing atomic stock decrement remains the final oversell guard.
+
+### Deferred side effects
+- Replaced remaining `void (async () => ...)()` fire-and-forget patterns with Next.js `after()` in listing publish/unhide/availability paths, dashboard listing deletion, listing/blog creation and edit fan-out, seller broadcasts, stock back-in-stock notifications, and commission interest notifications.
+- Deferred blocks keep request latency down while letting Next/Vercel track the work after the response.
+
+### Listing deletion cleanup
+- Added `softDeleteListingWithCleanup()` in `src/lib/listingSoftDelete.ts`.
+- Seller/dashboard listing deletion now hides and privatizes listings while deleting related `Favorite`, `StockNotification`, and `CartItem` rows so saved items and carts do not retain broken soft-deleted listings.
+- Order history remains preserved through `OrderItem` snapshots and listing references.
+
+### UI polish and accessibility
+- Added `public/og-image.jpg` (1200x630) and wired layout/blog metadata fallbacks so social shares no longer reference a missing image.
+- Added a production service worker (`public/sw.js`) plus `ServiceWorkerRegister` for the existing PWA manifest/offline page. Navigation requests fall back to `/offline`; authenticated content is not broadly cached.
+- Header main nav now has `aria-label="Main navigation"`.
+- Shipping, seller onboarding/settings, profile, and commission forms now include appropriate `autoComplete` hints or explicitly opt out for non-personal fields.
+- User-facing case badges use `caseStatusLabel()` instead of raw enum strings like `PENDING_CLOSE`.
+- Replaced remaining `alert()` calls with the existing toast system; upload callbacks use a global `emitToast()` helper when hooks are unavailable.
+
+### Social URL and commission lifecycle
+- Seller social/profile URLs are normalized server-side, require `https://`, and use platform host allowlists for Instagram/Facebook/Pinterest/TikTok.
+- Commission requests now get a 90-day `expiresAt`, open commission queries filter expired rows, expired detail/API reads return 404, and new seller interest is blocked after expiry.
+- Added `/api/cron/commission-expire` and a Vercel cron entry to mark expired open commission requests as `EXPIRED`.
+
+### Rate limits and performance
+- Added shared authenticated mutation rate limiters for cart changes, case actions, and listing mutations.
+- Applied rate limits to cart add/update, case escalate/mark-resolved, listing stock updates, and listing photo uploads.
+- Batched quality-score listing updates into one raw SQL `UPDATE ... FROM (VALUES ...)` per batch instead of one update per listing.
+- Documented that quality-score base weights sum to 1.0 but discovery bumps can intentionally raise the final score up to 1.20 before normalization/clamping decisions.
+- Batched Stripe webhook low-stock checks with one `findMany` instead of one query per order item.
+
+### Cart and sitemap behavior
+- Cart API now computes the live listing/variant price and flags `priceChanged` when the stored cart price is stale.
+- Cart UI displays the current price with an "Updated from" badge and uses live prices for displayed totals; checkout still performs server-side pricing validation.
+- Sitemap listing/seller/blog/commission fetches now use the Google per-file limit of 50,000 URLs instead of silently dropping after 2,000, and commission sitemap entries exclude expired requests.
+- A full sitemap-index split remains a future scale task if Grainline approaches more than 50,000 public URLs per sitemap type.
+
+### Onboarding resilience
+- Seller onboarding server actions now return typed success/error results instead of throwing raw errors to the request boundary.
+- Onboarding UI shows a friendly inline error and only advances steps after the server action succeeds.
+
+### Verification
+- `npx tsc --noEmit --incremental false` passed after the completed implementation pass.
+- `npm run lint` passed after the completed implementation pass with 25 warnings and 0 errors.
+- `npx prisma validate` passed after the completed implementation pass.
+- `git diff --check` passed with no whitespace errors.
+- `rg -n "void \(async" src/app src/components src/lib` returned no matches.
+- `rg -n "alert\(" src/app src/components src/lib` returned only a security-comment example in `src/lib/json-ld.ts`, not a live browser alert.
+- `public/og-image.jpg` verifies as a 1200x630 JPEG.
+- Initial sandboxed `npm run build` failed because Turbopack could not bind its internal worker port under sandbox restrictions (`Operation not permitted`), not because of a TypeScript/application error.
+- `npm run build` passed outside the sandbox after the implementation pass. The only build-time warnings were the existing middleware/proxy deprecation warning and pg SSL-mode advisory.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

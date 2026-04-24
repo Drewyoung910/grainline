@@ -1,6 +1,7 @@
 // src/app/api/seller/broadcast/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -90,8 +91,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Send notifications (fire-and-forget for large follower counts)
-  void (async () => {
+  // Send notifications after response; avoids losing work on function teardown.
+  after(async () => {
     try {
       const sellerName = seller.displayName ?? "A maker you follow";
       await Promise.all(
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
         )
       );
     } catch { /* non-fatal */ }
-  })();
+  });
 
   return NextResponse.json({ broadcastId: broadcast.id, recipientCount: followers.length });
 }

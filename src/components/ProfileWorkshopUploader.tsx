@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function ProfileWorkshopUploader({
   initialUrl,
@@ -39,7 +40,7 @@ export default function ProfileWorkshopUploader({
           const newUrl = (files[0] as { ufsUrl?: string; url?: string })?.ufsUrl ?? (files[0] as { ufsUrl?: string; url?: string })?.url ?? null;
           if (newUrl) setUrl(newUrl);
         }}
-        onUploadError={(e) => alert(e.message)}
+        onUploadError={(e) => emitToast(e.message, "error")}
       />
 
       <input type="hidden" name="workshopImageUrl" value={url ?? ""} />

@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 type ManagedPhoto = {
   url: string;
@@ -107,7 +108,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               [...prev, ...newPhotos].slice(0, max)
             );
           }}
-          onUploadError={(e) => alert(e.message)}
+          onUploadError={(e) => emitToast(e.message, "error")}
         />
       )}
 

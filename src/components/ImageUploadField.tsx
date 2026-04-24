@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function ImageUploadField({
   name,
@@ -41,7 +42,7 @@ export default function ImageUploadField({
           // v7 returns ufsUrl; some setups still expose url — handle both
           setUrl((file as { ufsUrl?: string })?.ufsUrl ?? "");
         }}
-        onUploadError={(e) => alert(e.message)}
+        onUploadError={(e) => emitToast(e.message, "error")}
       />
 
       {!url && (

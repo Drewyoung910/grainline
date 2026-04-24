@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import { useToast } from "@/components/Toast";
 
 export function HelpfulButton({
   reviewId,
@@ -17,6 +18,7 @@ export function HelpfulButton({
   const [count, setCount] = React.useState(initialCount);
   const [voted, setVoted] = React.useState(initiallyVoted);
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   async function toggle() {
     if (!canVote || loading) return;
@@ -28,7 +30,7 @@ export function HelpfulButton({
         setCount(j.helpfulCount);
         setVoted(j.voted);
       } else {
-        alert(j?.error || "Failed");
+        toast(j?.error || "Failed", "error");
       }
     } finally {
       setLoading(false);
@@ -58,6 +60,7 @@ export function SellerReplyForm({
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   if (!canReply) return null;
 
@@ -72,7 +75,7 @@ export function SellerReplyForm({
       });
       const j = await res.json();
       if (!res.ok) {
-        alert(j?.error || "Failed to reply");
+        toast(j?.error || "Failed to reply", "error");
       } else {
         window.location.reload();
       }

@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export function DeleteReviewButton({ reviewId }: { reviewId: string }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function handleDelete() {
     if (!confirm("Delete this review? This cannot be undone.")) return;
@@ -12,7 +14,7 @@ export function DeleteReviewButton({ reviewId }: { reviewId: string }) {
     const res = await fetch(`/api/admin/reviews/${reviewId}`, { method: "DELETE" });
     setLoading(false);
     if (res.ok) router.refresh();
-    else alert("Failed to delete review");
+    else toast("Failed to delete review", "error");
   }
 
   return (

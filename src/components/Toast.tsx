@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 
 type ToastType = "success" | "error" | "info";
 
@@ -19,6 +19,16 @@ export function useToast() {
 }
 
 let nextId = 0;
+const TOAST_EVENT = "grainline:toast";
+
+export function emitToast(message: string, type: ToastType = "info") {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<{ message: string; type: ToastType }>(TOAST_EVENT, {
+      detail: { message, type },
+    }),
+  );
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -30,6 +40,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3000);
   }, []);
+
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; type?: ToastType }>).detail;
+      if (!detail?.message) return;
+      toast(detail.message, detail.type ?? "info");
+    };
+    window.addEventListener(TOAST_EVENT, onToast);
+    return () => window.removeEventListener(TOAST_EVENT, onToast);
+  }, [toast]);
 
   return (
     <ToastContext.Provider value={{ toast }}>

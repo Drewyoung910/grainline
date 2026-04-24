@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useToast } from "@/components/Toast";
 
 export function UndoActionButton({
   logId,
@@ -10,6 +11,7 @@ export function UndoActionButton({
 }) {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   if (!canUndo || done) {
     return (
@@ -34,7 +36,7 @@ export function UndoActionButton({
         setDone(true);
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to undo");
+        toast(data.error || "Failed to undo", "error");
       }
     } finally {
       setLoading(false);

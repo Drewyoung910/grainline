@@ -10,6 +10,8 @@ import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
 import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
+import { caseStatusLabel } from "@/lib/caseLabels";
+import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -29,7 +31,7 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CaseStatusBadge({ status }: { status: string }) {
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const color =
     status === "OPEN"
       ? "bg-amber-100 text-amber-800"
@@ -47,7 +49,7 @@ function CaseStatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${color}`}
     >
-      {status.replaceAll("_", " ")}
+      {caseStatusLabel(status)}
     </span>
   );
 }
@@ -464,7 +466,7 @@ export default async function BuyerOrderDetailPage({
 
           {(activeCase.status === "RESOLVED" || activeCase.status === "CLOSED") && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
-              This case is {activeCase.status.toLowerCase()}.
+              This case is {caseStatusLabel(activeCase.status).toLowerCase()}.
             </div>
           )}
         </section>

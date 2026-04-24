@@ -12,7 +12,6 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
-import ConfirmButton from "@/components/ConfirmButton";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 
@@ -39,6 +38,30 @@ async function updateSellerProfile(formData: FormData) {
   function toBool(v: FormDataEntryValue | null): boolean {
     return String(v ?? "") === "on";
   }
+  function normalizeHttpsUrl(
+    v: FormDataEntryValue | null,
+    allowedHosts?: string[],
+  ): string | null {
+    const raw = toNull(v);
+    if (!raw) return null;
+    let parsed: URL;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    if (parsed.protocol !== "https:") {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
+    if (allowedHosts) {
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+      if (!allowedHosts.includes(host)) {
+        redirect("/dashboard/profile?warning=invalid-url");
+      }
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  }
 
   const displayNameRaw = (String(formData.get("displayName") ?? "")).trim();
   if (!displayNameRaw) throw new Error("Display name is required.");
@@ -58,11 +81,11 @@ async function updateSellerProfile(formData: FormData) {
   const avatarImageUrl = toNull(formData.get("avatarImageUrl"));
   const workshopImageUrl = toNull(formData.get("workshopImageUrl"));
 
-  const instagramUrl = toNull(formData.get("instagramUrl"));
-  const facebookUrl = toNull(formData.get("facebookUrl"));
-  const pinterestUrl = toNull(formData.get("pinterestUrl"));
-  const tiktokUrl = toNull(formData.get("tiktokUrl"));
-  const websiteUrl = toNull(formData.get("websiteUrl"));
+  const instagramUrl = normalizeHttpsUrl(formData.get("instagramUrl"), ["instagram.com"]);
+  const facebookUrl = normalizeHttpsUrl(formData.get("facebookUrl"), ["facebook.com", "fb.com"]);
+  const pinterestUrl = normalizeHttpsUrl(formData.get("pinterestUrl"), ["pinterest.com"]);
+  const tiktokUrl = normalizeHttpsUrl(formData.get("tiktokUrl"), ["tiktok.com"]);
+  const websiteUrl = normalizeHttpsUrl(formData.get("websiteUrl"));
 
   const returnPolicyRaw = toNull(formData.get("returnPolicy"));
   const returnPolicy = returnPolicyRaw ? sanitizeRichText(returnPolicyRaw) : null;
@@ -257,6 +280,12 @@ export default async function ProfilePage({
         </div>
       )}
 
+      {sp.warning === "invalid-url" && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter valid https:// links for your website and social profiles.
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Shop Profile</h1>
         <Link
@@ -309,6 +338,7 @@ export default async function ProfilePage({
             <input
               name="displayName"
               required
+              autoComplete="name"
               defaultValue={fullSeller.displayName}
               className="w-full border rounded px-3 py-2"
             />
@@ -318,6 +348,7 @@ export default async function ProfilePage({
             <label className="block text-sm font-medium mb-1">Tagline</label>
             <input
               name="tagline"
+              autoComplete="off"
               maxLength={100}
               defaultValue={fullSeller.tagline ?? ""}
               placeholder="e.g. Hand-crafting heirloom pieces in Austin since 2018"
@@ -330,6 +361,7 @@ export default async function ProfilePage({
             <input
               type="number"
               name="yearsInBusiness"
+              autoComplete="off"
               min={0}
               max={200}
               defaultValue={fullSeller.yearsInBusiness ?? ""}
@@ -401,6 +433,7 @@ export default async function ProfilePage({
               <input
                 name={field}
                 type="url"
+                autoComplete="url"
                 defaultValue={(fullSeller[field] as string | null) ?? ""}
                 placeholder={placeholder}
                 className="w-full border rounded px-3 py-2"
@@ -417,6 +450,7 @@ export default async function ProfilePage({
             <label className="block text-sm font-medium mb-1">Return policy</label>
             <textarea
               name="returnPolicy"
+              autoComplete="off"
               rows={4}
               defaultValue={fullSeller.returnPolicy ?? ""}
               className="w-full border rounded px-3 py-2"
@@ -428,6 +462,7 @@ export default async function ProfilePage({
             <label className="block text-sm font-medium mb-1">Custom order policy</label>
             <textarea
               name="customOrderPolicy"
+              autoComplete="off"
               rows={4}
               defaultValue={fullSeller.customOrderPolicy ?? ""}
               className="w-full border rounded px-3 py-2"
@@ -439,6 +474,7 @@ export default async function ProfilePage({
             <label className="block text-sm font-medium mb-1">Shipping policy</label>
             <textarea
               name="shippingPolicy"
+              autoComplete="off"
               rows={4}
               defaultValue={fullSeller.shippingPolicy ?? ""}
               className="w-full border rounded px-3 py-2"
@@ -482,6 +518,7 @@ export default async function ProfilePage({
             <input
               type="number"
               name="customOrderTurnaroundDays"
+              autoComplete="off"
               min={1}
               defaultValue={fullSeller.customOrderTurnaroundDays ?? ""}
               className="w-40 border rounded px-3 py-2"
@@ -512,6 +549,7 @@ export default async function ProfilePage({
             <input
               type="number"
               name="giftWrappingPriceCents"
+              autoComplete="off"
               step="0.01"
               min={0}
               defaultValue={
@@ -572,6 +610,7 @@ export default async function ProfilePage({
             <label className="block text-xs text-neutral-500 mb-1">Question</label>
             <input
               name="question"
+              autoComplete="off"
               required
               className="w-full border rounded px-3 py-2 text-sm"
               placeholder="e.g. Do you ship internationally?"
@@ -581,6 +620,7 @@ export default async function ProfilePage({
             <label className="block text-xs text-neutral-500 mb-1">Answer</label>
             <textarea
               name="answer"
+              autoComplete="off"
               required
               rows={3}
               className="w-full border rounded px-3 py-2 text-sm"

@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function ImagesUploader({
   max = 8,
@@ -30,7 +31,7 @@ export default function ImagesUploader({
           const newUrls = files.map((f) => (f as { ufsUrl?: string }).ufsUrl ?? "");
           setUrls((prev) => [...prev, ...newUrls].slice(0, max));
         }}
-        onUploadError={(e) => alert(e.message)}
+        onUploadError={(e) => emitToast(e.message, "error")}
       />
 
       <p className="text-xs text-gray-500">
@@ -54,7 +55,6 @@ export default function ImagesUploader({
     </div>
   );
 }
-
 
 
 

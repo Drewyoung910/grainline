@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
-import { CommissionStatus, Category } from "@prisma/client";
+import { Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import CommissionInterestButton from "./CommissionInterestButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
+import { openCommissionWhere } from "@/lib/commissionExpiry";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -65,11 +66,10 @@ export default async function CommissionPage({
   const blockedUserIds = await getBlockedUserIdsFor(meId);
 
   // Build where clause
-  const where = {
-    status: CommissionStatus.OPEN,
+  const where = openCommissionWhere({
     ...(categoryValid ? { category: categoryFilter as Category } : {}),
     ...(blockedUserIds.size > 0 ? { buyerId: { notIn: [...blockedUserIds] } } : {}),
-  };
+  });
 
   // For Near Me tab: filter by distance using raw SQL
   let requests: Array<{
@@ -124,6 +124,7 @@ export default async function CommissionPage({
       FROM "CommissionRequest" cr
       JOIN "User" u ON u.id = cr."buyerId"
       WHERE cr.status = 'OPEN'
+        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
         ${categoryConditionSelect}
         AND (
           cr."isNational" = true
@@ -170,6 +171,7 @@ export default async function CommissionPage({
     const countSql = `
       SELECT COUNT(*) FROM "CommissionRequest" cr
       WHERE cr.status = 'OPEN'
+        AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
         ${categoryConditionCount}
         AND (
           cr."isNational" = true
@@ -397,7 +399,6 @@ export default async function CommissionPage({
         <div className="space-y-4">
           {requests.map((r) => {
             const buyerName = r.buyer.name?.split(" ")[0] ?? "Buyer";
-            const isOwn = r.buyer.name && meId ? false : false; // we don't expose buyer userId to avoid leakage
             return (
               <div key={r.id} className="card-listing p-5">
                 <div className="flex items-start gap-4">

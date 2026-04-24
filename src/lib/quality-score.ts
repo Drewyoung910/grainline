@@ -15,8 +15,12 @@
 //     descScore * 0.05 +
 //     newListingBump (0.15 for 14 days, linear decay to 0 by day 30) +
 //     newSellerBonus (0.05 if seller has zero reviews)
+//
+// Base weights sum to 1.0. Discovery bumps are additive by design, so a
+// brand-new zero-review listing can temporarily score up to 1.20.
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 const DAMPENING_C = 50;
 const BATCH_SIZE = 200;
@@ -221,14 +225,17 @@ export async function recalculateAllQualityScores(): Promise<{
   let updated = 0;
   for (let i = 0; i < updates.length; i += BATCH_SIZE) {
     const batch = updates.slice(i, i + BATCH_SIZE);
-    await Promise.all(
-      batch.map((u) =>
-        prisma.listing.update({
-          where: { id: u.id },
-          data: { qualityScore: u.score },
-        })
-      )
-    );
+    if (batch.length > 0) {
+      const values = Prisma.join(
+        batch.map((u) => Prisma.sql`(${u.id}, ${u.score})`),
+      );
+      await prisma.$executeRaw`
+        UPDATE "Listing" AS l
+        SET "qualityScore" = v.score::double precision
+        FROM (VALUES ${values}) AS v(id, score)
+        WHERE l.id = v.id::text
+      `;
+    }
     updated += batch.length;
   }
 

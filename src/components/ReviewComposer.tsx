@@ -4,6 +4,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { UploadButton } from "@/utils/uploadthing";
+import { useToast } from "@/components/Toast";
 
 type Existing = {
   id: string;
@@ -26,6 +27,7 @@ export default function ReviewComposer(props: {
 }) {
   const { listingId, canReview, hasReview, existing, isEditing = false } = props;
   const router = useRouter();
+  const { toast } = useToast();
 
   // Derived mode
   const editing = !!isEditing && !!existing;
@@ -75,7 +77,7 @@ export default function ReviewComposer(props: {
 
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j?.error || "Something went wrong.");
+      toast(j?.error || "Something went wrong.", "error");
       return;
     }
 
@@ -160,7 +162,7 @@ export default function ReviewComposer(props: {
             (first ? `https://utfs.io/f/${(first as { key?: string }).key}` : "");
           if (url) setPhotoUrls((prev) => (prev.includes(url) ? prev : [...prev, url]).slice(0, 6));
         }}
-        onUploadError={(e: Error) => alert(e?.message || "Upload failed")}
+        onUploadError={(e: Error) => toast(e?.message || "Upload failed", "error")}
         appearance={{
           button:
             "inline-flex items-center gap-2 rounded-full px-3 py-1 bg-black text-white hover:bg-neutral-800",
@@ -189,7 +191,6 @@ export default function ReviewComposer(props: {
     </form>
   );
 }
-
 
 
 

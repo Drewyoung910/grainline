@@ -1,6 +1,7 @@
 // src/app/dashboard/blog/new/page.tsx
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateSlug, calculateReadingTime } from "@/lib/blog";
 import { BlogPostType, BlogAuthorType } from "@prisma/client";
@@ -107,7 +108,7 @@ export default async function NewBlogPostPage() {
 
     // Notify followers of makers when a new post is published
     if (status === "PUBLISHED" && sellerProfileId) {
-      void (async () => {
+      after(async () => {
         try {
           const followers = await prisma.follow.findMany({
             where: { sellerProfileId },
@@ -130,7 +131,7 @@ export default async function NewBlogPostPage() {
             )
           );
         } catch { /* non-fatal */ }
-      })();
+      });
     }
 
     redirect("/dashboard/blog");

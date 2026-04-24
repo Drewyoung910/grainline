@@ -1,9 +1,11 @@
 // src/app/api/commission/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
+import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { z } from "zod";
 
 const CommissionPatchSchema = z.object({
@@ -52,6 +54,7 @@ export async function GET(
   });
 
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (commissionIsExpired(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   return NextResponse.json(request);
 }
@@ -72,6 +75,7 @@ export async function PATCH(
     select: {
       buyerId: true,
       status: true,
+      expiresAt: true,
       title: true,
       interests: {
         select: {
@@ -82,6 +86,9 @@ export async function PATCH(
   });
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (request.buyerId !== me.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (commissionIsExpired(request)) {
+    return NextResponse.json({ error: "Commission request has expired" }, { status: 400 });
+  }
 
   let patchParsed;
   try {
@@ -102,19 +109,23 @@ export async function PATCH(
 
   // Notify interested sellers
   const isFulfilled = (status as CommissionStatus) === CommissionStatus.FULFILLED;
-  void Promise.all(
-    request.interests.map((interest) =>
-      createNotification({
-        userId: interest.sellerProfile.userId,
-        type: "COMMISSION_INTEREST",
-        title: isFulfilled ? "Commission request fulfilled" : "Commission request closed",
-        body: isFulfilled
-          ? `The request "${request.title}" has been fulfilled. Thanks for your interest!`
-          : `The request "${request.title}" has been closed by the buyer.`,
-        link: isFulfilled ? `/commission/${id}` : `/commission`,
-      })
-    )
-  ).catch(() => {});
+  after(async () => {
+    try {
+      await Promise.all(
+        request.interests.map((interest) =>
+          createNotification({
+            userId: interest.sellerProfile.userId,
+            type: "COMMISSION_INTEREST",
+            title: isFulfilled ? "Commission request fulfilled" : "Commission request closed",
+            body: isFulfilled
+              ? `The request "${request.title}" has been fulfilled. Thanks for your interest!`
+              : `The request "${request.title}" has been closed by the buyer.`,
+            link: isFulfilled ? `/commission/${id}` : `/commission`,
+          })
+        )
+      );
+    } catch { /* non-fatal */ }
+  });
 
   return NextResponse.json(updated);
 }

@@ -141,6 +141,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         <input
           id="sa-name"
           type="text"
+          autoComplete="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -154,6 +155,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         <input
           id="sa-line1"
           type="text"
+          autoComplete="address-line1"
           value={line1}
           onChange={(e) => setLine1(e.target.value)}
           className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -167,6 +169,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         <input
           id="sa-line2"
           type="text"
+          autoComplete="address-line2"
           value={line2}
           onChange={(e) => setLine2(e.target.value)}
           placeholder="Apt, suite, etc."
@@ -181,6 +184,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           <input
             id="sa-city"
             type="text"
+            autoComplete="address-level2"
             value={city}
             onChange={(e) => setCity(e.target.value)}
             className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -191,6 +195,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           <label htmlFor="sa-state" className="block text-sm font-medium text-neutral-700 mb-1">State</label>
           <select
             id="sa-state"
+            autoComplete="address-level1"
             value={state}
             onChange={(e) => setState(e.target.value)}
             className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -207,6 +212,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           <input
             id="sa-zip"
             type="text"
+            autoComplete="postal-code"
             inputMode="numeric"
             maxLength={5}
             value={postalCode}
@@ -223,6 +229,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         <input
           id="sa-phone"
           type="tel"
+          autoComplete="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="For delivery questions"

@@ -3,12 +3,14 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart, Eye, Heart } from "@/components/icons";
 import { createNotification } from "@/lib/notifications";
+import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import type { Metadata } from "next";
@@ -63,7 +65,7 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
 
   // Notify followers when a listing becomes active for the first time
   if (nextStatus === "ACTIVE" && listing.status !== "ACTIVE") {
-    void (async () => {
+    after(async () => {
       try {
         const followers = await prisma.follow.findMany({
           where: { sellerProfileId: listing.sellerId },
@@ -83,7 +85,7 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
           );
         }
       } catch { /* non-fatal */ }
-    })();
+    });
   }
 
   revalidatePath("/dashboard");
@@ -105,11 +107,8 @@ async function deleteListing(listingId: string) {
   });
   if (!listing || listing.seller.userId !== me.id) return;
 
-  // Soft delete: set status to HIDDEN and mark as deleted (preserves order history)
-  await prisma.listing.update({
-    where: { id: listingId },
-    data: { status: "HIDDEN", isPrivate: true },
-  });
+  // Soft delete: preserve order history, remove current shopping intent records.
+  await softDeleteListingWithCleanup(listingId);
 
   // Deleting a listing may drop active count below 5
   const activeCount = await prisma.listing.count({
@@ -602,7 +601,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

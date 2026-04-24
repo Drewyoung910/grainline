@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 export default function ProfileAvatarUploader({
   initialUrl,
@@ -41,7 +42,7 @@ export default function ProfileAvatarUploader({
               null;
             if (newUrl) setUrl(newUrl);
           }}
-          onUploadError={(e) => alert(e.message)}
+          onUploadError={(e) => emitToast(e.message, "error")}
         />
         <p className="mt-1 text-xs text-neutral-500">
           Square image recommended. Shown on your public profile.

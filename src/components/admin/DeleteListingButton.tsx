@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export function DeleteListingButton({ listingId }: { listingId: string }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function handleDelete() {
     if (!confirm("Hide this listing? It will be set to HIDDEN and removed from public view. This can be undone by editing the listing status.")) return;
@@ -12,7 +14,7 @@ export function DeleteListingButton({ listingId }: { listingId: string }) {
     const res = await fetch(`/api/admin/listings/${listingId}`, { method: "DELETE" });
     setLoading(false);
     if (res.ok) router.refresh();
-    else alert("Failed to hide listing");
+    else toast("Failed to hide listing", "error");
   }
 
   return (

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { SubmitButton } from "@/components/ActionForm";
 import { UploadButton } from "@/utils/uploadthing";
+import { emitToast } from "@/components/Toast";
 
 type Attachment = {
   id: string;
@@ -145,7 +146,7 @@ export default function MessageComposer({
             onUploadError={(e) => {
               const id = pendingIdsRef.current.pop();
               if (id) setAttachments((prev) => prev.filter((a) => a.id !== id));
-              alert(e?.message ?? "Upload failed");
+              emitToast(e?.message ?? "Upload failed", "error");
             }}
           />
         </div>
@@ -206,7 +207,6 @@ export default function MessageComposer({
     </div>
   );
 }
-
 
 
 

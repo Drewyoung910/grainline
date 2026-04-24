@@ -7,6 +7,14 @@ import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratel
 import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import {
+  acquireCheckoutLock,
+  checkoutPayloadHash,
+  getCheckoutLock,
+  markCheckoutLockReady,
+  releaseCheckoutLock,
+  singleCheckoutLockKey,
+} from "@/lib/checkoutSessionLock";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -42,6 +50,8 @@ export async function POST(req: Request) {
   // Track stock reservation for rollback on error
   let reservedListingId: string | null = null;
   let reservedQuantity = 0;
+  let checkoutLockKeyValue: string | null = null;
+  let checkoutLockAcquired = false;
 
   try {
     const { userId } = await auth();
@@ -221,6 +231,60 @@ export async function POST(req: Request) {
       );
     }
 
+    checkoutLockKeyValue = singleCheckoutLockKey(me.id, listing.id);
+    const payloadHash = checkoutPayloadHash({
+      buyerId: me.id,
+      listingId: listing.id,
+      quantity: body.quantity,
+      variantKey: variantResolution.variantKey,
+      unitPriceCents,
+      shippingAddress: body.shippingAddress,
+      selectedRate: {
+        objectId: body.selectedRate.objectId,
+        amountCents: shippingAmountCents,
+        estDays: body.selectedRate.estDays,
+      },
+      giftWrapping: body.giftWrapping === true,
+      giftNote: body.giftNote ?? "",
+    });
+
+    const existingCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
+    if (existingCheckoutLock) {
+      if (
+        existingCheckoutLock.payloadHash === payloadHash &&
+        existingCheckoutLock.state === "ready" &&
+        existingCheckoutLock.clientSecret
+      ) {
+        return NextResponse.json({
+          clientSecret: existingCheckoutLock.clientSecret,
+          reused: true,
+        });
+      }
+      return NextResponse.json(
+        { error: "A checkout session is already open for this listing. Complete it or wait a few minutes before trying again." },
+        { status: 409 },
+      );
+    }
+
+    checkoutLockAcquired = await acquireCheckoutLock(checkoutLockKeyValue, payloadHash);
+    if (!checkoutLockAcquired) {
+      const racedCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
+      if (
+        racedCheckoutLock?.payloadHash === payloadHash &&
+        racedCheckoutLock.state === "ready" &&
+        racedCheckoutLock.clientSecret
+      ) {
+        return NextResponse.json({
+          clientSecret: racedCheckoutLock.clientSecret,
+          reused: true,
+        });
+      }
+      return NextResponse.json(
+        { error: "A checkout session is already being prepared. Please try again in a moment." },
+        { status: 409 },
+      );
+    }
+
     // Stock reservation: atomically decrement stock at checkout time (not webhook).
     // All validation-return paths must stay above this point; later failures
     // should throw so the catch block restores this reservation.
@@ -232,6 +296,7 @@ export async function POST(req: Request) {
           AND "stockQuantity" >= ${body.quantity}
       `;
       if (reserved === 0) {
+        await releaseCheckoutLock(checkoutLockKeyValue);
         return NextResponse.json(
           { error: "Not enough stock available for this item." },
           { status: 400 },
@@ -372,8 +437,20 @@ export async function POST(req: Request) {
             }))
           ).slice(0, 500);
         })(),
+        checkoutLockKey: checkoutLockKeyValue,
       },
     });
+
+    try {
+      await markCheckoutLockReady(
+        checkoutLockKeyValue,
+        payloadHash,
+        session.id,
+        session.client_secret,
+      );
+    } catch (lockErr) {
+      Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
+    }
 
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
@@ -389,6 +466,10 @@ export async function POST(req: Request) {
         WHERE id = ${reservedListingId}
           AND "listingType" = 'IN_STOCK'
       `.catch(() => {}); // best effort — don't mask the original error
+    }
+
+    if (checkoutLockAcquired) {
+      await releaseCheckoutLock(checkoutLockKeyValue);
     }
 
     const msg = err instanceof Error ? err.message : "Server error creating checkout session";

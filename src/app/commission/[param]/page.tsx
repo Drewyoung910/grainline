@@ -16,8 +16,8 @@ import CommissionInterestButton from "../CommissionInterestButton";
 import MarkStatusButtons from "./MarkStatusButtons";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
-import { CommissionStatus } from "@prisma/client";
 import { safeJsonLd } from "@/lib/json-ld";
+import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
 
 // ---------------------------------------------------------------------------
 // generateStaticParams — include both active metro slugs and open commission IDs
@@ -28,14 +28,14 @@ export async function generateStaticParams() {
       where: {
         isActive: true,
         OR: [
-          { commissions: { some: { status: CommissionStatus.OPEN } } },
-          { commissionCityMetros: { some: { status: CommissionStatus.OPEN } } },
+          { commissions: { some: openCommissionWhere() } },
+          { commissionCityMetros: { some: openCommissionWhere() } },
         ],
       },
       select: { slug: true },
     }),
     prisma.commissionRequest.findMany({
-      where: { status: CommissionStatus.OPEN },
+      where: openCommissionWhere(),
       select: { id: true },
       take: 500,
     }),
@@ -82,10 +82,12 @@ export async function generateMetadata({
       budgetMinCents: true,
       budgetMaxCents: true,
       interestedCount: true,
+      status: true,
+      expiresAt: true,
       buyer: { select: { sellerProfile: { select: { city: true, state: true } } } },
     },
   });
-  if (!req) return {};
+  if (!req || commissionIsExpired(req)) return {};
 
   const location = req.isNational
     ? "Ships Anywhere"
@@ -137,8 +139,8 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
   const isMajorMetro = !metro.parentMetroId;
 
   const commissionWhere = isMajorMetro
-    ? { metroId: metro.id, status: CommissionStatus.OPEN }
-    : { cityMetroId: metro.id, status: CommissionStatus.OPEN };
+    ? openCommissionWhere({ metroId: metro.id })
+    : openCommissionWhere({ cityMetroId: metro.id });
 
   const commissions = await prisma.commissionRequest.findMany({
     where: commissionWhere,
@@ -340,6 +342,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       status: true,
       interestedCount: true,
       isNational: true,
+      expiresAt: true,
       createdAt: true,
       buyerId: true,
       metroId: true,
@@ -366,7 +369,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
     },
   });
 
-  if (!request) return notFound();
+  if (!request || commissionIsExpired(request)) return notFound();
 
   const { userId } = await auth();
   let meId: string | null = null;

@@ -124,7 +124,7 @@ export default function Header() {
 
   return (
     <header className="border-b bg-gradient-to-b from-amber-50 to-white relative z-[50]">
-      <nav className="mx-auto max-w-6xl p-4 flex items-center gap-4">
+      <nav aria-label="Main navigation" className="mx-auto max-w-6xl p-4 flex items-center gap-4">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
           {/* Mobile */}

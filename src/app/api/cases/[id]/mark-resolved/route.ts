@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,8 @@ export async function POST(
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const me = await ensureUserByClerkId(userId);
+    const { success, reset } = await safeRateLimit(caseActionRatelimit, me.id);
+    if (!success) return rateLimitResponse(reset, "Too many case actions.");
 
     const caseRecord = await prisma.case.findUnique({
       where: { id },
