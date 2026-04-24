@@ -25,6 +25,39 @@ const ShippingQuoteSchema = z.object({
 
 export const runtime = "nodejs";
 
+function fallbackRate({
+  amountCents,
+  contextId,
+  buyerPostal,
+}: {
+  amountCents: number;
+  contextId: string;
+  buyerPostal: string;
+}) {
+  const label = "Standard shipping";
+  const { token, expiresAt } = signRate({
+    objectId: "fallback",
+    amountCents,
+    displayName: label,
+    carrier: "fallback",
+    estDays: null,
+    contextId,
+    buyerPostal,
+  });
+
+  return {
+    label,
+    amountCents,
+    carrier: "fallback",
+    service: "fallback",
+    estDays: null,
+    taxBehavior: "exclusive" as const,
+    objectId: "fallback",
+    token,
+    expiresAt,
+  };
+}
+
 /**
  * POST /api/shipping/quote
  * Body:
@@ -258,51 +291,69 @@ export async function POST(req: Request) {
       return NextResponse.json({ rates: [] });
     }
 
-    type ShippoRate = { currency?: string; provider?: string; carrier?: string; servicelevel?: { name?: string }; service?: string; estimated_days?: number | null; amount?: number; object_id?: string };
-    type ShippoShipment = { rates?: ShippoRate[] };
-    // Build Shippo shipment + fetch rates (async=false embeds rates)
-    const shipment = await shippoRequest<ShippoShipment>("/shipments/", {
-      method: "POST",
-      body: JSON.stringify({
-        address_from: {
-          name: shipFrom.name || undefined,
-          street1: shipFrom.line1,
-          street2: shipFrom.line2 || undefined,
-          city: shipFrom.city,
-          state: shipFrom.state,
-          zip: shipFrom.postal,
-          country: shipFrom.country,
-        },
-        address_to: {
-          // For better quotes, pass real buyer destination when available.
-          street1: "Placeholder",
-          city: shipTo.city,
-          state: shipTo.state,
-          zip: shipTo.postal,
-          country: shipTo.country,
-        },
-        parcels: [
-          {
-            length: lengthCm,
-            width: widthCm,
-            height: heightCm,
-            distance_unit: "cm",
-            weight: totalWeightGrams,
-            mass_unit: "g",
-          },
-        ],
-        async: false,
-      }),
-    });
-
-    const rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
-
     // contextId ties the HMAC signature to either the seller (cart)
     // or the specific listing (buy-now). This prevents a cheap rate
     // signed for one seller/listing from being replayed against another.
     // sellerId is resolved above in both branches.
     const contextId: string =
       mode === "single" ? (body.listingId ?? "") : (sellerId ?? "");
+
+    type ShippoRate = { currency?: string; provider?: string; carrier?: string; servicelevel?: { name?: string }; service?: string; estimated_days?: number | null; amount?: number; object_id?: string };
+    type ShippoShipment = { rates?: ShippoRate[] };
+    let rates: ShippoRate[] = [];
+
+    try {
+      // Build Shippo shipment + fetch rates (async=false embeds rates)
+      const shipment = await shippoRequest<ShippoShipment>("/shipments/", {
+        method: "POST",
+        body: JSON.stringify({
+          address_from: {
+            name: shipFrom.name || undefined,
+            street1: shipFrom.line1,
+            street2: shipFrom.line2 || undefined,
+            city: shipFrom.city,
+            state: shipFrom.state,
+            zip: shipFrom.postal,
+            country: shipFrom.country,
+          },
+          address_to: {
+            // For better quotes, pass real buyer destination when available.
+            street1: "Placeholder",
+            city: shipTo.city,
+            state: shipTo.state,
+            zip: shipTo.postal,
+            country: shipTo.country,
+          },
+          parcels: [
+            {
+              length: lengthCm,
+              width: widthCm,
+              height: heightCm,
+              distance_unit: "cm",
+              weight: totalWeightGrams,
+              mass_unit: "g",
+            },
+          ],
+          async: false,
+        }),
+      });
+      rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
+    } catch (err) {
+      console.error("Shippo quote failed; returning signed fallback rate:", err);
+      const siteConfig = await prisma.siteConfig.findUnique({
+        where: { id: 1 },
+        select: { fallbackShippingCents: true },
+      });
+      return NextResponse.json({
+        rates: [
+          fallbackRate({
+            amountCents: siteConfig?.fallbackShippingCents ?? 1500,
+            contextId,
+            buyerPostal: shipTo.postal,
+          }),
+        ],
+      });
+    }
 
     // Filter by seller's preferred carriers (if set) before signing
     const preferredLower = sellerPreferredCarriers.map((c) => c.toLowerCase());
@@ -349,6 +400,20 @@ export async function POST(req: Request) {
         };
       });
 
+    if (out.length === 0 && !sellerAllowsPickup) {
+      const siteConfig = await prisma.siteConfig.findUnique({
+        where: { id: 1 },
+        select: { fallbackShippingCents: true },
+      });
+      out.push(
+        fallbackRate({
+          amountCents: siteConfig?.fallbackShippingCents ?? 1500,
+          contextId,
+          buyerPostal: shipTo.postal,
+        }),
+      );
+    }
+
     // Local pickup option — injected as a synthetic rate if seller allows it
     if (sellerAllowsPickup) {
       const pickupLabel = "Local Pickup (Free)";
@@ -377,9 +442,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ rates: out });
   } catch (err) {
     console.error("POST /api/shipping/quote error:", err);
-    // Don’t break checkout; returning [] lets the caller fall back to flat/pickup.
+    // Fail closed: checkout requires a signed rate from this endpoint.
     return NextResponse.json({ rates: [] });
   }
 }
-
 

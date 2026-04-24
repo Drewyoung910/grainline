@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
-import { FALLBACK_RATE } from "@/types/checkout";
 
 type QuoteRate = {
   label: string;
@@ -19,7 +18,7 @@ type Props = {
   sellerId: string;
   sellerDisplayName: string;
   address: ShippingAddress;
-  onSelect: (rate: SelectedShippingRate) => void;
+  onSelect: (rate: SelectedShippingRate | null) => void;
   selectedRate: SelectedShippingRate | null;
   // Optional: extra fields merged into quote body.
   // For Buy Now: { mode: "single", listingId: "xxx" }
@@ -34,10 +33,7 @@ function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
     displayName: r.label,
     carrier: r.carrier,
     estDays: r.estDays,
-    // Unsigned rates get empty token — intentionally fails HMAC
-    // verification with a clear 400 rather than silently downgrading
-    // to SiteConfig.fallbackShippingCents. Do NOT use "fallback" here —
-    // that would cause isFallbackRate() to match and skip verification.
+    // Unsigned rates get empty token — checkout verification fails closed.
     token: r.token ?? "",
     expiresAt: r.expiresAt ?? 0,
   };
@@ -62,6 +58,8 @@ export default function ShippingRateSelector({
     async function fetchRates() {
       setLoading(true);
       setError(false);
+      setRates([]);
+      onSelect(null);
       try {
         const res = await fetch("/api/shipping/quote", {
           method: "POST",
@@ -82,7 +80,6 @@ export default function ShippingRateSelector({
         const quoteRates: QuoteRate[] = data.rates ?? [];
         if (quoteRates.length === 0) {
           setError(true);
-          onSelect(FALLBACK_RATE);
           return;
         }
         const mapped = quoteRates.map(toSelectedRate);
@@ -92,7 +89,6 @@ export default function ShippingRateSelector({
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         setError(true);
-        onSelect(FALLBACK_RATE);
       } finally {
         if (!ac.signal.aborted) setLoading(false);
       }
@@ -124,7 +120,7 @@ export default function ShippingRateSelector({
       <div className="space-y-2">
         <p className="text-sm font-medium text-neutral-500">Shipping from {sellerDisplayName}</p>
         <div className="p-3 rounded-md border border-neutral-200 text-sm text-neutral-500">
-          Unable to get shipping rates. A rate will be calculated at checkout.
+          Unable to get shipping rates. Check the address or try again before continuing.
         </div>
       </div>
     );

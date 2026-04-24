@@ -147,32 +147,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify shipping rate HMAC token.
-    // Fallback rates bypass verification — they use
-    // SiteConfig.fallbackShippingCents instead of the
-    // client-provided amountCents.
-    if (!isFallbackRate(body.selectedRate)) {
-      const contextId = body.listingId;
-      const rateVerification = verifyRate(
-        {
-          objectId: body.selectedRate.objectId,
-          amountCents: body.selectedRate.amountCents,
-          displayName: body.selectedRate.displayName,
-          carrier: body.selectedRate.carrier,
-          estDays: body.selectedRate.estDays,
-          contextId,
-          buyerPostal: body.shippingAddress.postalCode,
-        },
-        body.selectedRate.token,
-        body.selectedRate.expiresAt,
-      );
+    // Verify every shipping rate, including fallback. Fallback rates must be
+    // signed by /api/shipping/quote; clients cannot force the fallback objectId.
+    const contextId = body.listingId;
+    const rateVerification = verifyRate(
+      {
+        objectId: body.selectedRate.objectId,
+        amountCents: body.selectedRate.amountCents,
+        displayName: body.selectedRate.displayName,
+        carrier: body.selectedRate.carrier,
+        estDays: body.selectedRate.estDays,
+        contextId,
+        buyerPostal: body.shippingAddress.postalCode,
+      },
+      body.selectedRate.token,
+      body.selectedRate.expiresAt,
+    );
 
-      if (!rateVerification.ok) {
-        return NextResponse.json(
-          { error: rateVerification.error },
-          { status: rateVerification.status },
-        );
-      }
+    if (!rateVerification.ok) {
+      return NextResponse.json(
+        { error: rateVerification.error },
+        { status: rateVerification.status },
+      );
     }
 
     // Variant validation + price calculation — MUST come before stock reservation
@@ -192,16 +188,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
     }
 
-    // Resolve shipping amount — fall back to SiteConfig if fallback rate selected
+    // Resolve shipping amount from the signed selected rate.
     const isFallback = isFallbackRate(body.selectedRate);
-    let shippingAmountCents = body.selectedRate.amountCents;
-    if (isFallback) {
-      const siteConfig = await prisma.siteConfig.findUnique({
-        where: { id: 1 },
-        select: { fallbackShippingCents: true },
-      });
-      shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
-    }
+    const shippingAmountCents = body.selectedRate.amountCents;
 
     // Gift wrap price is sourced server-side from the seller's profile
     const giftWrapCents = body.giftWrapping

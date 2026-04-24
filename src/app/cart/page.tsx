@@ -10,7 +10,6 @@ import ShippingAddressForm from "@/components/ShippingAddressForm";
 import ShippingRateSelector from "@/components/ShippingRateSelector";
 import EmbeddedCheckoutPanel from "@/components/EmbeddedCheckoutPanel";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
-import { isFallbackRate } from "@/types/checkout";
 
 export default function CartPageWrapper() {
   return (
@@ -505,7 +504,12 @@ function CartPage() {
                   address={shippingAddress}
                   selectedRate={selectedRates[g.sellerId] ?? null}
                   onSelect={(rate) =>
-                    setSelectedRates((prev) => ({ ...prev, [g.sellerId]: rate }))
+                    setSelectedRates((prev) => {
+                      const next = { ...prev };
+                      if (rate) next[g.sellerId] = rate;
+                      else delete next[g.sellerId];
+                      return next;
+                    })
                   }
                 />
               ))}
@@ -534,9 +538,7 @@ function CartPage() {
                   <span className="text-neutral-600">Shipping</span>
                   <span className="font-medium">
                     {allRatesSelected
-                      ? groups.some((g) => isFallbackRate(selectedRates[g.sellerId]))
-                        ? "Calculated at checkout"
-                        : `$${(totalShippingCents / 100).toFixed(2)}`
+                      ? `$${(totalShippingCents / 100).toFixed(2)}`
                       : "Selecting..."}
                   </span>
                 </div>
@@ -548,7 +550,7 @@ function CartPage() {
                 <div className="flex justify-between text-base">
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
-                    {allRatesSelected && !groups.some((g) => isFallbackRate(selectedRates[g.sellerId]))
+                    {allRatesSelected
                       ? `$${((grandTotal + totalShippingCents) / 100).toFixed(2)}`
                       : `$${(grandTotal / 100).toFixed(2)}+`}
                   </span>

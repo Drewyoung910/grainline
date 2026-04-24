@@ -6,12 +6,13 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText } from "@/lib/sanitize";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
   message: z.string().min(1).max(500),
   imageUrl: z.string().url().regex(/^https:\/\//).refine(
-    (u) => !process.env.CLOUDFLARE_R2_PUBLIC_URL || u.startsWith(process.env.CLOUDFLARE_R2_PUBLIC_URL),
+    (u) => isR2PublicUrl(u),
     { message: "Invalid image URL origin" }
   ).optional().nullable(),
   sellersOnly: z.boolean().optional(),

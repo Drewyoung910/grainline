@@ -4,7 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
-import type { FulfillmentStatus, LabelStatus } from "@prisma/client";
+import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 const LabelSchema = z.object({
@@ -21,6 +22,21 @@ type LiveRate = {
   service?: string;
   estDays?: number | null;
 };
+
+const ACTIVE_CASE_STATUSES = new Set(["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"]);
+const LABEL_RATE_QUOTE_TTL_MS = 30 * 60 * 1000;
+
+function isPurchasableRateObjectId(rateObjectId: string | null | undefined): rateObjectId is string {
+  return !!rateObjectId && rateObjectId !== "fallback" && rateObjectId !== "pickup";
+}
+
+function rateSetIncludes(rates: Prisma.JsonValue, rateObjectId: string): boolean {
+  if (!Array.isArray(rates)) return false;
+  return rates.some((rate) => {
+    if (!rate || typeof rate !== "object" || Array.isArray(rate)) return false;
+    return "objectId" in rate && rate.objectId === rateObjectId;
+  });
+}
 
 function prioritizeAndTrim(rates: LiveRate[], max = 4): LiveRate[] {
   if (!Array.isArray(rates) || rates.length === 0) return [];
@@ -75,6 +91,7 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
+      case: { select: { status: true } },
       items: {
         include: {
           listing: {
@@ -137,6 +154,9 @@ export async function POST(
     if (order.fulfillmentMethod === "PICKUP") {
       return NextResponse.json({ error: "Cannot purchase a shipping label for a pickup order." }, { status: 400 });
     }
+    if (order.case && ACTIVE_CASE_STATUSES.has(order.case.status)) {
+      return NextResponse.json({ error: "Cannot purchase a label while this order has an active case." }, { status: 400 });
+    }
     const terminalStatuses: FulfillmentStatus[] = ["SHIPPED", "DELIVERED", "PICKED_UP"];
     if (terminalStatuses.includes(order.fulfillmentStatus)) {
       return NextResponse.json(
@@ -145,37 +165,41 @@ export async function POST(
       );
     }
 
-    // Atomic double-check to prevent concurrent label purchases
-    const labelLockResult: number = await prisma.$executeRaw`
-      UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
-      WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
-    `;
-    if (labelLockResult === 0) {
-      return NextResponse.json({ error: "Label already purchased." }, { status: 400 });
-    }
-
-    // Helper to revert the atomic label lock on failure
-    const revertLabelLock = async () => {
-      await prisma.$executeRaw`
-        UPDATE "Order" SET "labelStatus" = NULL
-        WHERE id = ${order.id}
-      `.catch(() => {});
-    };
-
-    try {
     // Determine which rate objectId to use:
-    //   1. Caller supplied one explicitly (after a re-quote rate-picker selection)
+    //   1. Caller supplied one explicitly and it belongs to the order's
+    //      unexpired persisted quote set
     //   2. Stored rate is still valid (order under 5 days old)
     //   3. Neither → trigger re-quote
     const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
     const orderAge = Date.now() - order.createdAt.getTime();
-    const storedRateUsable = !!order.shippoRateObjectId && orderAge < FIVE_DAYS_MS;
-    const effectiveRateObjectId = bodyRateObjectId ?? (storedRateUsable ? order.shippoRateObjectId : null);
+    const storedRateUsable = isPurchasableRateObjectId(order.shippoRateObjectId) && orderAge < FIVE_DAYS_MS;
+    let effectiveRateObjectId: string | null = null;
+
+    if (bodyRateObjectId) {
+      if (!isPurchasableRateObjectId(bodyRateObjectId)) {
+        return NextResponse.json({ error: "Invalid shipping rate selected." }, { status: 400 });
+      }
+      if (storedRateUsable && bodyRateObjectId === order.shippoRateObjectId) {
+        effectiveRateObjectId = bodyRateObjectId;
+      } else {
+        const quoteSet = await prisma.orderShippingRateQuote.findFirst({
+          where: { orderId: order.id, expiresAt: { gt: new Date() } },
+          orderBy: { createdAt: "desc" },
+          select: { rates: true },
+        });
+        if (!quoteSet || !rateSetIncludes(quoteSet.rates, bodyRateObjectId)) {
+          return NextResponse.json(
+            { error: "Shipping rate expired. Re-quote before purchasing a label." },
+            { status: 400 },
+          );
+        }
+        effectiveRateObjectId = bodyRateObjectId;
+      }
+    } else if (storedRateUsable) {
+      effectiveRateObjectId = order.shippoRateObjectId;
+    }
 
     if (!effectiveRateObjectId) {
-      // Re-quote path — clear the lock since we're not purchasing yet
-      await revertLabelLock();
-
       if (!order.shipToLine1 || !order.shipToCity || !order.shipToState || !order.shipToPostalCode) {
         return NextResponse.json(
           { error: "Order is missing shipping address fields required for re-quoting." },
@@ -241,18 +265,58 @@ export async function POST(
       }));
 
       const prioritized = prioritizeAndTrim(liveRates, 4);
+      if (prioritized.length === 0) {
+        return NextResponse.json(
+          { error: "No current shipping label rates are available for this order." },
+          { status: 502 },
+        );
+      }
 
-      // Persist updated shipmentId so the next call can reference these fresh rates
-      await prisma.order.update({
-        where: { id },
-        data: { shippoShipmentId: shipmentId },
-      });
+      await prisma.$transaction([
+        prisma.order.update({
+          where: { id },
+          data: { shippoShipmentId: shipmentId },
+        }),
+        prisma.orderShippingRateQuote.create({
+          data: {
+            orderId: id,
+            shipmentId,
+            rates: prioritized,
+            expiresAt: new Date(Date.now() + LABEL_RATE_QUOTE_TTL_MS),
+          },
+        }),
+        prisma.orderShippingRateQuote.deleteMany({
+          where: { orderId: id, expiresAt: { lt: new Date() } },
+        }),
+      ]);
 
       return NextResponse.json(
         { requiresRateSelection: true, shipmentId, rates: prioritized },
         { status: 202 }
       );
     }
+
+    // Atomic double-check to prevent concurrent label purchases. We set the
+    // terminal label status before Shippo purchase so retries cannot buy a
+    // second label if Shippo succeeds but a later DB write fails.
+    const labelLockResult: number = await prisma.$executeRaw`
+      UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
+      WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+    `;
+    if (labelLockResult === 0) {
+      return NextResponse.json({ error: "Label already purchased." }, { status: 400 });
+    }
+
+    const revertLabelLock = async () => {
+      await prisma.$executeRaw`
+        UPDATE "Order" SET "labelStatus" = NULL
+        WHERE id = ${order.id}
+      `.catch(() => {});
+    };
+
+    let shippoPurchaseSucceeded = false;
+
+    try {
 
     type ShippoTransaction = {
       status: string;
@@ -281,6 +345,7 @@ export async function POST(
         { status: 502 }
       );
     }
+    shippoPurchaseSucceeded = true;
 
     const labelCostCents = Math.round(Number(txn.rate?.amount ?? 0) * 100);
     const now = new Date();
@@ -322,12 +387,19 @@ export async function POST(
 
     return NextResponse.json({ ok: true, labelUrl: updated.labelUrl, order: updated });
     } catch (labelErr) {
-      // Revert lock if label purchase or DB update failed
-      await revertLabelLock();
+      if (!shippoPurchaseSucceeded) {
+        await revertLabelLock();
+      } else {
+        Sentry.captureException(labelErr, {
+          tags: { source: "shippo_label_post_purchase_db_update" },
+          extra: { orderId: id },
+        });
+      }
       throw labelErr;
     }
   } catch (err) {
     console.error("POST /api/orders/[id]/label error:", err);
+    Sentry.captureException(err, { tags: { source: "label_purchase" } });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

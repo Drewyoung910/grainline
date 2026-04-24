@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderReady } from "@/lib/email";
+import { filterR2PublicUrls } from "@/lib/urlValidation";
 import ImagesUploader from "@/components/ImagesUploader";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Metadata } from "next";
@@ -70,7 +71,7 @@ async function createCustomListing(formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = imageUrls.slice(0, 8);
+  imageUrls = filterR2PublicUrls(imageUrls, 8);
 
   // Packaged dims
   const lenIn = Number(String(formData.get("pkgLengthIn") ?? "").trim());

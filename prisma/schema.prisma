@@ -567,6 +567,22 @@ model Order {
   giftNote                String?
   giftWrapping            Boolean  @default(false)
   giftWrappingPriceCents  Int?
+
+  shippingRateQuotes OrderShippingRateQuote[]
+}
+
+model OrderShippingRateQuote {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipmentId String
+  rates      Json
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orderId, expiresAt])
+  @@index([expiresAt])
 }
 
 

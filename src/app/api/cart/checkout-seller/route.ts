@@ -4,7 +4,6 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
@@ -215,32 +214,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // Verify shipping rate HMAC token.
-    // Fallback rates bypass verification — they use
-    // SiteConfig.fallbackShippingCents instead of the
-    // client-provided amountCents.
-    if (!isFallbackRate(body.selectedRate)) {
-      const contextId = body.sellerId;
-      const rateVerification = verifyRate(
-        {
-          objectId: body.selectedRate.objectId,
-          amountCents: body.selectedRate.amountCents,
-          displayName: body.selectedRate.displayName,
-          carrier: body.selectedRate.carrier,
-          estDays: body.selectedRate.estDays,
-          contextId,
-          buyerPostal: body.shippingAddress.postalCode,
-        },
-        body.selectedRate.token,
-        body.selectedRate.expiresAt,
-      );
+    // Verify every shipping rate, including fallback. Fallback rates must be
+    // signed by /api/shipping/quote; clients cannot force the fallback objectId.
+    const contextId = body.sellerId;
+    const rateVerification = verifyRate(
+      {
+        objectId: body.selectedRate.objectId,
+        amountCents: body.selectedRate.amountCents,
+        displayName: body.selectedRate.displayName,
+        carrier: body.selectedRate.carrier,
+        estDays: body.selectedRate.estDays,
+        contextId,
+        buyerPostal: body.shippingAddress.postalCode,
+      },
+      body.selectedRate.token,
+      body.selectedRate.expiresAt,
+    );
 
-      if (!rateVerification.ok) {
-        return NextResponse.json(
-          { error: rateVerification.error },
-          { status: rateVerification.status },
-        );
-      }
+    if (!rateVerification.ok) {
+      return NextResponse.json(
+        { error: rateVerification.error },
+        { status: rateVerification.status },
+      );
     }
 
     // Stripe line items
@@ -284,15 +279,8 @@ export async function POST(req: Request) {
       0
     );
 
-    // Resolve shipping amount — use fallback from SiteConfig if rate is the fallback placeholder
-    let shippingAmountCents = body.selectedRate.amountCents;
-    if (isFallbackRate(body.selectedRate)) {
-      const siteConfig = await prisma.siteConfig.findUnique({
-        where: { id: 1 },
-        select: { fallbackShippingCents: true },
-      });
-      shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
-    }
+    // Amount is trusted because the selected rate was signed above.
+    const shippingAmountCents = body.selectedRate.amountCents;
 
     const giftWrapCents = giftWrapping ? giftWrappingPriceCents : 0;
     const platformFee = Math.round(itemsSubtotalCents * 0.05);

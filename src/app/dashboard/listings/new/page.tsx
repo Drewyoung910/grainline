@@ -10,6 +10,7 @@ import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { filterR2PublicUrls } from "@/lib/urlValidation";
 import PhotoManager from "@/components/PhotoManager";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import VariantEditor from "@/components/VariantEditor";
@@ -63,12 +64,7 @@ async function createListing(formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = imageUrls.slice(0, 8);
-  // Validate photo URLs against R2 origin
-  const r2Origin = process.env.CLOUDFLARE_R2_PUBLIC_URL ?? "";
-  if (r2Origin) {
-    imageUrls = imageUrls.filter((u) => u.startsWith(r2Origin));
-  }
+  imageUrls = filterR2PublicUrls(imageUrls, 8);
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];

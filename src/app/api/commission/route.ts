@@ -8,6 +8,7 @@ import { commissionCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/l
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
+import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
 import { z } from "zod";
 
 const CommissionCreateSchema = z.object({
@@ -18,7 +19,7 @@ const CommissionCreateSchema = z.object({
   budgetMax: z.number().min(0).optional().nullable(),
   timeline: z.string().max(200).optional().nullable(),
   referenceImageUrls: z.array(z.string().url().refine(
-    (u) => !process.env.CLOUDFLARE_R2_PUBLIC_URL || u.startsWith(process.env.CLOUDFLARE_R2_PUBLIC_URL),
+    (u) => isR2PublicUrl(u),
     { message: "Invalid image URL" }
   )).max(3).optional(),
   isNational: z.boolean().optional(),
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin ? Math.round(Number(budgetMin) * 100) : null;
   const budgetMaxCents = budgetMax ? Math.round(Number(budgetMax) * 100) : null;
-  const images = (referenceImageUrls ?? []).slice(0, 3);
+  const images = filterR2PublicUrls(referenceImageUrls ?? [], 3);
 
   if (budgetMinCents !== null && budgetMinCents < 0) return NextResponse.json({ error: "Budget cannot be negative." }, { status: 400 });
   if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return NextResponse.json({ error: "Maximum budget must be greater than minimum." }, { status: 400 });

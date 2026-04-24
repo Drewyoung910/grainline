@@ -2858,6 +2858,46 @@ Follow-up implementation pass for the Opus Round 4 findings after auditing each 
 - Initial sandboxed `npm run build` failed because Turbopack could not bind its internal worker port under sandbox restrictions (`Operation not permitted`), not because of a TypeScript/application error.
 - `npm run build` passed outside the sandbox after the implementation pass. The only build-time warnings were the existing middleware/proxy deprecation warning and pg SSL-mode advisory.
 
+## Shipping / Label Integrity Hardening Pass (2026-04-24)
+
+Focused continuation from the remaining 300-item audit backlog. Scope was limited to high-risk marketplace correctness around shipping quotes, label purchase, media URL validation, and stale signed checkout rates.
+
+### Signed fallback shipping
+- Removed the old client-side hardcoded `FALLBACK_RATE` path. Checkout no longer accepts an unsigned `objectId: "fallback"` payload.
+- `/api/shipping/quote` now returns a signed fallback rate only after it has resolved the seller/listing context, package data, buyer postal code, and `SiteConfig.fallbackShippingCents`.
+- Both checkout routes verify every selected shipping rate through `verifyRate()`, including fallback. Clients cannot force fallback shipping without a valid short-lived HMAC from `/api/shipping/quote`.
+- Cart totals now treat signed fallback as a concrete quoted amount instead of showing "Calculated at checkout".
+- `ShippingRateSelector` now fails closed on quote failure by clearing the selected rate and disabling checkout instead of silently selecting an unsigned fallback.
+
+### Label purchase rate binding
+- Added `OrderShippingRateQuote` with migration `20260424190000_order_shipping_rate_quotes`.
+- Label re-quotes now persist the order-bound Shippo shipment id, the returned rate choices, and a 30-minute expiry.
+- `/api/orders/[id]/label` only accepts caller-supplied `rateObjectId` values if they match the original fresh checkout rate or an unexpired persisted quote set for that exact order.
+- Synthetic rates like `fallback` and `pickup` are explicitly rejected for label purchase.
+- Expired quote rows for the order are cleaned opportunistically when a fresh label re-quote is created.
+
+### Label purchase race and case guards
+- Label purchase is blocked for refunded orders, pickup orders, terminal fulfillment states, and active cases (`OPEN`, `IN_DISCUSSION`, `PENDING_CLOSE`, `UNDER_REVIEW`).
+- The label lock still uses `labelStatus = PURCHASED` before calling Shippo so concurrent requests cannot buy duplicate labels.
+- If Shippo fails before purchase, the lock is reverted. If Shippo succeeds but a later DB write fails, the lock is intentionally left in place and the error is captured to Sentry, preventing duplicate label purchases at the cost of requiring manual/admin recovery.
+
+### URL validation hardening
+- Added `src/lib/urlValidation.ts` with origin-safe `isR2PublicUrl()` and `filterR2PublicUrls()` helpers.
+- Replaced ad-hoc R2 `startsWith` write-path checks in listing photo upload, new listing creation, custom listing creation, reviews, commission reference images, and seller broadcasts.
+- Custom listing photos now filter to valid R2 public URLs before create, matching normal listing behavior.
+
+### Stale signed rate cleanup
+- Buy Now checkout modal clears `selectedRate` on close. Re-open now forces a fresh quote instead of reusing an expired signed rate and failing HMAC verification.
+
+### Verification
+- `npx prisma generate` passed after schema update.
+- `npx prisma validate` passed.
+- `npx tsc --noEmit --incremental false` passed.
+- `npm run lint` passed with 25 warnings and 0 errors.
+- `git diff --check` passed.
+- `DOTENV_CONFIG_PATH=.env node -r dotenv/config ./node_modules/.bin/prisma migrate deploy` applied `20260424190000_order_shipping_rate_quotes` successfully to the configured Neon database.
+- `npm run build` passed outside the sandbox. The only build-time warnings were the existing middleware/proxy deprecation warning and pg SSL-mode advisory.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

@@ -58,12 +58,13 @@ export default function BuyNowCheckoutModal({
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset payment state when modal closes.
-  // Address and rate are preserved for quick re-open.
-  // Payment step is reset (stale clientSecret = expired Stripe session).
+  // Reset payment/rate state when modal closes. Shipping rates are signed and
+  // short-lived, so preserving selectedRate across re-open can create HMAC
+  // failures even when the address did not change.
   useEffect(() => {
     if (!isOpen) {
       setClientSecret(null);
+      setSelectedRate(null);
       setCreatingSession(false);
       setError(null);
       if (step === "payment") setStep("shipping");

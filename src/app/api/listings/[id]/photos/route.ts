@@ -4,13 +4,12 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 import { z } from "zod";
-
-const R2_ORIGIN = process.env.CLOUDFLARE_R2_PUBLIC_URL ?? "";
 
 const PhotosSchema = z.object({
   urls: z.array(z.string().url().refine(
-    (u) => !R2_ORIGIN || u.startsWith(R2_ORIGIN),
+    (u) => isR2PublicUrl(u),
     { message: "Invalid photo URL origin" }
   )).max(8).optional(),
 });
