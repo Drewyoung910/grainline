@@ -75,10 +75,12 @@ function baseTemplate(title: string, body: string): string {
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 16px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-top:1px solid #E2E0DC;padding:20px 0 48px;">
     <tr><td style="font-size:11px;color:#9D9C97;line-height:1.6;">
-      © 2026 Grainline &nbsp;·&nbsp;
+      © 2026 Grainline LLC &nbsp;·&nbsp;
       <a href="${APP_URL}" style="color:#9D9C97;text-decoration:none;">thegrainline.com</a>
       &nbsp;·&nbsp;
       <a href="${APP_URL}/unsubscribe" style="color:#9D9C97;text-decoration:none;">Unsubscribe</a>
+      <br/>
+      <span style="font-size:10px;">5900 Balcones Drive STE 100, Austin, TX 78731</span>
     </td></tr>
   </table>
 </td></tr></table>
@@ -125,7 +127,16 @@ async function send(to: string, subject: string, html: string) {
     return;
   }
   try {
-    await resend!.emails.send({ from: process.env.EMAIL_FROM!, to, subject, html });
+    await resend!.emails.send({
+      from: process.env.EMAIL_FROM!,
+      to,
+      subject,
+      html,
+      headers: {
+        "List-Unsubscribe": `<${APP_URL}/unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
   } catch (err) {
     console.error("[email] send failed:", err);
   }

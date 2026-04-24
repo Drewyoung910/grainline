@@ -125,7 +125,7 @@ export default async function SalesPage({
                         {o.paidAt ? " · Paid" : " · Unpaid"}
                       </div>
                       <div className="text-xs text-neutral-500">
-                        Buyer: {o.buyer.name ?? o.buyer.email}
+                        Buyer: {o.buyer?.name ?? o.buyer?.email ?? "Deleted user"}
                       </div>
                     </div>
                     <div className="text-sm font-semibold">

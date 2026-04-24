@@ -80,7 +80,7 @@ export default async function FlaggedOrdersPage({
                     (order.shippingAmountCents ?? 0) +
                     (order.taxAmountCents ?? 0);
                   const seller = order.items[0]?.listing.seller.displayName ?? "—";
-                  const buyer = order.buyer.name ?? order.buyer.email;
+                  const buyer = order.buyer?.name ?? order.buyer?.email ?? "Deleted user";
                   return (
                     <tr key={order.id} className="hover:bg-neutral-50">
                       <td className="px-4 py-3 font-mono text-xs text-neutral-500">
@@ -88,7 +88,7 @@ export default async function FlaggedOrdersPage({
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-neutral-800">{buyer}</div>
-                        {order.buyerEmail && order.buyer.name && (
+                        {order.buyerEmail && order.buyer?.name && (
                           <div className="text-xs text-neutral-400">{order.buyerEmail}</div>
                         )}
                       </td>

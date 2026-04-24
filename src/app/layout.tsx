@@ -72,11 +72,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="min-h-screen bg-[#F7F5F0] text-neutral-900">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:bg-neutral-900 focus:text-white focus:px-4 focus:py-2 focus:rounded-md focus:text-sm">
+          Skip to content
+        </a>
         <Providers>
           <Suspense fallback={null}>
             <Header />
           </Suspense>
+          <div id="main-content">
           {children}
+          </div>
           <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-400">
             <div className="flex justify-center mb-4">
               <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto opacity-40" />

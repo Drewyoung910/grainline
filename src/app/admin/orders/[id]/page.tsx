@@ -136,8 +136,8 @@ export default async function AdminOrderDetailPage({
       <div className="grid grid-cols-2 gap-4">
         <Section title="Buyer">
           <dl className="space-y-3">
-            <Field label="Name" value={order.buyer.name} />
-            <Field label="Email" value={order.buyer.email} />
+            <Field label="Name" value={order.buyer?.name ?? "Deleted user"} />
+            <Field label="Email" value={order.buyer?.email ?? "—"} />
             <Field label="Stripe email" value={order.buyerEmail} />
             <Field
               label="Ship to"

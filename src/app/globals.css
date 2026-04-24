@@ -158,6 +158,23 @@ input, textarea, select {
   animation: scroll-right 40s linear infinite;
 }
 
+/* Accessibility: respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-scroll-left,
+  .animate-scroll-right,
+  .animate-slide-in-right,
+  .animate-slide-up,
+  .animate-slide-down {
+    animation: none !important;
+  }
+  .animate-pulse {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Horizontal scroll fade edges — right always visible, left only when scrolled */
 .scroll-fade-edges {
   mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);

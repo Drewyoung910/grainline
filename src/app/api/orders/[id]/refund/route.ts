@@ -179,21 +179,25 @@ export async function POST(
     }
 
     // In-app notification for the buyer
-    try {
-      await createNotification({
-        userId: order.buyerId,
-        type: "CASE_RESOLVED",
-        title: "Refund from maker",
-        body: `Your maker issued a refund of $${(refundAmountCents / 100).toFixed(2)} for your order.`,
-        link: `/dashboard/orders/${orderId}`,
-      });
-    } catch { /* non-fatal */ }
+    if (order.buyerId) {
+      try {
+        await createNotification({
+          userId: order.buyerId,
+          type: "CASE_RESOLVED",
+          title: "Refund from maker",
+          body: `Your maker issued a refund of $${(refundAmountCents / 100).toFixed(2)} for your order.`,
+          link: `/dashboard/orders/${orderId}`,
+        });
+      } catch { /* non-fatal */ }
+    }
 
     try {
-      const buyerUser = await prisma.user.findUnique({
-        where: { id: order.buyerId },
-        select: { name: true, email: true },
-      });
+      const buyerUser = order.buyerId
+        ? await prisma.user.findUnique({
+            where: { id: order.buyerId },
+            select: { name: true, email: true },
+          })
+        : null;
       if (buyerUser?.email) {
         await sendRefundIssued({
           buyer: { name: buyerUser.name, email: buyerUser.email },

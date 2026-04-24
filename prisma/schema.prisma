@@ -336,6 +336,7 @@ model Listing {
   @@index([viewCount])
   @@index([clickCount])
   @@index([status, isPrivate, qualityScore])
+  @@index([priceCents])
 }
 
 model Photo {
@@ -419,6 +420,7 @@ model Message {
   createdAt      DateTime     @default(now())
 
   @@index([conversationId])
+  @@index([conversationId, createdAt])
   @@index([recipientId, readAt])
 }
 
@@ -453,8 +455,8 @@ enum LabelStatus {
 
 model Order {
   id        String    @id @default(cuid())
-  buyerId   String
-  buyer     User      @relation("OrdersByBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  buyerId   String?
+  buyer     User?     @relation("OrdersByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
   createdAt DateTime  @default(now())
   paidAt    DateTime?
 

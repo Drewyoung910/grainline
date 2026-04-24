@@ -1,6 +1,7 @@
 // src/app/api/stripe/webhook/route.ts
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(body, signature, secret);
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", (err as { message?: string })?.message);
+    Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
     return new NextResponse("Invalid signature", { status: 400 });
   }
 
@@ -376,7 +378,7 @@ export async function POST(req: Request) {
           if (webhookSellerId) {
             await prisma.cartItem.deleteMany({
               where: {
-                cart: { userId: buyerId },
+                cart: { userId: buyerId! },
                 listing: { sellerId: webhookSellerId },
               },
             });
@@ -431,13 +433,15 @@ export async function POST(req: Request) {
             const buyerDisplayName = createdOrder.buyer?.name ?? buyerEmail ?? "A buyer";
 
             await Promise.all([
-              createNotification({
-                userId: createdOrder.buyerId,
-                type: "NEW_ORDER",
-                title: "Order confirmed!",
-                body: `Your order from ${sellerName} is being prepared`,
-                link: `/dashboard/orders/${createdOrder.id}`,
-              }),
+              createdOrder.buyerId
+                ? createNotification({
+                    userId: createdOrder.buyerId,
+                    type: "NEW_ORDER",
+                    title: "Order confirmed!",
+                    body: `Your order from ${sellerName} is being prepared`,
+                    link: `/dashboard/orders/${createdOrder.id}`,
+                  })
+                : Promise.resolve(),
               sellerUserId
                 ? createNotification({
                     userId: sellerUserId,
@@ -669,7 +673,7 @@ export async function POST(req: Request) {
           if (webhookSellerId) {
             await prisma.cartItem.deleteMany({
               where: {
-                cart: { userId: buyerId },
+                cart: { userId: buyerId! },
                 listing: { sellerId: webhookSellerId },
               },
             });
@@ -724,13 +728,15 @@ export async function POST(req: Request) {
             const buyerDisplayName = singleOrder.buyer?.name ?? buyerEmail ?? "A buyer";
 
             await Promise.all([
-              createNotification({
-                userId: singleOrder.buyerId,
-                type: "NEW_ORDER",
-                title: "Order confirmed!",
-                body: `Your order from ${sellerName} is being prepared`,
-                link: `/dashboard/orders/${singleOrder.id}`,
-              }),
+              singleOrder.buyerId
+                ? createNotification({
+                    userId: singleOrder.buyerId,
+                    type: "NEW_ORDER",
+                    title: "Order confirmed!",
+                    body: `Your order from ${sellerName} is being prepared`,
+                    link: `/dashboard/orders/${singleOrder.id}`,
+                  })
+                : Promise.resolve(),
               sellerUserId
                 ? createNotification({
                     userId: sellerUserId,
@@ -940,6 +946,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true }); // duplicate, already processed
     }
     console.error("Stripe webhook handler error:", err);
+    Sentry.captureException(err, { tags: { source: "stripe_webhook" } });
     return new NextResponse("Webhook error", { status: 500 });
   }
 }

@@ -18,6 +18,7 @@ const isPublic = createRouteMatcher([
   "/privacy",             // Privacy Policy — public legal page
   "/not-available",       // geo-block landing page — no auth needed
   "/about",               // About page — public
+  "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
 "/api/whoami",

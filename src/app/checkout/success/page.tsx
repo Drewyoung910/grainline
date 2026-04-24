@@ -381,7 +381,7 @@ export default async function CheckoutSuccessPage({
           <div className="text-sm">
             <div className="font-medium">Receipt</div>
             <div className="text-neutral-500"><LocalDate date={order.createdAt} /></div>
-            <div className="text-xs text-neutral-500">Buyer: {order.buyer.name ?? order.buyer.email}</div>
+            <div className="text-xs text-neutral-500">Buyer: {order.buyer?.name ?? order.buyer?.email ?? "Guest"}</div>
           </div>
           <div className="text-sm font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
         </div>

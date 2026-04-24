@@ -134,7 +134,7 @@ export default async function SellerOrderDetailPage({
     activeCase?.refundAmountCents ??
     null;
   const hasRefund = !!(order.sellerRefundId || activeCase?.stripeRefundId);
-  const buyerId = order.buyerId;
+  const buyerId = order.buyerId ?? "";
   const meId = me.id;
 
   // Per-message label helper (runs server-side)
@@ -162,7 +162,7 @@ export default async function SellerOrderDetailPage({
           {order.reviewNeeded && <Badge>Review needed</Badge>}
         </div>
         <div className="text-neutral-600 text-sm">
-          Buyer: {order.buyer.name ?? order.buyer.email}
+          Buyer: {order.buyer?.name ?? order.buyer?.email ?? "Deleted user"}
         </div>
       </header>
 
@@ -639,7 +639,7 @@ export default async function SellerOrderDetailPage({
           Back to sales
         </Link>
         <Link
-          href={`/messages/new?to=${order.buyer.id}`}
+          href={`/messages/new?to=${order.buyer?.id ?? ""}`}
           className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Message buyer

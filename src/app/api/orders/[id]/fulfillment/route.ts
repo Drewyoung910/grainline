@@ -144,13 +144,15 @@ export async function POST(
     if (action === "shipped") {
       const carrier = payload.trackingCarrier ?? null;
       const trackingNumber = payload.trackingNumber ?? null;
-      await createNotification({
-        userId: updated.buyerId,
-        type: "ORDER_SHIPPED",
-        title: "Your piece is on its way!",
-        body: carrier ? `Shipped via ${carrier}` : "Your order has been shipped",
-        link: `/dashboard/orders/${id}`,
-      });
+      if (updated.buyerId) {
+        await createNotification({
+          userId: updated.buyerId,
+          type: "ORDER_SHIPPED",
+          title: "Your piece is on its way!",
+          body: carrier ? `Shipped via ${carrier}` : "Your order has been shipped",
+          link: `/dashboard/orders/${id}`,
+        });
+      }
       if (buyerEmail) {
         try {
           await sendOrderShipped({
@@ -164,13 +166,15 @@ export async function POST(
     }
 
     if (action === "delivered") {
-      await createNotification({
-        userId: updated.buyerId,
-        type: "ORDER_DELIVERED",
-        title: "Your piece has been delivered!",
-        body: "Enjoy your new piece — leave a review to help other buyers",
-        link: `/dashboard/orders/${id}`,
-      });
+      if (updated.buyerId) {
+        await createNotification({
+          userId: updated.buyerId,
+          type: "ORDER_DELIVERED",
+          title: "Your piece has been delivered!",
+          body: "Enjoy your new piece — leave a review to help other buyers",
+          link: `/dashboard/orders/${id}`,
+        });
+      }
       if (buyerEmail) {
         try {
           await sendOrderDelivered({
@@ -182,23 +186,27 @@ export async function POST(
     }
 
     if (action === "picked_up") {
-      await createNotification({
-        userId: updated.buyerId,
-        type: "ORDER_DELIVERED",
-        title: "Order picked up!",
-        body: "Your order has been picked up. Enjoy!",
-        link: `/dashboard/orders/${id}`,
-      });
+      if (updated.buyerId) {
+        await createNotification({
+          userId: updated.buyerId,
+          type: "ORDER_DELIVERED",
+          title: "Order picked up!",
+          body: "Your order has been picked up. Enjoy!",
+          link: `/dashboard/orders/${id}`,
+        });
+      }
     }
 
     if (action === "ready_for_pickup") {
-      await createNotification({
-        userId: updated.buyerId,
-        type: "ORDER_SHIPPED",
-        title: "Ready for pickup!",
-        body: "Your order is ready for pickup.",
-        link: `/dashboard/orders/${id}`,
-      });
+      if (updated.buyerId) {
+        await createNotification({
+          userId: updated.buyerId,
+          type: "ORDER_SHIPPED",
+          title: "Ready for pickup!",
+          body: "Your order is ready for pickup.",
+          link: `/dashboard/orders/${id}`,
+        });
+      }
       if (buyerEmail) {
         const sellerName = updated.items[0]?.listing.seller.displayName;
         try {
