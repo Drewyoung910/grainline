@@ -1131,7 +1131,7 @@ These items were identified in a comprehensive 196-item attorney discussion list
 - ✅ `www.thegrainline.com` — 308 permanent redirect to bare domain configured in Vercel. SSL certificate provisioned.
 - ✅ Operating agreement — not legally required for single-member LLC in Texas but recommended. Template sufficient for solo launch.
 - Attorney sign-off on Terms and Privacy Policy (remove DRAFT banner)
-- Clickwrap implementation (attorney decides if browsewrap acceptable)
+- ✅ Clickwrap/age-gate technical implementation — `/sign-up` requires Terms/Privacy + 18+ attestation; attorney still reviews wording/enforceability
 - Money transmitter licensing confirmation from attorney
 - Stripe live mode webhook (after switching to live mode)
 - Clerk webhook production setup (`CLERK_WEBHOOK_SECRET` + register endpoint)
@@ -2661,11 +2661,11 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - **`prefers-reduced-motion`** in `globals.css`: all animations disabled (`animation: none !important`), all transitions set to `0.01ms` duration. Covers hero mosaic scroll, slide-in, slide-up, pulse skeletons.
 
 ### Remaining items from Opus 4.7 audit (not yet implemented)
-- **Clickwrap on sign-up** — requires attorney decision on browsewrap vs clickwrap
-- **Age gate checkbox** — requires attorney scope (COPPA)
-- **Account deletion flow** — needs cascade-aware deletion logic + Clerk user.deleted webhook
-- **EXIF stripping from uploads** — needs R2 worker or sharp in presign route
-- **OpenAI image sharing disclosure** — Privacy Policy text change
+- ~~**Clickwrap on sign-up**~~ — DONE as technical implementation: `/sign-up` gates Clerk sign-up behind Terms/Privacy acceptance and stores `termsAcceptedAt`/`termsVersion` metadata. Attorney still reviews final legal wording.
+- ~~**Age gate checkbox**~~ — DONE as technical implementation: `/sign-up` requires 18+ attestation and stores `ageAttestedAt`.
+- ~~**Account deletion flow**~~ — DONE: `/api/account/delete`, account settings UI, cascade-aware anonymization, and Clerk `user.deleted` webhook handling.
+- ~~**EXIF stripping from uploads**~~ — DONE for JPEG/PNG/WebP: server-side `sharp` pipeline strips metadata before R2 storage. GIF/video/PDF may retain metadata and Privacy discloses that.
+- ~~**OpenAI image sharing disclosure**~~ — DONE: Privacy Policy discloses listing images may be sent to OpenAI for content review and alt text.
 - **Money transmitter licensing** — attorney sign-off on Stripe Connect exemption
 - **INFORM Consumers Act** — attorney scope for high-volume seller disclosures
 - ~~**Accessibility statement page**~~ — DONE (`/accessibility` page deployed)
@@ -2705,15 +2705,15 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - Migration timestamp note: `20260423_add_listing_variants` remains under its original directory name because that name was already applied in production. Do not rename applied migration directories; future migrations should use full timestamps before first deploy.
 
 ### Remaining items requiring attorney/business decisions
-- Clickwrap on sign-up (attorney)
-- Age gate checkbox (attorney/COPPA)
+- Clickwrap legal wording/enforceability review (attorney)
+- Age/COPPA wording review (attorney)
 - Money transmitter licensing (attorney)
 - INFORM Consumers Act implementation (attorney)
-- OpenAI image sharing Privacy Policy disclosure (attorney)
+- OpenAI image/AI processing Privacy Policy wording review (attorney)
 
 ### Remaining items requiring significant code work
-- Account deletion flow (cascade-aware, Clerk webhook, GDPR Art. 17)
-- EXIF stripping from uploaded photos (R2 worker or sharp)
+- ~~Account deletion flow (cascade-aware, Clerk webhook, GDPR Art. 17)~~ — DONE in lifecycle compliance pass
+- ~~EXIF stripping from uploaded photos (R2 worker or sharp)~~ — DONE for JPEG/PNG/WebP via `/api/upload/image`
 - Toast system replacing ~20 alert() calls
 - autoComplete attributes on forms
 - Webhook fire-and-forget → waitUntil() or outbox pattern
@@ -2749,6 +2749,53 @@ Small cleanup pass before continuing the larger Opus audit backlog. Goal: make t
 - `npx tsc --noEmit --incremental false` passed.
 - `npm run lint` passed with 30 warnings and 0 errors.
 - `npm run build` passed outside the sandbox. The sandboxed build failed first due a Turbopack internal-process port bind restriction (`Operation not permitted`), not a code error.
+
+## Lifecycle Compliance + Upload Privacy Pass (2026-04-24)
+
+Focused launch-blocker pass after reconciling the 300-item Opus audit against already-applied Claude/Codex changes. Scope was limited to code-safe, non-attorney-dependent fixes that were still real in the repo.
+
+### User lifecycle and deletion
+- Added `User.deletedAt`, `termsAcceptedAt`, `termsVersion`, `ageAttestedAt`, and `welcomeEmailSentAt`.
+- Migration: `20260424153000_user_lifecycle_compliance`.
+- `/sign-up` now gates Clerk account creation behind two explicit checkboxes: Terms/Privacy acceptance and 18+ age attestation. Acceptance metadata is sent to Clerk `unsafeMetadata`.
+- `ensureUser()` and the Clerk webhook copy Clerk legal/unsafe metadata into the DB, so acceptance stamps are stored even if the first DB touch happens outside the webhook.
+- Clerk webhook now handles `user.deleted` by anonymizing the Grainline DB account instead of ignoring the event.
+- Welcome email sends are idempotent via `welcomeEmailSentAt`, preventing duplicate welcome emails on Clerk webhook retries.
+- New `/api/account/delete` self-service deletion route:
+  - Requires the signed-in user.
+  - Blocks deletion while buyer orders, seller orders, cases, or buyer commission requests are still active.
+  - Anonymizes account profile/shipping fields, clears notification preferences, removes saved searches/favorites/follows/blocks/cart/notifications, deactivates newsletter subscription, hides seller listings, disables seller commerce, scrubs seller profile PII, then deletes the Clerk user.
+- Account settings now include a "Delete account" section with a typed `DELETE` confirmation and blocker display.
+- `Order.buyerId` remains retained/set-null capable; order/tax/refund/dispute records are not hard-deleted.
+
+### Upload privacy / EXIF stripping
+- Added `/api/upload/image` (Node runtime, `sharp`) for JPEG/PNG/WebP uploads. It rotates by orientation and writes a re-encoded image to R2 without embedded metadata.
+- `useR2Upload` routes JPEG/PNG/WebP image uploads through `/api/upload/image`; GIF/video/PDF still use presigned direct upload.
+- `/api/upload/presign` now rejects JPEG/PNG/WebP direct presigns so crafted clients cannot bypass the metadata-stripping path.
+- Blog editor image upload updated to use the processed image route for JPEG/PNG/WebP and direct presign only for GIF.
+- Upload routes now enforce the banned-user guard through `ensureUserByClerkId`.
+- Shared `uploadRatelimit` added instead of constructing a limiter inside the route on every request.
+
+### Email and privacy alignment
+- Privacy Policy updated from UploadThing to Cloudflare R2 and now discloses OpenAI image processing for listing review/alt text.
+- Photo metadata section now matches implementation: JPEG/PNG/WebP metadata is stripped; GIF/video/PDF metadata may remain.
+- Transactional email wrapper now sends a plain-text alternative, strips CRLF/control characters from subjects, and only embeds followed-maker listing images from the configured R2 public URL.
+- Admin email route now strips CRLF/control characters from subject, includes a plain-text alternative, includes physical mailing address, and sets List-Unsubscribe headers.
+
+### Abuse and access hardening
+- Checkout success page now requires a signed-in buyer and verifies `session_id` ownership against `Order.buyerId` or Stripe session `metadata.buyerId` before rendering receipt details or fallback-creating an order.
+- Saved searches are rate-limited, capped at 25 per user, normalized, deduped, and reject min-price greater than max-price.
+- Review helpful votes are rate-limited, use `ensureUser()`, and perform the toggle read/write inside the transaction with a P2002 fallback.
+- Block/unblock is rate-limited and POST validates the target user exists and is not deleted.
+- Vacation-mode updates are rate-limited.
+
+### Verification
+- `npx prisma generate` passed after schema update.
+- `npx tsc --noEmit --incremental false` passed after this implementation pass.
+- `npx prisma validate` passed.
+- `npm run lint` passed with 29 warnings and 0 errors.
+- `npm run build` passed outside the sandbox. The sandboxed build failed first due Turbopack's internal worker port bind restriction (`Operation not permitted`), not a code error.
+- `DOTENV_CONFIG_PATH=.env node -r dotenv/config ./node_modules/.bin/prisma migrate deploy` applied `20260424153000_user_lifecycle_compliance` successfully.
 
 ## Pending Tasks
 
@@ -2791,7 +2838,7 @@ Small cleanup pass before continuing the larger Opus audit backlog. Goal: make t
 - **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
 - **Texas marketplace facilitator registration** ✅ completed 2026-04-18; first quarterly return due 2026-07-20 and must be filed even with zero sales
 - **Operating agreement** ✅ template sufficient for solo launch; not a launch blocker for single-member Texas LLC
-- **Clickwrap implementation** — build checkbox before account creation; attorney decides if required for launch
+- **Clickwrap implementation** ✅ technical gate built before account creation; attorney still reviews wording/enforceability
 - **Trademark Class 035** filing — ~$350; clearance search first (conflict risk with "Grainline Studio")
 - **Business insurance** — general liability ($30–60/mo) + cyber liability + marketplace product liability
 - Fix Terms 6.3 redundant sentence — delete "Payout timing is governed by Stripe's standard payout schedule." *(fixed in c7bde34)*

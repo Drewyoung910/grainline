@@ -22,6 +22,16 @@ type UseR2UploadOptions = {
   onUploadBegin?: (filename: string) => void;
 };
 
+const PROCESSED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const IMAGE_ENDPOINTS = new Set<Endpoint>([
+  "listingImage",
+  "messageImage",
+  "messageAny",
+  "reviewPhoto",
+  "bannerImage",
+  "galleryImage",
+]);
+
 export function useR2Upload({
   endpoint,
   onUploadComplete,
@@ -40,6 +50,42 @@ export function useR2Upload({
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         onUploadBegin?.(file.name);
+
+        if (PROCESSED_IMAGE_TYPES.has(file.type) && IMAGE_ENDPOINTS.has(endpoint)) {
+          const form = new FormData();
+          form.set("file", file);
+          form.set("endpoint", endpoint);
+          form.set("fileIndex", String(i));
+
+          const imageRes = await fetch("/api/upload/image", {
+            method: "POST",
+            body: form,
+          });
+
+          if (!imageRes.ok) {
+            const err = await imageRes.json().catch(() => ({ error: "Upload failed" }));
+            throw new Error((err as { error?: string }).error ?? "Image upload failed");
+          }
+
+          const { publicUrl, key, contentType, size } = await imageRes.json() as {
+            publicUrl: string;
+            key: string;
+            contentType?: string;
+            size?: number;
+          };
+
+          uploaded.push({
+            url: publicUrl,
+            ufsUrl: publicUrl,
+            key,
+            name: file.name,
+            type: contentType ?? file.type,
+            size: size ?? file.size,
+          });
+
+          setProgress(Math.round(((i + 1) / files.length) * 100));
+          continue;
+        }
 
         const res = await fetch("/api/upload/presign", {
           method: "POST",

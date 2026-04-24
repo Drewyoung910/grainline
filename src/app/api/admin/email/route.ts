@@ -6,6 +6,7 @@ import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
 
 const Schema = z.object({
   userId: z.string().min(1).optional(),
@@ -15,6 +16,22 @@ const Schema = z.object({
 }).refine((data) => data.userId || data.email, {
   message: "Either userId or email is required",
 });
+
+function safeSubject(subject: string) {
+  return subject.replace(/[\r\n]+/g, " ").replace(/[\x00-\x1F\x7F<>"'&]/g, "").trim();
+}
+
+function htmlToText(html: string) {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h1|h2|h3)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 export async function POST(request: Request) {
   const { userId: clerkId } = await auth();
@@ -39,7 +56,6 @@ export async function POST(request: Request) {
   }
 
   let recipientEmail: string;
-  let recipientName: string | null = null;
 
   if (body.userId) {
     const recipient = await prisma.user.findUnique({
@@ -50,15 +66,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found or no email" }, { status: 404 });
     }
     recipientEmail = recipient.email;
-    recipientName = recipient.name;
   } else if (body.email) {
     recipientEmail = body.email;
-    // Try to find the user's name for logging purposes
-    const user = await prisma.user.findFirst({
-      where: { email: body.email },
-      select: { name: true },
-    });
-    recipientName = user?.name ?? null;
   } else {
     return NextResponse.json({ error: "Either userId or email is required" }, { status: 400 });
   }
@@ -83,17 +92,24 @@ export async function POST(request: Request) {
         <p style="color:#3D3D3A;font-size:15px;line-height:1.7;margin:0;">${escapedBody}</p>
       </div>
       <div style="padding:16px 28px;border-top:1px solid #E5E2DC;">
-        <p style="color:#9CA3AF;font-size:12px;margin:0;">This message was sent by the Grainline team · <a href="https://thegrainline.com" style="color:#9CA3AF;">thegrainline.com</a></p>
+        <p style="color:#9CA3AF;font-size:12px;line-height:1.6;margin:0;">This message was sent by the Grainline team · <a href="${APP_URL}" style="color:#9CA3AF;">thegrainline.com</a><br/>Grainline LLC, 5900 Balcones Drive STE 100, Austin, TX 78731</p>
       </div>
     </div>
   `;
+
+  const sanitizedSubject = safeSubject(body.subject);
 
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM ?? "Grainline <hello@thegrainline.com>",
       to: recipientEmail,
-      subject: body.subject,
+      subject: sanitizedSubject,
       html: htmlBody,
+      text: htmlToText(htmlBody),
+      headers: {
+        "List-Unsubscribe": `<${APP_URL}/unsubscribe>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
     });
   } catch (err) {
     console.error("[admin email] send failed:", err);
@@ -108,7 +124,7 @@ export async function POST(request: Request) {
       action: "SEND_EMAIL",
       targetType: "USER",
       targetId: recipientEmail,
-      reason: body.subject,
+      reason: sanitizedSubject,
       metadata: {},
     });
   } catch { /* non-fatal */ }

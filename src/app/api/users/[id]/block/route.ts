@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
+import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST(
   _req: Request,
@@ -10,11 +11,20 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { success, reset } = await safeRateLimit(blockRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many block actions.");
+
   const me = await ensureUser();
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: blockedId } = await params;
   if (blockedId === me.id) return NextResponse.json({ error: "Cannot block yourself" }, { status: 400 });
+
+  const target = await prisma.user.findUnique({
+    where: { id: blockedId },
+    select: { id: true, deletedAt: true },
+  });
+  if (!target || target.deletedAt) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   await prisma.block.upsert({
     where: { blockerId_blockedId: { blockerId: me.id, blockedId } },
@@ -45,6 +55,9 @@ export async function DELETE(
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(blockRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many block actions.");
 
   const me = await ensureUser();
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

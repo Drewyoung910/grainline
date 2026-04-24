@@ -9,7 +9,14 @@ import { prisma } from "@/lib/db";
  */
 export async function ensureUserByClerkId(
   clerkId: string,
-  opts?: { email?: string; name?: string | null; imageUrl?: string | null }
+  opts?: {
+    email?: string;
+    name?: string | null;
+    imageUrl?: string | null;
+    termsAcceptedAt?: Date | null;
+    termsVersion?: string | null;
+    ageAttestedAt?: Date | null;
+  }
 ) {
   const existing = await prisma.user.findUnique({ where: { clerkId } });
 
@@ -17,7 +24,14 @@ export async function ensureUserByClerkId(
     if (existing.banned) {
       throw new Error("Your account has been suspended. Contact support@thegrainline.com");
     }
-    const updateData: Record<string, string | null> = {};
+    const updateData: {
+      email?: string;
+      name?: string | null;
+      imageUrl?: string | null;
+      termsAcceptedAt?: Date;
+      termsVersion?: string | null;
+      ageAttestedAt?: Date;
+    } = {};
 
     // Only update fields if caller explicitly provided them
     if (typeof opts?.email === "string" && opts.email.trim() !== "") {
@@ -28,6 +42,15 @@ export async function ensureUserByClerkId(
     }
     if (opts && "imageUrl" in opts) {
       updateData.imageUrl = opts.imageUrl ?? null;
+    }
+    if (opts?.termsAcceptedAt) {
+      updateData.termsAcceptedAt = opts.termsAcceptedAt;
+    }
+    if (opts && "termsVersion" in opts) {
+      updateData.termsVersion = opts.termsVersion ?? null;
+    }
+    if (opts?.ageAttestedAt) {
+      updateData.ageAttestedAt = opts.ageAttestedAt;
     }
 
     // If nothing to update, just return existing
@@ -58,8 +81,29 @@ export async function ensureUserByClerkId(
   const imageUrl = (opts?.imageUrl ?? null) as string | null;
 
   return prisma.user.create({
-    data: { clerkId, email, name, imageUrl },
+    data: {
+      clerkId,
+      email,
+      name,
+      imageUrl,
+      ...(opts?.termsAcceptedAt ? { termsAcceptedAt: opts.termsAcceptedAt } : {}),
+      ...(opts?.termsVersion ? { termsVersion: opts.termsVersion } : {}),
+      ...(opts?.ageAttestedAt ? { ageAttestedAt: opts.ageAttestedAt } : {}),
+    },
   });
+}
+
+function dateFromMetadata(value: unknown): Date | null {
+  if (typeof value === "string") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === "number") {
+    const millis = value < 10_000_000_000 ? value * 1000 : value;
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
 }
 
 /**
@@ -82,14 +126,28 @@ export async function ensureUser() {
 
   const imageUrl = u.imageUrl ?? null;
 
+  const unsafeMetadata = (u.unsafeMetadata ?? {}) as Record<string, unknown>;
+  const legalAcceptedAt = (u as unknown as { legalAcceptedAt?: number | string | null }).legalAcceptedAt;
+  const termsAcceptedAt =
+    dateFromMetadata(unsafeMetadata.termsAcceptedAt) ?? dateFromMetadata(legalAcceptedAt);
+  const ageAttestedAt = dateFromMetadata(unsafeMetadata.ageAttestedAt);
+  const termsVersion =
+    typeof unsafeMetadata.termsVersion === "string" ? unsafeMetadata.termsVersion.slice(0, 50) : undefined;
+
   // Here we DO pass real fields so your DB stays accurate
-  const result = await ensureUserByClerkId(u.id, { email, name, imageUrl });
+  const result = await ensureUserByClerkId(u.id, {
+    email,
+    name,
+    imageUrl,
+    termsAcceptedAt,
+    ageAttestedAt,
+    termsVersion,
+  });
   if (result && (result as { banned?: boolean }).banned) {
     throw new Error('Your account has been suspended. Contact support@thegrainline.com');
   }
   return result;
 }
-
 
 
 

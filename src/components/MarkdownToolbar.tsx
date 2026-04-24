@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import TipTapLink from "@tiptap/extension-link";
 import TipTapImage from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   value: string;
@@ -21,6 +22,7 @@ export default function MarkdownToolbar({
   placeholder,
   name,
 }: Props) {
+  const { toast } = useToast();
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -175,27 +177,46 @@ export default function MarkdownToolbar({
               const file = input.files?.[0];
               if (!file) return;
               try {
-                const presignRes = await fetch("/api/upload/presign", {
+                if (file.type === "image/gif") {
+                  const presignRes = await fetch("/api/upload/presign", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      endpoint: "galleryImage",
+                      filename: file.name,
+                      contentType: file.type,
+                      size: file.size,
+                      fileIndex: 0,
+                    }),
+                  });
+                  if (!presignRes.ok) throw new Error("Upload failed");
+                  const { presignedUrl, publicUrl } = await presignRes.json() as {
+                    presignedUrl: string;
+                    publicUrl: string;
+                  };
+                  const directUpload = await fetch(presignedUrl, {
+                    method: "PUT",
+                    body: file,
+                    headers: { "Content-Type": file.type },
+                  });
+                  if (!directUpload.ok) throw new Error("Upload failed");
+                  editor.chain().focus().setImage({ src: publicUrl }).run();
+                  return;
+                }
+
+                const form = new FormData();
+                form.set("file", file);
+                form.set("endpoint", "galleryImage");
+                form.set("fileIndex", "0");
+                const uploadRes = await fetch("/api/upload/image", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    endpoint: "galleryImage",
-                    filename: file.name,
-                    contentType: file.type,
-                    size: file.size,
-                    fileIndex: 0,
-                  }),
+                  body: form,
                 });
-                if (!presignRes.ok) return;
-                const { presignedUrl, publicUrl } = await presignRes.json();
-                await fetch(presignedUrl, {
-                  method: "PUT",
-                  body: file,
-                  headers: { "Content-Type": file.type },
-                });
+                if (!uploadRes.ok) throw new Error("Upload failed");
+                const { publicUrl } = await uploadRes.json() as { publicUrl: string };
                 editor.chain().focus().setImage({ src: publicUrl }).run();
               } catch {
-                alert("Image upload failed. The file may be too large (max 4MB).");
+                toast("Image upload failed. The file may be too large (max 4MB).", "error");
               }
             };
             input.click();

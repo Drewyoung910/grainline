@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { z } from "zod";
+import { ensureUser } from "@/lib/ensureUser";
+import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -16,10 +18,15 @@ const SavedSearchSchema = z.object({
 async function getDbUser() {
   const { userId } = await auth();
   if (!userId) return null;
-  return prisma.user.findUnique({ where: { clerkId: userId } });
+  return ensureUser();
 }
 
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
+
   const me = await getDbUser();
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -39,14 +46,45 @@ export async function POST(req: NextRequest) {
     ? (categoryRaw as Category)
     : null;
 
+  const normalizedQuery = q?.trim().replace(/\s+/g, " ").slice(0, 200) || null;
+  const normalizedTags = Array.from(new Set(
+    (tags ?? [])
+      .map((tag) => tag.trim().toLowerCase().replace(/\s+/g, "-"))
+      .filter(Boolean)
+  )).slice(0, 20);
+  const normalizedMin = typeof minPrice === "number" && Number.isFinite(minPrice) ? minPrice : null;
+  const normalizedMax = typeof maxPrice === "number" && Number.isFinite(maxPrice) ? maxPrice : null;
+
+  if (normalizedMin !== null && normalizedMax !== null && normalizedMin > normalizedMax) {
+    return NextResponse.json({ error: "Minimum price cannot exceed maximum price" }, { status: 400 });
+  }
+
+  const existing = await prisma.savedSearch.findFirst({
+    where: {
+      userId: me.id,
+      query: normalizedQuery,
+      category: categoryVal,
+      minPrice: normalizedMin,
+      maxPrice: normalizedMax,
+      tags: { equals: normalizedTags },
+    },
+    select: { id: true },
+  });
+  if (existing) return NextResponse.json({ ok: true, id: existing.id, existing: true });
+
+  const count = await prisma.savedSearch.count({ where: { userId: me.id } });
+  if (count >= 25) {
+    return NextResponse.json({ error: "You can save up to 25 searches. Delete one before saving another." }, { status: 400 });
+  }
+
   const saved = await prisma.savedSearch.create({
     data: {
       userId: me.id,
-      query: q?.trim() || null,
+      query: normalizedQuery,
       category: categoryVal,
-      minPrice: Number.isFinite(minPrice) ? minPrice : null,
-      maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
-      tags: tags?.filter(Boolean) ?? [],
+      minPrice: normalizedMin,
+      maxPrice: normalizedMax,
+      tags: normalizedTags,
     },
   });
 

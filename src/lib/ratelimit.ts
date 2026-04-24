@@ -67,6 +67,34 @@ export const saveRatelimit = new Ratelimit({
   prefix: "rl:save",
 });
 
+export const savedSearchRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 m"),
+  analytics: true,
+  prefix: "rl:saved-search",
+});
+
+export const reviewVoteRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 m"),
+  analytics: true,
+  prefix: "rl:review-vote",
+});
+
+export const blockRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 m"),
+  analytics: true,
+  prefix: "rl:block",
+});
+
+export const vacationRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 m"),
+  analytics: true,
+  prefix: "rl:vacation",
+});
+
 // Blog save/unsave
 export const blogSaveRatelimit = new Ratelimit({
   redis,
@@ -216,6 +244,14 @@ export const notifyRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(30, "60 s"),
   analytics: true,
   prefix: "rl:notify",
+});
+
+// R2 upload presigns / processed image uploads
+export const uploadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "10 m"),
+  analytics: true,
+  prefix: "rl:upload",
 });
 
 // Stripe Connect account creation/onboarding (fail closed — Stripe API calls)

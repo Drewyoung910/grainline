@@ -5,6 +5,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { NotificationToggle } from "@/components/NotificationToggle";
+import { AccountDeletionButton } from "@/components/AccountDeletionButton";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -197,9 +198,21 @@ export default async function AccountSettingsPage() {
       {hasSeller && (
         <p className="text-xs text-neutral-400">
           Seller-specific notifications are managed in{" "}
-          <a href="/dashboard/seller" className="underline hover:text-neutral-600">Shop Settings</a>.
+          <Link href="/dashboard/seller" className="underline hover:text-neutral-600">Shop Settings</Link>.
         </p>
       )}
+
+      <section className="card-section border-red-200 bg-red-50/40 p-5">
+        <h2 className="text-lg font-semibold font-display text-red-950">Delete account</h2>
+        <p className="mt-1 text-sm text-red-900/80">
+          This anonymizes your Grainline account, hides your shop if you have one, removes saved
+          preferences, and then deletes your Clerk login. Order, tax, refund, and dispute records are
+          retained where legally required.
+        </p>
+        <div className="mt-4">
+          <AccountDeletionButton />
+        </div>
+      </section>
 
       <p className="text-xs text-neutral-400">
         Changes take effect immediately. Security and account notices cannot be disabled.

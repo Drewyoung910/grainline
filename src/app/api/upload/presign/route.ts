@@ -4,12 +4,16 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { z } from "zod";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
 
 const ALLOWED_TYPES = [
-  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "image/gif",
   "video/mp4", "video/quicktime",
   "application/pdf",
 ];
+
+const PROCESSED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 const MAX_SIZES: Record<string, number> = {
   listingImage: 8 * 1024 * 1024,
@@ -47,18 +51,10 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  await ensureUserByClerkId(userId);
 
-  // Rate limit: 30 uploads per 10 minutes per user
-  const { safeRateLimit } = await import("@/lib/ratelimit");
-  const { Ratelimit } = await import("@upstash/ratelimit");
-  const { Redis } = await import("@upstash/redis");
-  const uploadRl = new Ratelimit({
-    redis: Redis.fromEnv(),
-    limiter: Ratelimit.slidingWindow(30, "10 m"),
-    prefix: "rl:upload",
-  });
-  const { success: rlOk } = await safeRateLimit(uploadRl, userId);
-  if (!rlOk) return NextResponse.json({ error: "Too many uploads. Try again later." }, { status: 429 });
+  const { success: rlOk, reset } = await safeRateLimit(uploadRatelimit, userId);
+  if (!rlOk) return rateLimitResponse(reset, "Too many uploads.");
 
   let body;
   try {
@@ -68,6 +64,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { filename, contentType, size, endpoint, fileIndex } = body;
+
+  if (PROCESSED_IMAGE_TYPES.includes(contentType)) {
+    return NextResponse.json(
+      { error: "Image uploads must use the processed upload endpoint." },
+      { status: 400 }
+    );
+  }
 
   if (!ALLOWED_TYPES.includes(contentType)) {
     return NextResponse.json({ error: "File type not allowed" }, { status: 400 });

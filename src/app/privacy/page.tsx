@@ -32,7 +32,7 @@ export default function PrivacyPage() {
       <div className="mb-10">
         <p className="text-sm text-neutral-500 mb-2">Legal</p>
         <h1 className="text-4xl font-bold mb-2">Privacy Policy</h1>
-        <p className="text-sm text-neutral-500">Last Updated: March 30, 2026</p>
+        <p className="text-sm text-neutral-500">Last Updated: April 24, 2026</p>
 
         <div className="mt-6 rounded border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900">
           <strong>DRAFT — Under Attorney Review.</strong> Last reviewed March 30, 2026. This document
@@ -147,11 +147,11 @@ export default function PrivacyPage() {
           <h3 className="text-base font-semibold mt-6 mb-2">2.8 Photo Metadata</h3>
           <p>
             Photos you upload may contain embedded EXIF metadata, which can include location
-            coordinates, device information, and timestamps. Grainline makes commercially reasonable
-            efforts to strip location-related EXIF data from uploaded photos. Photos are processed
-            through our upload provider (UploadThing) which may retain or strip metadata according to
-            their own practices. Other non-identifying EXIF metadata may be retained for technical
-            purposes.
+            coordinates, device information, and timestamps. Grainline processes JPEG, PNG, and WebP
+            image uploads through a server-side image pipeline that rotates images according to their
+            orientation data and strips embedded metadata before storing the processed image in
+            Cloudflare R2. Animated GIFs, videos, PDFs, and other non-photo files may retain metadata;
+            avoid uploading files that contain sensitive embedded information.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">2.9 Newsletter and Marketing</h3>
@@ -333,8 +333,10 @@ export default function PrivacyPage() {
               by their privacy policy.
             </li>
             <li>
-              <strong>UploadThing</strong> — Cloud storage for images and files you upload to the
-              Platform, including listing photos, profile images, and review photos.
+              <strong>Cloudflare R2</strong> — Object storage for images and files you upload to the
+              Platform, including listing photos, profile images, review photos, message attachments,
+              and videos. Public image URLs are served from Grainline&apos;s Cloudflare-backed storage
+              domain.
             </li>
             <li>
               <strong>Sentry</strong> — Error tracking and performance monitoring. Sentry receives
@@ -343,10 +345,11 @@ export default function PrivacyPage() {
               identifiable information to Sentry.
             </li>
             <li>
-              <strong>OpenAI</strong> — Automated content review. Listing content (titles,
-              descriptions) may be processed by OpenAI&apos;s systems to detect potential Terms of
-              Service violations. We send only listing content — not seller names, emails, or other
-              personal data.{" "}
+              <strong>OpenAI</strong> — Automated content review and accessibility text assistance.
+              Listing content (titles, descriptions, and listing images) may be processed by
+              OpenAI&apos;s systems to detect potential Terms of Service violations and to generate
+              draft image alt text. We do not intentionally send seller names, emails, buyer data, or
+              payment information to OpenAI.{" "}
               <a href="https://openai.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">openai.com/privacy</a>
             </li>
             <li>

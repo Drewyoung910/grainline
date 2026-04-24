@@ -59,6 +59,13 @@ model User {
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Compliance / lifecycle
+  termsAcceptedAt  DateTime?
+  termsVersion     String?
+  ageAttestedAt    DateTime?
+  welcomeEmailSentAt DateTime?
 
   // Buyer shipping address
   shippingName        String?
@@ -116,6 +123,8 @@ model User {
   blockedBy   Block[]      @relation("UserBlockedBy")
   reports     UserReport[] @relation("UserReports")
   reportedBy  UserReport[] @relation("UserReportedBy")
+
+  @@index([deletedAt])
 }
 
 model SellerProfile {

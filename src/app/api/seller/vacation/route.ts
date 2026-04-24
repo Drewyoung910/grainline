@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { z } from "zod";
+import { rateLimitResponse, safeRateLimit, vacationRatelimit } from "@/lib/ratelimit";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -16,6 +17,9 @@ export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(vacationRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many vacation mode updates.");
 
     const { seller } = await ensureSeller();
 

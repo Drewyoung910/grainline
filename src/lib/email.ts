@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const R2_PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
 if (!process.env.RESEND_API_KEY) {
   console.warn("[email] RESEND_API_KEY is not set. Emails will be logged but not sent.");
@@ -23,13 +24,31 @@ function esc(s: string) {
 
 /** Strip HTML-like characters from user content in email subjects */
 function safeSubject(s: string) {
-  return s.replace(/[<>"'&]/g, "");
+  return s.replace(/[\r\n]+/g, " ").replace(/[\x00-\x1F\x7F<>"'&]/g, "").trim();
 }
 
 /** Validate and escape a URL for use in img src attributes */
 function safeImgUrl(url: string | undefined | null): string | null {
-  if (!url || !url.startsWith("https://")) return null;
+  if (!url || !R2_PUBLIC_URL || !url.startsWith(`${R2_PUBLIC_URL}/`)) return null;
   return url.replace(/"/g, "%22");
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function fmtCents(cents: number) {
@@ -123,16 +142,18 @@ function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: n
 }
 
 async function send(to: string, subject: string, html: string) {
+  const sanitizedSubject = safeSubject(subject);
   if (!HAS_RESEND) {
-    console.log("[email:dev]", { to, subject });
+    console.log("[email:dev]", { to, subject: sanitizedSubject });
     return;
   }
   try {
     await resend!.emails.send({
       from: process.env.EMAIL_FROM!,
       to,
-      subject,
+      subject: sanitizedSubject,
       html,
+      text: htmlToText(html),
       headers: {
         "List-Unsubscribe": `<${APP_URL}/unsubscribe>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",

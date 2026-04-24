@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
+import { ensureUser } from "@/lib/ensureUser";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -27,6 +28,9 @@ export default async function CheckoutSuccessPage({
   const sessionId = sp?.session_id;
   if (!sessionId) redirect("/cart");
 
+  const me = await ensureUser();
+  if (!me) redirect(`/sign-in?redirect_url=/checkout/success?session_id=${encodeURIComponent(sessionId)}`);
+
   let s: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
   try {
     s = await stripe.checkout.sessions.retrieve(sessionId, {
@@ -39,7 +43,7 @@ export default async function CheckoutSuccessPage({
   if (s.payment_status !== "paid") redirect("/cart");
 
   let order = await prisma.order.findFirst({
-    where: { stripeSessionId: sessionId },
+    where: { stripeSessionId: sessionId, buyerId: me.id },
     include: {
       items: {
         include: {
@@ -60,6 +64,7 @@ export default async function CheckoutSuccessPage({
     const isEmbeddedCheckout = meta.taxRetainedAtCreation === "true";
     const buyerId = meta.buyerId;
     if (!buyerId) redirect("/cart");
+    if (buyerId !== me.id) redirect("/cart");
 
     // Stripe snapshots
     const currency: string = (s.currency || "usd").toLowerCase();
@@ -195,7 +200,7 @@ export default async function CheckoutSuccessPage({
             // Webhook created the order between our check and create
             // Re-query it
             order = await prisma.order.findFirst({
-              where: { stripeSessionId: sessionId },
+              where: { stripeSessionId: sessionId, buyerId: me.id },
               include: {
                 items: {
                   include: {
@@ -282,7 +287,7 @@ export default async function CheckoutSuccessPage({
             // Webhook created the order between our check and create
             // Re-query it
             order = await prisma.order.findFirst({
-              where: { stripeSessionId: sessionId },
+              where: { stripeSessionId: sessionId, buyerId: me.id },
               include: {
                 items: {
                   include: {
@@ -311,7 +316,7 @@ export default async function CheckoutSuccessPage({
       // that it fires during page load.
       // Do NOT call order.create (webhook owns this).
       order = await prisma.order.findFirst({
-        where: { stripeSessionId: sessionId },
+        where: { stripeSessionId: sessionId, buyerId: me.id },
         include: {
           items: {
             include: {
@@ -398,9 +403,9 @@ export default async function CheckoutSuccessPage({
                   <div className="h-16 w-16 rounded border bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <a href={`/listing/${it.listingId}`} className="block truncate text-sm font-medium hover:underline">
+                  <Link href={`/listing/${it.listingId}`} className="block truncate text-sm font-medium hover:underline">
                     {it.listing.title}
-                  </a>
+                  </Link>
                   <div className="text-xs text-neutral-500">Seller: {it.listing.seller.displayName}</div>
                   <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, currency)} × {it.quantity}</div>
                 </div>
@@ -440,6 +445,5 @@ export default async function CheckoutSuccessPage({
     </main>
   );
 }
-
 
 
