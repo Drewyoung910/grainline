@@ -62,6 +62,11 @@ async function createListing(formData: FormData) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
   imageUrls = imageUrls.slice(0, 8);
+  // Validate photo URLs against R2 origin
+  const r2Origin = process.env.CLOUDFLARE_R2_PUBLIC_URL ?? "";
+  if (r2Origin) {
+    imageUrls = imageUrls.filter((u) => u.startsWith(r2Origin));
+  }
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];

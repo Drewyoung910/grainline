@@ -46,6 +46,8 @@ export async function unhideListingAction(listingId: string) {
   if (!listing) return;
   // REJECTED listings cannot be unhidden — seller must edit and resubmit for review
   if (listing.status === "REJECTED") return;
+  // Soft-deleted listings (isPrivate=true + HIDDEN) cannot be unhidden — they're "deleted"
+  if (listing.status === "HIDDEN" && listing.isPrivate) return;
   await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.ACTIVE } });
   await syncThreshold(listing.sellerId);
   // Notify followers
@@ -86,7 +88,11 @@ export async function markSoldAction(listingId: string) {
 export async function deleteListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return;
-  await prisma.listing.delete({ where: { id: listingId } });
+  // Soft delete: preserves order history (OrderItem references)
+  await prisma.listing.update({
+    where: { id: listingId },
+    data: { status: "HIDDEN", isPrivate: true },
+  });
   const activeCount = await prisma.listing.count({ where: { sellerId: listing.sellerId, status: "ACTIVE" } });
   const sp = await prisma.sellerProfile.findUnique({
     where: { id: listing.sellerId },
@@ -188,10 +194,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       return { status: "ACTIVE" };
     }
   } catch {
-    // Fallback: just set active
-    await prisma.listing.update({ where: { id: listingId }, data: { status: "ACTIVE", rejectionReason: null } });
-    await syncThreshold(listing.sellerId);
+    // Fail closed: AI review error → send to admin review (not ACTIVE)
+    await prisma.listing.update({ where: { id: listingId }, data: { status: "PENDING_REVIEW", rejectionReason: null } });
     revalidatePath(`/seller/${listing.sellerId}/shop`);
-    return { status: "ACTIVE" };
+    return { status: "PENDING_REVIEW" as const };
   }
 }

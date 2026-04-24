@@ -157,9 +157,71 @@ export async function POST(req: Request) {
       }
     }
 
+    // Variant validation + price calculation — MUST come before stock reservation
+    // to avoid stock leaks on validation failures.
+    let variantAdjustCents = 0;
+    const selectedVariantLabels: string[] = [];
+    const selectedVariantsSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
+
+    if (listing.variantGroups.length > 0) {
+      // Validate: buyer must select exactly one option per group
+      const allGroupIds = new Set(listing.variantGroups.map((g) => g.id));
+      const selectedGroups = new Set<string>();
+      for (const optId of body.selectedVariantOptionIds) {
+        let found = false;
+        for (const g of listing.variantGroups) {
+          const opt = g.options.find((o) => o.id === optId);
+          if (opt) {
+            if (!opt.inStock) {
+              return NextResponse.json({ error: `Option "${opt.label}" is out of stock.` }, { status: 400 });
+            }
+            selectedGroups.add(g.id);
+            variantAdjustCents += opt.priceAdjustCents;
+            selectedVariantLabels.push(opt.label);
+            selectedVariantsSnapshot.push({
+              groupName: g.name,
+              optionLabel: opt.label,
+              priceAdjustCents: opt.priceAdjustCents,
+            });
+            found = true;
+          }
+        }
+        if (!found) {
+          return NextResponse.json({ error: "Invalid variant option selected." }, { status: 400 });
+        }
+      }
+      if (selectedGroups.size !== allGroupIds.size) {
+        return NextResponse.json({ error: "Please select one option from each variant group." }, { status: 400 });
+      }
+    } else {
+      // No variants — resolve any passed options (should be empty)
+      for (const optId of body.selectedVariantOptionIds) {
+        return NextResponse.json({ error: "This listing has no variants." }, { status: 400 });
+      }
+    }
+
+    const unitPriceCents = listing.priceCents + variantAdjustCents;
+    if (unitPriceCents < 1) {
+      return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
+    }
+
+    // Resolve shipping amount — fall back to SiteConfig if fallback rate selected
+    const isFallback = isFallbackRate(body.selectedRate);
+    let shippingAmountCents = body.selectedRate.amountCents;
+    if (isFallback) {
+      const siteConfig = await prisma.siteConfig.findUnique({
+        where: { id: 1 },
+        select: { fallbackShippingCents: true },
+      });
+      shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
+    }
+
+    // Gift wrap price is sourced server-side from the seller's profile
+    const giftWrapCents = body.giftWrapping
+      ? (listing.seller.giftWrappingPriceCents ?? 0)
+      : 0;
+
     // Stock reservation: atomically decrement stock at checkout time (not webhook).
-    // If the buyer doesn't pay (session expires), the webhook restores stock.
-    // This prevents oversell — two concurrent buyers can't both reserve the last item.
     // IMPORTANT: This MUST be the last validation before Stripe session creation.
     // All return-400 paths must be above this point to avoid stock leaks.
     if (listing.listingType === "IN_STOCK") {
@@ -177,46 +239,6 @@ export async function POST(req: Request) {
       }
       reservedListingId = listing.id;
       reservedQuantity = body.quantity;
-    }
-
-    // Resolve shipping amount — fall back to SiteConfig if fallback rate selected
-    const isFallback = isFallbackRate(body.selectedRate);
-    let shippingAmountCents = body.selectedRate.amountCents;
-    if (isFallback) {
-      const siteConfig = await prisma.siteConfig.findUnique({
-        where: { id: 1 },
-        select: { fallbackShippingCents: true },
-      });
-      shippingAmountCents = siteConfig?.fallbackShippingCents ?? 1500;
-    }
-
-    // Gift wrap price is sourced server-side from the seller's profile —
-    // client input for this amount is ignored to prevent price manipulation.
-    const giftWrapCents = body.giftWrapping
-      ? (listing.seller.giftWrappingPriceCents ?? 0)
-      : 0;
-
-    // Calculate variant-adjusted price
-    let variantAdjustCents = 0;
-    const selectedVariantLabels: string[] = [];
-    const selectedVariantsSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
-    for (const optId of body.selectedVariantOptionIds) {
-      for (const g of listing.variantGroups) {
-        const opt = g.options.find((o) => o.id === optId);
-        if (opt) {
-          variantAdjustCents += opt.priceAdjustCents;
-          selectedVariantLabels.push(opt.label);
-          selectedVariantsSnapshot.push({
-            groupName: g.name,
-            optionLabel: opt.label,
-            priceAdjustCents: opt.priceAdjustCents,
-          });
-        }
-      }
-    }
-    const unitPriceCents = listing.priceCents + variantAdjustCents;
-    if (unitPriceCents < 1) {
-      return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
     }
     const itemsSubtotalCents = unitPriceCents * body.quantity;
 
@@ -337,7 +359,7 @@ export async function POST(req: Request) {
       metadata: {
         listingId: body.listingId,
         quantity: String(body.quantity),
-        priceCents: String(listing.priceCents),
+        priceCents: String(unitPriceCents),
         buyerId: me.id,
         taxRetainedAtCreation: "true",
         selectedRateObjectId: body.selectedRate.objectId,

@@ -11,8 +11,13 @@ export default function AdminPinGate({ children }: { children: React.ReactNode }
 
   // Check if already verified this session
   useEffect(() => {
+    // Check sessionStorage first (fast), then verify cookie is still valid
     const v = sessionStorage.getItem("admin-pin-verified");
-    if (v === "1") setVerified(true);
+    if (v === "1") {
+      // Cookie was set by verify-pin — httpOnly so we can't read it,
+      // but if sessionStorage says verified, trust it (cookie provides server-side enforcement)
+      setVerified(true);
+    }
     setLoading(false);
   }, []);
 

@@ -14,6 +14,9 @@ export async function ensureUserByClerkId(
   const existing = await prisma.user.findUnique({ where: { clerkId } });
 
   if (existing) {
+    if (existing.banned) {
+      throw new Error("Your account has been suspended. Contact support@thegrainline.com");
+    }
     const updateData: Record<string, string | null> = {};
 
     // Only update fields if caller explicitly provided them

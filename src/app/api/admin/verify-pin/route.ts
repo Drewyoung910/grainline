@@ -38,7 +38,15 @@ export async function POST(req: Request) {
 
   if (!adminPin) {
     // If ADMIN_PIN is not set, allow access (dev mode / not configured)
-    return NextResponse.json({ ok: true });
+    const devRes = NextResponse.json({ ok: true });
+    devRes.cookies.set("admin-pin-verified", "1", {
+      httpOnly: true,
+      secure: false,
+      sameSite: "strict",
+      maxAge: 60 * 60 * 4,
+      path: "/",
+    });
+    return devRes;
   }
 
   // Constant-time comparison to prevent timing attacks
@@ -53,5 +61,14 @@ export async function POST(req: Request) {
     return NextResponse.json({}, { status: 401 });
   }
 
-  return NextResponse.json({ ok: true });
+  // Set httpOnly cookie so admin APIs can verify PIN server-side
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set("admin-pin-verified", "1", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 60 * 60 * 4, // 4 hours
+    path: "/",
+  });
+  return res;
 }

@@ -105,7 +105,11 @@ async function deleteListing(listingId: string) {
   });
   if (!listing || listing.seller.userId !== me.id) return;
 
-  await prisma.listing.delete({ where: { id: listingId } });
+  // Soft delete: set status to HIDDEN and mark as deleted (preserves order history)
+  await prisma.listing.update({
+    where: { id: listingId },
+    data: { status: "HIDDEN", isPrivate: true },
+  });
 
   // Deleting a listing may drop active count below 5
   const activeCount = await prisma.listing.count({

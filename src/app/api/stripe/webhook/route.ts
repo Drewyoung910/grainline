@@ -194,15 +194,15 @@ export async function POST(req: Request) {
         // The live cart may have been modified between session creation and webhook.
         type StripeLineItem = { quantity?: number | null; price?: { unit_amount?: number | null; product?: { metadata?: Record<string, string> } | string | null } | null };
         const stripeLineItems: StripeLineItem[] = (s as { line_items?: { data?: StripeLineItem[] } }).line_items?.data ?? [];
-        const paidItemMap = new Map<string, { quantity: number; priceCents: number }>();
+        // Build map of paid items — use array to handle multiple variants of same listing
+        const paidItemMap = new Map<string, { quantity: number; priceCents: number }[]>();
         for (const li of stripeLineItems) {
           const prod = typeof li.price?.product === "object" ? li.price?.product : null;
           const lid = prod?.metadata?.listingId;
           if (lid && li.quantity) {
-            paidItemMap.set(lid, {
-              quantity: li.quantity,
-              priceCents: li.price?.unit_amount ?? 0,
-            });
+            const arr = paidItemMap.get(lid) ?? [];
+            arr.push({ quantity: li.quantity, priceCents: li.price?.unit_amount ?? 0 });
+            paidItemMap.set(lid, arr);
           }
         }
 
@@ -304,7 +304,9 @@ export async function POST(req: Request) {
             // quantity and price. Falls back to cart data only if the listing
             // wasn't found in Stripe's line items (e.g. gift wrapping line item
             // doesn't have a listingId).
-            const paid = paidItemMap.get(it.listingId);
+            // Match cart item to Stripe line item — shift() handles multiple variants of same listing
+            const paidArr = paidItemMap.get(it.listingId);
+            const paid = paidArr?.shift();
             const orderQuantity = paid?.quantity ?? it.quantity;
             const orderPriceCents = paid?.priceCents ?? it.priceCents;
 

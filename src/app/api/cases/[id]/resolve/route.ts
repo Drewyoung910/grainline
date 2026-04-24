@@ -151,7 +151,11 @@ export async function POST(
         }),
         prisma.order.update({
           where: { id: caseRecord.orderId },
-          data: { reviewNeeded: true, reviewNote: resolutionNote },
+          data: {
+            reviewNeeded: true,
+            reviewNote: resolutionNote,
+            ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountCents ?? null } : {}),
+          },
         }),
         ...stockRestoreOps,
       ]);

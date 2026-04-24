@@ -50,6 +50,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 });
   }
 
+  // Block check — cannot send custom order request if either user blocked the other
+  const blockExists = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: sellerUserId },
+        { blockerId: sellerUserId, blockedId: me.id },
+      ],
+    },
+  });
+  if (blockExists) {
+    return NextResponse.json({ error: "Unable to send request." }, { status: 403 });
+  }
+
   const seller = await prisma.user.findUnique({
     where: { id: sellerUserId },
     select: { id: true, sellerProfile: { select: { id: true, acceptsCustomOrders: true } } },

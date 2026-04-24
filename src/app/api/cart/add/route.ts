@@ -112,7 +112,9 @@ export async function POST(req: Request) {
       where: {
         cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
       },
-      update: { quantity: { increment: quantity } },
+      update: listing.listingType === "MADE_TO_ORDER"
+        ? { quantity: 1 } // MTO: always 1, don't accumulate
+        : { quantity: { increment: quantity } },
       create: {
         cartId: cart.id,
         listingId,

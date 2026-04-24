@@ -17,6 +17,9 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx tsc --noEmit
+      - name: Lint
+        run: npx next lint
+        continue-on-error: true
       - name: Security audit
         run: npm audit
         continue-on-error: true

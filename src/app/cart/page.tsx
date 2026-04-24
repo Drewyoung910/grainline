@@ -155,13 +155,13 @@ function CartPage() {
     load();
   }, []);
 
-  async function setQuantity(listingId: string, quantity: number) {
+  async function setQuantity(cartItemId: string, quantity: number) {
     setError(null);
     try {
       const res = await fetch("/api/cart/update", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ listingId, quantity }),
+        body: JSON.stringify({ cartItemId, quantity }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to update cart");
@@ -272,7 +272,7 @@ function CartPage() {
                     <select
                       className="rounded-md border border-neutral-200 px-2 py-1 text-sm"
                       value={i.quantity}
-                      onChange={(e) => setQuantity(i.listing.id, Number(e.target.value))}
+                      onChange={(e) => setQuantity(i.id, Number(e.target.value))}
                     >
                       {Array.from({ length: 10 }).map((_, idx) => {
                         const n = idx + 1;
@@ -285,7 +285,7 @@ function CartPage() {
                     <button
                       type="button"
                       className="text-xs text-red-600 underline shrink-0"
-                      onClick={() => setQuantity(i.listing.id, 0)}
+                      onClick={() => setQuantity(i.id, 0)}
                     >
                       Remove
                     </button>

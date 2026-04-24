@@ -48,6 +48,18 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Rate limit: 30 uploads per 10 minutes per user
+  const { safeRateLimit } = await import("@/lib/ratelimit");
+  const { Ratelimit } = await import("@upstash/ratelimit");
+  const { Redis } = await import("@upstash/redis");
+  const uploadRl = new Ratelimit({
+    redis: Redis.fromEnv(),
+    limiter: Ratelimit.slidingWindow(30, "10 m"),
+    prefix: "rl:upload",
+  });
+  const { success: rlOk } = await safeRateLimit(uploadRl, userId);
+  if (!rlOk) return NextResponse.json({ error: "Too many uploads. Try again later." }, { status: 429 });
+
   let body;
   try {
     body = Schema.parse(await req.json());
