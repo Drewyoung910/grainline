@@ -2545,6 +2545,50 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - **Quality score totalOrders**: already filters `WHERE il.status = 'ACTIVE' AND il."isPrivate" = false`. Not a bug.
 - **Cart reservation DoS**: `checkoutRatelimit` (10/60s per user) + Cloudflare DDoS protection + 31-min session expiry provides adequate defense. Multi-account coordinated attacks require Cloudflare WAF ($20/mo) — not worth it pre-launch.
 
+## Comprehensive Audit Fix Pass (2026-04-23)
+
+17 fixes across critical, week-1, and low-priority categories. Zero TypeScript errors.
+
+### Critical fixes (1-6)
+
+**1. Webhook variant collision** — `paidItemMap` in `stripe/webhook/route.ts` changed from `Map<string, {qty,price}>` to `Map<string, {qty,price}[]>`. Multiple variants of the same listing now create separate entries. OrderItem creation uses `.shift()` to match cart items to Stripe line items in order.
+
+**2. Stock leak on variant validation** — `checkout/single/route.ts`: variant price calculation + group validation + inStock checks moved BEFORE stock reservation. Previously: reserve stock → validate variants → return 400 (stock never restored). Now: validate variants → reserve stock → create Stripe session. Follows the documented invariant "All return-400 paths must be above stock reservation."
+
+**3. Listing hard delete → soft delete** — Both `dashboard/page.tsx` `deleteListing` and `seller/[id]/shop/actions.ts` `deleteListingAction` changed from `prisma.listing.delete()` to `prisma.listing.update({ status: HIDDEN, isPrivate: true })`. Preserves OrderItem references and order history (7-year retention requirement).
+
+**4. Case resolve sets Order.sellerRefundId** — `cases/[id]/resolve/route.ts` transaction now writes `sellerRefundId` and `sellerRefundAmountCents` to Order when a refund is issued. Prevents seller from issuing a duplicate refund via the separate refund API (which only checks `Order.sellerRefundId`).
+
+**5. Variant validation in checkout/single** — Server-side validation matching `cart/add` logic: requires exactly one option per variant group, checks `inStock` per option, rejects invalid option IDs. Prevents client-side bypass of variant requirements.
+
+**6. publishListingAction fail closed** — `seller/[id]/shop/actions.ts` catch block changed from `status: "ACTIVE"` to `status: "PENDING_REVIEW"`. AI review errors now send listings to admin queue instead of publishing them.
+
+### Week-1 fixes (7-12)
+
+**7. MTO quantity cap on upsert** — `cart/add/route.ts` upsert update uses `{ quantity: 1 }` for MADE_TO_ORDER listings (was `{ increment: quantity }`). Prevents accumulation past 1 via repeated add-to-cart.
+
+**8. Cart UI sends cartItemId** — `cart/page.tsx` `setQuantity` and remove buttons now use `item.id` (cartItemId) instead of `item.listing.id` (listingId). Fixes wrong-row updates when multiple variants of the same listing are in cart.
+
+**9. Custom-order block check** — `api/messages/custom-order-request/route.ts` now queries `Block` table before sending. Blocked users can't send custom order requests.
+
+**10. Upload presign rate limit** — `api/upload/presign/route.ts` now rate-limited to 30 uploads per 10 minutes per user. Prevents R2 bucket abuse.
+
+**11. Metadata priceCents fix** — `checkout/single` Stripe session metadata now stores `unitPriceCents` (variant-adjusted) instead of `listing.priceCents` (base). Webhook reads from Stripe line items anyway, but metadata now matches.
+
+**12. Banned user check in ensureUserByClerkId** — `src/lib/ensureUser.ts` `ensureUserByClerkId` now throws on `banned=true`, matching `ensureUser` behavior. Closes the gap where banned users with active sessions could call checkout/cart APIs.
+
+### Low-priority fixes (13-17)
+
+**13. R2 origin on create listing** — `dashboard/listings/new/page.tsx` filters `imageUrls` by `CLOUDFLARE_R2_PUBLIC_URL` prefix after parsing. Blocks injection of non-R2 URLs via crafted form POST.
+
+**14. Soft-delete state machine** — `unhideListingAction` blocks unhiding of soft-deleted listings (`isPrivate: true` + `HIDDEN` status). Sellers can't resurrect deleted listings via the unhide button.
+
+**15. Admin PIN httpOnly cookie** — `api/admin/verify-pin/route.ts` now sets a 4-hour `httpOnly`, `secure`, `sameSite: strict` cookie on successful PIN verification. Provides server-side enforcement beyond the client-side sessionStorage check.
+
+**16. ESLint config** — Added `.claude/**`, `prisma/seeds/**`, `scripts/**` to ignores. Stops lint from scanning worktrees and build-only scripts.
+
+**17. CI lint step** — `.github/workflows/ci.yml` now runs `npx next lint` (continue-on-error) after tsc. Catches lint issues in PRs.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
