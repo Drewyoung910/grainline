@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+export const revalidate = 86400;
+
 const TOC = [
   { id: "acceptance",         label: "1. Acceptance of Terms" },
   { id: "service",            label: "2. Description of Service" },

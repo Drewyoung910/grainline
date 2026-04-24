@@ -96,8 +96,10 @@ export async function POST(req: NextRequest) {
   after(async () => {
     try {
       const sellerName = seller.displayName ?? "A maker you follow";
-      await Promise.all(
-        followers.map((f) =>
+      const batchSize = 100;
+      for (let i = 0; i < followers.length; i += batchSize) {
+        const batch = followers.slice(i, i + batchSize);
+        await Promise.allSettled(batch.map((f) =>
           createNotification({
             userId: f.followerId,
             type: "SELLER_BROADCAST",
@@ -105,8 +107,8 @@ export async function POST(req: NextRequest) {
             body: message.slice(0, 100) + (message.length > 100 ? "…" : ""),
             link: `/account/feed`,
           })
-        )
-      );
+        ));
+      }
     } catch { /* non-fatal */ }
   });
 

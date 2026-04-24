@@ -45,6 +45,8 @@ const CheckoutSingleSchema = z.object({
 });
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+export const preferredRegion = "iad1";
 
 export async function POST(req: Request) {
   // Track stock reservation for rollback on error

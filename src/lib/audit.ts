@@ -1,3 +1,4 @@
+import { ListingStatus } from '@prisma/client'
 import { prisma } from './db'
 
 export async function logAdminAction({
@@ -48,6 +49,10 @@ export async function undoAdminAction({
   })
   if (locked.count === 0) throw new Error('Already undone (concurrent request)')
 
+  const metadata = (log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata))
+    ? log.metadata as Record<string, unknown>
+    : {}
+
   switch (log.action) {
     case 'BAN_USER':
       await prisma.user.update({
@@ -68,12 +73,18 @@ export async function undoAdminAction({
       }
       break
     case 'REMOVE_LISTING':
-    case 'HOLD_LISTING':
+    case 'HOLD_LISTING': {
+      const previousStatus =
+        typeof metadata.previousStatus === 'string' &&
+        Object.values(ListingStatus).includes(metadata.previousStatus as ListingStatus)
+          ? metadata.previousStatus as ListingStatus
+          : ListingStatus.ACTIVE
       await prisma.listing.update({
         where: { id: log.targetId },
-        data: { status: 'ACTIVE' }
+        data: { status: previousStatus }
       })
       break
+    }
     default:
       throw new Error(`Action '${log.action}' cannot be undone`)
   }

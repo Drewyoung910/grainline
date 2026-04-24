@@ -1645,7 +1645,7 @@ Nine bugs fixed across listing page, commission room, and seller profile.
 Full audit trail for admin actions with 24-hour undo window. Fields: `action` (string enum like `BAN_USER`, `APPROVE_LISTING`, etc.), `targetType`, `targetId`, `reason?`, `metadata Json`, `undone Boolean`, `undoneAt?`, `undoneBy?`, `undoneReason?`. Migration: `20260401011017_ban_audit_ai_review_snapshot`.
 
 ### Utilities (`src/lib/`)
-- **`audit.ts`** — `logAdminAction(...)` upserts an `AdminAuditLog` row; `undoAdminAction({ logId, adminId, reason })` validates 24h window, performs action-specific rollback (BAN_USER → unban + restore Stripe/vacation; REMOVE_LISTING/HOLD_LISTING → restore ACTIVE), marks log undone, creates `UNDO_*` audit entry
+- **`audit.ts`** — `logAdminAction(...)` upserts an `AdminAuditLog` row; `undoAdminAction({ logId, adminId, reason })` validates 24h window, performs action-specific rollback (BAN_USER → unban + restore Stripe/vacation; REMOVE_LISTING/HOLD_LISTING → restore `metadata.previousStatus` when present), marks log undone, creates `UNDO_*` audit entry
 - **`ban.ts`** — `banUser({ userId, adminId, reason })`: sets banned fields, calls `sellerProfile.updateMany({ chargesEnabled: false, vacationMode: true })`, closes open commission requests, logs `BAN_USER` action; `unbanUser(...)`: clears banned fields, restores Stripe if account exists, logs `UNBAN_USER`
 
 ### API routes
@@ -2898,6 +2898,44 @@ Focused continuation from the remaining 300-item audit backlog. Scope was limite
 - `DOTENV_CONFIG_PATH=.env node -r dotenv/config ./node_modules/.bin/prisma migrate deploy` applied `20260424190000_order_shipping_rate_quotes` successfully to the configured Neon database.
 - `npm run build` passed outside the sandbox. The only build-time warnings were the existing middleware/proxy deprecation warning and pg SSL-mode advisory.
 
+## Round 4 Coverage Gap Fix Pass (2026-04-24)
+
+Continuation of the 300-item audit backlog while Claude pass 5 was running. Scope was limited to no-migration fixes that were confirmed in the current repo and unlikely to conflict with concurrent work.
+
+### Admin PIN and audit correctness
+- Admin PIN enforcement now covers admin server-action POSTs to `/admin/*`, not only `/api/admin/*`. GET page loads still render the existing PIN gate, but mutating admin page POSTs require the signed httpOnly PIN cookie in middleware.
+- Geo-blocking no longer relies on deprecated `request.geo`; middleware reads Vercel's `x-vercel-ip-country` header.
+- `undoAdminAction()` now restores listing removals/holds to the `metadata.previousStatus` value when present instead of always restoring `ACTIVE`.
+- Added audit log rows for `MARK_ORDER_REVIEWED`, `APPEND_ORDER_NOTE`, `DELETE_BROADCAST`, `APPROVE_BLOG_COMMENT`, and `DELETE_BLOG_COMMENT`.
+
+### Security headers and runtime config
+- Removed unused `https://cdnjs.cloudflare.com` from `script-src-elem`.
+- Replaced broad `img-src https:` with explicit first-party/R2/CDN/Clerk/Stripe/map tile image origins.
+- Added `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Resource-Policy: same-site`.
+- Added `maxDuration` and `preferredRegion = "iad1"` to Stripe webhook, Shippo quote, and checkout routes.
+- Static legal pages (`/terms`, `/privacy`, `/accessibility`) now export `revalidate = 86400`.
+
+### Notifications and messaging
+- `NotificationBell` now covers every current Prisma `NotificationType`, including followed-maker listing/blog, seller broadcast, commission interest, and listing approval/rejection types.
+- `createNotification()` now skips missing, banned, and soft-deleted users so suspended accounts do not continue accumulating bell notifications.
+- Added a dedicated `messageStreamRatelimit` so SSE reconnects do not consume the normal message-send quota.
+- Message SSE polling now starts immediately, then backs off from 3 seconds to 10 seconds when idle and to 15 seconds after errors instead of querying every second per connected user.
+- Seller broadcast notification fan-out now runs in batches of 100 with `Promise.allSettled()` per batch instead of one unbounded `Promise.all()` over all followers.
+
+### Seller analytics
+- Seller analytics click-through rate now uses clicks divided by listing views; the previous implementation inverted the formula.
+- Hourly view/click chart allocation now spreads daily aggregate counts evenly across elapsed buckets instead of dumping the remainder into the final hour.
+- Dashboard labels now use "Gross Sales" where the amount is gross paid item revenue rather than net seller proceeds.
+
+### Verification
+- `npx tsc --noEmit` passed after the implementation pass.
+- `npx tsc --noEmit --incremental false` passed.
+- `npx prisma validate` passed.
+- `git diff --check` passed.
+- `npm run lint` passed with 25 warnings and 0 errors.
+- Sandboxed `npm run build` hit the known Turbopack internal worker port restriction (`Operation not permitted`).
+- `npm run build` passed outside the sandbox. The build confirmed `/terms`, `/privacy`, and `/accessibility` now show 1-day revalidation.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
@@ -2958,7 +2996,7 @@ Focused continuation from the remaining 300-item audit backlog. Scope was limite
 
 ## Security Hardening (complete — 2026-03-31)
 
-### Rate limiting — 15 routes total
+### Rate limiting — active limiter inventory
 
 All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 429 responses use `rateLimitResponse(reset, message)` helper — returns human-readable retry time ("a moment" / "N minutes" / "N hours" / "tomorrow at HH:MM AM") + `Retry-After` + `X-RateLimit-Reset` headers.
 
@@ -2969,7 +3007,8 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `clickRatelimit` | IP | 20 / 60 s | `POST /api/listings/[id]/click` |
 | `reviewRatelimit` | userId | 5 / 60 s | `POST /api/reviews` |
 | `checkoutRatelimit` | userId | 10 / 60 s | `POST /api/cart/checkout`, `checkout/single` |
-| `messageRatelimit` | userId | 30 / 60 s | `GET /api/messages/[id]/stream` |
+| `messageRatelimit` | userId | 30 / 60 s | message send server action |
+| `messageStreamRatelimit` | userId | 120 / 60 s | `GET /api/messages/[id]/stream` |
 | `followRatelimit` | userId | 50 / 60 min | `POST/DELETE /api/follow/[sellerId]` |
 | `saveRatelimit` | userId | 100 / 60 min | `POST /api/favorites` |
 | `blogSaveRatelimit` | userId | 100 / 60 min | `POST/DELETE /api/blog/[slug]/save` |
@@ -3043,6 +3082,8 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 | `X-Frame-Options` | `SAMEORIGIN` |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Cross-Origin-Resource-Policy` | `same-site` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 
@@ -3067,14 +3108,14 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 | Directive | Key allowed sources |
 |---|---|
 | `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) |
-| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com cdnjs.cloudflare.com` (note: `clerk.thegrainline.com` was missing here before, causing 3K violations) |
+| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com` |
 | `style-src` | `'self' 'unsafe-inline'` |
-| `img-src` | `'self' data: blob: https:` (HTTPS only — HTTP removed) |
-| `font-src` | `'self' data: fonts.gstatic.com` |
-| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks`), UploadThing, Sentry, Upstash, OpenStreetMap, `wss://*.clerk.*` |
-| `frame-src` | `'self'` + Stripe (`js` + `hooks`), Clerk |
+| `img-src` | `'self' data: blob:` + explicit Grainline CDN/R2, Clerk, Stripe, and map tile origins |
+| `font-src` | `'self' data:` |
+| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks` + checkout), R2/CDN, Sentry, Upstash, OpenStreetMap/OpenFreeMap, `wss://*.clerk.*` |
+| `frame-src` | `'self'` + Stripe, Clerk, YouTube no-cookie, Vimeo |
 | `worker-src` | `'self' blob:` |
-| `media-src` | `'self'` |
+| `media-src` | `'self' cdn.thegrainline.com` |
 | `object-src` | `'none'` |
 | `form-action` | `'self'` + Clerk (`*.clerk.accounts.dev *.clerk.com`) |
 | `frame-ancestors` | `'self'` (equivalent to `X-Frame-Options: SAMEORIGIN`) |

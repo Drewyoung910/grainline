@@ -77,6 +77,13 @@ function generateHourBuckets(startDate: Date): { label: string; timestamp: strin
   return buckets;
 }
 
+function distributeCountEvenly(total: number, bucketCount: number, index: number) {
+  if (bucketCount <= 0 || index < 0 || index >= bucketCount) return 0;
+  const previous = Math.round((total * index) / bucketCount);
+  const next = Math.round((total * (index + 1)) / bucketCount);
+  return next - previous;
+}
+
 // For "week" range: always 7 days Mon-Sun with day-of-week labels
 function generateWeekBuckets(weekStart: Date): { label: string; timestamp: string }[] {
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -196,12 +203,12 @@ export async function GET(req: Request) {
       totalViews === 0
         ? totalOrders === 0 ? 0 : null
         : Math.min((totalOrders / totalViews) * 100, 100);
-    // Click-through rate: views / clicks (what % of card clickers viewed the full listing page)
-    // null when clicks are 0 (tracking may not be active)
+    // Click-through rate: card clicks divided by listing views. This is not
+    // impression-based CTR because Grainline does not store card impressions yet.
     const clickThroughRate: number | null =
-      totalClicks === 0
-        ? null
-        : Math.min((totalViews / totalClicks) * 100, 100);
+      totalViews === 0
+        ? totalClicks === 0 ? 0 : null
+        : Math.min((totalClicks / totalViews) * 100, 100);
 
     const [favoritesCount, stockNotificationSubs] = await Promise.all([
       listingIds.length > 0 ? prisma.favorite.count({ where: { listingId: { in: listingIds }, createdAt: { gte: startDate, lte: endDate } } }) : 0,
@@ -311,17 +318,13 @@ export async function GET(req: Request) {
       const hoursElapsed = isToday ? currentHour + 1 : 24;
       const dayKey = startDate.toISOString().slice(0, 10);
       const dayViews = dailyMap.get(dayKey) ?? { views: 0, clicks: 0 };
-      const viewsPerHour = Math.floor(dayViews.views / hoursElapsed);
-      const clicksPerHour = Math.floor(dayViews.clicks / hoursElapsed);
-      const viewsRemainder = dayViews.views % hoursElapsed;
-      const clicksRemainder = dayViews.clicks % hoursElapsed;
       const buckets = generateHourBuckets(startDate);
       chartData = buckets.map((b, i) => {
         const ts = new Date(b.timestamp);
         const h = ts.getUTCHours();
         const d = byHour.get(h) ?? { revenue: 0, orders: 0 };
-        const views = i < hoursElapsed ? viewsPerHour + (i === hoursElapsed - 1 ? viewsRemainder : 0) : 0;
-        const clicks = i < hoursElapsed ? clicksPerHour + (i === hoursElapsed - 1 ? clicksRemainder : 0) : 0;
+        const views = i < hoursElapsed ? distributeCountEvenly(dayViews.views, hoursElapsed, i) : 0;
+        const clicks = i < hoursElapsed ? distributeCountEvenly(dayViews.clicks, hoursElapsed, i) : 0;
         return { ...b, revenue: d.revenue, orders: d.orders, views, clicks };
       });
     } else if (chartGrouping === "day") {

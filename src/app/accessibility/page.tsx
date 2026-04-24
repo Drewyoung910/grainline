@@ -5,6 +5,8 @@ export const metadata: Metadata = {
   description: "Grainline's commitment to digital accessibility and WCAG 2.1 AA conformance.",
 };
 
+export const revalidate = 86400;
+
 export default function AccessibilityPage() {
   return (
     <main className="max-w-3xl mx-auto px-6 py-12 space-y-8">

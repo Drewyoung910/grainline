@@ -24,6 +24,8 @@ const ShippingQuoteSchema = z.object({
 });
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
+export const preferredRegion = "iad1";
 
 function fallbackRate({
   amountCents,
@@ -446,4 +448,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ rates: [] });
   }
 }
-

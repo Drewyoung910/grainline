@@ -48,9 +48,9 @@ const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Geo-blocking — US only
-  // request.geo is populated by Vercel in production (undefined in local dev)
-  const country = (req as unknown as { geo?: { country?: string } }).geo?.country;
+  // Geo-blocking — US only. Next 16 no longer exposes request.geo, so use
+  // Vercel's country header when present.
+  const country = req.headers.get("x-vercel-ip-country") || undefined;
   if (country && country !== "US") {
     const pathname = req.nextUrl.pathname;
     // Allow not-available page, static assets, and API routes needed for the page
@@ -86,8 +86,11 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     // Admin pages withhold server-rendered data in their layout until this
-    // cookie is valid. Admin APIs must enforce it in middleware too.
-    if (isAdminApi(req) && !isAdminPinVerification(req)) {
+    // cookie is valid. Admin APIs and server-action POSTs must enforce it
+    // in middleware too because server actions post back to page paths.
+    const isAdminServerActionPost =
+      isAdminPage(req) && req.method !== "GET" && req.method !== "HEAD";
+    if ((isAdminApi(req) && !isAdminPinVerification(req)) || isAdminServerActionPost) {
       const pinVerified = await verifyAdminPinCookieValue(
         req.cookies.get(ADMIN_PIN_COOKIE_NAME)?.value,
         userId,

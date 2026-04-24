@@ -58,6 +58,13 @@ export const messageRatelimit = new Ratelimit({
   prefix: "rl:message",
 });
 
+export const messageStreamRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "60 s"),
+  analytics: true,
+  prefix: "rl:message_stream",
+});
+
 // Follow/unfollow — prevent follow spam
 export const followRatelimit = new Ratelimit({
   redis,

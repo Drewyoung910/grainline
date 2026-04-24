@@ -6,14 +6,21 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { createNotification } from "@/lib/notifications";
+import { logAdminAction } from "@/lib/audit";
 
 async function approveComment(commentId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/");
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { role: true } });
+  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, role: true } });
   if (!me || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
   await prisma.blogComment.update({ where: { id: commentId }, data: { approved: true } });
+  await logAdminAction({
+    adminId: me.id,
+    action: "APPROVE_BLOG_COMMENT",
+    targetType: "BLOG_COMMENT",
+    targetId: commentId,
+  });
 
   // Send notification now that the comment is approved
   try {
@@ -66,9 +73,19 @@ async function deleteComment(commentId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/");
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { role: true } });
+  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, role: true } });
   if (!me || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
-  await prisma.blogComment.delete({ where: { id: commentId } });
+  const deleted = await prisma.blogComment.delete({
+    where: { id: commentId },
+    select: { id: true, postId: true, authorId: true },
+  });
+  await logAdminAction({
+    adminId: me.id,
+    action: "DELETE_BLOG_COMMENT",
+    targetType: "BLOG_COMMENT",
+    targetId: deleted.id,
+    metadata: { postId: deleted.postId, authorId: deleted.authorId },
+  });
   revalidatePath("/admin/blog");
 }
 

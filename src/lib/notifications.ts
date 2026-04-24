@@ -59,8 +59,10 @@ export async function createNotification({
     // Check notification preferences — if explicitly disabled, skip
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { notificationPreferences: true },
+      select: { notificationPreferences: true, banned: true, deletedAt: true },
     });
+    if (!user || user.banned || user.deletedAt) return null;
+
     const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
     if (prefs[type] === false) return null;
 

@@ -5,16 +5,32 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
+import { logAdminAction } from "@/lib/audit";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const user = await prisma.user.findUnique({ where: { clerkId: userId }, select: { role: true } });
+  const user = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, role: true } });
   if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
   const id = String(formData.get("id") ?? "");
-  if (id) await prisma.sellerBroadcast.delete({ where: { id } });
+  if (id) {
+    const deleted = await prisma.sellerBroadcast.delete({
+      where: { id },
+      select: { id: true, sellerProfileId: true, recipientCount: true },
+    });
+    await logAdminAction({
+      adminId: user.id,
+      action: "DELETE_BROADCAST",
+      targetType: "SELLER_BROADCAST",
+      targetId: deleted.id,
+      metadata: {
+        sellerProfileId: deleted.sellerProfileId,
+        recipientCount: deleted.recipientCount,
+      },
+    });
+  }
   revalidatePath("/admin/broadcasts");
 }
 

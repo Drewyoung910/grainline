@@ -6,6 +6,8 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-site" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   {
@@ -15,11 +17,11 @@ const securityHeaders = [
       // Next.js requires 'unsafe-inline' for hydration scripts; 'unsafe-eval' retained for Sentry/source-map support
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.thegrainline.com",
       // script-src-elem overrides script-src for <script> elements — list all external script hosts here
-      "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com https://cdnjs.cloudflare.com",
+      "script-src-elem 'self' 'unsafe-inline' https://clerk.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.thegrainline.com https://js.stripe.com",
       "style-src 'self' 'unsafe-inline' https://clerk.thegrainline.com",
       "font-src 'self' data:",
-      // Drop plain http: — all legitimate image sources use HTTPS; blob:/data: retained for canvas/uploader
-      "img-src 'self' data: blob: https:",
+      // Image sources are limited to first-party assets, R2/CDN media, Clerk avatars, Stripe, and map tiles.
+      "img-src 'self' data: blob: https://cdn.thegrainline.com https://*.r2.cloudflarestorage.com https://img.clerk.com https://images.clerk.dev https://*.clerk.com https://*.clerk.accounts.dev https://q.stripe.com https://*.tile.openstreetmap.org https://tiles.openfreemap.org",
       // All XHR/fetch/WebSocket targets: Clerk, Stripe, R2, Sentry, Upstash, OpenStreetMap, Maplibre tiles
       "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.r2.cloudflarestorage.com https://cdn.thegrainline.com https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.openfreemap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
       // Stripe payment iframe + Clerk account modal iframe + YouTube/Vimeo embeds on blog posts

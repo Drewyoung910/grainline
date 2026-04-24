@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { messageRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { messageStreamRatelimit, safeRateLimit } from "@/lib/ratelimit";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(
   req: Request,
@@ -10,7 +13,7 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return new Response("unauthorized", { status: 401 });
 
-  const { success } = await safeRateLimit(messageRatelimit, userId);
+  const { success } = await safeRateLimit(messageStreamRatelimit, userId);
   if (!success) return new Response("Too many requests", { status: 429 });
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
@@ -34,7 +37,10 @@ export async function GET(
       const ping = () => controller.enqueue(encoder.encode(`: ping\n\n`));
 
       let closed = false;
-      const interval = setInterval(async () => {
+      let pollDelayMs = 3000;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+
+      const poll = async () => {
         if (closed) return;
         try {
           const messages = await prisma.message.findMany({
@@ -48,20 +54,26 @@ export async function GET(
           if (messages.length) {
             since = new Date(messages[messages.length - 1].createdAt).getTime();
             send({ type: "messages", messages });
+            pollDelayMs = 3000;
           } else {
             // keep-alive comment so proxies don’t close us
             ping();
+            pollDelayMs = Math.min(pollDelayMs + 1000, 10000);
           }
         } catch {
           // swallow and keep connection alive
           ping();
+          pollDelayMs = Math.min(pollDelayMs * 2, 15000);
         }
-      }, 1000);
+        if (!closed) timeout = setTimeout(poll, pollDelayMs);
+      };
+
+      timeout = setTimeout(poll, 0);
 
       // close handler
       req.signal?.addEventListener("abort", () => {
         closed = true;
-        clearInterval(interval);
+        if (timeout) clearTimeout(timeout);
         controller.close();
       });
     },

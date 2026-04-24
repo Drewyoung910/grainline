@@ -14,6 +14,11 @@ const ACTION_COLORS: Record<string, string> = {
   REMOVE_LISTING: "bg-red-100 text-red-800",
   HOLD_LISTING: "bg-amber-100 text-amber-800",
   AI_HOLD_LISTING: "bg-amber-100 text-amber-800",
+  MARK_ORDER_REVIEWED: "bg-blue-100 text-blue-800",
+  APPEND_ORDER_NOTE: "bg-blue-100 text-blue-800",
+  DELETE_BROADCAST: "bg-red-100 text-red-800",
+  APPROVE_BLOG_COMMENT: "bg-green-100 text-green-800",
+  DELETE_BLOG_COMMENT: "bg-red-100 text-red-800",
 };
 
 export default async function AdminAuditPage({

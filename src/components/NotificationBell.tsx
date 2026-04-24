@@ -36,7 +36,13 @@ type NotificationType =
   | "NEW_FAVORITE"
   | "NEW_BLOG_COMMENT"
   | "BLOG_COMMENT_REPLY"
-  | "NEW_FOLLOWER";
+  | "NEW_FOLLOWER"
+  | "FOLLOWED_MAKER_NEW_LISTING"
+  | "FOLLOWED_MAKER_NEW_BLOG"
+  | "SELLER_BROADCAST"
+  | "COMMISSION_INTEREST"
+  | "LISTING_APPROVED"
+  | "LISTING_REJECTED";
 
 type NotificationItem = {
   id: string;
@@ -76,9 +82,19 @@ function typeIcon(type: NotificationType) {
       return { Icon: Star, color: "text-amber-500" };
     case "NEW_BLOG_COMMENT":
     case "BLOG_COMMENT_REPLY":
+    case "FOLLOWED_MAKER_NEW_BLOG":
       return { Icon: Edit, color: "text-neutral-500" };
     case "NEW_FOLLOWER":
       return { Icon: User, color: "text-neutral-500" };
+    case "FOLLOWED_MAKER_NEW_LISTING":
+    case "SELLER_BROADCAST":
+      return { Icon: Bell, color: "text-teal-600" };
+    case "COMMISSION_INTEREST":
+      return { Icon: Wrench, color: "text-teal-600" };
+    case "LISTING_APPROVED":
+      return { Icon: CheckCircle, color: "text-green-600" };
+    case "LISTING_REJECTED":
+      return { Icon: XCircle, color: "text-red-500" };
     default:
       return { Icon: Bell, color: "text-neutral-500" };
   }

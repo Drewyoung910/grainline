@@ -15,6 +15,8 @@ import type { FulfillmentStatus } from "@prisma/client";
 
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+export const preferredRegion = "iad1";
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -988,6 +990,5 @@ export async function POST(req: Request) {
     return new NextResponse("Webhook error", { status: 500 });
   }
 }
-
 
 
