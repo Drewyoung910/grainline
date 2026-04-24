@@ -2622,12 +2622,64 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - **OpenAI image sharing disclosure** — Privacy Policy text change
 - **Money transmitter licensing** — attorney sign-off on Stripe Connect exemption
 - **INFORM Consumers Act** — attorney scope for high-volume seller disclosures
-- **Accessibility statement page** — /accessibility with WCAG 2.1 AA conformance
-- **Bounce/complaint webhook from Resend** — list hygiene
-- **Deep health check** — replace force-static /api/health with DB/Redis/R2 probe
+- ~~**Accessibility statement page**~~ — DONE (`/accessibility` page deployed)
+- **Bounce/complaint webhook from Resend** — configure in Resend dashboard, not code
+- ~~**Deep health check**~~ — DONE (`/api/health` checks DB + Redis, returns 503 on failure)
 - **Toast system replacing alert()** — ~20 calls across components
 - **autoComplete attributes on forms** — profile, onboarding, commission, checkout
 - **Webhook fire-and-forget patterns** — replace with waitUntil() or outbox
+
+### Additional fixes from Opus 4.7 audit (2026-04-24)
+
+**Observability:**
+- All 4 cron routes now have `Sentry.captureException` on errors (guild-metrics, guild-member-check, quality-score, case-auto-close)
+- `quality-score` + `case-auto-close` crons: added `maxDuration` (300s and 60s)
+- `/api/health`: deep check with `SELECT 1` (DB) + `redis.ping()` (Upstash), returns 503 on failure
+- Email send errors: `Sentry.captureException` with source tag + recipient metadata
+
+**Security:**
+- Commission reference image URLs: R2 origin validation
+- Block action deletes reciprocal Follow rows (both directions) — prevents orphaned follower counts
+
+**SEO:**
+- Sitemap listings: filtered by `seller.chargesEnabled + vacationMode:false + user.banned:false`
+- Sitemap sellers: filtered by `chargesEnabled + vacationMode:false + banned:false + has active listings`
+
+**Email:**
+- `shouldSendEmail`: checks `user.banned` — banned users don't receive non-transactional emails
+
+**Compliance:**
+- `/accessibility` page: WCAG 2.1 AA statement with known limitations + feedback channel. In footer + public middleware.
+
+**Financial:**
+- Sub-$1 payout block: both checkout routes reject orders where `preTaxTotal - fees < $1` (100 cents)
+- Label purchase: blocked on refunded orders (`sellerRefundId` check) and pickup orders (`fulfillmentMethod` check)
+
+**Schema:**
+- Migration timestamp fixed: `20260423_` → `20260423000000_` for proper lexicographic ordering
+
+### Remaining items requiring attorney/business decisions
+- Clickwrap on sign-up (attorney)
+- Age gate checkbox (attorney/COPPA)
+- Money transmitter licensing (attorney)
+- INFORM Consumers Act implementation (attorney)
+- OpenAI image sharing Privacy Policy disclosure (attorney)
+
+### Remaining items requiring significant code work
+- Account deletion flow (cascade-aware, Clerk webhook, GDPR Art. 17)
+- EXIF stripping from uploaded photos (R2 worker or sharp)
+- Toast system replacing ~20 alert() calls
+- autoComplete attributes on forms
+- Webhook fire-and-forget → waitUntil() or outbox pattern
+- Money fields Float→Int migration (shippingFlatRate, freeShippingOver)
+- Lightbox focus trap + dialog role
+- Photo drag touch events for mobile
+- Browse pagination canonical URLs
+- Sitemap index for >2000 listings
+- LocalDate/DismissibleBanner hydration mismatch fixes
+- EventSource reconnect on error
+- Case status human-readable labels in UI
+- "Verified Maker" → "Guild Member" in 2 email templates
 
 ## Pending Tasks
 
