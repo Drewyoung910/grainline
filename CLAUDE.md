@@ -2589,6 +2589,46 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 **17. CI lint step** — `.github/workflows/ci.yml` now runs `npx next lint` (continue-on-error) after tsc. Catches lint issues in PRs.
 
+## Opus 4.7 Audit Compliance Pass (2026-04-24)
+
+### CAN-SPAM compliance
+- **`/unsubscribe` route** — `src/app/unsubscribe/page.tsx`: redirects signed-in users to `/account/settings`, shows sign-in prompt for signed-out. Added to `isPublic` in middleware. Fixes the 404 that every email footer linked to.
+- **Physical mailing address** in email footer: "5900 Balcones Drive STE 100, Austin, TX 78731" — required by CAN-SPAM §316.5(c)(1).
+- **`List-Unsubscribe` + `List-Unsubscribe-Post` headers** on all outbound emails via Resend `headers` option. Gmail/Yahoo bulk-sender rule compliance (Feb 2024).
+
+### Data retention (Order cascade fix)
+- **`Order.buyerId` changed from `String` to `String?`** with `onDelete: SetNull` (was `Cascade`). Deleting a User no longer cascades-deletes their Orders. Tax/IRS 7-year retention preserved.
+- Migration: `20260424_add_performance_indexes_v2` — drops NOT NULL, recreates FK with SET NULL.
+- 9 files updated with optional chaining (`order.buyer?.name`) and null guards. Display shows "Deleted user" fallback.
+
+### Stripe webhook observability
+- `Sentry.captureException` added to main error handler + signature verification failure in `stripe/webhook/route.ts`. Webhook errors now appear in Sentry dashboard.
+
+### Performance indexes (same migration)
+- `Listing.priceCents` — browse price-sort queries
+- `Message(conversationId, createdAt)` — compound index for thread loading
+- `Review(listingId, createdAt)` — compound index for review sort
+- `Order.stripePaymentIntentId` — unique index for webhook/refund lookups
+
+### Accessibility
+- **Skip-to-content link** in `layout.tsx`: `sr-only` by default, visible on keyboard focus (`focus:not-sr-only`). Points to `#main-content` wrapper.
+- **`prefers-reduced-motion`** in `globals.css`: all animations disabled (`animation: none !important`), all transitions set to `0.01ms` duration. Covers hero mosaic scroll, slide-in, slide-up, pulse skeletons.
+
+### Remaining items from Opus 4.7 audit (not yet implemented)
+- **Clickwrap on sign-up** — requires attorney decision on browsewrap vs clickwrap
+- **Age gate checkbox** — requires attorney scope (COPPA)
+- **Account deletion flow** — needs cascade-aware deletion logic + Clerk user.deleted webhook
+- **EXIF stripping from uploads** — needs R2 worker or sharp in presign route
+- **OpenAI image sharing disclosure** — Privacy Policy text change
+- **Money transmitter licensing** — attorney sign-off on Stripe Connect exemption
+- **INFORM Consumers Act** — attorney scope for high-volume seller disclosures
+- **Accessibility statement page** — /accessibility with WCAG 2.1 AA conformance
+- **Bounce/complaint webhook from Resend** — list hygiene
+- **Deep health check** — replace force-static /api/health with DB/Redis/R2 probe
+- **Toast system replacing alert()** — ~20 calls across components
+- **autoComplete attributes on forms** — profile, onboarding, commission, checkout
+- **Webhook fire-and-forget patterns** — replace with waitUntil() or outbox
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
