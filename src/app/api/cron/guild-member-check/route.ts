@@ -5,6 +5,7 @@
 //   2. Active listing count below 5 for 30+ consecutive days
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
@@ -72,6 +73,7 @@ export async function GET(request: NextRequest) {
           }
         } catch (err) {
           errors.push(`seller ${seller.id}: ${String(err)}`);
+          Sentry.captureException(err, { tags: { source: "cron_guild_member_check", sellerId: seller.id } });
         }
       })
     );

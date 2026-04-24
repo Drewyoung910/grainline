@@ -287,6 +287,13 @@ export async function POST(req: Request) {
       preTaxTotal - platformFee - estimatedStripeFee
     );
 
+    if (preTaxTotal - platformFee - estimatedStripeFee < 100) {
+      return NextResponse.json(
+        { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
+        { status: 400 },
+      );
+    }
+
     const return_url = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 
     const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")

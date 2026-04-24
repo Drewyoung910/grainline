@@ -4,6 +4,7 @@
 // enforces 2-month grace period for Guild Master revocation.
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import {
   calculateSellerMetrics,
@@ -145,6 +146,7 @@ export async function GET(request: NextRequest) {
           processed++;
         } catch (err) {
           errors.push(`seller ${seller.id}: ${String(err)}`);
+          Sentry.captureException(err, { tags: { source: "cron_guild_metrics", sellerId: seller.id } });
         }
       })
     );

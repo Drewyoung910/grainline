@@ -16,7 +16,10 @@ const CommissionCreateSchema = z.object({
   budgetMin: z.number().min(0).optional().nullable(),
   budgetMax: z.number().min(0).optional().nullable(),
   timeline: z.string().max(200).optional().nullable(),
-  referenceImageUrls: z.array(z.string().url()).max(3).optional(),
+  referenceImageUrls: z.array(z.string().url().refine(
+    (u) => !process.env.CLOUDFLARE_R2_PUBLIC_URL || u.startsWith(process.env.CLOUDFLARE_R2_PUBLIC_URL),
+    { message: "Invalid image URL" }
+  )).max(3).optional(),
   isNational: z.boolean().optional(),
 });
 

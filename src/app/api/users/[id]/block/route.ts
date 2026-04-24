@@ -22,6 +22,20 @@ export async function POST(
     update: {},
   });
 
+  // Remove reciprocal Follow rows (both directions)
+  try {
+    // If I follow their seller profile, remove
+    const blockedSeller = await prisma.sellerProfile.findUnique({ where: { userId: blockedId }, select: { id: true } });
+    if (blockedSeller) {
+      await prisma.follow.deleteMany({ where: { followerId: me.id, sellerProfileId: blockedSeller.id } });
+    }
+    // If they follow my seller profile, remove
+    const mySeller = await prisma.sellerProfile.findUnique({ where: { userId: me.id }, select: { id: true } });
+    if (mySeller) {
+      await prisma.follow.deleteMany({ where: { followerId: blockedId, sellerProfileId: mySeller.id } });
+    }
+  } catch { /* non-fatal */ }
+
   return NextResponse.json({ ok: true, blocked: true });
 }
 

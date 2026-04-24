@@ -1,5 +1,6 @@
 // src/lib/email.ts
 import { Resend } from "resend";
+import * as Sentry from "@sentry/nextjs";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -139,6 +140,7 @@ async function send(to: string, subject: string, html: string) {
     });
   } catch (err) {
     console.error("[email] send failed:", err);
+    Sentry.captureException(err, { tags: { source: "email_send" }, extra: { to, subject } });
   }
 }
 

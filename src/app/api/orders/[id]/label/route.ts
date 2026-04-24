@@ -130,6 +130,13 @@ export async function POST(
         { status: 400 }
       );
     }
+    // Block label purchase if order has been refunded or has an open case
+    if (order.sellerRefundId) {
+      return NextResponse.json({ error: "Cannot purchase label — order has been refunded." }, { status: 400 });
+    }
+    if (order.fulfillmentMethod === "PICKUP") {
+      return NextResponse.json({ error: "Cannot purchase a shipping label for a pickup order." }, { status: 400 });
+    }
     const terminalStatuses: FulfillmentStatus[] = ["SHIPPED", "DELIVERED", "PICKED_UP"];
     if (terminalStatuses.includes(order.fulfillmentStatus)) {
       return NextResponse.json(

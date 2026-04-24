@@ -255,6 +255,14 @@ export async function POST(req: Request) {
       preTaxTotal - platformFee - estimatedStripeFee
     );
 
+    // Block orders where the effective payout is under $1 (fees exceed item value)
+    if (preTaxTotal - platformFee - estimatedStripeFee < 100) {
+      return NextResponse.json(
+        { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
+        { status: 400 },
+      );
+    }
+
     // Variant description suffix for Stripe line item name
     const variantDesc = selectedVariantLabels.length > 0
       ? ` (${selectedVariantLabels.join(", ")})`
