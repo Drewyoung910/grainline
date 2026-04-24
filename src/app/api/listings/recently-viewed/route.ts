@@ -1,6 +1,7 @@
 // src/app/api/listings/recently-viewed/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function GET(req: NextRequest) {
   const idsParam = req.nextUrl.searchParams.get("ids") ?? "";
@@ -15,11 +16,9 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = await prisma.listing.findMany({
-    where: {
+    where: publicListingWhere({
       id: { in: ids },
-      status: "ACTIVE",
-      isPrivate: false,
-    },
+    }),
     select: {
       id: true,
       title: true,

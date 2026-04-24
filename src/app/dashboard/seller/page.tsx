@@ -49,8 +49,10 @@ async function updateSellerProfile(formData: FormData) {
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
 
   // Shipping/tax in dollars
-  const shippingFlatRate = toFloat(formData.get("shippingFlatRate"));
-  const freeShippingOver = toFloat(formData.get("freeShippingOver"));
+  const shippingFlatRateRaw = toFloat(formData.get("shippingFlatRate"));
+  const shippingFlatRateCents = shippingFlatRateRaw != null ? Math.round(shippingFlatRateRaw * 100) : null;
+  const freeShippingOverRaw = toFloat(formData.get("freeShippingOver"));
+  const freeShippingOverCents = freeShippingOverRaw != null ? Math.round(freeShippingOverRaw * 100) : null;
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
   const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on"; // 👈 NEW
 
@@ -102,8 +104,8 @@ async function updateSellerProfile(formData: FormData) {
       publicMapOptIn,
 
       // shipping prefs
-      shippingFlatRate,
-      freeShippingOver,
+      shippingFlatRateCents,
+      freeShippingOverCents,
       allowLocalPickup,
       useCalculatedShipping,
       preferredCarriers,
@@ -275,7 +277,7 @@ export default async function SellerSettingsPage() {
               type="number"
               step="0.01"
               name="shippingFlatRate"
-              defaultValue={row?.shippingFlatRate ?? ""}
+              defaultValue={row?.shippingFlatRateCents != null ? (row.shippingFlatRateCents / 100).toFixed(2) : ""}
               className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. 7.00"
             />
@@ -287,7 +289,7 @@ export default async function SellerSettingsPage() {
               type="number"
               step="0.01"
               name="freeShippingOver"
-              defaultValue={row?.freeShippingOver ?? ""}
+              defaultValue={row?.freeShippingOverCents != null ? (row.freeShippingOverCents / 100).toFixed(2) : ""}
               className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
               placeholder="e.g. 50.00"
             />

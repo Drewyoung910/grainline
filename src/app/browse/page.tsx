@@ -2,7 +2,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { Category, ListingStatus, ListingType, Prisma } from "@prisma/client";
+import { Category, ListingType, Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -15,6 +15,7 @@ import { Suspense } from "react";
 import RecentlyViewed from "@/components/RecentlyViewed";
 import GuildBadge from "@/components/GuildBadge";
 import ListingCard from "@/components/ListingCard";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 const PAGE_SIZE = 24;
 
@@ -149,17 +150,19 @@ export async function generateMetadata({
   const q = sp.q?.trim() ?? "";
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
+  const page = parseInt(sp.page ?? "1", 10);
+  const pageSuffix = page > 1 ? `${q || categoryFilter ? "&" : "?"}page=${page}` : "";
 
   if (q) {
     const title = `${q} — Handmade Woodworking | Grainline`;
     const description = `Find handmade woodworking items matching "${q}" on Grainline`;
-    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?q=${encodeURIComponent(q)}` } };
+    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?q=${encodeURIComponent(q)}${pageSuffix}` } };
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
     const title = `Handmade ${label} | Grainline`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
-    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}` } };
+    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}${pageSuffix}` } };
   }
   return {
     title: "Browse Handmade Woodworking",
@@ -168,7 +171,7 @@ export async function generateMetadata({
       title: "Browse Handmade Woodworking",
       description: "Browse thousands of unique handmade woodworking pieces from local artisans",
     },
-    alternates: { canonical: "https://thegrainline.com/browse" },
+    alternates: { canonical: `https://thegrainline.com/browse${pageSuffix}` },
   };
 }
 
@@ -284,12 +287,9 @@ export default async function BrowsePage({
   }
 
   // Build WHERE
-  const where: Prisma.ListingWhereInput = {
-    status: ListingStatus.ACTIVE,
-    isPrivate: false,
-    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
-    ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-  };
+  const where: Prisma.ListingWhereInput = publicListingWhere(
+    blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {},
+  );
 
   if (q) {
     // Split query into individual words for broad matching.
@@ -368,11 +368,7 @@ export default async function BrowsePage({
 
   // Popular tags (always from all active listings with connected sellers)
   const tagRows = await prisma.listing.findMany({
-    where: {
-      status: ListingStatus.ACTIVE,
-      isPrivate: false,
-      seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } },
-    },
+    where: publicListingWhere(),
     select: { tags: true },
     take: 500,
     orderBy: { createdAt: "desc" },
@@ -406,8 +402,6 @@ export default async function BrowsePage({
   // Pagination
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const clampedPage = Math.min(Math.max(pageNum, 1), totalPages);
-  const from = total === 0 ? 0 : (clampedPage - 1) * PAGE_SIZE + 1;
-  const to = Math.min(total, clampedPage * PAGE_SIZE);
 
   // URL helpers
   function makePageHref(n: number) {
@@ -452,11 +446,7 @@ export default async function BrowsePage({
   // ── No results experience ──────────────────────────────────────────────────
   if (total === 0) {
     const featured = await prisma.listing.findMany({
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
-        seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } },
-      },
+      where: publicListingWhere(),
       orderBy: { favorites: { _count: "desc" } },
       take: 4,
       include: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
@@ -754,8 +744,8 @@ async function BrowseByCity() {
     where: {
       isActive: true,
       OR: [
-        { listings: { some: { status: ListingStatus.ACTIVE } } },
-        { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
+        { listings: { some: publicListingWhere() } },
+        { listingCityMetros: { some: publicListingWhere() } },
       ],
     },
     select: { id: true, slug: true, name: true, state: true, parentMetroId: true },

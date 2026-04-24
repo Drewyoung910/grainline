@@ -4,6 +4,11 @@ import { prisma } from "@/lib/db";
 import { safeRateLimit } from "@/lib/ratelimit";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import {
+  ADMIN_PIN_COOKIE_NAME,
+  ADMIN_PIN_MAX_AGE_SECONDS,
+  createAdminPinCookieValue,
+} from "@/lib/adminPin";
 
 // 5 attempts per 15 minutes per user — fail closed
 const pinRatelimit = new Ratelimit({
@@ -17,12 +22,12 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({}, { status: 401 });
 
-  // Verify user is ADMIN role
+  // Verify user is allowed into the admin surface.
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { role: true },
   });
-  if (user?.role !== "ADMIN") {
+  if (user?.role !== "ADMIN" && user?.role !== "EMPLOYEE") {
     return NextResponse.json({}, { status: 403 });
   }
 
@@ -37,13 +42,21 @@ export async function POST(req: Request) {
   const adminPin = process.env.ADMIN_PIN;
 
   if (!adminPin) {
-    // If ADMIN_PIN is not set, allow access (dev mode / not configured)
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Admin PIN is not configured" }, { status: 503 });
+    }
+
+    const cookieValue = await createAdminPinCookieValue(userId);
+    if (!cookieValue) {
+      return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
+    }
+
     const devRes = NextResponse.json({ ok: true });
-    devRes.cookies.set("admin-pin-verified", "1", {
+    devRes.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: false,
       sameSite: "strict",
-      maxAge: 60 * 60 * 4,
+      maxAge: ADMIN_PIN_MAX_AGE_SECONDS,
       path: "/",
     });
     return devRes;
@@ -62,12 +75,17 @@ export async function POST(req: Request) {
   }
 
   // Set httpOnly cookie so admin APIs can verify PIN server-side
+  const cookieValue = await createAdminPinCookieValue(userId);
+  if (!cookieValue) {
+    return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
+  }
+
   const res = NextResponse.json({ ok: true });
-  res.cookies.set("admin-pin-verified", "1", {
+  res.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 60 * 60 * 4, // 4 hours
+    maxAge: ADMIN_PIN_MAX_AGE_SECONDS,
     path: "/",
   });
   return res;

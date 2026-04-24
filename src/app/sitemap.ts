@@ -1,8 +1,9 @@
 // src/app/sitemap.ts
 import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
-import { ListingStatus, CommissionStatus } from "@prisma/client";
+import { CommissionStatus } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -19,11 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const [listings, sellers, blogPosts, openCommissions] = await Promise.all([
     prisma.listing.findMany({
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
-        seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } },
-      },
+      where: publicListingWhere(),
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: 2000,
@@ -33,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         chargesEnabled: true,
         vacationMode: false,
         user: { banned: false },
-        listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } },
+        listings: { some: publicListingWhere() },
       },
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
@@ -62,10 +59,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: {
         isActive: true,
         OR: [
-          { listings: { some: { status: ListingStatus.ACTIVE } } },
-          { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
-          { sellerProfiles: { some: { chargesEnabled: true } } },
-          { sellerCityProfiles: { some: { chargesEnabled: true } } },
+          { listings: { some: publicListingWhere() } },
+          { listingCityMetros: { some: publicListingWhere() } },
+          { sellerProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false } } } },
+          { sellerCityProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false } } } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },
@@ -93,23 +90,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [majorCatGroups, cityCatGroups] = await Promise.all([
     prisma.listing.groupBy({
       by: ["metroId", "category"],
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
+      where: publicListingWhere({
         metroId: { not: null },
         category: { not: null },
-      },
+      }),
       _max: { updatedAt: true },
       _count: { _all: true },
     }),
     prisma.listing.groupBy({
       by: ["cityMetroId", "category"],
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
+      where: publicListingWhere({
         cityMetroId: { not: null },
         category: { not: null },
-      },
+      }),
       _max: { updatedAt: true },
       _count: { _all: true },
     }),

@@ -7,6 +7,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
+import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
       include: {
         items: {
           include: { listing: { include: { seller: true, photos: true, variantGroups: { include: { options: true } } } } },
+          orderBy: { createdAt: "asc" },
         },
       },
     });
@@ -160,6 +162,49 @@ export async function POST(req: Request) {
       ? (sellerItems[0].listing.seller.giftWrappingPriceCents ?? 0)
       : 0;
 
+    const resolvedSellerItems: Array<(typeof sellerItems)[number] & {
+      unitPriceCents: number;
+      variantKey: string;
+      selectedVariantLabels: string[];
+      selectedVariantsSnapshot: SelectedVariantSnapshot[];
+    }> = [];
+
+    for (const item of sellerItems) {
+      if (item.listing.listingType === "MADE_TO_ORDER" && item.quantity !== 1) {
+        return NextResponse.json(
+          { error: `"${item.listing.title}" can only be ordered one at a time.` },
+          { status: 400 },
+        );
+      }
+
+      const variantResolution = resolveListingVariantSelection(
+        item.listing.variantGroups,
+        item.selectedVariantOptionIds ?? [],
+      );
+      if (!variantResolution.ok) {
+        return NextResponse.json(
+          { error: `"${item.listing.title}": ${variantResolution.error}` },
+          { status: 400 },
+        );
+      }
+
+      const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
+      if (unitPriceCents < 1) {
+        return NextResponse.json(
+          { error: `"${item.listing.title}" has an invalid variant price.` },
+          { status: 400 },
+        );
+      }
+
+      resolvedSellerItems.push({
+        ...item,
+        unitPriceCents,
+        variantKey: variantResolution.variantKey,
+        selectedVariantLabels: variantResolution.selectedVariantLabels,
+        selectedVariantsSnapshot: variantResolution.selectedVariantsSnapshot,
+      });
+    }
+
     // Verify shipping rate HMAC token.
     // Fallback rates bypass verification — they use
     // SiteConfig.fallbackShippingCents instead of the
@@ -188,66 +233,29 @@ export async function POST(req: Request) {
       }
     }
 
-    // Stock reservation: atomically decrement stock at checkout time (not webhook).
-    // If the buyer doesn't pay (session expires), the webhook restores stock.
-    // IMPORTANT: This MUST be the last validation before Stripe session creation.
-    // All return-400 paths must be above this point to avoid stock leaks.
-    for (const it of sellerItems) {
-      if (it.listing.listingType === "IN_STOCK") {
-        const reserved: number = await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET "stockQuantity" = "stockQuantity" - ${it.quantity}
-          WHERE id = ${it.listing.id}
-            AND "stockQuantity" >= ${it.quantity}
-        `;
-        if (reserved === 0) {
-          // Restore any already-reserved items from this batch
-          for (const r of reservedItems) {
-            await prisma.$executeRaw`
-              UPDATE "Listing"
-              SET "stockQuantity" = "stockQuantity" + ${r.quantity}
-              WHERE id = ${r.listingId}
-                AND "listingType" = 'IN_STOCK'
-            `.catch(() => {});
-          }
-          return NextResponse.json(
-            { error: `"${it.listing.title}" does not have enough stock.` },
-            { status: 400 },
-          );
-        }
-        reservedItems.push({ listingId: it.listing.id, quantity: it.quantity });
-      }
-    }
-
     // Stripe line items
     const line_items: {
       quantity: number;
       price_data: { currency: string; unit_amount: number; product_data: { name: string; images?: string[]; metadata?: Record<string, string>; tax_code?: string } };
-    }[] = sellerItems.map((i) => {
-      // Resolve variant labels for Stripe product name
-      const variantLabels: string[] = [];
-      if (i.selectedVariantOptionIds?.length) {
-        for (const optId of i.selectedVariantOptionIds) {
-          for (const g of (i.listing.variantGroups ?? [])) {
-            const opt = g.options.find((o: { id: string }) => o.id === optId);
-            if (opt) variantLabels.push((opt as { label: string }).label);
-          }
-        }
-      }
-      const variantSuffix = variantLabels.length > 0 ? ` (${variantLabels.join(", ")})` : "";
+    }[] = resolvedSellerItems.map((i) => {
+      const variantSuffix = i.selectedVariantLabels.length > 0 ? ` (${i.selectedVariantLabels.join(", ")})` : "";
       return {
-      quantity: i.quantity,
-      price_data: {
-        currency,
-        unit_amount: i.priceCents, // uses cart item price (includes variant adjustments)
-        product_data: {
-          name: `${i.listing.title}${variantSuffix}`,
-          images: i.listing.photos?.length ? [i.listing.photos[0]!.url] : undefined,
-          metadata: { listingId: i.listing.id },
-          tax_code: "txcd_99999999", // General - Tangible Personal Property
+        quantity: i.quantity,
+        price_data: {
+          currency,
+          unit_amount: i.unitPriceCents,
+          product_data: {
+            name: `${i.listing.title}${variantSuffix}`,
+            images: i.listing.photos?.length ? [i.listing.photos[0]!.url] : undefined,
+            metadata: {
+              listingId: i.listing.id,
+              cartItemId: i.id,
+              variantKey: i.variantKey,
+            },
+            tax_code: "txcd_99999999", // General - Tangible Personal Property
+          },
         },
-      },
-    };
+      };
     });
 
     if (giftWrapping && giftWrappingPriceCents > 0) {
@@ -261,8 +269,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const itemsSubtotalCents = sellerItems.reduce(
-      (sum, it) => sum + it.priceCents * it.quantity, // cart price includes variant adjustments
+    const itemsSubtotalCents = resolvedSellerItems.reduce(
+      (sum, it) => sum + it.unitPriceCents * it.quantity,
       0
     );
 
@@ -292,6 +300,36 @@ export async function POST(req: Request) {
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },
       );
+    }
+
+    // Stock reservation: atomically decrement stock at checkout time (not webhook).
+    // All validation-return paths must stay above this point; later failures
+    // should throw so the catch block restores this reservation.
+    for (const it of resolvedSellerItems) {
+      if (it.listing.listingType === "IN_STOCK") {
+        const reserved: number = await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET "stockQuantity" = "stockQuantity" - ${it.quantity}
+          WHERE id = ${it.listing.id}
+            AND "stockQuantity" >= ${it.quantity}
+        `;
+        if (reserved === 0) {
+          // Restore any already-reserved items from this batch
+          for (const r of reservedItems) {
+            await prisma.$executeRaw`
+              UPDATE "Listing"
+              SET "stockQuantity" = "stockQuantity" + ${r.quantity}
+              WHERE id = ${r.listingId}
+                AND "listingType" = 'IN_STOCK'
+            `.catch(() => {});
+          }
+          return NextResponse.json(
+            { error: `"${it.listing.title}" does not have enough stock.` },
+            { status: 400 },
+          );
+        }
+        reservedItems.push({ listingId: it.listing.id, quantity: it.quantity });
+      }
     }
 
     const return_url = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;

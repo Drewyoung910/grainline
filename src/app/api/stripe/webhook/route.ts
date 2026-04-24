@@ -191,20 +191,38 @@ export async function POST(req: Request) {
       const sellerIdFromMeta: string | undefined = sessionMeta.sellerId;
 
       if (cartId && buyerId) {
-        // Build a map of listingId → {quantity, priceCents} from Stripe's immutable
-        // line_items. This is the authoritative source of what was actually charged.
+        // Build maps from Stripe's immutable line_items. This is the
+        // authoritative source of what was actually charged.
+        //
+        // Prefer cartItemId, then listingId+variantKey. listingId-only is a
+        // legacy fallback because multiple variants of one listing can share a
+        // listingId.
         // The live cart may have been modified between session creation and webhook.
         type StripeLineItem = { quantity?: number | null; price?: { unit_amount?: number | null; product?: { metadata?: Record<string, string> } | string | null } | null };
         const stripeLineItems: StripeLineItem[] = (s as { line_items?: { data?: StripeLineItem[] } }).line_items?.data ?? [];
-        // Build map of paid items — use array to handle multiple variants of same listing
-        const paidItemMap = new Map<string, { quantity: number; priceCents: number }[]>();
+        type PaidItem = { listingId: string; cartItemId?: string; variantKey?: string; quantity: number; priceCents: number };
+        const paidByCartItemId = new Map<string, PaidItem>();
+        const paidByListingVariant = new Map<string, PaidItem[]>();
+        const paidByListing = new Map<string, PaidItem[]>();
         for (const li of stripeLineItems) {
           const prod = typeof li.price?.product === "object" ? li.price?.product : null;
           const lid = prod?.metadata?.listingId;
           if (lid && li.quantity) {
-            const arr = paidItemMap.get(lid) ?? [];
-            arr.push({ quantity: li.quantity, priceCents: li.price?.unit_amount ?? 0 });
-            paidItemMap.set(lid, arr);
+            const paid: PaidItem = {
+              listingId: lid,
+              cartItemId: prod?.metadata?.cartItemId,
+              variantKey: prod?.metadata?.variantKey,
+              quantity: li.quantity,
+              priceCents: li.price?.unit_amount ?? 0,
+            };
+            if (paid.cartItemId) paidByCartItemId.set(paid.cartItemId, paid);
+            const variantKey = `${paid.listingId}:${paid.variantKey ?? ""}`;
+            const variantArr = paidByListingVariant.get(variantKey) ?? [];
+            variantArr.push(paid);
+            paidByListingVariant.set(variantKey, variantArr);
+            const listingArr = paidByListing.get(paid.listingId) ?? [];
+            listingArr.push(paid);
+            paidByListing.set(paid.listingId, listingArr);
           }
         }
 
@@ -222,6 +240,7 @@ export async function POST(req: Request) {
                 },
               },
               where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
+              orderBy: { createdAt: "asc" as const },
             },
           },
         });
@@ -306,9 +325,11 @@ export async function POST(req: Request) {
             // quantity and price. Falls back to cart data only if the listing
             // wasn't found in Stripe's line items (e.g. gift wrapping line item
             // doesn't have a listingId).
-            // Match cart item to Stripe line item — shift() handles multiple variants of same listing
-            const paidArr = paidItemMap.get(it.listingId);
-            const paid = paidArr?.shift();
+            const listingVariantKey = `${it.listingId}:${it.variantKey ?? ""}`;
+            const paid =
+              paidByCartItemId.get(it.id) ??
+              paidByListingVariant.get(listingVariantKey)?.shift() ??
+              paidByListing.get(it.listingId)?.shift();
             const orderQuantity = paid?.quantity ?? it.quantity;
             const orderPriceCents = paid?.priceCents ?? it.priceCents;
 
@@ -950,8 +971,6 @@ export async function POST(req: Request) {
     return new NextResponse("Webhook error", { status: 500 });
   }
 }
-
-
 
 
 

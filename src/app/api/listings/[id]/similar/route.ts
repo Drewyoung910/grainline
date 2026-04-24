@@ -1,6 +1,7 @@
 // src/app/api/listings/[id]/similar/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 export const runtime = "nodejs";
 
@@ -32,8 +33,8 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const listing = await prisma.listing.findUnique({
-      where: { id },
+    const listing = await prisma.listing.findFirst({
+      where: publicListingWhere({ id }),
       select: { category: true, tags: true, priceCents: true, title: true, sellerId: true },
     });
     if (!listing) return NextResponse.json({ listings: [] });

@@ -21,6 +21,7 @@ import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
+import { canViewListingDetail, isPublicListing } from "@/lib/listingVisibility";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -43,12 +44,21 @@ export async function generateMetadata(
       metaDescription: true,
       priceCents: true,
       currency: true,
+      status: true,
+      isPrivate: true,
       photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
-      seller: { select: { displayName: true, chargesEnabled: true } },
+      seller: {
+        select: {
+          displayName: true,
+          chargesEnabled: true,
+          vacationMode: true,
+          user: { select: { banned: true } },
+        },
+      },
     },
   });
   if (!listing) return {};
-  if (!listing.seller.chargesEnabled) {
+  if (!isPublicListing(listing)) {
     return {
       title: listing.title,
       robots: { index: false, follow: false },
@@ -144,16 +154,7 @@ export default async function ListingPage({
   // Preview mode: seller can view their own listing regardless of status/chargesEnabled
   const isPreview = sp.preview === "1" && !!userId && listing.seller.user?.clerkId === userId;
 
-  // Non-connected seller listings are private — only the seller can view them
-  if (!isPreview && !listing.seller.chargesEnabled) {
-    const isSeller = userId && listing.seller.user?.clerkId === userId;
-    if (!isSeller) {
-      return notFound();
-    }
-  }
-
-  // Banned sellers' listings are not accessible
-  if (!isPreview && listing.seller.user?.banned) {
+  if (!canViewListingDetail(listing, { dbUserId: meId, clerkUserId: userId, preview: isPreview })) {
     return notFound();
   }
 

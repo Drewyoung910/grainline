@@ -6,6 +6,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
+import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -109,6 +110,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (listing.listingType === "MADE_TO_ORDER" && body.quantity > 1) {
+      return NextResponse.json(
+        { error: "Made-to-order items can only be ordered one at a time." },
+        { status: 400 },
+      );
+    }
+
     const currency = (listing.currency || "usd").toLowerCase();
     const sellerStripeAccountId = listing.seller.stripeAccountId || null;
     const sp = listing.seller;
@@ -159,48 +167,17 @@ export async function POST(req: Request) {
 
     // Variant validation + price calculation — MUST come before stock reservation
     // to avoid stock leaks on validation failures.
-    let variantAdjustCents = 0;
-    const selectedVariantLabels: string[] = [];
-    const selectedVariantsSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
-
-    if (listing.variantGroups.length > 0) {
-      // Validate: buyer must select exactly one option per group
-      const allGroupIds = new Set(listing.variantGroups.map((g) => g.id));
-      const selectedGroups = new Set<string>();
-      for (const optId of body.selectedVariantOptionIds) {
-        let found = false;
-        for (const g of listing.variantGroups) {
-          const opt = g.options.find((o) => o.id === optId);
-          if (opt) {
-            if (!opt.inStock) {
-              return NextResponse.json({ error: `Option "${opt.label}" is out of stock.` }, { status: 400 });
-            }
-            selectedGroups.add(g.id);
-            variantAdjustCents += opt.priceAdjustCents;
-            selectedVariantLabels.push(opt.label);
-            selectedVariantsSnapshot.push({
-              groupName: g.name,
-              optionLabel: opt.label,
-              priceAdjustCents: opt.priceAdjustCents,
-            });
-            found = true;
-          }
-        }
-        if (!found) {
-          return NextResponse.json({ error: "Invalid variant option selected." }, { status: 400 });
-        }
-      }
-      if (selectedGroups.size !== allGroupIds.size) {
-        return NextResponse.json({ error: "Please select one option from each variant group." }, { status: 400 });
-      }
-    } else {
-      // No variants — resolve any passed options (should be empty)
-      for (const optId of body.selectedVariantOptionIds) {
-        return NextResponse.json({ error: "This listing has no variants." }, { status: 400 });
-      }
+    const variantResolution = resolveListingVariantSelection(
+      listing.variantGroups,
+      body.selectedVariantOptionIds,
+    );
+    if (!variantResolution.ok) {
+      return NextResponse.json({ error: variantResolution.error }, { status: 400 });
     }
 
-    const unitPriceCents = listing.priceCents + variantAdjustCents;
+    const selectedVariantLabels = variantResolution.selectedVariantLabels;
+    const selectedVariantsSnapshot = variantResolution.selectedVariantsSnapshot;
+    const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
     if (unitPriceCents < 1) {
       return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
     }
@@ -221,25 +198,6 @@ export async function POST(req: Request) {
       ? (listing.seller.giftWrappingPriceCents ?? 0)
       : 0;
 
-    // Stock reservation: atomically decrement stock at checkout time (not webhook).
-    // IMPORTANT: This MUST be the last validation before Stripe session creation.
-    // All return-400 paths must be above this point to avoid stock leaks.
-    if (listing.listingType === "IN_STOCK") {
-      const reserved: number = await prisma.$executeRaw`
-        UPDATE "Listing"
-        SET "stockQuantity" = "stockQuantity" - ${body.quantity}
-        WHERE id = ${listing.id}
-          AND "stockQuantity" >= ${body.quantity}
-      `;
-      if (reserved === 0) {
-        return NextResponse.json(
-          { error: "Not enough stock available for this item." },
-          { status: 400 },
-        );
-      }
-      reservedListingId = listing.id;
-      reservedQuantity = body.quantity;
-    }
     const itemsSubtotalCents = unitPriceCents * body.quantity;
 
     // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
@@ -261,6 +219,26 @@ export async function POST(req: Request) {
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },
       );
+    }
+
+    // Stock reservation: atomically decrement stock at checkout time (not webhook).
+    // All validation-return paths must stay above this point; later failures
+    // should throw so the catch block restores this reservation.
+    if (listing.listingType === "IN_STOCK") {
+      const reserved: number = await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET "stockQuantity" = "stockQuantity" - ${body.quantity}
+        WHERE id = ${listing.id}
+          AND "stockQuantity" >= ${body.quantity}
+      `;
+      if (reserved === 0) {
+        return NextResponse.json(
+          { error: "Not enough stock available for this item." },
+          { status: 400 },
+        );
+      }
+      reservedListingId = listing.id;
+      reservedQuantity = body.quantity;
     }
 
     // Variant description suffix for Stripe line item name

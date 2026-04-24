@@ -1,10 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
 import AdminPinGate from "@/components/AdminPinGate";
+import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -17,6 +19,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   });
   if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
+  const cookieStore = await cookies();
+  const pinVerified = await verifyAdminPinCookieValue(
+    cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
+    userId,
+  );
+
+  if (!pinVerified) {
+    return <AdminPinGate />;
+  }
+
   const [openCaseCount, pendingVerificationCount, pendingCommentCount, pendingReviewCount] = await Promise.all([
     prisma.case.count({
       where: { status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] } },
@@ -27,7 +39,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
 
   return (
-    <AdminPinGate>
     <div className="flex flex-col md:flex-row min-h-screen bg-neutral-100">
       {/* ── Mobile tab strip (< md) ── */}
       <AdminMobileNav
@@ -155,6 +166,5 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       <div className="flex-1 overflow-auto p-4 md:p-8">{children}</div>
     </div>
-    </AdminPinGate>
   );
 }

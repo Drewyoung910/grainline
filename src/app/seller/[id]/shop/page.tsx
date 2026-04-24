@@ -12,6 +12,7 @@ import FollowButton from "@/components/FollowButton";
 import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 const PAGE_SIZE = 20;
 
@@ -126,7 +127,7 @@ export default async function SellerShopPage({
         category: { not: null },
         ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
       }
-    : { sellerId: id, status: "ACTIVE" as const, isPrivate: false, category: { not: null } };
+    : publicListingWhere({ sellerId: id, category: { not: null } });
 
   const categoryGroups = await prisma.listing.groupBy({
     by: ["category"],
@@ -145,7 +146,7 @@ export default async function SellerShopPage({
     : {};
   const where = isOwner
     ? { sellerId: id, ...ownerStatusFilter, ...categoryFilter }
-    : { sellerId: id, status: "ACTIVE" as const, isPrivate: false, seller: { chargesEnabled: true }, ...categoryFilter };
+    : publicListingWhere({ sellerId: id, ...categoryFilter });
 
   // Build orderBy
   type OrderBy =
@@ -174,7 +175,7 @@ export default async function SellerShopPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Favorites for current viewer
-  let savedSet = new Set<string>();
+  const savedSet = new Set<string>();
   if (meId && listings.length > 0) {
     const listingIds = listings.map((l) => l.id);
     const favs = await prisma.favorite.findMany({

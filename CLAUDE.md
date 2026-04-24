@@ -2294,26 +2294,29 @@ Pages intentionally kept narrow: messages, checkout, cart, blog post detail, abo
 
 ## Admin PIN Gate (2026-04-23)
 
-Session-scoped PIN verification for all admin pages. Free alternative to Clerk Pro 2FA.
+Server-enforced PIN verification for all admin pages and admin APIs. Free alternative to Clerk Pro 2FA.
 
 ### Components
-- **`AdminPinGate`** (`src/components/AdminPinGate.tsx`) — `"use client"` wrapper around admin layout; shows PIN input before any admin content renders; session-scoped via `sessionStorage` (persists in tab, clears on close); client-side lockout after 5 failed attempts; Enter key submits
-- **`/api/admin/verify-pin`** (`src/app/api/admin/verify-pin/route.ts`) — POST route; ADMIN role required; rate limited 5 attempts per 15 minutes via `safeRateLimit`; constant-time PIN comparison (prevents timing attacks); returns 401 for incorrect PIN, 429 for rate limit
+- **`AdminPinGate`** (`src/components/AdminPinGate.tsx`) — `"use client"` PIN form rendered by the admin layout only when the server has not verified the signed PIN cookie. Client-side lockout after 5 failed attempts; Enter key submits. On success, reloads the page so the server layout can re-check the cookie before rendering admin data.
+- **`/api/admin/verify-pin`** (`src/app/api/admin/verify-pin/route.ts`) — POST route; EMPLOYEE or ADMIN role required; rate limited 5 attempts per 15 minutes via `safeRateLimit`; constant-time PIN comparison; returns 401 for incorrect PIN, 429 for rate limit, 503 in production if `ADMIN_PIN` is missing. On success, sets a signed 4-hour `httpOnly`, `sameSite: strict` cookie.
+- **`src/lib/adminPin.ts`** — signs and verifies the admin PIN cookie with HMAC SHA-256. Cookie payload is bound to the Clerk `userId` and expiry timestamp. Uses `ADMIN_PIN_COOKIE_SECRET` if present, otherwise `ADMIN_PIN`; local development has a dev-only fallback secret.
 
 ### Wiring
-- `src/app/admin/layout.tsx` wraps `{children}` in `<AdminPinGate>` after existing role check
-- If `ADMIN_PIN` env var is not set, access is allowed (dev mode / not configured)
+- `src/app/admin/layout.tsx` performs the role check, verifies the signed cookie server-side, and returns `<AdminPinGate />` without sidebar counts or `{children}` until the cookie is valid.
+- `src/middleware.ts` enforces EMPLOYEE/ADMIN role on `/admin/*` and `/api/admin/*`. All `/api/admin/*` routes except `/api/admin/verify-pin` also require the signed PIN cookie.
+- If `ADMIN_PIN` env var is missing in production, PIN verification fails closed with 503. Local development still allows a signed dev cookie so admin pages remain usable.
 
 ### Security layers (combined, all free)
 1. Clerk auth (session cookies, CSRF protection)
-2. Clerk authenticator app 2FA (TOTP — free tier, enable in Clerk Dashboard → Multi-factor)
-3. ADMIN role check in admin layout (DB query)
-4. PIN gate with rate limiting (5 attempts / 15 min)
+2. EMPLOYEE/ADMIN role check in middleware and admin layout (DB query)
+3. PIN verification route with rate limiting (5 attempts / 15 min)
+4. Signed, short-lived, httpOnly cookie checked before admin data/API access
 5. Client-side lockout after 5 failures
-6. Session-scoped (new tab = new PIN entry)
 
 ### ENV required
 `ADMIN_PIN` — 6-digit numeric PIN. Set in Vercel → Settings → Environment Variables (all environments).
+
+Optional: `ADMIN_PIN_COOKIE_SECRET` — independent signing secret for the admin PIN cookie. If omitted, `ADMIN_PIN` signs the cookie.
 
 ## AI Alt Text Improvements (2026-04-22/23)
 
@@ -2424,17 +2427,17 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - Both buttons gate on `allVariantsSelected` — show alert if variants exist but not all selected
 
 ### Cart
-- `POST /api/cart/add` accepts `selectedVariantOptionIds[]`; validates each option exists and is in stock; calculates adjusted price; uses `variantKey` (sorted option IDs joined by comma) for unique constraint
+- `POST /api/cart/add` accepts `selectedVariantOptionIds[]`; validates exactly one option per variant group, rejects duplicates/invalid/out-of-stock options, calculates adjusted price; uses `variantKey` (sorted option IDs joined by comma) for unique constraint
 - `POST /api/cart/update` rewritten to use `cartItemId` (supports multiple cart items for same listing with different variants); falls back to `listingId` for backward compat
 - `GET /api/cart` returns `variantLabels[]` per item (resolved from option IDs to "Group: Label" strings)
 - Cart page shows variant labels below item title
 
 ### Checkout
 - `POST /api/cart/checkout/single` accepts `selectedVariantOptionIds[]`; calculates variant-adjusted `unitPriceCents`; appends variant labels to Stripe product name (e.g. "Walnut Table (Large, Dark Stain)"); stores `selectedVariants` JSON in session metadata
-- Checkout-seller route: variant price is already correct in `CartItem.priceCents` (snapshotted at add-to-cart time with adjustments included)
+- Checkout-seller route recalculates current server-side variant-adjusted prices from live listing + selected options at checkout. It does not trust stale `CartItem.priceCents`.
 
 ### Webhook
-- Cart path: resolves `it.selectedVariantOptionIds` against `it.listing.variantGroups → options` to build `selectedVariants` snapshot on OrderItem
+- Cart path: Stripe line-item metadata includes `cartItemId` and `variantKey`; webhook matches paid line items by `cartItemId`, then `listingId+variantKey`, then listing-only as a legacy fallback. Resolves `it.selectedVariantOptionIds` against `it.listing.variantGroups → options` to build `selectedVariants` snapshot on OrderItem.
 - Single (buy-now) path: parses `selectedVariants` from Stripe session metadata onto OrderItem
 
 ### Order display
@@ -2443,7 +2446,7 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 ### Performance impact
 - 3 groups × 10 options = 30 rows max per listing. Loaded via `include: { variantGroups: { include: { options: true } } }` — adds <1ms to queries
-- Cart item price includes variant adjustment — no recalculation needed at checkout
+- Cart item price includes the add-to-cart display price, but checkout recalculates from live listing data so stale cart prices cannot be charged
 - `variantKey` index enables fast upsert on add-to-cart
 
 ### Variant bug fixes (2026-04-23)
@@ -2589,6 +2592,49 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 **17. CI lint step** — `.github/workflows/ci.yml` now runs `npx next lint` (continue-on-error) after tsc. Catches lint issues in PRs.
 
+## Codex Audit Fix Takeover (2026-04-24)
+
+This pass corrected incomplete fixes from the prior audit implementation and tightened the invariants around admin access, listing visibility, variant pricing, stock reservation, and seller shipping money fields.
+
+### Admin PIN is now server-enforced
+- Added `src/lib/adminPin.ts` for signed, short-lived, user-bound `httpOnly` cookie creation/verification.
+- `src/app/admin/layout.tsx` now verifies the signed cookie before rendering admin sidebar counts or child pages. Without a valid cookie, only `AdminPinGate` renders.
+- `src/middleware.ts` now protects `/api/admin/*` with the same signed cookie, except `/api/admin/verify-pin`.
+- `/api/admin/verify-pin` now allows EMPLOYEE and ADMIN consistently with the admin layout, sets the signed cookie on success, and fails closed in production if `ADMIN_PIN` is missing.
+- `AdminPinGate` no longer trusts `sessionStorage`; it posts the PIN, receives the server cookie, then reloads for server-side verification.
+
+### Variant validation and checkout pricing
+- Added `src/lib/listingVariants.ts` shared resolver. It requires exactly one option per group, rejects duplicate option IDs, rejects invalid options, checks `inStock`, calculates total adjustment, and returns a normalized `variantKey` plus display/snapshot data.
+- `POST /api/cart/add`, `POST /api/cart/checkout/single`, and `POST /api/cart/checkout-seller` all use the shared resolver.
+- Cart checkout no longer trusts stale `CartItem.priceCents`; it recalculates each item's live server-side `unitPriceCents` from listing base price + selected variant adjustments immediately before creating the Stripe session.
+- Stripe cart line item metadata now includes `cartItemId` and `variantKey`; the webhook matches paid line items by `cartItemId`, then `listingId+variantKey`, then listing-only legacy fallback.
+- Cart queries and webhook cart reads order items by `createdAt` for deterministic legacy fallback behavior.
+
+### Stock reservation ordering
+- In both checkout paths, all validation-return paths (variant validation, stale price validation, low effective payout validation, shipping token validation) now occur before stock reservation.
+- After stock is reserved, later failures should throw and hit the catch block so reservations are restored.
+- `POST /api/cart/update` also enforces MADE_TO_ORDER quantity <= 1, and single checkout rejects MADE_TO_ORDER quantity > 1.
+
+### Listing visibility policy
+- Added `src/lib/listingVisibility.ts`.
+- `publicListingWhere()` is now used by browse, seller profile, seller shop, sitemap, similar listings, and recently viewed listings.
+- Listing detail uses `canViewListingDetail()` so direct URLs cannot render non-public listings unless the viewer is the owner, valid preview owner, or the reserved buyer for a private custom listing.
+- Listing metadata uses `isPublicListing()` and returns `noindex` for non-public listings.
+
+### Seller shipping money fields
+- Completed Float → Int migration for `SellerProfile.shippingFlatRate` and `freeShippingOver`:
+  - Schema fields are now `shippingFlatRateCents Int?` and `freeShippingOverCents Int?`.
+  - Migration `20260424120000_seller_shipping_cents` copies existing dollar floats to cents, then drops old float columns.
+  - Seller dashboard still accepts dollar inputs but stores cents.
+  - `GET /api/cart` now reads cents fields and returns existing dollar-shaped response fields for UI compatibility.
+
+### Verification
+- `npx prisma validate` passed.
+- `npx prisma generate` passed.
+- `npx tsc --noEmit --incremental false` passed.
+- Targeted ESLint on all touched files passed with 0 errors.
+- Full `npm run lint` still fails on pre-existing unrelated lint errors (`<a>` instead of `Link`, unescaped entities, old unused vars). No new lint errors were introduced in touched files.
+
 ## Opus 4.7 Audit Compliance Pass (2026-04-24)
 
 ### CAN-SPAM compliance
@@ -2671,7 +2717,7 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - Toast system replacing ~20 alert() calls
 - autoComplete attributes on forms
 - Webhook fire-and-forget → waitUntil() or outbox pattern
-- Money fields Float→Int migration (shippingFlatRate, freeShippingOver)
+- ~~Money fields Float→Int migration (shippingFlatRate, freeShippingOver)~~ — DONE in `20260424120000_seller_shipping_cents`
 - Lightbox focus trap + dialog role
 - Photo drag touch events for mobile
 - Browse pagination canonical URLs
@@ -2684,12 +2730,14 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 ## Pending Tasks
 
 ### Code Change Safety Rules
+- Before every coding pass, read this `CLAUDE.md` and follow the project rules here.
 - NEVER remove or modify existing functionality unless explicitly told to
 - Before editing any file, read the ENTIRE file first — not just the section you're changing
 - After making changes to a file, verify that ALL existing features in that file still work (event handlers, API calls, JSX elements)
 - If you're adding a new component or feature to a file, do NOT delete or restructure existing code in that file
 - Run `npx tsc --noEmit` after every file change, not just at the end
 - When replacing a component (e.g., UserButton → UserDropdown), verify ALL functionality of the old component is preserved in the new one
+- After completing a fix pass: update `CLAUDE.md`, run verification, commit, push, and deploy unless explicitly told not to.
 
 **TypeScript: zero `tsc --noEmit` errors** (maintained as of 2026-04-01)
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { z } from "zod";
 
 const CartAddSchema = z.object({
@@ -66,43 +67,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Made-to-order items can only be ordered one at a time." }, { status: 400 });
     }
 
-    // Validate variant selections — if listing has variants, buyer must select one per group
-    if (listing.variantGroups.length > 0) {
-      const allGroupIds = new Set(listing.variantGroups.map((g) => g.id));
-      const selectedGroups = new Set<string>();
-      for (const optId of selectedVariantOptionIds) {
-        for (const g of listing.variantGroups) {
-          const opt = g.options.find((o) => o.id === optId);
-          if (opt) {
-            if (!opt.inStock) {
-              return NextResponse.json({ error: `Option "${opt.label}" is out of stock.` }, { status: 400 });
-            }
-            selectedGroups.add(g.id);
-          }
-        }
-      }
-      if (selectedGroups.size !== allGroupIds.size) {
-        return NextResponse.json({ error: "Please select one option from each variant group." }, { status: 400 });
-      }
+    const variantResolution = resolveListingVariantSelection(
+      listing.variantGroups,
+      selectedVariantOptionIds,
+    );
+    if (!variantResolution.ok) {
+      return NextResponse.json({ error: variantResolution.error }, { status: 400 });
     }
 
-    // Calculate price with variant adjustments
-    let variantAdjustCents = 0;
-    for (const optId of selectedVariantOptionIds) {
-      for (const g of listing.variantGroups) {
-        const opt = g.options.find((o) => o.id === optId);
-        if (opt) variantAdjustCents += opt.priceAdjustCents;
-      }
-    }
-    const totalPriceCents = listing.priceCents + variantAdjustCents;
+    const totalPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
     if (totalPriceCents < 1) {
       return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
     }
 
-    // Variant key for unique constraint — sorted option IDs
-    const variantKey = selectedVariantOptionIds.length > 0
-      ? [...selectedVariantOptionIds].sort().join(",")
-      : "";
+    const variantKey = variantResolution.variantKey;
 
     // ensure cart
     let cart = await prisma.cart.findUnique({ where: { userId: me.id } });

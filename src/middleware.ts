@@ -2,6 +2,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -22,7 +23,7 @@ const isPublic = createRouteMatcher([
   "/accessibility",       // Accessibility statement — ADA compliance
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
-"/api/whoami",
+  "/api/whoami",
   "/api/me",
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
   "/api/blog(.*)",        // blog API — public GET; POST auth handled in route
@@ -42,7 +43,9 @@ const isPublic = createRouteMatcher([
   "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
 ]);
 
-const isAdmin = createRouteMatcher(["/admin(.*)"]);
+const isAdminPage = createRouteMatcher(["/admin(.*)"]);
+const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
+const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
 
 export default clerkMiddleware(async (auth, req) => {
   // Geo-blocking — US only
@@ -71,8 +74,8 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
-  // Enforce EMPLOYEE or ADMIN role for /admin/* routes
-  if (isAdmin(req)) {
+  // Enforce EMPLOYEE or ADMIN role for admin pages and APIs.
+  if (isAdminPage(req) || isAdminApi(req)) {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -80,6 +83,18 @@ export default clerkMiddleware(async (auth, req) => {
     const user = await ensureUserByClerkId(userId);
     if (user.role !== "EMPLOYEE" && user.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Admin pages withhold server-rendered data in their layout until this
+    // cookie is valid. Admin APIs must enforce it in middleware too.
+    if (isAdminApi(req) && !isAdminPinVerification(req)) {
+      const pinVerified = await verifyAdminPinCookieValue(
+        req.cookies.get(ADMIN_PIN_COOKIE_NAME)?.value,
+        userId,
+      );
+      if (!pinVerified) {
+        return NextResponse.json({ error: "Admin PIN required" }, { status: 403 });
+      }
     }
   }
 });

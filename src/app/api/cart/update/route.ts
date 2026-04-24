@@ -47,6 +47,12 @@ export async function POST(req: Request) {
         where: { id: item.listingId },
         select: { listingType: true, stockQuantity: true },
       });
+      if (listing?.listingType === "MADE_TO_ORDER" && quantity > 1) {
+        return NextResponse.json(
+          { error: "Made-to-order items can only be ordered one at a time." },
+          { status: 400 },
+        );
+      }
       if (listing?.listingType === "IN_STOCK" && listing.stockQuantity != null && quantity > listing.stockQuantity) {
         return NextResponse.json({ error: `Only ${listing.stockQuantity} available.` }, { status: 400 });
       }

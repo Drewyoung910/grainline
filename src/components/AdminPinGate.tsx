@@ -1,27 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-export default function AdminPinGate({ children }: { children: React.ReactNode }) {
+export default function AdminPinGate({
+  children,
+  initialVerified = false,
+}: {
+  children?: React.ReactNode;
+  initialVerified?: boolean;
+}) {
   const [pin, setPin] = useState("");
-  const [verified, setVerified] = useState(false);
+  const [verified, setVerified] = useState(initialVerified);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
-  // Check if already verified this session
-  useEffect(() => {
-    // Check sessionStorage first (fast), then verify cookie is still valid
-    const v = sessionStorage.getItem("admin-pin-verified");
-    if (v === "1") {
-      // Cookie was set by verify-pin — httpOnly so we can't read it,
-      // but if sessionStorage says verified, trust it (cookie provides server-side enforcement)
-      setVerified(true);
-    }
-    setLoading(false);
-  }, []);
-
-  if (loading) return null;
   if (verified) return <>{children}</>;
 
   const locked = attempts >= 5;
@@ -37,10 +30,12 @@ export default function AdminPinGate({ children }: { children: React.ReactNode }
         body: JSON.stringify({ pin }),
       });
       if (res.ok) {
-        sessionStorage.setItem("admin-pin-verified", "1");
         setVerified(true);
+        window.location.reload();
       } else if (res.status === 429) {
         setError("Too many attempts. Try again later.");
+      } else if (res.status === 503) {
+        setError("Admin PIN is not configured.");
       } else {
         setAttempts((a) => a + 1);
         setError("Incorrect PIN");

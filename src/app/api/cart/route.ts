@@ -38,14 +38,15 @@ export async function GET() {
     const items = (cart?.items ?? []).map((ci) => {
       const seller = ci.listing.seller as {
         displayName?: string | null;
-        freeShippingOver?: number | null;
-        shippingFlatRate?: number | null;
+        freeShippingOverCents?: number | null;
+        shippingFlatRateCents?: number | null;
         allowLocalPickup?: boolean | null;
         offersGiftWrapping?: boolean | null;
         giftWrappingPriceCents?: number | null;
         user?: { email?: string | null } | null;
       };
-      const freeOverDollars = seller?.freeShippingOver ?? null;
+      const freeOverCents = seller?.freeShippingOverCents ?? null;
+      const shippingFlatRateCents = seller?.shippingFlatRateCents ?? null;
       // Resolve variant option labels
       const variantLabels: string[] = [];
       if (ci.selectedVariantOptionIds?.length) {
@@ -72,9 +73,9 @@ export async function GET() {
           sellerVacationMode: !!(seller as { vacationMode?: boolean })?.vacationMode,
           photos: ci.listing.photos.map((p) => ({ url: p.url })),
           // expose seller shipping knobs so Cart UI can display hints
-          shippingFlatRate: seller?.shippingFlatRate ?? null,      // dollars
-          freeShippingOver: freeOverDollars,                       // dollars
-          freeOverCents: freeOverDollars != null ? Math.round(Number(freeOverDollars) * 100) : 0,
+          shippingFlatRate: shippingFlatRateCents != null ? shippingFlatRateCents / 100 : null,
+          freeShippingOver: freeOverCents != null ? freeOverCents / 100 : null,
+          freeOverCents: freeOverCents ?? 0,
           allowLocalPickup: !!seller?.allowLocalPickup,
           offersGiftWrapping: !!seller?.offersGiftWrapping,
           giftWrappingPriceCents: seller?.giftWrappingPriceCents ?? null,
@@ -88,7 +89,6 @@ export async function GET() {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-
 
 
 

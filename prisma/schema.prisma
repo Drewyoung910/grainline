@@ -138,8 +138,8 @@ model SellerProfile {
   chargesEnabled   Boolean  @default(false)
 
   // Flat-rate shipping (legacy/simple fallback)
-  shippingFlatRate Float?
-  freeShippingOver Float?
+  shippingFlatRateCents Int?
+  freeShippingOverCents Int?
   allowLocalPickup Boolean @default(false)
 
   // 🆕 Ship-from address (used for live-rate quoting/labels)

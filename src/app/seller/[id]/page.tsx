@@ -19,6 +19,7 @@ import SellerGallery from "@/components/SellerGallery";
 import CoverLightbox from "@/components/CoverLightbox";
 import ListingCard from "@/components/ListingCard";
 import LocalDate from "@/components/LocalDate";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function generateMetadata({
   params,
@@ -47,7 +48,7 @@ export async function generateMetadata({
     `Shop handmade woodworking pieces by ${name} on Grainline`;
 
   const firstPhoto = await prisma.listing.findFirst({
-    where: { sellerId: id, status: "ACTIVE" },
+    where: publicListingWhere({ sellerId: id }),
     select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
     orderBy: { updatedAt: "desc" },
   });
@@ -161,7 +162,7 @@ export default async function SellerPublicPage({
 
   // Fetch all listings (capped — very large shops use the /seller/[id]/shop paginated page)
   const listings = await prisma.listing.findMany({
-    where: { sellerId: seller.id, status: { in: ["ACTIVE", "SOLD", "SOLD_OUT"] }, isPrivate: false },
+    where: publicListingWhere({ sellerId: seller.id }),
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
     orderBy: { updatedAt: "desc" },
     take: 100,
@@ -184,7 +185,7 @@ export default async function SellerPublicPage({
   const listingIds = listings.map((l) => l.id);
 
   // Saved set for current viewer
-  let savedSet = new Set<string>();
+  const savedSet = new Set<string>();
   if (meId && listingIds.length > 0) {
     const favs = await prisma.favorite.findMany({
       where: { userId: meId, listingId: { in: listingIds } },
