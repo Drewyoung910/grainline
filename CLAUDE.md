@@ -2702,7 +2702,7 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - Label purchase: blocked on refunded orders (`sellerRefundId` check) and pickup orders (`fulfillmentMethod` check)
 
 **Schema:**
-- Migration timestamp fixed: `20260423_` → `20260423000000_` for proper lexicographic ordering
+- Migration timestamp note: `20260423_add_listing_variants` remains under its original directory name because that name was already applied in production. Do not rename applied migration directories; future migrations should use full timestamps before first deploy.
 
 ### Remaining items requiring attorney/business decisions
 - Clickwrap on sign-up (attorney)
