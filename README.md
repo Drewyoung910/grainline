@@ -80,4 +80,4 @@ If a Prisma migration has already been applied in production, do not rename its 
 - Keep admin PIN enabled until Clerk MFA is worth the added monthly cost.
 - Clerk and Stripe production webhooks must be configured in their dashboards before live payments.
 - Rotate any database credentials that were exposed in terminal output.
-- Attorney/business decisions remain for Terms/Privacy sign-off, clickwrap, age gate, money-transmitter analysis, and INFORM Consumers Act scope.
+- Attorney/business decisions remain for final Terms/Privacy wording, money-transmitter analysis, and INFORM Consumers Act scope. Clickwrap and age-attestation are implemented technically, but counsel should still review wording.

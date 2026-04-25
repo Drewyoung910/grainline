@@ -48,16 +48,49 @@ export async function POST(req: Request) {
     if (quantity > 0) {
       const listing = await prisma.listing.findUnique({
         where: { id: item.listingId },
-        select: { listingType: true, stockQuantity: true },
+        select: {
+          listingType: true,
+          stockQuantity: true,
+          status: true,
+          isPrivate: true,
+          reservedForUserId: true,
+          seller: {
+            select: {
+              chargesEnabled: true,
+              vacationMode: true,
+              user: { select: { banned: true, deletedAt: true } },
+            },
+          },
+        },
       });
+      if (!listing || listing.status !== "ACTIVE") {
+        return NextResponse.json({ error: "This item is no longer available." }, { status: 400 });
+      }
+      if (listing.isPrivate && listing.reservedForUserId !== me.id) {
+        return NextResponse.json({ error: "This item is no longer available." }, { status: 400 });
+      }
+      if (
+        !listing.seller.chargesEnabled ||
+        listing.seller.vacationMode ||
+        listing.seller.user.banned ||
+        listing.seller.user.deletedAt
+      ) {
+        return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
+      }
       if (listing?.listingType === "MADE_TO_ORDER" && quantity > 1) {
         return NextResponse.json(
           { error: "Made-to-order items can only be ordered one at a time." },
           { status: 400 },
         );
       }
-      if (listing?.listingType === "IN_STOCK" && listing.stockQuantity != null && quantity > listing.stockQuantity) {
-        return NextResponse.json({ error: `Only ${listing.stockQuantity} available.` }, { status: 400 });
+      if (listing?.listingType === "IN_STOCK") {
+        const available = listing.stockQuantity ?? 0;
+        if (available <= 0) {
+          return NextResponse.json({ error: "This item is currently out of stock." }, { status: 400 });
+        }
+        if (quantity > available) {
+          return NextResponse.json({ error: `Only ${available} available.` }, { status: 400 });
+        }
       }
     }
 

@@ -96,7 +96,7 @@ export default async function ThreadPage({
 
     const me = await prisma.user.findUnique({ where: { clerkId: userId } });
     if (!me) return { ok: false };
-    if (me.banned) return { ok: false, error: "Your account has been suspended." };
+    if (me.banned || me.deletedAt) return { ok: false, error: "Your account has been suspended." };
 
     // Rate limit: 30 messages per 5 minutes
     const { safeRateLimit, messageRatelimit } = await import("@/lib/ratelimit");
@@ -362,7 +362,6 @@ export default async function ThreadPage({
     </main>
   );
 }
-
 
 
 

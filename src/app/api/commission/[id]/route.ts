@@ -80,10 +80,10 @@ export async function PATCH(
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, banned: true },
+    select: { id: true, banned: true, deletedAt: true },
   });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
-  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   const request = await prisma.commissionRequest.findUnique({
     where: { id },

@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 import { BLOG_TYPE_LABELS } from "@/lib/blog";
 import MarkdownToolbar from "./MarkdownToolbar";
 import type { BlogPostType } from "@prisma/client";

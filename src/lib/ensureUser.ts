@@ -24,6 +24,9 @@ export async function ensureUserByClerkId(
     if (existing.banned) {
       throw new Error("Your account has been suspended. Contact support@thegrainline.com");
     }
+    if (existing.deletedAt) {
+      throw new Error("This account has been deleted. Contact support@thegrainline.com");
+    }
     const updateData: {
       email?: string;
       name?: string | null;
@@ -117,7 +120,9 @@ export async function ensureUser() {
   if (!u) return null;
 
   const email =
-    u.emailAddresses?.[0]?.emailAddress ?? `${u.id}@placeholder.invalid`;
+    u.emailAddresses?.find((e) => e.id === u.primaryEmailAddressId)?.emailAddress ??
+    u.emailAddresses?.[0]?.emailAddress ??
+    `${u.id}@placeholder.invalid`;
 
   const name =
     u.fullName ||
@@ -148,7 +153,5 @@ export async function ensureUser() {
   }
   return result;
 }
-
-
 
 

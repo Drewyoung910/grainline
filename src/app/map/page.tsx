@@ -85,7 +85,7 @@ export default async function AllSellersMapPage({
       publicMapOptIn: true,
       chargesEnabled: true,
       vacationMode: false,
-      user: { banned: false },
+      user: { banned: false, deletedAt: null },
       lat: { not: null },
       lng: { not: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
@@ -168,4 +168,3 @@ export default async function AllSellersMapPage({
     </main>
   );
 }
-

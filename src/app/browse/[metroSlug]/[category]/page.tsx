@@ -116,7 +116,7 @@ export default async function BrowseMetroCategoryPage({
     status: ListingStatus.ACTIVE,
     isPrivate: false,
     category: categoryKey as Category,
-    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
   };

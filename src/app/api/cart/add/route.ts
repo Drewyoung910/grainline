@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const listing = await prisma.listing.findUnique({
       where: { id: listingId },
       include: {
-        seller: true,
+        seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
         variantGroups: { include: { options: true } },
       },
     });
@@ -53,6 +53,14 @@ export async function POST(req: Request) {
     // prevent adding your own listing
     if (listing.seller.userId === me.id) {
       return NextResponse.json({ error: "You cannot add your own listing to cart." }, { status: 400 });
+    }
+
+    if (listing.seller.user.banned || listing.seller.user.deletedAt) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
+    }
+
+    if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
     }
 
     // block adding items from a vacationing seller
@@ -88,6 +96,28 @@ export async function POST(req: Request) {
     // ensure cart
     let cart = await prisma.cart.findUnique({ where: { userId: me.id } });
     if (!cart) cart = await prisma.cart.create({ data: { userId: me.id } });
+
+    const existingItem = await prisma.cartItem.findUnique({
+      where: {
+        cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+      },
+      select: { quantity: true },
+    });
+    const nextQuantity = listing.listingType === "MADE_TO_ORDER"
+      ? 1
+      : (existingItem?.quantity ?? 0) + quantity;
+    if (nextQuantity > 99) {
+      return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
+    }
+    if (listing.listingType === "IN_STOCK") {
+      const available = listing.stockQuantity ?? 0;
+      if (available <= 0) {
+        return NextResponse.json({ error: "This item is currently out of stock." }, { status: 400 });
+      }
+      if (nextQuantity > available) {
+        return NextResponse.json({ error: `Only ${available} available.` }, { status: 400 });
+      }
+    }
 
     const item = await prisma.cartItem.upsert({
       where: {

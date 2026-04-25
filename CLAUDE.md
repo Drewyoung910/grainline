@@ -57,8 +57,8 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 - **Database**: PostgreSQL via Prisma ORM
 - **Auth**: Clerk (`@clerk/nextjs`)
 - **Payments**: Stripe + Stripe Connect (seller payouts)
-- **File Upload**: UploadThing
-- **Maps**: Leaflet / React-Leaflet
+- **File Upload**: Cloudflare R2 presigned uploads with server-side image processing
+- **Maps**: MapLibre / OpenFreeMap
 - **Email**: Resend
 - **Shipping**: Shippo API (live rate quotes and label generation)
 - **Error Tracking**: Sentry (error tracking + performance monitoring)
@@ -280,7 +280,7 @@ Plus category label matches from `CATEGORY_VALUES`.
 - **`Order` fields**: `giftNote String?`, `giftWrapping Boolean @default(false)`
 - Migration: `20260327190830_expand_seller_profile`
 
-### UploadThing endpoints added
+### Upload endpoints added
 - `bannerImage` — 1 file, max 4MB, auth required
 - `galleryImage` — 10 files, max 4MB each, auth required
 
@@ -907,14 +907,14 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 | Webhook integrity | ✅ Stripe HMAC signature verification; Clerk Svix signature verification |
 | Role-based access | ✅ `EMPLOYEE | ADMIN` required for case resolution and admin panel; checked against DB role, not cookie |
 | HTTPS | ✅ Enforced by Vercel / Cloudflare |
-| Dev-only routes | ✅ `/api/dev/make-order` returns 403 in production (`NODE_ENV === "production"`) |
-| File uploads | ✅ All UploadThing endpoints require auth via middleware (throws if no Clerk userId) |
+| Dev-only routes | ✅ `/api/dev/make-order` returns 404 unless local non-Vercel development and `ENABLE_DEV_MAKE_ORDER=true` |
+| File uploads | ✅ R2 upload endpoints require auth in-route, validate endpoint/type/size, rate limit presigns, and strip EXIF for JPEG/PNG/WebP processed uploads |
 
 ### Remaining security improvements (not urgent)
 
-- **Rate limiting** — ✅ Complete — `@upstash/ratelimit` with sliding window on 7 routes (see Rate Limiting section below)
-- **Security headers** — Add `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` in `next.config.ts`
-- **Input validation** — Add Zod schemas to validate and sanitize API request bodies (currently relies on manual type assertions and `.slice()` guards)
+- **Rate limiting** — ✅ Complete — `@upstash/ratelimit` with sliding windows across checkout, cart, messages, reviews, listing mutations, uploads, admin actions, cases, shipping, newsletter, and other mutation paths.
+- **Security headers** — ✅ Complete — CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, COOP, and CORP are configured in `next.config.ts`.
+- **Input validation** — ✅ Broad coverage — API request bodies use Zod schemas on audited mutation routes; keep this as a checklist item for any new route.
 
 ## Logo & Branding (complete)
 
@@ -2671,9 +2671,9 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - ~~**Accessibility statement page**~~ — DONE (`/accessibility` page deployed)
 - **Bounce/complaint webhook from Resend** — configure in Resend dashboard, not code
 - ~~**Deep health check**~~ — DONE (`/api/health` checks DB + Redis, returns 503 on failure)
-- **Toast system replacing alert()** — ~20 calls across components
-- **autoComplete attributes on forms** — profile, onboarding, commission, checkout
-- **Webhook fire-and-forget patterns** — replace with waitUntil() or outbox
+- ~~**Toast system replacing alert()**~~ — DONE: existing toast system + `emitToast()` are used for former alert paths.
+- ~~**autoComplete attributes on forms**~~ — DONE: seller/profile/onboarding/shipping/commission forms have appropriate autocomplete hints or explicit opt-outs.
+- ~~**Webhook/fire-and-forget patterns**~~ — DONE for the audited server-action/API paths: fan-out work now uses `after()` or is awaited/batched.
 
 ### Additional fixes from Opus 4.7 audit (2026-04-24)
 
@@ -2714,9 +2714,9 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 ### Remaining items requiring significant code work
 - ~~Account deletion flow (cascade-aware, Clerk webhook, GDPR Art. 17)~~ — DONE in lifecycle compliance pass
 - ~~EXIF stripping from uploaded photos (R2 worker or sharp)~~ — DONE for JPEG/PNG/WebP via `/api/upload/image`
-- Toast system replacing ~20 alert() calls
-- autoComplete attributes on forms
-- Webhook fire-and-forget → waitUntil() or outbox pattern
+- ~~Toast system replacing ~20 alert() calls~~ — DONE
+- ~~autoComplete attributes on forms~~ — DONE
+- ~~Webhook fire-and-forget → waitUntil() or outbox pattern~~ — DONE for audited fan-out paths; outbox remains a future scale refactor, not a launch blocker.
 - ~~Money fields Float→Int migration (shippingFlatRate, freeShippingOver)~~ — DONE in `20260424120000_seller_shipping_cents`
 - Lightbox focus trap + dialog role
 - Photo drag touch events for mobile
@@ -2987,7 +2987,6 @@ Continuation of the consolidated 475-finding Opus/Codex audit backlog. Scope foc
 - `npx prisma generate` passed.
 - `npx tsc --noEmit --incremental false` passed.
 - `npm run lint` passed with 11 warnings and 0 errors.
-- `npx dotenv-cli -e .env -- npx prisma migrate deploy` applied `20260424201500_user_report_resolution_metadata`.
 - Escalated `npm run build` passed.
 - `npx dotenv-cli -e .env -- npx prisma migrate deploy` applied `20260424194500_webhook_idempotency_retention_constraints`.
 - Sandboxed `npm run build` hit the known Turbopack local-port restriction; escalated `npm run build` passed.
@@ -3020,6 +3019,50 @@ Second continuation pass after deploying `60a5957`, focused on smaller but still
 - `npx prisma generate` passed.
 - `npx tsc --noEmit --incremental false` passed.
 - `npm run lint` passed with 11 warnings and 0 errors.
+- `npx dotenv-cli -e .env -- npx prisma migrate deploy` applied `20260424201500_user_report_resolution_metadata`.
+
+## Round 7 Continuation Cleanup Pass 2 (2026-04-24)
+
+Third continuation pass on the 475-finding audit backlog. Scope focused on high-confidence hardening and cleanup that did not require risky product redesign or another schema migration.
+
+### Cart and checkout availability
+- Cart add/update now block sellers that are banned, soft-deleted, vacationing, charges-disabled, or missing a Stripe account before cart state changes.
+- Cart add now checks the existing cart item quantity before incrementing so repeated adds cannot exceed live stock or cart quantity limits.
+- Cart update now revalidates listing status, private reservation ownership, seller availability, made-to-order quantity, and live stock before changing quantity.
+- Cart and single checkout routes now explicitly block banned/soft-deleted seller accounts and reject out-of-stock `IN_STOCK` items before attempting stock reservation.
+- Cart API now returns `sellerUnavailable`; the cart review step blocks unavailable sellers instead of letting buyers proceed to checkout errors.
+- Cart checkout state now restores the shipping address and active checkout sessions from session storage on refresh; signed shipping rates are restored only if their token has not expired.
+- Changing address or cart quantity clears signed shipping rates and checkout sessions so stale HMAC tokens are not reused.
+- Buy Now checkout clears selected shipping rate/client secret whenever the address is changed from either address-navigation path.
+
+### Public visibility and deleted-account consistency
+- `publicListingWhere()`, `isPublicListing()`, and listing-detail visibility now treat soft-deleted seller users as non-public.
+- Homepage, sitemap, map, about, metro browse, city/category browse, seller profile, and seller shop surfaces now include `deletedAt: null` where they already filtered `banned: false`.
+- Public seller profile/shop pages noindex or 404 charges-disabled, banned, or deleted sellers as appropriate while still allowing owner access where needed.
+- Auth helpers now reject soft-deleted local users in `ensureUserByClerkId()` and `ensureSeller()`.
+- Review edits/replies, commission patch, message sends, and fulfillment updates now reject soft-deleted users in addition to banned users.
+- Clerk sync now prefers Clerk's primary email address instead of blindly using the first email in the array.
+
+### Upload and media cleanup
+- Removed the old `src/utils/uploadthing.ts` compatibility shim and changed all upload components to import `R2UploadButton` directly.
+- Removed the unused `ThreadStreamClient` component and its stale `/sse` EventSource path.
+- Removed remaining `utfs.io` fallback URL construction in message/review upload handling; uploaded media now uses R2 URLs returned by the upload pipeline.
+- Email image URL validation now uses shared exact-origin R2 validation instead of string-prefix checks.
+
+### Performance, resilience, and operational cleanup
+- Homepage featured-maker selection no longer fetches every Guild seller for weekly rotation; it counts eligible sellers and fetches one deterministic row.
+- Homepage seller metadata queries were narrowed to active, non-deleted sellers and featured curated listings are constrained to the featured seller's own listings.
+- Added `fetchWithTimeout()` and applied explicit timeouts to Shippo, OpenAI listing review/alt-text calls, and Nominatim reverse geocoding.
+- Label purchase route now declares `maxDuration = 60` and `preferredRegion = "iad1"` like other checkout/shipping routes.
+- `scripts/backfill-metros.ts` now requires `ALLOW_METRO_BACKFILL=true` and refuses production environments.
+- `.env.example` now documents Neon pooled/direct URL shapes with `sslmode=verify-full` and the metro backfill guard.
+- `DismissibleBanner` no longer reads `localStorage` during initial state creation, preventing SSR hydration mismatch.
+
+### Verification
+- `npx prisma validate` passed.
+- `npx tsc --noEmit --incremental false` passed.
+- `npm run lint` passed with 10 warnings and 0 errors.
+- Escalated `npm run build` passed. Build still warns that the local `.env` database URL uses `sslmode=require`; `.env.example` now documents `sslmode=verify-full`, and Vercel/local secrets should be updated outside git.
 
 ## Pending Tasks
 
@@ -3791,7 +3834,7 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 
 ## Auth & Middleware
 
-Clerk v7 handles auth. Public routes (no login required): `/`, `/browse`, `/listing/*`, `/seller/*`, `/sellers/*`, `/map/*`, `/blog/*`, `/sign-in`, `/sign-up`, `/api/whoami`, `/api/me`, `/api/reviews`, `/api/blog/*`, `/api/search/*`, `/api/stripe/webhook` (called by Stripe servers — no Clerk session), `/api/clerk/webhook` (called by Clerk servers — no Clerk session), `/api/uploadthing` (UploadThing callback). Protected routes (auth required): `/account`, `/account/orders`, `/dashboard/*`, `/cart`, `/checkout/*`, `/messages/*`, `/orders/*`. Everything else requires authentication.
+Clerk v7 handles auth. Public routes (no login required): `/`, `/browse`, `/listing/*`, `/seller/*`, `/sellers/*`, `/map/*`, `/blog/*`, `/sign-in`, `/sign-up`, `/api/whoami`, `/api/me`, `/api/reviews`, `/api/blog/*`, `/api/search/*`, `/api/stripe/webhook` (called by Stripe servers — no Clerk session), `/api/clerk/webhook` (called by Clerk servers — no Clerk session). R2 upload routes are authenticated in-route. Protected routes (auth required): `/account`, `/account/orders`, `/dashboard/*`, `/cart`, `/checkout/*`, `/messages/*`, `/orders/*`. Everything else requires authentication.
 
 **Clerk v7 component API** — `SignedIn`/`SignedOut` no longer exist; use `<Show when="signed-in">` / `<Show when="signed-out">` from `@clerk/nextjs`. The `fallback` prop on `Show` replaces paired `SignedOut` blocks. `afterSignOutUrl` is set on `<ClerkProvider>`, not `<UserButton>`. Any component using `useSearchParams()` must be inside a `<Suspense>` boundary.
 
@@ -3964,10 +4007,9 @@ Files upload directly from browser to Cloudflare R2 via presigned URLs — no se
 - `POST /api/upload/presign` — auth required; Zod-validates type/size/count; returns presigned PUT URL + public URL; generates key: `{endpoint}/{userId}/{timestamp}-{random}.{ext}`
 - Browser PUTs file directly to R2 using the presigned URL
 - `src/lib/r2.ts` — R2 S3-compatible client (`@aws-sdk/client-s3`)
-- `src/hooks/useR2Upload.ts` — upload hook; uploads files sequentially; returns `UploadedFile[]` with both `url` and `ufsUrl` fields (`ufsUrl` is alias for `url` — backward compat with 13 consumer components that access `file.ufsUrl`)
-- `src/components/R2UploadButton.tsx` — drop-in `UploadButton` replacement; handles `content.button` as ReactNode or render function `({ ready }) => ReactNode`; accepts `onUploadProgress`, `appearance.allowedContent` for backward compat
-- `src/utils/uploadthing.ts` — re-exports R2 equivalents under old UploadThing names; 11 of 13 consumers needed zero changes
-- `src/components/ReviewPhotosPicker.tsx` — updated to use `useR2Upload` directly (old `useUploadThing` positional-arg signature incompatible)
+- `src/hooks/useR2Upload.ts` — upload hook; uploads files sequentially; returns `UploadedFile[]` with `url` and `ufsUrl` alias fields for component compatibility.
+- `src/components/R2UploadButton.tsx` — direct upload button used by all current upload UI components; handles `content.button` as ReactNode or render function `({ ready }) => ReactNode`; accepts `onUploadProgress`, `appearance.allowedContent` for compatibility.
+- The old `src/utils/uploadthing.ts` compatibility shim was removed in the 2026-04-24 continuation cleanup; components now import `R2UploadButton` directly.
 
 ### Endpoints
 | Endpoint | Max size | Max count |

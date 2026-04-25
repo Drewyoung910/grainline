@@ -7,7 +7,7 @@ export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma
     seller: {
       chargesEnabled: true,
       vacationMode: false,
-      user: { banned: false },
+      user: { banned: false, deletedAt: null },
     },
     ...extra,
   };
@@ -24,6 +24,7 @@ type ListingVisibilityInput = {
       id?: string | null;
       clerkId?: string | null;
       banned?: boolean | null;
+      deletedAt?: Date | string | null;
     } | null;
   };
 };
@@ -34,7 +35,8 @@ export function isPublicListing(listing: ListingVisibilityInput) {
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
     !listing.seller.vacationMode &&
-    !listing.seller.user?.banned
+    !listing.seller.user?.banned &&
+    !listing.seller.user?.deletedAt
   );
 }
 
@@ -53,7 +55,12 @@ export function canViewListingDetail(
     listing.reservedForUserId === viewer.dbUserId;
 
   if (reservedForViewer) {
-    return listing.seller.chargesEnabled && !listing.seller.vacationMode && !listing.seller.user?.banned;
+    return (
+      listing.seller.chargesEnabled &&
+      !listing.seller.vacationMode &&
+      !listing.seller.user?.banned &&
+      !listing.seller.user?.deletedAt
+    );
   }
 
   return isPublicListing(listing);

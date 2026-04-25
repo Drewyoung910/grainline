@@ -31,6 +31,18 @@ function StarsInline({ value }: { value: number }) {
   );
 }
 
+const featuredMakerInclude = {
+  user: { select: { imageUrl: true } },
+} satisfies Prisma.SellerProfileInclude;
+
+type FeaturedMaker = Prisma.SellerProfileGetPayload<{ include: typeof featuredMakerInclude }>;
+
+const featuredMakerWhere = {
+  chargesEnabled: true,
+  vacationMode: false,
+  user: { banned: false, deletedAt: null },
+} satisfies Prisma.SellerProfileWhereInput;
+
 async function getSellerRatingMap(sellerIds: string[]) {
   if (sellerIds.length === 0) return new Map<string, { avg: number; count: number }>();
 
@@ -47,6 +59,68 @@ async function getSellerRatingMap(sellerIds: string[]) {
     if (count > 0 && row.avgX2) result.set(row.sellerId, { avg: row.avgX2 / 2, count });
   }
   return result;
+}
+
+function makerWeekIndex(count: number) {
+  if (count <= 0) return 0;
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
+  const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + daysToMonday);
+  monday.setUTCHours(0, 0, 0, 0);
+  return Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % count;
+}
+
+async function getFeaturedMaker(): Promise<FeaturedMaker | null> {
+  const now = new Date();
+  const curated = await prisma.sellerProfile.findFirst({
+    where: {
+      ...featuredMakerWhere,
+      featuredUntil: { gt: now },
+    },
+    include: featuredMakerInclude,
+  });
+  if (curated) return curated;
+
+  const guildWhere = {
+    ...featuredMakerWhere,
+    guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
+  } satisfies Prisma.SellerProfileWhereInput;
+  const guildCount = await prisma.sellerProfile.count({ where: guildWhere });
+  if (guildCount > 0) {
+    const weekly = await prisma.sellerProfile.findFirst({
+      where: guildWhere,
+      orderBy: { id: "asc" },
+      skip: makerWeekIndex(guildCount),
+      include: featuredMakerInclude,
+    });
+    if (weekly) return weekly;
+  }
+
+  const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
+    SELECT l."sellerId", COUNT(r.id) as review_count
+    FROM "Listing" l
+    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+    JOIN "User" u ON u.id = sp."userId"
+    LEFT JOIN "Review" r ON r."listingId" = l.id
+    WHERE sp."chargesEnabled" = true
+      AND sp."vacationMode" = false
+      AND u.banned = false
+      AND u."deletedAt" IS NULL
+      AND l.status = 'ACTIVE'
+      AND l."isPrivate" = false
+    GROUP BY l."sellerId"
+    ORDER BY review_count DESC
+    LIMIT 1
+  `;
+  const topSellerId = topReviewedRows[0]?.sellerId;
+  if (!topSellerId) return null;
+
+  return prisma.sellerProfile.findFirst({
+    where: { ...featuredMakerWhere, id: topSellerId },
+    include: featuredMakerInclude,
+  });
 }
 
 const CATEGORIES = [
@@ -75,7 +149,7 @@ export default async function HomePage() {
       where: {
         status: ListingStatus.ACTIVE, isPrivate: false,
         createdAt: { gte: new Date(Date.now() - 30 * 86400000) },
-        seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+        seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       },
       orderBy: { createdAt: "desc" },
@@ -100,7 +174,7 @@ export default async function HomePage() {
       return prisma.listing.findMany({
         where: {
           status: ListingStatus.ACTIVE, isPrivate: false,
-          seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+          seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
           ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
         },
         orderBy: { createdAt: "desc" },
@@ -122,7 +196,7 @@ export default async function HomePage() {
       });
     }),
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
+      where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
       orderBy: { qualityScore: "desc" },
       take: 6,
       include: {
@@ -145,7 +219,7 @@ export default async function HomePage() {
       where: {
         publicMapOptIn: true,
         chargesEnabled: true,
-        user: { banned: false },
+        user: { banned: false, deletedAt: null },
         lat: { not: null },
         lng: { not: null },
         OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
@@ -172,9 +246,9 @@ export default async function HomePage() {
     `,
     Promise.all([
       prisma.listing.count({ where: publicListingWhere() }),
-      prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false }, listings: { some: { status: ListingStatus.ACTIVE } } } }),
+      prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null }, listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } } } }),
       prisma.order.count({ where: { paidAt: { not: null } } }),
-      prisma.user.count({ where: { banned: false } }),
+      prisma.user.count({ where: { banned: false, deletedAt: null } }),
     ]),
     prisma.blogPost.findMany({
       where: {
@@ -191,7 +265,7 @@ export default async function HomePage() {
       },
     }),
     prisma.listing.findMany({
-      where: { status: "ACTIVE", isPrivate: false, seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
+      where: publicListingWhere(),
       orderBy: { createdAt: "desc" },
       take: 16,
       select: {
@@ -224,55 +298,7 @@ export default async function HomePage() {
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
-  // Admin-featured: any seller with featuredUntil > now takes priority
-  const featuredMakerSelect = { user: true } as const;
-  let featuredMaker = await prisma.sellerProfile.findFirst({
-    where: { featuredUntil: { gt: new Date() }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
-    include: featuredMakerSelect,
-  });
-
-  if (!featuredMaker) {
-    // Weekly rotation aligned to Monday–Sunday calendar weeks
-    const guildSellers = await prisma.sellerProfile.findMany({
-      where: { guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] }, chargesEnabled: true, vacationMode: false, user: { banned: false } },
-      orderBy: { id: "asc" },
-      include: featuredMakerSelect,
-    });
-
-    if (guildSellers.length > 0) {
-      const now = new Date();
-      const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
-      const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(now);
-      monday.setUTCDate(now.getUTCDate() + daysToMonday);
-      monday.setUTCHours(0, 0, 0, 0);
-      const weekIndex = Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % guildSellers.length;
-      featuredMaker = guildSellers[weekIndex];
-    }
-  }
-
-  if (!featuredMaker) {
-    // Fall back to most-reviewed seller (chargesEnabled, not on vacation, not banned)
-    const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
-      SELECT l."sellerId", COUNT(r.id) as review_count
-      FROM "Listing" l
-      JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      JOIN "User" u ON u.id = sp."userId"
-      LEFT JOIN "Review" r ON r."listingId" = l.id
-      WHERE sp."chargesEnabled" = true
-        AND sp."vacationMode" = false
-        AND u.banned = false
-      GROUP BY l."sellerId"
-      ORDER BY review_count DESC
-      LIMIT 1
-    `;
-    if (topReviewedRows.length > 0) {
-      featuredMaker = await prisma.sellerProfile.findUnique({
-        where: { id: topReviewedRows[0].sellerId },
-        include: featuredMakerSelect,
-      });
-    }
-  }
+  const featuredMaker = await getFeaturedMaker();
 
   // Resolve featured listings: prefer curated, fall back to most recently updated (up to 3)
   type FeaturedListing = { id: string; title: string; priceCents: number; photos: { url: string }[] };
@@ -281,7 +307,7 @@ export default async function HomePage() {
     const listingSelect = { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" as const }, select: { url: true } } };
     if (featuredMaker.featuredListingIds.length > 0) {
       const curated = await prisma.listing.findMany({
-        where: { id: { in: featuredMaker.featuredListingIds }, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
+        where: { id: { in: featuredMaker.featuredListingIds }, sellerId: featuredMaker.id, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
         select: listingSelect,
         take: 3,
       });
@@ -337,7 +363,7 @@ export default async function HomePage() {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const [recentListings, recentPosts] = await Promise.all([
         prisma.listing.findMany({
-          where: { sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff }, seller: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
+          where: { sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff }, seller: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } },
           orderBy: { createdAt: "desc" },
           take: 6,
           select: {
@@ -347,7 +373,7 @@ export default async function HomePage() {
           },
         }),
         prisma.blogPost.findMany({
-          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff }, author: { banned: false, deletedAt: null }, sellerProfile: { chargesEnabled: true, vacationMode: false, user: { banned: false } } },
+          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff }, author: { banned: false, deletedAt: null }, sellerProfile: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } },
           orderBy: { publishedAt: "desc" },
           take: 6,
           select: {

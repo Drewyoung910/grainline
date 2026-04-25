@@ -1,11 +1,11 @@
 // src/lib/email.ts
 import { Resend } from "resend";
 import * as Sentry from "@sentry/nextjs";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
-const R2_PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
 if (!process.env.RESEND_API_KEY) {
   console.warn("[email] RESEND_API_KEY is not set. Emails will be logged but not sent.");
@@ -29,7 +29,7 @@ function safeSubject(s: string) {
 
 /** Validate and escape a URL for use in img src attributes */
 function safeImgUrl(url: string | undefined | null): string | null {
-  if (!url || !R2_PUBLIC_URL || !url.startsWith(`${R2_PUBLIC_URL}/`)) return null;
+  if (!url || !isR2PublicUrl(url)) return null;
   return url.replace(/"/g, "%22");
 }
 

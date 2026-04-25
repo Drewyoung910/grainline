@@ -199,6 +199,8 @@ export default function BuyNowCheckoutModal({
               isSignedIn={isSignedIn}
               onConfirm={(address) => {
                 setShippingAddress(address);
+                setSelectedRate(null);
+                setClientSecret(null);
                 setStep("shipping");
               }}
             />
@@ -305,7 +307,11 @@ export default function BuyNowCheckoutModal({
               </button>
 
               <button
-                onClick={() => setStep("address")}
+                onClick={() => {
+                  setSelectedRate(null);
+                  setClientSecret(null);
+                  setStep("address");
+                }}
                 className="w-full text-sm text-neutral-500 hover:text-neutral-700"
               >
                 ← Back to address

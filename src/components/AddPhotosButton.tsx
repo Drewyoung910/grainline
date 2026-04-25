@@ -2,7 +2,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 
 export default function AddPhotosButton({

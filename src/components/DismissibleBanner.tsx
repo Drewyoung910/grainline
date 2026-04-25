@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "dismissed-rejected-ids";
 
@@ -12,17 +12,20 @@ export default function DismissibleBanner({
   className?: string;
   rejectedIds?: string[];
 }) {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined" || rejectedIds.length === 0) return false;
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDismissed(false);
+    if (rejectedIds.length === 0) return;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return false;
+      if (!stored) return;
       const dismissedIds = JSON.parse(stored) as string[];
-      return rejectedIds.every((id) => dismissedIds.includes(id));
+      setDismissed(rejectedIds.every((id) => dismissedIds.includes(id)));
     } catch {
-      return false;
+      setDismissed(false);
     }
-  });
+  }, [rejectedIds]);
 
   if (dismissed) return null;
 

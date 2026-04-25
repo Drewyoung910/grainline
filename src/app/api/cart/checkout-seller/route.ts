@@ -97,7 +97,15 @@ export async function POST(req: Request) {
       where: { userId: me.id },
       include: {
         items: {
-          include: { listing: { include: { seller: true, photos: true, variantGroups: { include: { options: true } } } } },
+          include: {
+            listing: {
+              include: {
+                seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+                photos: true,
+                variantGroups: { include: { options: true } },
+              },
+            },
+          },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -112,6 +120,13 @@ export async function POST(req: Request) {
     const currency = (sellerItems[0].listing.currency || "usd").toLowerCase();
     const destination = sellerItems[0].listing.seller.stripeAccountId || null;
     const sellerChargesEnabled = sellerItems[0].listing.seller.chargesEnabled ?? false;
+
+    if (
+      sellerItems[0].listing.seller.user.banned ||
+      sellerItems[0].listing.seller.user.deletedAt
+    ) {
+      return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
+    }
 
     // Pre-flight: verify seller can accept payments
     if (!destination || !sellerChargesEnabled) {
@@ -186,6 +201,21 @@ export async function POST(req: Request) {
           { error: `"${item.listing.title}" can only be ordered one at a time.` },
           { status: 400 },
         );
+      }
+      if (item.listing.listingType === "IN_STOCK") {
+        const available = item.listing.stockQuantity ?? 0;
+        if (available <= 0) {
+          return NextResponse.json(
+            { error: `"${item.listing.title}" is currently out of stock.` },
+            { status: 400 },
+          );
+        }
+        if (item.quantity > available) {
+          return NextResponse.json(
+            { error: `Only ${available} available for "${item.listing.title}".` },
+            { status: 400 },
+          );
+        }
       }
 
       const variantResolution = resolveListingVariantSelection(

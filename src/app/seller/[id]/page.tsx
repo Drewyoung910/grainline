@@ -33,10 +33,14 @@ export async function generateMetadata({
       tagline: true,
       bannerImageUrl: true,
       avatarImageUrl: true,
-      user: { select: { imageUrl: true } },
+      chargesEnabled: true,
+      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
     },
   });
   if (!seller) return {};
+  if (!seller.chargesEnabled || seller.user?.banned || seller.user?.deletedAt) {
+    return { robots: { index: false, follow: false } };
+  }
 
   const name = seller.displayName ?? "Seller";
   const title = `${name} — Handmade Woodworking on Grainline`;
@@ -97,7 +101,7 @@ export default async function SellerPublicPage({
   const seller = await prisma.sellerProfile.findUnique({
     where: { id },
     include: {
-      user: { select: { id: true, clerkId: true, name: true, imageUrl: true, banned: true } },
+      user: { select: { id: true, clerkId: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
       faqs: { orderBy: { sortOrder: "asc" } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
@@ -105,7 +109,7 @@ export default async function SellerPublicPage({
   });
 
   if (!seller) return notFound();
-  if (seller.user?.banned) return notFound();
+  if (seller.user?.banned || seller.user?.deletedAt) return notFound();
 
   // Current viewer
   const { userId } = await auth();
@@ -114,6 +118,8 @@ export default async function SellerPublicPage({
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
   }
+  const isOwner = !!userId && seller.user?.clerkId === userId;
+  if (!isOwner && !seller.chargesEnabled) return notFound();
 
   // Block check — return 404 if the viewer has blocked or been blocked by the seller
   const blockedUserIds = await getBlockedUserIdsFor(meId);

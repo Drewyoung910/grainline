@@ -276,7 +276,7 @@ export default async function BrowsePage({
         SELECT DISTINCT tag
         FROM "Listing" l
         JOIN "SellerProfile" sp ON sp.id = l."sellerId" AND sp."chargesEnabled" = true AND sp."vacationMode" = false
-        JOIN "User" u ON u.id = sp."userId" AND u.banned = false,
+        JOIN "User" u ON u.id = sp."userId" AND u.banned = false AND u."deletedAt" IS NULL,
         unnest(l.tags) AS tag
         WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
           AND tag ILIKE ANY(${patterns}::text[])

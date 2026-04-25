@@ -87,7 +87,7 @@ export default async function MakersMetroPage({
   const sellerWhere = {
     chargesEnabled: true,
     vacationMode: false,
-    user: { banned: false },
+    user: { banned: false, deletedAt: null },
     listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
   };

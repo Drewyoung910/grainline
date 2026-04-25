@@ -121,7 +121,7 @@ export default async function BrowseMetroPage({
   const listingWhere = {
     status: ListingStatus.ACTIVE,
     isPrivate: false,
-    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false } },
+    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
   };
@@ -166,7 +166,7 @@ export default async function BrowseMetroPage({
       where: {
         chargesEnabled: true,
         vacationMode: false,
-        user: { banned: false },
+        user: { banned: false, deletedAt: null },
         ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
       },
     }),

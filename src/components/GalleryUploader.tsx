@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 
 export default function GalleryUploader({
   initialUrls = [],

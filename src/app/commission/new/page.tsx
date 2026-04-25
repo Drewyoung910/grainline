@@ -4,7 +4,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 
 export default function NewCommissionPage() {

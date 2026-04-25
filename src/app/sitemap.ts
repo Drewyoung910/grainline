@@ -30,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: {
         chargesEnabled: true,
         vacationMode: false,
-        user: { banned: false },
+        user: { banned: false, deletedAt: null },
         listings: { some: publicListingWhere() },
       },
       select: { id: true, updatedAt: true },
@@ -65,8 +65,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         OR: [
           { listings: { some: publicListingWhere() } },
           { listingCityMetros: { some: publicListingWhere() } },
-          { sellerProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false } } } },
-          { sellerCityProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false } } } },
+          { sellerProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } } },
+          { sellerCityProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },

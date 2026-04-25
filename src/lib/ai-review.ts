@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 export interface AIReviewResult {
   approved: boolean
@@ -171,7 +172,7 @@ Respond with ONLY valid JSON, no other text:
       }
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -183,7 +184,7 @@ Respond with ONLY valid JSON, no other text:
         max_tokens: 500,
         temperature: 0.1,
       })
-    })
+    }, 30_000)
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.status}`)
@@ -216,7 +217,7 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
   if (!apiKey) return null;
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -242,7 +243,7 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
           },
         ],
       }),
-    });
+    }, 20_000);
 
     if (!res.ok) return null;
     const data = await res.json();

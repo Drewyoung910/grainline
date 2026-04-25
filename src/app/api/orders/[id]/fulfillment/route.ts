@@ -23,10 +23,10 @@ const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
 async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, banned: true },
+    select: { id: true, banned: true, deletedAt: true },
   });
   if (!me) return null;
-  if (me.banned) return null;
+  if (me.banned || me.deletedAt) return null;
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },

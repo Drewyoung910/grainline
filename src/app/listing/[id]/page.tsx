@@ -52,7 +52,7 @@ export async function generateMetadata(
           displayName: true,
           chargesEnabled: true,
           vacationMode: true,
-          user: { select: { banned: true } },
+          user: { select: { banned: true, deletedAt: true } },
         },
       },
     },
@@ -140,7 +140,7 @@ export default async function ListingPage({
     where: { id },
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
-      seller: { include: { user: { select: { id: true, clerkId: true, email: true, imageUrl: true, banned: true } } } },
+      seller: { include: { user: { select: { id: true, clerkId: true, email: true, imageUrl: true, banned: true, deletedAt: true } } } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
       variantGroups: {

@@ -53,6 +53,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (sellerUserId !== userId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (review.listing.seller.user.banned || review.listing.seller.user.deletedAt) {
+    return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  }
 
   if (review.sellerReply) {
     // one reply; edit by seller could be added later

@@ -1,4 +1,6 @@
 // src/lib/shippo.ts
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+
 const SHIPPO_API_KEY = process.env.SHIPPO_API_KEY!;
 const SHIPPO_BASE = "https://api.goshippo.com";
 
@@ -30,7 +32,7 @@ export async function shippoRequest<T = unknown>(
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string> | undefined),
   };
-  const res = await fetch(`${SHIPPO_BASE}${path}`, { ...init, headers });
+  const res = await fetchWithTimeout(`${SHIPPO_BASE}${path}`, { ...init, headers }, 15_000);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Shippo ${res.status} ${res.statusText}: ${text}`);
@@ -75,14 +77,14 @@ export async function shippoRatesMultiPiece(opts: {
     })),
   };
 
-  const res = await fetch(`${SHIPPO_BASE}/shipments/`, {
+  const res = await fetchWithTimeout(`${SHIPPO_BASE}/shipments/`, {
     method: "POST",
     headers: {
       Authorization: `ShippoToken ${SHIPPO_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ ...shipment, async: false }),
-  });
+  }, 20_000);
 
   if (!res.ok) {
     const t = await res.text();
@@ -102,5 +104,4 @@ export async function shippoRatesMultiPiece(opts: {
 
   return { shipmentId: shipmentObj.object_id, rates };
 }
-
 

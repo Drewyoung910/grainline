@@ -23,8 +23,22 @@ export async function GET() {
               include: {
                 photos: { take: 1, orderBy: { sortOrder: "asc" } },
                 seller: {
-                  include: {
-                    user: true,
+                  select: {
+                    id: true,
+                    displayName: true,
+                    vacationMode: true,
+                    chargesEnabled: true,
+                    freeShippingOverCents: true,
+                    shippingFlatRateCents: true,
+                    allowLocalPickup: true,
+                    offersGiftWrapping: true,
+                    giftWrappingPriceCents: true,
+                    user: {
+                      select: {
+                        banned: true,
+                        deletedAt: true,
+                      },
+                    },
                   },
                 },
                 variantGroups: { include: { options: true } },
@@ -44,7 +58,9 @@ export async function GET() {
         allowLocalPickup?: boolean | null;
         offersGiftWrapping?: boolean | null;
         giftWrappingPriceCents?: number | null;
-        user?: { email?: string | null } | null;
+        chargesEnabled?: boolean | null;
+        vacationMode?: boolean | null;
+        user?: { banned?: boolean | null; deletedAt?: Date | string | null } | null;
       };
       const freeOverCents = seller?.freeShippingOverCents ?? null;
       const shippingFlatRateCents = seller?.shippingFlatRateCents ?? null;
@@ -80,7 +96,12 @@ export async function GET() {
           sellerName:
             seller?.displayName ??
             "Seller",
-          sellerVacationMode: !!(seller as { vacationMode?: boolean })?.vacationMode,
+          sellerVacationMode: !!seller?.vacationMode,
+          sellerUnavailable:
+            !seller?.chargesEnabled ||
+            !!seller?.vacationMode ||
+            !!seller?.user?.banned ||
+            !!seller?.user?.deletedAt,
           photos: ci.listing.photos.map((p) => ({ url: p.url })),
           // expose seller shipping knobs so Cart UI can display hints
           shippingFlatRate: shippingFlatRateCents != null ? shippingFlatRateCents / 100 : null,
@@ -99,6 +120,4 @@ export async function GET() {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-
-
 

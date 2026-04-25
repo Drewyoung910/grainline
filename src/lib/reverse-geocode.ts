@@ -2,6 +2,7 @@
 // Reverse geocoding via Nominatim (OpenStreetMap).
 // Nominatim policy: max 1 request per second. Uses an in-memory throttle.
 // Never crashes — all errors return null.
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 const STATE_CODES: Record<string, string> = {
   Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
@@ -27,9 +28,9 @@ async function throttledFetch(url: string): Promise<Response> {
     await new Promise((r) => setTimeout(r, 1100 - elapsed));
   }
   lastRequestTime = Date.now();
-  return fetch(url, {
+  return fetchWithTimeout(url, {
     headers: { "User-Agent": "Grainline/1.0 (thegrainline.com)" },
-  });
+  }, 8_000);
 }
 
 export type GeoResult = { city: string; state: string; stateCode: string };

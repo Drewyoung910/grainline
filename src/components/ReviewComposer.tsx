@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 import { useToast } from "@/components/Toast";
 
 type Existing = {
@@ -159,7 +159,7 @@ export default function ReviewComposer(props: {
           const url =
             (first as { ufsUrl?: string })?.ufsUrl ??
             (first as { url?: string })?.url ??
-            (first ? `https://utfs.io/f/${(first as { key?: string }).key}` : "");
+            "";
           if (url) setPhotoUrls((prev) => (prev.includes(url) ? prev : [...prev, url]).slice(0, 6));
         }}
         onUploadError={(e: Error) => toast(e?.message || "Upload failed", "error")}
@@ -191,6 +191,4 @@ export default function ReviewComposer(props: {
     </form>
   );
 }
-
-
 

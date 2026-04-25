@@ -13,6 +13,8 @@ const LabelSchema = z.object({
 });
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+export const preferredRegion = "iad1";
 
 type LiveRate = {
   label: string;

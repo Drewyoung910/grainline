@@ -42,9 +42,17 @@ export async function generateMetadata({
   const { id } = await params;
   const seller = await prisma.sellerProfile.findUnique({
     where: { id },
-    select: { displayName: true },
+    select: {
+      displayName: true,
+      chargesEnabled: true,
+      vacationMode: true,
+      user: { select: { banned: true, deletedAt: true } },
+    },
   });
   if (!seller) return {};
+  if (!seller.chargesEnabled || seller.vacationMode || seller.user?.banned || seller.user?.deletedAt) {
+    return { robots: { index: false, follow: false } };
+  }
   const name = seller.displayName ?? "Maker";
   return {
     title: { absolute: `${name}'s Shop — Grainline` },
@@ -84,10 +92,11 @@ export default async function SellerShopPage({
       city: true,
       state: true,
       acceptingNewOrders: true,
+      chargesEnabled: true,
       vacationMode: true,
       vacationReturnDate: true,
       vacationMessage: true,
-      user: { select: { imageUrl: true, clerkId: true } },
+      user: { select: { imageUrl: true, clerkId: true, banned: true, deletedAt: true } },
     },
   });
 
@@ -102,6 +111,9 @@ export default async function SellerShopPage({
   }
 
   const isOwner = !!userId && seller.user?.clerkId === userId;
+  if (!isOwner && (!seller.chargesEnabled || seller.user?.banned || seller.user?.deletedAt)) {
+    return notFound();
+  }
 
   // Follow data
   const [followerCount, isFollowing] = await Promise.all([

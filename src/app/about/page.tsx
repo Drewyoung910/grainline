@@ -15,7 +15,7 @@ export default async function AboutPage() {
 
   const [listingCount, sellerCount, memberCount] = await Promise.all([
     prisma.listing.count({ where: { status: "ACTIVE", isPrivate: false } }),
-    prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false }, listings: { some: { status: "ACTIVE" } } } }),
+    prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null }, listings: { some: { status: "ACTIVE", isPrivate: false } } } }),
     prisma.user.count({ where: { banned: false } }),
   ]);
 

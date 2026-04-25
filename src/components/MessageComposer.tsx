@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { SubmitButton } from "@/components/ActionForm";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 
 type Attachment = {
@@ -47,8 +47,8 @@ export default function MessageComposer({
   }, []);
 
   const extractUrl = (x: unknown): string | null => {
-    const obj = x as { serverData?: { url?: string }; ufsUrl?: string; url?: string; key?: string };
-    return obj?.serverData?.url ?? obj?.ufsUrl ?? obj?.url ?? (obj?.key ? `https://utfs.io/f/${obj.key}` : null);
+    const obj = x as { serverData?: { url?: string }; ufsUrl?: string; url?: string };
+    return obj?.serverData?.url ?? obj?.ufsUrl ?? obj?.url ?? null;
   };
 
   function removeAttachment(id: string) {
@@ -212,8 +212,6 @@ export default function MessageComposer({
     </div>
   );
 }
-
-
 
 
 

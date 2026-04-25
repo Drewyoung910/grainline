@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { UploadButton } from "@/utils/uploadthing";
+import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 
 export default function ImageUploadField({

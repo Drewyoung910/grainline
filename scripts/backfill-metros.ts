@@ -12,6 +12,15 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = new PrismaClient({ adapter } as any);
 
+function assertBackfillAllowed() {
+  if (process.env.ALLOW_METRO_BACKFILL !== "true") {
+    throw new Error("Set ALLOW_METRO_BACKFILL=true to run this one-time metro backfill.");
+  }
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("Refusing to run metro backfill in production.");
+  }
+}
+
 // State name → two-letter code map (inline to avoid src/ import issues)
 const STATE_CODES: Record<string, string> = {
   Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
@@ -113,6 +122,7 @@ function resolveMetros(
 }
 
 async function main() {
+  assertBackfillAllowed();
   console.log("Loading active metros...");
   const metros = await prisma.metro.findMany({
     where: { isActive: true },

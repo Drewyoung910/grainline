@@ -33,6 +33,7 @@ type CartItem = {
     status?: string;
     sellerName?: string;
     sellerVacationMode?: boolean;
+    sellerUnavailable?: boolean;
     photos?: { url: string }[];
     offersGiftWrapping?: boolean;
     giftWrappingPriceCents?: number | null;
@@ -58,6 +59,33 @@ type ClientSecretEntry = {
   sellerName: string;
   secret: string;
 };
+
+const CART_ADDRESS_KEY = "grainline_cart_shipping_address";
+const CART_RATES_KEY = "grainline_cart_selected_rates";
+const CART_CHECKOUTS_KEY = "grainline_checkouts";
+
+function readSessionJson<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSessionJson(key: string, value: unknown) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch { /* non-fatal */ }
+}
+
+function clearCheckoutStorage() {
+  try {
+    sessionStorage.removeItem(CART_CHECKOUTS_KEY);
+    sessionStorage.removeItem(CART_RATES_KEY);
+  } catch { /* non-fatal */ }
+}
 
 function CartPage() {
   const searchParams = useSearchParams();
@@ -85,30 +113,33 @@ function CartPage() {
 
   // Mount-time URL restoration
   React.useEffect(() => {
+    const storedAddress = readSessionJson<ShippingAddress | null>(CART_ADDRESS_KEY, null);
+    const storedSecrets = readSessionJson<ClientSecretEntry[]>(CART_CHECKOUTS_KEY, []);
+    const storedRatesRaw = readSessionJson<Record<string, SelectedShippingRate>>(CART_RATES_KEY, {});
+    const validStoredRates = Object.fromEntries(
+      Object.entries(storedRatesRaw).filter(([, rate]) => rate.expiresAt > Date.now() + 5000),
+    );
+
+    if (storedAddress) setShippingAddress(storedAddress);
+    if (storedSecrets.length > 0) setClientSecrets(storedSecrets);
+    if (Object.keys(validStoredRates).length > 0) setSelectedRates(validStoredRates);
+
     const urlStep = searchParams.get("step");
     if (urlStep === "address") {
       setStep("address");
     } else if (urlStep === "shipping") {
-      if (shippingAddress) {
+      if (storedAddress) {
         setStep("shipping");
       } else {
         setStep("address");
         router.replace("/cart?step=address", { scroll: false });
       }
     } else if (urlStep === "payment") {
-      if (shippingAddress) {
-        // Try restoring from sessionStorage
-        try {
-          const stored = sessionStorage.getItem("grainline_checkouts");
-          if (stored) {
-            const parsed = JSON.parse(stored) as ClientSecretEntry[];
-            if (parsed.length > 0) {
-              setClientSecrets(parsed);
-              setStep("payment");
-              return;
-            }
-          }
-        } catch { /* ignore */ }
+      if (storedAddress) {
+        if (storedSecrets.length > 0) {
+          setStep("payment");
+          return;
+        }
         setStep("shipping");
         router.replace("/cart?step=shipping", { scroll: false });
       } else {
@@ -169,7 +200,8 @@ function CartPage() {
       await load();
       window.dispatchEvent(new Event("cart:updated"));
       // Reset checkout state on cart change
-      sessionStorage.removeItem("grainline_checkouts");
+      clearCheckoutStorage();
+      setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
     } catch (e) {
@@ -265,6 +297,9 @@ function CartPage() {
                   )}
                   {i.listing.sellerVacationMode && (
                     <div className="text-xs text-amber-700 mt-0.5">Maker is on vacation</div>
+                  )}
+                  {i.listing.sellerUnavailable && !i.listing.sellerVacationMode && (
+                    <div className="text-xs text-red-600 mt-0.5">This maker is not currently accepting orders</div>
                   )}
 
                   <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
@@ -372,7 +407,7 @@ function CartPage() {
 
       setClientSecrets(secrets);
       setCurrentPaymentIndex(0);
-      sessionStorage.setItem("grainline_checkouts", JSON.stringify(secrets));
+      writeSessionJson(CART_CHECKOUTS_KEY, secrets);
       setStep("payment");
       router.replace("/cart?step=payment", { scroll: false });
     } catch (e) {
@@ -416,34 +451,37 @@ function CartPage() {
       {/* Step 1: Review */}
       {step === "review" && (() => {
         const hasUnavailable = items.some(
-          (i) => (i.listing.status && i.listing.status !== "ACTIVE") || i.listing.sellerVacationMode
+          (i) =>
+            (i.listing.status && i.listing.status !== "ACTIVE") ||
+            i.listing.sellerVacationMode ||
+            i.listing.sellerUnavailable
         );
         return (
-        <>
-          {renderSellerSections()}
+          <>
+            {renderSellerSections()}
 
-          <div className="flex items-center justify-end gap-4">
-            <div className="text-sm text-neutral-600">Subtotal (items only)</div>
-            <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
-          </div>
-
-          {hasUnavailable && (
-            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              Some items in your cart are no longer available. Please remove them before continuing.
+            <div className="flex items-center justify-end gap-4">
+              <div className="text-sm text-neutral-600">Subtotal (items only)</div>
+              <div className="text-lg font-semibold">${(grandTotal / 100).toFixed(2)}</div>
             </div>
-          )}
 
-          <button
-            onClick={() => {
-              setStep("address");
-              router.replace("/cart?step=address", { scroll: false });
-            }}
-            disabled={items.length === 0 || hasUnavailable}
-            className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
-          >
-            Continue to shipping →
-          </button>
-        </>
+            {hasUnavailable && (
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Some items in your cart are no longer available. Please remove them before continuing.
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setStep("address");
+                router.replace("/cart?step=address", { scroll: false });
+              }}
+              disabled={items.length === 0 || hasUnavailable}
+              className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+            >
+              Continue to shipping →
+            </button>
+          </>
         );
       })()}
 
@@ -461,6 +499,10 @@ function CartPage() {
             }}
             onConfirm={(address) => {
               setShippingAddress(address);
+              writeSessionJson(CART_ADDRESS_KEY, address);
+              clearCheckoutStorage();
+              setSelectedRates({});
+              setClientSecrets([]);
               setStep("shipping");
               router.replace("/cart?step=shipping", { scroll: false });
             }}
@@ -483,6 +525,7 @@ function CartPage() {
             <button
               onClick={() => {
                 setSelectedRates({});
+                clearCheckoutStorage();
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}
@@ -508,6 +551,7 @@ function CartPage() {
                       const next = { ...prev };
                       if (rate) next[g.sellerId] = rate;
                       else delete next[g.sellerId];
+                      writeSessionJson(CART_RATES_KEY, next);
                       return next;
                     })
                   }
@@ -567,6 +611,8 @@ function CartPage() {
 
               <button
                 onClick={() => {
+                  setSelectedRates({});
+                  clearCheckoutStorage();
                   setStep("address");
                   router.replace("/cart?step=address", { scroll: false });
                 }}
@@ -605,7 +651,9 @@ function CartPage() {
                   setCurrentPaymentIndex((prev) => prev + 1);
                 } else {
                   // All payments complete — clean up and redirect
-                  sessionStorage.removeItem("grainline_checkouts");
+                  sessionStorage.removeItem(CART_CHECKOUTS_KEY);
+                  sessionStorage.removeItem(CART_RATES_KEY);
+                  sessionStorage.removeItem(CART_ADDRESS_KEY);
                   const lastSecret = clientSecrets[clientSecrets.length - 1].secret;
                   const sessionId = lastSecret.split("_secret_")[0];
                   router.push(`/checkout/success?session_id=${sessionId}`);

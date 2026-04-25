@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
 
 interface ClerkEmailAddress {
+  id?: string | null;
   email_address: string;
 }
 
@@ -16,6 +17,7 @@ interface ClerkUserEvent {
   first_name: string | null;
   last_name: string | null;
   email_addresses: ClerkEmailAddress[];
+  primary_email_address_id?: string | null;
   image_url: string | null;
   unsafe_metadata?: Record<string, unknown>;
   legal_accepted_at?: number | string | null;
@@ -72,10 +74,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const { id, first_name, last_name, email_addresses, image_url, unsafe_metadata, legal_accepted_at } = event.data;
+  const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url, unsafe_metadata, legal_accepted_at } = event.data;
 
   const name = [first_name, last_name].filter(Boolean).join(" ") || null;
-  const email = email_addresses?.[0]?.email_address;
+  const email =
+    email_addresses?.find((e) => e.id === primary_email_address_id)?.email_address ??
+    email_addresses?.[0]?.email_address;
 
   const user = await ensureUserByClerkId(id, {
     ...(email ? { email } : {}),

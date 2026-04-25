@@ -87,6 +87,7 @@ export async function POST(req: Request) {
             vacationMode: true,
             offersGiftWrapping: true,
             giftWrappingPriceCents: true,
+            user: { select: { banned: true, deletedAt: true } },
           },
         },
         variantGroups: { include: { options: true } },
@@ -115,6 +116,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You cannot buy your own listing." }, { status: 400 });
     }
 
+    if (listing.seller.user.banned || listing.seller.user.deletedAt) {
+      return NextResponse.json(
+        { error: "This seller is not currently accepting orders." },
+        { status: 400 },
+      );
+    }
+
     if (listing.seller.vacationMode) {
       return NextResponse.json(
         { error: "This seller is currently on vacation and not accepting new orders." },
@@ -127,6 +135,15 @@ export async function POST(req: Request) {
         { error: "Made-to-order items can only be ordered one at a time." },
         { status: 400 },
       );
+    }
+    if (listing.listingType === "IN_STOCK") {
+      const available = listing.stockQuantity ?? 0;
+      if (available <= 0) {
+        return NextResponse.json({ error: "This item is currently out of stock." }, { status: 400 });
+      }
+      if (body.quantity > available) {
+        return NextResponse.json({ error: `Only ${available} available.` }, { status: 400 });
+      }
     }
 
     const currency = (listing.currency || "usd").toLowerCase();
