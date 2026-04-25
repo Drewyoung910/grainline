@@ -12,11 +12,13 @@ import {
 interface Props {
   listingId: string;
   status: string;
+  isPrivate?: boolean;
 }
 
-export default function ShopListingActions({ listingId, status }: Props) {
+export default function ShopListingActions({ listingId, status, isPrivate = false }: Props) {
   const [isPending, startTransition] = React.useTransition();
   const [toast, setToast] = React.useState<string | null>(null);
+  const isArchived = status === "HIDDEN" && isPrivate;
 
   function showToast(msg: string) {
     setToast(msg);
@@ -72,7 +74,7 @@ export default function ShopListingActions({ listingId, status }: Props) {
       )}
 
       {/* Unhide — HIDDEN only */}
-      {status === "HIDDEN" && (
+      {status === "HIDDEN" && !isArchived && (
         <button
           disabled={isPending}
           onClick={() =>
@@ -146,28 +148,31 @@ export default function ShopListingActions({ listingId, status }: Props) {
       )}
 
       {/* Delete — all statuses except PENDING_REVIEW */}
-      {status !== "PENDING_REVIEW" && (
+      {status !== "PENDING_REVIEW" && !isArchived && (
         <button
           disabled={isPending}
           onClick={() => {
-            if (!window.confirm("Delete this listing?")) return;
+            if (!window.confirm("Archive this listing? It will be removed from public pages and current carts, but retained for order history.")) return;
             startTransition(async () => {
-              await deleteListingAction(listingId);
+              const result = await deleteListingAction(listingId);
+              showToast(result.ok ? "Archived." : (result.error ?? "Could not archive this listing."));
             });
           }}
           className="text-[11px] rounded border border-red-300 text-red-600 px-2 py-0.5 hover:bg-red-50 disabled:opacity-50"
         >
-          Delete
+          Archive
         </button>
       )}
 
       {/* Edit link always shown */}
-      <a
-        href={`/dashboard/listings/${listingId}/edit`}
-        className="text-[11px] text-neutral-500 hover:text-neutral-800 hover:underline ml-auto"
-      >
-        Edit →
-      </a>
+      {!isArchived && (
+        <a
+          href={`/dashboard/listings/${listingId}/edit`}
+          className="text-[11px] text-neutral-500 hover:text-neutral-800 hover:underline ml-auto"
+        >
+          Edit →
+        </a>
+      )}
     </div>
   );
 }

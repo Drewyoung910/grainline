@@ -68,9 +68,16 @@ export async function markSoldAction(listingId: string) {
 
 export async function deleteListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
-  if (!listing) return;
+  if (!listing) return { ok: false, error: "Listing not found." };
   // Soft delete: preserve order history, remove current shopping intent records.
-  await softDeleteListingWithCleanup(listingId);
+  try {
+    await softDeleteListingWithCleanup(listingId);
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not archive this listing.",
+    };
+  }
   const activeCount = await prisma.listing.count({ where: { sellerId: listing.sellerId, status: "ACTIVE" } });
   const sp = await prisma.sellerProfile.findUnique({
     where: { id: listing.sellerId },
@@ -80,6 +87,7 @@ export async function deleteListingAction(listingId: string) {
     await prisma.sellerProfile.update({ where: { id: listing.sellerId }, data: { listingsBelowThresholdSince: new Date() } });
   }
   revalidatePath(`/seller/${listing.sellerId}/shop`);
+  return { ok: true };
 }
 
 export async function markAvailableAction(listingId: string) {

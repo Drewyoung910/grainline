@@ -15,9 +15,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { role: true },
+    select: { role: true, banned: true, deletedAt: true },
   });
-  if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
+  if (!user || user.banned || user.deletedAt || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
   const cookieStore = await cookies();
   const pinVerified = await verifyAdminPinCookieValue(

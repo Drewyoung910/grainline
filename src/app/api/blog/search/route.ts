@@ -48,23 +48,51 @@ export async function GET(req: NextRequest) {
   const skip = (page - 1) * limit;
 
   const typeValid = type && (Object.values(BlogPostType) as string[]).includes(type);
+  const publicBlogVisibility = {
+    author: { banned: false, deletedAt: null },
+    OR: [
+      { sellerProfileId: null },
+      {
+        sellerProfile: {
+          chargesEnabled: true,
+          vacationMode: false,
+          user: { banned: false, deletedAt: null },
+        },
+      },
+    ],
+  };
 
   if (q && sort === "relevant") {
     // GIN full-text search — get IDs ranked by ts_rank
     type RankedRow = { id: string };
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
-      SELECT id FROM "BlogPost"
-      WHERE status = 'PUBLISHED'
+      SELECT bp.id
+      FROM "BlogPost" bp
+      JOIN "User" author_user ON author_user.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+      WHERE bp.status = 'PUBLISHED'
+        AND author_user.banned = false
+        AND author_user."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
         AND to_tsvector('english',
-          coalesce(title, '') || ' ' ||
-          coalesce(excerpt, '') || ' ' ||
-          coalesce(body, '')
+          coalesce(bp.title, '') || ' ' ||
+          coalesce(bp.excerpt, '') || ' ' ||
+          coalesce(bp.body, '')
         ) @@ plainto_tsquery('english', ${q})
       ORDER BY ts_rank(
         to_tsvector('english',
-          coalesce(title, '') || ' ' ||
-          coalesce(excerpt, '') || ' ' ||
-          coalesce(body, '')
+          coalesce(bp.title, '') || ' ' ||
+          coalesce(bp.excerpt, '') || ' ' ||
+          coalesce(bp.body, '')
         ),
         plainto_tsquery('english', ${q})
       ) DESC
@@ -81,6 +109,7 @@ export async function GET(req: NextRequest) {
     const allPosts = await prisma.blogPost.findMany({
       where: {
         id: { in: rankedIds },
+        ...publicBlogVisibility,
         ...(typeValid ? { type: type as BlogPostType } : {}),
         ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
       },
@@ -99,17 +128,32 @@ export async function GET(req: NextRequest) {
   // Standard Prisma query (newest or alpha sort)
   const where = {
     status: BlogPostStatus.PUBLISHED,
+    author: { banned: false, deletedAt: null },
+    AND: [
+      {
+        OR: [
+          { sellerProfileId: null },
+          {
+            sellerProfile: {
+              chargesEnabled: true,
+              vacationMode: false,
+              user: { banned: false, deletedAt: null },
+            },
+          },
+        ],
+      },
+      ...(q
+        ? [{
+            OR: [
+              { title: { contains: q, mode: "insensitive" as const } },
+              { excerpt: { contains: q, mode: "insensitive" as const } },
+              { tags: { hasSome: [q.toLowerCase()] } },
+            ],
+          }]
+        : []),
+    ],
     ...(typeValid ? { type: type as BlogPostType } : {}),
     ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
-    ...(q
-      ? {
-          OR: [
-            { title: { contains: q, mode: "insensitive" as const } },
-            { excerpt: { contains: q, mode: "insensitive" as const } },
-            { tags: { hasSome: [q.toLowerCase()] } },
-          ],
-        }
-      : {}),
   };
 
   const orderBy = sort === "alpha" ? { title: "asc" as const } : { publishedAt: "desc" as const };

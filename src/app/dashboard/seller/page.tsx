@@ -16,6 +16,7 @@ import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { ensureUser } from "@/lib/ensureUser";
+import { filterR2PublicUrls } from "@/lib/urlValidation";
 
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -78,7 +79,10 @@ async function updateSellerProfile(formData: FormData) {
   const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
 
   // Gallery images
-  const galleryImageUrls = formData.getAll("galleryImageUrls").map(String).filter(Boolean);
+  const galleryImageUrls = filterR2PublicUrls(
+    formData.getAll("galleryImageUrls").map(String).filter(Boolean),
+    10,
+  );
 
   // Default package (cm / g)
   const defaultPkgLengthCm = toFloat(formData.get("defaultPkgLengthCm"));
@@ -478,6 +482,5 @@ export default async function SellerSettingsPage() {
     </main>
   );
 }
-
 
 

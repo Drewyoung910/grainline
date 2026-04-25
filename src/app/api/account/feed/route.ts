@@ -59,6 +59,11 @@ export async function GET(req: NextRequest) {
   const listingDateFilter = cursor ? { lt: new Date(cursor) } : { gte: cutoff };
   const blogDateFilter = cursor ? { lt: new Date(cursor), not: null as null } : { gte: cutoff, not: null as null };
   const broadcastDateFilter = cursor ? { lt: new Date(cursor) } : { gte: cutoff };
+  const followedSellerVisibility = {
+    chargesEnabled: true,
+    vacationMode: false,
+    user: { banned: false, deletedAt: null },
+  };
 
   const [listings, blogPosts, broadcasts] = await Promise.all([
     prisma.listing.findMany({
@@ -67,6 +72,7 @@ export async function GET(req: NextRequest) {
         status: "ACTIVE",
         isPrivate: false,
         createdAt: listingDateFilter,
+        seller: followedSellerVisibility,
       },
       orderBy: { createdAt: "desc" },
       take,
@@ -86,6 +92,8 @@ export async function GET(req: NextRequest) {
         sellerProfileId: { in: sellerIds },
         status: "PUBLISHED",
         publishedAt: blogDateFilter,
+        author: { banned: false, deletedAt: null },
+        sellerProfile: followedSellerVisibility,
       },
       orderBy: { publishedAt: "desc" },
       take,
@@ -104,6 +112,7 @@ export async function GET(req: NextRequest) {
       where: {
         sellerProfileId: { in: sellerIds },
         sentAt: broadcastDateFilter,
+        sellerProfile: followedSellerVisibility,
       },
       orderBy: { sentAt: "desc" },
       take,

@@ -31,6 +31,7 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
     include: { seller: true },
   });
   if (!listing || listing.seller.userId !== me.id) return;
+  if (listing.status === "HIDDEN" && listing.isPrivate) return;
 
   // Seller-initiated reactivation must go through publishListingAction so AI/admin
   // moderation cannot be bypassed by forged server-action posts.
@@ -84,8 +85,13 @@ async function deleteListing(listingId: string) {
   });
   if (!listing || listing.seller.userId !== me.id) return;
 
-  // Soft delete: preserve order history, remove current shopping intent records.
-  await softDeleteListingWithCleanup(listingId);
+  // Archive: preserve order history, remove current shopping intent records.
+  try {
+    await softDeleteListingWithCleanup(listingId);
+  } catch (err) {
+    console.error("Archive listing failed:", err);
+    return;
+  }
 
   // Deleting a listing may drop active count below 5
   const activeCount = await prisma.listing.count({
@@ -143,6 +149,7 @@ export default async function DashboardPage() {
         priceCents: true,
         currency: true,
         status: true,
+        isPrivate: true,
         viewCount: true,
         clickCount: true,
         aiReviewFlags: true,
@@ -403,10 +410,11 @@ export default async function DashboardPage() {
           <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3 sm:gap-6">
             {listings.map((l) => {
               const thumb = l.photos[0]?.url;
+              const isArchived = l.status === "HIDDEN" && l.isPrivate;
 
               return (
                 <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
-                  {l.status !== "DRAFT" ? (
+                  {l.status !== "DRAFT" && !isArchived ? (
                     <Link href={`/listing/${l.id}`} className="block">
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -429,7 +437,7 @@ export default async function DashboardPage() {
                   <div className="p-4 space-y-2">
                     <div className="flex items-baseline justify-between">
                       <h3 className="font-medium">
-                        {l.status !== "DRAFT" ? (
+                        {l.status !== "DRAFT" && !isArchived ? (
                           <Link href={`/listing/${l.id}`} className="hover:underline">{l.title}</Link>
                         ) : l.title}
                       </h3>
@@ -442,7 +450,11 @@ export default async function DashboardPage() {
                     </div>
 
                     <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      {l.status === "PENDING_REVIEW" ? (
+                      {isArchived ? (
+                        <span className="inline-block px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded-full font-medium normal-case">
+                          Archived
+                        </span>
+                      ) : l.status === "PENDING_REVIEW" ? (
                         <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full font-medium normal-case">
                           Under Review
                         </span>
@@ -458,28 +470,32 @@ export default async function DashboardPage() {
                     </div>
 
                     <div className="pt-3 flex flex-wrap gap-2">
-                      <Link
-                        href={`/dashboard/listings/${l.id}/edit`}
-                        className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-                      >
-                        Edit
-                      </Link>
-                      {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
-                        <Link
-                          href={`/listing/${l.id}?preview=1`}
-                          className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-                          target="_blank"
-                        >
-                          Preview →
-                        </Link>
+                      {!isArchived && (
+                        <>
+                          <Link
+                            href={`/dashboard/listings/${l.id}/edit`}
+                            className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                          >
+                            Edit
+                          </Link>
+                          {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
+                            <Link
+                              href={`/listing/${l.id}?preview=1`}
+                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                              target="_blank"
+                            >
+                              Preview →
+                            </Link>
+                          )}
+                        </>
                       )}
 
-                      {l.status === "REJECTED" && (
+                      {!isArchived && l.status === "REJECTED" && (
                         <ResubmitButton listingId={l.id} />
                       )}
 
                       {/* REJECTED: only Edit + Resubmit + Delete — no Hide/Unhide/Mark sold */}
-                      {l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
+                      {!isArchived && l.status !== "REJECTED" && l.status !== "PENDING_REVIEW" && (
                         <>
                           {/* Mark sold only for ACTIVE and SOLD_OUT — not DRAFT or HIDDEN */}
                           {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
@@ -504,10 +520,11 @@ export default async function DashboardPage() {
 
                       <form action={deleteListing.bind(null, l.id)}>
                         <ConfirmButton
-                          confirm="Delete this listing?"
+                          confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
+                          disabled={isArchived}
                           className="text-xs rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300"
                         >
-                          Delete
+                          {isArchived ? "Archived" : "Archive"}
                         </ConfirmButton>
                       </form>
                     </div>
@@ -578,9 +595,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
-
-
 
 
 

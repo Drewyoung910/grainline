@@ -4708,3 +4708,35 @@ Read this with the Rounds 1-7 follow-up sections above. This pass focused on sca
 - Browse geo/rating filters still need bounding-box/prefilter work before large catalog scale.
 - Seller analytics cart-abandonment math can still overcount stale carts; fixing it cleanly requires a more deliberate analytics pass.
 - Mobile/accessibility items remain: MapLibre no-WebGL fallback, touch-first photo management, lightbox focus trapping, and iOS keyboard/visualViewport handling.
+
+## Audit Pass — Media Regression + Archive UX + Visibility Filters (2026-04-25)
+
+This pass was triggered by production-visible missing images (Meet a Maker banner showing alt text, missing listing/blog media) and follow-up review of Round 8 visibility regressions. The root issue was that previous CSP/R2 hardening was too narrow for older production media URLs.
+
+### Fixed in this pass
+- **Legacy R2 media restored without reopening arbitrary HTTPS images**: CSP now allows `https://*.r2.dev` for images/connect/media, preserving older Cloudflare R2 public bucket URLs while keeping `img-src` limited to first-party CDN, R2, Clerk, Stripe, and map tile hosts.
+- **R2 URL validation supports all configured Grainline media origins**: `isR2PublicUrl()` now accepts `CLOUDFLARE_R2_PUBLIC_URL`, `R2_PUBLIC_URL`, `NEXT_PUBLIC_*` equivalents, comma-separated allowed-origin env vars, `https://cdn.thegrainline.com`, and legacy `*.r2.dev` public bucket URLs. It still rejects arbitrary HTTPS/CDN URLs.
+- **Seller gallery images now use shared R2 validation**: `/dashboard/seller` filters `galleryImageUrls` with `filterR2PublicUrls()` before storing them.
+- **Admin page access no longer shows raw JSON**: middleware now returns JSON 403 for admin API requests but redirects forbidden `/admin/*` page navigations to `/`.
+- **Banned/deleted admins are blocked consistently**: admin middleware and admin layout now reject banned/deleted local users before rendering protected admin UI.
+- **Soft-deleted listings are treated as archived in seller UI**: seller dashboard and shop now label `HIDDEN + isPrivate` listings as “Archived,” hide edit/preview/unhide/reactivation actions, and stop linking archived listing cards to public listing pages.
+- **Archived listings cannot be edited by browser-back/direct URL**: listing edit page, photo reorder/delete, alt-text save, and update actions now refuse archived listings.
+- **Archive action avoids user-facing crash paths**: seller shop archive action returns `{ ok, error }`; dashboard archive action catches cleanup failures instead of throwing a Next.js error page.
+- **Account feed visibility hardened**: followed listings, blog posts, and broadcasts now require non-banned/non-deleted sellers with `chargesEnabled=true` and `vacationMode=false`.
+- **Blog search visibility hardened**: `/api/blog/search` now excludes banned/deleted authors and maker posts from banned/deleted/vacation/charges-disabled seller profiles in both ranked full-text and standard Prisma query paths.
+- **Similar listing filter completed**: raw SQL now requires seller users to be non-deleted in addition to non-banned.
+- **Recently viewed respects blocks**: signed-in users no longer see listings from sellers they blocked or who blocked them in the recently-viewed endpoint.
+- **ListingCard supports intentionally unlinked cards**: `href={null}` now renders image/title metadata without public listing links, used for archived owner-only shop cards.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ when run outside sandbox; sandbox build fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / next good passes
+- The visible missing-image issue should be resolved by the CSP/R2 compatibility fix, but production should be checked after deployment against known older `*.r2.dev` media rows.
+- Payment/webhook follow-up remains important: `checkout.session.completed` should use the new webhook idempotency table; `account.updated`, `payout.failed`, `charge.refunded`, and dispute handling need a careful Stripe-state semantics pass.
+- Broader banned/deleted UX still needs a route-by-route sweep so suspended users get clean 403/redirect experiences instead of generic 500s.
+- External image references in historical rows should eventually be audited/backfilled to the first-party CDN where possible.

@@ -358,8 +358,10 @@ export default async function SellerShopPage({
       ) : (
         <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {listings.map((l) => {
+            const isArchived = l.status === "HIDDEN" && l.isPrivate;
             const statusBadge =
               l.status === "DRAFT" ? { label: "Draft", cls: "bg-neutral-100 text-neutral-600" }
+              : isArchived ? { label: "Archived", cls: "bg-neutral-100 text-neutral-600" }
               : l.status === "HIDDEN" ? { label: "Hidden", cls: "bg-neutral-100 text-neutral-600" }
               : l.status === "PENDING_REVIEW" ? { label: "Under Review", cls: "bg-amber-50 text-amber-700 border border-amber-200" }
               : l.status === "REJECTED" ? { label: "Rejected", cls: "bg-red-50 text-red-700 border border-red-200" }
@@ -392,7 +394,13 @@ export default async function SellerShopPage({
                     }}
                     initialSaved={savedSet.has(l.id)}
                     variant="grid"
-                    href={isOwner && l.status === "DRAFT" ? `/listing/${l.id}?preview=1` : undefined}
+                    href={
+                      isOwner && isArchived
+                        ? null
+                        : isOwner && l.status === "DRAFT"
+                          ? `/listing/${l.id}?preview=1`
+                          : undefined
+                    }
                   />
                   {isOwner ? (
                     <div>
@@ -403,7 +411,7 @@ export default async function SellerShopPage({
                           </span>
                         </div>
                       )}
-                      <ShopListingActions listingId={l.id} status={l.status} />
+                      <ShopListingActions listingId={l.id} status={l.status} isPrivate={l.isPrivate} />
                     </div>
                   ) : null}
                 </div>

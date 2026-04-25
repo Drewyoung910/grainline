@@ -1,6 +1,8 @@
 // src/app/api/listings/recently-viewed/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function GET(req: NextRequest) {
@@ -15,9 +17,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ listings: [] });
   }
 
+  const { userId } = await auth();
+  let blockedSellerIds: string[] = [];
+  if (userId) {
+    const me = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true },
+    });
+    if (me) blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+  }
+
   const rows = await prisma.listing.findMany({
     where: publicListingWhere({
       id: { in: ids },
+      ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
     }),
     select: {
       id: true,

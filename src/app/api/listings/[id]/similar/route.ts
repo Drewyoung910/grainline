@@ -75,7 +75,12 @@ export async function GET(
         AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
         AND sp."vacationMode" = false
         AND sp."chargesEnabled" = true
-        AND EXISTS (SELECT 1 FROM "User" u WHERE u.id = sp."userId" AND u."banned" = false)
+        AND EXISTS (
+          SELECT 1 FROM "User" u
+          WHERE u.id = sp."userId"
+            AND u."banned" = false
+            AND u."deletedAt" IS NULL
+        )
       ORDER BY
         (l.category = ${category ?? "OTHER"}::"Category") DESC,
         COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) DESC,

@@ -21,13 +21,13 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://clerk.thegrainline.com",
       "font-src 'self' data:",
       // Image sources are limited to first-party assets, R2/CDN media, Clerk avatars, Stripe, and map tiles.
-      "img-src 'self' data: blob: https://cdn.thegrainline.com https://*.r2.cloudflarestorage.com https://img.clerk.com https://images.clerk.dev https://*.clerk.com https://*.clerk.accounts.dev https://q.stripe.com https://*.tile.openstreetmap.org https://tiles.openfreemap.org",
+      "img-src 'self' data: blob: https://cdn.thegrainline.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://img.clerk.com https://images.clerk.dev https://*.clerk.com https://*.clerk.accounts.dev https://q.stripe.com https://*.tile.openstreetmap.org https://tiles.openfreemap.org",
       // All XHR/fetch/WebSocket targets: Clerk, Stripe, R2, Sentry, Upstash, OpenStreetMap, Maplibre tiles
-      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.r2.cloudflarestorage.com https://cdn.thegrainline.com https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.openfreemap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
+      "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://api.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://cdn.thegrainline.com https://*.sentry.io https://*.ingest.sentry.io https://major-toad-67912.upstash.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://tiles.openfreemap.org wss://*.clerk.accounts.dev wss://*.clerk.com wss://clerk.thegrainline.com",
       // Stripe payment iframe + Clerk account modal iframe + YouTube/Vimeo embeds on blog posts
       "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.com https://clerk.thegrainline.com https://accounts.thegrainline.com https://www.youtube-nocookie.com https://player.vimeo.com",
       "worker-src 'self' blob:",
-      "media-src 'self' https://cdn.thegrainline.com",
+      "media-src 'self' https://cdn.thegrainline.com https://*.r2.dev https://*.r2.cloudflarestorage.com",
       "object-src 'none'",
       "base-uri 'self'",
       // Clerk sign-in/up forms may POST to clerk domains

@@ -148,6 +148,9 @@ async function updateListing(
     where: { id: listingId, seller: { user: { clerkId: userId } } },
   });
   if (!listing) return { ok: false, error: "Not allowed" };
+  if (listing.status === "HIDDEN" && listing.isPrivate) {
+    return { ok: false, error: "Archived listings cannot be edited." };
+  }
 
   // Check if substantive content changed (triggers AI re-review for ACTIVE listings)
   const titleChanged = title !== listing.title;
@@ -266,6 +269,7 @@ async function reorderPhotos(listingId: string, photoIds: string[]) {
     where: { id: listingId, seller: { user: { clerkId: userId } } },
   });
   if (!listing) return;
+  if (listing.status === "HIDDEN" && listing.isPrivate) return;
 
   await Promise.all(
     photoIds.map((id, i) =>
@@ -286,8 +290,10 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
+    select: { listing: { select: { status: true, isPrivate: true } } },
   });
   if (!ok) return;
+  if (ok.listing.status === "HIDDEN" && ok.listing.isPrivate) return;
 
   await prisma.photo.delete({ where: { id: photoId } });
 
@@ -345,6 +351,7 @@ async function saveAltTextsAction(listingId: string, altTexts: Record<string, st
     where: { id: listingId, seller: { user: { clerkId: userId } } },
   });
   if (!listing) return;
+  if (listing.status === "HIDDEN" && listing.isPrivate) return;
 
   for (const [photoId, text] of Object.entries(altTexts)) {
     await prisma.photo.update({
@@ -376,6 +383,7 @@ export default async function EditListingPage(props: {
     },
   });
   if (!listing) return notFound();
+  if (listing.status === "HIDDEN" && listing.isPrivate) return notFound();
 
   const remaining = Math.max(0, 8 - listing.photos.length);
 
@@ -545,7 +553,6 @@ export default async function EditListingPage(props: {
     </main>
   );
 }
-
 
 
 

@@ -31,14 +31,14 @@ type Props = {
   listing: ListingCardData;
   initialSaved?: boolean;
   variant?: "grid" | "scroll";
-  href?: string;
+  href?: string | null;
 };
 
 export default function ListingCard({ listing: l, initialSaved = false, href }: Props) {
   const [hovered, setHovered] = useState(false);
   const img = l.photoUrl ?? "/favicon.ico";
   const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
-  const listingHref = href ?? `/listing/${l.id}`;
+  const listingHref = href === null ? null : href ?? `/listing/${l.id}`;
   const sellerName = l.seller.displayName ?? "Maker";
   const shop = l.rating;
   const city = l.seller.city;
@@ -52,7 +52,18 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <Link href={listingHref} className="block">
+        {listingHref ? (
+          <Link href={listingHref} className="block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt={l.title}
+              src={displayImg}
+              loading="lazy"
+              className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
+            />
+          </Link>
+        ) : (
+          <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={l.title}
@@ -60,7 +71,8 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
             loading="lazy"
             className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
           />
-        </Link>
+          </>
+        )}
         {/* Heart — top right */}
         <div className="absolute top-2 right-2">
           <FavoriteButton listingId={l.id} initialSaved={initialSaved} />
@@ -71,23 +83,25 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       <div className="flex items-center gap-3 pt-2.5">
         <div className="flex-1 min-w-0 space-y-0.5">
           {/* Title and price+rating — wrapped in listing Link */}
-          <Link href={listingHref} className="block space-y-0.5">
-            <div className="font-medium text-sm text-neutral-900 line-clamp-1 leading-snug">
-              {l.title}
+          {listingHref ? (
+            <Link href={listingHref} className="block space-y-0.5">
+              <ListingCardTitlePrice
+                title={l.title}
+                priceCents={l.priceCents}
+                currency={l.currency}
+                rating={shop}
+              />
+            </Link>
+          ) : (
+            <div className="block space-y-0.5">
+              <ListingCardTitlePrice
+                title={l.title}
+                priceCents={l.priceCents}
+                currency={l.currency}
+                rating={shop}
+              />
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-sm text-neutral-900">
-                {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
-              </span>
-              {shop && shop.count > 0 && (
-                <span className="flex items-center gap-0.5 text-xs text-stone-500">
-                  <span className="text-amber-500">★</span>
-                  <span className="font-medium text-neutral-700">{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-                  <span className="text-stone-400">({shop.count})</span>
-                </span>
-              )}
-            </div>
-          </Link>
+          )}
 
           {/* Location · Seller — separate row, no nested Links */}
           <div className="flex items-center gap-1 text-xs text-stone-400 flex-wrap">
@@ -120,5 +134,37 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
         )}
       </div>
     </div>
+  );
+}
+
+function ListingCardTitlePrice({
+  title,
+  priceCents,
+  currency,
+  rating,
+}: {
+  title: string;
+  priceCents: number;
+  currency: string;
+  rating?: { avg: number; count: number } | null;
+}) {
+  return (
+    <>
+      <div className="font-medium text-sm text-neutral-900 line-clamp-1 leading-snug">
+        {title}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-bold text-sm text-neutral-900">
+          {(priceCents / 100).toLocaleString("en-US", { style: "currency", currency })}
+        </span>
+        {rating && rating.count > 0 && (
+          <span className="flex items-center gap-0.5 text-xs text-stone-500">
+            <span className="text-amber-500">★</span>
+            <span className="font-medium text-neutral-700">{(Math.round(rating.avg * 10) / 10).toFixed(1)}</span>
+            <span className="text-stone-400">({rating.count})</span>
+          </span>
+        )}
+      </div>
+    </>
   );
 }

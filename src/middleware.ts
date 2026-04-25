@@ -47,6 +47,14 @@ const isAdminPage = createRouteMatcher(["/admin(.*)"]);
 const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
 
+function forbiddenFor(req: Request) {
+  const url = new URL(req.url);
+  if (url.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return NextResponse.redirect(new URL("/", req.url));
+}
+
 function isGeoAllowedApiPath(pathname: string): boolean {
   return (
     pathname === "/api/health" ||
@@ -89,11 +97,16 @@ export default clerkMiddleware(async (auth, req) => {
   if (isAdminPage(req) || isAdminApi(req)) {
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return forbiddenFor(req);
     }
-    const user = await ensureUserByClerkId(userId);
+    let user;
+    try {
+      user = await ensureUserByClerkId(userId);
+    } catch {
+      return forbiddenFor(req);
+    }
     if (user.role !== "EMPLOYEE" && user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return forbiddenFor(req);
     }
 
     // Admin pages withhold server-rendered data in their layout until this
