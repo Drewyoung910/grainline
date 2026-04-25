@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -73,6 +74,9 @@ export async function POST(
 
     return NextResponse.json({ ok: true, ...updated, message });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/cases/[id]/mark-resolved error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

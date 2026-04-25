@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { blockRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST(
@@ -14,7 +15,14 @@ export async function POST(
   const { success, reset } = await safeRateLimit(blockRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many block actions.");
 
-  const me = await ensureUser();
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    me = await ensureUser();
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: blockedId } = await params;
@@ -59,7 +67,14 @@ export async function DELETE(
   const { success, reset } = await safeRateLimit(blockRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many block actions.");
 
-  const me = await ensureUser();
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    me = await ensureUser();
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: blockedId } = await params;

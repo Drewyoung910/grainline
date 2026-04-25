@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
@@ -63,7 +64,14 @@ async function stripMetadata(input: Buffer, contentType: string) {
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const me = await ensureUserByClerkId(userId);
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   const { success, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many uploads.");

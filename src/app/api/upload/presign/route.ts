@@ -5,6 +5,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
 
@@ -53,7 +54,14 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const me = await ensureUserByClerkId(userId);
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   const { success: rlOk, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many uploads.");

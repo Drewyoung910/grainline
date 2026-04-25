@@ -7,6 +7,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -246,6 +247,9 @@ export async function POST(
       refundAmountCents,
     });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/orders/[id]/refund error:", err);
     Sentry.captureException(err, { tags: { source: "seller_refund" } });
     return NextResponse.json({ error: "Server error" }, { status: 500 });

@@ -7,6 +7,7 @@ import { checkoutRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratel
 import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import {
   acquireCheckoutLock,
   checkoutPayloadHash,
@@ -462,6 +463,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/cart/checkout/single error:", err);
     Sentry.captureException(err);
 

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,9 @@ export async function GET() {
 
     return NextResponse.json({ sales });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("GET /api/seller/analytics/recent-sales error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

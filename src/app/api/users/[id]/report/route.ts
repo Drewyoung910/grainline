@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { z } from "zod";
 import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -29,7 +30,14 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await ensureUser();
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    me = await ensureUser();
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const rl = await safeRateLimit(reportRatelimit, me.id);

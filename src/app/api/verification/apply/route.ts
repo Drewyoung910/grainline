@@ -1,6 +1,7 @@
 // src/app/api/verification/apply/route.ts
 import { NextResponse } from "next/server";
 import { ensureSeller } from "@/lib/ensureSeller";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 
@@ -138,6 +139,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(record, { status: 201 });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/verification/apply error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

@@ -4843,3 +4843,31 @@ This pass continued the email infrastructure items from the Rounds 1-8 audit. Sa
 - Continue the suspended/deleted UX sweep for less common server actions and API routes.
 - Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
 - Saved-search alert emails remain intentionally skipped.
+
+## Audit Pass — Account-State API UX Sweep (2026-04-25)
+
+This pass continued the suspended/deleted account handling work. The goal was not to change authorization policy, but to make existing bans/deletions return explicit 403 responses or `/banned` redirects instead of generic 500s or inconsistent fallback states.
+
+### Fixed in this pass
+- **Shared API account-state response helper**: `accountAccessErrorResponse()` converts typed `AccountAccessError` failures into `{ error, code }` JSON with HTTP 403.
+- **Checkout account-state failures are explicit**: single-listing checkout and seller-cart checkout now return 403 for suspended/deleted buyers instead of falling through to generic checkout-session errors.
+- **Case action account-state failures are explicit**: case escalate, mark-resolved, message, and staff resolve routes now return clean 403s for suspended/deleted users.
+- **Seller refund account-state failures are explicit**: seller refund route now returns a clean account-state 403 before generic refund error handling.
+- **Upload account-state failures are explicit**: processed image uploads and presigned file uploads now return 403 for suspended/deleted users instead of unhandled route errors.
+- **Seller analytics account-state failures are explicit**: analytics overview and recent-sales APIs now return 403 instead of generic 500s.
+- **Seller operational account-state failures are explicit**: vacation mode and verification application routes now return 403 for suspended/deleted users.
+- **Stripe Connect routes preserve behavior while adding account-state checks**: create/login-link routes now use `ensureUserByClerkId()` for ban/deletion enforcement, while still requiring an existing seller profile instead of auto-creating one.
+- **Account APIs respect account state**: account deletion, notification preferences, shipping address GET/PUT, saved-search GET/POST/DELETE, block/unblock API, user report API, favorites POST, and review helpful vote now return clean account-state 403s.
+- **Blocked users page uses shared page auth**: `/account/blocked` now redirects suspended/deleted accounts to `/banned`, matching the other account pages.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ outside sandbox; sandbox build still fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / next good passes
+- Continue lower-priority server-action UX cleanup where actions throw errors directly instead of returning inline form state.
+- Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
+- Payment/manual reconciliation work remains for external refunds, partial refunds, and disputes.

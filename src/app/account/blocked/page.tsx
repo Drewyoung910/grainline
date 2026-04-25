@@ -1,18 +1,13 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { unblockUser } from "./actions";
+import { ensureUserForPage } from "@/lib/pageAuth";
 
 export const metadata: Metadata = { title: "Blocked Users", robots: { index: false, follow: false } };
 
 export default async function BlockedUsersPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in?redirect_url=/account/blocked");
-
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) redirect("/sign-in");
+  const me = await ensureUserForPage("/account/blocked");
 
   const blocks = await prisma.block.findMany({
     where: { blockerId: me.id },

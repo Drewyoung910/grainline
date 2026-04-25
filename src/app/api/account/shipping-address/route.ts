@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { shippingAddressRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { sanitizeText } from "@/lib/sanitize";
 import { z } from "zod";
@@ -26,9 +28,17 @@ const AddressSchema = z.object({
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    user = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
+    where: { id: user.id },
     select: {
       shippingName: true,
       shippingLine1: true,
@@ -58,6 +68,14 @@ export async function GET() {
 export async function PUT(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    user = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   const { success, reset } = await safeRateLimit(shippingAddressRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many requests.");
@@ -73,7 +91,7 @@ export async function PUT(req: Request) {
   }
 
   await prisma.user.update({
-    where: { clerkId: userId },
+    where: { id: user.id },
     data: {
       shippingName: sanitizeText(body.name),
       shippingLine1: sanitizeText(body.line1),

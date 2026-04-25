@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -266,6 +267,9 @@ export async function POST(
 
     return NextResponse.json(updatedCase);
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/cases/[id]/resolve error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

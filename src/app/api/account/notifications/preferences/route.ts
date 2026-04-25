@@ -4,6 +4,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { VALID_PREFERENCE_KEYS } from "@/lib/notifications";
 import { z } from "zod";
 
@@ -15,6 +17,14 @@ const PreferencesSchema = z.object({
 export async function POST(request: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   let body;
   try {
@@ -26,12 +36,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { type, enabled } = body;
-
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, notificationPreferences: true },
-  });
-  if (!me) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const prefs = (me.notificationPreferences as Record<string, boolean>) ?? {};
   prefs[type] = enabled;

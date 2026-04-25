@@ -5,6 +5,7 @@ import { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 
 const SavedSearchSchema = z.object({
@@ -28,13 +29,25 @@ async function getDbUser() {
   return ensureUser();
 }
 
+async function getDbUserResult() {
+  try {
+    return { me: await getDbUser(), response: null };
+  } catch (err) {
+    const response = accountAccessErrorResponse(err);
+    if (response) return { me: null, response };
+    throw err;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
 
-  const me = await getDbUser();
+  const userResult = await getDbUserResult();
+  if (userResult.response) return userResult.response;
+  const me = userResult.me;
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let searchParsed;
@@ -123,7 +136,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  const me = await getDbUser();
+  const userResult = await getDbUserResult();
+  if (userResult.response) return userResult.response;
+  const me = userResult.me;
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const searches = await prisma.savedSearch.findMany({
@@ -135,7 +150,9 @@ export async function GET() {
 }
 
 export async function DELETE(req: NextRequest) {
-  const me = await getDbUser();
+  const userResult = await getDbUserResult();
+  if (userResult.response) return userResult.response;
+  const me = userResult.me;
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const id = req.nextUrl.searchParams.get("id");

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
@@ -33,6 +34,9 @@ export async function POST(req: Request) {
   try {
     me = await ensureUser();
   } catch (e) {
+    const accountResponse = accountAccessErrorResponse(e);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/favorites ensureUser error:", { error: (e as Error).message, userId });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

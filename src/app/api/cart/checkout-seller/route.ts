@@ -6,6 +6,7 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
 import {
   acquireCheckoutLock,
@@ -494,6 +495,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (err: unknown) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     Sentry.captureException(err);
     console.error("POST /api/cart/checkout-seller error:", err);
 

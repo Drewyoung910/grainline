@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -16,9 +18,17 @@ export async function POST(req: Request) {
   const { success: rlOk, reset } = await safeRateLimit(stripeConnectRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
 
-  // Find this user's seller profile
-  const seller = await prisma.sellerProfile.findFirst({
-    where: { user: { clerkId: userId } },
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
+
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
     select: { id: true, stripeAccountId: true },
   });
   if (!seller) return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });

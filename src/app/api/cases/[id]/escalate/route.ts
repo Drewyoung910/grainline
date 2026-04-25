@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { verifyCronRequest } from "@/lib/cronAuth";
 
@@ -87,6 +88,9 @@ export async function POST(
 
     return NextResponse.json({ ok: true, escalated });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/cases/[id]/escalate error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

@@ -2,13 +2,21 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUser } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { anonymizeUserAccount, getAccountDeletionBlockers } from "@/lib/accountDeletion";
 
 export async function POST() {
   const { userId: clerkId } = await auth();
   if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await ensureUser();
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    me = await ensureUser();
+  } catch (error) {
+    const accountResponse = accountAccessErrorResponse(error);
+    if (accountResponse) return accountResponse;
+    throw error;
+  }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const blockers = await getAccountDeletionBlockers(me.id);

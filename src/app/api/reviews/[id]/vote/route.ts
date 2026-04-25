@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, reviewVoteRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -13,7 +14,14 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   const { success, reset } = await safeRateLimit(reviewVoteRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many review votes.");
 
-  const me = await ensureUser();
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    me = await ensureUser();
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const review = await prisma.review.findUnique({

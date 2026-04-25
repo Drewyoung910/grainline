@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { stripeLoginLinkRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST() {
@@ -11,12 +13,20 @@ export async function POST() {
   const { success, reset } = await safeRateLimit(stripeLoginLinkRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many requests. Try again in a few minutes.");
 
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    include: { sellerProfile: { select: { stripeAccountId: true } } },
-  });
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
-  const stripeAccountId = user?.sellerProfile?.stripeAccountId;
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
+    select: { stripeAccountId: true },
+  });
+  const stripeAccountId = seller?.stripeAccountId;
   if (!stripeAccountId) {
     return NextResponse.json({ error: "No Stripe account connected" }, { status: 400 });
   }

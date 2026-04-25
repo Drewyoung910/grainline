@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
 import { caseMessageRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -155,6 +156,9 @@ export async function POST(
 
     return NextResponse.json(message, { status: 201 });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/cases/[id]/messages error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

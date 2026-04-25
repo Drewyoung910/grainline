@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { z } from "zod";
 import { rateLimitResponse, safeRateLimit, vacationRatelimit } from "@/lib/ratelimit";
 
@@ -43,6 +44,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/seller/vacation error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

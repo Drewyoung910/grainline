@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateSellerMetrics, meetsGuildMasterRequirements } from "@/lib/metrics";
 
 export const runtime = "nodejs";
@@ -606,6 +607,9 @@ export async function GET(req: Request) {
       guildMasterFailures: failingKeys.map((k) => humanFailures[k] ?? k),
     });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("GET /api/seller/analytics error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
