@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type Photo = { id: string; url: string; altText?: string | null };
 
@@ -15,6 +16,7 @@ export default function ListingGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
   // Lightbox swipe
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
@@ -22,23 +24,18 @@ export default function ListingGallery({
   const mainTouchStartX = useRef<number>(0);
   const mainSwiped = useRef(false);
 
+  useDialogFocus(lightboxOpen, dialogRef, () => setLightboxOpen(false));
+  useBodyScrollLock(lightboxOpen);
+
   useEffect(() => {
     if (!lightboxOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setLightboxOpen(false);
       if (e.key === "ArrowRight") setLightboxIndex((i) => (i + 1) % photos.length);
       if (e.key === "ArrowLeft") setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxOpen, photos.length]);
-
-  useEffect(() => {
-    document.body.style.overflow = lightboxOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [lightboxOpen]);
 
   if (photos.length === 0) return null;
 
@@ -133,9 +130,11 @@ export default function ListingGallery({
       {/* Lightbox */}
       {lightboxOpen && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Image lightbox"
+          tabIndex={-1}
           className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
           onClick={() => setLightboxOpen(false)}
           onTouchStart={handleTouchStart}

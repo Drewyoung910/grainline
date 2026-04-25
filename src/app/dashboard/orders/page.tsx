@@ -123,7 +123,7 @@ export default async function OrdersPage() {
                             {it.listing.title}
                           </Link>
                           <div className="text-xs text-neutral-500">
-                            Seller: {it.listing.seller.displayName}
+                            Maker: {it.listing.seller.displayName}
                           </div>
                           <div className="mt-1 text-sm text-neutral-700">
                             {fmtMoney(it.priceCents, currency)} × {it.quantity}
@@ -181,7 +181,6 @@ export default async function OrdersPage() {
     </main>
   );
 }
-
 
 
 

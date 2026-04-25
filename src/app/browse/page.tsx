@@ -572,7 +572,7 @@ export default async function BrowsePage({
   // ── List card renderer ─────────────────────────────────────────────────────
   function ListCard({ l }: { l: ListingWithIncludes }) {
     const img = l.photos[0]?.url ?? "/favicon.ico";
-    const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Seller";
+    const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
     const shop = sellerRatings.get(l.sellerId);
     const isInStock = l.listingType === "IN_STOCK";
     const outOfStock = l.status === "SOLD_OUT" || (isInStock && (l.stockQuantity ?? 0) <= 0);

@@ -242,7 +242,7 @@ function CartPage() {
       if (!acc[key]) {
         acc[key] = {
           sellerId: key,
-          sellerName: it.listing.sellerName || "Seller",
+          sellerName: it.listing.sellerName || "Maker",
           items: [],
           subtotalCents: 0,
         };
@@ -261,7 +261,7 @@ function CartPage() {
       <section key={g.sellerId} className="card-section">
         <header className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
           <div className="text-sm text-neutral-700">
-            <span className="text-neutral-500">Seller:</span>{" "}
+            <span className="text-neutral-500">Maker:</span>{" "}
             <span className="font-medium">{g.sellerName}</span>
           </div>
           <div className="text-sm">

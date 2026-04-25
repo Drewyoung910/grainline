@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { Filter } from "@/components/icons";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 const SORT_LABELS: Record<string, string> = {
   relevant: "Relevant",
@@ -25,14 +26,25 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
   const [geoLat, setGeoLat] = React.useState(searchParams.get("lat") ?? "");
   const [geoLng, setGeoLng] = React.useState(searchParams.get("lng") ?? "");
   const [locating, setLocating] = React.useState(false);
+  const [geoError, setGeoError] = React.useState<string | null>(null);
   const [mounted, setMounted] = React.useState(false);
+  const filterSheetRef = React.useRef<HTMLDivElement>(null);
+  const sortSheetRef = React.useRef<HTMLDivElement>(null);
+
+  useDialogFocus(mobileOpen, filterSheetRef, () => setMobileOpen(false));
+  useDialogFocus(sortOpen, sortSheetRef, () => setSortOpen(false));
+  useBodyScrollLock(mobileOpen || sortOpen);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
   function detectLocation() {
-    if (!navigator.geolocation) return;
+    setGeoError(null);
+    if (!navigator.geolocation) {
+      setGeoError("Location is not available in this browser.");
+      return;
+    }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -40,7 +52,15 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         setGeoLng(pos.coords.longitude.toFixed(5));
         setLocating(false);
       },
-      () => setLocating(false)
+      (error) => {
+        setLocating(false);
+        setGeoError(
+          error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied."
+            : "Could not detect your location. Try again or enter a radius without location filtering."
+        );
+      },
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
     );
   }
 
@@ -71,27 +91,6 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
     setMobileOpen(false);
     setSortOpen(false);
   }, [searchParams]);
-
-  // Close sheets on Escape
-  React.useEffect(() => {
-    if (!mobileOpen && !sortOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMobileOpen(false);
-        setSortOpen(false);
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [mobileOpen, sortOpen]);
-
-  // Lock body scroll when any sheet is open
-  React.useEffect(() => {
-    document.body.style.overflow = (mobileOpen || sortOpen) ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileOpen, sortOpen]);
 
   const currentCategory = searchParams.get("category") ?? "";
   const currentType = searchParams.get("type") ?? "";
@@ -257,6 +256,11 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
               {geoLat}, {geoLng}
             </div>
           )}
+          {geoError && (
+            <div className="text-xs text-red-600">
+              {geoError}
+            </div>
+          )}
           <input
             name="radius"
             type="number"
@@ -331,7 +335,14 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       />
 
       {/* Sheet panel — rounded top only, max-h caps height but allows shorter content to show shorter sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl">
+      <div
+        ref={filterSheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filters"
+        tabIndex={-1}
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[85vh] md:hidden animate-slide-up shadow-2xl"
+      >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="h-1 w-10 rounded-full bg-neutral-300" />
@@ -367,7 +378,14 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       />
 
       {/* Sort sheet panel — smaller max-h so short list shows a compact sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[50vh] md:hidden animate-slide-up shadow-2xl">
+      <div
+        ref={sortSheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sort listings"
+        tabIndex={-1}
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl max-h-[50vh] md:hidden animate-slide-up shadow-2xl"
+      >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2 shrink-0">
           <div className="h-1 w-10 rounded-full bg-neutral-300" />

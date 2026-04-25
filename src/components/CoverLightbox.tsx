@@ -1,7 +1,8 @@
 // src/components/CoverLightbox.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useRef, useState } from "react";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 export default function CoverLightbox({
   src,
@@ -13,22 +14,10 @@ export default function CoverLightbox({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
+  useDialogFocus(open, dialogRef, () => setOpen(false));
+  useBodyScrollLock(open);
 
   return (
     <>
@@ -43,9 +32,11 @@ export default function CoverLightbox({
 
       {open && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Image lightbox"
+          tabIndex={-1}
           className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
           onClick={() => setOpen(false)}
         >

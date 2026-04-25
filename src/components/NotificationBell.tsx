@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import type { NotificationType } from "@prisma/client";
 import {
   Bell,
   Package,
@@ -18,34 +19,6 @@ import {
   User,
 } from "@/components/icons";
 
-type NotificationType =
-  | "NEW_MESSAGE"
-  | "NEW_ORDER"
-  | "ORDER_SHIPPED"
-  | "ORDER_DELIVERED"
-  | "CASE_OPENED"
-  | "CASE_MESSAGE"
-  | "CASE_RESOLVED"
-  | "CUSTOM_ORDER_REQUEST"
-  | "CUSTOM_ORDER_LINK"
-  | "VERIFICATION_APPROVED"
-  | "VERIFICATION_REJECTED"
-  | "BACK_IN_STOCK"
-  | "NEW_REVIEW"
-  | "LOW_STOCK"
-  | "NEW_FAVORITE"
-  | "NEW_BLOG_COMMENT"
-  | "BLOG_COMMENT_REPLY"
-  | "NEW_FOLLOWER"
-  | "FOLLOWED_MAKER_NEW_LISTING"
-  | "FOLLOWED_MAKER_NEW_BLOG"
-  | "SELLER_BROADCAST"
-  | "COMMISSION_INTEREST"
-  | "LISTING_APPROVED"
-  | "LISTING_REJECTED"
-  | "PAYMENT_DISPUTE"
-  | "PAYOUT_FAILED";
-
 type NotificationItem = {
   id: string;
   type: NotificationType;
@@ -55,6 +28,19 @@ type NotificationItem = {
   read: boolean;
   createdAt: string;
 };
+
+const NOTIFICATION_CHANNEL = "grainline:notifications";
+
+type NotificationSyncMessage =
+  | { type: "all-read" }
+  | { type: "read"; id: string };
+
+function broadcastNotificationSync(message: NotificationSyncMessage) {
+  if (typeof window === "undefined" || !("BroadcastChannel" in window)) return;
+  const channel = new BroadcastChannel(NOTIFICATION_CHANNEL);
+  channel.postMessage(message);
+  channel.close();
+}
 
 function typeIcon(type: NotificationType) {
   switch (type) {
@@ -153,6 +139,26 @@ export default function NotificationBell({
     if (!isSignedIn) return;
     if (!loaded) fetchNotifications();
   }, [loaded, fetchNotifications, isSignedIn]);
+
+  React.useEffect(() => {
+    if (!("BroadcastChannel" in window)) return;
+
+    const channel = new BroadcastChannel(NOTIFICATION_CHANNEL);
+    channel.onmessage = (event: MessageEvent<NotificationSyncMessage>) => {
+      const message = event.data;
+      if (message.type === "all-read") {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        setUnreadCount(0);
+      } else if (message.type === "read") {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === message.id ? { ...n, read: true } : n))
+        );
+        setUnreadCount((count) => Math.max(0, count - 1));
+      }
+    };
+
+    return () => channel.close();
+  }, []);
 
   // Smart polling: adapts interval based on user activity and tab visibility.
   // Active + recent activity: 60s. Idle > 5min: 5min. Background tab: 15min.
@@ -263,6 +269,7 @@ export default function NotificationBell({
     await fetch("/api/notifications/read-all", { method: "POST" });
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
+    broadcastNotificationSync({ type: "all-read" });
   };
 
   const markRead = async (n: NotificationItem) => {
@@ -272,6 +279,7 @@ export default function NotificationBell({
         prev.map((x) => (x.id === n.id ? { ...x, read: true } : x))
       );
       setUnreadCount((c) => Math.max(0, c - 1));
+      broadcastNotificationSync({ type: "read", id: n.id });
     }
     if (n.link) {
       setOpen(false);

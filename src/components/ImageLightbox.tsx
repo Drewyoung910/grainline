@@ -1,30 +1,27 @@
 // src/components/ImageLightbox.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 export function ImageLightbox({ images }: { images: string[] }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
+
+  useDialogFocus(open, dialogRef, () => setOpen(false));
+  useBodyScrollLock(open);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (!open) return;
-      if (e.key === "Escape") setOpen(false);
       if (e.key === "ArrowRight") setActiveIndex((i) => (i + 1) % images.length);
       if (e.key === "ArrowLeft") setActiveIndex((i) => (i - 1 + images.length) % images.length);
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, images.length]);
-
-  useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
 
   if (images.length === 0) return null;
 
@@ -62,9 +59,11 @@ export function ImageLightbox({ images }: { images: string[] }) {
       {/* Lightbox modal */}
       {open && (
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Image lightbox"
+          tabIndex={-1}
           className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
           onClick={() => setOpen(false)}
           onTouchStart={handleTouchStart}

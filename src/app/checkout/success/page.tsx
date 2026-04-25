@@ -406,7 +406,7 @@ export default async function CheckoutSuccessPage({
                   <Link href={`/listing/${it.listingId}`} className="block truncate text-sm font-medium hover:underline">
                     {it.listing.title}
                   </Link>
-                  <div className="text-xs text-neutral-500">Seller: {it.listing.seller.displayName}</div>
+                  <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
                   <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, currency)} × {it.quantity}</div>
                 </div>
                 <div className="text-sm font-medium">{fmtMoney(it.priceCents * it.quantity, currency)}</div>
@@ -445,5 +445,4 @@ export default async function CheckoutSuccessPage({
     </main>
   );
 }
-
 

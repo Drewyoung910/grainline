@@ -3084,6 +3084,80 @@ Small hardening pass after the deployed cart/media cleanup. Scope focused on low
 - `npm run lint` passed with 0 ESLint warnings.
 - `git diff --check` passed.
 
+## Round 7 Continuation Cleanup Pass 4 (2026-04-24)
+
+Follow-up audit pass against the remaining 300+ item backlog. This pass first re-checked the pasted findings against the current repo and skipped stale items that were already fixed in earlier commits. Scope focused on still-real accessibility/mobile issues, notification scalability, active-user enforcement gaps, and public seller visibility/copy consistency. No Prisma schema migration was required.
+
+### Dialog, lightbox, and mobile sheet accessibility
+- Added shared client utilities in `src/lib/dialogFocus.ts`:
+  - `useDialogFocus()` traps Tab focus inside open dialogs, closes on Escape, and restores focus to the opener on close.
+  - `useBodyScrollLock()` uses a reference-counted lock and preserves/restores scroll position; it locks both `html` and `body` and uses fixed-body positioning to behave better on iOS Safari.
+- Applied the shared dialog handling to:
+  - `CoverLightbox`
+  - `ImageLightbox`
+  - `ListingGallery`
+  - `SellerGallery`
+  - `Header` mobile drawer
+  - `MobileFilterBar` filter and sort sheets
+  - `BuyNowCheckoutModal`
+- Mobile filter and sort sheets now have `role="dialog"`, `aria-modal="true"`, labels, focus trapping, and focus restoration.
+- Removed remaining direct `document.body.style.overflow` modal locks from these components.
+- Mobile geolocation in `MobileFilterBar` now has an 8-second timeout, a 5-minute cached-position allowance, and inline permission/failure messaging.
+
+### Notification scalability and consistency
+- Removed notification pruning from the `/api/notifications` polling path. The old minute-zero prune could create a thundering herd across active users.
+- Added `GET /api/cron/notification-prune`, protected by `verifyCronRequest()`, to delete read notifications older than 90 days.
+- Added the cron to `vercel.json` at `30 7 * * *`.
+- `NotificationBell` now imports the generated Prisma `NotificationType` type instead of maintaining a hand-written enum copy.
+- `NotificationBell` now uses `BroadcastChannel` to sync "mark read" and "mark all read" actions across open tabs.
+- Notification read endpoints now use active-user guards and rate limiting where applicable:
+  - `/api/notifications`
+  - `/api/notifications/read-all`
+  - `/api/notifications/[id]/read`
+
+### Active-user enforcement hardening
+- Stock notification subscribe/unsubscribe now uses `ensureUserByClerkId()` and blocks banned/deleted users.
+- Stock notification subscribe now requires the listing to be public, active, visible, in-stock-type, and currently out of stock.
+- Saved blog post save/unsave now treats banned/deleted users as unauthorized instead of allowing secondary actions.
+- Favorite delete now uses the active-user guard.
+- Account unblock server action now uses the active-user guard.
+- Follow/unfollow DELETE now uses the active-user guard, matching follow POST.
+- Message read/list/SSE stream endpoints now use the active-user guard so suspended/deleted users cannot continue reading message state through secondary endpoints.
+- Onboarding server actions now reject banned/deleted users before mutating seller onboarding/profile data.
+
+### Public map and buyer-facing copy cleanup
+- Legacy `/sellers/map` now filters public pins to sellers who are charges-enabled, not on vacation, and whose user is not banned/deleted.
+- `/map` metro browse links now only consider charges-enabled, non-vacation, non-banned/non-deleted makers.
+- Buyer-facing fallback/copy changed from "Seller" to "Maker" in:
+  - public map pins
+  - listing detail fallback names
+  - seller profile metadata/JSON-LD fallback names
+  - browse list cards
+  - cart seller group heading
+  - buyer order list/detail receipt rows
+  - checkout success receipt rows
+- `src/lib/security.ts` newsletter CSRF note updated to reflect the existing newsletter rate limiter.
+
+### Items re-checked and confirmed already fixed before this pass
+- Remaining route-rate-limit findings for review replies, review edits, admin listing review, fulfillment updates, cart/case/stock/photo actions were stale; those routes already use project rate limiters.
+- Notification type union missing new types was stale in behavior; all newer notification types were already handled. This pass still removed the manual type copy to avoid future drift.
+- Header nav already had `aria-label="Main navigation"`.
+- Admin email subject CRLF stripping was already implemented through `safeSubject()`.
+- Case status labels were already centralized in `src/lib/caseLabels.ts`.
+- `document.body.style.overflow` direct modal locks are now gone from the audited dialog/lightbox components.
+
+### Verification
+- `npx tsc --noEmit --incremental false` passed.
+- `npx prisma validate` passed.
+- `npm run lint` passed; output contains only the existing upstream `jsx-ast-utils` resolver notice and no ESLint warnings.
+
+### Still open / separate future passes
+- Legal/business blockers remain non-code: attorney sign-off, money-transmitter confirmation, INFORM/legal workflow alignment, and business insurance.
+- Migration hygiene for already-applied raw/index migrations should be handled carefully after checking production `_prisma_migrations`.
+- Larger refactors remain: webhook splitting, checkout route consolidation, constants centralization, email module split, and real test coverage.
+- Performance passes still worth doing: seller analytics query consolidation, homepage/listing-page query reduction, browse SQL bounding boxes, and large-cron chunking.
+- Accessibility/mobile items still worth separate manual QA: photo reorder touch ergonomics, MapLibre WebGL fallback, visualViewport handling for iOS keyboard, and portrait-photo gallery framing.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

@@ -19,10 +19,15 @@ async function getSeller(): Promise<{ id: string; onboardingStep: number }> {
   if (!userId) throw new Error("Not signed in");
   const seller = await prisma.sellerProfile.findFirst({
     where: { user: { clerkId: userId } },
-    select: { id: true, onboardingStep: true },
+    select: {
+      id: true,
+      onboardingStep: true,
+      user: { select: { banned: true, deletedAt: true } },
+    },
   });
   if (!seller) throw new Error("No seller profile");
-  return seller;
+  if (seller.user.banned || seller.user.deletedAt) throw new Error("Account suspended");
+  return { id: seller.id, onboardingStep: seller.onboardingStep };
 }
 
 export async function saveStep1(formData: FormData): Promise<ActionResult> {

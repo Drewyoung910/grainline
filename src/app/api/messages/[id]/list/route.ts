@@ -2,6 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 
 export async function GET(
   req: Request,
@@ -12,11 +13,7 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
 
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true },
-  });
-  if (!me) return NextResponse.json({ ok: false }, { status: 401 });
+  const me = await ensureUserByClerkId(userId);
 
   // Only if I’m in this conversation
   const belongs = await prisma.conversation.findFirst({

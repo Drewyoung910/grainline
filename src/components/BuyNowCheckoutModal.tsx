@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ShippingAddressForm from "./ShippingAddressForm";
 import ShippingRateSelector from "./ShippingRateSelector";
@@ -10,6 +10,7 @@ import type {
   ShippingAddress,
   SelectedShippingRate,
 } from "@/types/checkout";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type ModalStep = "address" | "shipping" | "payment";
 
@@ -57,6 +58,10 @@ export default function BuyNowCheckoutModal({
   const [giftWrapping, setGiftWrapping] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useDialogFocus(isOpen, dialogRef, onClose);
+  useBodyScrollLock(isOpen);
 
   // Reset payment/rate state when modal closes. Shipping rates are signed and
   // short-lived, so preserving selectedRate across re-open can create HMAC
@@ -71,16 +76,6 @@ export default function BuyNowCheckoutModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
-
-  // Close on Escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, onClose]);
 
   async function handleProceedToPayment() {
     if (!shippingAddress || !selectedRate) return;
@@ -123,6 +118,11 @@ export default function BuyNowCheckoutModal({
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Buy ${listingTitle}`}
+        tabIndex={-1}
         className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-auto mb-8"
         onClick={(e) => e.stopPropagation()}
       >

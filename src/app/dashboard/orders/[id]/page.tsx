@@ -275,7 +275,7 @@ export default async function BuyerOrderDetailPage({
                     </span>
                   )}
                   <div className="text-xs text-neutral-500">
-                    Seller: {it.listing.seller.displayName}
+                    Maker: {it.listing.seller.displayName}
                   </div>
                   {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (
                     <p className="text-xs text-neutral-500 mt-0.5">

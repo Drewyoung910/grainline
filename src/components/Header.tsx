@@ -10,6 +10,7 @@ import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
 import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User } from "@/components/icons";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 // Set to false to hide Commission Room from nav
 const COMMISSION_ROOM_ENABLED = true;
@@ -31,6 +32,9 @@ export default function Header() {
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
 
+  useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false));
+  useBodyScrollLock(drawerOpen);
+
   // Close drawer and search on navigation
   React.useEffect(() => {
     setDrawerOpen(false);
@@ -48,15 +52,6 @@ export default function Header() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
-
-  // Lock body scroll when drawer is open
-  React.useEffect(() => {
-    document.body.style.overflow = drawerOpen ? "hidden" : "";
-    if (drawerOpen) drawerRef.current?.focus();
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [drawerOpen]);
 
   const loadCartCount = React.useCallback(async () => {
     try {

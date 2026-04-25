@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { markReadRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 
 export const runtime = "nodejs";
 
@@ -12,8 +13,7 @@ export async function POST(req: Request) {
   const { success } = await safeRateLimitOpen(markReadRatelimit, userId);
   if (!success) return NextResponse.json({ ok: true }); // Silently succeed — non-critical
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const me = await ensureUserByClerkId(userId);
 
   const body = await req.json().catch(() => ({}));
   const ids = Array.isArray(body?.ids)

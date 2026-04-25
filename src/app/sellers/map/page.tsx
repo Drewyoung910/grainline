@@ -10,6 +10,9 @@ export default async function SellersMapPage() {
       lat: { not: null },
       lng: { not: null },
       publicMapOptIn: true,
+      chargesEnabled: true,
+      vacationMode: false,
+      user: { banned: false, deletedAt: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }], // exact pins only
     },
     select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
@@ -18,7 +21,7 @@ export default async function SellersMapPage() {
 
   const pins = sellers.map((s) => ({
     id: s.id,
-    name: s.displayName ?? "Seller",
+    name: s.displayName ?? "Maker",
     lat: Number(s.lat),
     lng: Number(s.lng),
     city: s.city,
@@ -31,7 +34,7 @@ export default async function SellersMapPage() {
         <div>
           <h1 className="text-2xl font-semibold">Find makers near you</h1>
           <p className="text-sm text-neutral-600 mt-1">
-            Sellers who opted into the public map appear as exact pins. Click a pin to preview a profile.
+            Makers who opted into the public map appear as exact pins. Click a pin to preview a profile.
           </p>
         </div>
       </header>

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUser, ensureUserByClerkId } from "@/lib/ensureUser";
 import { followRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 
@@ -135,8 +135,7 @@ export async function DELETE(
   const { success: rlOk, reset } = await safeRateLimit(followRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const me = await ensureUserByClerkId(userId);
 
   const sellerProfile = await prisma.sellerProfile.findUnique({
     where: { id: sellerId },

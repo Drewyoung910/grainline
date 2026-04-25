@@ -42,7 +42,7 @@ export async function generateMetadata({
     return { robots: { index: false, follow: false } };
   }
 
-  const name = seller.displayName ?? "Seller";
+  const name = seller.displayName ?? "Maker";
   const title = `${name} — Handmade Woodworking on Grainline`;
   const description =
     seller.bio?.slice(0, 160) ||
@@ -215,7 +215,7 @@ export default async function SellerPublicPage({
   const businessLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    name: seller.displayName ?? "Seller",
+    name: seller.displayName ?? "Maker",
     description: seller.bio ?? undefined,
     url: `https://thegrainline.com/seller/${seller.id}`,
     knowsAbout: "Handmade Woodworking",

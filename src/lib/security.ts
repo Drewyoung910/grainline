@@ -25,7 +25,7 @@
  *    — Upserts a NewsletterSubscriber row (email + name). No sensitive user
  *      data accessed; worst-case a cross-origin form could subscribe an email
  *      address the attacker already knows. Acceptable low-risk public action;
- *      rate-limiting is the appropriate mitigation here (not yet applied — noted).
+ *      protected by the public newsletter IP rate limiter.
  *
  * 5. POST /api/listings/[id]/view
  *    — Fire-and-forget analytics increment (viewCount). No user data accessed

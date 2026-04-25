@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function POST(
   _req: Request,
@@ -13,11 +15,19 @@ export async function POST(
 
   const { id: listingId } = await params;
 
-  const user = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const user = await ensureUserByClerkId(clerkId);
 
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
   if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
+
+  const listing = await prisma.listing.findFirst({
+    where: publicListingWhere({ id: listingId }),
+    select: { id: true, listingType: true, stockQuantity: true },
+  });
+  if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });
+  if (listing.listingType !== "IN_STOCK" || (listing.stockQuantity ?? 0) > 0) {
+    return NextResponse.json({ error: "Notifications are only available for out-of-stock items." }, { status: 400 });
+  }
 
   await prisma.stockNotification.upsert({
     where: { listingId_userId: { listingId, userId: user.id } },
@@ -37,8 +47,7 @@ export async function DELETE(
 
   const { id: listingId } = await params;
 
-  const user = await prisma.user.findUnique({ where: { clerkId }, select: { id: true } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const user = await ensureUserByClerkId(clerkId);
 
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
   if (!rlOk) return rateLimitResponse(reset, "Too many requests.");

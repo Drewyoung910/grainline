@@ -9,7 +9,12 @@ async function getPost(slug: string) {
 }
 
 async function getMe(userId: string) {
-  return prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
+  if (!user || user.banned || user.deletedAt) return null;
+  return { id: user.id };
 }
 
 // GET — check if saved

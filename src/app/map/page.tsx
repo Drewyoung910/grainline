@@ -62,8 +62,24 @@ export default async function AllSellersMapPage({
     where: {
       isActive: true,
       OR: [
-        { sellerProfiles: { some: { chargesEnabled: true } } },
-        { sellerCityProfiles: { some: { chargesEnabled: true } } },
+        {
+          sellerProfiles: {
+            some: {
+              chargesEnabled: true,
+              vacationMode: false,
+              user: { banned: false, deletedAt: null },
+            },
+          },
+        },
+        {
+          sellerCityProfiles: {
+            some: {
+              chargesEnabled: true,
+              vacationMode: false,
+              user: { banned: false, deletedAt: null },
+            },
+          },
+        },
       ],
     },
     select: { id: true, slug: true, name: true, state: true, parentMetroId: true },
@@ -104,7 +120,7 @@ export default async function AllSellersMapPage({
   const points: Point[] = sellers
     .map((s) => ({
       id: s.id,
-      name: s.displayName ?? "Seller",
+      name: s.displayName ?? "Maker",
       lat: Number(s.lat),
       lng: Number(s.lng),
       city: s.city,

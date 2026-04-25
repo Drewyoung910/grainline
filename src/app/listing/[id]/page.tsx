@@ -249,7 +249,7 @@ export default async function ListingPage({
   }
 
   const sellerName =
-    listing.seller.displayName ?? listing.seller.user?.email ?? "Seller";
+    listing.seller.displayName ?? listing.seller.user?.email ?? "Maker";
   const sellerHref = `/seller/${listing.sellerId}`;
   const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
 
