@@ -219,6 +219,7 @@ export default async function HomePage() {
       where: {
         publicMapOptIn: true,
         chargesEnabled: true,
+        vacationMode: false,
         user: { banned: false, deletedAt: null },
         lat: { not: null },
         lng: { not: null },
@@ -247,7 +248,13 @@ export default async function HomePage() {
     Promise.all([
       prisma.listing.count({ where: publicListingWhere() }),
       prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null }, listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } } } }),
-      prisma.order.count({ where: { paidAt: { not: null } } }),
+      prisma.order.count({
+        where: {
+          paidAt: { not: null },
+          sellerRefundId: null,
+          fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
+        },
+      }),
       prisma.user.count({ where: { banned: false, deletedAt: null } }),
     ]),
     prisma.blogPost.findMany({

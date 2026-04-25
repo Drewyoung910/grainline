@@ -1,6 +1,7 @@
 // src/app/api/orders/[id]/refund/route.ts
-// Seller-initiated refund. Issues a Stripe refund immediately.
-// For FULL refunds: also reverses the seller's Stripe transfer and restores IN_STOCK inventory.
+// Seller-initiated refund. Issues a Stripe refund immediately using Stripe's
+// refund_application_fee + reverse_transfer flags. Full refunds also restore
+// IN_STOCK inventory.
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
@@ -8,6 +9,7 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendRefundIssued } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
+import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -17,6 +19,8 @@ const RefundSchema = z.object({
 });
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+export const preferredRegion = "iad1";
 
 export async function POST(
   req: Request,
@@ -27,6 +31,10 @@ export async function POST(
 
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(refundRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many refund attempts.");
+
     const me = await ensureUserByClerkId(userId);
 
     let refundParsed;
@@ -74,7 +82,15 @@ export async function POST(
     if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     if (order.sellerRefundId) {
-      return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
+      const pending = order.sellerRefundId === "pending";
+      return NextResponse.json(
+        {
+          error: pending
+            ? "A refund is already being processed for this order."
+            : "A refund has already been issued for this order.",
+        },
+        { status: pending ? 409 : 400 },
+      );
     }
 
     if (!order.stripePaymentIntentId) {
@@ -231,6 +247,7 @@ export async function POST(
     });
   } catch (err) {
     console.error("POST /api/orders/[id]/refund error:", err);
+    Sentry.captureException(err, { tags: { source: "seller_refund" } });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

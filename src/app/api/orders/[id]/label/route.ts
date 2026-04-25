@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
+import { labelPurchaseRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -67,8 +68,11 @@ function prioritizeAndTrim(rates: LiveRate[], max = 4): LiveRate[] {
 }
 
 async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
-  const me = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
-  if (!me) return null;
+  const me = await prisma.user.findUnique({
+    where: { clerkId: clerkUserId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
+  if (!me || me.banned || me.deletedAt) return null;
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
@@ -124,6 +128,9 @@ export async function POST(
 
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(labelPurchaseRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many label purchase attempts.");
 
     const authz = await ensureSellerOwnsOrder(userId, id);
     if (!authz) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -319,6 +326,13 @@ export async function POST(
     };
 
     let shippoPurchaseSucceeded = false;
+    let purchasedLabelDetails: {
+      transactionId?: string;
+      labelUrl?: string;
+      trackingNumber?: string;
+      carrier?: string;
+      labelCostCents?: number;
+    } | null = null;
 
     try {
 
@@ -352,6 +366,13 @@ export async function POST(
     shippoPurchaseSucceeded = true;
 
     const labelCostCents = Math.round(Number(txn.rate?.amount ?? 0) * 100);
+    purchasedLabelDetails = {
+      transactionId: txn.object_id,
+      labelUrl: txn.label_url,
+      trackingNumber: txn.tracking_number,
+      carrier: txn.rate?.provider,
+      labelCostCents,
+    };
     const now = new Date();
 
     const updated = await prisma.order.update({
@@ -382,9 +403,15 @@ export async function POST(
           await stripe.transfers.createReversal(order.stripeTransferId, {
             amount: labelCostCents,
             metadata: { orderId: id, reason: "label_cost_deduction" },
+          }, {
+            idempotencyKey: `label-cost:${id}:${txn.object_id ?? effectiveRateObjectId}:${labelCostCents}`,
           });
         } catch (stripeErr) {
           console.warn(`Stripe label cost clawback failed for order ${id}:`, stripeErr);
+          Sentry.captureException(stripeErr, {
+            tags: { source: "label_cost_clawback" },
+            extra: { orderId: id, stripeTransferId: order.stripeTransferId, labelCostCents },
+          });
         }
       }
     }
@@ -396,8 +423,26 @@ export async function POST(
       } else {
         Sentry.captureException(labelErr, {
           tags: { source: "shippo_label_post_purchase_db_update" },
-          extra: { orderId: id },
+          extra: { orderId: id, purchasedLabelDetails },
         });
+        await prisma.order.updateMany({
+          where: { id, labelStatus: "PURCHASED" },
+          data: {
+            reviewNeeded: true,
+            reviewNote: `ORPHANED LABEL: Shippo label ${purchasedLabelDetails?.transactionId ?? "unknown"} may have been purchased, but follow-up DB work failed. Manual reconciliation required.`,
+            ...(purchasedLabelDetails?.transactionId ? { shippoTransactionId: purchasedLabelDetails.transactionId } : {}),
+            ...(purchasedLabelDetails?.labelUrl ? { labelUrl: purchasedLabelDetails.labelUrl } : {}),
+            ...(purchasedLabelDetails?.trackingNumber ? {
+              labelTrackingNumber: purchasedLabelDetails.trackingNumber,
+              trackingNumber: purchasedLabelDetails.trackingNumber,
+            } : {}),
+            ...(purchasedLabelDetails?.carrier ? {
+              labelCarrier: purchasedLabelDetails.carrier,
+              trackingCarrier: purchasedLabelDetails.carrier,
+            } : {}),
+            ...(typeof purchasedLabelDetails?.labelCostCents === "number" ? { labelCostCents: purchasedLabelDetails.labelCostCents } : {}),
+          },
+        }).catch(() => {});
       }
       throw labelErr;
     }

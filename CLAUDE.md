@@ -4655,3 +4655,32 @@ Read this together with the Rounds 1-7 follow-up section above. This pass focuse
 - Analytics still has lower-priority refinements: cart abandonment can overcount stale carts, and full net revenue after partial refunds needs per-seller refund allocation data to be mathematically exact.
 - Larger performance work remains: homepage seller-rating query, listing detail round trips, browse geo/rating prefilters, and long-term metrics aggregation.
 - Larger mobile/accessibility work remains: MapLibre no-WebGL fallback, touch-first photo reordering, and iOS visualViewport keyboard handling.
+
+## Audit Pass — Payment Route Guard Rails + Homepage Accuracy (2026-04-25)
+
+Read this with the two Rounds 1-7 follow-up sections above. This pass intentionally kept the existing refund idempotency/lock strategy and added guard rails around it instead of rewriting the payment flow.
+
+### Fixed in this pass
+- **Seller refund route rate-limited**: `POST /api/orders/[id]/refund` now uses `refundRatelimit` (10/hour/user, fail-closed) before reaching Stripe.
+- **Staff case resolution rate-limited**: `POST /api/cases/[id]/resolve` now uses the same refund limiter with a case-resolution key, reducing accidental repeat submits and admin-session abuse.
+- **Label purchase route rate-limited**: `POST /api/orders/[id]/label` now uses `labelPurchaseRatelimit` (10/hour/user, fail-closed) because Shippo label creation costs money and mutates fulfillment state.
+- **Refund/case routes pinned for production runtime**: seller refunds and staff case resolution now export `maxDuration = 60` and `preferredRegion = "iad1"`, matching the other payment/Shippo-heavy routes.
+- **Refund pending state surfaced correctly**: seller and staff refund paths now return a 409-style “refund is already being processed” message when `Order.sellerRefundId === "pending"` instead of describing it as a completed refund.
+- **Seller refund errors sent to Sentry**: top-level seller refund failures now call `Sentry.captureException()` with `source=seller_refund`.
+- **Label purchase blocks suspended sellers**: label ownership checks now reject banned/deleted users before loading seller/order details.
+- **Label-cost reversal idempotency**: Stripe transfer reversals for label-cost clawback now use an idempotency key based on order, Shippo transaction/rate, and amount.
+- **Label clawback failures captured**: Stripe label-cost reversal failures now go to Sentry with order/transfer/amount context instead of only `console.warn`.
+- **Post-purchase label reconciliation note**: if Shippo label purchase succeeds but a later DB write fails, the route keeps `labelStatus=PURCHASED`, captures details in Sentry, and best-effort writes `reviewNeeded`, `reviewNote`, and known label fields so staff can reconcile manually without risking duplicate labels.
+- **Homepage map pin filter tightened**: homepage seller map rows now exclude vacation-mode sellers.
+- **Homepage “orders fulfilled” stat corrected**: the homepage stat now counts paid, non-refunded orders with `DELIVERED` or `PICKED_UP` fulfillment status instead of all paid orders.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+
+### Still open / next good passes
+- External Stripe-dashboard refunds/disputes need continued webhook reconciliation review and manual-ops UX.
+- Label purchase still needs a future first-class “manual reconciliation” admin queue; this pass only preserves state and marks orders for review.
+- Larger query performance work remains: listing detail round trips, browse geo/rating prefilters, and metrics aggregation.
+- Mobile/accessibility work remains: MapLibre fallback, touch-first photo reordering, and iOS keyboard/visualViewport handling.

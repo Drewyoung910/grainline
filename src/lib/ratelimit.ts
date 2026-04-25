@@ -202,6 +202,20 @@ export const fulfillmentRatelimit = new Ratelimit({
   prefix: "rl:fulfillment",
 });
 
+export const refundRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "60 m"),
+  analytics: true,
+  prefix: "rl:refund",
+});
+
+export const labelPurchaseRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "60 m"),
+  analytics: true,
+  prefix: "rl:label_purchase",
+});
+
 export const adminActionRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(120, "10 m"),

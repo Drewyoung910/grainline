@@ -6,10 +6,13 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
+import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+export const preferredRegion = "iad1";
 
 const CaseResolveSchema = z.object({
   resolution: z.enum(["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"]),
@@ -30,6 +33,9 @@ export async function POST(
     if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
+
+    const { success, reset } = await safeRateLimit(refundRatelimit, `case-resolve:${userId}`);
+    if (!success) return rateLimitResponse(reset, "Too many case resolution attempts.");
 
     let parsed;
     try {
@@ -78,8 +84,12 @@ export async function POST(
       caseRecord.order.sellerRefundId
     ) {
       return NextResponse.json(
-        { error: "A refund has already been issued for this order by the seller." },
-        { status: 400 }
+        {
+          error: caseRecord.order.sellerRefundId === "pending"
+            ? "A refund is already being processed for this order."
+            : "A refund has already been issued for this order by the seller.",
+        },
+        { status: caseRecord.order.sellerRefundId === "pending" ? 409 : 400 }
       );
     }
 
