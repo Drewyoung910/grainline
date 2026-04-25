@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const sellers = await prisma.sellerProfile.findMany({
-    where: { guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] } },
+    where: {
+      guildLevel: "GUILD_MEMBER",
+      vacationMode: false,
+    },
     select: {
       id: true,
       userId: true,

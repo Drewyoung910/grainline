@@ -10,7 +10,6 @@ type Photo = {
 
 export default function EditPhotoGrid({
   photos: initialPhotos,
-  listingId,
   onReorder,
   onDelete,
   onSaveAltTexts,

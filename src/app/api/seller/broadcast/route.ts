@@ -22,14 +22,21 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, chargesEnabled: true, vacationMode: true },
   });
   if (!seller) return NextResponse.json({ error: "No seller profile" }, { status: 403 });
+  if (!seller.chargesEnabled || seller.vacationMode) {
+    return NextResponse.json({ error: "Your shop must be active before sending broadcasts." }, { status: 403 });
+  }
 
   const { success: rlOk, reset } = await safeRateLimit(broadcastRatelimit, seller.id);
   if (!rlOk) return rateLimitResponse(reset, "You can send one broadcast per week.");
@@ -119,8 +126,12 @@ export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },

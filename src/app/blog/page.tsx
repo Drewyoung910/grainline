@@ -147,9 +147,13 @@ export default async function BlogIndexPage({
   let tagCloud: Array<{ tag: string; count: number }> = [];
   if (!q && tagsFilter.length === 0) {
     const rows = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
-      SELECT unnest(tags) as tag, COUNT(*) as count
-      FROM "BlogPost"
-      WHERE status = 'PUBLISHED'
+      SELECT tag, COUNT(*) as count
+      FROM "BlogPost" bp
+      INNER JOIN "User" u ON u.id = bp."authorId",
+      unnest(bp.tags) as tag
+      WHERE bp.status = 'PUBLISHED'
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
       GROUP BY tag
       ORDER BY count DESC
       LIMIT 20

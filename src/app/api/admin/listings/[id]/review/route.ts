@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -16,6 +17,8 @@ export async function PATCH(
 ) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, userId)
+  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true }

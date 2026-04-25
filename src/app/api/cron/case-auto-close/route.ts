@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,15 +17,31 @@ export async function GET(req: Request) {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const staleCases = await prisma.case.findMany({
       where: { status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
-      select: { id: true },
+      select: { id: true, buyerId: true, sellerId: true, orderId: true },
     });
 
     let closed = 0;
     for (const c of staleCases) {
       await prisma.case.update({
         where: { id: c.id },
-        data: { status: "RESOLVED", resolution: "DISMISSED" },
+        data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt: new Date() },
       });
+      await Promise.allSettled([
+        createNotification({
+          userId: c.buyerId,
+          type: "CASE_RESOLVED",
+          title: "Case closed",
+          body: "This case was closed automatically after the resolution window expired.",
+          link: `/dashboard/orders/${c.orderId}`,
+        }),
+        createNotification({
+          userId: c.sellerId,
+          type: "CASE_RESOLVED",
+          title: "Case closed",
+          body: "This case was closed automatically after the resolution window expired.",
+          link: `/dashboard/sales/${c.orderId}`,
+        }),
+      ]);
       closed++;
     }
 
@@ -32,7 +49,7 @@ export async function GET(req: Request) {
     const openCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const abandonedOpen = await prisma.case.findMany({
       where: { status: "OPEN", sellerRespondBy: { lt: openCutoff } },
-      select: { id: true },
+      select: { id: true, buyerId: true, sellerId: true, orderId: true },
     });
 
     for (const c of abandonedOpen) {
@@ -40,6 +57,22 @@ export async function GET(req: Request) {
         where: { id: c.id },
         data: { status: "UNDER_REVIEW" },
       });
+      await Promise.allSettled([
+        createNotification({
+          userId: c.buyerId,
+          type: "CASE_MESSAGE",
+          title: "Case under review",
+          body: "The seller did not respond in time, so Grainline staff will review this case.",
+          link: `/dashboard/orders/${c.orderId}`,
+        }),
+        createNotification({
+          userId: c.sellerId,
+          type: "CASE_MESSAGE",
+          title: "Case escalated",
+          body: "This case was escalated to Grainline staff because the response window expired.",
+          link: `/dashboard/sales/${c.orderId}`,
+        }),
+      ]);
       closed++;
     }
 

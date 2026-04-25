@@ -5,6 +5,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
 
 const ALLOWED_TYPES = [
@@ -14,6 +15,7 @@ const ALLOWED_TYPES = [
 ];
 
 const PROCESSED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "listingVideo", "bannerImage", "galleryImage"]);
 
 const MAX_SIZES: Record<string, number> = {
   listingImage: 8 * 1024 * 1024,
@@ -51,7 +53,7 @@ const Schema = z.object({
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  await ensureUserByClerkId(userId);
+  const me = await ensureUserByClerkId(userId);
 
   const { success: rlOk, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many uploads.");
@@ -59,11 +61,21 @@ export async function POST(req: NextRequest) {
   let body;
   try {
     body = Schema.parse(await req.json());
-  } catch {
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+    }
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
   const { filename, contentType, size, endpoint, fileIndex } = body;
+  if (SELLER_ONLY_ENDPOINTS.has(endpoint)) {
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { userId: me.id },
+      select: { id: true },
+    });
+    if (!seller) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+  }
 
   if (PROCESSED_IMAGE_TYPES.includes(contentType)) {
     return NextResponse.json(

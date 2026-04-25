@@ -22,27 +22,36 @@ export async function GET(req: NextRequest) {
   const [postRows, tagRows, authorRows] = await Promise.all([
     // Fuzzy title matches
     prisma.$queryRaw<Array<{ slug: string; title: string }>>`
-      SELECT slug, title
-      FROM "BlogPost"
-      WHERE status = 'PUBLISHED'
-        AND similarity(title, ${q}) > 0.2
-      ORDER BY similarity(title, ${q}) DESC
+      SELECT bp.slug, bp.title
+      FROM "BlogPost" bp
+      INNER JOIN "User" u ON u.id = bp."authorId"
+      WHERE bp.status = 'PUBLISHED'
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND similarity(bp.title, ${q}) > 0.2
+      ORDER BY similarity(bp.title, ${q}) DESC
       LIMIT 5
     `,
 
     // Tag partial matches
     prisma.$queryRaw<Array<{ tag: string }>>`
       SELECT DISTINCT tag
-      FROM "BlogPost",
-           unnest(tags) AS tag
-      WHERE status = 'PUBLISHED'
+      FROM "BlogPost" bp
+      INNER JOIN "User" u ON u.id = bp."authorId",
+           unnest(bp.tags) AS tag
+      WHERE bp.status = 'PUBLISHED'
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
         AND tag ILIKE ${`%${q}%`}
       LIMIT 5
     `,
 
     // Author / seller display name matches
     prisma.sellerProfile.findMany({
-      where: { displayName: { contains: q, mode: "insensitive" } },
+      where: {
+        displayName: { contains: q, mode: "insensitive" },
+        user: { banned: false, deletedAt: null },
+      },
       select: { id: true, displayName: true },
       take: 3,
     }),

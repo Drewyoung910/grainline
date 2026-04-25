@@ -2936,6 +2936,60 @@ Continuation of the 300-item audit backlog while Claude pass 5 was running. Scop
 - Sandboxed `npm run build` hit the known Turbopack internal worker port restriction (`Operation not permitted`).
 - `npm run build` passed outside the sandbox. The build confirmed `/terms`, `/privacy`, and `/accessibility` now show 1-day revalidation.
 
+## Round 7 Deep Audit Hardening Pass (2026-04-24)
+
+Continuation of the consolidated 475-finding Opus/Codex audit backlog. Scope focused on fixes that were still real after the prior Claude/Codex passes and were appropriate to implement before launch without waiting on attorney/vendor sign-off.
+
+### Schema, retention, and webhook idempotency
+- Added `StripeWebhookEvent` with begin/processed/failed helpers so retryable Stripe lifecycle events are idempotent.
+- Added webhook handling for `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `charge.refunded`, `charge.dispute.*`, and `payout.failed`.
+- Narrowed the Stripe webhook `P2002` duplicate-session catch so unrelated unique-constraint bugs are no longer swallowed as duplicate webhooks.
+- Removed duplicate cart cleanup outside the order-creation transaction.
+- `account.updated` now considers `charges_enabled`, `payouts_enabled`, `details_submitted`, and disabled requirements before re-enabling a seller.
+- Pinned retention-safe relation behavior: order item listing references are restricted, cases preserve order/user history, and user deletion cascades only through conversation/message/comment data where history loss is acceptable.
+- Added unique schema coverage for Stripe payment intent and charge identifiers.
+
+### Refund, label, and fulfillment correctness
+- Seller refunds now use Stripe idempotency keys, keep the refund lock in place if the DB write fails after Stripe succeeds, capture orphaned-refund failures in Sentry, and restore stock with atomic increments.
+- Staff case refunds now acquire the same atomic refund lock before calling Stripe and use an idempotency key.
+- Label purchase locks now require the order to still be `PENDING` and not refunded, blocking label/refund and label/manual-fulfillment races.
+- Fulfillment updates are rate-limited, block active cases/refunded orders, validate carrier/tracking input, and enforce shipping-vs-pickup state transitions.
+
+### Marketplace visibility, abuse, and moderation
+- Homepage, search suggestions, popular tags, popular blog tags, blog listings, and commission detail views now consistently exclude banned/deleted/vacation/charges-disabled sellers or banned/deleted authors where appropriate.
+- Seller broadcasts now require an active seller account and reject banned/deleted users.
+- Blog publishing now fails closed when the profanity check flags a published post.
+- Blog comments reject banned/deleted authors, sanitize stored text, and hide comments/replies by banned/deleted authors.
+- User reports now validate `MESSAGE_THREAD` and `BLOG_COMMENT` targets instead of accepting arbitrary target ids.
+- Upload endpoints now require a seller profile for seller-owned media endpoints and return validation issue details for invalid presign requests.
+- Soft-deleting a listing now blocks when active orders or active cases exist.
+
+### Guild metrics and quality scoring
+- Seller metrics now use a fixed day window instead of calendar-month rollover and exclude refunded orders from delivered/sales calculations.
+- Empty on-time shipping and response-rate datasets now evaluate to 0 instead of vacuous 100%.
+- Guild metric crons skip vacation sellers; the member-check cron no longer revokes Guild Masters directly.
+- Admin Guild Member/Master approvals re-check eligibility server-side, notify on manual revokes, and reset metric-failure state on revoke/reinstate.
+- Quality score calculations now exclude refunded orders and ineligible/banned/deleted/vacation/charges-disabled sellers, and the new-seller bonus is gated to sellers under 30 days old.
+
+### UI, mobile, and lint cleanup
+- Header mobile drawer now declares dialog semantics and focuses on open.
+- Notification and report menus now expose menu state to assistive tech; report dropdown closes on Escape.
+- Hero mosaic respects reduced motion; card hover zoom is limited to motion-safe devices.
+- Favorite buttons now meet the 44px tap target.
+- Message/review client ids fall back cleanly on older Safari without `crypto.randomUUID`.
+- Search debounce clears on unmount.
+- ZIP+4 input is accepted by the shipping form.
+- Service worker no longer calls `skipWaiting()`/`clients.claim()`, reducing mid-checkout takeover risk.
+- Straightforward unused-symbol lint warnings were removed; lint is down to 11 warnings / 0 errors.
+
+### Verification
+- `npx prisma validate` passed.
+- `npx prisma generate` passed.
+- `npx tsc --noEmit --incremental false` passed.
+- `npm run lint` passed with 11 warnings and 0 errors.
+- `npx dotenv-cli -e .env -- npx prisma migrate deploy` applied `20260424194500_webhook_idempotency_retention_constraints`.
+- Sandboxed `npm run build` hit the known Turbopack local-port restriction; escalated `npm run build` passed.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

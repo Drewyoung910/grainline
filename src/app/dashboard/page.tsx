@@ -24,6 +24,7 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
   // ensure ownership
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return;
+  if (me.banned || me.deletedAt) return;
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
@@ -75,6 +76,7 @@ async function deleteListing(listingId: string) {
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return;
+  if (me.banned || me.deletedAt) return;
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
@@ -576,7 +578,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

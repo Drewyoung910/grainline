@@ -11,7 +11,6 @@ interface Props {
 }
 
 export default function VacationModeForm({
-  sellerId,
   vacationMode: initialVacationMode,
   vacationReturnDate: initialReturnDate,
   vacationMessage: initialMessage,

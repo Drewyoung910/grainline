@@ -42,7 +42,9 @@ type NotificationType =
   | "SELLER_BROADCAST"
   | "COMMISSION_INTEREST"
   | "LISTING_APPROVED"
-  | "LISTING_REJECTED";
+  | "LISTING_REJECTED"
+  | "PAYMENT_DISPUTE"
+  | "PAYOUT_FAILED";
 
 type NotificationItem = {
   id: string;
@@ -70,10 +72,12 @@ function typeIcon(type: NotificationType) {
       return { Icon: Wrench, color: "text-amber-600" };
     case "CASE_OPENED":
     case "CASE_RESOLVED":
+    case "PAYMENT_DISPUTE":
       return { Icon: AlertTriangle, color: "text-amber-500" };
     case "VERIFICATION_APPROVED":
       return { Icon: CheckCircle, color: "text-green-600" };
     case "VERIFICATION_REJECTED":
+    case "PAYOUT_FAILED":
       return { Icon: XCircle, color: "text-red-500" };
     case "BACK_IN_STOCK":
     case "LOW_STOCK":
@@ -281,6 +285,8 @@ export default function NotificationBell({
         onClick={handleOpen}
         className="relative inline-flex items-center text-neutral-800 hover:text-neutral-600"
         aria-label="Notifications"
+        aria-expanded={open}
+        aria-haspopup="menu"
         title="Notifications"
       >
         <Bell size={20} />
@@ -292,7 +298,7 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg bg-white shadow-lg overflow-y-auto max-h-[70vh]">
+        <div role="menu" className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg bg-white shadow-lg overflow-y-auto max-h-[70vh]">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
             <span className="text-sm font-semibold">Notifications</span>

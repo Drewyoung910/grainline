@@ -7,6 +7,10 @@ import { emitToast } from "@/components/Toast";
 
 type Att = { id: string; name: string; url?: string; uploading: boolean };
 
+function clientId() {
+  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function ReviewPhotosPicker({
   initial = [],
   max = 6,
@@ -18,7 +22,7 @@ export default function ReviewPhotosPicker({
 }) {
   const [atts, setAtts] = React.useState<Att[]>(
     initial.slice(0, max).map((u) => ({
-      id: crypto.randomUUID(),
+      id: clientId(),
       name: u.split("/").pop() || "photo",
       url: u,
       uploading: false,
@@ -50,7 +54,7 @@ export default function ReviewPhotosPicker({
       return;
     }
 
-    const tempIds = chosen.map(() => crypto.randomUUID());
+    const tempIds = chosen.map(() => clientId());
     setAtts((prev) => [
       ...prev,
       ...chosen.map((f, i) => ({

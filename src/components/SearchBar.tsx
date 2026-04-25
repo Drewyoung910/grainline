@@ -50,6 +50,12 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, []);
 
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
     setValue(v);

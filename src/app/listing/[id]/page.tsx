@@ -100,7 +100,7 @@ function quarterRoundStars(n: number) {
   return { quarter: q, display };
 }
 
-function StarDisplay({ value, count }: { value: number; count: number }) {
+function StarDisplay({ value }: { value: number }) {
   const q = Math.min(5, Math.max(0, Math.round(value * 4) / 4));
   return (
     <div className="relative leading-none inline-block" aria-hidden>
@@ -539,7 +539,7 @@ export default async function ListingPage({
                 )}
                 {sellerStars && sellerReviewCount > 0 && (
                   <div className="flex items-center gap-1.5 mt-1">
-                    <StarDisplay value={sellerStars.quarter} count={sellerReviewCount} />
+                    <StarDisplay value={sellerStars.quarter} />
                     <span className="text-xs text-neutral-600">
                       {sellerStars.display.toFixed(1)} ({sellerReviewCount})
                     </span>

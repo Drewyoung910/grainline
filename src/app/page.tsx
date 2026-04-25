@@ -1,10 +1,9 @@
 // src/app/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { ListingStatus } from "@prisma/client";
+import { ListingStatus, Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { Suspense } from "react";
-import FavoriteButton from "@/components/FavoriteButton";
 import MakersMapSection from "@/components/MakersMapSection";
 import SearchBar from "@/components/SearchBar";
 import NewsletterSignup from "@/components/NewsletterSignup";
@@ -18,6 +17,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -34,46 +34,17 @@ function StarsInline({ value }: { value: number }) {
 async function getSellerRatingMap(sellerIds: string[]) {
   if (sellerIds.length === 0) return new Map<string, { avg: number; count: number }>();
 
-  const listings = await prisma.listing.findMany({
-    where: { sellerId: { in: sellerIds } },
-    select: { id: true, sellerId: true },
-  });
-
-  const allListingIds = listings.map((l) => l.id);
-  if (allListingIds.length === 0) return new Map<string, { avg: number; count: number }>();
-
-  const perListing = await prisma.review.groupBy({
-    by: ["listingId"],
-    where: { listingId: { in: allListingIds } },
-    _avg: { ratingX2: true },
-    _count: { _all: true },
-  });
-
-  const perListingMap = new Map<string, { avgX2: number; count: number }>();
-  for (const row of perListing) {
-    const count = row._count._all;
-    const avgX2 = row._avg.ratingX2 ?? 0;
-    if (count > 0 && avgX2 > 0) perListingMap.set(row.listingId, { avgX2, count });
-  }
-
-  const bySeller = new Map<string, string[]>();
-  for (const l of listings) {
-    const arr = bySeller.get(l.sellerId) ?? [];
-    arr.push(l.id);
-    bySeller.set(l.sellerId, arr);
-  }
-
+  const rows = await prisma.$queryRaw<Array<{ sellerId: string; avgX2: number | null; count: bigint }>>`
+    SELECT l."sellerId", AVG(r."ratingX2")::float AS "avgX2", COUNT(*) AS count
+    FROM "Review" r
+    INNER JOIN "Listing" l ON l.id = r."listingId"
+    WHERE l."sellerId" IN (${Prisma.join(sellerIds)})
+    GROUP BY l."sellerId"
+  `;
   const result = new Map<string, { avg: number; count: number }>();
-  for (const [sellerId, ids] of bySeller.entries()) {
-    let total = 0;
-    let sumX2 = 0;
-    for (const lid of ids) {
-      const agg = perListingMap.get(lid);
-      if (!agg) continue;
-      total += agg.count;
-      sumX2 += agg.avgX2 * agg.count;
-    }
-    if (total > 0) result.set(sellerId, { avg: (sumX2 / total) / 2, count: total });
+  for (const row of rows) {
+    const count = Number(row.count);
+    if (count > 0 && row.avgX2) result.set(row.sellerId, { avg: row.avgX2 / 2, count });
   }
   return result;
 }
@@ -111,7 +82,17 @@ export default async function HomePage() {
       take: 6,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        seller: { include: { user: true } },
+        seller: {
+          select: {
+            displayName: true,
+            avatarImageUrl: true,
+            guildLevel: true,
+            city: true,
+            state: true,
+            acceptingNewOrders: true,
+            user: { select: { imageUrl: true } },
+          },
+        },
       },
     }).then(async (results) => {
       if (results.length >= 6) return results;
@@ -126,7 +107,17 @@ export default async function HomePage() {
         take: 6,
         include: {
           photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
-          seller: { include: { user: true } },
+          seller: {
+            select: {
+              displayName: true,
+              avatarImageUrl: true,
+              guildLevel: true,
+              city: true,
+              state: true,
+              acceptingNewOrders: true,
+              user: { select: { imageUrl: true } },
+            },
+          },
         },
       });
     }),
@@ -136,7 +127,17 @@ export default async function HomePage() {
       take: 6,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
-        seller: { include: { user: true } },
+        seller: {
+          select: {
+            displayName: true,
+            avatarImageUrl: true,
+            guildLevel: true,
+            city: true,
+            state: true,
+            acceptingNewOrders: true,
+            user: { select: { imageUrl: true } },
+          },
+        },
         _count: { select: { favorites: true } },
       },
     }),
@@ -155,14 +156,22 @@ export default async function HomePage() {
     }),
     prisma.$queryRaw<{ tag: string; count: bigint }[]>`
       SELECT tag, COUNT(*) as count
-      FROM "Listing", unnest(tags) as tag
-      WHERE status = 'ACTIVE' AND "isPrivate" = false
+      FROM "Listing" l
+      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+      INNER JOIN "User" u ON u.id = sp."userId",
+      unnest(l.tags) as tag
+      WHERE l.status = 'ACTIVE'
+        AND l."isPrivate" = false
+        AND sp."chargesEnabled" = true
+        AND sp."vacationMode" = false
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
       GROUP BY tag
       ORDER BY count DESC
       LIMIT 5
     `,
     Promise.all([
-      prisma.listing.count({ where: { status: ListingStatus.ACTIVE, isPrivate: false } }),
+      prisma.listing.count({ where: publicListingWhere() }),
       prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false }, listings: { some: { status: ListingStatus.ACTIVE } } } }),
       prisma.order.count({ where: { paidAt: { not: null } } }),
       prisma.user.count({ where: { banned: false } }),
@@ -740,7 +749,6 @@ export default async function HomePage() {
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
-                  const shop = sellerRatings.get(l.sellerId);
                   return (
                     <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
                       <ListingCard

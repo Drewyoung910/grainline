@@ -397,8 +397,8 @@ model Conversation {
   id        String    @id @default(cuid())
   userAId   String
   userBId   String
-  userA     User      @relation("ConvoA", fields: [userAId], references: [id])
-  userB     User      @relation("ConvoB", fields: [userBId], references: [id])
+  userA     User      @relation("ConvoA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User      @relation("ConvoB", fields: [userBId], references: [id], onDelete: Cascade)
   messages  Message[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -417,11 +417,11 @@ model Conversation {
 model Message {
   id             String       @id @default(cuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
-  sender         User         @relation("MessagesFromUser", fields: [senderId], references: [id])
+  sender         User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Cascade)
   recipientId    String
-  recipient      User         @relation("MessagesToUser", fields: [recipientId], references: [id])
+  recipient      User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Cascade)
   body           String
   kind              String?
   isSystemMessage   Boolean   @default(false)
@@ -490,8 +490,8 @@ model Order {
   shipToCountry    String?
 
   // Stripe references
-  stripePaymentIntentId   String?
-  stripeChargeId          String?
+  stripePaymentIntentId   String? @unique(map: "Order_stripePaymentIntentId_idx")
+  stripeChargeId          String? @unique(map: "Order_stripeChargeId_idx")
   stripeApplicationFeeId  String?
   stripeTransferId        String?
 
@@ -591,7 +591,7 @@ model OrderItem {
   orderId   String
   order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   listingId String
-  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Restrict)
   quantity   Int      @default(1)
   priceCents Int
   listingSnapshot    Json?
@@ -697,11 +697,11 @@ enum CaseResolution {
 model Case {
   id                String          @id @default(cuid())
   orderId           String          @unique
-  order             Order           @relation(fields: [orderId], references: [id])
+  order             Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
   buyerId           String
-  buyer             User            @relation("CasesByBuyer", fields: [buyerId], references: [id])
+  buyer             User            @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
   sellerId          String
-  seller            User            @relation("CasesBySeller", fields: [sellerId], references: [id])
+  seller            User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
   reason            CaseReason
   description       String
   status            CaseStatus      @default(OPEN)
@@ -715,7 +715,7 @@ model Case {
   sellerMarkedResolved  Boolean         @default(false)
   resolvedAt            DateTime?
   resolvedById          String?
-  resolvedBy            User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id])
+  resolvedBy            User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
   messages              CaseMessage[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -727,9 +727,9 @@ model Case {
 model CaseMessage {
   id        String   @id @default(cuid())
   caseId    String
-  case      Case     @relation(fields: [caseId], references: [id])
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation("CaseMessages", fields: [authorId], references: [id])
+  author    User     @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
   body      String
   createdAt DateTime @default(now())
 
@@ -850,11 +850,11 @@ model BlogComment {
   postId    String
   post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation("BlogCommentsAuthored", fields: [authorId], references: [id])
+  author    User     @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
   body      String
   approved  Boolean  @default(false)
   parentId  String?
-  parent    BlogComment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  parent    BlogComment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   BlogComment[]  @relation("CommentReplies")
   createdAt DateTime @default(now())
 
@@ -868,6 +868,19 @@ model NewsletterSubscriber {
   name         String?
   subscribedAt DateTime @default(now())
   active       Boolean  @default(true)
+}
+
+model StripeWebhookEvent {
+  id                  String    @id
+  type                String
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  lastError           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([type, createdAt])
+  @@index([processedAt])
 }
 
 model SellerMetrics {
@@ -911,6 +924,8 @@ enum NotificationType {
   COMMISSION_INTEREST
   LISTING_APPROVED
   LISTING_REJECTED
+  PAYMENT_DISPUTE
+  PAYOUT_FAILED
 }
 
 model Notification {

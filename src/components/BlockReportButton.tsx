@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 
 type Props = {
   targetUserId: string;
@@ -35,6 +35,19 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     setOpen(true);
   }
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setView("menu");
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   async function handleBlock() {
     setStatus("loading");
     const method = blocked ? "DELETE" : "POST";
@@ -69,6 +82,8 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
         onClick={open ? () => { setOpen(false); setView("menu"); } : handleOpen}
         className="text-xs text-neutral-400 hover:text-neutral-600 px-2 py-1 rounded"
         aria-label="More options"
+        aria-expanded={open}
+        aria-haspopup="menu"
       >
         •••
       </button>
@@ -76,7 +91,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setView("menu"); }} />
-          <div className={`absolute right-0 z-50 bg-white border border-neutral-200 rounded-lg shadow-lg w-48 py-1 ${openUpward ? "bottom-full mb-1" : "top-full mt-1"}`}>
+          <div role="menu" className={`absolute right-0 z-50 bg-white border border-neutral-200 rounded-lg shadow-lg w-48 py-1 ${openUpward ? "bottom-full mb-1" : "top-full mt-1"}`}>
             {view === "menu" ? (
               <>
                 <button

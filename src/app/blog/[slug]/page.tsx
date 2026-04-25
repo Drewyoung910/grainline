@@ -75,7 +75,7 @@ export default async function BlogPostPage({
       author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
       comments: {
-        where: { approved: true, parentId: null },
+        where: { approved: true, parentId: null, author: { banned: false, deletedAt: null } },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -83,7 +83,7 @@ export default async function BlogPostPage({
           createdAt: true,
           author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
           replies: {
-            where: { approved: true },
+            where: { approved: true, author: { banned: false, deletedAt: null } },
             orderBy: { createdAt: "asc" },
             select: {
               id: true,
@@ -91,7 +91,7 @@ export default async function BlogPostPage({
               createdAt: true,
               author: { select: { id: true, name: true, imageUrl: true, sellerProfile: { select: { avatarImageUrl: true } } } },
               replies: {
-                where: { approved: true },
+                where: { approved: true, author: { banned: false, deletedAt: null } },
                 orderBy: { createdAt: "asc" },
                 select: {
                   id: true,

@@ -34,8 +34,15 @@ export async function GET(
       expiresAt: true,
       createdAt: true,
       buyerId: true,
-      buyer: { select: { name: true, imageUrl: true } },
+      buyer: { select: { name: true, imageUrl: true, banned: true, deletedAt: true } },
       interests: {
+        where: {
+          sellerProfile: {
+            chargesEnabled: true,
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
+        },
         select: {
           id: true,
           createdAt: true,
@@ -54,9 +61,13 @@ export async function GET(
   });
 
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (request.buyer.banned || request.buyer.deletedAt) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (commissionIsExpired(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json(request);
+  return NextResponse.json({
+    ...request,
+    buyer: { name: request.buyer.name, imageUrl: request.buyer.imageUrl },
+  });
 }
 
 export async function PATCH(

@@ -65,7 +65,7 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       disabled={isPending}
-      className="absolute right-3 top-3 z-10"
+      className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center"
       style={{ lineHeight: 0 }}
     >
       {/* Heart icon — filled grey background for visibility on all photos */}
@@ -97,6 +97,5 @@ export default function FavoriteButton({
     </button>
   );
 }
-
 
 

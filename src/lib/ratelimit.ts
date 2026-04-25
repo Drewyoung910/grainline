@@ -195,6 +195,20 @@ export const listingMutationRatelimit = new Ratelimit({
   prefix: "rl:listing_mutation",
 });
 
+export const fulfillmentRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 m"),
+  analytics: true,
+  prefix: "rl:fulfillment",
+});
+
+export const adminActionRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "10 m"),
+  analytics: true,
+  prefix: "rl:admin_action",
+});
+
 // Custom order request — messaging a seller with a request (fail closed)
 export const customOrderRequestRatelimit = new Ratelimit({
   redis,

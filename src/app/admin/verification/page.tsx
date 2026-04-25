@@ -4,7 +4,12 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createNotification } from "@/lib/notifications";
-import { sendVerificationApproved, sendVerificationRejected } from "@/lib/email";
+import {
+  sendGuildMasterRevokedEmail,
+  sendGuildMemberRevokedEmail,
+  sendVerificationApproved,
+  sendVerificationRejected,
+} from "@/lib/email";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 import { logAdminAction } from "@/lib/audit";
@@ -30,11 +35,49 @@ async function approveGuildMember(formData: FormData) {
     select: {
       sellerProfileId: true,
       sellerProfile: {
-        select: { userId: true, id: true, displayName: true, user: { select: { email: true } } },
+        select: { userId: true, id: true, displayName: true, user: { select: { email: true, createdAt: true } } },
       },
     },
   });
   if (!verification) return;
+
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+  const [activeListings, salesRows, longCaseCount] = await Promise.all([
+    prisma.listing.count({
+      where: { sellerId: verification.sellerProfileId, status: "ACTIVE", isPrivate: false },
+    }),
+    prisma.$queryRaw<Array<{ total: bigint | null }>>`
+      SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS total
+      FROM "OrderItem" oi
+      INNER JOIN "Order" o ON o.id = oi."orderId"
+      INNER JOIN "Listing" l ON l.id = oi."listingId"
+      WHERE l."sellerId" = ${verification.sellerProfileId}
+        AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
+        AND o."sellerRefundId" IS NULL
+    `,
+    prisma.case.count({
+      where: {
+        sellerId: verification.sellerProfile.userId,
+        status: { notIn: ["RESOLVED", "CLOSED"] },
+        createdAt: { lt: sixtyDaysAgo },
+      },
+    }),
+  ]);
+  const totalSalesCents = Number(salesRows[0]?.total ?? 0);
+  const accountAgeDays = Math.floor(
+    (Date.now() - new Date(verification.sellerProfile.user.createdAt).getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (activeListings < 5 || accountAgeDays < 30 || longCaseCount > 0 || (!adminOverride && totalSalesCents < 25_000)) {
+    await logAdminAction({
+      adminId: me.id,
+      action: "APPROVE_GUILD_MEMBER_BLOCKED",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: "Server-side eligibility check failed",
+      metadata: { activeListings, totalSalesCents, accountAgeDays, longCaseCount, adminOverride },
+    });
+    return;
+  }
 
   await prisma.$transaction([
     prisma.makerVerification.update({
@@ -127,11 +170,40 @@ async function rejectGuildMember(formData: FormData) {
 async function revokeMember(sellerProfileId: string) {
   "use server";
   const me = await requireAdmin();
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerProfileId },
+    select: { userId: true, displayName: true, user: { select: { email: true } } },
+  });
 
   await prisma.sellerProfile.update({
     where: { id: sellerProfileId },
-    data: { guildLevel: "NONE", isVerifiedMaker: false },
+    data: {
+      guildLevel: "NONE",
+      isVerifiedMaker: false,
+      consecutiveMetricFailures: 0,
+      metricWarningSentAt: null,
+      listingsBelowThresholdSince: null,
+      lastMetricCheckAt: new Date(),
+    },
   });
+
+  if (seller?.userId) {
+    await createNotification({
+      userId: seller.userId,
+      type: "VERIFICATION_REJECTED",
+      title: "Guild Member badge revoked",
+      body: "Your Guild Member badge was revoked by Grainline staff.",
+      link: "/dashboard/verification",
+    });
+  }
+  if (seller?.user?.email) {
+    try {
+      await sendGuildMemberRevokedEmail({
+        seller: { displayName: seller.displayName, email: seller.user.email },
+        reason: "Your Guild Member badge was revoked by Grainline staff.",
+      });
+    } catch { /* non-fatal */ }
+  }
 
   await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
@@ -153,6 +225,20 @@ async function approveGuildMaster(verificationId: string) {
     },
   });
   if (!verification) return;
+
+  const metrics = await calculateSellerMetrics(verification.sellerProfileId);
+  const criteria = meetsGuildMasterRequirements(metrics);
+  if (!criteria.allMet) {
+    await logAdminAction({
+      adminId: me.id,
+      action: "APPROVE_GUILD_MASTER_BLOCKED",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: "Server-side Guild Master metrics check failed",
+      metadata: { metrics, criteria },
+    });
+    return;
+  }
 
   await prisma.$transaction([
     prisma.makerVerification.update({
@@ -235,11 +321,37 @@ async function rejectGuildMaster(formData: FormData) {
 async function revokeMaster(sellerProfileId: string) {
   "use server";
   const me = await requireAdmin();
+  const seller = await prisma.sellerProfile.findUnique({
+    where: { id: sellerProfileId },
+    select: { userId: true, displayName: true, user: { select: { email: true } } },
+  });
 
   await prisma.sellerProfile.update({
     where: { id: sellerProfileId },
-    data: { guildLevel: "GUILD_MEMBER" },
+    data: {
+      guildLevel: "GUILD_MEMBER",
+      consecutiveMetricFailures: 0,
+      metricWarningSentAt: null,
+      lastMetricCheckAt: new Date(),
+    },
   });
+
+  if (seller?.userId) {
+    await createNotification({
+      userId: seller.userId,
+      type: "VERIFICATION_REJECTED",
+      title: "Guild Master badge revoked",
+      body: "Your Guild Master badge was revoked. Your Guild Member badge remains active.",
+      link: "/dashboard/verification",
+    });
+  }
+  if (seller?.user?.email) {
+    try {
+      await sendGuildMasterRevokedEmail({
+        seller: { displayName: seller.displayName, email: seller.user.email },
+      });
+    } catch { /* non-fatal */ }
+  }
 
   await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
@@ -254,7 +366,14 @@ async function reinstateGuildMember(formData: FormData) {
 
   await prisma.sellerProfile.update({
     where: { id: sellerProfileId },
-    data: { guildLevel: "GUILD_MEMBER", isVerifiedMaker: true },
+    data: {
+      guildLevel: "GUILD_MEMBER",
+      isVerifiedMaker: true,
+      consecutiveMetricFailures: 0,
+      metricWarningSentAt: null,
+      listingsBelowThresholdSince: null,
+      lastMetricCheckAt: new Date(),
+    },
   });
 
   await logAdminAction({

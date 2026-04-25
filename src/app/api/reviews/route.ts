@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
   // Who am I?
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   // Prevent reviewing own listing
   const listingForOwnerCheck = await prisma.listing.findUnique({
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
         paidAt: { not: null },
         createdAt: { gte: since },
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
+        sellerRefundId: null,
       },
     },
     select: { id: true },

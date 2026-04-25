@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: ListingStatus.ACTIVE,
         isPrivate: false,
-        seller: { chargesEnabled: true },
+        seller: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } },
         title: { contains: q, mode: "insensitive" },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       },
@@ -39,7 +39,12 @@ export async function GET(req: NextRequest) {
 
     // Seller name matches
     prisma.sellerProfile.findMany({
-      where: { displayName: { contains: q, mode: "insensitive" } },
+      where: {
+        displayName: { contains: q, mode: "insensitive" },
+        chargesEnabled: true,
+        vacationMode: false,
+        user: { banned: false, deletedAt: null },
+      },
       select: { displayName: true },
       take: 2,
     }),
@@ -50,8 +55,10 @@ export async function GET(req: NextRequest) {
           SELECT tag, COUNT(*) as cnt
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          INNER JOIN "User" u ON u.id = sp."userId"
           , unnest(l.tags) as tag
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true
+            AND sp."vacationMode" = false AND u.banned = false AND u."deletedAt" IS NULL
             AND tag ILIKE ${`%${q}%`}
             AND l."sellerId" != ALL(${blockedSellerIds})
           GROUP BY tag ORDER BY cnt DESC LIMIT 2
@@ -60,8 +67,11 @@ export async function GET(req: NextRequest) {
           SELECT tag, COUNT(*) as cnt
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          INNER JOIN "User" u ON u.id = sp."userId"
           , unnest(l.tags) as tag
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true AND tag ILIKE ${`%${q}%`}
+          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true
+            AND sp."vacationMode" = false AND u.banned = false AND u."deletedAt" IS NULL
+            AND tag ILIKE ${`%${q}%`}
           GROUP BY tag ORDER BY cnt DESC LIMIT 2
         `,
 
@@ -71,8 +81,12 @@ export async function GET(req: NextRequest) {
           SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          INNER JOIN "User" u ON u.id = sp."userId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND u.banned = false
+            AND u."deletedAt" IS NULL
             AND similarity(l.title, ${q}) > 0.25
             AND l.title NOT ILIKE ${`%${q}%`}
             AND l."sellerId" != ALL(${blockedSellerIds})
@@ -82,8 +96,12 @@ export async function GET(req: NextRequest) {
           SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
           FROM "Listing" l
           INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+          INNER JOIN "User" u ON u.id = sp."userId"
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND u.banned = false
+            AND u."deletedAt" IS NULL
             AND similarity(l.title, ${q}) > 0.25
             AND l.title NOT ILIKE ${`%${q}%`}
           ORDER BY sim DESC LIMIT 2
@@ -99,11 +117,14 @@ export async function GET(req: NextRequest) {
 
   // Blog post title suggestions
   const blogRows = await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
-    SELECT slug, title
-    FROM "BlogPost"
-    WHERE status = 'PUBLISHED'
-      AND similarity(title, ${q}) > 0.15
-    ORDER BY similarity(title, ${q}) DESC
+    SELECT bp.slug, bp.title
+    FROM "BlogPost" bp
+    INNER JOIN "User" u ON u.id = bp."authorId"
+    WHERE bp.status = 'PUBLISHED'
+      AND u.banned = false
+      AND u."deletedAt" IS NULL
+      AND similarity(bp.title, ${q}) > 0.15
+    ORDER BY similarity(bp.title, ${q}) DESC
     LIMIT 3
   `;
 

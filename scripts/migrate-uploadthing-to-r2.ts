@@ -1,6 +1,13 @@
 import { prisma } from "../src/lib/db";
 
+function assertNonProductionScript() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("Refusing to run destructive media cleanup in production.");
+  }
+}
+
 async function clearUploadthingUrls() {
+  assertNonProductionScript();
   console.log("Clearing UploadThing URLs from database...");
 
   // SellerProfile image fields (NOT featuredListingIds — those are IDs not URLs)

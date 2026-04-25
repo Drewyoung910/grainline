@@ -85,7 +85,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
     if (!line1.trim()) e.line1 = "Address is required";
     if (!city.trim()) e.city = "City is required";
     if (!state || !STATE_CODES.has(state as typeof US_STATES[number]["code"])) e.state = "Select a state";
-    if (!/^\d{5}(-\d{4})?$/.test(postalCode)) e.postalCode = "Enter a 5-digit ZIP code";
+    if (!/^\d{5}(-\d{4})?$/.test(postalCode)) e.postalCode = "Enter a valid ZIP code";
     return e;
   }
 
@@ -213,10 +213,13 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             id="sa-zip"
             type="text"
             autoComplete="postal-code"
-            inputMode="numeric"
-            maxLength={5}
+            inputMode="text"
+            maxLength={10}
             value={postalCode}
-            onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+              setPostalCode(digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits);
+            }}
             className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           {errors.postalCode && <p className="text-sm text-red-600 mt-1">{errors.postalCode}</p>}
@@ -232,7 +235,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           autoComplete="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          placeholder="For delivery questions"
+          placeholder="555-123-4567"
           className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
         />
       </div>

@@ -36,6 +36,7 @@ interface ListingRow {
   hasAltText: boolean;
   descLength: number;
   createdAt: Date;
+  sellerCreatedAt: Date;
   guildLevel: string;
   sellerAvgRating: number | null;
   sellerReviewCount: bigint;
@@ -61,14 +62,30 @@ async function computeGlobalMeans(): Promise<GlobalMeans> {
       COALESCE(SUM(l."viewCount"), 0) AS "totalViews",
       COALESCE(
         (SELECT COUNT(*) FROM "OrderItem" oi
+         JOIN "Order" o ON o.id = oi."orderId"
          JOIN "Listing" il ON oi."listingId" = il.id
-         WHERE il.status = 'ACTIVE' AND il."isPrivate" = false),
+         JOIN "SellerProfile" isp ON isp.id = il."sellerId"
+         JOIN "User" iu ON iu.id = isp."userId"
+         WHERE il.status = 'ACTIVE'
+           AND il."isPrivate" = false
+           AND o."sellerRefundId" IS NULL
+           AND isp."chargesEnabled" = true
+           AND isp."vacationMode" = false
+           AND iu.banned = false
+           AND iu."deletedAt" IS NULL),
         0
       ) AS "totalOrders",
       COALESCE(SUM(l."clickCount"), 0) AS "totalClicks",
       COUNT(l.id) AS "listingCount"
     FROM "Listing" l
-    WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+    JOIN "User" u ON u.id = sp."userId"
+    WHERE l.status = 'ACTIVE'
+      AND l."isPrivate" = false
+      AND sp."chargesEnabled" = true
+      AND sp."vacationMode" = false
+      AND u.banned = false
+      AND u."deletedAt" IS NULL
   `;
 
   const r = rows[0];
@@ -83,6 +100,15 @@ async function computeGlobalMeans(): Promise<GlobalMeans> {
   const ratingRows = await prisma.$queryRaw<Array<{ avgRating: number | null }>>`
     SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating"
     FROM "Review" r
+    JOIN "Listing" l ON l.id = r."listingId"
+    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+    JOIN "User" u ON u.id = sp."userId"
+    WHERE l.status = 'ACTIVE'
+      AND l."isPrivate" = false
+      AND sp."chargesEnabled" = true
+      AND sp."vacationMode" = false
+      AND u.banned = false
+      AND u."deletedAt" IS NULL
   `;
   const avgRating = ratingRows[0]?.avgRating ?? 3.0;
 
@@ -102,6 +128,7 @@ async function fetchAllActiveListings(): Promise<ListingRow[]> {
       COALESCE(ph."hasAlt", false) AS "hasAltText",
       COALESCE(LENGTH(l.description), 0) AS "descLength",
       l."createdAt",
+      sp."createdAt" AS "sellerCreatedAt",
       sp."guildLevel",
       sr."avgRating" AS "sellerAvgRating",
       COALESCE(sr."reviewCount", 0) AS "sellerReviewCount"
@@ -111,7 +138,11 @@ async function fetchAllActiveListings(): Promise<ListingRow[]> {
       SELECT COUNT(*) AS cnt FROM "Favorite" f WHERE f."listingId" = l.id
     ) fav ON true
     LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS cnt FROM "OrderItem" oi WHERE oi."listingId" = l.id
+      SELECT COUNT(*) AS cnt
+      FROM "OrderItem" oi
+      JOIN "Order" o ON o.id = oi."orderId"
+      WHERE oi."listingId" = l.id
+        AND o."sellerRefundId" IS NULL
     ) ord ON true
     LEFT JOIN LATERAL (
       SELECT COUNT(*) AS cnt,
@@ -126,7 +157,13 @@ async function fetchAllActiveListings(): Promise<ListingRow[]> {
       WHERE rl."sellerId" = l."sellerId"
       HAVING COUNT(r.id) > 0
     ) sr ON true
-    WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
+    JOIN "User" u ON u.id = sp."userId"
+    WHERE l.status = 'ACTIVE'
+      AND l."isPrivate" = false
+      AND sp."chargesEnabled" = true
+      AND sp."vacationMode" = false
+      AND u.banned = false
+      AND u."deletedAt" IS NULL
   `;
 }
 
@@ -185,11 +222,14 @@ function scoreRow(row: ListingRow, globals: GlobalMeans, now: number): number {
         ? 0.15 * (1.0 - (ageInDays - 14) / 16)
         : 0;
 
-  // New seller bonus: +0.05 for sellers with zero reviews.
+  // New seller bonus: +0.05 for sellers with zero reviews during their first
+  // 30 days. This avoids permanently boosting old high-volume sellers that
+  // have not yet collected reviews.
   // First-time sellers need more help than Guild Masters adding their 50th listing.
   // Disappears once the seller gets their first review.
   const sellerReviews = Number(row.sellerReviewCount ?? 0);
-  const newSellerBonus = sellerReviews === 0 ? 0.05 : 0;
+  const sellerAgeDays = Math.max(0, (now - new Date(row.sellerCreatedAt).getTime()) / (1000 * 60 * 60 * 24));
+  const newSellerBonus = sellerReviews === 0 && sellerAgeDays <= 30 ? 0.05 : 0;
 
   // Weighted sum + discovery bumps
   const score =
@@ -245,6 +285,10 @@ export async function recalculateAllQualityScores(): Promise<{
       OR: [
         { status: { not: "ACTIVE" } },
         { isPrivate: true },
+        { seller: { chargesEnabled: false } },
+        { seller: { vacationMode: true } },
+        { seller: { user: { banned: true } } },
+        { seller: { user: { deletedAt: { not: null } } } },
       ],
       qualityScore: { gt: 0 },
     },

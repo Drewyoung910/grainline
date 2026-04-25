@@ -34,7 +34,7 @@ type Props = {
   href?: string;
 };
 
-export default function ListingCard({ listing: l, initialSaved = false, variant = "grid", href }: Props) {
+export default function ListingCard({ listing: l, initialSaved = false, href }: Props) {
   const [hovered, setHovered] = useState(false);
   const img = l.photoUrl ?? "/favicon.ico";
   const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
@@ -58,7 +58,7 @@ export default function ListingCard({ listing: l, initialSaved = false, variant 
             alt={l.title}
             src={displayImg}
             loading="lazy"
-            className="w-full aspect-square object-cover transition-all duration-300 group-hover:scale-105"
+            className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
           />
         </Link>
         {/* Heart — top right */}

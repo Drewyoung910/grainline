@@ -63,15 +63,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
     }
 
-    const [activeListings, salesResult, longCaseCount] = await Promise.all([
-      prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE" } }),
-      prisma.orderItem.aggregate({
-        where: {
-          listing: { sellerId: seller.id },
-          order: { fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] } },
-        },
-        _sum: { priceCents: true },
-      }),
+    const [activeListings, salesRows, longCaseCount] = await Promise.all([
+      prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE", isPrivate: false } }),
+      prisma.$queryRaw<Array<{ total: bigint | null }>>`
+        SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS total
+        FROM "OrderItem" oi
+        INNER JOIN "Order" o ON o.id = oi."orderId"
+        INNER JOIN "Listing" l ON l.id = oi."listingId"
+        WHERE l."sellerId" = ${seller.id}
+          AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
+          AND o."sellerRefundId" IS NULL
+      `,
       prisma.case.count({
         where: {
           sellerId: sellerData.userId,
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
       }),
     ]);
 
-    const totalSalesCents = salesResult._sum.priceCents ?? 0;
+    const totalSalesCents = Number(salesRows[0]?.total ?? 0);
     const accountAgeDays = sellerData.user?.createdAt
       ? Math.floor((Date.now() - new Date(sellerData.user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
       : 0;

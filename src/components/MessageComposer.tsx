@@ -15,6 +15,10 @@ type Attachment = {
 
 const ENDPOINT = "messageAny" as const;
 
+function clientId() {
+  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export default function MessageComposer({
   placeholder = "Write a message…",
 }: { placeholder?: string }) {
@@ -116,7 +120,7 @@ export default function MessageComposer({
               ),
             }}
             onUploadBegin={(fileName) => {
-              const id = crypto.randomUUID();
+              const id = clientId();
               pendingIdsRef.current.push(id);
               setAttachments((prev) => [
                 ...prev,
@@ -154,6 +158,7 @@ export default function MessageComposer({
         <textarea
           ref={taRef}
           name="body"
+          aria-label="Message"
           rows={1}
           value={value}
           onChange={(e) => {
@@ -207,8 +212,6 @@ export default function MessageComposer({
     </div>
   );
 }
-
-
 
 
 

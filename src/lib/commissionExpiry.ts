@@ -12,6 +12,7 @@ export function openCommissionWhere<T extends Prisma.CommissionRequestWhereInput
   return {
     ...extra,
     status: CommissionStatus.OPEN,
+    buyer: { banned: false, deletedAt: null },
     OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
   };
 }
@@ -19,4 +20,3 @@ export function openCommissionWhere<T extends Prisma.CommissionRequestWhereInput
 export function commissionIsExpired(request: { status: CommissionStatus; expiresAt: Date | null }) {
   return request.status === CommissionStatus.OPEN && request.expiresAt != null && request.expiresAt <= new Date();
 }
-

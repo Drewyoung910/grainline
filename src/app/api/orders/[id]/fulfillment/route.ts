@@ -4,6 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
+import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import type { FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 
 const FulfillmentSchema = z.object({
@@ -15,9 +17,16 @@ const FulfillmentSchema = z.object({
 
 export const runtime = "nodejs";
 
+const VALID_TRACKING_CARRIERS = new Set(["UPS", "USPS", "FedEx", "DHL", "Other"]);
+const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
+
 async function ensureSellerOwnsOrder(userId: string, orderId: string) {
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true },
+  });
   if (!me) return null;
+  if (me.banned) return null;
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
@@ -27,7 +36,10 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { items: { include: { listing: { select: { sellerId: true } } } } },
+    include: {
+      case: { select: { status: true } },
+      items: { include: { listing: { select: { sellerId: true } } } },
+    },
   });
   if (!order) return null;
 
@@ -44,6 +56,9 @@ export async function POST(
 
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(fulfillmentRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many fulfillment updates.");
 
     const authz = await ensureSellerOwnsOrder(userId, id);
     if (!authz) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -68,9 +83,22 @@ export async function POST(
     }
 
     const action = payload.action;
+    const activeCaseStatuses = new Set(["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"]);
+    if (action !== "update_notes" && authz.order.case && activeCaseStatuses.has(authz.order.case.status)) {
+      return NextResponse.json(
+        { error: "Resolve the open case before changing fulfillment." },
+        { status: 409 },
+      );
+    }
+    if (action !== "update_notes" && authz.order.sellerRefundId) {
+      return NextResponse.json(
+        { error: "Refunded orders cannot be fulfilled." },
+        { status: 400 },
+      );
+    }
 
     // Prevent backwards state transitions
-    const validTransitions: Record<string, string[]> = {
+    const validTransitions: Partial<Record<typeof action, FulfillmentStatus[]>> = {
       shipped: ["PENDING", "READY_FOR_PICKUP"],
       delivered: ["SHIPPED"],
       ready_for_pickup: ["PENDING"],
@@ -89,6 +117,12 @@ export async function POST(
     if ((action === "ready_for_pickup" || action === "picked_up") && currentMethod === "SHIPPING") {
       return NextResponse.json(
         { error: "Cannot use pickup actions on a shipping order." },
+        { status: 400 },
+      );
+    }
+    if ((action === "shipped" || action === "delivered") && currentMethod === "PICKUP") {
+      return NextResponse.json(
+        { error: "Cannot use shipping actions on a pickup order." },
         { status: 400 },
       );
     }
@@ -111,8 +145,14 @@ export async function POST(
         data.fulfillmentMethod = "SHIPPING";
         data.fulfillmentStatus = "SHIPPED";
         data.shippedAt = now;
+        if (payload.trackingCarrier && !VALID_TRACKING_CARRIERS.has(payload.trackingCarrier)) {
+          return NextResponse.json({ error: "Unsupported tracking carrier." }, { status: 400 });
+        }
+        if (payload.trackingNumber && !TRACKING_NUMBER_RE.test(payload.trackingNumber.trim())) {
+          return NextResponse.json({ error: "Invalid tracking number." }, { status: 400 });
+        }
         if (payload.trackingCarrier) data.trackingCarrier = payload.trackingCarrier;
-        if (payload.trackingNumber) data.trackingNumber = payload.trackingNumber;
+        if (payload.trackingNumber) data.trackingNumber = payload.trackingNumber.trim();
         break;
       case "delivered":
         data.fulfillmentStatus = "DELIVERED";
@@ -125,9 +165,20 @@ export async function POST(
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
+    const updatedCount = await prisma.order.updateMany({
+      where: {
+        id,
+        sellerRefundId: null,
+        ...(allowed ? { fulfillmentStatus: { in: allowed } } : {}),
+      },
       data,
+    });
+    if (updatedCount.count === 0) {
+      return NextResponse.json({ error: "Order status changed. Refresh and try again." }, { status: 409 });
+    }
+
+    const updated = await prisma.order.findUniqueOrThrow({
+      where: { id },
       select: {
         buyerId: true,
         estimatedDeliveryDate: true,
@@ -227,4 +278,3 @@ export async function POST(
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-

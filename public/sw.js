@@ -7,7 +7,6 @@ self.addEventListener("install", (event) => {
       cache.addAll([OFFLINE_URL, "/manifest.json", "/favicon.png", "/icon-192.png", "/icon-512.png"]),
     ),
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -16,7 +15,6 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
     ),
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -27,7 +25,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request).catch(async () => {
         const cache = await caches.open(CACHE_NAME);
-        return cache.match(OFFLINE_URL);
+        return (await cache.match(OFFLINE_URL)) || Response.error();
       }),
     );
     return;
@@ -40,4 +38,3 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
-

@@ -9,6 +9,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendRefundIssued } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -104,7 +105,7 @@ export async function POST(
       return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
     }
 
-    let refundId: string;
+    let refundId: string | null = null;
     try {
       // Issue Stripe refund with automatic fee + transfer reversal
       const refundParams =
@@ -112,7 +113,9 @@ export async function POST(
           ? { payment_intent: order.stripePaymentIntentId, refund_application_fee: true, reverse_transfer: true }
           : { payment_intent: order.stripePaymentIntentId, amount: amountCents!, refund_application_fee: true, reverse_transfer: true };
 
-      const refund = await stripe.refunds.create(refundParams);
+      const refund = await stripe.refunds.create(refundParams, {
+        idempotencyKey: `seller-refund:${orderId}:${type}:${refundAmountCents}`,
+      });
       refundId = refund.id;
 
       const stockRestoreOps =
@@ -120,11 +123,10 @@ export async function POST(
           ? myItems
               .filter((it) => it.listing.listingType === "IN_STOCK")
               .map((it) => {
-                const restored = (it.listing.stockQuantity ?? 0) + it.quantity;
                 return prisma.listing.update({
                   where: { id: it.listingId },
                   data: {
-                    stockQuantity: restored,
+                    stockQuantity: { increment: it.quantity },
                     ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
                   },
                 });
@@ -170,11 +172,26 @@ export async function POST(
         ...stockRestoreOps,
       ]);
     } catch (err) {
-      // Clear the lock if Stripe or DB failed
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { sellerRefundId: null },
-      }).catch(() => {});
+      if (refundId) {
+        Sentry.captureException(err, {
+          tags: { source: "seller_refund_orphaned_after_stripe" },
+          extra: { orderId, refundId, refundAmountCents },
+        });
+        await prisma.order.updateMany({
+          where: { id: orderId, sellerRefundId: "pending" },
+          data: {
+            sellerRefundId: refundId,
+            sellerRefundAmountCents: refundAmountCents,
+            reviewNeeded: true,
+            reviewNote: `ORPHANED REFUND: Stripe refund ${refundId} succeeded, but follow-up DB work failed. Manual reconciliation required.`,
+          },
+        }).catch(() => {});
+      } else {
+        await prisma.order.updateMany({
+          where: { id: orderId, sellerRefundId: "pending" },
+          data: { sellerRefundId: null },
+        }).catch(() => {});
+      }
       throw err;
     }
 
@@ -209,7 +226,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      refundId,
+      refundId: refundId!,
       refundAmountCents,
     });
   } catch (err) {

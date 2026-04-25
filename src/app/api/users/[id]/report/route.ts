@@ -8,7 +8,17 @@ import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
   details: z.string().max(500).optional(),
-  targetType: z.enum(["USER", "LISTING", "ORDER", "MESSAGE", "BLOG_POST", "REVIEW", "COMMISSION_REQUEST"]).optional(),
+  targetType: z.enum([
+    "USER",
+    "LISTING",
+    "ORDER",
+    "MESSAGE",
+    "MESSAGE_THREAD",
+    "BLOG_POST",
+    "BLOG_COMMENT",
+    "REVIEW",
+    "COMMISSION_REQUEST",
+  ]).optional(),
   targetId: z.string().max(100).optional(),
 });
 
@@ -62,8 +72,16 @@ export async function POST(
       case "MESSAGE":
         exists = await prisma.message.count({ where: { id: body.targetId, OR: [{ senderId: reportedId }, { recipientId: reportedId }] } }) > 0;
         break;
+      case "MESSAGE_THREAD":
+        exists = await prisma.conversation.count({
+          where: { id: body.targetId, OR: [{ userAId: reportedId }, { userBId: reportedId }] },
+        }) > 0;
+        break;
       case "BLOG_POST":
         exists = await prisma.blogPost.count({ where: { id: body.targetId, authorId: reportedId } }) > 0;
+        break;
+      case "BLOG_COMMENT":
+        exists = await prisma.blogComment.count({ where: { id: body.targetId, authorId: reportedId } }) > 0;
         break;
       case "REVIEW":
         exists = await prisma.review.count({

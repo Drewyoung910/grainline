@@ -5,7 +5,7 @@ import { markReadRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -15,8 +15,17 @@ export async function POST() {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const body = await req.json().catch(() => ({}));
+  const ids = Array.isArray(body?.ids)
+    ? body.ids.filter((id: unknown): id is string => typeof id === "string").slice(0, 100)
+    : [];
+
   await prisma.notification.updateMany({
-    where: { userId: me.id, read: false },
+    where: {
+      userId: me.id,
+      read: false,
+      ...(ids.length > 0 ? { id: { in: ids } } : {}),
+    },
     data: { read: true },
   });
 

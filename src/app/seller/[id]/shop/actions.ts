@@ -9,8 +9,12 @@ import { ListingStatus } from "@prisma/client";
 async function getOwnedListing(listingId: string) {
   const { userId } = await auth();
   if (!userId) return null;
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) return null;
+  if (me.banned || me.deletedAt) return null;
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
     include: { seller: true },
@@ -94,9 +98,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
 
   const sellerCheck = await prisma.sellerProfile.findUnique({
     where: { id: listing.sellerId },
-    select: { chargesEnabled: true },
+    select: { chargesEnabled: true, vacationMode: true },
   });
-  if (!sellerCheck?.chargesEnabled) {
+  if (!sellerCheck?.chargesEnabled || sellerCheck.vacationMode) {
     return { error: "Connect your bank account in Shop Settings to publish." };
   }
 

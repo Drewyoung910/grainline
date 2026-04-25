@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { containsProfanity } from "@/lib/profanity";
+import { sanitizeText } from "@/lib/sanitize";
 import { z } from "zod";
 
 const AUTHOR_SELECT = {
@@ -29,7 +30,7 @@ export async function GET(
   if (!post) return NextResponse.json({ comments: [] });
 
   const comments = await prisma.blogComment.findMany({
-    where: { postId: post.id, approved: true, parentId: null },
+    where: { postId: post.id, approved: true, parentId: null, author: { banned: false, deletedAt: null } },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -37,7 +38,7 @@ export async function GET(
       createdAt: true,
       author: { select: AUTHOR_SELECT },
       replies: {
-        where: { approved: true },
+        where: { approved: true, author: { banned: false, deletedAt: null } },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -45,7 +46,7 @@ export async function GET(
           createdAt: true,
           author: { select: AUTHOR_SELECT },
           replies: {
-            where: { approved: true },
+            where: { approved: true, author: { banned: false, deletedAt: null } },
             orderBy: { createdAt: "asc" },
             select: {
               id: true,
@@ -83,8 +84,12 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, name: true, email: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, name: true, email: true, banned: true, deletedAt: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   const { success: rlOk, reset } = await safeRateLimit(blogCommentRatelimit, me.id);
   if (!rlOk) return rateLimitResponse(reset, "Too many comments.");
@@ -101,7 +106,8 @@ export async function POST(
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const text = parsed.body.trim();
+  const text = sanitizeText(parsed.body.trim());
+  if (!text) return NextResponse.json({ error: "Comment is empty" }, { status: 400 });
   const { parentId } = parsed;
 
   // Profanity check (log-only — does not block submission)
@@ -114,7 +120,6 @@ export async function POST(
 
   // Validate parent and determine effective parentId for depth enforcement
   let effectiveParentId: string | null = null;
-  let notifyAuthorId: string | null = null;
 
   if (parentId) {
     const parent = await prisma.blogComment.findUnique({
@@ -145,7 +150,6 @@ export async function POST(
         effectiveParentId = parent.parentId;
       }
     }
-    notifyAuthorId = parent.authorId !== me.id ? parent.authorId : null;
   }
 
   const comment = await prisma.blogComment.create({

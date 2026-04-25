@@ -29,6 +29,7 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const drawerRef = React.useRef<HTMLDivElement>(null);
 
   // Close drawer and search on navigation
   React.useEffect(() => {
@@ -51,6 +52,7 @@ export default function Header() {
   // Lock body scroll when drawer is open
   React.useEffect(() => {
     document.body.style.overflow = drawerOpen ? "hidden" : "";
+    if (drawerOpen) drawerRef.current?.focus();
     return () => {
       document.body.style.overflow = "";
     };
@@ -274,7 +276,14 @@ export default function Header() {
           />
 
           {/* Panel */}
-          <div className="fixed right-0 top-0 z-[1001] flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden">
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Main navigation"
+            tabIndex={-1}
+            className="fixed right-0 top-0 z-[1001] flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl animate-slide-in-right rounded-l-2xl overflow-hidden"
+          >
             {/* Header row */}
             <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
               <Link

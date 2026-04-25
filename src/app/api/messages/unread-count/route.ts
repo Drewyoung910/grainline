@@ -16,9 +16,8 @@ export async function GET() {
     });
 
     return NextResponse.json({ count });
-  } catch (e) {
+  } catch {
     // Don’t explode the header—just show 0 on error
     return NextResponse.json({ count: 0 });
   }
 }
-

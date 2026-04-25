@@ -302,9 +302,11 @@ export async function POST(
     const labelLockResult: number = await prisma.$executeRaw`
       UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
       WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+        AND "fulfillmentStatus" = 'PENDING'::"FulfillmentStatus"
+        AND "sellerRefundId" IS NULL
     `;
     if (labelLockResult === 0) {
-      return NextResponse.json({ error: "Label already purchased." }, { status: 400 });
+      return NextResponse.json({ error: "Label already purchased or order status changed." }, { status: 400 });
     }
 
     const revertLabelLock = async () => {

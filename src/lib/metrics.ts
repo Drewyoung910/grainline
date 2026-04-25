@@ -51,8 +51,7 @@ export async function calculateSellerMetrics(
   sellerProfileId: string,
   periodMonths = 3
 ): Promise<SellerMetricsResult> {
-  const periodStart = new Date();
-  periodStart.setMonth(periodStart.getMonth() - periodMonths);
+  const periodStart = new Date(Date.now() - periodMonths * 30 * 24 * 60 * 60 * 1000);
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
@@ -78,6 +77,7 @@ export async function calculateSellerMetrics(
         where: {
           items: { some: { listing: { sellerId: sellerProfileId } } },
           fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
+          sellerRefundId: null,
         },
         select: {
           items: {
@@ -91,6 +91,7 @@ export async function calculateSellerMetrics(
       prisma.order.findMany({
         where: {
           items: { some: { listing: { sellerId: sellerProfileId } } },
+          sellerRefundId: null,
           shippedAt: { not: null, gte: periodStart },
           processingDeadline: { not: null },
         },
@@ -145,7 +146,7 @@ export async function calculateSellerMetrics(
     (o) => new Date(o.shippedAt!) <= new Date(o.processingDeadline!)
   ).length;
   const onTimeShippingRate =
-    validShipped.length > 0 ? onTimeCount / validShipped.length : 1;
+    validShipped.length > 0 ? onTimeCount / validShipped.length : 0;
 
   // Response rate (period)
   // Buyer-initiated = first message NOT from seller
@@ -154,7 +155,7 @@ export async function calculateSellerMetrics(
   );
   const sellerResponded = buyerInitiated.filter((c) => c.firstResponseAt !== null);
   const responseRate =
-    buyerInitiated.length > 0 ? sellerResponded.length / buyerInitiated.length : 1;
+    buyerInitiated.length > 0 ? sellerResponded.length / buyerInitiated.length : 0;
 
   const result: SellerMetricsResult = {
     sellerProfileId,

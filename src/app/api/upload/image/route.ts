@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { prisma } from "@/lib/db";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
 
@@ -39,6 +40,8 @@ const MAX_COUNTS: Record<(typeof IMAGE_ENDPOINTS)[number], number> = {
   galleryImage: 10,
 };
 
+const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "bannerImage", "galleryImage"]);
+
 const FormSchema = z.object({
   endpoint: z.enum(IMAGE_ENDPOINTS),
   fileIndex: z.coerce.number().int().min(0).default(0),
@@ -60,7 +63,7 @@ async function stripMetadata(input: Buffer, contentType: string) {
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  await ensureUserByClerkId(userId);
+  const me = await ensureUserByClerkId(userId);
 
   const { success, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many uploads.");
@@ -77,6 +80,13 @@ export async function POST(req: Request) {
   }
 
   const { endpoint, fileIndex } = parsed.data;
+  if (SELLER_ONLY_ENDPOINTS.has(endpoint)) {
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { userId: me.id },
+      select: { id: true },
+    });
+    if (!seller) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+  }
   if (fileIndex >= MAX_COUNTS[endpoint]) {
     return NextResponse.json({ error: "Too many files" }, { status: 400 });
   }

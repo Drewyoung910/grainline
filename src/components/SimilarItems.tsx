@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import ListingCard, { type ListingCardData } from "@/components/ListingCard";
+import ListingCard from "@/components/ListingCard";
 import ClickTracker from "@/components/ClickTracker";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 

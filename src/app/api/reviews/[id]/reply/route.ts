@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
+import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
@@ -14,6 +15,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params; // review id
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many review replies.");
 
   let replyParsed;
   try {

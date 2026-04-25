@@ -2,6 +2,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -11,6 +12,11 @@ import {
   sendFirstSaleCongrats,
 } from "@/lib/email";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
+import {
+  beginStripeWebhookEvent,
+  markStripeWebhookEventFailed,
+  markStripeWebhookEventProcessed,
+} from "@/lib/stripeWebhookEvents";
 import type { FulfillmentStatus } from "@prisma/client";
 
 
@@ -22,14 +28,14 @@ export async function POST(req: Request) {
   const body = await req.text();
   const signature = (await headers()).get("stripe-signature") as string;
   const secret = process.env.STRIPE_WEBHOOK_SECRET!;
-  let event;
+  let event: Stripe.Event;
 
   try {
     event = stripe.webhooks.constructEvent(body, signature, secret);
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", (err as { message?: string })?.message);
     Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
-    return new NextResponse("Invalid signature", { status: 400 });
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   // Handle Stripe Workbench Snapshot thin events:
@@ -40,7 +46,22 @@ export async function POST(req: Request) {
       event = await stripe.events.retrieve(event.id);
     } catch (retrieveErr) {
       console.error("Webhook: failed to retrieve full event:", retrieveErr);
-      return new NextResponse("Failed to retrieve event", { status: 500 });
+      return NextResponse.json({ error: "Failed to retrieve event" }, { status: 500 });
+    }
+  }
+
+  async function processIdempotentEvent(
+    handler: () => Promise<NextResponse>,
+  ): Promise<NextResponse> {
+    const shouldProcess = await beginStripeWebhookEvent(event.id, event.type);
+    if (!shouldProcess) return NextResponse.json({ ok: true });
+    try {
+      const response = await handler();
+      await markStripeWebhookEventProcessed(event.id);
+      return response;
+    } catch (handlerErr) {
+      await markStripeWebhookEventFailed(event.id, handlerErr);
+      throw handlerErr;
     }
   }
 
@@ -397,21 +418,6 @@ export async function POST(req: Request) {
           });
         });
 
-        // Cart cleanup (separate try/catch — non-fatal)
-        try {
-          const webhookSellerId = sessionMeta.sellerId;
-          if (webhookSellerId) {
-            await prisma.cartItem.deleteMany({
-              where: {
-                cart: { userId: buyerId! },
-                listing: { sellerId: webhookSellerId },
-              },
-            });
-          }
-        } catch (err) {
-          console.error("Webhook cart cleanup failed:", err);
-        }
-
         await releaseCheckoutLock(sessionMeta.checkoutLockKey);
 
         // Notify buyer + seller after cart checkout
@@ -700,21 +706,6 @@ export async function POST(req: Request) {
           }
         });
 
-        // Cart cleanup (separate try/catch — non-fatal)
-        try {
-          const webhookSellerId = sessionMeta.sellerId;
-          if (webhookSellerId) {
-            await prisma.cartItem.deleteMany({
-              where: {
-                cart: { userId: buyerId! },
-                listing: { sellerId: webhookSellerId },
-              },
-            });
-          }
-        } catch (err) {
-          console.error("Webhook cart cleanup failed:", err);
-        }
-
         await releaseCheckoutLock(sessionMeta.checkoutLockKey);
 
         // Notify buyer + seller after single-listing checkout
@@ -862,163 +853,174 @@ export async function POST(req: Request) {
     }
 
     if (event.type === "account.updated") {
-      const account = event.data.object as {
-        id: string;
-        charges_enabled?: boolean;
-        payouts_enabled?: boolean;
-        details_submitted?: boolean;
-        requirements?: { disabled_reason?: string | null } | null;
-      };
-      if (account.id) {
-        const seller = await prisma.sellerProfile.findFirst({
-          where: { stripeAccountId: account.id },
-          select: {
-            id: true,
-            chargesEnabled: true,
-            user: { select: { id: true } },
-          },
-        });
+      return processIdempotentEvent(async () => {
+        const account = event.data.object as {
+          id: string;
+          charges_enabled?: boolean;
+          payouts_enabled?: boolean;
+          details_submitted?: boolean;
+          requirements?: { disabled_reason?: string | null } | null;
+        };
+        if (account.id) {
+          const seller = await prisma.sellerProfile.findFirst({
+            where: { stripeAccountId: account.id },
+            select: {
+              id: true,
+              chargesEnabled: true,
+              user: { select: { id: true } },
+            },
+          });
 
-        if (seller) {
-          const newChargesEnabled = Boolean(
-            account.charges_enabled &&
-            account.payouts_enabled &&
-            account.details_submitted &&
-            !account.requirements?.disabled_reason
-          );
-          if (seller.chargesEnabled !== newChargesEnabled) {
-            await prisma.sellerProfile.update({
-              where: { id: seller.id },
-              data: { chargesEnabled: newChargesEnabled },
-            });
-
-            if (!newChargesEnabled) {
-              const { logSecurityEvent } = await import("@/lib/security");
-              logSecurityEvent("ownership_violation", {
-                userId: seller.user.id,
-                route: "/api/stripe/webhook",
-                reason: `Seller Stripe account disabled by Stripe: ${account.id}`,
+          if (seller) {
+            const newChargesEnabled = Boolean(
+              account.charges_enabled &&
+              account.payouts_enabled &&
+              account.details_submitted &&
+              !account.requirements?.disabled_reason
+            );
+            if (seller.chargesEnabled !== newChargesEnabled) {
+              await prisma.sellerProfile.update({
+                where: { id: seller.id },
+                data: { chargesEnabled: newChargesEnabled },
               });
+
+              if (!newChargesEnabled) {
+                const { logSecurityEvent } = await import("@/lib/security");
+                logSecurityEvent("ownership_violation", {
+                  userId: seller.user.id,
+                  route: "/api/stripe/webhook",
+                  reason: `Seller Stripe account disabled by Stripe: ${account.id}`,
+                });
+              }
             }
           }
         }
-      }
-      return NextResponse.json({ received: true });
+        return NextResponse.json({ received: true });
+      });
     }
 
     if (event.type === "charge.refunded") {
-      const charge = event.data.object as {
-        id?: string;
-        amount_refunded?: number;
-        refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null }> };
-      };
-      if (charge.id) {
-        const latestRefund = charge.refunds?.data?.find((refund) => refund.status !== "failed");
-        const latestRefundId = latestRefund?.id ?? `external:${charge.id}`;
-        const existingOrder = await prisma.order.findFirst({
-          where: { stripeChargeId: charge.id },
-          select: { id: true, sellerRefundId: true },
-        });
-        if (existingOrder && existingOrder.sellerRefundId !== latestRefundId) {
-          await prisma.order.update({
-            where: { id: existingOrder.id },
-            data: {
-              sellerRefundId: latestRefundId,
-              sellerRefundAmountCents: charge.amount_refunded ?? latestRefund?.amount ?? 0,
-              reviewNeeded: true,
-              reviewNote: "Stripe refund was created outside Grainline.",
-            },
+      return processIdempotentEvent(async () => {
+        const charge = event.data.object as {
+          id?: string;
+          amount_refunded?: number;
+          refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null }> };
+        };
+        if (charge.id) {
+          const latestRefund = charge.refunds?.data?.find((refund) => refund.status !== "failed");
+          const latestRefundId = latestRefund?.id ?? `external:${charge.id}`;
+          const existingOrder = await prisma.order.findFirst({
+            where: { stripeChargeId: charge.id },
+            select: { id: true, sellerRefundId: true },
           });
+          if (existingOrder && existingOrder.sellerRefundId !== latestRefundId) {
+            await prisma.order.update({
+              where: { id: existingOrder.id },
+              data: {
+                sellerRefundId: latestRefundId,
+                sellerRefundAmountCents: charge.amount_refunded ?? latestRefund?.amount ?? 0,
+                reviewNeeded: true,
+                reviewNote: "Stripe refund was created outside Grainline.",
+              },
+            });
+          }
         }
-      }
-      return NextResponse.json({ received: true });
+        return NextResponse.json({ received: true });
+      });
     }
 
     if (event.type.startsWith("charge.dispute.")) {
-      const dispute = event.data.object as { id?: string; charge?: string | { id?: string } | null; amount?: number | null; reason?: string | null };
-      const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
-      if (chargeId) {
-        const order = await prisma.order.findFirst({
-          where: { stripeChargeId: chargeId },
-          select: {
-            id: true,
-            items: {
-              take: 1,
-              select: {
-                listing: {
-                  select: {
-                    seller: {
-                      select: { userId: true },
+      return processIdempotentEvent(async () => {
+        const dispute = event.data.object as { id?: string; charge?: string | { id?: string } | null; amount?: number | null; reason?: string | null };
+        const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+        if (chargeId) {
+          const order = await prisma.order.findFirst({
+            where: { stripeChargeId: chargeId },
+            select: {
+              id: true,
+              items: {
+                take: 1,
+                select: {
+                  listing: {
+                    select: {
+                      seller: {
+                        select: { userId: true },
+                      },
                     },
                   },
                 },
               },
             },
-          },
-        });
-        if (order) {
-          await prisma.order.update({
-            where: { id: order.id },
-            data: {
-              reviewNeeded: true,
-              reviewNote: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
-            },
           });
-          const sellerUserId = order.items[0]?.listing.seller.userId;
-          if (sellerUserId) {
-            await createNotification({
-              userId: sellerUserId,
-              type: "CASE_OPENED",
-              title: "Payment dispute opened",
-              body: `Stripe reported a dispute for order ${order.id}.`,
-              link: `/dashboard/sales/${order.id}`,
+          if (order) {
+            await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                reviewNeeded: true,
+                reviewNote: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
+              },
             });
+            const sellerUserId = order.items[0]?.listing.seller.userId;
+            if (sellerUserId) {
+              await createNotification({
+                userId: sellerUserId,
+                type: "PAYMENT_DISPUTE",
+                title: "Payment dispute opened",
+                body: `Stripe reported a dispute for order ${order.id}.`,
+                link: `/dashboard/sales/${order.id}`,
+              });
+            }
           }
         }
-      }
-      return NextResponse.json({ received: true });
+        return NextResponse.json({ received: true });
+      });
     }
 
     if (event.type === "payout.failed") {
-      const accountId = (event as { account?: string }).account;
-      if (accountId) {
-        const seller = await prisma.sellerProfile.findFirst({
-          where: { stripeAccountId: accountId },
-          select: { userId: true },
-        });
-        if (seller) {
-          await prisma.sellerProfile.updateMany({
+      return processIdempotentEvent(async () => {
+        const accountId = (event as { account?: string }).account;
+        if (accountId) {
+          const seller = await prisma.sellerProfile.findFirst({
             where: { stripeAccountId: accountId },
-            data: { chargesEnabled: false, vacationMode: true },
+            select: { userId: true },
           });
-          await createNotification({
-            userId: seller.userId,
-            type: "VERIFICATION_REJECTED",
-            title: "Payout failed",
-            body: "Stripe could not complete a payout. Update your Stripe account before taking new orders.",
-            link: "/dashboard/seller",
-          });
+          if (seller) {
+            await prisma.sellerProfile.updateMany({
+              where: { stripeAccountId: accountId },
+              data: { chargesEnabled: false, vacationMode: true },
+            });
+            await createNotification({
+              userId: seller.userId,
+              type: "PAYOUT_FAILED",
+              title: "Payout failed",
+              body: "Stripe could not complete a payout. Update your Stripe account before taking new orders.",
+              link: "/dashboard/seller",
+            });
+          }
         }
-      }
-      return NextResponse.json({ received: true });
+        return NextResponse.json({ received: true });
+      });
     }
 
     if (event.type === "account.application.deauthorized") {
-      const deauthAccount = event.data.object as { id: string };
-      if (deauthAccount.id) {
-        await prisma.sellerProfile.updateMany({
-          where: { stripeAccountId: deauthAccount.id },
-          data: {
-            chargesEnabled: false,
-            stripeAccountId: null,
-          },
-        });
-      }
-      return NextResponse.json({ received: true });
+      return processIdempotentEvent(async () => {
+        const deauthAccount = event.data.object as { id: string };
+        if (deauthAccount.id) {
+          await prisma.sellerProfile.updateMany({
+            where: { stripeAccountId: deauthAccount.id },
+            data: {
+              chargesEnabled: false,
+              stripeAccountId: null,
+            },
+          });
+        }
+        return NextResponse.json({ received: true });
+      });
     }
 
-    // CHECKOUT SESSION EXPIRED — restore reserved stock
-    if (event.type === "checkout.session.expired") {
+    // CHECKOUT SESSION EXPIRED / ASYNC PAYMENT FAILED — restore reserved stock
+    if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
+      return processIdempotentEvent(async () => {
       const expiredSession = event.data.object as { id: string; metadata?: Record<string, string> };
       const expiredMeta = expiredSession.metadata ?? {};
 
@@ -1055,36 +1057,33 @@ export async function POST(req: Request) {
       if (expiredCartId && expiredSellerId) {
         // We don't have the exact items from the session, but we stored
         // line_items in the session. Retrieve them from Stripe.
-        try {
-          const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
-            expand: ["line_items.data.price.product"],
-          });
-          type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
-          const expiredLineItems: ExpiredLineItem[] = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];
-          for (const li of expiredLineItems) {
-            const prod = typeof li.price?.product === "object" ? li.price?.product : null;
-            const lid = prod?.metadata?.listingId;
-            if (lid && li.quantity) {
-              await prisma.$executeRaw`
-                UPDATE "Listing"
-                SET "stockQuantity" = "stockQuantity" + ${li.quantity}
-                WHERE id = ${lid}
-                  AND "listingType" = 'IN_STOCK'
-              `;
-              await prisma.listing.updateMany({
-                where: { id: lid, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-                data: { status: "ACTIVE" },
-              });
-            }
+        const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
+          expand: ["line_items.data.price.product"],
+        });
+        type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
+        const expiredLineItems: ExpiredLineItem[] = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];
+        for (const li of expiredLineItems) {
+          const prod = typeof li.price?.product === "object" ? li.price?.product : null;
+          const lid = prod?.metadata?.listingId;
+          if (lid && li.quantity) {
+            await prisma.$executeRaw`
+              UPDATE "Listing"
+              SET "stockQuantity" = "stockQuantity" + ${li.quantity}
+              WHERE id = ${lid}
+                AND "listingType" = 'IN_STOCK'
+            `;
+            await prisma.listing.updateMany({
+              where: { id: lid, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+              data: { status: "ACTIVE" },
+            });
           }
-        } catch (err) {
-          console.error("Failed to restore stock for expired cart session:", err);
         }
       }
 
       await releaseCheckoutLock(expiredMeta.checkoutLockKey);
 
       return NextResponse.json({ ok: true });
+      });
     }
 
     return NextResponse.json({ received: true });
@@ -1107,6 +1106,6 @@ export async function POST(req: Request) {
     }
     console.error("Stripe webhook handler error:", err);
     Sentry.captureException(err, { tags: { source: "stripe_webhook" } });
-    return new NextResponse("Webhook error", { status: 500 });
+    return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }

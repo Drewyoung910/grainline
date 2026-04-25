@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
   }
 
   const sellers = await prisma.sellerProfile.findMany({
-    where: { guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] } },
+    where: {
+      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
+      vacationMode: false,
+    },
     select: {
       id: true,
       userId: true,

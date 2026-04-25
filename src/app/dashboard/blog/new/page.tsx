@@ -63,11 +63,14 @@ export default async function NewBlogPostPage() {
 
     if (!title || !body) return;
 
-    // Profanity check (log-only)
+    // Profanity check. Drafts may be saved for editing, but public posts fail closed.
     const { containsProfanity } = await import("@/lib/profanity");
     const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body}`);
     if (profCheck.flagged) {
       console.error(`[PROFANITY] Blog post by ${uid}: ${profCheck.matches.join(", ")}`);
+      if (status === "PUBLISHED") {
+        throw new Error("This post needs edits before it can be published.");
+      }
     }
 
     // Validate type

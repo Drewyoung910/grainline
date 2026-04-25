@@ -8,7 +8,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { ListingStatus } from "@prisma/client";
-import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
+import { CATEGORY_LABELS } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";

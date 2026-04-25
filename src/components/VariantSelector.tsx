@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 export type VariantGroupForSelector = {
   id: string;
@@ -24,16 +24,6 @@ export default function VariantSelector({
 }) {
   // Map of groupId → selected optionId
   const [selected, setSelected] = useState<Record<string, string>>({});
-
-  const totalAdjust = useMemo(() => {
-    return Object.values(selected).reduce((sum, optId) => {
-      for (const g of groups) {
-        const opt = g.options.find((o) => o.id === optId);
-        if (opt) return sum + opt.priceAdjustCents;
-      }
-      return sum;
-    }, 0);
-  }, [selected, groups]);
 
   const selectOption = useCallback(
     (groupId: string, optionId: string) => {

@@ -7,6 +7,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -91,8 +92,13 @@ export async function POST(
     }
 
     let stripeRefundId: string | null = null;
+    const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
+    const refundAmountForOrder =
+      resolution === "REFUND_FULL"
+        ? caseRecord.order.itemsSubtotalCents + caseRecord.order.shippingAmountCents + caseRecord.order.taxAmountCents
+        : refundAmountCents ?? null;
 
-    if (resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL") {
+    if (refunding) {
       const paymentIntentId = caseRecord.order.stripePaymentIntentId;
       if (!paymentIntentId) {
         return NextResponse.json(
@@ -101,12 +107,32 @@ export async function POST(
         );
       }
 
-      const refund = await stripe.refunds.create(
-        resolution === "REFUND_FULL"
-          ? { payment_intent: paymentIntentId, reason: "fraudulent", refund_application_fee: true, reverse_transfer: true }
-          : { payment_intent: paymentIntentId, amount: refundAmountCents!, refund_application_fee: true, reverse_transfer: true }
-      );
-      stripeRefundId = refund.id;
+      const lockResult = await prisma.order.updateMany({
+        where: { id: caseRecord.orderId, sellerRefundId: null },
+        data: { sellerRefundId: "pending" },
+      });
+      if (lockResult.count === 0) {
+        return NextResponse.json(
+          { error: "A refund has already been issued for this order." },
+          { status: 400 },
+        );
+      }
+
+      try {
+        const refund = await stripe.refunds.create(
+          resolution === "REFUND_FULL"
+            ? { payment_intent: paymentIntentId, reason: "fraudulent", refund_application_fee: true, reverse_transfer: true }
+            : { payment_intent: paymentIntentId, amount: refundAmountCents!, refund_application_fee: true, reverse_transfer: true },
+          { idempotencyKey: `case-resolve:${id}:${resolution}:${refundAmountForOrder ?? 0}` },
+        );
+        stripeRefundId = refund.id;
+      } catch (stripeErr) {
+        await prisma.order.updateMany({
+          where: { id: caseRecord.orderId, sellerRefundId: "pending" },
+          data: { sellerRefundId: null },
+        }).catch(() => {});
+        throw stripeErr;
+      }
     }
 
     const now = new Date();
@@ -123,11 +149,10 @@ export async function POST(
         ? caseRecord.order.items
             .filter((it) => it.listing.listingType === "IN_STOCK")
             .map((it) => {
-              const restored = (it.listing.stockQuantity ?? 0) + it.quantity;
               return prisma.listing.update({
                 where: { id: it.listingId },
                 data: {
-                  stockQuantity: restored,
+                  stockQuantity: { increment: it.quantity },
                   ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
                 },
               });
@@ -154,7 +179,7 @@ export async function POST(
           data: {
             reviewNeeded: true,
             reviewNote: resolutionNote,
-            ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountCents ?? null } : {}),
+            ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountForOrder } : {}),
           },
         }),
         ...stockRestoreOps,
@@ -162,6 +187,24 @@ export async function POST(
     } catch (txErr) {
       if (stripeRefundId) {
         console.error(`ORPHANED REFUND: ${stripeRefundId} for case ${id}. Manual reconciliation required.`);
+        Sentry.captureException(txErr, {
+          tags: { source: "case_refund_orphaned_after_stripe" },
+          extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, refundAmountForOrder },
+        });
+        await prisma.order.updateMany({
+          where: { id: caseRecord.orderId, sellerRefundId: "pending" },
+          data: {
+            sellerRefundId: stripeRefundId,
+            sellerRefundAmountCents: refundAmountForOrder,
+            reviewNeeded: true,
+            reviewNote: `ORPHANED REFUND: Stripe refund ${stripeRefundId} succeeded, but case resolution DB work failed. Manual reconciliation required.`,
+          },
+        }).catch(() => {});
+      } else if (refunding) {
+        await prisma.order.updateMany({
+          where: { id: caseRecord.orderId, sellerRefundId: "pending" },
+          data: { sellerRefundId: null },
+        }).catch(() => {});
       }
       throw txErr;
     }

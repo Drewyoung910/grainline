@@ -79,6 +79,15 @@ export default async function EditBlogPostPage({
 
     if (!title || !body) return;
 
+    const { containsProfanity } = await import("@/lib/profanity");
+    const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body}`);
+    if (profCheck.flagged) {
+      console.error(`[PROFANITY] Blog post edit by ${uid}: ${profCheck.matches.join(", ")}`);
+      if (newStatus === "PUBLISHED") {
+        throw new Error("This post needs edits before it can be published.");
+      }
+    }
+
     const allowedTypes: BlogPostType[] = isStaffUser
       ? Object.values(BlogPostType)
       : ["STANDARD", "BEHIND_THE_BUILD"];
