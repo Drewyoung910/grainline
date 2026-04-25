@@ -2669,7 +2669,7 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - **Money transmitter licensing** — attorney sign-off on Stripe Connect exemption
 - **INFORM Consumers Act** — attorney scope for high-volume seller disclosures
 - ~~**Accessibility statement page**~~ — DONE (`/accessibility` page deployed)
-- **Bounce/complaint webhook from Resend** — configure in Resend dashboard, not code
+- ~~**Bounce/complaint webhook from Resend**~~ — DONE: `/api/resend/webhook` verifies Resend/Svix signatures and suppresses bounced/complaining recipients.
 - ~~**Deep health check**~~ — DONE (`/api/health` checks DB + Redis, returns 503 on failure)
 - ~~**Toast system replacing alert()**~~ — DONE: existing toast system + `emitToast()` are used for former alert paths.
 - ~~**autoComplete attributes on forms**~~ — DONE: seller/profile/onboarding/shipping/commission forms have appropriate autocomplete hints or explicit opt-outs.
@@ -4806,7 +4806,40 @@ This pass continued the Rounds 1-8 audit queue after verifying the code paths di
 
 ### Still open / next good passes
 - Continue the suspended/deleted UX sweep for less common server actions and API routes not covered in this pass.
-- Build a first-class email suppression/bounce/complaint webhook for Resend; one-click unsubscribe is fixed, but bounce/complaint hygiene remains open.
+- Configure the Resend dashboard webhook to send `email.bounced`, `email.complained`, and `email.suppressed` events to `https://thegrainline.com/api/resend/webhook` with `RESEND_WEBHOOK_SECRET`.
 - Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
 - Guild/admin performance can still be improved by caching verification metrics instead of calculating every applicant live in the admin queue.
 - Saved-search alert emails remain a future feature; this pass only fixed saved-filter persistence and replay.
+
+## Audit Pass — Resend Bounce/Complaint Suppression (2026-04-25)
+
+This pass continued the email infrastructure items from the Rounds 1-8 audit. Saved-search alert emails were intentionally skipped per product direction.
+
+### Fixed in this pass
+- **Email suppression table added**: `EmailSuppression` stores normalized recipient emails that should no longer receive Grainline mail, with `BOUNCE`, `COMPLAINT`, or `MANUAL` reasons plus source/event metadata.
+- **Resend webhook endpoint added**: `/api/resend/webhook` verifies Resend/Svix webhook signatures against the raw request body using `RESEND_WEBHOOK_SECRET`.
+- **Bounce/complaint handling implemented**: `email.bounced`, `email.complained`, and `email.suppressed` events suppress all recipient addresses from that event.
+- **Newsletter state synchronized**: suppressed emails are also marked inactive in `NewsletterSubscriber`, preventing later newsletter sends to bad/complaining addresses.
+- **Outbound sends respect suppressions**: the shared transactional email sender skips suppressed recipients before calling Resend.
+- **Admin direct emails respect suppressions**: `/api/admin/email` refuses to send to suppressed recipients and returns a clear 409 instead of attempting delivery.
+- **Webhook route is reachable by providers**: middleware treats `/api/resend/webhook` like Stripe/Clerk webhooks for auth and geo-block bypass purposes.
+- **Environment docs updated**: `.env.example` now documents `RESEND_WEBHOOK_SECRET`.
+
+### Operational step
+- In Resend, create a webhook for `https://thegrainline.com/api/resend/webhook`.
+- Subscribe it to `email.bounced`, `email.complained`, and `email.suppressed`.
+- Add the webhook signing secret to Vercel as `RESEND_WEBHOOK_SECRET`.
+
+### Verification
+- `npx prisma generate` ✅
+- `npx prisma migrate deploy` ✅ applied `20260425190000_email_suppressions` to the configured database
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ outside sandbox; sandbox build still fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / next good passes
+- Continue the suspended/deleted UX sweep for less common server actions and API routes.
+- Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
+- Saved-search alert emails remain intentionally skipped.

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
+import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
@@ -73,6 +74,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Either userId or email is required" }, { status: 400 });
   }
 
+  const normalizedRecipientEmail = normalizeEmailAddress(recipientEmail);
+  if (!normalizedRecipientEmail) {
+    return NextResponse.json({ error: "Invalid recipient email" }, { status: 400 });
+  }
+  if (await isEmailSuppressed(normalizedRecipientEmail)) {
+    return NextResponse.json({ error: "Recipient email is suppressed after a bounce or complaint" }, { status: 409 });
+  }
+
   if (!process.env.RESEND_API_KEY) {
     console.warn("[admin email] RESEND_API_KEY not set — skipping send");
     return NextResponse.json({ ok: true, skipped: true });
@@ -99,12 +108,12 @@ export async function POST(request: Request) {
   `;
 
   const sanitizedSubject = safeSubject(body.subject);
-  const unsubscribeUrl = buildUnsubscribeUrl(recipientEmail);
+  const unsubscribeUrl = buildUnsubscribeUrl(normalizedRecipientEmail);
 
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM ?? "Grainline <hello@thegrainline.com>",
-      to: recipientEmail,
+      to: normalizedRecipientEmail,
       subject: sanitizedSubject,
       html: htmlBody,
       text: htmlToText(htmlBody),
@@ -129,7 +138,7 @@ export async function POST(request: Request) {
       adminId: admin.id,
       action: "SEND_EMAIL",
       targetType: "USER",
-      targetId: recipientEmail,
+      targetId: normalizedRecipientEmail,
       reason: sanitizedSubject,
       metadata: {},
     });

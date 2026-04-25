@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
+import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -144,15 +145,30 @@ function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: n
 
 async function send(to: string, subject: string, html: string) {
   const sanitizedSubject = safeSubject(subject);
-  const unsubscribeUrl = buildUnsubscribeUrl(to);
+  const recipient = normalizeEmailAddress(to);
+  if (!recipient) {
+    Sentry.captureMessage("Skipped email with invalid recipient", {
+      level: "warning",
+      tags: { source: "email_send" },
+      extra: { to, subject: sanitizedSubject },
+    });
+    return;
+  }
+
+  const unsubscribeUrl = buildUnsubscribeUrl(recipient);
   if (!HAS_RESEND) {
-    console.log("[email:dev]", { to, subject: sanitizedSubject });
+    console.log("[email:dev]", { to: recipient, subject: sanitizedSubject });
     return;
   }
   try {
+    if (await isEmailSuppressed(recipient)) {
+      console.warn("[email] suppressed recipient skipped", { to: recipient, subject: sanitizedSubject });
+      return;
+    }
+
     await resend!.emails.send({
       from: process.env.EMAIL_FROM!,
-      to,
+      to: recipient,
       subject: sanitizedSubject,
       html,
       text: htmlToText(html),
@@ -167,7 +183,7 @@ async function send(to: string, subject: string, html: string) {
     });
   } catch (err) {
     console.error("[email] send failed:", err);
-    Sentry.captureException(err, { tags: { source: "email_send" }, extra: { to, subject } });
+    Sentry.captureException(err, { tags: { source: "email_send" }, extra: { to: recipient, subject } });
   }
 }
 

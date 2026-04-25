@@ -23,6 +23,7 @@ const isPublic = createRouteMatcher([
   "/accessibility",       // Accessibility statement — ADA compliance
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
+  "/api/resend/webhook",   // Resend webhook — called by Resend servers, no Clerk session
   "/api/whoami",
   "/api/me",
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
@@ -62,7 +63,8 @@ function isGeoAllowedApiPath(pathname: string): boolean {
     pathname === "/api/csp-report" ||
     pathname.startsWith("/api/cron") ||
     pathname === "/api/clerk/webhook" ||
-    pathname === "/api/stripe/webhook"
+    pathname === "/api/stripe/webhook" ||
+    pathname === "/api/resend/webhook"
   );
 }
 
