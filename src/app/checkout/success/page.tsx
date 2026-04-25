@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUserForPage } from "@/lib/pageAuth";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -28,8 +28,7 @@ export default async function CheckoutSuccessPage({
   const sessionId = sp?.session_id;
   if (!sessionId) redirect("/cart");
 
-  const me = await ensureUser();
-  if (!me) redirect(`/sign-in?redirect_url=/checkout/success?session_id=${encodeURIComponent(sessionId)}`);
+  const me = await ensureUserForPage(`/checkout/success?session_id=${encodeURIComponent(sessionId)}`);
 
   let s: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
   try {
@@ -445,4 +444,3 @@ export default async function CheckoutSuccessPage({
     </main>
   );
 }
-

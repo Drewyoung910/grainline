@@ -135,7 +135,10 @@ export default async function NewBlogPostPage() {
       after(async () => {
         try {
           const followers = await prisma.follow.findMany({
-            where: { sellerProfileId },
+            where: {
+              sellerProfileId,
+              follower: { banned: false, deletedAt: null },
+            },
             select: { followerId: true },
           });
           const sellerProfile = await prisma.sellerProfile.findUnique({
@@ -143,17 +146,21 @@ export default async function NewBlogPostPage() {
             select: { displayName: true },
           });
           const sellerDisplay = sellerProfile?.displayName ?? "A maker you follow";
-          await Promise.all(
-            followers.map((f) =>
-              createNotification({
-                userId: f.followerId,
-                type: "FOLLOWED_MAKER_NEW_BLOG",
-                title: `New post from ${sellerDisplay}`,
-                body: newPost.title,
-                link: `/blog/${newPost.slug}`,
-              })
-            )
-          );
+          const batchSize = 100;
+          for (let i = 0; i < followers.length; i += batchSize) {
+            const batch = followers.slice(i, i + batchSize);
+            await Promise.allSettled(
+              batch.map((f) =>
+                createNotification({
+                  userId: f.followerId,
+                  type: "FOLLOWED_MAKER_NEW_BLOG",
+                  title: `New post from ${sellerDisplay}`,
+                  body: newPost.title,
+                  link: `/blog/${newPost.slug}`,
+                })
+              )
+            );
+          }
         } catch { /* non-fatal */ }
       });
     }

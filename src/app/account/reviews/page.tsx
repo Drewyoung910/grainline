@@ -1,18 +1,12 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUserForPage } from "@/lib/pageAuth";
 
 export const metadata: Metadata = { title: "My Reviews", robots: { index: false, follow: false } };
 
 export default async function MyReviewsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in?redirect_url=/account/reviews");
-
-  const me = await ensureUser();
-  if (!me) redirect("/sign-in");
+  const me = await ensureUserForPage("/account/reviews");
 
   const reviews = await prisma.review.findMany({
     where: { reviewerId: me.id },

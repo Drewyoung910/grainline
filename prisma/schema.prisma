@@ -747,6 +747,13 @@ model SavedSearch {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   query       String?
   category    Category?
+  listingType ListingType?
+  shipsWithinDays Int?
+  minRating   Int?
+  lat         Float?
+  lng         Float?
+  radiusMiles Int?
+  sort        String?
   minPrice    Int?
   maxPrice    Int?
   tags        String[]  @default([])
@@ -789,6 +796,7 @@ model MakerVerification {
   sellerProfileId  String             @unique
   sellerProfile    SellerProfile      @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
   craftDescription String
+  guildMasterCraftBusiness String?
   yearsExperience  Int
   portfolioUrl     String?
   status           VerificationStatus @default(PENDING)

@@ -2,6 +2,7 @@
 import { Resend } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -143,6 +144,7 @@ function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: n
 
 async function send(to: string, subject: string, html: string) {
   const sanitizedSubject = safeSubject(subject);
+  const unsubscribeUrl = buildUnsubscribeUrl(to);
   if (!HAS_RESEND) {
     console.log("[email:dev]", { to, subject: sanitizedSubject });
     return;
@@ -154,10 +156,14 @@ async function send(to: string, subject: string, html: string) {
       subject: sanitizedSubject,
       html,
       text: htmlToText(html),
-      headers: {
-        "List-Unsubscribe": `<${APP_URL}/unsubscribe>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      ...(unsubscribeUrl
+        ? {
+            headers: {
+              "List-Unsubscribe": `<${unsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          }
+        : {}),
     });
   } catch (err) {
     console.error("[email] send failed:", err);

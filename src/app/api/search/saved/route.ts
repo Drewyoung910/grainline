@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { Category } from "@prisma/client";
+import { Category, ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensureUser";
@@ -10,8 +10,15 @@ import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ra
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
   category: z.string().max(50).optional().nullable(),
-  minPrice: z.number().min(0).max(100000).optional().nullable(),
-  maxPrice: z.number().min(0).max(100000).optional().nullable(),
+  type: z.enum(["IN_STOCK", "MADE_TO_ORDER"]).optional().nullable(),
+  shipsWithinDays: z.number().int().min(1).max(365).optional().nullable(),
+  minRating: z.number().int().min(1).max(5).optional().nullable(),
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
+  radiusMiles: z.number().int().min(1).max(500).optional().nullable(),
+  sort: z.enum(["relevant", "newest", "price_asc", "price_desc", "popular"]).optional().nullable(),
+  minPrice: z.number().min(0).max(10_000_000).optional().nullable(),
+  maxPrice: z.number().min(0).max(10_000_000).optional().nullable(),
   tags: z.array(z.string().min(1).max(100)).max(20).optional(),
 });
 
@@ -39,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const { q, category, minPrice, maxPrice, tags } = searchParsed;
+  const { q, category, type, shipsWithinDays, minRating, lat, lng, radiusMiles, sort, minPrice, maxPrice, tags } = searchParsed;
 
   const categoryRaw = (category ?? "").toUpperCase();
   const categoryVal: Category | null = CATEGORY_VALUES.includes(categoryRaw)
@@ -47,6 +54,7 @@ export async function POST(req: NextRequest) {
     : null;
 
   const normalizedQuery = q?.trim().replace(/\s+/g, " ").slice(0, 200) || null;
+  const listingType = type === "IN_STOCK" || type === "MADE_TO_ORDER" ? (type as ListingType) : null;
   const normalizedTags = Array.from(new Set(
     (tags ?? [])
       .map((tag) => tag.trim().toLowerCase().replace(/\s+/g, "-"))
@@ -54,9 +62,18 @@ export async function POST(req: NextRequest) {
   )).slice(0, 20);
   const normalizedMin = typeof minPrice === "number" && Number.isFinite(minPrice) ? minPrice : null;
   const normalizedMax = typeof maxPrice === "number" && Number.isFinite(maxPrice) ? maxPrice : null;
+  const normalizedShips = typeof shipsWithinDays === "number" && Number.isFinite(shipsWithinDays) ? shipsWithinDays : null;
+  const normalizedRating = typeof minRating === "number" && Number.isFinite(minRating) ? minRating : null;
+  const normalizedLat = typeof lat === "number" && Number.isFinite(lat) ? Number(lat.toFixed(5)) : null;
+  const normalizedLng = typeof lng === "number" && Number.isFinite(lng) ? Number(lng.toFixed(5)) : null;
+  const normalizedRadius = typeof radiusMiles === "number" && Number.isFinite(radiusMiles) ? radiusMiles : null;
+  const normalizedSort = sort ?? null;
 
   if (normalizedMin !== null && normalizedMax !== null && normalizedMin > normalizedMax) {
     return NextResponse.json({ error: "Minimum price cannot exceed maximum price" }, { status: 400 });
+  }
+  if ((normalizedLat === null) !== (normalizedLng === null) || ((normalizedLat !== null || normalizedLng !== null) && normalizedRadius === null)) {
+    return NextResponse.json({ error: "Location searches require latitude, longitude, and radius" }, { status: 400 });
   }
 
   const existing = await prisma.savedSearch.findFirst({
@@ -64,6 +81,13 @@ export async function POST(req: NextRequest) {
       userId: me.id,
       query: normalizedQuery,
       category: categoryVal,
+      listingType,
+      shipsWithinDays: normalizedShips,
+      minRating: normalizedRating,
+      lat: normalizedLat,
+      lng: normalizedLng,
+      radiusMiles: normalizedRadius,
+      sort: normalizedSort,
       minPrice: normalizedMin,
       maxPrice: normalizedMax,
       tags: { equals: normalizedTags },
@@ -82,6 +106,13 @@ export async function POST(req: NextRequest) {
       userId: me.id,
       query: normalizedQuery,
       category: categoryVal,
+      listingType,
+      shipsWithinDays: normalizedShips,
+      minRating: normalizedRating,
+      lat: normalizedLat,
+      lng: normalizedLng,
+      radiusMiles: normalizedRadius,
+      sort: normalizedSort,
       minPrice: normalizedMin,
       maxPrice: normalizedMax,
       tags: normalizedTags,

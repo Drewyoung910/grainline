@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { Resend } from "resend";
+import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
   `;
 
   const sanitizedSubject = safeSubject(body.subject);
+  const unsubscribeUrl = buildUnsubscribeUrl(recipientEmail);
 
   try {
     await resend.emails.send({
@@ -106,10 +108,14 @@ export async function POST(request: Request) {
       subject: sanitizedSubject,
       html: htmlBody,
       text: htmlToText(htmlBody),
-      headers: {
-        "List-Unsubscribe": `<${APP_URL}/unsubscribe>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      ...(unsubscribeUrl
+        ? {
+            headers: {
+              "List-Unsubscribe": `<${unsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          }
+        : {}),
     });
   } catch (err) {
     console.error("[admin email] send failed:", err);

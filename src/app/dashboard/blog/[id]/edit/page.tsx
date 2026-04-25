@@ -144,22 +144,29 @@ export default async function EditBlogPostPage({
       after(async () => {
         try {
           const followers = await prisma.follow.findMany({
-            where: { sellerProfileId: updated.sellerProfileId! },
+            where: {
+              sellerProfileId: updated.sellerProfileId!,
+              follower: { banned: false, deletedAt: null },
+            },
             select: { followerId: true },
           });
           if (followers.length > 0) {
             const sellerName = updated.sellerProfile?.displayName ?? "A maker you follow";
-            await Promise.all(
-              followers.map((f) =>
-                createNotification({
-                  userId: f.followerId,
-                  type: "FOLLOWED_MAKER_NEW_BLOG",
-                  title: `New post from ${sellerName}`,
-                  body: title,
-                  link: `/blog/${updated.slug}`,
-                })
-              )
-            );
+            const batchSize = 100;
+            for (let i = 0; i < followers.length; i += batchSize) {
+              const batch = followers.slice(i, i + batchSize);
+              await Promise.allSettled(
+                batch.map((f) =>
+                  createNotification({
+                    userId: f.followerId,
+                    type: "FOLLOWED_MAKER_NEW_BLOG",
+                    title: `New post from ${sellerName}`,
+                    body: title,
+                    link: `/blog/${updated.slug}`,
+                  })
+                )
+              );
+            }
           }
         } catch { /* non-fatal */ }
       });

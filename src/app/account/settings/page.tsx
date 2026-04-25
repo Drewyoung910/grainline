@@ -1,9 +1,7 @@
 // src/app/account/settings/page.tsx
-import { redirect } from "next/navigation";
-import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
 import type { Metadata } from "next";
@@ -25,11 +23,7 @@ const DEFAULT_OFF = [
 const DEFAULT_OFF_EMAIL = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
 
 export default async function AccountSettingsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in?redirect_url=/account/settings");
-
-  const me = await ensureUser();
-  if (!me) redirect("/sign-in?redirect_url=/account/settings");
+  const me = await ensureUserForPage("/account/settings");
 
   const user = await prisma.user.findUnique({
     where: { id: me.id },

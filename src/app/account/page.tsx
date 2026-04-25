@@ -1,9 +1,7 @@
 // src/app/account/page.tsx
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUserForPage } from "@/lib/pageAuth";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 
@@ -13,11 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AccountPage() {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in?redirect_url=/account");
-
-  const me = await ensureUser();
-  if (!me) redirect("/sign-in?redirect_url=/account");
+  const me = await ensureUserForPage("/account");
 
   const [recentOrders, savedItems, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer

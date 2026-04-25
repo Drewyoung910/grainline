@@ -1,9 +1,7 @@
 // src/app/account/orders/page.tsx
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
 import type { Metadata } from "next";
 
@@ -19,11 +17,7 @@ export default async function AccountOrdersPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
-  const { userId } = await auth();
-  if (!userId) redirect("/sign-in?redirect_url=/account/orders");
-
-  const me = await ensureUser();
-  if (!me) redirect("/sign-in?redirect_url=/account/orders");
+  const me = await ensureUserForPage("/account/orders");
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);

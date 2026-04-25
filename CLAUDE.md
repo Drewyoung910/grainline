@@ -4771,3 +4771,42 @@ This pass continued the Rounds 1-8 audit queue and focused on payment correctnes
 - Payment/admin operations still need a deeper case/refund/manual reconciliation workflow review, especially partial external refunds and staff-visible dispute state.
 - Notification fan-out for followed-maker new listings/blog posts should receive the same batching and active-recipient filtering pattern.
 - Larger performance work remains: listing detail query shaping, browse geo/rating prefilters, homepage query cleanup, and long-term analytics correctness.
+
+## Audit Pass — Email Compliance, Follower Fan-Out, Guild Applications, Saved Searches (2026-04-25)
+
+This pass continued the Rounds 1-8 audit queue after verifying the code paths directly. It targeted issues that were high-signal, bounded, and safe to ship without rewriting payment or listing flows.
+
+### Fixed in this pass
+- **List-Unsubscribe one-click compliance**: outbound email now uses a tokenized `/api/email/unsubscribe` endpoint in `List-Unsubscribe` headers instead of the generic sign-in-required `/unsubscribe` page.
+- **Stateless unsubscribe tokens**: unsubscribe links are HMAC-signed over the recipient email using `UNSUBSCRIBE_SECRET` (falling back to existing webhook secrets if needed). The endpoint accepts Gmail/Yahoo one-click POSTs and does not require account sign-in.
+- **Unsubscribe behavior is scoped correctly**: one-click unsubscribe disables newsletter subscriptions and optional marketing-style email preferences (`EMAIL_FOLLOWED_MAKER_NEW_LISTING`, `EMAIL_SELLER_BROADCAST`, `EMAIL_NEW_FOLLOWER`) while preserving transactional order/case emails.
+- **Admin-sent emails use the same one-click unsubscribe path**: `/api/admin/email` no longer advertises a generic unsubscribe URL in one-click headers.
+- **Follower notification fan-out batched**: new listing, new blog, blog republish, and seller broadcast notifications now skip banned/deleted followers and process notifications in bounded batches instead of large `Promise.all()` bursts.
+- **New-listing follower emails no longer silently cap at 500**: followed-maker new-listing emails are processed in email batches with per-recipient preference checks instead of slicing the follower list.
+- **Guild Member application server action now enforces eligibility**: tampered server-action posts cannot enter the admin queue unless the seller meets listing count, completed non-refunded sales, account age, and long-running-case requirements.
+- **Guild Member sales math fixed**: the verification page now sums `OrderItem.priceCents * quantity` on delivered/picked-up non-refunded orders instead of summing unit prices.
+- **Guild Master application server action now enforces live metrics**: tampered posts cannot submit unless the seller is an active Guild Member and currently meets Guild Master requirements.
+- **Guild Master business narrative persisted**: `MakerVerification.guildMasterCraftBusiness` stores the Guild Master application answer separately from the original Guild Member craft description, and admin review displays that field.
+- **Verification portfolio URL validation hardened**: the dashboard verification actions now require optional portfolio URLs to be valid `https://` URLs before storage.
+- **Saved searches preserve browse filter state**: saved searches now store listing type, ships-within-days, minimum rating, location lat/lng/radius, sort, min/max price, category, tags, and query.
+- **Saved-search price cap aligned with listing reality**: saved-search API validation now accepts up to the listing maximum ($100,000) instead of rejecting saved searches above $1,000.
+- **Saved-search privacy disclosure updated**: Privacy Policy saved-search language now lists the newly stored filter fields.
+- **Common suspended/deleted account pages redirect cleanly**: account overview, orders, reviews, settings, checkout success, and seller settings now route account access failures to `/banned` instead of exposing a generic error page.
+- **`ensureSeller()` now throws typed account-access errors**: seller-only pages can distinguish suspended/deleted account state from generic server failures.
+- **Environment docs updated**: `.env.example` now documents `UNSUBSCRIBE_SECRET`.
+
+### Verification
+- `npx prisma generate` ✅
+- `npx prisma migrate deploy` ✅ applied `20260425113000_add_metrics_query_indexes` and `20260425172000_extend_saved_search_and_verification_fields` to the configured database
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ outside sandbox; sandbox build still fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / next good passes
+- Continue the suspended/deleted UX sweep for less common server actions and API routes not covered in this pass.
+- Build a first-class email suppression/bounce/complaint webhook for Resend; one-click unsubscribe is fixed, but bounce/complaint hygiene remains open.
+- Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
+- Guild/admin performance can still be improved by caching verification metrics instead of calculating every applicant live in the admin queue.
+- Saved-search alert emails remain a future feature; this pass only fixed saved-filter persistence and replay.

@@ -631,8 +631,10 @@ export default async function AdminVerificationPage() {
 
                 <div className="space-y-2 text-sm">
                   <div>
-                    <span className="font-medium text-neutral-700">Craft description:</span>
-                    <p className="text-neutral-600 mt-0.5 whitespace-pre-wrap">{v.craftDescription}</p>
+                    <span className="font-medium text-neutral-700">Business narrative:</span>
+                    <p className="text-neutral-600 mt-0.5 whitespace-pre-wrap">
+                      {v.guildMasterCraftBusiness ?? v.craftDescription}
+                    </p>
                   </div>
                   {v.portfolioUrl && (
                     <div>

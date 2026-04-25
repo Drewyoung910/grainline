@@ -12,6 +12,65 @@ const REQUIRED_LISTINGS = 5;
 const REQUIRED_SALES_CENTS = 25000; // $250
 const REQUIRED_ACCOUNT_DAYS = 30;
 
+function normalizeHttpsUrl(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" && url.toString().length <= 500 ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getGuildMemberEligibility({
+  sellerProfileId,
+  sellerUserId,
+  accountCreatedAt,
+}: {
+  sellerProfileId: string;
+  sellerUserId: string;
+  accountCreatedAt: Date | null | undefined;
+}) {
+  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+  const [listingCount, salesRows, caseCount] = await Promise.all([
+    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE" } }),
+    prisma.$queryRaw<Array<{ totalSalesCents: bigint | null }>>`
+      SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
+      FROM "OrderItem" oi
+      JOIN "Order" o ON o.id = oi."orderId"
+      JOIN "Listing" l ON l.id = oi."listingId"
+      WHERE l."sellerId" = ${sellerProfileId}
+        AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
+        AND o."sellerRefundId" IS NULL
+    `,
+    prisma.case.count({
+      where: {
+        sellerId: sellerUserId,
+        status: { notIn: ["RESOLVED", "CLOSED"] },
+        createdAt: { lt: sixtyDaysAgo },
+      },
+    }),
+  ]);
+
+  const totalSalesCents = Number(salesRows[0]?.totalSalesCents ?? 0);
+  const accountAgeDays = accountCreatedAt
+    ? Math.floor((Date.now() - new Date(accountCreatedAt).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  return {
+    activeListings: listingCount,
+    totalSalesCents,
+    accountAgeDays,
+    longCaseCount: caseCount,
+    criteriaListingsMet: listingCount >= REQUIRED_LISTINGS,
+    criteriaSalesMet: totalSalesCents >= REQUIRED_SALES_CENTS,
+    criteriaAgeMet: accountAgeDays >= REQUIRED_ACCOUNT_DAYS,
+    criteriaCasesMet: caseCount === 0,
+  };
+}
+
 export default async function VerificationPage() {
   const { seller } = await ensureSeller();
   if (!seller) redirect("/sign-in");
@@ -75,32 +134,15 @@ export default async function VerificationPage() {
   let profileComplete = false;
 
   if (!isMemberActive && !isMemberPending) {
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-
-    const [listingCount, salesResult, caseCount] = await Promise.all([
-      prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE" } }),
-      prisma.orderItem.aggregate({
-        where: {
-          listing: { sellerId: seller.id },
-          order: { fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] } },
-        },
-        _sum: { priceCents: true },
-      }),
-      prisma.case.count({
-        where: {
-          sellerId: fullSeller.userId,
-          status: { notIn: ["RESOLVED", "CLOSED"] },
-          createdAt: { lt: sixtyDaysAgo },
-        },
-      }),
-    ]);
-
-    activeListings = listingCount;
-    totalSalesCents = salesResult._sum.priceCents ?? 0;
-    longCaseCount = caseCount;
-    accountAgeDays = fullSeller.user?.createdAt
-      ? Math.floor((Date.now() - new Date(fullSeller.user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
+    const eligibility = await getGuildMemberEligibility({
+      sellerProfileId: seller.id,
+      sellerUserId: fullSeller.userId,
+      accountCreatedAt: fullSeller.user?.createdAt,
+    });
+    activeListings = eligibility.activeListings;
+    totalSalesCents = eligibility.totalSalesCents;
+    longCaseCount = eligibility.longCaseCount;
+    accountAgeDays = eligibility.accountAgeDays;
     profileComplete =
       !!(fullSeller.bio?.trim()) &&
       !!fullSeller.avatarImageUrl &&
@@ -119,8 +161,32 @@ export default async function VerificationPage() {
     const { seller: s } = await ensureSeller();
     const craftDescription = String(formData.get("craftDescription") ?? "").trim().slice(0, 500);
     const yearsExperience = parseInt(String(formData.get("yearsExperience") ?? "0"), 10);
-    const portfolioUrl = String(formData.get("portfolioUrl") ?? "").trim() || null;
-    if (!craftDescription || !Number.isFinite(yearsExperience)) return;
+    const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
+    const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
+    const confirmHandmade = formData.get("confirmHandmade") === "on";
+    if (!craftDescription || !Number.isFinite(yearsExperience) || yearsExperience < 0 || yearsExperience > 100 || !confirmHandmade) return;
+    if (portfolioRaw && !portfolioUrl) return;
+
+    const current = await prisma.sellerProfile.findUnique({
+      where: { id: s.id },
+      select: {
+        userId: true,
+        guildLevel: true,
+        makerVerification: { select: { status: true } },
+        user: { select: { createdAt: true } },
+      },
+    });
+    if (!current || current.guildLevel !== "NONE" || current.makerVerification?.status === "PENDING") {
+      redirect("/dashboard/verification");
+    }
+    const eligibility = await getGuildMemberEligibility({
+      sellerProfileId: s.id,
+      sellerUserId: current.userId,
+      accountCreatedAt: current.user?.createdAt,
+    });
+    if (!(eligibility.criteriaListingsMet && eligibility.criteriaSalesMet && eligibility.criteriaAgeMet && eligibility.criteriaCasesMet)) {
+      redirect("/dashboard/verification");
+    }
 
     await prisma.makerVerification.upsert({
       where: { sellerProfileId: s.id },
@@ -150,15 +216,34 @@ export default async function VerificationPage() {
     "use server";
     const { seller: s } = await ensureSeller();
     const craftBusiness = String(formData.get("craftBusiness") ?? "").trim().slice(0, 500);
-    const portfolioUrl = String(formData.get("portfolioUrl") ?? "").trim() || null;
-    if (!craftBusiness) return;
+    const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
+    const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
+    const confirmStandards = formData.get("confirmStandards") === "on";
+    if (!craftBusiness || !confirmStandards) return;
+    if (portfolioRaw && !portfolioUrl) return;
+
+    const current = await prisma.sellerProfile.findUnique({
+      where: { id: s.id },
+      select: {
+        guildLevel: true,
+        makerVerification: { select: { status: true } },
+      },
+    });
+    if (!current || current.guildLevel !== "GUILD_MEMBER" || current.makerVerification?.status === "GUILD_MASTER_PENDING") {
+      redirect("/dashboard/verification");
+    }
+    const metrics = await calculateSellerMetrics(s.id);
+    const criteria = meetsGuildMasterRequirements(metrics);
+    if (!criteria.allMet) redirect("/dashboard/verification");
 
     await prisma.$transaction([
       prisma.makerVerification.update({
         where: { sellerProfileId: s.id },
         data: {
           status: "GUILD_MASTER_PENDING",
+          guildMasterCraftBusiness: craftBusiness,
           portfolioUrl: portfolioUrl ?? undefined,
+          appliedAt: new Date(),
         },
       }),
       prisma.sellerProfile.update({

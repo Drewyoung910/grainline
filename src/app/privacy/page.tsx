@@ -217,8 +217,9 @@ export default function PrivacyPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">2.17 Saved Searches</h3>
           <p>
-            If you save a search, we store your search filters including search query, category, price
-            range, and tags. You may delete saved searches at any time from your dashboard.
+            If you save a search, we store your search filters including search query, category,
+            listing type, price range, shipping speed, rating, location radius, sort, and tags.
+            You may delete saved searches at any time from your dashboard.
           </p>
         </section>
 

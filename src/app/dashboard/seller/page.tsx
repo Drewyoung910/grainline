@@ -15,7 +15,7 @@ import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
-import { ensureUser } from "@/lib/ensureUser";
+import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 
 function toNull(v: unknown) {
@@ -153,8 +153,15 @@ export default async function SellerSettingsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/seller");
 
-  const { seller } = await ensureSeller();
-  const me = await ensureUser();
+  let seller: Awaited<ReturnType<typeof ensureSeller>>["seller"];
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    ({ seller } = await ensureSeller());
+    me = await ensureUser();
+  } catch (error) {
+    if (isAccountAccessError(error)) redirect("/banned");
+    throw error;
+  }
   const [row, followerCount, draftCount, userRow] = await Promise.all([
     prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
@@ -482,5 +489,3 @@ export default async function SellerSettingsPage() {
     </main>
   );
 }
-
-

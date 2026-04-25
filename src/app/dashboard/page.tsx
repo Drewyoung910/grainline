@@ -549,14 +549,27 @@ export default async function DashboardPage() {
               const parts: string[] = [];
               if (s.query) parts.push(`"${s.query}"`);
               if (s.category) parts.push(s.category.charAt(0) + s.category.slice(1).toLowerCase());
+              if (s.listingType) parts.push(s.listingType === "IN_STOCK" ? "In stock" : "Made to order");
+              if (s.shipsWithinDays != null) parts.push(`ships within ${s.shipsWithinDays}d`);
+              if (s.minRating != null) parts.push(`${s.minRating}★+`);
               if (s.minPrice != null) parts.push(`$${(s.minPrice / 100).toFixed(0)}+`);
               if (s.maxPrice != null) parts.push(`up to $${(s.maxPrice / 100).toFixed(0)}`);
+              if (s.lat != null && s.lng != null && s.radiusMiles != null) parts.push(`within ${s.radiusMiles} mi`);
               if (s.tags.length > 0) parts.push(s.tags.map((t) => `#${t}`).join(" "));
 
               const href = (() => {
                 const p = new URLSearchParams();
                 if (s.query) p.set("q", s.query);
                 if (s.category) p.set("category", s.category);
+                if (s.listingType) p.set("type", s.listingType);
+                if (s.shipsWithinDays != null) p.set("ships", String(s.shipsWithinDays));
+                if (s.minRating != null) p.set("rating", String(s.minRating));
+                if (s.lat != null && s.lng != null && s.radiusMiles != null) {
+                  p.set("lat", String(s.lat));
+                  p.set("lng", String(s.lng));
+                  p.set("radius", String(s.radiusMiles));
+                }
+                if (s.sort) p.set("sort", s.sort);
                 if (s.minPrice != null) p.set("min", (s.minPrice / 100).toFixed(2));
                 if (s.maxPrice != null) p.set("max", (s.maxPrice / 100).toFixed(2));
                 for (const t of s.tags) p.append("tag", t);
@@ -595,7 +608,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

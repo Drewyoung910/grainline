@@ -1,6 +1,7 @@
 // src/lib/ensureSeller.ts
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { AccountAccessError } from "@/lib/ensureUser";
 
 export async function ensureSeller() {
   const { userId } = await auth();
@@ -25,7 +26,18 @@ export async function ensureSeller() {
       data: { clerkId: userId, email, name, imageUrl },
     });
   }
-  if (me.banned || me.deletedAt) throw new Error("Account is suspended");
+  if (me.banned) {
+    throw new AccountAccessError(
+      "Your account has been suspended. Contact support@thegrainline.com",
+      "ACCOUNT_SUSPENDED",
+    );
+  }
+  if (me.deletedAt) {
+    throw new AccountAccessError(
+      "This account has been deleted. Contact support@thegrainline.com",
+      "ACCOUNT_DELETED",
+    );
+  }
 
   // 2) Ensure we have a SellerProfile row
   let seller = await prisma.sellerProfile.findUnique({ where: { userId: me.id } });
@@ -40,4 +52,3 @@ export async function ensureSeller() {
 
   return { me, seller };
 }
-
