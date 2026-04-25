@@ -1,6 +1,6 @@
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import maplibregl from "maplibre-gl";
 
 type SellerPin = {
@@ -15,9 +15,10 @@ type SellerPin = {
 export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const center: [number, number] = sellers.length
-    ? [sellers[0].lng, sellers[0].lat]
-    : [-98.35, 39.5];
+  const center: [number, number] = useMemo(
+    () => (sellers.length ? [sellers[0].lng, sellers[0].lat] : [-98.35, 39.5]),
+    [sellers],
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -33,11 +34,27 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
     map.on("load", () => {
       for (const seller of sellers) {
-        const popup = new maplibregl.Popup({ offset: 25 }).setHTML(
-          `<div class="text-sm font-medium">${seller.name}</div>
-           ${seller.city ? `<div class="text-xs text-neutral-500">${seller.city}${seller.state ? `, ${seller.state}` : ""}</div>` : ""}
-           <a href="/seller/${seller.id}" class="text-xs text-amber-700 underline mt-1 block">View shop →</a>`
-        );
+        const popupContent = document.createElement("div");
+
+        const name = document.createElement("div");
+        name.className = "text-sm font-medium";
+        name.textContent = seller.name;
+        popupContent.appendChild(name);
+
+        if (seller.city) {
+          const location = document.createElement("div");
+          location.className = "text-xs text-neutral-500";
+          location.textContent = `${seller.city}${seller.state ? `, ${seller.state}` : ""}`;
+          popupContent.appendChild(location);
+        }
+
+        const link = document.createElement("a");
+        link.href = `/seller/${encodeURIComponent(seller.id)}`;
+        link.className = "text-xs text-amber-700 underline mt-1 block";
+        link.textContent = "View shop";
+        popupContent.appendChild(link);
+
+        const popup = new maplibregl.Popup({ offset: 25 }).setDOMContent(popupContent);
 
         new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat([seller.lng, seller.lat])
@@ -47,7 +64,7 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
     });
 
     return () => map.remove();
-  }, [sellers]);
+  }, [sellers, center]);
 
   return (
     <div className="rounded-xl overflow-hidden border">

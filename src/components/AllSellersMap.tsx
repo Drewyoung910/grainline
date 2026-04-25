@@ -101,12 +101,43 @@ export default function AllSellersMap({
 
     const markers: maplibregl.Marker[] = [];
 
-    function buildPopupHTML(props: Record<string, unknown> | null) {
-      return `<div style="font-family:inherit;padding:2px 0;">
-    <div style="font-weight:600;font-size:14px;color:#1a1a1a;margin-bottom:4px;">${props?.name ?? ""}</div>
-    ${props?.city ? `<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${props.city}${props.state ? `, ${props.state}` : ""}</div>` : ""}
-    <a href="/seller/${props?.id}" style="font-size:12px;color:#92400e;text-decoration:underline;font-weight:500;">View shop →</a>
-  </div>`;
+    function buildPopupContent(props: Record<string, unknown> | null) {
+      const id = typeof props?.id === "string" ? props.id : "";
+      const nameText = typeof props?.name === "string" ? props.name : "";
+      const cityText = typeof props?.city === "string" ? props.city : "";
+      const stateText = typeof props?.state === "string" ? props.state : "";
+
+      const wrapper = document.createElement("div");
+      wrapper.style.fontFamily = "inherit";
+      wrapper.style.padding = "2px 0";
+
+      const name = document.createElement("div");
+      name.style.fontWeight = "600";
+      name.style.fontSize = "14px";
+      name.style.color = "#1a1a1a";
+      name.style.marginBottom = "4px";
+      name.textContent = nameText;
+      wrapper.appendChild(name);
+
+      if (cityText) {
+        const location = document.createElement("div");
+        location.style.fontSize = "12px";
+        location.style.color = "#6b7280";
+        location.style.marginBottom = "6px";
+        location.textContent = `${cityText}${stateText ? `, ${stateText}` : ""}`;
+        wrapper.appendChild(location);
+      }
+
+      const link = document.createElement("a");
+      link.href = `/seller/${encodeURIComponent(id)}`;
+      link.style.fontSize = "12px";
+      link.style.color = "#92400e";
+      link.style.textDecoration = "underline";
+      link.style.fontWeight = "500";
+      link.textContent = "View shop";
+      wrapper.appendChild(link);
+
+      return wrapper;
     }
 
     function updateMarkers() {
@@ -128,7 +159,7 @@ export default function AllSellersMap({
 
         const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
         const popup = new maplibregl.Popup({ offset: 25, maxWidth: "240px" })
-          .setHTML(buildPopupHTML(feature.properties as Record<string, unknown>));
+          .setDOMContent(buildPopupContent(feature.properties as Record<string, unknown>));
 
         const marker = new maplibregl.Marker({ color: "#1C1C1A" })
           .setLngLat(coords)

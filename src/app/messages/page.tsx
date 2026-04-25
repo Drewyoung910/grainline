@@ -297,6 +297,7 @@ export default async function MessagesPage({
                     {/* Avatar */}
                     <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200">
                       {other?.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={other.imageUrl} alt="" className="h-full w-full object-cover" />
                       ) : null}
                     </div>
@@ -347,5 +348,4 @@ export default async function MessagesPage({
     </main>
   );
 }
-
 

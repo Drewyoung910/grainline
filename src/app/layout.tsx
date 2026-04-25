@@ -87,6 +87,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
           <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-400">
             <div className="flex justify-center mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto opacity-40" />
             </div>
             {/* Browse by City — dynamic, only shown when metros have content */}
@@ -117,7 +118,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-
 
 
 

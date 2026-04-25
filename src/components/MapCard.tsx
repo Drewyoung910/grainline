@@ -136,7 +136,7 @@ export default function MapCard({
     });
 
     return () => map.remove();
-  }, [lat, lng, radiusMeters, showPinWithRadius, seed]);
+  }, [lat, lng, radiusMeters, showPinWithRadius, seed, label]);
 
   return (
     <div

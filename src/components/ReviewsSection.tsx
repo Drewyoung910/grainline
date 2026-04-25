@@ -165,6 +165,7 @@ export default async function ReviewsSection({
             <div className="flex items-start gap-3">
               <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
                 {mine.reviewer.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={mine.reviewer.imageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-[10px] font-medium text-neutral-700">
@@ -250,6 +251,7 @@ export default async function ReviewsSection({
                 <div className="flex items-start gap-3">
                   <div className="h-8 w-8 shrink-0 rounded-full bg-neutral-200 overflow-hidden flex items-center justify-center">
                     {r.reviewer.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={r.reviewer.imageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <span className="text-[10px] font-medium text-neutral-700">{initials}</span>
@@ -321,5 +323,4 @@ export default async function ReviewsSection({
     </section>
   );
 }
-
 

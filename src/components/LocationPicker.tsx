@@ -26,32 +26,46 @@ export default function LocationPicker({
   const meters = miles > 0 ? Math.round(miles * 1609.34) : 0;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
 
   async function search(q: string) {
     if (!q) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}`;
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    const data = await res.json();
-    if (Array.isArray(data) && data[0]) {
-      const lat = parseFloat(data[0].lat);
-      const lon = parseFloat(data[0].lon);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        setPos([lat, lon]);
-        if (mapRef.current) mapRef.current.panTo([lon, lat]);
-        if (markerRef.current) markerRef.current.setLngLat([lon, lat]);
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data) && data[0]) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          setPos([lat, lon]);
+          if (mapRef.current) mapRef.current.panTo([lon, lat]);
+          if (markerRef.current) markerRef.current.setLngLat([lon, lat]);
+        }
       }
+    } catch {
+      // Nominatim is best-effort; users can still click or drag the map.
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const [startLat, startLng] = start;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: "https://tiles.openfreemap.org/styles/liberty",
-      center: [pos[1], pos[0]],
+      center: [startLng, startLat],
       zoom: 11,
     });
 
@@ -59,7 +73,7 @@ export default function LocationPicker({
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     const marker = new maplibregl.Marker({ color: "#1C1C1A", draggable: true })
-      .setLngLat([pos[1], pos[0]])
+      .setLngLat([startLng, startLat])
       .addTo(map);
 
     markerRef.current = marker;
@@ -82,7 +96,7 @@ export default function LocationPicker({
       mapRef.current = null;
       markerRef.current = null;
     };
-  }, []); // init once only
+  }, [start]);
 
   // Redraw radius circle when pos or meters changes
   useEffect(() => {
@@ -146,6 +160,7 @@ export default function LocationPicker({
     <div className="space-y-2">
       <div className="flex gap-2">
         <input
+          ref={searchInputRef}
           type="text"
           placeholder="Search address or place"
           className="flex-1 border border-neutral-200 rounded-md px-3 py-2 text-sm"
@@ -160,8 +175,7 @@ export default function LocationPicker({
           type="button"
           className="border border-neutral-200 rounded-md px-3 py-2 text-sm hover:bg-neutral-50"
           onClick={() => {
-            const el = document.activeElement as HTMLInputElement;
-            search(el?.value ?? "");
+            search(searchInputRef.current?.value ?? "");
           }}
         >
           Search

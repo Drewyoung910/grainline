@@ -130,8 +130,10 @@ export default function Header() {
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
           {/* Mobile */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden" />
           {/* Desktop */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
         </Link>
 
@@ -292,6 +294,7 @@ export default function Header() {
                 aria-label="Grainline"
                 onClick={() => setDrawerOpen(false)}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto" />
               </Link>
               {/* X button: relative z-[60] ensures it's above the fixed backdrop */}

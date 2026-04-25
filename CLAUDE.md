@@ -3064,6 +3064,26 @@ Third continuation pass on the 475-finding audit backlog. Scope focused on high-
 - `npm run lint` passed with 10 warnings and 0 errors.
 - Escalated `npm run build` passed. Build still warns that the local `.env` database URL uses `sslmode=require`; `.env.example` now documents `sslmode=verify-full`, and Vercel/local secrets should be updated outside git.
 
+## Round 7 Continuation Cleanup Pass 3 (2026-04-24)
+
+Small hardening pass after the deployed cart/media cleanup. Scope focused on low-risk audit leftovers and lint cleanliness without changing product behavior.
+
+### Map and client-side safety
+- `SellersMap` popups now use DOM nodes with `textContent` instead of interpolating seller names/cities into `setHTML()`. This removes a Maplibre popup XSS footgun if seller display data contains markup.
+- `AllSellersMap` removed the remaining Maplibre `setHTML()` use and now builds popup DOM with text nodes and encoded seller links.
+- `LocationPicker` search now uses an 8-second `AbortController` timeout for Nominatim lookups and catches failures cleanly. Users can still click/drag the map when search fails.
+- `LocationPicker`, `MapCard`, and `SellersMap` hook dependencies were corrected instead of being suppressed.
+
+### Lint cleanup
+- Added explicit `@next/next/no-img-element` exceptions to the remaining intentional raw image uses: footer/header SVG logos and small user avatar thumbnails. This matches the existing convention used throughout listing cards, galleries, messages, and dashboard thumbnails.
+- `npm run lint` now exits with zero ESLint warnings. It still prints a non-failing upstream `jsx-ast-utils` resolver notice for `TSNonNullExpression`.
+
+### Verification
+- `npx prisma validate` passed.
+- `npx tsc --noEmit --incremental false` passed.
+- `npm run lint` passed with 0 ESLint warnings.
+- `git diff --check` passed.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules
