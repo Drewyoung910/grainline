@@ -63,40 +63,46 @@ export async function calculateSellerMetrics(
     (Date.now() - new Date(seller.createdAt).getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  // Run all queries in parallel
-  const [reviews, completedOrders, shippedOrders, activeCaseCount, conversations] =
+  // Keep metrics aggregation in the database. Loading full order/review/message
+  // histories works at launch size, but it falls over exactly when seller
+  // metrics become most important.
+  const [reviewAgg, completedSalesRows, shippingRows, activeCaseCount, responseRows] =
     await Promise.all([
-      // All reviews on this seller's listings (all-time)
-      prisma.review.findMany({
+      prisma.review.aggregate({
         where: { listing: { sellerId: sellerProfileId } },
-        select: { ratingX2: true },
+        _avg: { ratingX2: true },
+        _count: { _all: true },
       }),
 
-      // Completed orders (DELIVERED or PICKED_UP) — all-time
-      prisma.order.findMany({
-        where: {
-          items: { some: { listing: { sellerId: sellerProfileId } } },
-          fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
-          sellerRefundId: null,
-        },
-        select: {
-          items: {
-            where: { listing: { sellerId: sellerProfileId } },
-            select: { priceCents: true, quantity: true },
-          },
-        },
-      }),
+      prisma.$queryRaw<Array<{ completedOrderCount: bigint; totalSalesCents: bigint | null }>>`
+        SELECT
+          COUNT(DISTINCT o.id)::bigint AS "completedOrderCount",
+          COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId" = o.id
+        JOIN "Listing" l ON l.id = oi."listingId"
+        WHERE l."sellerId" = ${sellerProfileId}
+          AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
+          AND o."sellerRefundId" IS NULL
+      `,
 
-      // Orders shipped within the period (for on-time shipping rate)
-      prisma.order.findMany({
-        where: {
-          items: { some: { listing: { sellerId: sellerProfileId } } },
-          sellerRefundId: null,
-          shippedAt: { not: null, gte: periodStart },
-          processingDeadline: { not: null },
-        },
-        select: { shippedAt: true, processingDeadline: true },
-      }),
+      prisma.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
+        SELECT
+          COUNT(*)::bigint AS "shippedCount",
+          COUNT(*) FILTER (WHERE o."shippedAt" <= o."processingDeadline")::bigint AS "onTimeCount"
+        FROM "Order" o
+        WHERE o."sellerRefundId" IS NULL
+          AND o."shippedAt" IS NOT NULL
+          AND o."shippedAt" >= ${periodStart}
+          AND o."processingDeadline" IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM "OrderItem" oi
+            JOIN "Listing" l ON l.id = oi."listingId"
+            WHERE oi."orderId" = o.id
+              AND l."sellerId" = ${sellerProfileId}
+          )
+      `,
 
       // Active (open) cases
       prisma.case.count({
@@ -106,56 +112,51 @@ export async function calculateSellerMetrics(
         },
       }),
 
-      // Conversations in the period (for response rate)
-      prisma.conversation.findMany({
-        where: {
-          OR: [{ userAId: seller.userId }, { userBId: seller.userId }],
-          createdAt: { gte: periodStart },
-        },
-        select: {
-          userAId: true,
-          userBId: true,
-          firstResponseAt: true,
-          messages: {
-            take: 1,
-            orderBy: { createdAt: "asc" },
-            select: { senderId: true },
-          },
-        },
-      }),
+      prisma.$queryRaw<Array<{ buyerInitiatedCount: bigint; sellerRespondedCount: bigint }>>`
+        SELECT
+          COUNT(*)::bigint AS "buyerInitiatedCount",
+          COUNT(*) FILTER (WHERE c."firstResponseAt" IS NOT NULL)::bigint AS "sellerRespondedCount"
+        FROM "Conversation" c
+        JOIN LATERAL (
+          SELECT m."senderId"
+          FROM "Message" m
+          WHERE m."conversationId" = c.id
+          ORDER BY m."createdAt" ASC
+          LIMIT 1
+        ) first_msg ON true
+        WHERE (c."userAId" = ${seller.userId} OR c."userBId" = ${seller.userId})
+          AND c."createdAt" >= ${periodStart}
+          AND first_msg."senderId" <> ${seller.userId}
+      `,
     ]);
 
   // Average rating (all-time)
-  const reviewCount = reviews.length;
+  const reviewCount = reviewAgg._count._all;
   const averageRating =
     reviewCount > 0
-      ? reviews.reduce((sum, r) => sum + r.ratingX2, 0) / (reviewCount * 2)
+      ? (reviewAgg._avg.ratingX2 ?? 0) / 2
       : 0;
 
   // Completed sales (all-time)
-  const completedOrderCount = completedOrders.length;
-  const totalSalesCents = completedOrders.reduce(
-    (sum, o) => sum + o.items.reduce((s, i) => s + i.priceCents * i.quantity, 0),
-    0
-  );
+  const completedSales = completedSalesRows[0];
+  const completedOrderCount = Number(completedSales?.completedOrderCount ?? 0);
+  const totalSalesCents = Number(completedSales?.totalSalesCents ?? 0);
 
   // On-time shipping rate (period)
   // An order is on-time if shippedAt <= processingDeadline
-  const validShipped = shippedOrders.filter((o) => o.shippedAt && o.processingDeadline);
-  const onTimeCount = validShipped.filter(
-    (o) => new Date(o.shippedAt!) <= new Date(o.processingDeadline!)
-  ).length;
+  const shippingStats = shippingRows[0];
+  const validShippedCount = Number(shippingStats?.shippedCount ?? 0);
+  const onTimeCount = Number(shippingStats?.onTimeCount ?? 0);
   const onTimeShippingRate =
-    validShipped.length > 0 ? onTimeCount / validShipped.length : 0;
+    validShippedCount > 0 ? onTimeCount / validShippedCount : 0;
 
   // Response rate (period)
   // Buyer-initiated = first message NOT from seller
-  const buyerInitiated = conversations.filter(
-    (c) => c.messages[0]?.senderId !== seller.userId
-  );
-  const sellerResponded = buyerInitiated.filter((c) => c.firstResponseAt !== null);
+  const responseStats = responseRows[0];
+  const buyerInitiatedCount = Number(responseStats?.buyerInitiatedCount ?? 0);
+  const sellerRespondedCount = Number(responseStats?.sellerRespondedCount ?? 0);
   const responseRate =
-    buyerInitiated.length > 0 ? sellerResponded.length / buyerInitiated.length : 0;
+    buyerInitiatedCount > 0 ? sellerRespondedCount / buyerInitiatedCount : 0;
 
   const result: SellerMetricsResult = {
     sellerProfileId,

@@ -4684,3 +4684,27 @@ Read this with the two Rounds 1-7 follow-up sections above. This pass intentiona
 - Label purchase still needs a future first-class “manual reconciliation” admin queue; this pass only preserves state and marks orders for review.
 - Larger query performance work remains: listing detail round trips, browse geo/rating prefilters, and metrics aggregation.
 - Mobile/accessibility work remains: MapLibre fallback, touch-first photo reordering, and iOS keyboard/visualViewport handling.
+
+## Audit Pass — Metrics Aggregation + Query Indexes (2026-04-25)
+
+Read this with the Rounds 1-7 follow-up sections above. This pass focused on scale/correctness items that can be improved without changing the buyer/seller product flow.
+
+### Fixed in this pass
+- **Seller metrics no longer load full seller histories**: `calculateSellerMetrics()` now computes review count/average, completed order count, total sales, on-time shipment rate, and response rate with database aggregates/raw SQL instead of fetching every review, delivered order, shipped order, and conversation into application memory.
+- **Guild sales metrics still exclude refunds**: the aggregate rewrite preserves the existing non-refunded delivered/picked-up order filter.
+- **Response rate calculation excludes empty conversations**: the SQL rewrite counts buyer-initiated conversations only when the first message exists and was not sent by the seller.
+- **Prisma schema aligned with existing review sort index**: `Review` now declares `@@index([listingId, createdAt])`, matching the raw performance index already created in `20260424_add_performance_indexes_v2`.
+- **New supporting indexes added**: migration `20260425113000_add_metrics_query_indexes` adds `Conversation(createdAt)`, `Order(createdAt)`, `CaseMessage(caseId, createdAt)`, and `BlogComment(postId, createdAt)` indexes for admin sorts, metrics windows, and chronological thread/comment reads.
+- **Fulfillment route runtime pinned**: `POST /api/orders/[id]/fulfillment` now exports `maxDuration = 30` and `preferredRegion = "iad1"` to match other payment/operations-heavy routes and reduce cross-region DB latency.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+
+### Still open / next good passes
+- Listing detail still has multiple independent DB round trips and should get a dedicated query-shaping pass.
+- Browse geo/rating filters still need bounding-box/prefilter work before large catalog scale.
+- Seller analytics cart-abandonment math can still overcount stale carts; fixing it cleanly requires a more deliberate analytics pass.
+- Mobile/accessibility items remain: MapLibre no-WebGL fallback, touch-first photo management, lightbox focus trapping, and iOS keyboard/visualViewport handling.

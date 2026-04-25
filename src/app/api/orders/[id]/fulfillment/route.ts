@@ -16,6 +16,8 @@ const FulfillmentSchema = z.object({
 });
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
+export const preferredRegion = "iad1";
 
 const VALID_TRACKING_CARRIERS = new Set(["UPS", "USPS", "FedEx", "DHL", "Other"]);
 const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;

@@ -391,6 +391,7 @@ model Review {
 
   @@unique([listingId, reviewerId])
   @@index([listingId])
+  @@index([listingId, createdAt])
   @@index([reviewerId])
 }
 
@@ -413,6 +414,7 @@ model Conversation {
   @@unique([userAId, userBId])
   @@index([userAId])
   @@index([userBId])
+  @@index([createdAt])
 }
 
 model Message {
@@ -518,6 +520,7 @@ model Order {
 
   @@index([buyerId])
   @@index([paidAt])
+  @@index([createdAt])
   @@index([fulfillmentStatus])
 
   // Snapshot of the *selected* shipping service
@@ -735,6 +738,7 @@ model CaseMessage {
   createdAt DateTime @default(now())
 
   @@index([caseId])
+  @@index([caseId, createdAt])
 }
 
 model SavedSearch {
@@ -860,6 +864,7 @@ model BlogComment {
   createdAt DateTime @default(now())
 
   @@index([postId])
+  @@index([postId, createdAt])
   @@index([parentId])
 }
 
