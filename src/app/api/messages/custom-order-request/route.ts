@@ -33,10 +33,10 @@ export async function POST(req: Request) {
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, name: true, email: true, banned: true },
+    select: { id: true, name: true, email: true, banned: true, deletedAt: true },
   });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   let parsed;
   try {
@@ -72,6 +72,7 @@ export async function POST(req: Request) {
     select: {
       id: true,
       banned: true,
+      deletedAt: true,
       sellerProfile: {
         select: {
           id: true,
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
     },
   });
   if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
-  if (seller.banned) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
+  if (seller.banned || seller.deletedAt) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
   if (!seller.sellerProfile) return NextResponse.json({ error: "This user is not a seller." }, { status: 400 });
   if (!seller.sellerProfile.acceptsCustomOrders) return NextResponse.json({ error: "This seller is not accepting custom orders." }, { status: 400 });
   if (!seller.sellerProfile.chargesEnabled || seller.sellerProfile.vacationMode) {

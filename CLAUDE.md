@@ -123,7 +123,7 @@ Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` 
 
 `CaseResolution` enum: `REFUND_FULL | REFUND_PARTIAL | DISMISSED`
 
-`NotificationType` enum (22 values): `NEW_MESSAGE | NEW_ORDER | ORDER_SHIPPED | ORDER_DELIVERED | CASE_OPENED | CASE_MESSAGE | CASE_RESOLVED | CUSTOM_ORDER_REQUEST | CUSTOM_ORDER_LINK | VERIFICATION_APPROVED | VERIFICATION_REJECTED | BACK_IN_STOCK | NEW_REVIEW | LOW_STOCK | NEW_FAVORITE | NEW_BLOG_COMMENT | BLOG_COMMENT_REPLY | NEW_FOLLOWER | FOLLOWED_MAKER_NEW_LISTING | FOLLOWED_MAKER_NEW_BLOG | SELLER_BROADCAST | COMMISSION_INTEREST | LISTING_APPROVED | LISTING_REJECTED`
+`NotificationType` enum (26 values): `NEW_MESSAGE | NEW_ORDER | ORDER_SHIPPED | ORDER_DELIVERED | CASE_OPENED | CASE_MESSAGE | CASE_RESOLVED | CUSTOM_ORDER_REQUEST | CUSTOM_ORDER_LINK | VERIFICATION_APPROVED | VERIFICATION_REJECTED | BACK_IN_STOCK | NEW_REVIEW | LOW_STOCK | NEW_FAVORITE | NEW_BLOG_COMMENT | BLOG_COMMENT_REPLY | NEW_FOLLOWER | FOLLOWED_MAKER_NEW_LISTING | FOLLOWED_MAKER_NEW_BLOG | SELLER_BROADCAST | COMMISSION_INTEREST | LISTING_APPROVED | LISTING_REJECTED | PAYMENT_DISPUTE | PAYOUT_FAILED`
 
 ### Order — delivery estimate fields
 
@@ -641,7 +641,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ## In-Site Notifications (complete)
 
 ### Schema
-- **`NotificationType`** enum — 18 values (see enum section above)
+- **`NotificationType`** enum — 26 values (see enum section above)
 - **`Notification`** model — `id`, `userId` → `User`, `type`, `title`, `body`, `link String?`, `read Boolean @default(false)`, `createdAt`; `@@index([userId, read])`
 
 ### Helper
@@ -2987,8 +2987,39 @@ Continuation of the consolidated 475-finding Opus/Codex audit backlog. Scope foc
 - `npx prisma generate` passed.
 - `npx tsc --noEmit --incremental false` passed.
 - `npm run lint` passed with 11 warnings and 0 errors.
+- `npx dotenv-cli -e .env -- npx prisma migrate deploy` applied `20260424201500_user_report_resolution_metadata`.
+- Escalated `npm run build` passed.
 - `npx dotenv-cli -e .env -- npx prisma migrate deploy` applied `20260424194500_webhook_idempotency_retention_constraints`.
 - Sandboxed `npm run build` hit the known Turbopack local-port restriction; escalated `npm run build` passed.
+
+## Round 7 Continuation Cleanup Pass (2026-04-24)
+
+Second continuation pass after deploying `60a5957`, focused on smaller but still real audit backlog items that were safe to fix without product redesign.
+
+### Dev and destructive-operation guards
+- `prisma/seed.ts` now refuses to run unless non-production and `ALLOW_DESTRUCTIVE_SEED=true`, preventing accidental destructive seeding against a real database from local shells.
+- `prisma/seed-bulk.ts` now requires `ALLOW_BULK_SEED=true`.
+- `/api/dev/make-order` is now disabled unless running local non-Vercel development with `ENABLE_DEV_MAKE_ORDER=true`; preview/staging/prod deployments return 404.
+- `/api/whoami` now returns 404 outside local development.
+- `.env.example` documents `DIRECT_URL` and the local-only helper flags.
+
+### Account-state and moderation edges
+- Custom-order requests, commission creation, commission interest, and blog create/edit now reject soft-deleted users in addition to banned users.
+- Commission interest now hides requests from banned/deleted buyers even if the request id is hit directly.
+- Blog republishing from draft/archive to published is rate-limited with the same daily publish budget as new posts.
+- Blog slug generation now fails after 100 collisions instead of looping indefinitely.
+- `shouldSendEmail()` now also suppresses email for soft-deleted users.
+- Case escalation via cron now uses the shared timing-safe `verifyCronRequest()` helper instead of direct string comparison.
+
+### Report audit trail
+- Added `UserReport.resolvedAt` and `resolvedById` plus a `resolvedBy` relation and index.
+- Admin report resolution now stores the resolving admin and timestamp, in addition to the existing `RESOLVE_REPORT` admin audit log.
+
+### Verification
+- `npx prisma validate` passed.
+- `npx prisma generate` passed.
+- `npx tsc --noEmit --incremental false` passed.
+- `npm run lint` passed with 11 warnings and 0 errors.
 
 ## Pending Tasks
 
@@ -4456,9 +4487,7 @@ Read this section before continuing the remaining 300+ item audit queue. This pa
 - `npm run build` ✅ when run outside sandbox; sandbox build fails on Turbopack internal worker port binding (`Operation not permitted`)
 
 ### Still open / needs separate migration pass
-- Conversation/Message/Case/CaseMessage deletion semantics need a schema/migration pass. Do not patch casually; coordinate with the account-deletion/anonymization policy so order and case retention remain legally safe.
 - Raw partial unique index migration `20260424_add_performance_indexes_v2` still is not represented cleanly in Prisma schema. Avoid changing applied migration names without verifying `_prisma_migrations` in production.
-- Stripe webhook still needs a durable webhook event idempotency table for non-checkout events.
-- `checkout.session.async_payment_failed` should restore stock/locks through the same session-line-item restoration path used for expired sessions.
-- `payout.failed` currently reuses an existing notification enum type; a future schema migration should add explicit payment/admin notification types.
+- Conversation/Message/Case/CaseMessage deletion semantics were pinned in `20260424194500_webhook_idempotency_retention_constraints`; keep future changes aligned with account-deletion/anonymization and order/case retention policy.
+- Stripe webhook idempotency, `checkout.session.async_payment_failed`, and explicit `PAYMENT_DISPUTE` / `PAYOUT_FAILED` notification types were implemented in `20260424194500_webhook_idempotency_retention_constraints`.
 - Legal/business items remain non-code blockers: attorney sign-off, money-transmitter confirmation, INFORM workflow/legal alignment, and business insurance.

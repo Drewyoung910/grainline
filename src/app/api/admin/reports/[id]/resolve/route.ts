@@ -21,7 +21,7 @@ export async function POST(
   const { id } = await params;
   await prisma.userReport.update({
     where: { id },
-    data: { resolved: true },
+    data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id },
   });
 
   await logAdminAction({

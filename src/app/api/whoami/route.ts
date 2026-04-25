@@ -1,8 +1,13 @@
 // src/app/api/whoami/route.ts
 import { auth } from "@clerk/nextjs/server";
 import { headers, cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 export async function GET() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const h = await headers();
   const c = await cookies();
 
@@ -12,9 +17,8 @@ export async function GET() {
 
   const { userId } = await auth(); // <- await in Next 15
 
-  return Response.json({ userId, hasSessionCookie });
+  return NextResponse.json({ userId, hasSessionCookie });
 }
-
 
 
 

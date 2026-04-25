@@ -18,10 +18,10 @@ export default async function NewBlogPostPage() {
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, role: true, banned: true },
+    select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!me) redirect("/sign-in");
-  if (me.banned) redirect("/dashboard");
+  if (me.banned || me.deletedAt) redirect("/dashboard");
 
   const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
 
@@ -37,10 +37,10 @@ export default async function NewBlogPostPage() {
     if (!uid) redirect("/sign-in");
     const author = await prisma.user.findUnique({
       where: { clerkId: uid },
-      select: { id: true, role: true, banned: true },
+      select: { id: true, role: true, banned: true, deletedAt: true },
     });
     if (!author) redirect("/sign-in");
-    if (author.banned) throw new Error("Account is suspended.");
+    if (author.banned || author.deletedAt) throw new Error("Account is suspended.");
 
     const isStaffUser = author.role === "EMPLOYEE" || author.role === "ADMIN";
 
@@ -85,6 +85,7 @@ export default async function NewBlogPostPage() {
     let slug = baseSlug;
     let attempt = 2;
     while (await prisma.blogPost.findUnique({ where: { slug }, select: { id: true } })) {
+      if (attempt > 100) throw new Error("Could not generate a unique blog slug.");
       slug = `${baseSlug}-${attempt++}`;
     }
 

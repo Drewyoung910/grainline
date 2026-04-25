@@ -123,6 +123,7 @@ model User {
   blockedBy   Block[]      @relation("UserBlockedBy")
   reports     UserReport[] @relation("UserReports")
   reportedBy  UserReport[] @relation("UserReportedBy")
+  reportsResolved UserReport[] @relation("UserReportsResolved")
 
   @@index([deletedAt])
 }
@@ -1127,12 +1128,16 @@ model UserReport {
   targetType String?
   targetId   String?
   resolved   Boolean  @default(false)
+  resolvedAt DateTime?
+  resolvedById String?
   createdAt  DateTime @default(now())
 
   reporter User @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
   reported User @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Cascade)
+  resolvedBy User? @relation("UserReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([reporterId])
   @@index([reportedId])
   @@index([resolved])
+  @@index([resolvedById])
 }

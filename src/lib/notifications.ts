@@ -28,9 +28,9 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { notificationPreferences: true, banned: true },
+      select: { notificationPreferences: true, banned: true, deletedAt: true },
     });
-    if (user?.banned) return false; // don't email banned users
+    if (user?.banned || user?.deletedAt) return false; // don't email suspended/deleted users
     const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
     if (DEFAULT_OFF_EMAIL_KEYS.includes(prefKey)) {
       return prefs[prefKey] === true;

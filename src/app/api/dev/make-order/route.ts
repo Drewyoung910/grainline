@@ -8,15 +8,27 @@ const DevOrderSchema = z.object({
   listingId: z.string().min(1),
 });
 
+function devFixturesEnabled() {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    !process.env.VERCEL_ENV &&
+    process.env.ENABLE_DEV_MAKE_ORDER === "true"
+  );
+}
+
 export async function POST(req: Request) {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Disabled in production" }, { status: 403 });
+  if (!devFixturesEnabled()) {
+    return NextResponse.json({ error: "Disabled" }, { status: 404 });
   }
 
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
 
   let devParsed;
   try {

@@ -8,6 +8,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { verifyCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 
@@ -19,10 +20,7 @@ export async function POST(
     const { id } = await params;
 
     // Auth: accept CRON_SECRET bearer token OR an authenticated user session
-    const authHeader = req.headers.get("authorization") ?? "";
-    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    const cronSecret = process.env.CRON_SECRET;
-    const validCron = !!(cronSecret && bearerToken === cronSecret);
+    const validCron = verifyCronRequest(req);
 
     let me: Awaited<ReturnType<typeof ensureUserByClerkId>> | null = null;
 

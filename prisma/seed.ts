@@ -5,6 +5,9 @@ function assertNonProductionSeed() {
   if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
     throw new Error("Refusing to run destructive seed in production.");
   }
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "true") {
+    throw new Error("Refusing to run destructive seed without ALLOW_DESTRUCTIVE_SEED=true.");
+  }
 }
 
 async function main() {

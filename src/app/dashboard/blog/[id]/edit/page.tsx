@@ -23,10 +23,10 @@ export default async function EditBlogPostPage({
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, role: true, banned: true },
+    select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!me) redirect("/sign-in");
-  if (me.banned) redirect("/dashboard");
+  if (me.banned || me.deletedAt) redirect("/dashboard");
 
   const post = await prisma.blogPost.findUnique({
     where: { id },
@@ -52,10 +52,10 @@ export default async function EditBlogPostPage({
     if (!uid) redirect("/sign-in");
     const author = await prisma.user.findUnique({
       where: { clerkId: uid },
-      select: { id: true, role: true, banned: true },
+      select: { id: true, role: true, banned: true, deletedAt: true },
     });
     if (!author) redirect("/sign-in");
-    if (author.banned) throw new Error("Account is suspended.");
+    if (author.banned || author.deletedAt) throw new Error("Account is suspended.");
 
     const existing = await prisma.blogPost.findUnique({
       where: { id },
@@ -112,6 +112,9 @@ export default async function EditBlogPostPage({
     // Set publishedAt if transitioning to PUBLISHED
     let publishedAt: Date | null | undefined = undefined;
     if (newStatus === "PUBLISHED" && existing.status !== "PUBLISHED") {
+      const { safeRateLimit, blogCreateRatelimit } = await import("@/lib/ratelimit");
+      const { success: rlOk } = await safeRateLimit(blogCreateRatelimit, author.id);
+      if (!rlOk) throw new Error("You can publish up to 3 blog posts per day.");
       publishedAt = new Date();
     } else if (newStatus !== "PUBLISHED") {
       publishedAt = null;

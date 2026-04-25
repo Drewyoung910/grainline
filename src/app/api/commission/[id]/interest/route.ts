@@ -26,6 +26,7 @@ export async function POST(
       id: true,
       name: true,
       banned: true,
+      deletedAt: true,
       sellerProfile: {
         select: {
           id: true,
@@ -38,7 +39,7 @@ export async function POST(
     },
   });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
-  if (me.banned) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
   if (!me.sellerProfile) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
   if (!me.sellerProfile.chargesEnabled) {
     return NextResponse.json({ error: "Connect Stripe before expressing interest." }, { status: 403 });
@@ -59,10 +60,13 @@ export async function POST(
       budgetMinCents: true,
       budgetMaxCents: true,
       timeline: true,
-      buyer: { select: { id: true, name: true, email: true } },
+      buyer: { select: { id: true, name: true, email: true, banned: true, deletedAt: true } },
     },
   });
   if (!commissionRequest) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (commissionRequest.buyer.banned || commissionRequest.buyer.deletedAt) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   if (commissionRequest.status !== "OPEN" || commissionIsExpired(commissionRequest)) {
     return NextResponse.json({ error: "Commission request is no longer open" }, { status: 400 });
   }

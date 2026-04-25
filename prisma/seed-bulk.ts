@@ -6,6 +6,9 @@ function assertNonProductionSeed() {
   if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
     throw new Error("Refusing to run seed in production.");
   }
+  if (process.env.ALLOW_BULK_SEED !== "true") {
+    throw new Error("Refusing to run bulk seed without ALLOW_BULK_SEED=true.");
+  }
 }
 
 async function main() {
