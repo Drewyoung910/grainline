@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { markReadRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -17,7 +17,15 @@ export async function POST(
   const { success } = await safeRateLimitOpen(markReadRatelimit, userId);
   if (!success) return NextResponse.json({ ok: true });
 
-  const me = await ensureUserByClerkId(userId);
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
 
   await prisma.notification.updateMany({
     where: { id, userId: me.id },

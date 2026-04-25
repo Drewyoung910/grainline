@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function POST(
@@ -15,7 +15,15 @@ export async function POST(
 
   const { id: listingId } = await params;
 
-  const user = await ensureUserByClerkId(clerkId);
+  let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    user = await ensureUserByClerkId(clerkId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
 
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
   if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
@@ -47,7 +55,15 @@ export async function DELETE(
 
   const { id: listingId } = await params;
 
-  const user = await ensureUserByClerkId(clerkId);
+  let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    user = await ensureUserByClerkId(clerkId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
 
   const { success: rlOk, reset } = await safeRateLimit(notifyRatelimit, user.id);
   if (!rlOk) return rateLimitResponse(reset, "Too many requests.");

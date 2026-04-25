@@ -2,7 +2,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 
 export async function GET(
   req: Request,
@@ -13,7 +13,15 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
 
-  const me = await ensureUserByClerkId(userId);
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
 
   // Only if I’m in this conversation
   const belongs = await prisma.conversation.findFirst({

@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
 import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -136,6 +136,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newCase, { status: 201 });
   } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
     console.error("POST /api/cases error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

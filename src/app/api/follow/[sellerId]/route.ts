@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { ensureUser, ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUser, ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { followRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 
@@ -56,7 +56,15 @@ export async function POST(
   const { success: rlOk, reset } = await safeRateLimit(followRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
-  const me = await ensureUser();
+  let me: Awaited<ReturnType<typeof ensureUser>>;
+  try {
+    me = await ensureUser();
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sellerProfile = await prisma.sellerProfile.findUnique({
@@ -135,7 +143,15 @@ export async function DELETE(
   const { success: rlOk, reset } = await safeRateLimit(followRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many follow actions.");
 
-  const me = await ensureUserByClerkId(userId);
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
 
   const sellerProfile = await prisma.sellerProfile.findUnique({
     where: { id: sellerId },

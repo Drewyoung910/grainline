@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -102,6 +102,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
     console.error("POST /api/cart/update error:", err);
     return NextResponse.json({ error: "Server error updating cart" }, { status: 500 });
   }

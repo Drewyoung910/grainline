@@ -89,7 +89,17 @@ export async function PATCH(
 
     // If stock is low (1–2), notify the seller
     if (updated.stockQuantity !== null && updated.stockQuantity > 0 && updated.stockQuantity <= 2) {
-      await createNotification({
+      const recentLowStock = await prisma.notification.findFirst({
+        where: {
+          userId: listing.seller.userId,
+          type: "LOW_STOCK",
+          link: "/dashboard/inventory",
+          title: `${updated.title} is running low`,
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
+        select: { id: true },
+      });
+      if (!recentLowStock) await createNotification({
         userId: listing.seller.userId,
         type: "LOW_STOCK",
         title: `${updated.title} is running low`,
@@ -104,25 +114,33 @@ export async function PATCH(
         try {
           const subscribers = await prisma.stockNotification.findMany({
             where: { listingId: id },
-            select: { userId: true, user: { select: { name: true, email: true } } },
+            select: { userId: true, user: { select: { name: true, email: true, banned: true, deletedAt: true } } },
           });
-          for (const sub of subscribers) {
-            await createNotification({
-              userId: sub.userId,
-              type: "BACK_IN_STOCK",
-              title: `${updated.title} is back in stock!`,
-              body: "The piece you saved is available again",
-              link: `/listing/${id}`,
-            });
-            if (sub.user?.email) {
-              try {
+          const activeSubscribers = subscribers.filter((sub) => !sub.user?.banned && !sub.user?.deletedAt);
+          const batchSize = 50;
+          for (let i = 0; i < activeSubscribers.length; i += batchSize) {
+            const batch = activeSubscribers.slice(i, i + batchSize);
+            await Promise.allSettled(batch.map(async (sub) => {
+              await createNotification({
+                userId: sub.userId,
+                type: "BACK_IN_STOCK",
+                title: `${updated.title} is back in stock!`,
+                body: "The piece you saved is available again",
+                link: `/listing/${id}`,
+              });
+              if (sub.user?.email) {
                 await sendBackInStock({
                   buyer: { name: sub.user.name, email: sub.user.email },
                   listingTitle: updated.title,
                   listingId: id,
                 });
-              } catch { /* non-fatal */ }
-            }
+              }
+            }));
+          }
+          if (subscribers.length > 0) {
+            await prisma.stockNotification.deleteMany({
+              where: { listingId: id, userId: { in: subscribers.map((sub) => sub.userId) } },
+            });
           }
         } catch { /* non-fatal */ }
       });

@@ -81,6 +81,14 @@ export async function POST(req: Request) {
     email_addresses?.find((e) => e.id === primary_email_address_id)?.email_address ??
     email_addresses?.[0]?.email_address;
 
+  const existingLocalUser = await prisma.user.findUnique({
+    where: { clerkId: id },
+    select: { banned: true, deletedAt: true },
+  });
+  if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
+    return NextResponse.json({ ok: true });
+  }
+
   const user = await ensureUserByClerkId(id, {
     ...(email ? { email } : {}),
     name,

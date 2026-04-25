@@ -67,6 +67,7 @@ export async function POST(req: Request) {
 
   try {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
+      return processIdempotentEvent(async () => {
       type StripeSession = {
         id: string;
         currency?: string | null;
@@ -850,6 +851,9 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ ok: true });
       }
+
+      return NextResponse.json({ ok: true });
+      });
     }
 
     if (event.type === "account.updated") {
@@ -872,12 +876,11 @@ export async function POST(req: Request) {
           });
 
           if (seller) {
-            const newChargesEnabled = Boolean(
-              account.charges_enabled &&
-              account.payouts_enabled &&
-              account.details_submitted &&
-              !account.requirements?.disabled_reason
-            );
+            // Stripe separates the ability to accept charges from payout and
+            // verification state. Only mirror charges_enabled into Grainline's
+            // buyer-facing purchase gate; payout/requirements problems are
+            // operational issues that should be surfaced separately.
+            const newChargesEnabled = Boolean(account.charges_enabled);
             if (seller.chargesEnabled !== newChargesEnabled) {
               await prisma.sellerProfile.update({
                 where: { id: seller.id },
@@ -911,17 +914,29 @@ export async function POST(req: Request) {
           const latestRefundId = latestRefund?.id ?? `external:${charge.id}`;
           const existingOrder = await prisma.order.findFirst({
             where: { stripeChargeId: charge.id },
-            select: { id: true, sellerRefundId: true },
+            select: { id: true, sellerRefundId: true, sellerRefundAmountCents: true },
           });
           if (existingOrder && existingOrder.sellerRefundId !== latestRefundId) {
+            const totalRefundedCents = charge.amount_refunded ?? latestRefund?.amount ?? 0;
+            const hasLocalRefundAudit =
+              !!existingOrder.sellerRefundId &&
+              existingOrder.sellerRefundId !== "pending" &&
+              !existingOrder.sellerRefundId.startsWith("external:");
+
             await prisma.order.update({
               where: { id: existingOrder.id },
-              data: {
-                sellerRefundId: latestRefundId,
-                sellerRefundAmountCents: charge.amount_refunded ?? latestRefund?.amount ?? 0,
-                reviewNeeded: true,
-                reviewNote: "Stripe refund was created outside Grainline.",
-              },
+              data: hasLocalRefundAudit
+                ? {
+                    sellerRefundAmountCents: Math.max(existingOrder.sellerRefundAmountCents ?? 0, totalRefundedCents),
+                    reviewNeeded: true,
+                    reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
+                  }
+                : {
+                    sellerRefundId: latestRefundId,
+                    sellerRefundAmountCents: totalRefundedCents,
+                    reviewNeeded: true,
+                    reviewNote: "Stripe refund was created outside Grainline.",
+                  },
             });
           }
         }
@@ -938,6 +953,8 @@ export async function POST(req: Request) {
             where: { stripeChargeId: chargeId },
             select: {
               id: true,
+              buyerId: true,
+              case: { select: { id: true, status: true } },
               items: {
                 take: 1,
                 select: {
@@ -953,6 +970,7 @@ export async function POST(req: Request) {
             },
           });
           if (order) {
+            const sellerUserId = order.items[0]?.listing.seller.userId;
             await prisma.order.update({
               where: { id: order.id },
               data: {
@@ -960,8 +978,29 @@ export async function POST(req: Request) {
                 reviewNote: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
               },
             });
-            const sellerUserId = order.items[0]?.listing.seller.userId;
-            if (sellerUserId) {
+            if (event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
+              if (order.case) {
+                if (order.case.status !== "RESOLVED" && order.case.status !== "CLOSED") {
+                  await prisma.case.update({
+                    where: { id: order.case.id },
+                    data: { status: "UNDER_REVIEW" },
+                  });
+                }
+              } else {
+                await prisma.case.create({
+                  data: {
+                    orderId: order.id,
+                    buyerId: order.buyerId,
+                    sellerId: sellerUserId,
+                    reason: "OTHER",
+                    description: `Stripe payment dispute ${dispute.id ?? ""}${dispute.reason ? `: ${dispute.reason}` : ""}`.trim(),
+                    status: "UNDER_REVIEW",
+                    sellerRespondBy: new Date(Date.now() + 48 * 60 * 60 * 1000),
+                  },
+                });
+              }
+            }
+            if (event.type === "charge.dispute.created" && sellerUserId) {
               await createNotification({
                 userId: sellerUserId,
                 type: "PAYMENT_DISPUTE",
@@ -985,15 +1024,11 @@ export async function POST(req: Request) {
             select: { userId: true },
           });
           if (seller) {
-            await prisma.sellerProfile.updateMany({
-              where: { stripeAccountId: accountId },
-              data: { chargesEnabled: false, vacationMode: true },
-            });
             await createNotification({
               userId: seller.userId,
               type: "PAYOUT_FAILED",
               title: "Payout failed",
-              body: "Stripe could not complete a payout. Update your Stripe account before taking new orders.",
+              body: "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.",
               link: "/dashboard/seller",
             });
           }

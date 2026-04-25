@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { NotificationType } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 
 const DEFAULT_OFF_EMAIL_KEYS = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
 
@@ -69,7 +70,11 @@ export async function createNotification({
     return await prisma.notification.create({
       data: { userId, type, title, body, link },
     });
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "create_notification", notificationType: type },
+      extra: { userId, link },
+    });
     // Never let notification failures break the main flow
   }
 }

@@ -2,6 +2,22 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
+export class AccountAccessError extends Error {
+  status = 403;
+
+  constructor(
+    message: string,
+    public code: "ACCOUNT_SUSPENDED" | "ACCOUNT_DELETED",
+  ) {
+    super(message);
+    this.name = "AccountAccessError";
+  }
+}
+
+export function isAccountAccessError(error: unknown): error is AccountAccessError {
+  return error instanceof AccountAccessError;
+}
+
 /**
  * Upserts a User row given a Clerk userId.
  * - On CREATE: uses provided fields, or falls back to a placeholder email.
@@ -22,10 +38,16 @@ export async function ensureUserByClerkId(
 
   if (existing) {
     if (existing.banned) {
-      throw new Error("Your account has been suspended. Contact support@thegrainline.com");
+      throw new AccountAccessError(
+        "Your account has been suspended. Contact support@thegrainline.com",
+        "ACCOUNT_SUSPENDED",
+      );
     }
     if (existing.deletedAt) {
-      throw new Error("This account has been deleted. Contact support@thegrainline.com");
+      throw new AccountAccessError(
+        "This account has been deleted. Contact support@thegrainline.com",
+        "ACCOUNT_DELETED",
+      );
     }
     const updateData: {
       email?: string;
@@ -149,9 +171,11 @@ export async function ensureUser() {
     termsVersion,
   });
   if (result && (result as { banned?: boolean }).banned) {
-    throw new Error('Your account has been suspended. Contact support@thegrainline.com');
+    throw new AccountAccessError(
+      "Your account has been suspended. Contact support@thegrainline.com",
+      "ACCOUNT_SUSPENDED",
+    );
   }
   return result;
 }
-
 

@@ -4740,3 +4740,34 @@ This pass was triggered by production-visible missing images (Meet a Maker banne
 - Payment/webhook follow-up remains important: `checkout.session.completed` should use the new webhook idempotency table; `account.updated`, `payout.failed`, `charge.refunded`, and dispute handling need a careful Stripe-state semantics pass.
 - Broader banned/deleted UX still needs a route-by-route sweep so suspended users get clean 403/redirect experiences instead of generic 500s.
 - External image references in historical rows should eventually be audited/backfilled to the first-party CDN where possible.
+
+## Audit Pass — Stripe Webhook Semantics + Account-State API UX (2026-04-25)
+
+This pass continued the Rounds 1-8 audit queue and focused on payment correctness, webhook idempotency, suspended/deleted account behavior, and notification delivery hygiene.
+
+### Fixed in this pass
+- **Checkout completion uses webhook idempotency table**: `checkout.session.completed` and `checkout.session.async_payment_succeeded` now run through `processIdempotentEvent()`, matching the other Stripe webhook event handlers. Legacy `Order.stripeSessionId` uniqueness remains a second-line guard.
+- **Stripe `account.updated` no longer over-disables sellers**: Grainline now mirrors Stripe `charges_enabled` into `SellerProfile.chargesEnabled`. Payout/requirements states are not collapsed into the buyer-facing purchase gate because Stripe separates “can accept charges” from payout operations.
+- **`payout.failed` no longer takes sellers offline**: a failed payout now notifies the seller without setting `chargesEnabled=false` or `vacationMode=true`. This avoids shutting down a shop for transient payout/bank issues.
+- **External refund reconciliation preserves local audit trail**: `charge.refunded` no longer overwrites a Grainline-tracked `sellerRefundId` with a Stripe-dashboard refund ID. It preserves local refund IDs and marks the order for review when an additional external refund is detected.
+- **Stripe dispute notifications deduped by lifecycle event**: only `charge.dispute.created` creates the seller `PAYMENT_DISPUTE` notification. Later dispute updates still mark the order for review but do not spam the seller on every dispute lifecycle event.
+- **Stripe disputes create/escalate cases**: `charge.dispute.created` now creates an `UNDER_REVIEW` case when the order has buyer/seller IDs and no case exists; an existing active case is moved to `UNDER_REVIEW`.
+- **Typed suspended/deleted account errors**: `ensureUserByClerkId()` and `ensureUser()` now throw `AccountAccessError` with stable `ACCOUNT_SUSPENDED` / `ACCOUNT_DELETED` codes instead of generic `Error`.
+- **Common API routes return clean 403 for suspended/deleted users**: cart add/update/get, case creation, favorites delete, follow/unfollow, message list/read/stream, notification read/read-all/list, and stock notification subscribe/unsubscribe now convert account-state failures to explicit 403 responses instead of generic 500s.
+- **Clerk webhook no longer retries forever for banned/deleted users**: `user.created` / `user.updated` events for already banned/deleted local users are acknowledged without calling `ensureUserByClerkId()`.
+- **Notification creation failures are observable**: `createNotification()` now captures failures to Sentry while still preserving non-blocking behavior.
+- **Low-stock seller notifications deduped**: manual stock updates no longer create repeated `LOW_STOCK` notifications for the same listing within a 24-hour window.
+- **Back-in-stock fan-out batched and cleaned up**: restock notifications now process active subscribers in batches, skip banned/deleted users, and delete fired `StockNotification` records so the same subscription does not fire repeatedly on future restocks.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ when run outside sandbox; sandbox build fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / next good passes
+- Continue the route-by-route suspended/deleted UX sweep for pages and remaining lower-traffic APIs.
+- Payment/admin operations still need a deeper case/refund/manual reconciliation workflow review, especially partial external refunds and staff-visible dispute state.
+- Notification fan-out for followed-maker new listings/blog posts should receive the same batching and active-recipient filtering pattern.
+- Larger performance work remains: listing detail query shaping, browse geo/rating prefilters, homepage query cleanup, and long-term analytics correctness.

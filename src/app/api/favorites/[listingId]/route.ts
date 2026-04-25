@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 
 type Params = { listingId: string };
 
@@ -12,7 +12,15 @@ export async function DELETE(_req: Request, ctx: { params: Promise<Params> }) {
   const { listingId } = await ctx.params;
   if (!listingId) return NextResponse.json({ error: "listingId required" }, { status: 400 });
 
-  const me = await ensureUserByClerkId(userId);
+  let me;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    }
+    throw err;
+  }
 
   try {
     await prisma.favorite.deleteMany({ where: { userId: me.id, listingId } });

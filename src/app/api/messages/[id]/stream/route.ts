@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -17,7 +17,15 @@ export async function GET(
   const { success } = await safeRateLimit(messageStreamRatelimit, userId);
   if (!success) return new Response("Too many requests", { status: 429 });
 
-  const me = await ensureUserByClerkId(userId);
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    if (isAccountAccessError(err)) {
+      return new Response(err.message, { status: err.status });
+    }
+    throw err;
+  }
 
   const allowed = await prisma.conversation.findFirst({
     where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
