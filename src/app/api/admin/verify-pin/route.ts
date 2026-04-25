@@ -9,6 +9,7 @@ import {
   ADMIN_PIN_MAX_AGE_SECONDS,
   createAdminPinCookieValue,
 } from "@/lib/adminPin";
+import { getIP } from "@/lib/ratelimit";
 import { createHash, timingSafeEqual } from "crypto";
 
 // 5 attempts per 15 minutes per user — fail closed
@@ -32,9 +33,15 @@ export async function POST(req: Request) {
     return NextResponse.json({}, { status: 403 });
   }
 
-  // Rate limit
-  const { success } = await safeRateLimit(pinRatelimit, userId);
-  if (!success) {
+  // Rate limit by both account and source IP. A compromised admin session
+  // should not get a fresh PIN budget by changing networks, and one noisy IP
+  // should not be able to brute-force across staff accounts.
+  const ip = getIP(req);
+  const [userLimit, ipLimit] = await Promise.all([
+    safeRateLimit(pinRatelimit, `user:${userId}`),
+    safeRateLimit(pinRatelimit, `ip:${ip}`),
+  ]);
+  if (!userLimit.success || !ipLimit.success) {
     return NextResponse.json({ error: "Too many attempts" }, { status: 429 });
   }
 

@@ -175,6 +175,7 @@ export async function GET(req: Request) {
         JOIN "Order" o ON o.id = oi."orderId"
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
       `,
@@ -226,7 +227,7 @@ export async function GET(req: Request) {
         prisma.orderItem.findMany({
           where: {
             listing: { sellerId },
-            order: { paidAt: { not: null }, createdAt: { gte: startDate, lte: endDate } },
+            order: { paidAt: { not: null }, sellerRefundId: null, createdAt: { gte: startDate, lte: endDate } },
           },
           select: { listingId: true },
         }),
@@ -244,6 +245,7 @@ export async function GET(req: Request) {
       JOIN "Listing" l ON l.id = oi."listingId"
       WHERE l."sellerId" = ${sellerId}
         AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
       GROUP BY o."buyerId"
     `;
     const totalBuyers = buyerRows.length;
@@ -260,6 +262,7 @@ export async function GET(req: Request) {
       WHERE l."sellerId" = ${sellerId}
         AND o."shippedAt" IS NOT NULL
         AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
         AND o."createdAt" >= ${startDate}
         AND o."createdAt" <= ${endDate}
     `;
@@ -303,6 +306,7 @@ export async function GET(req: Request) {
         JOIN "Listing" l ON l.id = oi."listingId"
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -338,6 +342,7 @@ export async function GET(req: Request) {
         JOIN "Listing" l ON l.id = oi."listingId"
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -368,6 +373,7 @@ export async function GET(req: Request) {
         JOIN "Listing" l ON l.id = oi."listingId"
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -404,6 +410,7 @@ export async function GET(req: Request) {
         JOIN "Listing" l ON l.id = oi."listingId"
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
+          AND o."sellerRefundId" IS NULL
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -449,15 +456,15 @@ export async function GET(req: Request) {
         l.id,
         l.title,
         (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
-        COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS total_revenue,
-        COALESCE(SUM(oi.quantity), 0) AS units_sold,
-        COALESCE(AVG(oi."priceCents"), 0) AS avg_price,
+        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
+        COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
+        COALESCE(AVG(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" ELSE NULL END), 0) AS avg_price,
         l."viewCount" AS view_count,
         l."clickCount" AS click_count,
         l."createdAt" AS created_at
       FROM "Listing" l
       LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
-      LEFT JOIN "Order" o ON o.id = oi."orderId" AND o."paidAt" IS NOT NULL
+      LEFT JOIN "Order" o ON o.id = oi."orderId" AND o."paidAt" IS NOT NULL AND o."sellerRefundId" IS NULL
       WHERE l."sellerId" = ${sellerId}
       GROUP BY l.id, l.title, l."viewCount", l."clickCount", l."createdAt"
       ORDER BY total_revenue DESC

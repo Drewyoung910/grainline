@@ -34,6 +34,17 @@ export async function POST(
     await undoAdminAction({ logId: id, adminId: admin.id, reason })
     return NextResponse.json({ ok: true })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 400 })
+    console.error('Admin undo failed:', error)
+    const message = error instanceof Error ? error.message : 'Action could not be undone'
+    const safeMessages = new Set([
+      'Action not found',
+      'Already undone',
+      'Already undone (concurrent request)',
+      'Undo window expired (24 hours)',
+    ])
+    return NextResponse.json(
+      { error: safeMessages.has(message) ? message : 'This action cannot be undone.' },
+      { status: 400 },
+    )
   }
 }

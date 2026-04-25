@@ -101,9 +101,22 @@ export async function undoAdminAction({
           Object.values(ListingStatus).includes(metadata.previousStatus as ListingStatus)
             ? metadata.previousStatus as ListingStatus
             : ListingStatus.ACTIVE
+        const listingData: {
+          status: ListingStatus
+          isPrivate?: boolean
+          rejectionReason?: string | null
+        } = { status: previousStatus }
+        if (typeof metadata.previousIsPrivate === 'boolean') {
+          listingData.isPrivate = metadata.previousIsPrivate
+        }
+        if (typeof metadata.previousRejectionReason === 'string') {
+          listingData.rejectionReason = metadata.previousRejectionReason
+        } else if ('previousRejectionReason' in metadata) {
+          listingData.rejectionReason = null
+        }
         await tx.listing.update({
           where: { id: log.targetId },
-          data: { status: previousStatus }
+          data: listingData
         })
         break
       }

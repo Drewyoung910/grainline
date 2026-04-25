@@ -63,8 +63,28 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     where: {
       isActive: true,
       OR: [
-        { listings: { some: { status: "ACTIVE", isPrivate: false, seller: { chargesEnabled: true } } } },
-        { sellerProfiles: { some: { chargesEnabled: true } } },
+        {
+          listings: {
+            some: {
+              status: "ACTIVE",
+              isPrivate: false,
+              seller: {
+                chargesEnabled: true,
+                vacationMode: false,
+                user: { banned: false, deletedAt: null },
+              },
+            },
+          },
+        },
+        {
+          sellerProfiles: {
+            some: {
+              chargesEnabled: true,
+              vacationMode: false,
+              user: { banned: false, deletedAt: null },
+            },
+          },
+        },
       ],
     },
     select: { slug: true, name: true, state: true, _count: { select: { listings: true } } },
@@ -118,7 +138,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-
 
 
 

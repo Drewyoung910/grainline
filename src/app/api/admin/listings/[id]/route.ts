@@ -21,22 +21,39 @@ export async function DELETE(
   const { id } = await params;
   const listing = await prisma.listing.findUnique({
     where: { id },
-    select: { id: true, title: true, sellerId: true, status: true },
+    select: { id: true, title: true, sellerId: true, status: true, isPrivate: true, rejectionReason: true },
   });
   if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Soft-delete: HIDDEN is already filtered from all public queries
-  await prisma.listing.update({
-    where: { id },
-    data: { status: "HIDDEN" },
-  });
+  // Staff removal should not be reversible by the seller. Use REJECTED rather
+  // than HIDDEN, and clear buyer-facing references that would otherwise point
+  // at a removed listing.
+  await prisma.$transaction([
+    prisma.favorite.deleteMany({ where: { listingId: id } }),
+    prisma.stockNotification.deleteMany({ where: { listingId: id } }),
+    prisma.cartItem.deleteMany({ where: { listingId: id } }),
+    prisma.listing.update({
+      where: { id },
+      data: {
+        status: "REJECTED",
+        isPrivate: true,
+        rejectionReason: "Removed by Grainline staff.",
+      },
+    }),
+  ]);
 
   await logAdminAction({
     adminId: admin.id,
     action: "REMOVE_LISTING",
     targetType: "Listing",
     targetId: id,
-    metadata: { title: listing.title, sellerId: listing.sellerId, previousStatus: listing.status },
+    metadata: {
+      title: listing.title,
+      sellerId: listing.sellerId,
+      previousStatus: listing.status,
+      previousIsPrivate: listing.isPrivate,
+      previousRejectionReason: listing.rejectionReason,
+    },
   });
 
   return NextResponse.json({ ok: true });

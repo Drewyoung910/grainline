@@ -161,7 +161,7 @@ function LineChartSection({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const metrics: { key: ChartMetric; label: string }[] = [
-    { key: "revenue", label: "Gross Sales" },
+    { key: "revenue", label: "Sales" },
     { key: "orders", label: "Orders" },
     { key: "views", label: "Views" },
   ];
@@ -536,11 +536,13 @@ export default function AnalyticsPage() {
             <>
               <div className="card-section p-5">
                 <p className="text-2xl font-bold">{fmt(data.overview.totalRevenueCents)}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Gross Sales</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Sales</p>
+                <p className="text-[10px] text-neutral-400">before fees, excluding refunded orders</p>
               </div>
               <div className="card-section p-5">
                 <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString()}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">Total Orders</p>
+                <p className="text-xs text-neutral-500 mt-0.5">Paid Orders</p>
+                <p className="text-[10px] text-neutral-400">excluding refunded orders</p>
               </div>
               <div className="card-section p-5">
                 <p className="text-2xl font-bold">{fmt(data.overview.avgOrderValueCents)}</p>

@@ -4627,3 +4627,31 @@ Read this section before continuing the remaining 300+ item audit queue. This pa
 - Conversation/Message/Case/CaseMessage deletion semantics were pinned in `20260424194500_webhook_idempotency_retention_constraints`; keep future changes aligned with account-deletion/anonymization and order/case retention policy.
 - Stripe webhook idempotency, `checkout.session.async_payment_failed`, and explicit `PAYMENT_DISPUTE` / `PAYOUT_FAILED` notification types were implemented in `20260424194500_webhook_idempotency_retention_constraints`.
 - Legal/business items remain non-code blockers: attorney sign-off, money-transmitter confirmation, INFORM workflow/legal alignment, and business insurance.
+
+## Audit Pass — Admin, Commission, Analytics Hardening (2026-04-24)
+
+Read this together with the Rounds 1-7 follow-up section above. This pass focused on correctness items that did not require schema rewrites or payment-flow surgery.
+
+### Fixed in this pass
+- **Admin PIN brute-force budget tightened**: `/api/admin/verify-pin` now rate-limits by both staff user ID and source IP. A compromised session cannot rotate IPs for a fresh PIN budget, and one noisy IP cannot spray attempts across staff accounts.
+- **Clerk local routes pinned**: `<ClerkProvider>` now sets `signInUrl="/sign-in"` and `signUpUrl="/sign-up"` so Clerk redirects stay on Grainline-owned routes instead of hosted defaults.
+- **Footer metro visibility filter hardened**: footer metro links now require active public listings or sellers with `chargesEnabled=true`, `vacationMode=false`, and non-banned/non-deleted users.
+- **Admin listing removal is no longer seller-unhideable**: `/api/admin/listings/[id]` now marks removed listings `REJECTED` + `isPrivate=true`, stores a rejection reason, and clears Favorites, StockNotifications, and CartItems pointing at the removed listing.
+- **Admin listing undo preserves prior state**: `undoAdminAction()` now restores `previousStatus`, `previousIsPrivate`, and `previousRejectionReason` from audit metadata instead of blindly restoring a public listing state.
+- **Admin undo error responses sanitized**: `/api/admin/audit/[id]/undo` now logs server-side details but returns only whitelisted user-safe messages.
+- **Commission expiry notifies affected users**: `/api/cron/commission-expire` now processes expiring OPEN commission requests in an idempotent per-row update and notifies the buyer plus interested makers when a request expires.
+- **Seller analytics exclude refunded orders**: overview, charts, repeat-buyer rate, processing time, cart-abandonment purchase matching, and top-listing totals now ignore orders with `sellerRefundId` set.
+- **Top listing revenue query fixed**: top listing aggregation no longer sums `OrderItem` rows whose joined order is unpaid/refunded; sums and averages now count only paid non-refunded orders.
+- **Analytics copy clarified**: seller analytics now labels revenue as “Sales” and explicitly notes that it is before fees and excludes refunded orders.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+
+### Still open / next good passes
+- Stripe refund/dispute/label race hardening still deserves a dedicated payment-focused pass with careful webhook and idempotency review.
+- Analytics still has lower-priority refinements: cart abandonment can overcount stale carts, and full net revenue after partial refunds needs per-seller refund allocation data to be mathematically exact.
+- Larger performance work remains: homepage seller-rating query, listing detail round trips, browse geo/rating prefilters, and long-term metrics aggregation.
+- Larger mobile/accessibility work remains: MapLibre no-WebGL fallback, touch-first photo reordering, and iOS visualViewport keyboard handling.
