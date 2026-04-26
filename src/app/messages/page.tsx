@@ -34,7 +34,7 @@ function isPdfUrl(s: string) {
   return /^https?:\/\/.+\.pdf$/i.test(s.trim());
 }
 
-function formatSnippet(body?: string | null) {
+function formatSnippet(body?: string | null, kind?: string | null) {
   const txt = (body ?? "").toString();
   if (!txt) return "No messages yet";
 
@@ -46,15 +46,9 @@ function formatSnippet(body?: string | null) {
     return f.name ?? "Attachment";
   }
 
-  // Detect structured message types by JSON shape
-  try {
-    const obj = JSON.parse(txt.trim());
-    if (obj && typeof obj === "object") {
-      if (obj.commissionId) return "Interested in your commission";
-      if (obj.description && (obj.timeline !== undefined || obj.budget !== undefined)) return "Custom order request";
-      if (obj.listingId && obj.priceCents !== undefined) return "Custom listing ready";
-    }
-  } catch {}
+  if (kind === "commission_interest_card") return "Interested in your commission";
+  if (kind === "custom_order_request") return "Custom order request";
+  if (kind === "custom_order_link") return "Custom listing ready";
 
   if (isImageUrl(txt)) return "Photo";
   if (isPdfUrl(txt)) return "PDF";
@@ -136,7 +130,7 @@ export default async function MessagesPage({
       messages: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { id: true, body: true, createdAt: true, senderId: true },
+        select: { id: true, body: true, kind: true, createdAt: true, senderId: true },
       },
       contextListing: {
         select: {
@@ -283,7 +277,7 @@ export default async function MessagesPage({
         <ul className="divide-y divide-neutral-100 card-section">
           {list.map(({ c, other, latest, unreadCount, ctxThumb }) => {
             const title = other?.name || other?.email || "User";
-            const snippet = formatSnippet(latest?.body);
+            const snippet = formatSnippet(latest?.body, latest?.kind);
             const hasTime = !!latest;
             const isUnread = unreadCount > 0;
 
@@ -348,4 +342,3 @@ export default async function MessagesPage({
     </main>
   );
 }
-

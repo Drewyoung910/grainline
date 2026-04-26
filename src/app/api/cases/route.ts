@@ -35,7 +35,11 @@ export async function POST(req: Request) {
       }
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
-    const { orderId, reason, description } = parsed;
+    const { orderId, reason } = parsed;
+    const description = parsed.description.trim();
+    if (description.length < 20) {
+      return NextResponse.json({ error: "Description must be at least 20 characters." }, { status: 400 });
+    }
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },

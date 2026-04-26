@@ -416,6 +416,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## Medium / Low Findings To Batch Later
 
+- [FIXED 2026-04-26] `CaseReplyBox` and `OpenCaseForm` now handle empty/non-JSON error responses without leaving spinners stuck.
+- [FIXED 2026-04-26] `POST /api/cases` now enforces the 20-character description minimum server-side.
+- [FIXED 2026-04-26] Message inbox snippets now use persisted `Message.kind` for structured cards instead of inferring from arbitrary JSON body shape.
+- [FIXED 2026-04-26] `MarkdownToolbar` now rejects unsafe link protocols such as `javascript:` before inserting markdown links.
 - `setStatus` and shop listing actions miss some `revalidatePath` calls.
 - `chargesEnabled` lost mid-edit silently moves listing to draft; surface warning.
 - `unhideListingAction` and `markAvailableAction` should return `publishListingAction` errors.

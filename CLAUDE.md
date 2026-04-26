@@ -1958,7 +1958,7 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 
 ### Messages inbox (`src/app/messages/page.tsx`)
 - h1 "Messages": added `font-display`
-- `formatSnippet` function: detects JSON message bodies by shape (commission interest card, custom order request, custom listing link) — fixes garbled JSON previews in conversation list
+- `formatSnippet` function: uses persisted `Message.kind` for structured message previews (commission interest card, custom order request, custom listing link) instead of inferring from arbitrary JSON body shape.
 - Mobile filter buttons: `flex flex-wrap gap-2` for proper wrapping on small screens
 - Search input: `rounded-md` border container
 
@@ -5150,6 +5150,23 @@ This pass closed several Round 13 admin/dashboard UX and data-integrity findings
 - `approveGuildMember` should surface eligibility failure details directly in the pending application card.
 - Multi-seller admin order and flagged views still need a focused display pass.
 - GDPR export/deletion and Sentry filtering remain high-value next batches.
+
+## Audit Fix Pass — Case/Message Safety Sweep (2026-04-26)
+
+This pass closed several medium-priority client/server mismatch and spoofing findings around case workflows and message previews.
+
+### Fixed in this pass
+- **Case reply spinner cannot stick on empty responses**: `CaseReplyBox` now tolerates non-JSON/empty error responses and always clears loading on failure.
+- **Open case form handles bad responses**: `OpenCaseForm` now handles empty/non-JSON error responses instead of throwing while loading.
+- **Case description minimum is server-enforced**: `POST /api/cases` trims and rejects descriptions shorter than 20 characters, matching the client rule.
+- **Inbox previews no longer infer structured cards from arbitrary JSON**: `/messages` selects `Message.kind` and only shows structured preview labels for persisted structured message kinds.
+- **Markdown links reject unsafe protocols**: `MarkdownToolbar` normalizes `http`, `https`, `mailto`, and internal links, and rejects unsafe values such as `javascript:` before insertion.
+- **Open backlog updated**: `audit_open_findings.md` now marks the corresponding medium/low findings fixed.
+
+### Verification
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ## Audit Fix Pass — Resend Webhook Replay + Account Deletion Cleanup (2026-04-26)
 

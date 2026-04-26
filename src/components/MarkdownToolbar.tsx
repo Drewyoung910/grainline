@@ -16,6 +16,23 @@ type Props = {
   required?: boolean;
 };
 
+function normalizeSafeLink(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\")) {
+    return value;
+  }
+
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol === "http:" || url.protocol === "https:" || url.protocol === "mailto:") {
+      return url.toString();
+    }
+  } catch {}
+  return null;
+}
+
 export default function MarkdownToolbar({
   value,
   onChange,
@@ -159,7 +176,12 @@ export default function MarkdownToolbar({
           onClick={() => {
             const url = prompt("Enter URL:");
             if (url) {
-              editor.chain().focus().setLink({ href: url }).run();
+              const safeUrl = normalizeSafeLink(url);
+              if (!safeUrl) {
+                toast("Enter a valid http, https, mailto, or internal URL.", "error");
+                return;
+              }
+              editor.chain().focus().setLink({ href: safeUrl }).run();
             }
           }}
           className={btnClass(editor.isActive("link"))}

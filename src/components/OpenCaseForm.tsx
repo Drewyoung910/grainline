@@ -32,9 +32,9 @@ export default function OpenCaseForm({ orderId }: { orderId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderId, reason, description }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null) as { error?: string } | null;
     if (!res.ok) {
-      setError(data.error ?? "Failed to open case");
+      setError(data?.error ?? "Failed to open case");
       setLoading(false);
       return;
     }

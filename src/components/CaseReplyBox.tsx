@@ -19,9 +19,9 @@ export default function CaseReplyBox({ caseId }: { caseId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => null) as { error?: string } | null;
     if (!res.ok) {
-      setError(data.error ?? "Failed to send");
+      setError(data?.error ?? "Failed to send");
       setLoading(false);
       return;
     }
