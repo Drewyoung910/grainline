@@ -5075,3 +5075,31 @@ This pass addressed a visible production media regression and added only the mis
 - Durable notification/email outbox semantics remain open for very large follower bases.
 - Larger SEO slug/canonical work remains open.
 - Partial refund line-item inventory semantics remain open and need product decisions.
+
+## Audit Backlog Snapshot — Rounds 13-18 (2026-04-25)
+
+The canonical open-findings list now lives in `audit_open_findings.md`. It consolidates the new Round 13-18/re-review findings, de-duplicates them where obvious, and groups them into fix-mode batches.
+
+### Current estimate
+- Raw audit findings across all rounds: ~750+.
+- Practical unique actionable backlog after de-duplication: ~250-320 items.
+- Launch-quality / critical-high engineering work still open: ~35-45 critical and ~80-110 high-priority items.
+- Lower medium/low/product/legal work still open: ~140-180 items.
+
+### Highest-priority batches
+1. Email compliance and unsubscribe correctness.
+2. Refund/payment race safety.
+3. Listing moderation/state invariants.
+4. Suspended/deleted account-state enforcement.
+5. Cron/notification scale and idempotency.
+6. GDPR export/deletion/data-retention completion.
+7. Admin/dashboard multi-seller and moderation correctness.
+8. Larger SEO/search/performance cleanup.
+
+### Confirmed still-live examples
+- `/api/email/unsubscribe` is not public in middleware.
+- Email footer still links to `/unsubscribe` instead of a tokenized one-click URL.
+- Unsubscribe currently disables only three notification preferences.
+- `ADMIN_PIN_COOKIE_SECRET` still falls back to `ADMIN_PIN`.
+- Stripe Connect `returnUrl` accepts protocol-relative `//host` paths.
+- Refund `"pending"` sentinel can still reach seller UI.
