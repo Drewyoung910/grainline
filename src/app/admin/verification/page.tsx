@@ -18,8 +18,13 @@ import { logAdminAction } from "@/lib/audit";
 async function requireAdmin() {
   const { userId } = await auth();
   if (!userId) redirect("/");
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, role: true } });
-  if (!me || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, role: true, banned: true, deletedAt: true },
+  });
+  if (!me) redirect("/");
+  if (me.banned || me.deletedAt) redirect("/banned");
+  if (me.role !== "EMPLOYEE" && me.role !== "ADMIN") redirect("/");
   return me;
 }
 
@@ -33,6 +38,7 @@ async function approveGuildMember(formData: FormData) {
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },
     select: {
+      status: true,
       sellerProfileId: true,
       sellerProfile: {
         select: { userId: true, id: true, displayName: true, user: { select: { email: true, createdAt: true } } },
@@ -40,6 +46,7 @@ async function approveGuildMember(formData: FormData) {
     },
   });
   if (!verification) return;
+  if (verification.status !== "PENDING") return;
 
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   const [activeListings, salesRows, longCaseCount] = await Promise.all([
@@ -79,21 +86,31 @@ async function approveGuildMember(formData: FormData) {
     return;
   }
 
-  await prisma.$transaction([
-    prisma.makerVerification.update({
-      where: { id: verificationId },
+  const approvedAt = new Date();
+  const approved = await prisma.$transaction(async (tx) => {
+    const updated = await tx.makerVerification.updateMany({
+      where: { id: verificationId, status: "PENDING" },
       data: {
         status: "APPROVED",
         reviewedById: me.id,
-        reviewedAt: new Date(),
+        reviewedAt: approvedAt,
         reviewNotes: adminOverride ? "Admin override: $250 sales requirement waived" : null,
       },
-    }),
-    prisma.sellerProfile.update({
+    });
+    if (updated.count === 0) return false;
+
+    await tx.sellerProfile.update({
       where: { id: verification.sellerProfileId },
-      data: { isVerifiedMaker: true, verifiedAt: new Date(), guildLevel: "GUILD_MEMBER", guildMemberApprovedAt: new Date() },
-    }),
-  ]);
+      data: {
+        isVerifiedMaker: true,
+        verifiedAt: approvedAt,
+        guildLevel: "GUILD_MEMBER",
+        guildMemberApprovedAt: approvedAt,
+      },
+    });
+    return true;
+  });
+  if (!approved) return;
 
   await createNotification({
     userId: verification.sellerProfile.userId,
@@ -129,16 +146,24 @@ async function rejectGuildMember(formData: FormData) {
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },
     select: {
+      status: true,
       sellerProfile: {
         select: { userId: true, displayName: true, user: { select: { email: true } } },
       },
     },
   });
+  if (!verification || verification.status !== "PENDING") return;
 
-  await prisma.makerVerification.update({
-    where: { id: verificationId },
-    data: { status: "REJECTED", reviewedById: me.id, reviewedAt: new Date(), reviewNotes },
+  const rejected = await prisma.makerVerification.updateMany({
+    where: { id: verificationId, status: "PENDING" },
+    data: {
+      status: "REJECTED",
+      reviewedById: me.id,
+      reviewedAt: new Date(),
+      reviewNotes,
+    },
   });
+  if (rejected.count === 0) return;
 
   if (verification?.sellerProfile.userId) {
     await createNotification({
@@ -175,17 +200,33 @@ async function revokeMember(sellerProfileId: string) {
     select: { userId: true, displayName: true, user: { select: { email: true } } },
   });
 
-  await prisma.sellerProfile.update({
-    where: { id: sellerProfileId },
-    data: {
-      guildLevel: "NONE",
-      isVerifiedMaker: false,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      listingsBelowThresholdSince: null,
-      lastMetricCheckAt: new Date(),
-    },
+  const revokedAt = new Date();
+  const revoked = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: sellerProfileId, guildLevel: "GUILD_MEMBER" },
+      data: {
+        guildLevel: "NONE",
+        isVerifiedMaker: false,
+        consecutiveMetricFailures: 0,
+        metricWarningSentAt: null,
+        listingsBelowThresholdSince: null,
+        lastMetricCheckAt: revokedAt,
+      },
+    });
+    if (updated.count === 0) return false;
+
+    await tx.makerVerification.updateMany({
+      where: { sellerProfileId },
+      data: {
+        status: "REJECTED",
+        reviewedById: me.id,
+        reviewedAt: revokedAt,
+        reviewNotes: "Guild Member badge revoked by Grainline staff.",
+      },
+    });
+    return true;
   });
+  if (!revoked) return;
 
   if (seller?.userId) {
     await createNotification({
@@ -218,6 +259,7 @@ async function approveGuildMaster(verificationId: string) {
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },
     select: {
+      status: true,
       sellerProfileId: true,
       sellerProfile: {
         select: { userId: true, id: true, displayName: true, user: { select: { email: true } } },
@@ -225,6 +267,7 @@ async function approveGuildMaster(verificationId: string) {
     },
   });
   if (!verification) return;
+  if (verification.status !== "GUILD_MASTER_PENDING") return;
 
   const metrics = await calculateSellerMetrics(verification.sellerProfileId);
   const criteria = meetsGuildMasterRequirements(metrics);
@@ -240,16 +283,21 @@ async function approveGuildMaster(verificationId: string) {
     return;
   }
 
-  await prisma.$transaction([
-    prisma.makerVerification.update({
-      where: { id: verificationId },
-      data: { status: "GUILD_MASTER_APPROVED", reviewedById: me.id, reviewedAt: new Date() },
-    }),
-    prisma.sellerProfile.update({
+  const approvedAt = new Date();
+  const approved = await prisma.$transaction(async (tx) => {
+    const updated = await tx.makerVerification.updateMany({
+      where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
+      data: { status: "GUILD_MASTER_APPROVED", reviewedById: me.id, reviewedAt: approvedAt },
+    });
+    if (updated.count === 0) return false;
+
+    await tx.sellerProfile.update({
       where: { id: verification.sellerProfileId },
-      data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: new Date() },
-    }),
-  ]);
+      data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
+    });
+    return true;
+  });
+  if (!approved) return;
 
   await createNotification({
     userId: verification.sellerProfile.userId,
@@ -285,23 +333,29 @@ async function rejectGuildMaster(formData: FormData) {
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },
     select: {
+      status: true,
       sellerProfileId: true,
       sellerProfile: {
         select: { userId: true, displayName: true, user: { select: { email: true } } },
       },
     },
   });
+  if (!verification || verification.status !== "GUILD_MASTER_PENDING") return;
 
-  await prisma.$transaction([
-    prisma.makerVerification.update({
-      where: { id: verificationId },
+  const rejected = await prisma.$transaction(async (tx) => {
+    const updated = await tx.makerVerification.updateMany({
+      where: { id: verificationId, status: "GUILD_MASTER_PENDING" },
       data: { status: "GUILD_MASTER_REJECTED", reviewedById: me.id, reviewedAt: new Date() },
-    }),
-    ...(verification ? [prisma.sellerProfile.update({
+    });
+    if (updated.count === 0) return false;
+
+    await tx.sellerProfile.update({
       where: { id: verification.sellerProfileId },
       data: { guildMasterReviewNotes: reviewNotes },
-    })] : []),
-  ]);
+    });
+    return true;
+  });
+  if (!rejected) return;
 
   if (verification?.sellerProfile.userId) {
     await createNotification({
@@ -326,15 +380,34 @@ async function revokeMaster(sellerProfileId: string) {
     select: { userId: true, displayName: true, user: { select: { email: true } } },
   });
 
-  await prisma.sellerProfile.update({
-    where: { id: sellerProfileId },
-    data: {
-      guildLevel: "GUILD_MEMBER",
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      lastMetricCheckAt: new Date(),
-    },
+  const revokedAt = new Date();
+  const revoked = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: sellerProfileId, guildLevel: "GUILD_MASTER" },
+      data: {
+        guildLevel: "GUILD_MEMBER",
+        consecutiveMetricFailures: 0,
+        metricWarningSentAt: null,
+        lastMetricCheckAt: revokedAt,
+        guildMasterApprovedAt: null,
+        guildMasterAppliedAt: null,
+        guildMasterReviewNotes: null,
+      },
+    });
+    if (updated.count === 0) return false;
+
+    await tx.makerVerification.updateMany({
+      where: { sellerProfileId },
+      data: {
+        status: "APPROVED",
+        reviewedById: me.id,
+        reviewedAt: revokedAt,
+        reviewNotes: null,
+      },
+    });
+    return true;
   });
+  if (!revoked) return;
 
   if (seller?.userId) {
     await createNotification({
@@ -364,17 +437,33 @@ async function reinstateGuildMember(formData: FormData) {
   const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
   if (!sellerProfileId) return;
 
-  await prisma.sellerProfile.update({
-    where: { id: sellerProfileId },
-    data: {
-      guildLevel: "GUILD_MEMBER",
-      isVerifiedMaker: true,
-      consecutiveMetricFailures: 0,
-      metricWarningSentAt: null,
-      listingsBelowThresholdSince: null,
-      lastMetricCheckAt: new Date(),
-    },
+  const reinstatedAt = new Date();
+  const reinstated = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: sellerProfileId, guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
+      data: {
+        guildLevel: "GUILD_MEMBER",
+        isVerifiedMaker: true,
+        consecutiveMetricFailures: 0,
+        metricWarningSentAt: null,
+        listingsBelowThresholdSince: null,
+        lastMetricCheckAt: reinstatedAt,
+      },
+    });
+    if (updated.count === 0) return false;
+
+    await tx.makerVerification.updateMany({
+      where: { sellerProfileId },
+      data: {
+        status: "APPROVED",
+        reviewedById: me.id,
+        reviewedAt: reinstatedAt,
+        reviewNotes: null,
+      },
+    });
+    return true;
   });
+  if (!reinstated) return;
 
   await logAdminAction({
     adminId: me.id,
@@ -390,15 +479,20 @@ async function featureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdmin();
 
-  await prisma.sellerProfile.update({
-    where: { id: sellerProfileId },
-    data: { featuredUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+  const now = new Date();
+  const result = await prisma.sellerProfile.updateMany({
+    where: {
+      id: sellerProfileId,
+      OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
+    },
+    data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
   });
+  if (result.count === 0) return;
 
   await logAdminAction({
     adminId: me.id,
     action: "FEATURE_MAKER",
-    targetType: "SellerProfile",
+    targetType: "SELLER_PROFILE",
     targetId: sellerProfileId,
   });
 
@@ -410,15 +504,16 @@ async function unfeatureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdmin();
 
-  await prisma.sellerProfile.update({
-    where: { id: sellerProfileId },
+  const result = await prisma.sellerProfile.updateMany({
+    where: { id: sellerProfileId, featuredUntil: { not: null } },
     data: { featuredUntil: null },
   });
+  if (result.count === 0) return;
 
   await logAdminAction({
     adminId: me.id,
     action: "UNFEATURE_MAKER",
-    targetType: "SellerProfile",
+    targetType: "SELLER_PROFILE",
     targetId: sellerProfileId,
   });
 

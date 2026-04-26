@@ -5022,3 +5022,30 @@ This pass addressed smaller but still valid findings from the post-Round-7 backl
 - Durable notification/email outbox semantics remain open for very large follower bases.
 - Payout failure state is now visible through recent notifications; a persistent Stripe-account status model/resolution workflow could make this stronger later.
 - Continue larger SEO, performance-index, and partial-refund inventory passes.
+
+## Audit Pass — Guild Admin State Hardening (2026-04-25)
+
+This pass focused on the Guild verification/admin cluster from the later audit rounds. The earlier application bypasses were already fixed in the current tree, so this pass closed adjacent stale-state and duplicate-side-effect risks in the admin review tools.
+
+### Fixed in this pass
+- **Admin verification actions block banned/deleted admins in depth**: the page-level `requireAdmin()` helper now redirects suspended/deleted admin accounts to `/banned`, matching middleware and admin layout behavior.
+- **Guild Member approve/reject actions are idempotent**: approval/rejection now only proceeds while the verification row is still `PENDING`, preventing double-clicks or repeated server-action posts from creating duplicate notifications/audit logs.
+- **Guild Master approve/reject actions are idempotent**: approval/rejection now only proceeds while the row is still `GUILD_MASTER_PENDING`.
+- **Guild Member revocation now synchronizes verification state**: revoking a Guild Member moves the seller to `guildLevel: NONE`, clears runtime warning counters, and marks the verification row `REJECTED` with a staff revocation note.
+- **Guild Master revocation clears stale Master state**: revoking a Guild Master now downgrades to Guild Member and clears `guildMasterApprovedAt`, `guildMasterAppliedAt`, `guildMasterReviewNotes`, metric warning state, and Master verification status.
+- **Guild Member reinstatement synchronizes verification state**: reinstating a revoked member now restores `guildLevel: GUILD_MEMBER`, `isVerifiedMaker: true`, resets warning counters, and marks the verification row `APPROVED`.
+- **Feature maker action is idempotent**: featuring a maker only sets a new 7-day feature window if they are not already actively featured, preventing double-clicks/stale forms from extending the window.
+- **Unfeature maker action is idempotent**: unfeature now only writes/audits if the seller is currently featured.
+- **Feature maker client handles errors**: the admin feature/unfeature button now uses the shared toast system and always resets loading state in `finally`.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Durable notification/email outbox semantics remain open for very large follower bases.
+- Larger SEO slug/canonical work remains open.
+- Partial refund line-item inventory semantics remain open and need product decisions.

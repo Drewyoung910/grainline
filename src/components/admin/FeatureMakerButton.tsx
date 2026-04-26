@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 interface Props {
   sellerProfileId: string;
@@ -12,21 +13,32 @@ interface Props {
 export function FeatureMakerButton({ sellerProfileId, isFeatured, featureAction, unfeatureAction }: Props) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function handleFeature(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await featureAction(sellerProfileId);
-    setLoading(false);
-    router.refresh();
+    try {
+      await featureAction(sellerProfileId);
+      router.refresh();
+    } catch {
+      toast("Could not feature this maker. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleUnfeature(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await unfeatureAction(sellerProfileId);
-    setLoading(false);
-    router.refresh();
+    try {
+      await unfeatureAction(sellerProfileId);
+      router.refresh();
+    } catch {
+      toast("Could not unfeature this maker. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (isFeatured) {
