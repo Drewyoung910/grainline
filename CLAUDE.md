@@ -5165,6 +5165,25 @@ This pass closed the remaining fulfillment/case race from the Round 18 race-cond
 - Refund tax/reverse-transfer accounting decision.
 - Cron idempotency run keys across cron routes.
 
+## Audit Fix Pass — Admin Destructive Role Gate (2026-04-25)
+
+This pass closed the Round 16 high-priority role boundary finding for destructive admin actions.
+
+### Fixed in this pass
+- **Listing removal now requires ADMIN**: `DELETE /api/admin/listings/[id]` no longer accepts `EMPLOYEE`; employees can still use listing review approve/reject flows.
+- **Review deletion now requires ADMIN**: `DELETE /api/admin/reviews/[id]` no longer accepts `EMPLOYEE`.
+- **Open backlog updated**: `audit_open_findings.md` now marks H26 fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Refund tax/reverse-transfer accounting decision.
+- Admin PIN shared-IP limiter tuning.
+
 ## Audit Fix Pass — Notification Dedup + Saved Listing Visibility (2026-04-25)
 
 This pass closed the shared notification dedup gap and one saved-items visibility issue from the later audit backlog.

@@ -293,9 +293,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Suppressed users can resubscribe only to be skipped later.
 - **Fix spec**: Check `EmailSuppression` before create/update; return clear suppressed state.
 
-### H26. Destructive admin actions available to EMPLOYEE
+### H26. [FIXED 2026-04-25] Destructive admin actions available to EMPLOYEE
 
 - **Files**: admin listing/review delete routes.
+- **Current state**: Fixed. `DELETE /api/admin/listings/[id]` and `DELETE /api/admin/reviews/[id]` now require `ADMIN`; `EMPLOYEE` remains limited to moderation/review workflows.
 - **Impact**: EMPLOYEE can hard-remove sensitive records.
 - **Fix spec**: Restrict permanent destructive actions to `ADMIN`; use soft moderation actions for `EMPLOYEE`.
 

@@ -14,7 +14,7 @@ export async function DELETE(
     where: { clerkId: userId },
     select: { id: true, role: true },
   });
-  if (!admin || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) {
+  if (!admin || admin.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
