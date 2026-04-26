@@ -5129,9 +5129,12 @@ This pass closed the bounded cron memory and cleanup issues from the Round 16-18
 ### Fixed in this pass
 - **Quality-score cron no longer loads every active listing at once**: `src/lib/quality-score.ts` now cursor-paginates active, visible listings by listing ID and updates each score batch immediately.
 - **Guild metrics cron no longer loads every Guild seller at once**: `/api/cron/guild-metrics` now cursor-paginates seller profiles in pages of 50 and processes only 5 sellers concurrently.
+- **Guild member check cron no longer loads every Guild Member at once**: `/api/cron/guild-member-check` now uses the same 50-row cursor pages and bounded 5-seller concurrency.
 - **Guild metrics per-seller failures are isolated**: one seller metric failure no longer stops the cron page; full details go to Sentry and the JSON response returns sanitized error codes only.
+- **Guild member check per-seller failures are isolated**: revocation checks now return sanitized error codes and capture full failures to Sentry without stopping the whole run.
 - **ListingViewDaily cleanup is chunked**: old analytics rows are deleted in 1,000-row SQL chunks instead of one unbounded `deleteMany`.
-- **Open backlog updated**: `audit_open_findings.md` now marks H19 and H20 fixed, and H21/H23 partially fixed for the `guild-metrics` surface.
+- **Notification prune is chunked**: read notifications older than 90 days are deleted in 1,000-row SQL chunks with a 45-second budget so the cron can resume on the next run instead of taking a long table lock.
+- **Open backlog updated**: `audit_open_findings.md` now marks H19-H21 fixed, and H23 partially fixed for the Guild cron surfaces.
 
 ### Verification
 - `npx prisma validate` ✅
@@ -5140,7 +5143,6 @@ This pass closed the bounded cron memory and cleanup issues from the Round 16-18
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ### Still open / next good passes
-- Notification prune still needs chunked deletion.
 - Cron idempotency run keys are still open across cron routes.
 - Refund tax/reverse-transfer accounting decision.
 

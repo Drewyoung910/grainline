@@ -260,10 +260,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: OOM/maxDuration risk.
 - **Fix spec**: Cursor paginate sellers in batches of 50 and limit inner concurrency to 3.
 
-### H21. [PARTIAL 2026-04-25] Large deleteMany cron operations are unbounded
+### H21. [FIXED 2026-04-25] Large deleteMany cron operations are unbounded
 
 - **Files**: notification prune, `ListingViewDaily` cleanup.
-- **Current state**: `ListingViewDaily` cleanup is fixed in `guild-metrics` with 1,000-row SQL chunks. Notification prune still needs chunking.
+- **Current state**: Fixed. `ListingViewDaily` cleanup and notification prune both delete in 1,000-row SQL chunks; notification prune also respects a 45s execution budget.
 - **Impact**: Long table locks at large row counts.
 - **Fix spec**: Delete in SQL chunks of 1,000-5,000 rows per loop with max execution budget.
 
@@ -276,7 +276,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ### H23. [PARTIAL 2026-04-25] Cron failures leak internals and stop batches
 
 - **Files**: guild cron routes and other sequential cron loops.
-- **Current state**: `guild-metrics` now isolates per-seller failures, captures full errors to Sentry, and returns sanitized error codes. Other cron routes still need the same sweep.
+- **Current state**: Guild metrics and Guild member check now isolate per-seller failures, capture full errors to Sentry, and return sanitized error codes. Other cron routes still need the same sweep.
 - **Impact**: stack/path leakage in JSON responses; one record failure can stop batch.
 - **Fix spec**: Capture full details to Sentry, return counts/codes only, isolate per-record failures.
 
