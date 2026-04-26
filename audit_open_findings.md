@@ -381,7 +381,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## UX / Product Correctness Findings
 
-- Buyer cannot delete their own review. Add `DELETE /api/reviews/[id]` for reviewer-owned reviews, with soft delete or removal policy.
+- Buyer cannot delete their own review. **Current state: Fixed.** Reviewer-owned reviews can now be deleted through `DELETE /api/reviews/[id]`, and `/account/reviews` exposes the action.
 - Banned users can browse public pages while signed in. Decide policy: full redirect to `/banned` for authenticated banned users, or allow public browsing but block mutations consistently. Current behavior is inconsistent.
 - Banned user cart/message errors can be misleading. Return buyer-specific suspended-account messages.
 - AdminPinGate should show server `Retry-After`, not a fake reset-on-refresh attempt count.

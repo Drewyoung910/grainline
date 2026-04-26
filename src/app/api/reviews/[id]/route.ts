@@ -82,3 +82,36 @@ export async function PATCH(
   revalidatePath(`/listing/${r.listingId}`);
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(reviewRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many review updates.");
+
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+
+  const review = await prisma.review.findUnique({
+    where: { id },
+    select: { id: true, reviewerId: true, listingId: true },
+  });
+  if (!review || review.reviewerId !== me.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await prisma.review.delete({ where: { id } });
+
+  revalidatePath(`/listing/${review.listingId}`);
+  revalidatePath("/account/reviews");
+  return NextResponse.json({ ok: true });
+}

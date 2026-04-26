@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ensureUserForPage } from "@/lib/pageAuth";
+import { DeleteOwnReviewButton } from "@/components/DeleteOwnReviewButton";
 
 export const metadata: Metadata = { title: "My Reviews", robots: { index: false, follow: false } };
 
@@ -63,6 +64,8 @@ export default async function MyReviewsPage() {
                   <span className="text-xs text-neutral-400">
                     {new Date(r.createdAt).toLocaleDateString()}
                   </span>
+                  <span className="text-xs text-neutral-300">·</span>
+                  <DeleteOwnReviewButton reviewId={r.id} />
                 </div>
                 {r.comment && (
                   <p className="text-sm text-neutral-600 mt-1 line-clamp-3">{r.comment}</p>
