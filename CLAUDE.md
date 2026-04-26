@@ -5097,9 +5097,31 @@ The canonical open-findings list now lives in `audit_open_findings.md`. It conso
 8. Larger SEO/search/performance cleanup.
 
 ### Confirmed still-live examples
-- `/api/email/unsubscribe` is not public in middleware.
-- Email footer still links to `/unsubscribe` instead of a tokenized one-click URL.
-- Unsubscribe currently disables only three notification preferences.
 - `ADMIN_PIN_COOKIE_SECRET` still falls back to `ADMIN_PIN`.
 - Stripe Connect `returnUrl` accepts protocol-relative `//host` paths.
 - Refund `"pending"` sentinel can still reach seller UI.
+
+## Audit Fix Pass — One-Click Unsubscribe Hardening (2026-04-25)
+
+This pass closed the confirmed Round 14/16 email-compliance regressions around one-click unsubscribe. The endpoint had existed, but the middleware blocked mail-provider POSTs, the footer link still pointed to the sign-in-gated `/unsubscribe` page, and unsubscribe only disabled three promotional preference keys.
+
+### Fixed in this pass
+- **One-click unsubscribe endpoint is public**: `/api/email/unsubscribe` is now in the public route matcher and allowed through the geo-block API allowlist so Gmail/Yahoo/Outlook POSTs do not hit Clerk.
+- **One-click endpoint is rate-limited**: added a dedicated public `unsubscribeRatelimit` of 30 requests/hour per IP, using fail-closed rate limiting.
+- **Unsubscribe tokens no longer reuse webhook secrets**: token signing now uses only `UNSUBSCRIBE_SECRET` or `EMAIL_UNSUBSCRIBE_SECRET`; Clerk/Stripe webhook-secret fallback was removed.
+- **Unsubscribe tokens expire**: generated URLs now include an `issuedAt` timestamp, HMAC over `email:issuedAt`, a 90-day TTL, and a small future-clock-skew allowance.
+- **GET unsubscribe returns HTML**: browser opens now show a simple success/error page instead of raw JSON.
+- **POST unsubscribe remains machine-readable**: mail-provider one-click POSTs still receive JSON `{ ok: true }`.
+- **Footer unsubscribe links are tokenized**: email templates now use a placeholder that `send()` replaces with the recipient-specific `/api/email/unsubscribe?...` URL before sending.
+- **Unsubscribe disables all known email prefs**: `VALID_EMAIL_PREFERENCE_KEYS` now covers the full notification/email surface, and one-click unsubscribe sets every email preference key to `false`.
+- **One-click unsubscribe suppresses future direct sends**: the handler now upserts `EmailSuppression` with reason `MANUAL` and source `one_click_unsubscribe`, so direct transactional/broadcast sends also respect the unsubscribe request.
+- **Newsletter resubscribe checks suppression**: `/api/newsletter` now returns a suppressed response instead of reactivating an email that has opted out.
+
+### Verification
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- `ADMIN_PIN_COOKIE_SECRET` fallback to `ADMIN_PIN`.
+- Stripe Connect protocol-relative `returnUrl` open redirect.
+- Refund `"pending"` UI/lock cleanup and broader refund race fixes.

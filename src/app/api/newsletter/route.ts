@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { newsletterRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { z } from "zod";
 
 const NewsletterSchema = z.object({
@@ -32,6 +33,14 @@ export async function POST(req: NextRequest) {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });
+    }
+
+    if (await isEmailSuppressed(email)) {
+      return NextResponse.json({
+        subscribed: false,
+        suppressed: true,
+        message: "This email has been unsubscribed. Contact support@thegrainline.com to re-enable email.",
+      });
     }
 
     await prisma.newsletterSubscriber.upsert({

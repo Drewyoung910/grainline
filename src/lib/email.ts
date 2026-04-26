@@ -8,6 +8,7 @@ import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const UNSUBSCRIBE_URL_PLACEHOLDER = "__GRAINLINE_UNSUBSCRIBE_URL__";
 
 if (!process.env.RESEND_API_KEY) {
   console.warn("[email] RESEND_API_KEY is not set. Emails will be logged but not sent.");
@@ -100,7 +101,7 @@ function baseTemplate(title: string, body: string): string {
       © 2026 Grainline LLC &nbsp;·&nbsp;
       <a href="${APP_URL}" style="color:#9D9C97;text-decoration:none;">thegrainline.com</a>
       &nbsp;·&nbsp;
-      <a href="${APP_URL}/unsubscribe" style="color:#9D9C97;text-decoration:none;">Unsubscribe</a>
+      <a href="${UNSUBSCRIBE_URL_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">Unsubscribe</a>
       <br/>
       <span style="font-size:10px;">5900 Balcones Drive STE 100, Austin, TX 78731</span>
     </td></tr>
@@ -156,6 +157,7 @@ async function send(to: string, subject: string, html: string) {
   }
 
   const unsubscribeUrl = buildUnsubscribeUrl(recipient);
+  const htmlForRecipient = html.replaceAll(UNSUBSCRIBE_URL_PLACEHOLDER, unsubscribeUrl ?? `${APP_URL}/unsubscribe`);
   if (!HAS_RESEND) {
     console.log("[email:dev]", { to: recipient, subject: sanitizedSubject });
     return;
@@ -170,8 +172,8 @@ async function send(to: string, subject: string, html: string) {
       from: process.env.EMAIL_FROM!,
       to: recipient,
       subject: sanitizedSubject,
-      html,
-      text: htmlToText(html),
+      html: htmlForRecipient,
+      text: htmlToText(htmlForRecipient),
       ...(unsubscribeUrl
         ? {
             headers: {

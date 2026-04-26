@@ -286,6 +286,14 @@ export const newsletterRatelimit = new Ratelimit({
   prefix: "rl:newsletter",
 });
 
+// One-click unsubscribe — public endpoint, token-protected but still rate-limited
+export const unsubscribeRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 m"),
+  analytics: true,
+  prefix: "rl:unsubscribe",
+});
+
 // Blog comment creation (fail closed — abuse has real cost)
 export const blogCommentRatelimit = new Ratelimit({
   redis,
