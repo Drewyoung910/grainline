@@ -8,6 +8,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -37,6 +38,8 @@ export async function POST(
 
     const { success, reset } = await safeRateLimit(refundRatelimit, `case-resolve:${userId}`);
     if (!success) return rateLimitResponse(reset, "Too many case resolution attempts.");
+
+    await releaseStaleRefundLocks();
 
     let parsed;
     try {
@@ -86,11 +89,11 @@ export async function POST(
     ) {
       return NextResponse.json(
         {
-          error: caseRecord.order.sellerRefundId === "pending"
+          error: caseRecord.order.sellerRefundId === REFUND_LOCK_SENTINEL
             ? "A refund is already being processed for this order."
             : "A refund has already been issued for this order by the seller.",
         },
-        { status: caseRecord.order.sellerRefundId === "pending" ? 409 : 400 }
+        { status: caseRecord.order.sellerRefundId === REFUND_LOCK_SENTINEL ? 409 : 400 }
       );
     }
 
@@ -120,7 +123,7 @@ export async function POST(
 
       const lockResult = await prisma.order.updateMany({
         where: { id: caseRecord.orderId, sellerRefundId: null },
-        data: { sellerRefundId: "pending" },
+        data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
       });
       if (lockResult.count === 0) {
         return NextResponse.json(
@@ -139,8 +142,8 @@ export async function POST(
         stripeRefundId = refund.id;
       } catch (stripeErr) {
         await prisma.order.updateMany({
-          where: { id: caseRecord.orderId, sellerRefundId: "pending" },
-          data: { sellerRefundId: null },
+          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+          data: { sellerRefundId: null, sellerRefundLockedAt: null },
         }).catch(() => {});
         throw stripeErr;
       }
@@ -190,6 +193,7 @@ export async function POST(
           data: {
             reviewNeeded: true,
             reviewNote: resolutionNote,
+            ...(refunding ? { sellerRefundLockedAt: null } : {}),
             ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountForOrder } : {}),
           },
         }),
@@ -203,18 +207,19 @@ export async function POST(
           extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, refundAmountForOrder },
         });
         await prisma.order.updateMany({
-          where: { id: caseRecord.orderId, sellerRefundId: "pending" },
+          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: {
             sellerRefundId: stripeRefundId,
             sellerRefundAmountCents: refundAmountForOrder,
+            sellerRefundLockedAt: null,
             reviewNeeded: true,
             reviewNote: `ORPHANED REFUND: Stripe refund ${stripeRefundId} succeeded, but case resolution DB work failed. Manual reconciliation required.`,
           },
         }).catch(() => {});
       } else if (refunding) {
         await prisma.order.updateMany({
-          where: { id: caseRecord.orderId, sellerRefundId: "pending" },
-          data: { sellerRefundId: null },
+          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+          data: { sellerRefundId: null, sellerRefundLockedAt: null },
         }).catch(() => {});
       }
       throw txErr;

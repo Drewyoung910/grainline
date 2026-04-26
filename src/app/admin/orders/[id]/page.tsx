@@ -231,7 +231,12 @@ export default async function AdminOrderDetailPage({
             <span>Total</span>
             <span>{fmtMoney(total, currency)}</span>
           </div>
-          {order.sellerRefundId && (
+          {order.sellerRefundId === "pending" ? (
+            <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
+              <span>Seller refund processing</span>
+              <span className="font-medium">Pending</span>
+            </div>
+          ) : order.sellerRefundId ? (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 Seller refund
@@ -239,9 +244,11 @@ export default async function AdminOrderDetailPage({
                   ({order.sellerRefundId})
                 </span>
               </span>
-              <span className="font-medium">{fmtMoney(order.sellerRefundAmountCents, currency)}</span>
+              <span className="font-medium">
+                {order.sellerRefundAmountCents != null ? fmtMoney(order.sellerRefundAmountCents, currency) : "Amount unavailable"}
+              </span>
             </div>
-          )}
+          ) : null}
           {order.case?.stripeRefundId && (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>

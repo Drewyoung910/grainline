@@ -5122,6 +5122,36 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Refund Pending Lock Cleanup (2026-04-25)
+
+This pass closed the confirmed refund `"pending"` sentinel leak and made refund locks recoverable. The remaining refund/payment work is still meaningful, but the specific UI leak and permanent-lock class are now addressed.
+
+### Fixed in this pass
+- **Refund locks now have timestamps**: added `Order.sellerRefundLockedAt` plus an index on `(sellerRefundId, sellerRefundLockedAt)` and migration `20260426032500_refund_lock_timestamps`.
+- **Existing pending locks are timestamped by migration**: any existing `sellerRefundId = 'pending'` rows get `sellerRefundLockedAt = CURRENT_TIMESTAMP`, allowing normal stale-lock cleanup afterward.
+- **Seller refund route reclaims stale locks**: `/api/orders/[id]/refund` clears `"pending"` locks older than 5 minutes before checking/claiming a refund slot.
+- **Case resolve route reclaims stale locks**: `/api/cases/[id]/resolve` clears stale refund locks before resolving/refunding.
+- **Daily cron reclaims stale locks**: `/api/cron/notification-prune` now also reports and releases stale refund locks.
+- **All refund success/error paths clear lock timestamps**: successful seller refunds, case refunds, Stripe webhook refund confirmations, orphaned-refund reconciliation, and failed Stripe calls now set `sellerRefundLockedAt: null`.
+- **Seller UI no longer leaks `pending` as a Stripe ID**: `SellerRefundPanel` renders `"Refund processing"` for the lock state and never shows `Stripe refund ID: pending`.
+- **Buyer/seller order totals ignore pending locks**: order pages now treat only real refund IDs or case refund IDs as issued refunds.
+- **Admin order view handles pending explicitly**: admin totals show `"Seller refund processing"` instead of a fake refund ID/amount.
+- **Open backlog updated**: `audit_open_findings.md` now marks C1-C6 as fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `npx prisma generate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+- `npx prisma migrate deploy` ✅ (applied `20260426032500_refund_lock_timestamps`)
+
+### Still open / next good passes
+- Stripe refund tax/reverse-transfer accounting.
+- Refund idempotency key collision on identical partial refunds.
+- Dispute/refund race checks.
+- Webhook completed/expired stock race serialization.
+
 ## Audit Fix Pass — Admin Secret + Stripe Return URL Hardening (2026-04-25)
 
 This pass closed two small confirmed high-risk items from the Round 16-18 verification list.

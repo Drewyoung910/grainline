@@ -129,12 +129,14 @@ export default async function SellerOrderDetailPage({
 
   const activeCase = order.case;
   const now = new Date();
+  const sellerRefundPending = order.sellerRefundId === "pending";
+  const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
 
   const refundCents =
-    order.sellerRefundAmountCents ??
+    (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
     null;
-  const hasRefund = !!(order.sellerRefundId || activeCase?.stripeRefundId);
+  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId;
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
 

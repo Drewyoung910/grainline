@@ -140,13 +140,15 @@ export default async function BuyerOrderDetailPage({
     !terminalStatuses.includes(status);
 
   const activeCase = order.case;
+  const sellerRefundPending = order.sellerRefundId === "pending";
+  const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
 
   // Refund info — seller-initiated refund takes precedence; fall back to case staff refund
   const refundCents =
-    order.sellerRefundAmountCents ??
+    (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
     null;
-  const hasRefund = !!(order.sellerRefundId || activeCase?.stripeRefundId);
+  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId;
 
   const caseOpen =
     activeCase &&

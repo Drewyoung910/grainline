@@ -10,6 +10,8 @@ type Props = {
   alreadyRefundedCents: number | null;
 };
 
+const REFUND_LOCK_SENTINEL = "pending";
+
 function fmtMoney(cents: number, currency = "usd") {
   return (cents / 100).toLocaleString(undefined, {
     style: "currency",
@@ -30,6 +32,18 @@ export default function SellerRefundPanel({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ refundAmountCents: number } | null>(null);
+  const refundProcessing = alreadyRefundedId === REFUND_LOCK_SENTINEL;
+
+  if (refundProcessing && !result) {
+    return (
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="font-semibold">Refund processing</div>
+        <div className="mt-1">
+          Stripe is processing this refund. Refresh in a few minutes before trying again.
+        </div>
+      </div>
+    );
+  }
 
   if (alreadyRefundedId && !result) {
     return (

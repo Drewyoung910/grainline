@@ -1022,12 +1022,14 @@ export async function POST(req: Request) {
                 data: isAdditionalExternalRefund
                   ? {
                       sellerRefundAmountCents: Math.max(existingOrder.sellerRefundAmountCents ?? 0, totalRefundedCents),
+                      sellerRefundLockedAt: null,
                       reviewNeeded: true,
                       reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
                     }
                   : {
                       sellerRefundId: latestRefundId,
                       sellerRefundAmountCents: totalRefundedCents,
+                      sellerRefundLockedAt: null,
                       reviewNeeded: true,
                       reviewNote: "Stripe refund was created outside Grainline.",
                     },

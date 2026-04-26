@@ -32,47 +32,48 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## Critical / Launch-Quality Findings
 
-### C1. One-click unsubscribe route is blocked by Clerk
+### C1. [FIXED 2026-04-25] One-click unsubscribe route is blocked by Clerk
 
 - **File**: `src/middleware.ts`
-- **Current state**: Confirmed. `/api/email/unsubscribe` is not in the public route matcher.
+- **Current state**: Fixed. `/api/email/unsubscribe` is public and allowed through the geo-block API allowlist.
 - **Impact**: Gmail/Yahoo one-click POST gets Clerk 401 instead of unsubscribing. Bulk-sender compliance risk.
 - **Fix spec**: Add `/api/email/unsubscribe` to the public matcher. Also include it in the geo-block API allowlist if email clients can originate outside the US.
 
-### C2. One-click unsubscribe only disables three promotional prefs
+### C2. [FIXED 2026-04-25] One-click unsubscribe only disables three promotional prefs
 
 - **File**: `src/lib/unsubscribe.ts`
-- **Current state**: Confirmed. Only `EMAIL_FOLLOWED_MAKER_NEW_LISTING`, `EMAIL_SELLER_BROADCAST`, and `EMAIL_NEW_FOLLOWER` are disabled.
+- **Current state**: Fixed. One-click unsubscribe now disables every key in `VALID_EMAIL_PREFERENCE_KEYS` and adds an `EmailSuppression` row.
 - **Impact**: A user clicking unsubscribe in a message/review/order-ish email can keep receiving other non-transactional mail. CAN-SPAM and Gmail/Yahoo risk.
 - **Fix spec**: Define explicit categories:
   - Transactional/required: receipts, shipping, case/security/account notices.
   - Marketing/social optional: follower, broadcast, blog/listing promos, review prompts, saved search alerts, newsletters.
   - One-click unsubscribe must disable all non-transactional categories and newsletter subscription.
 
-### C3. Email footer unsubscribe link is still sign-in gated
+### C3. [FIXED 2026-04-25] Email footer unsubscribe link is still sign-in gated
 
 - **File**: `src/lib/email.ts`
-- **Current state**: Confirmed. Footer points to `${APP_URL}/unsubscribe`, not the tokenized `/api/email/unsubscribe?...`.
+- **Current state**: Fixed. Email footer links are replaced with recipient-specific tokenized `/api/email/unsubscribe?...` URLs in `send()`.
 - **Impact**: Email footer link can send users to a login wall. Compliance and deliverability risk.
 - **Fix spec**: The email template must accept a recipient email and render `buildUnsubscribeUrl(to) ?? /unsubscribe`. For transactional emails, label it clearly as "Manage email preferences" if the email itself is required.
 
-### C4. One-click unsubscribe API returns JSON only
+### C4. [FIXED 2026-04-25] One-click unsubscribe API returns JSON only
 
 - **File**: `src/app/api/email/unsubscribe/route.ts`
+- **Current state**: Fixed. `GET` returns a small HTML response; `POST` remains JSON for one-click providers.
 - **Impact**: Many clients open the URL in a browser; raw `{"ok":true}` looks broken.
 - **Fix spec**: For `GET`, return a small HTML confirmation page. For one-click `POST` with `List-Unsubscribe-Post`, JSON is fine. Both should perform the same unsubscribe operation.
 
-### C5. Unsubscribe token has weak lifecycle
+### C5. [FIXED 2026-04-25] Unsubscribe token has weak lifecycle
 
 - **File**: `src/lib/unsubscribe.ts`
-- **Current state**: Confirmed. HMAC uses normalized email only. Secret falls back to webhook secrets.
+- **Current state**: Fixed. Tokens are signed with the dedicated unsubscribe secret, include `issuedAt`, expire after 90 days, and are rate-limited.
 - **Impact**: Tokens never expire, replay forever, and can break when Clerk/Stripe webhook secrets rotate.
 - **Fix spec**: Require `UNSUBSCRIBE_SECRET` in production. Token payload should include email and issued-at timestamp, e.g. `base64url(email:issuedAt).hmac`, with a 90-day TTL. Add endpoint rate limit by IP.
 
-### C6. Refund `"pending"` sentinel leaks to seller UI and can lock orders
+### C6. [FIXED 2026-04-25] Refund `"pending"` sentinel leaks to seller UI and can lock orders
 
 - **Files**: `src/components/SellerRefundPanel.tsx`, `src/app/dashboard/sales/[orderId]/page.tsx`, refund routes.
-- **Current state**: Confirmed. UI can render `Stripe refund ID: pending`; refund button gates on any `sellerRefundId`.
+- **Current state**: Fixed. Refund locks now have `sellerRefundLockedAt`; stale locks are released by refund/case routes and the daily prune cron. UI shows `Refund processing` for `"pending"` and never renders it as a Stripe ID.
 - **Impact**: Failed/hung Stripe calls can permanently block refunds and show false success.
 - **Fix spec**: Add `sellerRefundLockedAt DateTime?`. Treat `"pending"` as a lock, never as a refund ID. UI should show "Refund processing" with no Stripe ID. Expire locks older than 5 minutes at the start of refund routes and via cron.
 

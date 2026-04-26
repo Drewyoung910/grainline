@@ -11,6 +11,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -65,6 +66,8 @@ export async function POST(
     });
     if (!seller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
+    await releaseStaleRefundLocks(orderId);
+
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -83,7 +86,7 @@ export async function POST(
     if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     if (order.sellerRefundId) {
-      const pending = order.sellerRefundId === "pending";
+      const pending = order.sellerRefundId === REFUND_LOCK_SENTINEL;
       return NextResponse.json(
         {
           error: pending
@@ -104,7 +107,7 @@ export async function POST(
     // Atomic lock: claim refund slot to prevent double-refund race
     const lockResult = await prisma.order.updateMany({
       where: { id: orderId, sellerRefundId: null },
-      data: { sellerRefundId: "pending" },
+      data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
     });
     if (lockResult.count === 0) {
       return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
@@ -118,7 +121,7 @@ export async function POST(
     const orderTotal = (order.itemsSubtotalCents ?? 0) + (order.shippingAmountCents ?? 0) + (order.taxAmountCents ?? 0);
     if (type === "PARTIAL" && amountCents! > orderTotal) {
       // Clear the lock
-      await prisma.order.update({ where: { id: orderId }, data: { sellerRefundId: null } }).catch(() => {});
+      await prisma.order.update({ where: { id: orderId }, data: { sellerRefundId: null, sellerRefundLockedAt: null } }).catch(() => {});
       return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
     }
 
@@ -165,6 +168,7 @@ export async function POST(
           data: {
             sellerRefundId: refund.id,
             sellerRefundAmountCents: refundAmountCents,
+            sellerRefundLockedAt: null,
             reviewNeeded: true,
             reviewNote,
           },
@@ -195,18 +199,19 @@ export async function POST(
           extra: { orderId, refundId, refundAmountCents },
         });
         await prisma.order.updateMany({
-          where: { id: orderId, sellerRefundId: "pending" },
+          where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: {
             sellerRefundId: refundId,
             sellerRefundAmountCents: refundAmountCents,
+            sellerRefundLockedAt: null,
             reviewNeeded: true,
             reviewNote: `ORPHANED REFUND: Stripe refund ${refundId} succeeded, but follow-up DB work failed. Manual reconciliation required.`,
           },
         }).catch(() => {});
       } else {
         await prisma.order.updateMany({
-          where: { id: orderId, sellerRefundId: "pending" },
-          data: { sellerRefundId: null },
+          where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+          data: { sellerRefundId: null, sellerRefundLockedAt: null },
         }).catch(() => {});
       }
       throw err;
