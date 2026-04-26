@@ -307,9 +307,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Knowledge of PIN becomes signing-secret knowledge.
 - **Fix spec**: Require `ADMIN_PIN_COOKIE_SECRET` in production. Add env var before deploying the code change.
 
-### H28. Admin PIN IP limiter can lock shared office
+### H28. [FIXED 2026-04-25] Admin PIN IP limiter can lock shared office
 
 - **File**: `src/app/api/admin/verify-pin/route.ts`
+- **Current state**: Fixed. User attempts remain 5/15m, while IP-level bot-flood protection is now a separate 50/15m limiter.
 - **Impact**: 5 shared attempts/IP can lock all admins.
 - **Fix spec**: Keep strict per-user limiter; loosen per-IP to bot-flood thresholds.
 

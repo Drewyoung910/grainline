@@ -12,12 +12,21 @@ import {
 import { getIP } from "@/lib/ratelimit";
 import { createHash, timingSafeEqual } from "crypto";
 
-// 5 attempts per 15 minutes per user — fail closed
-const pinRatelimit = new Ratelimit({
+// 5 attempts per 15 minutes per user — fail closed for compromised sessions.
+const pinUserRatelimit = new Ratelimit({
   redis: Redis.fromEnv(),
   limiter: Ratelimit.slidingWindow(5, "15 m"),
   analytics: true,
-  prefix: "rl:admin-pin",
+  prefix: "rl:admin-pin:user",
+});
+
+// 50 attempts per 15 minutes per IP — broad bot-flood guard without locking
+// out every staff member behind a shared office/network IP.
+const pinIpRatelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(50, "15 m"),
+  analytics: true,
+  prefix: "rl:admin-pin:ip",
 });
 
 export async function POST(req: Request) {
@@ -38,8 +47,8 @@ export async function POST(req: Request) {
   // should not be able to brute-force across staff accounts.
   const ip = getIP(req);
   const [userLimit, ipLimit] = await Promise.all([
-    safeRateLimit(pinRatelimit, `user:${userId}`),
-    safeRateLimit(pinRatelimit, `ip:${ip}`),
+    safeRateLimit(pinUserRatelimit, userId),
+    safeRateLimit(pinIpRatelimit, ip),
   ]);
   if (!userLimit.success || !ipLimit.success) {
     return NextResponse.json({ error: "Too many attempts" }, { status: 429 });

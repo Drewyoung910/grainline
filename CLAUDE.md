@@ -5184,6 +5184,25 @@ This pass closed the Round 16 high-priority role boundary finding for destructiv
 - Refund tax/reverse-transfer accounting decision.
 - Admin PIN shared-IP limiter tuning.
 
+## Audit Fix Pass — Admin PIN Shared-IP Limit Tuning (2026-04-25)
+
+This pass closed the shared-office lockout issue in the admin PIN verifier.
+
+### Fixed in this pass
+- **Admin PIN user limiter remains strict**: each staff account still gets 5 attempts per 15 minutes.
+- **Admin PIN IP limiter is now bot-flood scoped**: the source-IP limiter now uses a separate 50 attempts per 15 minutes bucket, preventing one shared office/network IP from locking every admin after five total attempts.
+- **Open backlog updated**: `audit_open_findings.md` now marks H28 fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- AdminPinGate UI still does not display Retry-After lockout timing.
+- Refund tax/reverse-transfer accounting decision.
+
 ## Audit Fix Pass — Notification Dedup + Saved Listing Visibility (2026-04-25)
 
 This pass closed the shared notification dedup gap and one saved-items visibility issue from the later audit backlog.
