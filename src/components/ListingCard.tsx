@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
+import MediaImage from "@/components/MediaImage";
 
 export type ListingCardData = {
   id: string;
@@ -54,24 +55,22 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
       >
         {listingHref ? (
           <Link href={listingHref} className="block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <MediaImage
               alt={l.title}
               src={displayImg}
               loading="lazy"
               className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
+              fallbackClassName="w-full aspect-square bg-gradient-to-br from-amber-50 to-stone-100"
             />
           </Link>
         ) : (
-          <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <MediaImage
             alt={l.title}
             src={displayImg}
             loading="lazy"
             className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
+            fallbackClassName="w-full aspect-square bg-gradient-to-br from-amber-50 to-stone-100"
           />
-          </>
         )}
         {/* Heart — top right */}
         <div className="absolute top-2 right-2">

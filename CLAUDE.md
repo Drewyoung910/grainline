@@ -4871,3 +4871,42 @@ This pass continued the suspended/deleted account handling work. The goal was no
 - Continue lower-priority server-action UX cleanup where actions throw errors directly instead of returning inline form state.
 - Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
 - Payment/manual reconciliation work remains for external refunds, partial refunds, and disputes.
+
+## Audit Pass — Media Origin Compatibility and Broken-Image Fallbacks (2026-04-25)
+
+This pass responded to a production-visible media regression: the homepage "Meet a Maker" banner rendered only alt text ("Litter Shack workshop"), and several listing/blog images appeared missing after recent media/CSP hardening. The fix was intentionally scoped to display resilience and upload correctness; it does not try to fabricate missing R2 objects.
+
+### Production diagnosis
+- A read-only production media host audit found stored media across:
+  - `cdn.thegrainline.com` for current R2/custom-domain uploads
+  - `qu5gyczaki.ufs.sh` for legacy UploadThing media
+  - `i.postimg.cc` for two legacy listing photos
+- The live homepage contained both legacy `ufs.sh` media and `cdn.thegrainline.com/galleryImage/...` URLs.
+- At least one first-party CDN URL returned a plain `Cache miss`, meaning the object is not publicly retrievable from the current CDN/bucket path. Code can hide that failure and prevent future dead URLs, but the missing object itself must be re-uploaded or reconciled in R2/Cloudflare.
+
+### Fixed in this pass
+- **Legacy UploadThing images are renderable again**: CSP now allows `https://utfs.io`, `https://ufs.sh`, and `https://*.ufs.sh` for image/media display.
+- **Known legacy Postimg listing photos render**: CSP allows `https://i.postimg.cc` for display only. The URL validator does not accept Postimg for new uploaded media.
+- **Media validator preserves trusted legacy URLs**: `isR2PublicUrl()` now accepts first-party CDN/R2 URLs plus legacy UploadThing URLs, so editing existing profile/blog records does not silently erase old valid images.
+- **Display-only media policy added**: `isTrustedMediaUrl()` includes the display-only Postimg host for read surfaces while keeping mutation validation narrower.
+- **Homepage hero mosaic no longer hardcodes `cdn.thegrainline.com`**: it now uses the shared trusted-media policy, so valid legacy R2/UploadThing media is not thrown away.
+- **High-traffic surfaces use graceful image fallbacks**: `MediaImage` hides broken `<img>` failures and renders a stable fallback block instead of exposing alt text. Applied to homepage followed-maker cards, Meet a Maker banner/listing thumbnails, homepage blog cards, listing cards, seller banner/broadcast/blog cards, seller gallery, and blog listing/detail related cards.
+- **Blog cover lightbox handles broken covers**: failed blog cover images now collapse to a neutral fallback instead of opening a broken lightbox.
+- **Processed uploads verify public availability**: `/api/upload/image` now checks the returned public URL after writing to R2. If the object cannot be fetched from `CLOUDFLARE_R2_PUBLIC_URL`, the route returns a 502 instead of saving a dead media URL into forms/listings.
+
+### Operational follow-up
+- Investigate why existing `cdn.thegrainline.com/...` objects return `Cache miss`. Likely causes: old Vercel/Cloudflare envs wrote to a different bucket, the custom domain points at a different bucket, or some objects were lost/deleted after URL storage.
+- Re-upload or repair the affected first-party CDN media rows. This pass prevents ugly rendering and new silent dead URLs, but it cannot recover objects that are absent from R2.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ outside sandbox; sandbox build still fails on Turbopack internal worker port binding (`Operation not permitted`)
+
+### Still open / next good passes
+- Repair/re-upload the existing `cdn.thegrainline.com` media rows returning `Cache miss`.
+- Continue lower-priority server-action UX cleanup where actions throw errors directly instead of returning inline form state.
+- Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
+- Payment/manual reconciliation work remains for external refunds, partial refunds, and disputes.

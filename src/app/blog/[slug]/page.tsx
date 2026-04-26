@@ -13,6 +13,7 @@ import BlogReplyToggle from "@/components/BlogReplyToggle";
 import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
+import MediaImage from "@/components/MediaImage";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
@@ -336,8 +337,12 @@ export default async function BlogPostPage({
                 <Link href={`/listing/${l.id}`} className="block">
                   <div className="h-36 bg-neutral-100 overflow-hidden">
                     {l.photos[0]?.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={l.photos[0].url} alt={l.title} className="w-full h-full object-cover" />
+                      <MediaImage
+                        src={l.photos[0].url}
+                        alt={l.title}
+                        className="w-full h-full object-cover"
+                        fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                      />
                     ) : (
                       <div className="w-full h-full bg-neutral-200" />
                     )}
@@ -436,8 +441,12 @@ export default async function BlogPostPage({
                   <Link href={`/blog/${r.slug}`} className="block">
                     <div className="h-32 bg-neutral-100 overflow-hidden">
                       {r.coverImageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.coverImageUrl} alt={r.title} className="w-full h-full object-cover" />
+                        <MediaImage
+                          src={r.coverImageUrl}
+                          alt={r.title}
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                       )}

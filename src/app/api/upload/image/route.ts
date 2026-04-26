@@ -8,6 +8,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
+import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -125,6 +126,13 @@ export async function POST(req: Request) {
   }));
 
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+  try {
+    await assertPublicMediaAvailable(publicUrl);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Uploaded media is not publicly available.";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+
   return NextResponse.json({
     publicUrl,
     key,

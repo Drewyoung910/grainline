@@ -14,6 +14,11 @@ const configuredPublicUrls = [
 // First-party CDN domain used by existing production media.
 const FIRST_PARTY_MEDIA_ORIGINS = ["https://cdn.thegrainline.com"];
 
+// Legacy UploadThing media still exists in production data. Keep it renderable
+// and preservable while new uploads continue to go through Grainline's R2 flow.
+const LEGACY_MEDIA_ORIGINS = ["https://utfs.io", "https://ufs.sh", "https://qu5gyczaki.ufs.sh"];
+const DISPLAY_ONLY_MEDIA_HOSTS = new Set(["i.postimg.cc"]);
+
 function normalizedUrl(input: string): URL | null {
   try {
     return new URL(input);
@@ -26,7 +31,7 @@ export function isR2PublicUrl(input: string): boolean {
   const candidate = normalizedUrl(input);
   if (!candidate || candidate.protocol !== "https:") return false;
 
-  const allowedBases = [...configuredPublicUrls, ...FIRST_PARTY_MEDIA_ORIGINS]
+  const allowedBases = [...configuredPublicUrls, ...FIRST_PARTY_MEDIA_ORIGINS, ...LEGACY_MEDIA_ORIGINS]
     .map((url) => normalizedUrl(url))
     .filter((url): url is URL => Boolean(url));
 
@@ -44,9 +49,21 @@ export function isR2PublicUrl(input: string): boolean {
   // https://pub-xxxxx.r2.dev/key. Grainline previously stored those before the
   // cdn.thegrainline.com custom domain. Allow them as hosted media, but still
   // reject arbitrary HTTPS/CDN URLs.
-  return candidate.hostname.endsWith(".r2.dev");
+  if (candidate.hostname.endsWith(".r2.dev")) return true;
+
+  return false;
 }
 
 export function filterR2PublicUrls(urls: string[], max: number): string[] {
   return urls.filter((url) => isR2PublicUrl(url)).slice(0, max);
+}
+
+export function isTrustedMediaUrl(input: string): boolean {
+  if (isR2PublicUrl(input)) return true;
+  const candidate = normalizedUrl(input);
+  return Boolean(candidate && candidate.protocol === "https:" && DISPLAY_ONLY_MEDIA_HOSTS.has(candidate.hostname));
+}
+
+export function filterTrustedMediaUrls(urls: string[], max: number): string[] {
+  return urls.filter((url) => isTrustedMediaUrl(url)).slice(0, max);
 }

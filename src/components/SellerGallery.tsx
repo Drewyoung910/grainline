@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import MediaImage from "@/components/MediaImage";
 
 export default function SellerGallery({
   workshopImageUrl,
@@ -59,8 +60,12 @@ export default function SellerGallery({
             className="relative h-40 w-full overflow-hidden border hover:border-neutral-400 transition-colors group"
             aria-label={`View gallery image ${i + 1}`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`Gallery image ${i + 1}`} className="h-full w-full object-cover" />
+            <MediaImage
+              src={url}
+              alt={`Gallery image ${i + 1}`}
+              className="h-full w-full object-cover"
+              fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
+            />
             <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" />
           </button>
         ))}
@@ -100,11 +105,11 @@ export default function SellerGallery({
             </>
           )}
           <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <MediaImage
               src={allImages[lightboxIndex]}
               alt={`Gallery image ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
+              fallbackClassName="h-[60vh] w-[80vw] max-w-full bg-neutral-900"
             />
             {allImages.length > 1 && (
               <p className="text-center text-white text-sm mt-2 opacity-60">

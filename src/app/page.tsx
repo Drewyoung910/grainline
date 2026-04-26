@@ -13,11 +13,13 @@ import { Armchair, Utensils, Candle, Toy, Box, Gift, TreePine, Palette, MapPin }
 import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
+import MediaImage from "@/components/MediaImage";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { isTrustedMediaUrl } from "@/lib/urlValidation";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -292,7 +294,7 @@ export default async function HomePage() {
   const mosaicPhotos: { url: string; listingId: string }[] = mosaicListings
     .filter(l => l.photos.length > 0)
     .map(l => ({ url: l.photos[0].url, listingId: l.id }))
-    .filter(item => item.url.includes("cdn.thegrainline.com"));
+    .filter(item => isTrustedMediaUrl(item.url));
 
   const mapPoints = mapRows
     .map((r) => ({
@@ -589,12 +591,13 @@ export default async function HomePage() {
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link href={`/listing/${item.id}`} className="block">
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
-                        {item.photoUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={item.photoUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
-                        )}
+                        <MediaImage
+                          src={item.photoUrl}
+                          alt={item.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
                       </div>
                       <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
@@ -609,12 +612,13 @@ export default async function HomePage() {
                   <li key={item.slug} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link href={`/blog/${item.slug}`} className="block">
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
-                        {item.coverImageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={item.coverImageUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
-                        )}
+                        <MediaImage
+                          src={item.coverImageUrl}
+                          alt={item.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
                       </div>
                       <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
@@ -666,10 +670,13 @@ export default async function HomePage() {
             </div>
 
             <div className="rounded-2xl bg-stone-50 overflow-hidden">
-              {featuredMaker.bannerImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={featuredMaker.bannerImageUrl} alt={`${featuredMaker.displayName ?? "Maker"} workshop`} loading="lazy" className="h-48 w-full object-cover" />
-              )}
+              <MediaImage
+                src={featuredMaker.bannerImageUrl}
+                alt={`${featuredMaker.displayName ?? "Maker"} workshop`}
+                loading="lazy"
+                className="h-48 w-full object-cover"
+                fallbackClassName="h-48 w-full bg-gradient-to-r from-neutral-800 to-neutral-600"
+              />
               <div className={`p-6 sm:p-8 ${featuredListings.length > 0 ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
                 {/* Left column — maker info */}
                 <div className="flex flex-col sm:flex-row gap-6 items-start">
@@ -740,17 +747,13 @@ export default async function HomePage() {
                     {featuredListings.map((fl) => (
                       <Link key={fl.id} href={`/listing/${fl.id}`} className="block group">
                         <div className="aspect-square overflow-hidden rounded-xl">
-                          {fl.photos[0]?.url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={fl.photos[0].url}
-                              alt={fl.title}
-                              loading="lazy"
-                              className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
-                          ) : (
-                            <div className="h-full w-full bg-stone-100" />
-                          )}
+                          <MediaImage
+                            src={fl.photos[0]?.url ?? null}
+                            alt={fl.title}
+                            loading="lazy"
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            fallbackClassName="h-full w-full bg-stone-100"
+                          />
                         </div>
                         <div className="pt-2">
                           <div className="font-medium text-xs text-neutral-900 line-clamp-1">{fl.title}</div>
@@ -888,12 +891,13 @@ export default async function HomePage() {
                     </div>
                     <Link href={`/blog/${p.slug}`} className="block">
                       <div className="aspect-[4/3] bg-stone-100 overflow-hidden">
-                        {p.coverImageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.coverImageUrl} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
-                        )}
+                        <MediaImage
+                          src={p.coverImageUrl}
+                          alt={p.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
                       </div>
                       <div className="p-4 space-y-2 bg-white">
                         <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>

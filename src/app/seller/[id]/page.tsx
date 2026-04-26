@@ -17,6 +17,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import SellerGallery from "@/components/SellerGallery";
 import ListingCard from "@/components/ListingCard";
 import LocalDate from "@/components/LocalDate";
+import MediaImage from "@/components/MediaImage";
 import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function generateMetadata({
@@ -297,17 +298,13 @@ export default async function SellerPublicPage({
 
       {/* ── Banner ────────────────────────────────────────────────────────── */}
       <div className="relative h-48 sm:h-56">
-        {seller.bannerImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={seller.bannerImageUrl}
-            alt={`${seller.displayName} banner`}
-            fetchPriority="high"
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600" />
-        )}
+        <MediaImage
+          src={seller.bannerImageUrl}
+          alt={`${seller.displayName} banner`}
+          fetchPriority="high"
+          className="w-full h-full object-cover"
+          fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
+        />
         {/* Avatar: sits at bottom of banner, half-overlapping downward */}
         <div className="absolute bottom-0 left-8 translate-y-1/2 h-24 w-24 rounded-full overflow-hidden ring-4 ring-white shadow">
           {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
@@ -439,8 +436,12 @@ export default async function SellerPublicPage({
             </div>
             <p className="text-sm text-neutral-700 whitespace-pre-line">{latestBroadcast.message}</p>
             {latestBroadcast.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={latestBroadcast.imageUrl} alt="Update" className="mt-3 w-full max-h-48 object-cover" />
+              <MediaImage
+                src={latestBroadcast.imageUrl}
+                alt="Update"
+                className="mt-3 w-full max-h-48 object-cover"
+                fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100"
+              />
             )}
           </section>
         )}
@@ -615,8 +616,12 @@ export default async function SellerPublicPage({
                   <Link href={`/blog/${p.slug}`} className="block">
                     <div className="h-36 bg-neutral-100 overflow-hidden">
                       {p.coverImageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.coverImageUrl} alt={p.title} className="w-full h-full object-cover" />
+                        <MediaImage
+                          src={p.coverImageUrl}
+                          alt={p.title}
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
                       )}

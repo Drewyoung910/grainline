@@ -9,6 +9,7 @@ import { auth } from "@clerk/nextjs/server";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
+import MediaImage from "@/components/MediaImage";
 
 export const metadata: Metadata = {
   title: "Stories from the Workshop",
@@ -328,16 +329,12 @@ export default async function BlogIndexPage({
             >
               <div className="md:flex">
                 <div className="md:w-1/2 aspect-[16/9] overflow-hidden bg-neutral-100">
-                  {featured.coverImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={featured.coverImageUrl}
-                      alt={featured.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-amber-100 to-stone-200" />
-                  )}
+                  <MediaImage
+                    src={featured.coverImageUrl}
+                    alt={featured.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    fallbackClassName="w-full h-full bg-gradient-to-br from-amber-100 to-stone-200"
+                  />
                 </div>
                 <div className="md:w-1/2 p-6 sm:p-8 flex flex-col justify-center space-y-3">
                   <div className="flex items-center gap-2">
@@ -403,16 +400,12 @@ export default async function BlogIndexPage({
                     </div>
                     <Link href={`/blog/${post.slug}`} className="block">
                       <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
-                        {post.coverImageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={post.coverImageUrl}
-                            alt={post.title}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
-                        )}
+                        <MediaImage
+                          src={post.coverImageUrl}
+                          alt={post.title}
+                          className="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                        />
                       </div>
                       <div className="p-4 space-y-2">
                         <div className="flex items-center gap-2">
