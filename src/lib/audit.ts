@@ -2,6 +2,12 @@ import { ListingStatus } from '@prisma/client'
 import { prisma } from './db'
 import { stripe } from './stripe'
 
+export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
+
+export function isUndoableAdminAction(action: string): boolean {
+  return (UNDOABLE_ADMIN_ACTIONS as readonly string[]).includes(action)
+}
+
 export async function logAdminAction({
   adminId,
   action,
@@ -42,6 +48,7 @@ export async function undoAdminAction({
   if (log.undone) throw new Error('Already undone')
   const hoursAgo = (Date.now() - log.createdAt.getTime()) / 3600000
   if (hoursAgo > 24) throw new Error('Undo window expired (24 hours)')
+  if (!isUndoableAdminAction(log.action)) throw new Error(`Action '${log.action}' cannot be undone`)
 
   const metadata = (log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata))
     ? log.metadata as Record<string, unknown>

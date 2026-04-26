@@ -23,15 +23,18 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const savingRef = React.useRef(false);
 
   const thumb = listing.photos[0]?.url;
 
   async function handleSave() {
+    if (savingRef.current) return;
     const quantity = parseInt(qty, 10);
     if (!Number.isFinite(quantity) || quantity < 0) {
       setError("Enter a valid quantity (0 or more).");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -51,6 +54,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -115,8 +119,9 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
           min="0"
           step="1"
           value={qty}
+          disabled={saving}
           onChange={(e) => { setQty(e.target.value); setSaved(false); setError(null); }}
-          className="w-20 rounded border px-2 py-1 text-sm text-right"
+          className="w-20 rounded border px-2 py-1 text-sm text-right disabled:bg-neutral-50 disabled:text-neutral-400"
           aria-label="Stock quantity"
         />
         <button

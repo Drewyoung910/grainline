@@ -416,10 +416,8 @@ export default async function SellerOrderDetailPage({
         {/* Totals */}
         <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-neutral-600">Order items subtotal</span>
-            <span className="font-medium">
-              {fmtMoney(order.itemsSubtotalCents || myItemsSubtotal, currency)}
-            </span>
+            <span className="text-neutral-600">Your items subtotal</span>
+            <span className="font-medium">{fmtMoney(myItemsSubtotal, currency)}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-neutral-600">

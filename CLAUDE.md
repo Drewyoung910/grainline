@@ -5125,6 +5125,32 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Admin/Dashboard Correctness Sweep (2026-04-26)
+
+This pass closed several Round 13 admin/dashboard UX and data-integrity findings without schema changes.
+
+### Fixed in this pass
+- **Admin order actions return inline state**: `markReviewed` and `appendNote` now return `{ ok, error }` state through a client action form, avoiding raw server-action crash pages.
+- **Order review notes are bounded**: note appends are capped at 2,000 characters each and 10,000 characters total per order.
+- **Audit log is filterable**: `/admin/audit` now supports an action filter and preserves it through pagination.
+- **Undo controls are explicit**: non-undoable audit actions render as `Not undoable`; undoability is centralized in `lib/audit`.
+- **Admin undo is rate-limited**: `/api/admin/audit/[id]/undo` now uses the admin action rate limiter.
+- **Vacation mode save errors surface**: the seller vacation form now shows failed saves and `Retry-After` rate-limit timing inline.
+- **Inventory stock saves serialize per row**: the inventory UI blocks repeat saves/edits while a stock save is in flight.
+- **Seller order subtotal is seller-scoped**: the seller order detail page now renders the seller-owned item subtotal instead of falling back to the full order item subtotal.
+- **Admin sellers cannot self-feature**: `featureMaker` skips attempts to feature the current admin's own seller profile.
+- **Open backlog updated**: `audit_open_findings.md` now marks the corresponding admin/dashboard bullets fixed.
+
+### Verification
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- `approveGuildMember` should surface eligibility failure details directly in the pending application card.
+- Multi-seller admin order and flagged views still need a focused display pass.
+- GDPR export/deletion and Sentry filtering remain high-value next batches.
+
 ## Audit Fix Pass — Resend Webhook Replay + Account Deletion Cleanup (2026-04-26)
 
 This pass closed two contained email/privacy items from the Round 16-18 backlog.

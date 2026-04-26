@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { markReviewed, appendNote } from "../../actions";
+import AdminOrderActions from "./AdminOrderActions";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
@@ -88,9 +88,6 @@ export default async function AdminOrderDetailPage({
     { label: "Estimated delivery", at: order.estimatedDeliveryDate },
     { label: "Delivered", at: order.deliveredAt },
   ].filter((e) => e.at !== null);
-
-  const markReviewedAction = markReviewed.bind(null, order.id);
-  const appendNoteAction = appendNote.bind(null, order.id);
 
   // Unique sellers across items
   const sellers = Array.from(
@@ -428,45 +425,7 @@ export default async function AdminOrderDetailPage({
 
       {/* Admin actions */}
       <Section title="Admin Actions">
-        <div className="space-y-5">
-          {/* Mark Reviewed */}
-          {order.reviewNeeded && (
-            <div>
-              <p className="text-sm text-neutral-600 mb-2">
-                Once you have verified the shipping details are acceptable, mark this order as
-                reviewed.
-              </p>
-              <form action={markReviewedAction}>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 active:bg-neutral-100"
-                >
-                  Mark as Reviewed
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Append internal note */}
-          <div>
-            <p className="text-sm font-medium text-neutral-700 mb-2">Append internal note</p>
-            <form action={appendNoteAction} className="space-y-2">
-              <textarea
-                name="note"
-                rows={3}
-                placeholder="Add an internal note…"
-                required
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
-              />
-              <button
-                type="submit"
-                className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 active:bg-neutral-100"
-              >
-                Append Note
-              </button>
-            </form>
-          </div>
-        </div>
+        <AdminOrderActions orderId={order.id} reviewNeeded={order.reviewNeeded} />
       </Section>
     </div>
   );

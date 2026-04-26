@@ -479,6 +479,12 @@ async function featureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdmin();
 
+  const ownSeller = await prisma.sellerProfile.findUnique({
+    where: { userId: me.id },
+    select: { id: true },
+  });
+  if (ownSeller?.id === sellerProfileId) return;
+
   const now = new Date();
   const result = await prisma.sellerProfile.updateMany({
     where: {

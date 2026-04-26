@@ -20,6 +20,8 @@ export default function VacationModeForm({
   const [enabled, setEnabled] = useState(initialVacationMode);
   const [showWarning, setShowWarning] = useState(false);
   const [pendingEnable, setPendingEnable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const [returnDate, setReturnDate] = useState(
     initialReturnDate
       ? new Date(initialReturnDate).toISOString().split("T")[0]
@@ -29,6 +31,8 @@ export default function VacationModeForm({
 
   function handleToggleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const checked = e.target.checked;
+    setError(null);
+    setSaved(false);
     if (checked && !enabled) {
       // Show warning before enabling
       setPendingEnable(true);
@@ -50,6 +54,8 @@ export default function VacationModeForm({
   }
 
   async function handleSave() {
+    setError(null);
+    setSaved(false);
     startTransition(async () => {
       const res = await fetch("/api/seller/vacation", {
         method: "POST",
@@ -61,8 +67,21 @@ export default function VacationModeForm({
         }),
       });
       if (res.ok) {
+        setSaved(true);
         router.refresh();
+        window.setTimeout(() => setSaved(false), 2000);
+        return;
       }
+
+      const retryAfter = res.headers.get("Retry-After");
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      const baseMessage = data?.error || "Could not save vacation settings.";
+      const retryAfterSeconds = retryAfter ? Number(retryAfter) : NaN;
+      setError(
+        res.status === 429 && Number.isFinite(retryAfterSeconds)
+          ? `${baseMessage} Try again in ${Math.max(1, Math.ceil(retryAfterSeconds / 60))} minute(s).`
+          : baseMessage,
+      );
     });
   }
 
@@ -158,6 +177,16 @@ export default function VacationModeForm({
       >
         {isPending ? "Saving…" : "Save vacation settings"}
       </button>
+      {error && (
+        <p className="text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
+      {saved && (
+        <p className="text-sm text-green-700" role="status">
+          Vacation settings saved.
+        </p>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { UndoActionButton } from "@/components/UndoActionButton";
+import { isUndoableAdminAction } from "@/lib/audit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Audit Log — Admin" };
@@ -24,7 +25,7 @@ const ACTION_COLORS: Record<string, string> = {
 export default async function AdminAuditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; action?: string }>;
 }) {
   const { userId } = await auth();
   if (!userId) redirect("/");
@@ -35,12 +36,22 @@ export default async function AdminAuditPage({
   });
   if (!admin || admin.role !== "ADMIN") redirect("/");
 
-  const { page: pageStr } = await searchParams;
+  const { page: pageStr, action: actionParam } = await searchParams;
   const page = Math.max(1, parseInt(pageStr ?? "1", 10));
   const perPage = 30;
+  const actionFilter = actionParam?.trim().slice(0, 80) ?? "";
+  const where = actionFilter ? { action: actionFilter } : {};
+
+  const pageHref = (nextPage: number) => {
+    const params = new URLSearchParams();
+    if (actionFilter) params.set("action", actionFilter);
+    params.set("page", String(nextPage));
+    return `/admin/audit?${params.toString()}`;
+  };
 
   const [logs, total] = await Promise.all([
     prisma.adminAuditLog.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -48,7 +59,7 @@ export default async function AdminAuditPage({
         admin: { select: { name: true, email: true } },
       },
     }),
-    prisma.adminAuditLog.count(),
+    prisma.adminAuditLog.count({ where }),
   ]);
 
   const now = Date.now();
@@ -60,6 +71,38 @@ export default async function AdminAuditPage({
         <h1 className="text-2xl font-bold">Audit Log</h1>
         <span className="text-sm text-neutral-500">{total} entries</span>
       </div>
+
+      <form method="get" className="flex flex-wrap items-end gap-3 rounded-md border border-neutral-200 bg-white px-4 py-3">
+        <div>
+          <label htmlFor="action" className="block text-xs font-medium text-neutral-500 mb-1">
+            Action
+          </label>
+          <select
+            id="action"
+            name="action"
+            defaultValue={actionFilter}
+            className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm"
+          >
+            <option value="">All actions</option>
+            {Object.keys(ACTION_COLORS).sort().map((action) => (
+              <option key={action} value={action}>
+                {action.replace(/_/g, " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="submit"
+          className="rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+        >
+          Filter
+        </button>
+        {actionFilter && (
+          <a href="/admin/audit" className="px-2 py-2 text-sm text-neutral-500 hover:text-neutral-800 hover:underline">
+            Clear
+          </a>
+        )}
+      </form>
 
       <div className="border border-neutral-200 bg-white overflow-x-auto">
         <table className="w-full text-sm">
@@ -76,10 +119,11 @@ export default async function AdminAuditPage({
           <tbody className="divide-y divide-neutral-100">
             {logs.map((log) => {
               const hoursAgo = (now - new Date(log.createdAt).getTime()) / 3600000;
+              const undoable = isUndoableAdminAction(log.action);
               const canUndo =
+                undoable &&
                 !log.undone &&
-                hoursAgo <= 24 &&
-                ["BAN_USER", "REMOVE_LISTING", "HOLD_LISTING"].includes(log.action);
+                hoursAgo <= 24;
 
               return (
                 <tr key={log.id} className={log.undone ? "opacity-50" : "hover:bg-neutral-50"}>
@@ -112,7 +156,11 @@ export default async function AdminAuditPage({
                     {new Date(log.createdAt).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
-                    <UndoActionButton logId={log.id} canUndo={canUndo} />
+                    {undoable ? (
+                      <UndoActionButton logId={log.id} canUndo={canUndo} />
+                    ) : (
+                      <span className="text-xs text-neutral-400">Not undoable</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -125,7 +173,7 @@ export default async function AdminAuditPage({
         <div className="flex gap-2 items-center justify-center">
           {page > 1 && (
             <a
-              href={`/admin/audit?page=${page - 1}`}
+              href={pageHref(page - 1)}
               className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               ← Prev
@@ -136,7 +184,7 @@ export default async function AdminAuditPage({
           </span>
           {page < totalPages && (
             <a
-              href={`/admin/audit?page=${page + 1}`}
+              href={pageHref(page + 1)}
               className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               Next →

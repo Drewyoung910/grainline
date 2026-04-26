@@ -367,16 +367,16 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ## Admin / Dashboard Findings
 
 - `approveGuildMember` silently no-ops when recomputed eligibility is false. Return an inline error explaining which criterion failed.
-- `appendNote` and `markReviewed` throw raw errors. Convert to `{ ok:false, error }` form state.
+- [FIXED 2026-04-26] `appendNote` and `markReviewed` now return `{ ok:false, error }` state through a client action form instead of crashing the admin order page.
 - `updateSellerProfile` throws raw `Display name is required`. Convert to inline form error.
 - `/admin/orders` and `/admin/flagged` show only `items[0]` seller. Render all seller names/items for multi-seller orders.
-- `VacationModeForm` does not surface 429/rate-limit failures. Show toast and rollback UI.
-- `/admin/audit` needs action/type filter and should hide undo for non-undoable actions.
-- `undo` is missing/unclear for `REJECT_LISTING` and several moderation actions. Either implement or hide.
+- [FIXED 2026-04-26] `VacationModeForm` now surfaces save errors and `Retry-After` rate-limit failures inline.
+- [FIXED 2026-04-26] `/admin/audit` has an action filter and hides Undo behind explicit undoability instead of showing an expired-looking control for non-undoable actions.
+- [FIXED 2026-04-26] Non-undoable moderation actions now render as "Not undoable"; admin undo API is also rate-limited.
 - `/admin/verification` still risks N x `calculateSellerMetrics` per render. Cache metrics or load precomputed `SellerMetrics`.
-- `/dashboard/inventory` stock save lacks debounce/serialization. Disable while saving and coalesce rapid clicks.
-- `/dashboard/sales/[orderId]` `myItemsSubtotal` can use all-seller subtotal on multi-seller orders. Scope to seller-owned items.
-- `appendNote` has no length cap. Add server cap, e.g. 2,000 chars per append and bounded total note size.
+- [FIXED 2026-04-26] `/dashboard/inventory` stock saves now serialize per row and disable quantity edits while a save is in flight.
+- [FIXED 2026-04-26] `/dashboard/sales/[orderId]` now displays seller-owned item subtotal in the seller subtotal row.
+- [FIXED 2026-04-26] `appendNote` now caps each append at 2,000 chars and total review notes at 10,000 chars.
 - Admin prompt flows still use blocking `window.prompt`; replace with modal/action form over time.
 
 ## UX / Product Correctness Findings
@@ -427,7 +427,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - `payment_intent.processing` / `payment_failed` handlers should be added or delayed methods should be explicitly disabled/documented.
 - Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`.
 - Audit log subject/body should sanitize persisted user-provided strings.
-- Prevent self-feature by admin seller.
+- [FIXED 2026-04-26] Prevent self-feature by admin seller.
 - Block records and blocked-feed behavior need deleted-user policy.
 - Similar listings should avoid same-seller duplicates where possible.
 - Analytics `avgPriceCents` should be weighted by quantity.

@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { undoAdminAction } from '@/lib/audit'
+import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { z } from 'zod'
 
 const UndoSchema = z.object({
@@ -19,6 +20,8 @@ export async function POST(
     select: { id: true, role: true }
   })
   if (!admin || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
+  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
   const { id } = await params
   let body
   try {
@@ -42,9 +45,9 @@ export async function POST(
       'Already undone (concurrent request)',
       'Undo window expired (24 hours)',
     ])
-    return NextResponse.json(
-      { error: safeMessages.has(message) ? message : 'This action cannot be undone.' },
-      { status: 400 },
-    )
+    const safeMessage = safeMessages.has(message) || message.endsWith('cannot be undone')
+      ? message
+      : 'This action cannot be undone.'
+    return NextResponse.json({ error: safeMessage }, { status: 400 })
   }
 }
