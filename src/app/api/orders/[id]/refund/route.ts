@@ -85,6 +85,19 @@ export async function POST(
     const myItems = order.items.filter((it) => it.listing.sellerId === seller.id);
     if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
+    const latestDispute = await prisma.orderPaymentEvent.findFirst({
+      where: { orderId, eventType: "DISPUTE" },
+      orderBy: { createdAt: "desc" },
+      select: { status: true },
+    });
+    const disputeClosedStatuses = new Set(["won", "lost", "warning_closed"]);
+    if (latestDispute && !disputeClosedStatuses.has((latestDispute.status ?? "").toLowerCase())) {
+      return NextResponse.json(
+        { error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund." },
+        { status: 409 },
+      );
+    }
+
     if (order.sellerRefundId) {
       const pending = order.sellerRefundId === REFUND_LOCK_SENTINEL;
       return NextResponse.json(

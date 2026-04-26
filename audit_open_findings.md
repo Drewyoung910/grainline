@@ -165,9 +165,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Same partial amount within Stripe idempotency window can return prior refund.
 - **Fix spec**: Add `refundAttemptCount` or `SellerRefundAttempt` table; include attempt ID in idempotency key.
 
-### H7. Dispute created can race seller refund
+### H7. [FIXED 2026-04-25] Dispute created can race seller refund
 
 - **Files**: webhook dispute handler and seller refund route.
+- **Current state**: Fixed. Seller refunds now check the latest local `OrderPaymentEvent` with `eventType = DISPUTE` and return HTTP 409 while the dispute status is not closed (`won`, `lost`, or `warning_closed`).
 - **Impact**: Buyer sees dispute and refund states interleaved.
 - **Fix spec**: Seller refund route must block if an order has an open `OrderPaymentEvent` dispute.
 

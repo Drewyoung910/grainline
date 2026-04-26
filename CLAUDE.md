@@ -5165,6 +5165,24 @@ This pass closed the Stripe completed/expired session race and the duplicate com
 - Dispute/refund race checks.
 - Broader GDPR account-deletion/export work.
 
+## Audit Fix Pass — Seller Refund Dispute Guard (2026-04-25)
+
+This pass closed the specific seller-refund/dispute race without changing normal refund behavior.
+
+### Fixed in this pass
+- **Seller refunds block on open Stripe disputes**: `/api/orders/[id]/refund` now checks the latest local `OrderPaymentEvent` with `eventType = DISPUTE` before claiming the refund lock.
+- **Closed disputes remain refundable**: statuses `won`, `lost`, and `warning_closed` are treated as terminal; other dispute statuses return HTTP 409 with a clear message.
+- **Open backlog updated**: `audit_open_findings.md` now marks H7 fixed.
+
+### Verification
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+
+### Still open / next good passes
+- Refund tax/reverse-transfer accounting decision.
+- Refund idempotency key collision on identical partial refunds.
+- Broader GDPR account-deletion/export work.
+
 ## Audit Fix Pass — Refund Pending Lock Cleanup (2026-04-25)
 
 This pass closed the confirmed refund `"pending"` sentinel leak and made refund locks recoverable. The remaining refund/payment work is still meaningful, but the specific UI leak and permanent-lock class are now addressed.
