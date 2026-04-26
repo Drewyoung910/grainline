@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { ListingStatus } from "@prisma/client";
 import { z } from "zod";
 
 const PhotosSchema = z.object({
@@ -17,6 +18,15 @@ const PhotosSchema = z.object({
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
+  if (!me || me.banned || me.deletedAt) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { success, reset } = await safeRateLimit(listingMutationRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many listing updates.");
 
@@ -24,10 +34,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   // Ensure this listing belongs to the signed-in user
   const listing = await prisma.listing.findFirst({
-    where: { id: listingId, seller: { user: { clerkId: userId } } },
+    where: {
+      id: listingId,
+      seller: {
+        userId: me.id,
+        user: { banned: false, deletedAt: null },
+      },
+    },
     include: { photos: { orderBy: { sortOrder: "asc" } } },
   });
   if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (listing.status === ListingStatus.HIDDEN && listing.isPrivate) {
+    return NextResponse.json({ error: "Archived listings cannot be edited." }, { status: 400 });
+  }
 
   let parsed;
   try {
@@ -59,24 +78,29 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   });
 
   // Re-trigger AI review if listing is ACTIVE (image content changed)
-  if (listing.status === "ACTIVE") {
+  if (listing.status === ListingStatus.ACTIVE) {
+    await prisma.listing.update({
+      where: { id: listingId },
+      data: {
+        status: ListingStatus.PENDING_REVIEW,
+        aiReviewFlags: ["pending-ai-review"],
+        aiReviewScore: 0,
+      },
+    });
     try {
-      const allPhotos = await prisma.photo.findMany({
-        where: { listingId },
-        select: { url: true },
-        orderBy: { sortOrder: "asc" },
-        take: 4,
-      });
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
         select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
       if (!seller?.chargesEnabled) {
-        await prisma.listing.update({ where: { id: listingId }, data: { status: "DRAFT" } });
+        await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.DRAFT } });
         revalidatePath("/dashboard");
         revalidatePath(`/dashboard/listings/${listingId}/edit`);
         revalidatePath(`/listing/${listingId}`);
-        return NextResponse.json({ added: toAdd.length });
+        return NextResponse.json({
+          added: toAdd.length,
+          warning: "Stripe disconnected — listing moved to draft. Reconnect Stripe to publish.",
+        });
       }
       const { reviewListingWithAI } = await import("@/lib/ai-review");
       const aiResult = await reviewListingWithAI({
@@ -88,16 +112,34 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         tags: listing.tags,
         sellerName: seller?.displayName ?? "Unknown",
         listingCount: seller?._count.listings ?? 0,
-        imageUrls: allPhotos.map((p) => p.url),
+        imageUrls: toAdd.slice(0, 4),
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
 
-      if (!aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8) {
+      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
         await prisma.listing.update({
           where: { id: listingId },
-          data: { status: "PENDING_REVIEW", aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+          data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+        });
+        await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET status = 'SOLD_OUT'
+          WHERE id = ${listingId}
+            AND "listingType" = 'IN_STOCK'
+            AND COALESCE("stockQuantity", 0) <= 0
+            AND status = 'ACTIVE'
+        `;
+      } else {
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
         });
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      await prisma.listing.update({
+        where: { id: listingId },
+        data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
+      });
+    }
   }
 
   // Generate alt text for new photos (fire-and-forget, non-blocking)

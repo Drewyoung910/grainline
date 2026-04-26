@@ -5152,6 +5152,36 @@ This pass closed the confirmed refund `"pending"` sentinel leak and made refund 
 - Dispute/refund race checks.
 - Webhook completed/expired stock race serialization.
 
+## Audit Fix Pass — Listing Moderation State Invariants (2026-04-25)
+
+This pass closed the live listing-moderation gaps from the Round 13-18 backlog. The goal was to make all seller-controlled publish/edit/photo paths fail closed to review instead of briefly exposing unreviewed content.
+
+### Fixed in this pass
+- **New listings no longer go public before AI review**: `/dashboard/listings/new` now creates non-draft listings as `PENDING_REVIEW`; only AI-approved, zero-flag, confidence >= 0.8 listings are activated.
+- **Custom listings no longer start as active before moderation**: `/dashboard/listings/custom` now creates private custom listings as `PENDING_REVIEW` and sends the buyer link only after AI approval. Held custom listings open only in seller preview.
+- **Active listing edits fail closed**: `/dashboard/listings/[id]/edit` now moves ACTIVE listings to `PENDING_REVIEW` in the same update that saves substantive content changes, then reactivates only after AI approval.
+- **Variant edits trigger moderation**: edit-page variant groups/options are normalized and compared, so changing seller-defined option labels/prices/availability now counts as substantive content change.
+- **Photo additions are reviewed directly**: `POST /api/listings/[id]/photos` sends newly added URLs to AI instead of reviewing the first four old photos by sort order.
+- **Photo edits/deletions fail closed**: image delete/re-review now leaves the listing in `PENDING_REVIEW` on AI errors or missing-photo states instead of leaving it active.
+- **Banned/deleted sellers cannot mutate photos**: the listing photos route now checks the signed-in user row and joins ownership through a non-banned, non-deleted seller user.
+- **Staff-removed listings cannot be resurrected by seller resubmit**: `publishListingAction` now rejects the staff-removal rejection reason and uses guarded `updateMany` writes with the original `updatedAt` to avoid admin reject/resubmit races.
+- **Shop action errors are surfaced**: Unhide and Mark Available now return and display publish errors instead of silently showing "active" when the listing was sent to review or blocked.
+- **Cross-page revalidation widened**: dashboard/shop status changes now revalidate the listing detail, seller profile, seller shop, dashboard, and browse surfaces.
+- **IN_STOCK listings require positive stock**: new, edit, and custom listing server actions reject in-stock listings without stock quantity; AI activation paths also force `SOLD_OUT` if stock is zero/null as a defensive guard.
+- **Open backlog updated**: `audit_open_findings.md` now marks C7, C8, H2, and H12-H17 as fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Stripe webhook seller banned/deleted re-check during completed checkout.
+- Messages list/read/stream banned/deleted checks.
+- Broader account-state enforcement sweep across follow/notify/notifications/blog/save routes.
+- Refund/payment race fixes listed in the refund pass.
+
 ## Audit Fix Pass — Admin Secret + Stripe Return URL Hardening (2026-04-25)
 
 This pass closed two small confirmed high-risk items from the Round 16-18 verification list.

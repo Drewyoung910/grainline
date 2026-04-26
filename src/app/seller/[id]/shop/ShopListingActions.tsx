@@ -79,8 +79,14 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
-              await unhideListingAction(listingId);
-              showToast("Listing is now active.");
+              const result = await unhideListingAction(listingId);
+              if (result && "error" in result) {
+                showToast(result.error);
+              } else if (result?.status === "PENDING_REVIEW") {
+                showToast("Sent for review — you'll be notified once approved.");
+              } else {
+                showToast("Listing is now active.");
+              }
             })
           }
           className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"
@@ -111,8 +117,14 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
-              await markAvailableAction(listingId);
-              showToast("Listing is now active.");
+              const result = await markAvailableAction(listingId);
+              if (result && "error" in result) {
+                showToast(result.error);
+              } else if (result?.status === "PENDING_REVIEW") {
+                showToast("Sent for review — you'll be notified once approved.");
+              } else {
+                showToast("Listing is now active.");
+              }
             })
           }
           className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"

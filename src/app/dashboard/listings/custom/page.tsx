@@ -15,7 +15,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import { Palette } from "@/components/icons";
-import type { ListingType } from "@prisma/client";
+import { ListingStatus, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 
 // unit converters
@@ -99,6 +99,9 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     listingType === "IN_STOCK" && Number.isFinite(stockQuantityRaw) && stockQuantityRaw > 0
       ? stockQuantityRaw
       : null;
+  if (listingType === "IN_STOCK" && stockQuantity === null) {
+    return { ok: false, error: "In-stock custom listings need a stock quantity greater than zero." };
+  }
   const shipsWithinDaysRaw = parseInt(String(formData.get("shipsWithinDays") ?? ""), 10);
   const shipsWithinDays =
     listingType === "IN_STOCK" && Number.isFinite(shipsWithinDaysRaw) && shipsWithinDaysRaw > 0
@@ -121,6 +124,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       title,
       description,
       priceCents,
+      status: ListingStatus.PENDING_REVIEW,
       isPrivate: true,
       reservedForUserId,
       customOrderConversationId: conversationId,
@@ -164,7 +168,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     await prisma.listing.update({
       where: { id: created.id },
       data: {
-        status: "PENDING_REVIEW",
+        status: ListingStatus.PENDING_REVIEW,
         aiReviewFlags: aiResult.flags,
         aiReviewScore: aiResult.confidence,
       },
@@ -172,6 +176,23 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     revalidatePath(`/messages/${conversationId}`);
     redirect(`/listing/${created.id}?preview=1`);
   }
+
+  await prisma.listing.update({
+    where: { id: created.id },
+    data: {
+      status: ListingStatus.ACTIVE,
+      aiReviewFlags: aiResult.flags,
+      aiReviewScore: aiResult.confidence,
+    },
+  });
+  await prisma.$executeRaw`
+    UPDATE "Listing"
+    SET status = 'SOLD_OUT'
+    WHERE id = ${created.id}
+      AND "listingType" = 'IN_STOCK'
+      AND COALESCE("stockQuantity", 0) <= 0
+      AND status = 'ACTIVE'
+  `;
 
   // Send a custom_order_link message back to the buyer
   await prisma.message.create({

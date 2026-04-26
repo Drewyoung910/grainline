@@ -17,7 +17,7 @@ import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
-import type { Category, ListingType } from "@prisma/client";
+import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import type { Metadata } from "next";
@@ -166,6 +166,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
   if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
   if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  if (listingType === "IN_STOCK" && stockQuantity === null) {
+    return { ok: false, error: "In-stock listings need a stock quantity greater than zero." };
+  }
   if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) {
     return { ok: false, error: "Processing time cannot exceed 365 days." };
@@ -194,7 +197,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       shipsWithinDays,
       processingTimeMinDays,
       processingTimeMaxDays,
-      status: saveAsDraft ? "DRAFT" : "ACTIVE",
+      status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
       photos: { create: imageUrls.map((url, i) => ({
         url,
         sortOrder: i,
@@ -297,11 +300,28 @@ async function createListing(_prevState: unknown, formData: FormData) {
       await prisma.listing.update({
         where: { id: created.id },
         data: {
-          status: 'PENDING_REVIEW',
+          status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
         }
       })
+    } else {
+      await prisma.listing.update({
+        where: { id: created.id },
+        data: {
+          status: ListingStatus.ACTIVE,
+          aiReviewFlags: aiResult.flags,
+          aiReviewScore: aiResult.confidence,
+        },
+      })
+      await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET status = 'SOLD_OUT'
+        WHERE id = ${created.id}
+          AND "listingType" = 'IN_STOCK'
+          AND COALESCE("stockQuantity", 0) <= 0
+          AND status = 'ACTIVE'
+      `;
     }
 
     // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text
@@ -329,7 +349,16 @@ async function createListing(_prevState: unknown, formData: FormData) {
         console.error('[ai-alt-text] Backfill failed:', e instanceof Error ? e.message : e)
       }
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    await prisma.listing.update({
+      where: { id: created.id },
+      data: {
+        status: ListingStatus.PENDING_REVIEW,
+        aiReviewFlags: ["AI review error"],
+        aiReviewScore: 0,
+      },
+    }).catch(() => {});
+  }
 
   // Only notify followers if the listing went live (not held for review)
   const finalListing = await prisma.listing.findUnique({

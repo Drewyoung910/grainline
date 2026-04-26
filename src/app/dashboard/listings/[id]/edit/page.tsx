@@ -10,7 +10,7 @@ import EditPhotoGrid from "@/components/EditPhotoGrid";
 import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
-import type { Category, ListingType } from "@prisma/client";
+import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import type { Metadata } from "next";
@@ -39,6 +39,29 @@ const toInt = (v: unknown) => {
   const n = parseInt(String(s), 10);
   return Number.isFinite(n) ? n : null;
 };
+
+function normalizeVariantGroupsForCompare(
+  groups: Array<{
+    name: string;
+    sortOrder: number;
+    options: Array<{ label: string; priceAdjustCents: number; sortOrder: number; inStock: boolean }>;
+  }>
+) {
+  return groups
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((group) => ({
+      name: group.name,
+      options: group.options
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((option) => ({
+          label: option.label,
+          priceAdjustCents: option.priceAdjustCents,
+          inStock: option.inStock,
+        })),
+    }));
+}
 
 async function updateListing(
   listingId: string,
@@ -140,12 +163,21 @@ async function updateListing(
   }
   if (priceCents <= 0) return { ok: false, error: "Price must be greater than zero." };
   if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  if (listingType === "IN_STOCK" && stockQuantity === null) {
+    return { ok: false, error: "In-stock listings need a stock quantity greater than zero." };
+  }
   if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) return { ok: false, error: "Processing time cannot exceed 365 days." };
 
   // Guard ownership
   const listing = await prisma.listing.findFirst({
     where: { id: listingId, seller: { user: { clerkId: userId } } },
+    include: {
+      variantGroups: {
+        orderBy: { sortOrder: "asc" },
+        include: { options: { orderBy: { sortOrder: "asc" } } },
+      },
+    },
   });
   if (!listing) return { ok: false, error: "Not allowed" };
   if (listing.status === "HIDDEN" && listing.isPrivate) {
@@ -158,7 +190,22 @@ async function updateListing(
   const categoryChanged = (category ?? null) !== (listing.category ?? null);
   const priceRatio = listing.priceCents > 0 ? Math.abs(priceCents - listing.priceCents) / listing.priceCents : 0;
   const priceChanged = priceRatio > 0.5; // >50% price change
-  const substantiveChange = titleChanged || descChanged || categoryChanged || priceChanged;
+  const previousVariantGroups = normalizeVariantGroupsForCompare(listing.variantGroups);
+  const nextVariantGroups = normalizeVariantGroupsForCompare(
+    variantGroups.map((group, groupIndex) => ({
+      name: group.name,
+      sortOrder: groupIndex,
+      options: group.options.map((option, optionIndex) => ({
+        label: option.label,
+        priceAdjustCents: option.priceAdjustCents,
+        sortOrder: optionIndex,
+        inStock: option.inStock,
+      })),
+    }))
+  );
+  const variantsChanged = JSON.stringify(previousVariantGroups) !== JSON.stringify(nextVariantGroups);
+  const substantiveChange = titleChanged || descChanged || categoryChanged || priceChanged || variantsChanged;
+  const requiresReview = listing.status === ListingStatus.ACTIVE && substantiveChange;
 
   await prisma.listing.update({
     where: { id: listingId },
@@ -182,6 +229,11 @@ async function updateListing(
       shipsWithinDays,
       processingTimeMinDays,
       processingTimeMaxDays,
+      ...(requiresReview ? {
+        status: ListingStatus.PENDING_REVIEW,
+        aiReviewFlags: ["pending-ai-review"],
+        aiReviewScore: 0,
+      } : {}),
     },
   });
 
@@ -208,7 +260,7 @@ async function updateListing(
   }
 
   // Re-trigger AI review if ACTIVE listing had substantive content changes
-  if (listing.status === "ACTIVE" && substantiveChange) {
+  if (requiresReview) {
     try {
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
@@ -216,13 +268,16 @@ async function updateListing(
       });
       // If seller lost chargesEnabled, revert listing to DRAFT
       if (!seller?.chargesEnabled) {
-        await prisma.listing.update({ where: { id: listingId }, data: { status: "DRAFT" } });
-        return { ok: true };
+        await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.DRAFT } });
+        return {
+          ok: false,
+          error: "Stripe disconnected — listing moved to draft. Reconnect Stripe to publish.",
+        };
       }
       const photos = await prisma.photo.findMany({
         where: { listingId },
         select: { url: true },
-        orderBy: { sortOrder: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 4,
       });
       const { reviewListingWithAI } = await import("@/lib/ai-review");
@@ -238,17 +293,43 @@ async function updateListing(
         imageUrls: photos.map((p) => p.url),
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review" }));
 
-      if (!aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8) {
+      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
         await prisma.listing.update({
           where: { id: listingId },
           data: {
-            status: "PENDING_REVIEW",
+            status: ListingStatus.ACTIVE,
+            aiReviewFlags: aiResult.flags,
+            aiReviewScore: aiResult.confidence,
+          },
+        });
+        await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET status = 'SOLD_OUT'
+          WHERE id = ${listingId}
+            AND "listingType" = 'IN_STOCK'
+            AND COALESCE("stockQuantity", 0) <= 0
+            AND status = 'ACTIVE'
+        `;
+      } else {
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: {
+            status: ListingStatus.PENDING_REVIEW,
             aiReviewFlags: aiResult.flags,
             aiReviewScore: aiResult.confidence,
           },
         });
       }
-    } catch { /* non-fatal — listing stays ACTIVE on AI review error */ }
+    } catch {
+      await prisma.listing.update({
+        where: { id: listingId },
+        data: {
+          status: ListingStatus.PENDING_REVIEW,
+          aiReviewFlags: ["AI review error"],
+          aiReviewScore: 0,
+        },
+      });
+    }
   }
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
@@ -299,20 +380,35 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   // Re-trigger AI review if listing is ACTIVE (image removed)
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-  if (listing?.status === "ACTIVE") {
+  if (listing?.status === ListingStatus.ACTIVE) {
+    await prisma.listing.update({
+      where: { id: listingId },
+      data: {
+        status: ListingStatus.PENDING_REVIEW,
+        aiReviewFlags: ["pending-ai-review"],
+        aiReviewScore: 0,
+      },
+    });
     try {
       const currentPhotos = await prisma.photo.findMany({
         where: { listingId },
         select: { url: true },
-        orderBy: { sortOrder: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 4,
       });
+      if (currentPhotos.length === 0) {
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["missing-photo"], aiReviewScore: 0 },
+        });
+        return;
+      }
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
         select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
       if (!seller?.chargesEnabled) {
-        await prisma.listing.update({ where: { id: listingId }, data: { status: "DRAFT" } });
+        await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.DRAFT } });
         return;
       }
       const { reviewListingWithAI } = await import("@/lib/ai-review");
@@ -328,13 +424,31 @@ async function deletePhotoAction(listingId: string, photoId: string) {
         imageUrls: currentPhotos.map((p) => p.url),
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
 
-      if (!aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8) {
+      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
         await prisma.listing.update({
           where: { id: listingId },
-          data: { status: "PENDING_REVIEW", aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+          data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+        });
+        await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET status = 'SOLD_OUT'
+          WHERE id = ${listingId}
+            AND "listingType" = 'IN_STOCK'
+            AND COALESCE("stockQuantity", 0) <= 0
+            AND status = 'ACTIVE'
+        `;
+      } else {
+        await prisma.listing.update({
+          where: { id: listingId },
+          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
         });
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      await prisma.listing.update({
+        where: { id: listingId },
+        data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
+      });
+    }
   }
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
@@ -553,10 +667,6 @@ export default async function EditListingPage(props: {
     </main>
   );
 }
-
-
-
-
 
 
 

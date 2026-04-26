@@ -77,16 +77,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Failed/hung Stripe calls can permanently block refunds and show false success.
 - **Fix spec**: Add `sellerRefundLockedAt DateTime?`. Treat `"pending"` as a lock, never as a refund ID. UI should show "Refund processing" with no Stripe ID. Expire locks older than 5 minutes at the start of refund routes and via cron.
 
-### C7. Admin-removed listings can be resubmitted by seller
+### C7. [FIXED 2026-04-25] Admin-removed listings can be resubmitted by seller
 
 - **File**: `src/app/seller/[id]/shop/actions.ts`
+- **Current state**: Fixed. `publishListingAction` now rejects the staff-removal rejection reason, uses guarded `updateMany` with the original `updatedAt`, and returns an error instead of clearing staff removal state.
 - **Impact**: `publishListingAction` can clear `rejectionReason` and AI-approve an admin-removed listing back to active.
 - **Fix spec**: Introduce a durable moderation state, e.g. `adminRemovedAt/adminRemovedReason` or reject reason code. If admin removed, seller resubmission must return an error and require staff action.
 
-### C8. Stripe Connect onboarding open redirect
+### C8. [FIXED 2026-04-25] Stripe Connect onboarding open redirect
 
 - **File**: `src/app/api/stripe/connect/create/route.ts`
-- **Current state**: Confirmed. `returnUrl.startsWith("/")` accepts `//evil.com`.
+- **Current state**: Fixed. Return URLs are normalized against the app origin and protocol-relative/backslash forms are rejected.
 - **Impact**: Protocol-relative open redirect after Stripe onboarding.
 - **Fix spec**: Reject `//`, `/\`, and absolute URLs. Build with `new URL(returnUrl, APP_URL)` and assert `origin === APP_URL` and `pathname.startsWith("/")`.
 
@@ -128,9 +129,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Banned harasser can retain read access to threads.
 - **Fix spec**: Use `ensureUserByClerkId()` and `accountAccessErrorResponse()` at route entry.
 
-### H2. Listing photos route missing banned/deleted check
+### H2. [FIXED 2026-04-25] Listing photos route missing banned/deleted check
 
 - **File**: `src/app/api/listings/[id]/photos/route.ts`
+- **Current state**: Fixed. The route now loads the Clerk user row, rejects banned/deleted users, and joins listing ownership through an active seller user.
 - **Impact**: Banned seller can mutate listing photos.
 - **Fix spec**: Use `ensureSeller()` or join through seller user with `banned:false`, `deletedAt:null`.
 
@@ -188,39 +190,45 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Sessions created before deauthorization can complete after seller is no longer payable.
 - **Fix spec**: Re-check seller Connect status in webhook order transaction and route invalid sessions to refund/manual review.
 
-### H12. Listing edit updates public listing before AI re-review
+### H12. [FIXED 2026-04-25] Listing edit updates public listing before AI re-review
 
 - **File**: `src/app/dashboard/listings/[id]/edit/page.tsx`
+- **Current state**: Fixed. Active listings with substantive edits are moved to `PENDING_REVIEW` in the same update that saves the changed content and are reactivated only after AI approval.
 - **Impact**: Active listing can show unreviewed content during review call.
 - **Fix spec**: If substantive fields change, set `PENDING_REVIEW` in the same transaction as content update, then activate only after AI approval.
 
-### H13. AI photo re-review checks stale first photos
+### H13. [FIXED 2026-04-25] AI photo re-review checks stale first photos
 
 - **File**: `src/app/api/listings/[id]/photos/route.ts`
+- **Current state**: Fixed. Photo-add review sends the newly added URLs directly to AI; edit/delete review uses newest remaining photos.
 - **Impact**: Newly appended photos may never be reviewed when listing has 4+ older photos.
 - **Fix spec**: Review newly added URLs directly, or query newest photos by `createdAt desc`.
 
-### H14. AI errors fail open on edit/photo add
+### H14. [FIXED 2026-04-25] AI errors fail open on edit/photo add
 
 - **Files**: listing edit page and photos route.
+- **Current state**: Fixed for visibility. AI errors now leave the listing in `PENDING_REVIEW` instead of ACTIVE. Sentry capture remains part of broader observability cleanup.
 - **Impact**: AI outage can leave active unreviewed changes public.
 - **Fix spec**: Match publish path: fail closed to `PENDING_REVIEW`, capture exception to Sentry.
 
-### H15. Variant changes skip AI re-review
+### H15. [FIXED 2026-04-25] Variant changes skip AI re-review
 
 - **File**: listing edit page.
+- **Current state**: Fixed. Existing and submitted variant groups/options are normalized and compared; variant changes are substantive changes.
 - **Impact**: Seller can change option labels/variant text without moderation.
 - **Fix spec**: Include serialized variant diff in `substantiveChange`.
 
-### H16. Admin reject/resubmit race
+### H16. [FIXED 2026-04-25] Admin reject/resubmit race
 
 - **File**: `src/app/seller/[id]/shop/actions.ts`
+- **Current state**: Fixed. Publish/resubmit writes are guarded by original `updatedAt` and refuse staff-removed rejection state.
 - **Impact**: Seller resubmit can overwrite admin rejection.
 - **Fix spec**: Use guarded `updateMany` with expected current state and preserve admin rejection fields.
 
-### H17. Seller can set stock zero while AI re-review reactivates
+### H17. [FIXED 2026-04-25] Seller can set stock zero while AI re-review reactivates
 
 - **Files**: stock route, photo/edit AI review handlers.
+- **Current state**: Fixed for AI activation paths. New/edit/custom listing forms require positive stock for `IN_STOCK`, and AI activation paths run a guarded `SOLD_OUT` correction if stock is zero/null.
 - **Impact**: `IN_STOCK` listing can become `ACTIVE` with zero stock.
 - **Fix spec**: After AI activation, run guarded SQL to force `SOLD_OUT` if stock is <= 0.
 

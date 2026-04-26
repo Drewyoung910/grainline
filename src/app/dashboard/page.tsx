@@ -68,6 +68,9 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+  revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
 }
 
 // Server action: delete listing
@@ -612,7 +615,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 
