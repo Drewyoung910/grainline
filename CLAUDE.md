@@ -5177,10 +5177,35 @@ This pass closed the live listing-moderation gaps from the Round 13-18 backlog. 
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ### Still open / next good passes
-- Stripe webhook seller banned/deleted re-check during completed checkout.
-- Messages list/read/stream banned/deleted checks.
 - Broader account-state enforcement sweep across follow/notify/notifications/blog/save routes.
 - Refund/payment race fixes listed in the refund pass.
+
+## Audit Fix Pass — Stripe Completed Checkout Account-State Recheck (2026-04-25)
+
+This pass closed the remaining high-risk account-state gap in the Stripe completed checkout webhook. Checkout sessions can outlive seller account changes, so the webhook now re-checks the seller state at payment completion before normal order side effects.
+
+### Fixed in this pass
+- **Completed checkout re-checks seller state**: both cart and single-listing completed checkout paths now verify seller `user.banned`, `user.deletedAt`, `chargesEnabled`, and `stripeAccountId` before normal notifications/emails.
+- **Invalid completed sessions are held for review**: if the seller became suspended/deleted/disconnected after session creation, the webhook creates a review-flagged order with a staff-facing note instead of sending normal seller/buyer order side effects.
+- **Automatic refund attempted for invalid sessions**: invalid completed sessions attempt a full Stripe refund with `reverse_transfer: true` and `refund_application_fee: true`, using `blocked-checkout-refund:${sessionId}` as the Stripe idempotency key.
+- **Reserved stock is restored after successful blocked-checkout refund**: the webhook restores stock from Stripe line-item metadata and reactivates `SOLD_OUT` listings when quantity is available again.
+- **Refund/manual-review state is captured**: successful blocked-checkout refunds write `sellerRefundId`, `sellerRefundAmountCents`, clear refund locks, and keep `reviewNeeded=true`; refund failures are captured to Sentry and leave a manual reconciliation note.
+- **Normal order notifications are skipped for invalid sessions**: the buyer gets a refund notification only after the blocked-checkout refund succeeds; seller sale notifications/emails and first-sale emails are skipped.
+- **Completed checkout `SOLD_OUT` transition is atomic**: cart and single completed handlers now use guarded SQL updates instead of read-then-update status flips.
+- **Messages route finding verified stale**: messages list/read/stream routes already use `ensureUserByClerkId()` and return typed account-access errors.
+- **Open backlog updated**: `audit_open_findings.md` now marks C9, C12, H1, and H11 as fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Webhook completed/expired session serialization with a PostgreSQL advisory lock.
+- Duplicate completed webhook email/outbox idempotency.
+- Refund tax/reverse-transfer accounting decision.
+- Broader route-level account-state enforcement across follow/notify/notifications/blog/save.
 
 ## Audit Fix Pass — Admin Secret + Stripe Return URL Hardening (2026-04-25)
 

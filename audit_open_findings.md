@@ -91,9 +91,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Protocol-relative open redirect after Stripe onboarding.
 - **Fix spec**: Reject `//`, `/\`, and absolute URLs. Build with `new URL(returnUrl, APP_URL)` and assert `origin === APP_URL` and `pathname.startsWith("/")`.
 
-### C9. Stripe webhook order creation lacks banned/deleted seller re-check
+### C9. [FIXED 2026-04-25] Stripe webhook order creation lacks banned/deleted seller re-check
 
 - **File**: `src/app/api/stripe/webhook/route.ts`
+- **Current state**: Fixed. Completed checkout now re-checks seller `banned`, `deletedAt`, `chargesEnabled`, and `stripeAccountId` before normal order side effects. Invalid sessions create a review-flagged order, skip normal notifications/emails, attempt a reverse-transfer refund, restore reserved stock after a successful refund, and leave a staff review note if automatic refund reconciliation fails.
 - **Impact**: Seller banned during checkout can still receive completed order side effects.
 - **Fix spec**: In `checkout.session.completed`, re-load seller inside the order transaction with `user.banned/deletedAt`, `chargesEnabled`, and `stripeAccountId`. If invalid, do not create normal order side effects; refund or queue manual review.
 
@@ -109,9 +110,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Concurrent completed retries can both pass legacy idempotency and send duplicate buyer/seller emails after one loses on unique order insert.
 - **Fix spec**: Send emails only after the transaction that created the order commits and only in the execution that actually inserted the order. Better: write an outbox row in the same transaction and drain it separately.
 
-### C12. Stock `SOLD_OUT` update uses non-atomic read/update
+### C12. [FIXED 2026-04-25] Stock `SOLD_OUT` update uses non-atomic read/update
 
 - **File**: `src/app/api/stripe/webhook/route.ts`
+- **Current state**: Fixed for completed checkout order creation. Cart and single-item completed handlers now use a single guarded SQL `UPDATE` when marking `SOLD_OUT`.
 - **Impact**: Stock status can flip incorrectly under completed/expired/refund interleavings.
 - **Fix spec**: Replace `findUnique` then `update` with one guarded SQL update: `UPDATE Listing SET status='SOLD_OUT' WHERE id=$id AND stockQuantity <= 0 AND status='ACTIVE'`.
 
@@ -123,9 +125,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## High Priority Findings
 
-### H1. Messages read/list/stream routes missing banned/deleted checks
+### H1. [FIXED 2026-04-25] Messages read/list/stream routes missing banned/deleted checks
 
 - **Files**: `src/app/api/messages/[id]/list/route.ts`, `stream/route.ts`, `read/route.ts`
+- **Current state**: Verified stale finding. All three routes already call `ensureUserByClerkId()` and return typed account-access errors for suspended/deleted users.
 - **Impact**: Banned harasser can retain read access to threads.
 - **Fix spec**: Use `ensureUserByClerkId()` and `accountAccessErrorResponse()` at route entry.
 
@@ -184,9 +187,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Seller edits price after cart add; buyer pays old snapshot.
 - **Fix spec**: Compare live listing variant-adjusted price with `CartItem.priceCents`; return 409 `price_changed` and require buyer confirmation/update.
 
-### H11. Charges/Connect status can flip during checkout
+### H11. [FIXED 2026-04-25] Charges/Connect status can flip during checkout
 
 - **Files**: checkout routes and webhook completed handler.
+- **Current state**: Fixed for completed checkout. The webhook re-checks seller `chargesEnabled` and `stripeAccountId` before normal side effects and moves invalid completions to refund/manual-review handling.
 - **Impact**: Sessions created before deauthorization can complete after seller is no longer payable.
 - **Fix spec**: Re-check seller Connect status in webhook order transaction and route invalid sessions to refund/manual review.
 

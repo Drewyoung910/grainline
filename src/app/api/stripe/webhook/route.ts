@@ -129,12 +129,30 @@ export async function POST(req: Request) {
     return normalized === "pickup" || normalized === "fallback" ? null : value;
   }
 
+  type CheckoutSellerState = {
+    id: string;
+    userId: string;
+    chargesEnabled: boolean;
+    stripeAccountId: string | null;
+    user: { id: string; banned: boolean; deletedAt: Date | null } | null;
+  };
+
+  function invalidCheckoutSellerReason(seller: CheckoutSellerState | null | undefined): string | null {
+    if (!seller) return "Seller account could not be verified at payment completion.";
+    if (seller.user?.banned) return "Seller account was suspended before payment completion.";
+    if (seller.user?.deletedAt) return "Seller account was deleted before payment completion.";
+    if (!seller.chargesEnabled) return "Seller Stripe account was disabled before payment completion.";
+    if (!seller.stripeAccountId) return "Seller Stripe account was disconnected before payment completion.";
+    return null;
+  }
+
   try {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       return processIdempotentEvent(async () => {
       type StripeSession = {
         id: string;
         currency?: string | null;
+        amount_total?: number | null;
         amount_subtotal?: number | null;
         shipping_cost?: { amount_total?: number | null; amount_subtotal?: number | null; shipping_rate?: unknown } | null;
         total_details?: { amount_tax?: number | null } | null;
@@ -271,6 +289,120 @@ export async function POST(req: Request) {
         return { processingDeadline, estimatedDeliveryDate };
       }
 
+      type CheckoutLineItem = {
+        quantity?: number | null;
+        price?: {
+          unit_amount?: number | null;
+          product?: { metadata?: Record<string, string> } | string | null;
+        } | null;
+      };
+
+      async function restoreReservedStockFromLineItems(lineItems: CheckoutLineItem[]) {
+        const restoreByListingId = new Map<string, number>();
+        for (const lineItem of lineItems) {
+          const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
+          const listingId = product?.metadata?.listingId;
+          const quantity = lineItem.quantity ?? 0;
+          if (!listingId || quantity <= 0) continue;
+          restoreByListingId.set(listingId, (restoreByListingId.get(listingId) ?? 0) + quantity);
+        }
+        if (restoreByListingId.size === 0) return;
+
+        await prisma.$transaction(async (tx) => {
+          for (const [listingId, quantity] of restoreByListingId.entries()) {
+            await tx.$executeRaw`
+              UPDATE "Listing"
+              SET "stockQuantity" = "stockQuantity" + ${quantity}
+              WHERE id = ${listingId}
+                AND "listingType" = 'IN_STOCK'
+            `;
+            await tx.listing.updateMany({
+              where: { id: listingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+              data: { status: "ACTIVE" },
+            });
+          }
+        });
+      }
+
+      async function refundBlockedCheckout(input: {
+        orderId: string;
+        reason: string;
+        lineItems: CheckoutLineItem[];
+        sellerUserIds: string[];
+      }) {
+        const reviewPrefix = `${input.reason} Order was held for staff review.`;
+        const { logSecurityEvent } = await import("@/lib/security");
+        for (const sellerUserId of input.sellerUserIds) {
+          logSecurityEvent("ownership_violation", {
+            userId: sellerUserId,
+            route: "/api/stripe/webhook",
+            reason: input.reason,
+          });
+        }
+
+        if (!paymentIntentId) {
+          await prisma.order.update({
+            where: { id: input.orderId },
+            data: {
+              reviewNeeded: true,
+              reviewNote: `${reviewPrefix} Automatic refund could not be issued because the PaymentIntent ID was unavailable.`,
+            },
+          });
+          Sentry.captureMessage("Blocked checkout missing PaymentIntent for automatic refund", {
+            level: "warning",
+            tags: { source: "stripe_webhook_blocked_checkout" },
+            extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
+          });
+          return;
+        }
+
+        try {
+          const refund = await stripe.refunds.create(
+            {
+              payment_intent: paymentIntentId,
+              refund_application_fee: true,
+              reverse_transfer: true,
+            },
+            { idempotencyKey: `blocked-checkout-refund:${sessionId}` },
+          );
+
+          await restoreReservedStockFromLineItems(input.lineItems);
+
+          await prisma.order.update({
+            where: { id: input.orderId },
+            data: {
+              sellerRefundId: refund.id,
+              sellerRefundAmountCents: refund.amount ?? s.amount_total ?? null,
+              sellerRefundLockedAt: null,
+              reviewNeeded: true,
+              reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
+            },
+          });
+
+          if (buyerId) {
+            await createNotification({
+              userId: buyerId,
+              type: "NEW_ORDER",
+              title: "Payment refunded",
+              body: "This payment was refunded because the maker is not currently available to accept orders.",
+              link: `/dashboard/orders/${input.orderId}`,
+            }).catch(() => {});
+          }
+        } catch (refundError) {
+          await prisma.order.update({
+            where: { id: input.orderId },
+            data: {
+              reviewNeeded: true,
+              reviewNote: `${reviewPrefix} Automatic refund failed; staff must reconcile this payment manually.`,
+            },
+          });
+          Sentry.captureException(refundError, {
+            tags: { source: "stripe_webhook_blocked_checkout_refund" },
+            extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
+          });
+        }
+      }
+
       // CART CHECKOUT
       const cartId: string | undefined = sessionMeta.cartId;
       const sellerIdFromMeta: string | undefined = sessionMeta.sellerId;
@@ -283,8 +415,7 @@ export async function POST(req: Request) {
         // legacy fallback because multiple variants of one listing can share a
         // listingId.
         // The live cart may have been modified between session creation and webhook.
-        type StripeLineItem = { quantity?: number | null; price?: { unit_amount?: number | null; product?: { metadata?: Record<string, string> } | string | null } | null };
-        const stripeLineItems: StripeLineItem[] = (s as { line_items?: { data?: StripeLineItem[] } }).line_items?.data ?? [];
+        const stripeLineItems: CheckoutLineItem[] = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
         type PaidItem = { listingId: string; cartItemId?: string; variantKey?: string; quantity: number; priceCents: number };
         const paidByCartItemId = new Map<string, PaidItem>();
         const paidByListingVariant = new Map<string, PaidItem[]>();
@@ -319,7 +450,16 @@ export async function POST(req: Request) {
                 listing: {
                   include: {
                     photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
-                    seller: { select: { displayName: true } },
+                    seller: {
+                      select: {
+                        id: true,
+                        userId: true,
+                        displayName: true,
+                        chargesEnabled: true,
+                        stripeAccountId: true,
+                        user: { select: { id: true, banned: true, deletedAt: true } },
+                      },
+                    },
                     variantGroups: { include: { options: true } },
                   },
                 },
@@ -335,6 +475,22 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
+        const invalidCartSellers = new Map<string, { reason: string; sellerUserId: string }>();
+        for (const item of cart.items) {
+          const seller = item.listing.seller;
+          const invalidReason = invalidCheckoutSellerReason(seller);
+          if (invalidReason) {
+            invalidCartSellers.set(seller?.id ?? item.listing.sellerId, {
+              reason: invalidReason,
+              sellerUserId: seller?.userId ?? "",
+            });
+          }
+        }
+        const cartInvalidReason = [...invalidCartSellers.values()].map((value) => value.reason).join(" ");
+        const cartInvalidSellerUserIds = [...invalidCartSellers.values()]
+          .map((value) => value.sellerUserId)
+          .filter(Boolean);
+
         const maxProcessingDaysCart = Math.max(
           3,
           ...cart.items.map((it) =>
@@ -346,7 +502,7 @@ export async function POST(req: Request) {
         const { processingDeadline: cartProcessingDeadline, estimatedDeliveryDate: cartEstDelivery } =
           calcDeliveryDates(maxProcessingDaysCart, estDays);
 
-        await prisma.$transaction(async (tx) => {
+        const createdCartOrder = await prisma.$transaction(async (tx) => {
           const order = await tx.order.create({
             data: {
               buyerId,
@@ -389,10 +545,12 @@ export async function POST(req: Request) {
               quotedToCountry: quotedShipToCountry || null,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
-              reviewNeeded,
-              reviewNote: reviewNeeded
-                ? "Address and/or quoted amount changed at Checkout."
-                : null,
+              reviewNeeded: reviewNeeded || invalidCartSellers.size > 0,
+              reviewNote: invalidCartSellers.size > 0
+                ? cartInvalidReason
+                : reviewNeeded
+                  ? "Address and/or quoted amount changed at Checkout."
+                  : null,
 
               shippoShipmentId,
               shippoRateObjectId,
@@ -459,16 +617,13 @@ export async function POST(req: Request) {
             // Stock was already decremented at checkout time (reservation).
             // Just check if we need to mark SOLD_OUT.
             if (it.listing.listingType === "IN_STOCK") {
-              const current = await tx.listing.findUnique({
-                where: { id: it.listingId },
-                select: { stockQuantity: true },
-              });
-              if ((current?.stockQuantity ?? 0) <= 0) {
-                await tx.listing.update({
-                  where: { id: it.listingId },
-                  data: { status: "SOLD_OUT" },
-                });
-              }
+              await tx.$executeRaw`
+                UPDATE "Listing"
+                SET status = 'SOLD_OUT'
+                WHERE id = ${it.listingId}
+                  AND "stockQuantity" <= 0
+                  AND status = 'ACTIVE'
+              `;
             }
           }
 
@@ -477,9 +632,21 @@ export async function POST(req: Request) {
               ? { cartId, listing: { sellerId: sellerIdFromMeta } }
               : { cartId },
           });
+
+          return order;
         });
 
         await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+
+        if (invalidCartSellers.size > 0) {
+          await refundBlockedCheckout({
+            orderId: createdCartOrder.id,
+            reason: cartInvalidReason,
+            lineItems: stripeLineItems,
+            sellerUserIds: cartInvalidSellerUserIds,
+          });
+          return NextResponse.json({ ok: true });
+        }
 
         // Notify buyer + seller after cart checkout
         try {
@@ -655,9 +822,21 @@ export async function POST(req: Request) {
             category: true,
             tags: true,
             photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
-            seller: { select: { displayName: true } },
+            seller: {
+              select: {
+                id: true,
+                userId: true,
+                displayName: true,
+                chargesEnabled: true,
+                stripeAccountId: true,
+                user: { select: { id: true, banned: true, deletedAt: true } },
+              },
+            },
           },
         });
+        const singleInvalidReason = invalidCheckoutSellerReason(listingData?.seller);
+        const singleInvalidSellerUserIds =
+          singleInvalidReason && listingData?.seller?.userId ? [listingData.seller.userId] : [];
         const price = priceCentsFromMeta ?? listingData?.priceCents ?? 0;
         const isInStock = listingData?.listingType === "IN_STOCK";
         const effectiveProcessingDays = isInStock
@@ -667,8 +846,8 @@ export async function POST(req: Request) {
         const { processingDeadline: singleProcessingDeadline, estimatedDeliveryDate: singleEstDelivery } =
           calcDeliveryDates(maxProcessingDaysSingle, estDays);
 
-        await prisma.$transaction(async (tx) => {
-          await tx.order.create({
+        const createdSingleOrder = await prisma.$transaction(async (tx) => {
+          const order = await tx.order.create({
             data: {
               buyerId,
               paidAt: new Date(),
@@ -734,10 +913,12 @@ export async function POST(req: Request) {
               quotedToCountry: quotedShipToCountry || null,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
-              reviewNeeded,
-              reviewNote: reviewNeeded
-                ? "Address and/or quoted amount changed at Checkout."
-                : null,
+              reviewNeeded: reviewNeeded || !!singleInvalidReason,
+              reviewNote: singleInvalidReason
+                ? singleInvalidReason
+                : reviewNeeded
+                  ? "Address and/or quoted amount changed at Checkout."
+                  : null,
 
               shippoShipmentId,
               shippoRateObjectId,
@@ -754,20 +935,31 @@ export async function POST(req: Request) {
           // Stock was already decremented at checkout time (reservation).
           // Just check if we need to mark SOLD_OUT.
           if (isInStock) {
-            const currentSingle = await tx.listing.findUnique({
-              where: { id: listingId },
-              select: { stockQuantity: true },
-            });
-            if ((currentSingle?.stockQuantity ?? 0) <= 0) {
-              await tx.listing.update({
-                where: { id: listingId },
-                data: { status: "SOLD_OUT" },
-              });
-            }
+            await tx.$executeRaw`
+              UPDATE "Listing"
+              SET status = 'SOLD_OUT'
+              WHERE id = ${listingId}
+                AND "stockQuantity" <= 0
+                AND status = 'ACTIVE'
+            `;
           }
+
+          return order;
         });
 
         await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+
+        if (singleInvalidReason) {
+          const singleLineItems: CheckoutLineItem[] =
+            (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+          await refundBlockedCheckout({
+            orderId: createdSingleOrder.id,
+            reason: singleInvalidReason,
+            lineItems: singleLineItems,
+            sellerUserIds: singleInvalidSellerUserIds,
+          });
+          return NextResponse.json({ ok: true });
+        }
 
         // Notify buyer + seller after single-listing checkout
         try {
