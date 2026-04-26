@@ -5019,6 +5019,7 @@ This pass addressed smaller but still valid findings from the post-Round-7 backl
 - `git diff --check` ✅
 - `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+- `npx dotenv-cli -e .env.local -e .env -- npx prisma migrate deploy` ✅ applied `20260426110000_cron_run_idempotency`
 
 ### Still open / next good passes
 - Durable notification/email outbox semantics remain open for very large follower bases.
@@ -5175,6 +5176,27 @@ This pass closed several high-priority leftovers from the Round 16-18 fix backlo
 - Cron idempotency/run keys and remaining partial-failure isolation.
 - Account export endpoint and broader GDPR message/order/listing PII scrubbing.
 - Remaining admin/dashboard correctness items.
+
+## Audit Fix Pass — Cron Run Idempotency (2026-04-26)
+
+This pass closed the Vercel retry/double-run risk for scheduled jobs.
+
+### Fixed in this pass
+- **Added durable cron run claims**: `CronRun` records one deterministic run ID per cron job per UTC hour.
+- **All Vercel cron routes are guarded**: quality-score, guild-metrics, guild-member-check, case-auto-close, commission-expire, and notification-prune now claim a run before side effects.
+- **Retries return skipped success**: a duplicate run in the same UTC-hour bucket returns `{ ok: true, skipped: true, reason: "cron_run_already_claimed" }` instead of replaying warnings, revocations, notifications, deletes, or quality-score writes.
+- **Run outcomes are recorded**: successful jobs store a JSON result and `COMPLETED`; failed jobs store `FAILED` with a sanitized error message.
+- **Open backlog updated**: `audit_open_findings.md` now marks H22 fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Remaining cron per-record isolation outside the Guild cron routes.
+- Account export endpoint and broader GDPR message/order/listing PII scrubbing.
 
 ## Audit Fix Pass — Cron Scale Guardrails (2026-04-25)
 

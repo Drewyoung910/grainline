@@ -949,6 +949,21 @@ model ResendWebhookEvent {
   @@index([processedAt])
 }
 
+model CronRun {
+  id          String    @id
+  jobName     String
+  bucket      String
+  status      String    @default("RUNNING")
+  result      Json?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([jobName, startedAt])
+  @@index([status, startedAt])
+}
+
 model EmailFailureCount {
   email         String   @id
   count         Int      @default(0)

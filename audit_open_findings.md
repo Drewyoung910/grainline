@@ -275,9 +275,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Long table locks at large row counts.
 - **Fix spec**: Delete in SQL chunks of 1,000-5,000 rows per loop with max execution budget.
 
-### H22. Cron jobs lack idempotent run keys
+### H22. [FIXED 2026-04-26] Cron jobs lack idempotent run keys
 
 - **Files**: all cron routes.
+- **Current state**: Fixed. Added `CronRun` persistence and wired all six Vercel cron routes to claim a deterministic UTC-hour run before side effects. Duplicate retries in the same bucket return a skipped success response.
 - **Impact**: Vercel retry can double-warn/double-revoke/double-notify.
 - **Fix spec**: Add `CronRun` table and deterministic per-job time-bucket run ID.
 

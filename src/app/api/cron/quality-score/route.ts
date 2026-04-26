@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { recalculateAllQualityScores } from "@/lib/quality-score";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const maxDuration = 300;
 
@@ -15,14 +16,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const cronRun = await beginCronRun("quality-score");
+  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+
   try {
     const result = await recalculateAllQualityScores();
-    return NextResponse.json({
+    const response = {
       ok: true,
       updated: result.updated,
       zeroed: result.zeroed,
-    });
+    };
+    await completeCronRun(cronRun, response);
+    return NextResponse.json(response);
   } catch (error) {
+    await failCronRun(cronRun, error);
     console.error("[quality-score cron] Error:", error);
     Sentry.captureException(error, { tags: { source: "cron_quality_score" } });
     return NextResponse.json(

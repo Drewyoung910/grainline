@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,6 +13,9 @@ export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const cronRun = await beginCronRun("commission-expire");
+  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
   try {
     const expiring = await prisma.commissionRequest.findMany({
@@ -65,8 +69,11 @@ export async function GET(req: Request) {
       ]);
     }
 
-    return NextResponse.json({ ok: true, expired, checked: expiring.length });
+    const response = { ok: true, expired, checked: expiring.length };
+    await completeCronRun(cronRun, response);
+    return NextResponse.json(response);
   } catch (error) {
+    await failCronRun(cronRun, error);
     console.error("[commission-expire cron] Error:", error);
     Sentry.captureException(error, { tags: { source: "cron_commission_expire" } });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

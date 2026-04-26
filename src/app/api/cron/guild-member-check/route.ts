@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -22,6 +23,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const cronRun = await beginCronRun("guild-member-check");
+  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+
+  try {
+    const response = await runGuildMemberCheckCron();
+    await completeCronRun(cronRun, response);
+    return NextResponse.json(response);
+  } catch (error) {
+    await failCronRun(cronRun, error);
+    Sentry.captureException(error, { tags: { source: "cron_guild_member_check" } });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+async function runGuildMemberCheckCron() {
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -54,7 +70,7 @@ export async function GET(request: NextRequest) {
     if (sellers.length < SELLER_PAGE_SIZE) break;
   }
 
-  return NextResponse.json({ revokedMember, errors });
+  return { revokedMember, errors };
 }
 
 async function fetchGuildMemberBatch(cursorId: string | null) {

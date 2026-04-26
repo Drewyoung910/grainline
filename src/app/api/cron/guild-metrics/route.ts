@@ -17,6 +17,7 @@ import {
   sendGuildMasterRevokedEmail,
 } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -30,6 +31,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const cronRun = await beginCronRun("guild-metrics");
+  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+
+  try {
+    const response = await runGuildMetricsCron();
+    await completeCronRun(cronRun, response);
+    return NextResponse.json(response);
+  } catch (error) {
+    await failCronRun(cronRun, error);
+    Sentry.captureException(error, { tags: { source: "cron_guild_metrics" } });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+async function runGuildMetricsCron() {
   let processed = 0;
   let warned = 0;
   let revokedMaster = 0;
@@ -79,7 +95,7 @@ export async function GET(request: NextRequest) {
     Sentry.captureException(err, { tags: { source: "cron_guild_metrics_cleanup", code } });
   }
 
-  return NextResponse.json({ processed, warned, revokedMaster, deletedViewRows, errors });
+  return { processed, warned, revokedMaster, deletedViewRows, errors };
 }
 
 async function fetchGuildSellerBatch(cursorId: string | null) {

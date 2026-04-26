@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,6 +13,9 @@ export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const cronRun = await beginCronRun("case-auto-close");
+  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
   try {
     // Auto-close PENDING_CLOSE cases older than 7 days
@@ -81,8 +85,11 @@ export async function GET(req: Request) {
       closed++;
     }
 
-    return NextResponse.json({ closed, stalePendingClose: staleCases.length, abandonedOpen: abandonedOpen.length });
+    const response = { closed, stalePendingClose: staleCases.length, abandonedOpen: abandonedOpen.length };
+    await completeCronRun(cronRun, response);
+    return NextResponse.json(response);
   } catch (error) {
+    await failCronRun(cronRun, error);
     console.error("[case-auto-close cron] Error:", error);
     Sentry.captureException(error, { tags: { source: "cron_case_auto_close" } });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
