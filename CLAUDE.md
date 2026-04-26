@@ -5135,7 +5135,9 @@ This pass closed two contained email/privacy items from the Round 16-18 backlog.
 - **Admin PIN fallback item verified stale**: production admin PIN cookies already require `ADMIN_PIN_COOKIE_SECRET`; only non-production uses an ephemeral fallback.
 - **Account deletion rejects Stripe Connect accounts**: `anonymizeUserAccount()` now attempts `stripe.accounts.reject(..., { reason: "other" })` before local seller anonymization/nulling and captures failures to Sentry.
 - **Account deletion removes newsletter subscriber PII**: deletion now removes the `NewsletterSubscriber` row and keeps only an `EmailSuppression` record with reason `MANUAL` and source `account_deletion`.
-- **Open backlog updated**: `audit_open_findings.md` now marks H24, H25, H27, H30, and H31 as fixed.
+- **Blog post cascade finding not reproduced**: existing migrations use `ON DELETE RESTRICT` for `BlogPost.authorId`, and account deletion anonymizes rather than hard-deletes the user row.
+- **Deleted review authors anonymized in UI**: public reviews now render deleted reviewers as `Former buyer`, avoid deleted-email initials/avatar fallback, and hide report/block controls for already-deleted reviewer accounts.
+- **Open backlog updated**: `audit_open_findings.md` now marks H24, H25, H27, H30, H31, and H33 as fixed, with H32 marked not reproduced.
 
 ### Verification
 - `npx prisma validate` ✅
@@ -5146,7 +5148,7 @@ This pass closed two contained email/privacy items from the Round 16-18 backlog.
 
 ### Still open / next good passes
 - Account export endpoint and broader GDPR scrubbing.
-- Blog/review deleted-user display snapshots.
+- Blog deleted-author public display policy.
 - Refund tax/reverse-transfer accounting and refund idempotency.
 
 ## Audit Fix Pass — Cron Scale Guardrails (2026-04-25)

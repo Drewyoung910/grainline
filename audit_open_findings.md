@@ -336,15 +336,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: GDPR/CCPA deletion gap.
 - **Fix spec**: Delete subscriber row and add `EmailSuppression` with reason `MANUAL_DELETION`.
 
-### H32. BlogPost author cascade deletes public content
+### H32. [NOT REPRODUCED 2026-04-26] BlogPost author cascade deletes public content
 
 - **File**: `prisma/schema.prisma`
+- **Current state**: Not reproduced. The original blog migration uses `ON DELETE RESTRICT` for `BlogPost_authorId_fkey`, not cascade, and the account deletion flow anonymizes the user row rather than hard-deleting it. Broader deleted-author public display policy remains a product/privacy decision.
 - **Impact**: User deletion can destroy published public content.
 - **Fix spec**: Move author relation to `SetNull`, add `authorDeleted`, render "Former author".
 
-### H33. Reviews can display anonymized deleted emails
+### H33. [FIXED 2026-04-26] Reviews can display anonymized deleted emails
 
 - **Files**: reviews API/UI and account deletion.
+- **Current state**: Fixed. Public review rendering now selects `reviewer.deletedAt`, displays deleted reviewers as `Former buyer`, avoids deleted-email initials/avatar fallback, and hides report/block controls for already-deleted reviewer accounts.
 - **Impact**: `deleted+...@deleted.thegrainline.local` can leak to users.
 - **Fix spec**: Add `reviewerDisplayName` snapshot and render "Former buyer" for deleted users.
 
