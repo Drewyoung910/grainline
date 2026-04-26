@@ -146,6 +146,10 @@ export async function POST(req: Request) {
     return null;
   }
 
+  async function lockCheckoutSessionMutation(tx: Prisma.TransactionClient, sessionId: string) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${sessionId}))`;
+  }
+
   try {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       return processIdempotentEvent(async () => {
@@ -503,6 +507,14 @@ export async function POST(req: Request) {
           calcDeliveryDates(maxProcessingDaysCart, estDays);
 
         const createdCartOrder = await prisma.$transaction(async (tx) => {
+          await lockCheckoutSessionMutation(tx, sessionId);
+
+          const existingOrder = await tx.order.findFirst({
+            where: { stripeSessionId: sessionId },
+            select: { id: true },
+          });
+          if (existingOrder) return null;
+
           const order = await tx.order.create({
             data: {
               buyerId,
@@ -637,6 +649,8 @@ export async function POST(req: Request) {
         });
 
         await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+
+        if (!createdCartOrder) return NextResponse.json({ ok: true });
 
         if (invalidCartSellers.size > 0) {
           await refundBlockedCheckout({
@@ -847,6 +861,14 @@ export async function POST(req: Request) {
           calcDeliveryDates(maxProcessingDaysSingle, estDays);
 
         const createdSingleOrder = await prisma.$transaction(async (tx) => {
+          await lockCheckoutSessionMutation(tx, sessionId);
+
+          const existingOrder = await tx.order.findFirst({
+            where: { stripeSessionId: sessionId },
+            select: { id: true },
+          });
+          if (existingOrder) return null;
+
           const order = await tx.order.create({
             data: {
               buyerId,
@@ -948,6 +970,8 @@ export async function POST(req: Request) {
         });
 
         await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+
+        if (!createdSingleOrder) return NextResponse.json({ ok: true });
 
         if (singleInvalidReason) {
           const singleLineItems: CheckoutLineItem[] =
@@ -1372,62 +1396,67 @@ export async function POST(req: Request) {
       return processIdempotentEvent(async () => {
       const expiredSession = event.data.object as { id: string; metadata?: Record<string, string> };
       const expiredMeta = expiredSession.metadata ?? {};
-
-      // Check this session didn't already create an order (edge case: completed + expired both fire)
-      const orderExists = await prisma.order.findFirst({
-        where: { stripeSessionId: expiredSession.id },
-        select: { id: true },
-      });
-      if (orderExists) {
-        await releaseCheckoutLock(expiredMeta.checkoutLockKey);
-        return NextResponse.json({ ok: true }); // paid — don't restore
-      }
-
-      // Single-item checkout: restore the listing's stock
-      const expiredListingId = expiredMeta.listingId;
-      const expiredQuantity = parsePositiveInt(expiredMeta.quantity, 1);
-      if (expiredListingId) {
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET "stockQuantity" = "stockQuantity" + ${expiredQuantity}
-          WHERE id = ${expiredListingId}
-            AND "listingType" = 'IN_STOCK'
-        `;
-        // If stock was 0 (SOLD_OUT from reservation), restore to ACTIVE
-        await prisma.listing.updateMany({
-          where: { id: expiredListingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-          data: { status: "ACTIVE" },
-        });
-      }
-
-      // Cart checkout: restore stock for all items from this seller
       const expiredCartId = expiredMeta.cartId;
       const expiredSellerId = expiredMeta.sellerId;
+      type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
+      let expiredLineItems: ExpiredLineItem[] = [];
+
+      // Retrieve Stripe line items before the DB transaction. The transaction
+      // re-checks order existence after taking the advisory lock.
       if (expiredCartId && expiredSellerId) {
-        // We don't have the exact items from the session, but we stored
-        // line_items in the session. Retrieve them from Stripe.
         const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
           expand: ["line_items.data.price.product"],
         });
-        type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
-        const expiredLineItems: ExpiredLineItem[] = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];
-        for (const li of expiredLineItems) {
-          const prod = typeof li.price?.product === "object" ? li.price?.product : null;
-          const lid = prod?.metadata?.listingId;
-          if (lid && li.quantity) {
-            await prisma.$executeRaw`
-              UPDATE "Listing"
-              SET "stockQuantity" = "stockQuantity" + ${li.quantity}
-              WHERE id = ${lid}
-                AND "listingType" = 'IN_STOCK'
-            `;
-            await prisma.listing.updateMany({
-              where: { id: lid, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-              data: { status: "ACTIVE" },
-            });
+        expiredLineItems = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await lockCheckoutSessionMutation(tx, expiredSession.id);
+
+        // Check this session didn't already create an order (edge case: completed + expired both fire)
+        const orderExists = await tx.order.findFirst({
+          where: { stripeSessionId: expiredSession.id },
+          select: { id: true },
+        });
+        if (orderExists) return; // paid — don't restore
+
+        // Single-item checkout: restore the listing's stock
+        const expiredListingId = expiredMeta.listingId;
+        const expiredQuantity = parsePositiveInt(expiredMeta.quantity, 1);
+        if (expiredListingId) {
+          await tx.$executeRaw`
+            UPDATE "Listing"
+            SET "stockQuantity" = "stockQuantity" + ${expiredQuantity}
+            WHERE id = ${expiredListingId}
+              AND "listingType" = 'IN_STOCK'
+          `;
+          // If stock was 0 (SOLD_OUT from reservation), restore to ACTIVE
+          await tx.listing.updateMany({
+            where: { id: expiredListingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+            data: { status: "ACTIVE" },
+          });
+        }
+
+        // Cart checkout: restore stock for all items from this seller
+        if (expiredCartId && expiredSellerId) {
+          for (const li of expiredLineItems) {
+            const prod = typeof li.price?.product === "object" ? li.price?.product : null;
+            const lid = prod?.metadata?.listingId;
+            if (lid && li.quantity) {
+              await tx.$executeRaw`
+                UPDATE "Listing"
+                SET "stockQuantity" = "stockQuantity" + ${li.quantity}
+                WHERE id = ${lid}
+                  AND "listingType" = 'IN_STOCK'
+              `;
+              await tx.listing.updateMany({
+                where: { id: lid, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+                data: { status: "ACTIVE" },
+              });
+            }
           }
         }
-      }
+      });
 
       await releaseCheckoutLock(expiredMeta.checkoutLockKey);
 

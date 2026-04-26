@@ -5145,6 +5145,26 @@ This pass closed the shared notification dedup gap and one saved-items visibilit
 - Duplicate completed webhook email/outbox idempotency.
 - Refund tax/reverse-transfer accounting decision.
 
+## Audit Fix Pass — Checkout Session Webhook Serialization (2026-04-25)
+
+This pass closed the Stripe completed/expired session race and the duplicate completed-session side-effect path without changing checkout UX.
+
+### Fixed in this pass
+- **Completed checkout mutations are session-locked**: cart and single-listing completed checkout order-creation transactions now take `pg_advisory_xact_lock(913337, hashtext(sessionId))` before creating orders or marking listings sold out.
+- **Expired/async-failed stock restore is session-locked**: `checkout.session.expired` and `checkout.session.async_payment_failed` restore stock inside the same advisory lock namespace and re-check `Order.stripeSessionId` after taking the lock.
+- **Racing duplicate completed events skip side effects**: completed handlers now re-check for an existing order inside the locked transaction. If another delivery already created the order, the losing execution returns before buyer/seller notifications or emails.
+- **Open backlog updated**: `audit_open_findings.md` now marks C10 and C11 fixed.
+
+### Verification
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+
+### Still open / next good passes
+- Refund tax/reverse-transfer accounting decision.
+- Refund idempotency key collision on identical partial refunds.
+- Dispute/refund race checks.
+- Broader GDPR account-deletion/export work.
+
 ## Audit Fix Pass — Refund Pending Lock Cleanup (2026-04-25)
 
 This pass closed the confirmed refund `"pending"` sentinel leak and made refund locks recoverable. The remaining refund/payment work is still meaningful, but the specific UI leak and permanent-lock class are now addressed.

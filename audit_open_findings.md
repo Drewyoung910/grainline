@@ -98,15 +98,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Seller banned during checkout can still receive completed order side effects.
 - **Fix spec**: In `checkout.session.completed`, re-load seller inside the order transaction with `user.banned/deletedAt`, `chargesEnabled`, and `stripeAccountId`. If invalid, do not create normal order side effects; refund or queue manual review.
 
-### C10. `checkout.session.completed` / `checkout.session.expired` stock race
+### C10. [FIXED 2026-04-25] `checkout.session.completed` / `checkout.session.expired` stock race
 
 - **File**: `src/app/api/stripe/webhook/route.ts`
+- **Current state**: Fixed. Completed and expired/async-failed session mutation sections now take the same PostgreSQL advisory transaction lock by Stripe session ID. Expired restores re-check order existence under the lock before stock restoration.
 - **Impact**: Expired can restore stock while completed is still committing, overstating stock.
 - **Fix spec**: Use a PostgreSQL advisory transaction lock keyed by Stripe session ID in both completed and expired handlers.
 
-### C11. Duplicate completed webhook emails
+### C11. [FIXED 2026-04-25] Duplicate completed webhook emails
 
 - **File**: `src/app/api/stripe/webhook/route.ts`
+- **Current state**: Fixed for checkout session order creation. Cart and single-listing completed handlers now re-check `stripeSessionId` inside the same advisory-locked transaction before creating the order; racing duplicate/completed-like events return before buyer/seller notification side effects.
 - **Impact**: Concurrent completed retries can both pass legacy idempotency and send duplicate buyer/seller emails after one loses on unique order insert.
 - **Fix spec**: Send emails only after the transaction that created the order commits and only in the execution that actually inserted the order. Better: write an outbox row in the same transaction and drain it separately.
 
