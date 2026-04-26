@@ -17,7 +17,7 @@ import {
   markStripeWebhookEventFailed,
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
-import type { FulfillmentStatus } from "@prisma/client";
+import type { FulfillmentStatus, Prisma } from "@prisma/client";
 
 
 export const runtime = "nodejs";
@@ -63,6 +63,46 @@ export async function POST(req: Request) {
       await markStripeWebhookEventFailed(event.id, handlerErr);
       throw handlerErr;
     }
+  }
+
+  function latestSuccessfulRefund(
+    refunds: Array<{ id?: string; amount?: number; status?: string | null; created?: number | null; reason?: string | null }>,
+  ) {
+    return refunds
+      .filter((refund) => refund.status !== "failed")
+      .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0] ?? null;
+  }
+
+  async function recordOrderPaymentEvent(data: {
+    orderId: string;
+    stripeEventId: string;
+    stripeObjectId?: string | null;
+    stripeObjectType?: string | null;
+    eventType: string;
+    amountCents?: number | null;
+    currency?: string | null;
+    status?: string | null;
+    reason?: string | null;
+    description?: string | null;
+    metadata?: Prisma.InputJsonObject;
+  }) {
+    await prisma.orderPaymentEvent.upsert({
+      where: { stripeEventId: data.stripeEventId },
+      update: {},
+      create: {
+        orderId: data.orderId,
+        stripeEventId: data.stripeEventId,
+        stripeObjectId: data.stripeObjectId ?? null,
+        stripeObjectType: data.stripeObjectType ?? null,
+        eventType: data.eventType,
+        amountCents: data.amountCents ?? null,
+        currency: (data.currency ?? "usd").toLowerCase(),
+        status: data.status ?? null,
+        reason: data.reason ?? null,
+        description: data.description ?? null,
+        metadata: data.metadata ?? undefined,
+      },
+    });
   }
 
   try {
@@ -907,37 +947,72 @@ export async function POST(req: Request) {
         const charge = event.data.object as {
           id?: string;
           amount_refunded?: number;
-          refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null }> };
+          currency?: string | null;
+          refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null; created?: number | null; reason?: string | null }> };
         };
         if (charge.id) {
-          const latestRefund = charge.refunds?.data?.find((refund) => refund.status !== "failed");
+          const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
           const latestRefundId = latestRefund?.id ?? `external:${charge.id}`;
           const existingOrder = await prisma.order.findFirst({
             where: { stripeChargeId: charge.id },
-            select: { id: true, sellerRefundId: true, sellerRefundAmountCents: true },
+            select: { id: true, currency: true, sellerRefundId: true, sellerRefundAmountCents: true },
           });
-          if (existingOrder && existingOrder.sellerRefundId !== latestRefundId) {
+          if (existingOrder) {
             const totalRefundedCents = charge.amount_refunded ?? latestRefund?.amount ?? 0;
             const hasLocalRefundAudit =
               !!existingOrder.sellerRefundId &&
               existingOrder.sellerRefundId !== "pending" &&
               !existingOrder.sellerRefundId.startsWith("external:");
+            const isKnownLocalRefund = hasLocalRefundAudit && existingOrder.sellerRefundId === latestRefundId;
+            const isAdditionalExternalRefund = hasLocalRefundAudit && !isKnownLocalRefund;
 
-            await prisma.order.update({
-              where: { id: existingOrder.id },
-              data: hasLocalRefundAudit
-                ? {
-                    sellerRefundAmountCents: Math.max(existingOrder.sellerRefundAmountCents ?? 0, totalRefundedCents),
-                    reviewNeeded: true,
-                    reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
-                  }
-                : {
-                    sellerRefundId: latestRefundId,
-                    sellerRefundAmountCents: totalRefundedCents,
-                    reviewNeeded: true,
-                    reviewNote: "Stripe refund was created outside Grainline.",
-                  },
+            await recordOrderPaymentEvent({
+              orderId: existingOrder.id,
+              stripeEventId: event.id,
+              stripeObjectId: latestRefundId,
+              stripeObjectType: "refund",
+              eventType: "REFUND",
+              amountCents: latestRefund?.amount ?? totalRefundedCents,
+              currency: charge.currency ?? existingOrder.currency,
+              status: latestRefund?.status ?? "refunded",
+              reason:
+                latestRefund?.reason ??
+                (isKnownLocalRefund
+                  ? "local_refund_confirmed"
+                  : isAdditionalExternalRefund
+                    ? "additional_external_refund"
+                    : "external_refund"),
+              description: isKnownLocalRefund
+                ? "Stripe confirmed a Grainline-tracked refund."
+                : isAdditionalExternalRefund
+                ? "Stripe reported an additional refund outside the local Grainline refund record."
+                : "Stripe reported a refund created outside Grainline.",
+              metadata: {
+                chargeId: charge.id,
+                latestRefundId,
+                latestRefundAmountCents: latestRefund?.amount ?? null,
+                totalRefundedCents,
+                preservedLocalRefundId: isAdditionalExternalRefund ? existingOrder.sellerRefundId : null,
+              },
             });
+
+            if (existingOrder.sellerRefundId !== latestRefundId) {
+              await prisma.order.update({
+                where: { id: existingOrder.id },
+                data: isAdditionalExternalRefund
+                  ? {
+                      sellerRefundAmountCents: Math.max(existingOrder.sellerRefundAmountCents ?? 0, totalRefundedCents),
+                      reviewNeeded: true,
+                      reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
+                    }
+                  : {
+                      sellerRefundId: latestRefundId,
+                      sellerRefundAmountCents: totalRefundedCents,
+                      reviewNeeded: true,
+                      reviewNote: "Stripe refund was created outside Grainline.",
+                    },
+              });
+            }
           }
         }
         return NextResponse.json({ received: true });
@@ -946,13 +1021,21 @@ export async function POST(req: Request) {
 
     if (event.type.startsWith("charge.dispute.")) {
       return processIdempotentEvent(async () => {
-        const dispute = event.data.object as { id?: string; charge?: string | { id?: string } | null; amount?: number | null; reason?: string | null };
+        const dispute = event.data.object as {
+          id?: string;
+          charge?: string | { id?: string } | null;
+          amount?: number | null;
+          currency?: string | null;
+          reason?: string | null;
+          status?: string | null;
+        };
         const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
         if (chargeId) {
           const order = await prisma.order.findFirst({
             where: { stripeChargeId: chargeId },
             select: {
               id: true,
+              currency: true,
               buyerId: true,
               case: { select: { id: true, status: true } },
               items: {
@@ -971,6 +1054,23 @@ export async function POST(req: Request) {
           });
           if (order) {
             const sellerUserId = order.items[0]?.listing.seller.userId;
+            await recordOrderPaymentEvent({
+              orderId: order.id,
+              stripeEventId: event.id,
+              stripeObjectId: dispute.id ?? null,
+              stripeObjectType: "dispute",
+              eventType: "DISPUTE",
+              amountCents: dispute.amount ?? null,
+              currency: dispute.currency ?? order.currency,
+              status: dispute.status ?? event.type.replace("charge.dispute.", ""),
+              reason: dispute.reason ?? null,
+              description: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
+              metadata: {
+                chargeId,
+                disputeId: dispute.id ?? null,
+                stripeEventType: event.type,
+              },
+            });
             await prisma.order.update({
               where: { id: order.id },
               data: {

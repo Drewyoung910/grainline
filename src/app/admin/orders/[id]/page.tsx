@@ -62,6 +62,10 @@ export default async function AdminOrderDetailPage({
           resolvedAt: true,
         },
       },
+      paymentEvents: {
+        orderBy: { createdAt: "desc" },
+        take: 25,
+      },
     },
   });
 
@@ -256,6 +260,47 @@ export default async function AdminOrderDetailPage({
           )}
         </div>
       </Section>
+
+      {order.paymentEvents.length > 0 && (
+        <Section title="Stripe Payment Events">
+          <div className="space-y-3">
+            {order.paymentEvents.map((event) => (
+              <div
+                key={event.id}
+                className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-neutral-800">
+                      {event.eventType.replaceAll("_", " ")}
+                      {event.status ? ` · ${event.status}` : ""}
+                    </div>
+                    {event.description && (
+                      <p className="mt-1 text-neutral-600">{event.description}</p>
+                    )}
+                    <div className="mt-1 text-xs text-neutral-500">
+                      {event.stripeObjectType ?? "stripe"}:{" "}
+                      <span className="font-mono">{event.stripeObjectId ?? "—"}</span>
+                      {" · "}event: <span className="font-mono">{event.stripeEventId}</span>
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-neutral-500">
+                    <div className="text-sm font-medium text-neutral-800">
+                      {fmtMoney(event.amountCents, event.currency)}
+                    </div>
+                    <div>{event.createdAt.toLocaleString()}</div>
+                  </div>
+                </div>
+                {event.reason && (
+                  <div className="mt-2 text-xs text-neutral-500">
+                    Reason: <span className="font-mono">{event.reason}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Quoted vs Actual Shipping */}
       <Section title="Quoted vs. Actual Shipping">

@@ -4942,3 +4942,30 @@ This pass targeted a high-leverage cluster from the post-Round-7 audits: forms t
 - Continue payment/manual reconciliation work for external refunds, disputes, and partial-refund inventory semantics.
 - Add durable notification/email outbox semantics for very large follower bases.
 - Repair/re-upload the existing `cdn.thegrainline.com` media rows returning `Cache miss`.
+
+## Audit Pass — Payment Reconciliation Ledger (2026-04-25)
+
+This pass addressed the remaining Stripe manual-reconciliation gap: external refunds and dispute lifecycle events were visible only through mutable `Order.reviewNote` strings. Staff now get a durable per-order event ledger for Stripe refund/dispute webhooks.
+
+### Fixed in this pass
+- **Order payment event ledger added**: new `OrderPaymentEvent` model stores order-linked Stripe payment events with `stripeEventId` uniqueness, object IDs/types, event type, amount, currency, status, reason, description, and JSON metadata.
+- **Migration added**: `20260425213000_order_payment_events` creates the ledger table and indexes by order/date, event type/date, and Stripe object ID.
+- **Refund webhooks create durable rows**: `charge.refunded` now records a `REFUND` event for local Grainline refunds, external Stripe-dashboard refunds, and additional external refunds.
+- **Refund reconciliation preserves local audit IDs**: local Grainline refund IDs are not overwritten by external Stripe-dashboard refunds. Additional external refunds raise `reviewNeeded` and preserve the local refund ID in event metadata.
+- **Refund amount semantics improved**: each payment event displays the latest refund amount when Stripe provides it, while metadata stores cumulative `totalRefundedCents` for reconciliation.
+- **Dispute lifecycle events create durable rows**: every `charge.dispute.*` event now records a `DISPUTE` payment event, while only `charge.dispute.created` opens/escalates a case and notifies the seller.
+- **Admin order detail shows Stripe payment events**: `/admin/orders/[id]` now displays the most recent 25 payment events with event/object IDs, amount, status, reason, and timestamp.
+
+### Verification
+- `npx prisma generate` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npx prisma migrate deploy` ✅ (applied `20260425213000_order_payment_events`)
+- `npm run build` ✅ (sandboxed build hit the known Turbopack local-port restriction; escalated build passed)
+
+### Still open / next good passes
+- Partial refund inventory remains intentionally conservative: Stripe/external partial refunds do not automatically restock because Stripe refund events are not line-item-specific.
+- Seller-facing payout-failure banner remains a separate UX pass; current behavior sends a notification only.
+- Continue remaining lower-risk silent-failure cleanup and notification outbox work.

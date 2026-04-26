@@ -573,6 +573,7 @@ model Order {
   giftWrappingPriceCents  Int?
 
   shippingRateQuotes OrderShippingRateQuote[]
+  paymentEvents      OrderPaymentEvent[]
 }
 
 model OrderShippingRateQuote {
@@ -587,6 +588,28 @@ model OrderShippingRateQuote {
 
   @@index([orderId, expiresAt])
   @@index([expiresAt])
+}
+
+model OrderPaymentEvent {
+  id               String   @id @default(cuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stripeEventId    String   @unique
+  stripeObjectId   String?
+  stripeObjectType String?
+  eventType        String
+  amountCents      Int?
+  currency         String   @default("usd")
+  status           String?
+  reason           String?
+  description      String?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([orderId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([stripeObjectId])
 }
 
 
