@@ -10,6 +10,7 @@ const securityHeaders = [
   { key: "Cross-Origin-Resource-Policy", value: "same-site" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },
   {
     key: "Content-Security-Policy",
     value: [
@@ -34,6 +35,7 @@ const securityHeaders = [
       "form-action 'self' https://*.clerk.accounts.dev https://*.clerk.com",
       // Prevent this site from being embedded in foreign frames (CSP equivalent of X-Frame-Options: SAMEORIGIN)
       "frame-ancestors 'self'",
+      "report-to csp-endpoint",
       "report-uri /api/csp-report",
     ].join("; "),
   },

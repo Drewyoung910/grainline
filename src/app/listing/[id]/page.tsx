@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import FavoriteButton from "@/components/FavoriteButton";
-import MapCard from "@/components/MapCard";
+import DynamicMapCard from "@/components/DynamicMapCard";
 import type { Metadata } from "next";
 import ReviewsSection from "@/components/ReviewsSection";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
@@ -689,7 +689,7 @@ export default async function ListingPage({
       {lat != null && lng != null && (
         <section className="mb-10 max-w-2xl">
           <div style={{ position: "relative", zIndex: 0 }}>
-            <MapCard
+            <DynamicMapCard
               lat={lat}
               lng={lng}
               radiusMeters={radius}

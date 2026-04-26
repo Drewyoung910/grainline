@@ -2,7 +2,7 @@
 
 Last updated: 2026-04-26
 
-This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-19 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
+This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
 ## Current Backlog Estimate
 
@@ -25,6 +25,14 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **R16 AI fail-open findings are fixed.** Listing edit and photo-add AI review failures now leave listings in `PENDING_REVIEW`.
 - **Reviews/blog/commission claims re-verified clean.** Round 19 found no actionable bugs in those surfaces.
 - **Round 19 adds 20 new items**: 2 critical, 3 high, 6 medium, and 9 low. Highest leverage item is the Stripe fee/accounting mismatch between code and product/legal docs.
+
+## Round 20 Corrections / Status Notes
+
+- **R20 Sentry client PII finding was already fixed in this worktree.** `src/instrumentation-client.ts` had `sendDefaultPii: false` before this pass.
+- **Sentry DSNs were still hardcoded.** Fixed on 2026-04-26 by moving client DSN to `NEXT_PUBLIC_SENTRY_DSN` and server/edge DSN to `SENTRY_DSN` with fallback to the existing public DSN env.
+- **Notification read-prune was missing.** Fixed on 2026-04-26 by restoring hourly fire-and-forget pruning of read notifications older than 90 days.
+- **Sitemap seller/listing leak findings were stale.** `publicListingWhere()` already filters `chargesEnabled`, `vacationMode`, banned users, deleted users, `ACTIVE`, and `isPrivate:false`; seller sitemap entries use the same account-state filters.
+- **Round 20 adds roughly 50 actionable items**: 3 reported critical, 8 high, about 20 medium, and about 19 low. The real engineering gaps are configuration drift, missing migration enforcement, onboarding validation, map bundle splitting, CSP reporting, and UI accessibility/polish.
 
 ## Recommended Fix Order
 
@@ -146,6 +154,27 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Fix spec**: Pick one policy and make it consistent:
   - Preferred code fix: remove the estimated Stripe fee deduction from seller transfer math so the platform absorbs Stripe processing fees as documented.
   - Alternative legal/product fix: update Terms, seller-facing copy, and `CLAUDE.md` to clearly disclose seller-paid Stripe processing fees and the actual effective fee.
+
+### C16. [NOT REPRODUCED 2026-04-26] Sentry client `sendDefaultPii` is true
+
+- **File**: `src/instrumentation-client.ts`
+- **Current state**: Not reproduced in this worktree. Client Sentry config already has `sendDefaultPii: false`.
+- **Impact**: If regressed, browser errors can send avoidable user/session PII to Sentry.
+- **Fix spec**: Keep `sendDefaultPii: false` on client, server, and edge configs. Add an assertion/lint check if this keeps recurring.
+
+### C17. [FIXED 2026-04-26] Sentry DSN hardcoded in source
+
+- **Files**: `sentry.server.config.ts`, `sentry.edge.config.ts`, `src/instrumentation-client.ts`
+- **Current state**: Fixed. Server and edge use `process.env.SENTRY_DSN` with fallback to `process.env.NEXT_PUBLIC_SENTRY_DSN`; client uses `process.env.NEXT_PUBLIC_SENTRY_DSN`.
+- **Impact**: Hardcoded DSN exposes org/project IDs and prevents rotation without code changes.
+- **Fix spec**: Keep DSNs in environment variables. Configure Vercel production/preview envs before relying on Sentry events.
+
+### C18. [FIXED 2026-04-26] Notification read-prune cleanup missing
+
+- **File**: `src/app/api/notifications/route.ts`
+- **Current state**: Fixed. Authenticated notification GET now runs an hourly gated, fire-and-forget prune for read notifications older than 90 days.
+- **Impact**: Read notifications accumulate forever and grow the table/indexes without bound.
+- **Fix spec**: Longer term, move pruning to a daily cron with batched deletes and keep per-request cleanup only as a fallback.
 
 ## High Priority Findings
 
@@ -403,6 +432,60 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: A client can request a presign for an allowed size and then attempt a larger PUT. Actual enforcement depends on R2/S3 presign behavior and bucket configuration.
 - **Fix spec**: Enforce object-size limits at the Cloudflare R2 bucket level. Add defense-in-depth verification by issuing a post-upload `HEAD` check before persisting/using the URL, and reject or delete objects whose actual `Content-Length` exceeds the presigned limit.
 
+### H38. [STALE 2026-04-26] Sitemap leaks banned/vacation/non-charged sellers
+
+- **File**: `src/app/sitemap.ts`
+- **Current state**: Stale in this worktree. Seller sitemap entries already require `chargesEnabled: true`, `vacationMode: false`, and `user: { banned: false, deletedAt: null }`.
+- **Impact**: If regressed, Google can crawl seller pages that public routing then hides or 404s.
+- **Fix spec**: Keep sitemap seller queries aligned with `publicListingWhere()` account-state rules.
+
+### H39. [STALE 2026-04-26] Sitemap leaks listings without seller safety filters
+
+- **File**: `src/app/sitemap.ts`
+- **Current state**: Stale in this worktree. Listing sitemap entries use `publicListingWhere()`, which includes listing status/privacy and seller account-state filters.
+- **Impact**: If regressed, Google can index inactive or unsafe listings.
+- **Fix spec**: Continue using `publicListingWhere()` for listing sitemap and metro/category sitemap grouping.
+
+### H40. chargesEnabled backfill script cannot run in production
+
+- **File**: `scripts/backfill-charges-enabled.ts`
+- **Impact**: Future sellers with `stripeAccountId` but stale `chargesEnabled:false` can remain invisible if the only repair script refuses production execution.
+- **Fix spec**: Prefer a guarded admin-only sync action/route that retrieves Stripe accounts and updates `chargesEnabled`. If keeping the script, add an explicit `--force-prod` flag with confirmation logging and require `DIRECT_URL`.
+
+### H41. No CI/deploy enforcement for `prisma migrate deploy`
+
+- **Files**: `.github/workflows/ci.yml`, `vercel.json`
+- **Impact**: Code that references new columns can deploy before migrations run, causing production 500s until manual migration.
+- **Fix spec**: Add a production deploy workflow that runs `npx prisma migrate deploy` against `DIRECT_URL` before Vercel production deployment, or set Vercel `buildCommand` to run migrations before `next build` once env wiring is confirmed.
+
+### H42. [FIXED 2026-04-26] Onboarding can be completed without Stripe
+
+- **File**: `src/app/dashboard/onboarding/actions.ts`
+- **Current state**: Fixed. `completeOnboarding()` now requires `chargesEnabled` before setting `onboardingComplete`.
+- **Impact**: Sellers could advance steps directly and mark onboarding complete without a usable Stripe account.
+- **Fix spec**: Keep `completeOnboarding()` as the invariant gate, independent of UI step controls.
+
+### H43. [FIXED 2026-04-26] Maplibre CSS still loads through static listing MapCard import
+
+- **Files**: `src/app/listing/[id]/page.tsx`, `src/components/DynamicMapCard.tsx`
+- **Current state**: Fixed. Listing detail now imports a client-only dynamic MapCard wrapper with SSR disabled and a fixed-height loading placeholder.
+- **Impact**: Listing pages without immediate map interaction paid for Maplibre CSS/JS in the base route path.
+- **Fix spec**: Keep map-heavy components behind dynamic imports and fixed-size placeholders.
+
+### H44. [FIXED 2026-04-26] CSP missing modern `report-to` reporting path
+
+- **File**: `next.config.ts`
+- **Current state**: Fixed. Security headers include `Reporting-Endpoints: csp-endpoint="/api/csp-report"` and CSP includes `report-to csp-endpoint` plus legacy `report-uri`.
+- **Impact**: Modern browsers can drop CSP reports when only deprecated `report-uri` is configured.
+- **Fix spec**: Keep both `report-to` and `report-uri` until reporting support is stable across target browsers.
+
+### H45. [FIXED 2026-04-26] UnreadBadge polls while signed out
+
+- **File**: `src/components/UnreadBadge.tsx`
+- **Current state**: Fixed. The component now gates polling on Clerk `isSignedIn` and clears count when signed out.
+- **Impact**: Signed-out visitors generated periodic 401s every 10 minutes.
+- **Fix spec**: Any auth-only polling widget should use the same `useUser()` gate as `NotificationBell`.
+
 ## Admin / Dashboard Findings
 
 - `approveGuildMember` silently no-ops when recomputed eligibility is false. **Current state: Fixed.** Approval now uses a stateful form, reports unmet listing/account-age/case/sales criteria inline, and excludes externally refunded orders via `chargeRefundId`.
@@ -490,6 +573,22 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
 - Photo-add AI review currently reviews newly added photos, not the merged final set; acceptable for new-photo safety, but document the intended invariant.
 - Blog featured listing rendering should re-verify ownership/visibility at render time where not already guaranteed.
+- Featured maker queries should be cached/ISR-backed instead of sequential DB work on hot pages.
+- Onboarding step 4 navigation should advance persisted step state, and the skip-Stripe path needs an explicit `chargesEnabled` warning.
+- Reverse-geocode throttling should move from Lambda-local memory to shared Redis/Upstash state.
+- Onboarding step 1 profile image state can be lost on browser back/forward navigation; persist draft/upload state.
+- `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step.
+- Loading skeleton coverage is still inconsistent across key dashboard/public pages.
+- Date formatting should use explicit locale/time zone where user-visible (`toLocaleString`, `toLocaleDateString`, JSON-LD/display dates).
+- COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
+- Sitemap scale remains capped by single-file entry limits; add sitemap index splitting before large catalog growth.
+- `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage.
+- Follow/feed UI should add optimistic state, retry/error affordances, and accessible loading states.
+- Cron schedules are UTC; document or adjust jobs whose business deadlines are intended to be Central time.
+- `/api/health` currently does deep service pings despite docs claiming static/no-DB behavior; either split static and deep health endpoints, or update docs/monitoring.
+- CSP report endpoint needs rate limiting before broad modern browser reporting is enabled at scale.
+- `enableLogs: true` in Sentry config may increase billing/noise; review before production scale.
+- Robots/blog API allowlist and lazy-loading coverage claims need doc/code reconciliation.
 
 ## Product / Legal / Business Items Still Not Solved By Code Alone
 

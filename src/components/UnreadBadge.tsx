@@ -1,27 +1,34 @@
 "use client";
 
 import * as React from "react";
+import { useUser } from "@clerk/nextjs";
 
 export default function UnreadBadge({
   className = "",
   pollMs = 600000,
 }: { className?: string; pollMs?: number }) {
+  const { isSignedIn } = useUser();
   const [count, setCount] = React.useState<number>(0);
 
-  async function refresh() {
+  const refresh = React.useCallback(async () => {
+    if (!isSignedIn) return;
     try {
       const res = await fetch("/api/messages/unread-count", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       if (typeof data?.count === "number") setCount(data.count);
     } catch {}
-  }
+  }, [isSignedIn]);
 
   React.useEffect(() => {
+    if (!isSignedIn) {
+      setCount(0);
+      return;
+    }
     refresh();
     const id = window.setInterval(refresh, pollMs);
     return () => window.clearInterval(id);
-  }, [pollMs]);
+  }, [isSignedIn, pollMs, refresh]);
 
   if (!count) return null;
 
@@ -31,4 +38,3 @@ export default function UnreadBadge({
     </span>
   );
 }
-
