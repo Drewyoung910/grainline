@@ -11,6 +11,22 @@ const ConnectCreateSchema = z.object({
   returnUrl: z.string().min(1).max(500).optional().nullable(),
 });
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+
+function safeInternalReturnUrl(returnUrl: string | null | undefined): string | null {
+  if (!returnUrl || !returnUrl.startsWith("/") || returnUrl.startsWith("//") || returnUrl.startsWith("/\\")) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(returnUrl, APP_URL);
+    if (parsed.origin !== new URL(APP_URL).origin) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,9 +53,7 @@ export async function POST(req: Request) {
   let customReturnUrl: string | undefined;
   try {
     const body = ConnectCreateSchema.parse(await req.json());
-    if (body.returnUrl && body.returnUrl.startsWith("/")) {
-      customReturnUrl = `${process.env.NEXT_PUBLIC_APP_URL}${body.returnUrl}`;
-    }
+    customReturnUrl = safeInternalReturnUrl(body.returnUrl) ?? undefined;
   } catch {
     // no body or invalid JSON — use default
   }
@@ -72,8 +86,8 @@ export async function POST(req: Request) {
     }
   }
 
-  const refreshUrl = `${process.env.NEXT_PUBLIC_APP_URL}/seller/payouts`;
-  const returnUrl  = customReturnUrl ?? `${process.env.NEXT_PUBLIC_APP_URL}/seller/payouts?onboarded=1`;
+  const refreshUrl = new URL("/seller/payouts", APP_URL).toString();
+  const returnUrl = customReturnUrl ?? new URL("/seller/payouts?onboarded=1", APP_URL).toString();
 
   const link = await stripe.accountLinks.create({
     account: accountId!,

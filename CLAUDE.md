@@ -2299,7 +2299,7 @@ Server-enforced PIN verification for all admin pages and admin APIs. Free altern
 ### Components
 - **`AdminPinGate`** (`src/components/AdminPinGate.tsx`) — `"use client"` PIN form rendered by the admin layout only when the server has not verified the signed PIN cookie. Client-side lockout after 5 failed attempts; Enter key submits. On success, reloads the page so the server layout can re-check the cookie before rendering admin data.
 - **`/api/admin/verify-pin`** (`src/app/api/admin/verify-pin/route.ts`) — POST route; EMPLOYEE or ADMIN role required; rate limited 5 attempts per 15 minutes via `safeRateLimit`; constant-time PIN comparison; returns 401 for incorrect PIN, 429 for rate limit, 503 in production if `ADMIN_PIN` is missing. On success, sets a signed 4-hour `httpOnly`, `sameSite: strict` cookie.
-- **`src/lib/adminPin.ts`** — signs and verifies the admin PIN cookie with HMAC SHA-256. Cookie payload is bound to the Clerk `userId` and expiry timestamp. Uses `ADMIN_PIN_COOKIE_SECRET` if present, otherwise `ADMIN_PIN`; local development has a dev-only fallback secret.
+- **`src/lib/adminPin.ts`** — signs and verifies the admin PIN cookie with HMAC SHA-256. Cookie payload is bound to the Clerk `userId` and expiry timestamp. Production requires `ADMIN_PIN_COOKIE_SECRET`; local development uses an ephemeral per-process fallback when the secret is absent.
 
 ### Wiring
 - `src/app/admin/layout.tsx` performs the role check, verifies the signed cookie server-side, and returns `<AdminPinGate />` without sidebar counts or `{children}` until the cookie is valid.
@@ -2316,7 +2316,7 @@ Server-enforced PIN verification for all admin pages and admin APIs. Free altern
 ### ENV required
 `ADMIN_PIN` — 6-digit numeric PIN. Set in Vercel → Settings → Environment Variables (all environments).
 
-Optional: `ADMIN_PIN_COOKIE_SECRET` — independent signing secret for the admin PIN cookie. If omitted, `ADMIN_PIN` signs the cookie.
+Required in production: `ADMIN_PIN_COOKIE_SECRET` — independent signing secret for the admin PIN cookie. Do not reuse `ADMIN_PIN`.
 
 ## AI Alt Text Improvements (2026-04-22/23)
 
@@ -5097,8 +5097,6 @@ The canonical open-findings list now lives in `audit_open_findings.md`. It conso
 8. Larger SEO/search/performance cleanup.
 
 ### Confirmed still-live examples
-- `ADMIN_PIN_COOKIE_SECRET` still falls back to `ADMIN_PIN`.
-- Stripe Connect `returnUrl` accepts protocol-relative `//host` paths.
 - Refund `"pending"` sentinel can still reach seller UI.
 
 ## Audit Fix Pass — One-Click Unsubscribe Hardening (2026-04-25)
@@ -5122,6 +5120,20 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ### Still open / next good passes
-- `ADMIN_PIN_COOKIE_SECRET` fallback to `ADMIN_PIN`.
-- Stripe Connect protocol-relative `returnUrl` open redirect.
+- Refund `"pending"` UI/lock cleanup and broader refund race fixes.
+
+## Audit Fix Pass — Admin Secret + Stripe Return URL Hardening (2026-04-25)
+
+This pass closed two small confirmed high-risk items from the Round 16-18 verification list.
+
+### Fixed in this pass
+- **Admin PIN cookie no longer falls back to the PIN**: `src/lib/adminPin.ts` now signs with `ADMIN_PIN_COOKIE_SECRET` only. Non-production without that env uses an ephemeral per-process fallback; production without the env fails closed instead of treating the PIN as an HMAC secret.
+- **Production env added**: `ADMIN_PIN_COOKIE_SECRET` was added to the Vercel Production environment.
+- **Stripe Connect return URL blocks protocol-relative redirects**: `/api/stripe/connect/create` now accepts only same-origin app-relative paths, rejects `//host` and `/\host` forms, normalizes with `new URL()`, and falls back to `/seller/payouts?onboarded=1`.
+- **Production unsubscribe secret added**: `UNSUBSCRIBE_SECRET` was added to the Vercel Production environment so tokenized footer/header URLs are emitted in production.
+
+### Verification
+- `npx vercel env ls` ✅ confirmed `ADMIN_PIN_COOKIE_SECRET` and `UNSUBSCRIBE_SECRET` exist for Production.
+
+### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.

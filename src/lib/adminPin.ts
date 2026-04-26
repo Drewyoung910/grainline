@@ -2,13 +2,11 @@ export const ADMIN_PIN_COOKIE_NAME = "admin-pin-verified";
 export const ADMIN_PIN_MAX_AGE_SECONDS = 60 * 60 * 4;
 
 const encoder = new TextEncoder();
+const DEV_ADMIN_PIN_COOKIE_SECRET =
+  process.env.ADMIN_PIN_COOKIE_SECRET_DEV || (process.env.NODE_ENV !== "production" ? crypto.randomUUID() : "");
 
 function getCookieSecret() {
-  return (
-    process.env.ADMIN_PIN_COOKIE_SECRET ||
-    process.env.ADMIN_PIN ||
-    (process.env.NODE_ENV !== "production" ? "grainline-dev-admin-pin-cookie" : "")
-  );
+  return process.env.ADMIN_PIN_COOKIE_SECRET || DEV_ADMIN_PIN_COOKIE_SECRET;
 }
 
 function base64Url(bytes: ArrayBuffer) {
