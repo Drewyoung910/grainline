@@ -430,12 +430,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: A buyer can pass their cart ID with an arbitrary seller ID. Combined with unbound shipping tokens, this can mint rates outside the intended cart/seller relationship.
 - **Fix spec**: When quoting for a cart, require `sellerId` to be present in that cart's items: `cart.items.some((item) => item.listing.sellerId === sellerId)`. Return 400 when mismatched.
 
-### H37. [PARTIAL 2026-04-26] R2 presign trusts client-declared upload size
+### H37. [FIXED 2026-04-26] R2 presign trusts client-declared upload size
 
 - **File**: `src/app/api/upload/presign/route.ts`
-- **Current state**: Partially fixed. Presigned uploads now have stricter extension/type matching and an additional 50/hour per-user upload cap across presign and processed image routes. Bucket-level max object size and post-upload HEAD verification still need infrastructure/product follow-up.
+- **Current state**: Fixed in app code. Presigned uploads now have stricter extension/type matching, only video/PDF direct-upload endpoints are accepted, GIF direct uploads are rejected, uploads share a 50/hour per-user cap, and clients call `/api/upload/verify` after PUT so the server HEAD-checks actual R2 `Content-Length` before the URL is used.
 - **Impact**: A client can request a presign for an allowed size and then attempt a larger PUT. Actual enforcement depends on R2/S3 presign behavior and bucket configuration.
-- **Fix spec**: Enforce object-size limits at the Cloudflare R2 bucket level. Add defense-in-depth verification by issuing a post-upload `HEAD` check before persisting/using the URL, and reject or delete objects whose actual `Content-Length` exceeds the presigned limit.
+- **Fix spec**: Keep app-level post-upload verification. Also enforce object-size limits at the Cloudflare R2 bucket level as infrastructure defense in depth.
 
 ### H38. [STALE 2026-04-26] Sitemap leaks banned/vacation/non-charged sellers
 
@@ -511,9 +511,9 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ## UX / Product Correctness Findings
 
 - Buyer cannot delete their own review. **Current state: Fixed.** Reviewer-owned reviews can now be deleted through `DELETE /api/reviews/[id]`, and `/account/reviews` exposes the action.
-- Banned users can browse public pages while signed in. Decide policy: full redirect to `/banned` for authenticated banned users, or allow public browsing but block mutations consistently. Current behavior is inconsistent.
+- [FIXED 2026-04-26] Authenticated banned/deleted users are redirected to `/banned` from public pages and receive consistent account-state JSON from non-bypass API routes.
 - Banned user cart/message errors can be misleading. Return buyer-specific suspended-account messages.
-- AdminPinGate should show server `Retry-After`, not a fake reset-on-refresh attempt count.
+- [FIXED 2026-04-26] AdminPinGate now uses the server `Retry-After` header and disables input until the server lockout expires.
 - Stripe onboarding skip/return flow can land sellers at step 4/5 with unclear status. Show explicit Stripe incomplete banner keyed by account status.
 - Cart close/payment modal can orphan Stripe sessions and stock locks. Consider session cancel/release endpoint or clearer lock-expiry messaging.
 - Multi-seller success/receipt views need all seller receipts/items, not just last or first seller.
@@ -521,7 +521,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## Search / SEO / i18n Findings
 
-- Slug generator strips non-ASCII: `Café` -> `caf`, CJK -> empty. Use Unicode normalization/transliteration and fallback IDs.
+- [FIXED 2026-04-26] Blog slug generation normalizes diacritics (`Café` -> `cafe`) and falls back to a stable hash slug for non-Latin titles instead of returning empty.
 - Listings and sellers still primarily use CUID URLs. Slug work remains a larger SEO pass.
 - Browse rating filter performs heavy review scans. Add optimized aggregate/materialized rating fields.
 - Browse popular tags duplicates cached endpoint. Use ISR endpoint or shared cached query.
@@ -575,7 +575,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Drop duplicate/legacy `viewToClickRatio` once clients use `clickThroughRate`.
 - Reconcile period window definitions in metrics.
 - R2 media validation currently accepts legacy `*.r2.dev` URLs. Keep for compatibility, but decide whether to narrow to known account/bucket hostnames after old media is migrated.
-- GIF/video/PDF uploads may retain metadata and GIF/polyglot risks; current sharp processing only strips JPEG/PNG/WebP metadata.
+- GIF/video/PDF uploads may retain metadata; current state rejects GIF uploads and strips JPEG/PNG/WebP metadata, while video/PDF metadata retention remains disclosed/product-accepted.
 - Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification.
 - Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
 - Photo-add AI review currently reviews newly added photos, not the merged final set; acceptable for new-photo safety, but document the intended invariant.
@@ -589,12 +589,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Date formatting should use explicit locale/time zone where user-visible (`toLocaleString`, `toLocaleDateString`, JSON-LD/display dates).
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
 - Sitemap scale remains capped by single-file entry limits; add sitemap index splitting before large catalog growth.
-- `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage.
+- `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage. **Current state: Partial.** Buy Now has a 44px minimum target and focus ring; listing gallery main image is now a semantic button with focus-visible outline.
 - Follow/feed UI should add optimistic state, retry/error affordances, and accessible loading states.
 - Cron schedules are UTC; document or adjust jobs whose business deadlines are intended to be Central time.
 - `/api/health` currently does deep service pings despite docs claiming static/no-DB behavior; either split static and deep health endpoints, or update docs/monitoring.
-- CSP report endpoint needs rate limiting before broad modern browser reporting is enabled at scale.
-- `enableLogs: true` in Sentry config may increase billing/noise; review before production scale.
+- [FIXED 2026-04-26] CSP report endpoint is IP rate-limited before forwarding high-signal script/frame violations to Sentry.
+- [FIXED 2026-04-26] Sentry `enableLogs` is disabled in server, edge, and client configs to avoid log-volume billing/noise.
 - Robots/blog API allowlist and lazy-loading coverage claims need doc/code reconciliation.
 
 ## Product / Legal / Business Items Still Not Solved By Code Alone

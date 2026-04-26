@@ -118,6 +118,20 @@ export function useR2Upload({
 
         if (!uploadRes.ok) throw new Error("Upload to R2 failed");
 
+        const verifyRes = await fetch("/api/upload/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key,
+            endpoint,
+            expectedSize: file.size,
+          }),
+        });
+        if (!verifyRes.ok) {
+          const err = await verifyRes.json().catch(() => ({ error: "Upload verification failed" }));
+          throw new Error((err as { error?: string }).error ?? "Upload verification failed");
+        }
+
         uploaded.push({
           url: publicUrl,
           ufsUrl: publicUrl,

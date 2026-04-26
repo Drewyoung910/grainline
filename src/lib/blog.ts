@@ -2,13 +2,25 @@
 import type { BlogPostType } from "@prisma/client";
 
 export function generateSlug(title: string): string {
-  return title
+  const slug = title
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9\s-]/g, " ")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+
+  if (slug) return slug;
+
+  let hash = 2166136261;
+  for (const char of title.trim()) {
+    hash ^= char.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `post-${(hash >>> 0).toString(36)}`;
 }
 
 export function calculateReadingTime(body: string): number {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function AdminPinGate({
   children,
@@ -14,10 +14,25 @@ export default function AdminPinGate({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
+  const locked = Boolean(lockoutUntil && Date.now() < lockoutUntil);
+  const lockoutSeconds = lockoutUntil ? Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000)) : 0;
+  const lockoutMinutes = Math.max(1, Math.ceil(lockoutSeconds / 60));
+
+  useEffect(() => {
+    if (!lockoutUntil) return;
+    const id = window.setInterval(() => {
+      if (Date.now() >= lockoutUntil) {
+        setLockoutUntil(null);
+        setAttempts(0);
+        setError(null);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [lockoutUntil]);
 
   if (verified) return <>{children}</>;
-
-  const locked = attempts >= 5;
 
   async function handleVerify() {
     if (locked) return;
@@ -33,7 +48,12 @@ export default function AdminPinGate({
         setVerified(true);
         window.location.reload();
       } else if (res.status === 429) {
-        setError("Too many attempts. Try again later.");
+        const retryAfter = Number(res.headers.get("Retry-After"));
+        const until = Number.isFinite(retryAfter) && retryAfter > 0
+          ? Date.now() + retryAfter * 1000
+          : Date.now() + 15 * 60 * 1000;
+        setLockoutUntil(until);
+        setError(`Too many attempts. Try again in ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} minutes.`);
       } else if (res.status === 503) {
         setError("Admin PIN is not configured.");
       } else {
@@ -77,7 +97,7 @@ export default function AdminPinGate({
         )}
         {locked && (
           <p className="text-sm text-red-600 text-center">
-            Too many incorrect attempts. Refresh and try again.
+            Too many incorrect attempts. Try again in {lockoutMinutes} minute{lockoutMinutes === 1 ? "" : "s"}.
           </p>
         )}
         <button
@@ -88,7 +108,7 @@ export default function AdminPinGate({
           {loading ? "Verifying..." : "Verify"}
         </button>
         <p className="text-xs text-neutral-400 text-center">
-          {5 - attempts} attempts remaining
+          {locked ? "Locked by server rate limit" : `${Math.max(0, 5 - attempts)} attempts remaining`}
         </p>
       </div>
     </div>

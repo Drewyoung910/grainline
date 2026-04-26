@@ -294,6 +294,15 @@ export const unsubscribeRatelimit = new Ratelimit({
   prefix: "rl:unsubscribe",
 });
 
+// CSP reports are unauthenticated browser telemetry. Keep enough signal for
+// real violations while dropping flood/noise before it reaches Sentry.
+export const cspReportRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "10 m"),
+  analytics: true,
+  prefix: "rl:csp-report",
+});
+
 // Blog comment creation (fail closed — abuse has real cost)
 export const blogCommentRatelimit = new Ratelimit({
   redis,

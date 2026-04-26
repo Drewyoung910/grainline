@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { safeRateLimit } from "@/lib/ratelimit";
+import { rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import {
@@ -51,7 +51,10 @@ export async function POST(req: Request) {
     safeRateLimit(pinIpRatelimit, ip),
   ]);
   if (!userLimit.success || !ipLimit.success) {
-    return NextResponse.json({ error: "Too many attempts" }, { status: 429 });
+    return rateLimitResponse(
+      Math.max(userLimit.reset, ipLimit.reset),
+      "Too many admin PIN attempts.",
+    );
   }
 
   const body = await req.json().catch(() => ({}));

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import { cspReportRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
 
 export async function POST(request: NextRequest) {
+  const { success } = await safeRateLimitOpen(cspReportRatelimit, getIP(request));
+  if (!success) return new NextResponse(null, { status: 204 });
+
   try {
     const body = await request.json();
     const report = body["csp-report"] || body;

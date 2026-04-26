@@ -76,8 +76,10 @@ export default function ListingGallery({
   return (
     <>
       {/* Main photo */}
-      <div
-        className="relative w-full rounded-lg overflow-hidden cursor-zoom-in h-[350px] sm:h-[400px] md:h-[500px]"
+      <button
+        type="button"
+        aria-label={`Open ${title} photo gallery`}
+        className="relative block w-full rounded-lg overflow-hidden cursor-zoom-in h-[350px] sm:h-[400px] md:h-[500px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
@@ -104,7 +106,7 @@ export default function ListingGallery({
             </svg>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Thumbnails */}
       {photos.length > 1 && (

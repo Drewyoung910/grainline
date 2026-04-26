@@ -2768,15 +2768,15 @@ Focused launch-blocker pass after reconciling the 300-item Opus audit against al
 
 ### Upload privacy / EXIF stripping
 - Added `/api/upload/image` (Node runtime, `sharp`) for JPEG/PNG/WebP uploads. It rotates by orientation and writes a re-encoded image to R2 without embedded metadata.
-- `useR2Upload` routes JPEG/PNG/WebP image uploads through `/api/upload/image`; GIF/video/PDF still use presigned direct upload.
+- `useR2Upload` routes JPEG/PNG/WebP image uploads through `/api/upload/image`; video/PDF use presigned direct upload followed by `/api/upload/verify` HEAD validation. GIF uploads are rejected until an animated-image sanitization path exists.
 - `/api/upload/presign` now rejects JPEG/PNG/WebP direct presigns so crafted clients cannot bypass the metadata-stripping path.
-- Blog editor image upload updated to use the processed image route for JPEG/PNG/WebP and direct presign only for GIF.
+- Blog editor image upload uses the processed image route for JPEG/PNG/WebP and rejects GIF uploads.
 - Upload routes now enforce the banned-user guard through `ensureUserByClerkId`.
 - Shared `uploadRatelimit` added instead of constructing a limiter inside the route on every request.
 
 ### Email and privacy alignment
 - Privacy Policy updated from UploadThing to Cloudflare R2 and now discloses OpenAI image processing for listing review/alt text.
-- Photo metadata section now matches implementation: JPEG/PNG/WebP metadata is stripped; GIF/video/PDF metadata may remain.
+- Photo metadata section now matches implementation: JPEG/PNG/WebP metadata is stripped; GIF uploads are rejected; video/PDF metadata may remain.
 - Transactional email wrapper now sends a plain-text alternative, strips CRLF/control characters from subjects, and only embeds followed-maker listing images from the configured R2 public URL.
 - Admin email route now strips CRLF/control characters from subject, includes a plain-text alternative, includes physical mailing address, and sets List-Unsubscribe headers.
 
@@ -3520,7 +3520,7 @@ Full-codebase audit across 79 API routes, 8 parallel audit passes. 44 findings i
 - **Case resolve: Stripe refund outside transaction** — Stripe refund issued before DB transaction; failure orphans the refund. Added try/catch with `ORPHANED REFUND` console.error for manual reconciliation. Added partial refund cap. File: `src/app/api/cases/[id]/resolve/route.ts`.
 - **Label purchase double-purchase race** — Read-check guard for `labelStatus !== "PURCHASED"` races under concurrent requests. Added atomic `$executeRaw` UPDATE with WHERE condition + rollback on Shippo failure. File: `src/app/api/orders/[id]/label/route.ts`.
 - **listingSnapshot never written** — `OrderItem.listingSnapshot` was always null despite being documented. Added snapshot capture (title, description, priceCents, imageUrls, category, tags, sellerName, capturedAt) to both webhook order creation paths. Expanded single-listing query to include snapshot fields.
-- **Sentry `sendDefaultPii: true`** — Server and edge Sentry configs were sending Clerk session cookies to Sentry on every error. Changed to `false`. Client config unchanged (no cookies).
+- **Sentry `sendDefaultPii: true`** — Server, edge, and client configs now set `sendDefaultPii: false`; Sentry log forwarding is disabled with `enableLogs: false`; DSNs are read from env instead of source literals.
 - **Sitemap leaks private listings** — `src/app/sitemap.ts` had no `isPrivate: false` filter. Private listing IDs were published in sitemap.xml. Fixed.
 - **Custom listing `reservedForUserId` not validated** — `dashboard/listings/custom/page.tsx` accepted any `reservedForUserId` without verifying it matched the other conversation participant. Added validation.
 
@@ -3989,7 +3989,7 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 - `BuyNowButton`: `isLoaded` gate (`useUser()` → `{ isSignedIn, isLoaded }`) with `disabled={!isLoaded}` on the button element. Prevents Clerk hydration race where `isSignedIn` is briefly `undefined` and signed-in users get redirected to `/sign-in` if they click immediately on page load.
 
 **Phase 6.5 — HMAC-signed shipping rate tokens + security parity** (2026-04-16):
-- `src/lib/shipping-token.ts`: `signRate()` + `verifyRate()` using HMAC-SHA256. `timingSafeEqual` for comparison (not `===`, which is a timing-attack footgun). Expiry checked BEFORE HMAC compute. Canonical field-ordered input string `${objectId}:${amountCents}:${displayName}:${carrier}:${estDays}:${contextId}:${buyerPostal}:${expiresAt}` (no `JSON.stringify` — key ordering not guaranteed stable across refactors). 30-min TTL. Fails loud if `SHIPPING_RATE_SECRET` is missing.
+- `src/lib/shipping-token.ts`: `signRate()` + `verifyRate()` using HMAC-SHA256. `timingSafeEqual` for comparison (not `===`, which is a timing-attack footgun). Expiry checked BEFORE HMAC compute. Canonical field-ordered input string `${objectId}:${amountCents}:${displayName}:${carrier}:${estDays}:${contextId}:${buyerId}:${buyerPostal}:${expiresAt}` (no `JSON.stringify` — key ordering not guaranteed stable across refactors). 30-min TTL. Fails loud if `SHIPPING_RATE_SECRET` is missing.
 - `/api/shipping/quote`: signs each rate with `contextId` (sellerId for cart, listingId for buy-now) and `buyerPostal`. **`toPostal` is now required** (tightened Zod from `.optional().nullable()` to `.min(1).max(20)`) — the "10001" NYC default was removed because it would cause every signature to mismatch at checkout verification. Rate response adds `token` + `expiresAt` fields.
 - `src/types/checkout.ts`: `SelectedShippingRate` gains `token: string` + `expiresAt: number`. `FALLBACK_RATE` updated with `token: "fallback"` + `expiresAt: 0` (intentionally invalid HMAC; bypassed via `isFallbackRate()` before `verifyRate()` is called).
 - Both checkout routes (`/api/cart/checkout-seller` and `/api/cart/checkout/single`): `verifyRate()` called after Zod parsing and before Stripe session creation. Fallback rates bypass verification via `isFallbackRate()` and use `SiteConfig.fallbackShippingCents` instead of the client-provided amount. `contextId` is `body.sellerId` in checkout-seller and `body.listingId` in checkout/single (concrete `const`, NOT `??` fallback — TypeScript catches misuse).

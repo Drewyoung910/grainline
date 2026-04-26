@@ -200,30 +200,7 @@ export default function MarkdownToolbar({
               if (!file) return;
               try {
                 if (file.type === "image/gif") {
-                  const presignRes = await fetch("/api/upload/presign", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      endpoint: "galleryImage",
-                      filename: file.name,
-                      contentType: file.type,
-                      size: file.size,
-                      fileIndex: 0,
-                    }),
-                  });
-                  if (!presignRes.ok) throw new Error("Upload failed");
-                  const { presignedUrl, publicUrl } = await presignRes.json() as {
-                    presignedUrl: string;
-                    publicUrl: string;
-                  };
-                  const directUpload = await fetch(presignedUrl, {
-                    method: "PUT",
-                    body: file,
-                    headers: { "Content-Type": file.type },
-                  });
-                  if (!directUpload.ok) throw new Error("Upload failed");
-                  editor.chain().focus().setImage({ src: publicUrl }).run();
-                  return;
+                  throw new Error("Animated GIF uploads are not supported.");
                 }
 
                 const form = new FormData();
@@ -237,8 +214,13 @@ export default function MarkdownToolbar({
                 if (!uploadRes.ok) throw new Error("Upload failed");
                 const { publicUrl } = await uploadRes.json() as { publicUrl: string };
                 editor.chain().focus().setImage({ src: publicUrl }).run();
-              } catch {
-                toast("Image upload failed. The file may be too large (max 4MB).", "error");
+              } catch (error) {
+                toast(
+                  error instanceof Error
+                    ? error.message
+                    : "Image upload failed. The file may be too large (max 4MB).",
+                  "error",
+                );
               }
             };
             input.click();

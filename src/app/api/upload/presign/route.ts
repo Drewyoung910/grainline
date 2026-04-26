@@ -10,13 +10,17 @@ import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 
 const ALLOWED_TYPES = [
-  "image/gif",
   "video/mp4", "video/quicktime",
   "application/pdf",
 ];
 
+const ENDPOINT_ALLOWED_TYPES: Record<string, string[]> = {
+  listingVideo: ["video/mp4", "video/quicktime"],
+  messageFile: ["video/mp4", "video/quicktime", "application/pdf"],
+  messageAny: ["video/mp4", "video/quicktime", "application/pdf"],
+};
+
 const ALLOWED_EXTENSIONS: Record<string, string[]> = {
-  "image/gif": ["gif"],
   "video/mp4": ["mp4"],
   "video/quicktime": ["mov", "qt"],
   "application/pdf": ["pdf"],
@@ -99,6 +103,10 @@ export async function POST(req: NextRequest) {
       { error: "Image uploads must use the processed upload endpoint." },
       { status: 400 }
     );
+  }
+
+  if (!ENDPOINT_ALLOWED_TYPES[endpoint]?.includes(contentType)) {
+    return NextResponse.json({ error: "File type is not allowed for this upload endpoint" }, { status: 400 });
   }
 
   if (!ALLOWED_TYPES.includes(contentType)) {

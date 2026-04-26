@@ -3,6 +3,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
+import { prisma } from "@/lib/db";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -48,6 +49,22 @@ const isPublic = createRouteMatcher([
 const isAdminPage = createRouteMatcher(["/admin(.*)"]);
 const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
+const isSuspendedAccountAllowed = createRouteMatcher([
+  "/banned",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/terms",
+  "/privacy",
+  "/accessibility",
+  "/unsubscribe",
+  "/not-available",
+  "/api/clerk/webhook",
+  "/api/stripe/webhook",
+  "/api/resend/webhook",
+  "/api/email/unsubscribe",
+  "/api/health",
+  "/api/cron(.*)",
+]);
 
 function forbiddenFor(req: Request) {
   const url = new URL(req.url);
@@ -97,9 +114,31 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
+  const { userId } = await auth();
+
+  if (userId && !isSuspendedAccountAllowed(req)) {
+    const account = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { banned: true, deletedAt: true },
+    });
+    if (account?.banned || account?.deletedAt) {
+      if (req.nextUrl.pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          {
+            error: account.deletedAt
+              ? "This account has been deleted. Contact support@thegrainline.com"
+              : "Your account has been suspended. Contact support@thegrainline.com",
+            code: account.deletedAt ? "ACCOUNT_DELETED" : "ACCOUNT_SUSPENDED",
+          },
+          { status: 403 },
+        );
+      }
+      return NextResponse.redirect(new URL("/banned", req.url));
+    }
+  }
+
   // Enforce EMPLOYEE or ADMIN role for admin pages and APIs.
   if (isAdminPage(req) || isAdminApi(req)) {
-    const { userId } = await auth();
     if (!userId) {
       return forbiddenFor(req);
     }
