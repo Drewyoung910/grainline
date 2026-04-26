@@ -51,7 +51,11 @@ export async function GET(req: NextRequest) {
     : rawSellerIds;
 
   if (sellerIds.length === 0) {
-    return NextResponse.json({ items: [], nextCursor: null, hasMore: false });
+    const message =
+      rawSellerIds.length > 0 && blockedSellerIds.length > 0
+        ? "All followed makers are currently blocked."
+        : undefined;
+    return NextResponse.json({ items: [], nextCursor: null, hasMore: false, message });
   }
 
   // First page: 90-day cutoff. Subsequent pages: use cursor (fetch items older than cursor).

@@ -432,8 +432,8 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`.
 - Audit log subject/body should sanitize persisted user-provided strings.
 - [FIXED 2026-04-26] Prevent self-feature by admin seller.
-- Block records and blocked-feed behavior need deleted-user policy.
-- Similar listings should avoid same-seller duplicates where possible.
+- Block records and blocked-feed behavior need deleted-user policy. **Current state: Fixed.** Block helpers ignore deleted users, and account feed now distinguishes "all followed makers are blocked" from no follows.
+- Similar listings should avoid same-seller duplicates where possible. **Current state: Fixed.** Similar listing results now keep at most one listing per seller after scoring.
 - Analytics `avgPriceCents` should be weighted by quantity.
 - Drop duplicate/legacy `viewToClickRatio` once clients use `clickThroughRate`.
 - Reconcile period window definitions in metrics.

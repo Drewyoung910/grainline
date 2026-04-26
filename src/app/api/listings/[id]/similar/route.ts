@@ -102,9 +102,18 @@ export async function GET(
       return { ...r, totalScore };
     });
 
-    // Sort by total score descending, take 6-12 (aim for 12, min 6)
+    // Sort by total score descending, then keep at most one result per seller so
+    // a single shop cannot dominate the carousel.
     scored.sort((a, b) => b.totalScore - a.totalScore);
-    const results = scored.slice(0, 12);
+    const seenSellerIds = new Set<string>();
+    const deduped: typeof scored = [];
+    for (const row of scored) {
+      if (seenSellerIds.has(row.sellerId)) continue;
+      seenSellerIds.add(row.sellerId);
+      deduped.push(row);
+      if (deduped.length >= 12) break;
+    }
+    const results = deduped;
 
     return NextResponse.json({
       listings: results.map((r) => ({
