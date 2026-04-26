@@ -2,7 +2,7 @@
 
 Last updated: 2026-04-26
 
-This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-18 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
+This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-19 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
 ## Current Backlog Estimate
 
@@ -18,6 +18,13 @@ After de-duplication, the current engineering backlog is approximately:
 | Low / cleanup / future | 50-80 | Slugs, richer SEO, code organization, nice-to-have features, non-blocking polish. |
 
 Practical remaining total: about 250-320 unique actionable items. The next fix effort should target critical/high items first, not the raw 750 count.
+
+## Round 19 Corrections / Status Notes
+
+- **R18 notification dedup "missing" finding withdrawn.** Current code implements notification dedup through `notificationDedupKey()` and the `Notification` unique constraint. The accurate behavior is per-UTC-day exact-content dedup, not a rolling 24-hour dedup window.
+- **R16 AI fail-open findings are fixed.** Listing edit and photo-add AI review failures now leave listings in `PENDING_REVIEW`.
+- **Reviews/blog/commission claims re-verified clean.** Round 19 found no actionable bugs in those surfaces.
+- **Round 19 adds 20 new items**: 2 critical, 3 high, 6 medium, and 9 low. Highest leverage item is the Stripe fee/accounting mismatch between code and product/legal docs.
 
 ## Recommended Fix Order
 
@@ -125,6 +132,20 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Current state**: Fixed. Full marketplace refunds now split item/shipping reversal from tax refunding when seller transfer reversal is available. The tax portion is refunded without `reverse_transfer`, and disconnected sellers use a platform-funded refund path with a manual reconciliation note.
 - **Impact**: Full refund includes tax while seller transfer excluded tax; with `reverse_transfer:true`, platform may absorb tax refund incorrectly.
 - **Fix spec**: Split item/shipping refund from tax refund, or define all refunds as platform-originated and reconcile seller balance separately. Requires Stripe accounting decision.
+
+### C14. Stripe platform fee accounting/doc mismatch
+
+- **Files**: `src/app/api/cart/checkout-seller/route.ts`, `src/app/api/cart/checkout/single/route.ts`, `CLAUDE.md`
+- **Impact**: Docs say `application_fee_amount` is used, but checkout currently relies on manual `transfer_data.amount` math. Stripe reporting and refund/reversal accounting can diverge from the documented marketplace model.
+- **Fix spec**: Decide the canonical Stripe Connect pattern and align code/docs. Recommended audit spec: set `application_fee_amount` explicitly in checkout session payment intent data and avoid manual platform-fee subtraction where Stripe can account for the fee directly.
+
+### C15. Seller effective fee contradicts stated platform-fee policy
+
+- **Files**: `src/app/api/cart/checkout-seller/route.ts`, `src/app/api/cart/checkout/single/route.ts`, Terms/fee docs, `CLAUDE.md`
+- **Impact**: Code subtracts estimated Stripe processing fees from seller transfers, while docs state the platform absorbs Stripe processing fees from the 5% platform fee. Sellers may be paying an undisclosed ~7.9% effective rate. This is financial/product/legal risk.
+- **Fix spec**: Pick one policy and make it consistent:
+  - Preferred code fix: remove the estimated Stripe fee deduction from seller transfer math so the platform absorbs Stripe processing fees as documented.
+  - Alternative legal/product fix: update Terms, seller-facing copy, and `CLAUDE.md` to clearly disclose seller-paid Stripe processing fees and the actual effective fee.
 
 ## High Priority Findings
 
@@ -364,6 +385,24 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Personal data remains visible to counterparties.
 - **Fix spec**: Define retention rules. Scrub old fulfilled order shipping details, deleted user's sent messages, R2 attachments, listing descriptions/photos, verification notes.
 
+### H35. Signed shipping rate token is not buyer-bound
+
+- **File**: `src/lib/shipping-token.ts`
+- **Impact**: A signed shipping rate can be replayed by a different buyer for the same object/postal combination during the token TTL.
+- **Fix spec**: Add `buyerId` to signed rate fields and canonical HMAC input. Quote routes should sign with the authenticated buyer ID; checkout routes should verify the token buyer matches the current buyer.
+
+### H36. Shipping quote route accepts mismatched cart and seller IDs
+
+- **File**: `src/app/api/shipping/quote/route.ts`
+- **Impact**: A buyer can pass their cart ID with an arbitrary seller ID. Combined with unbound shipping tokens, this can mint rates outside the intended cart/seller relationship.
+- **Fix spec**: When quoting for a cart, require `sellerId` to be present in that cart's items: `cart.items.some((item) => item.listing.sellerId === sellerId)`. Return 400 when mismatched.
+
+### H37. R2 presign trusts client-declared upload size
+
+- **File**: `src/app/api/upload/presign/route.ts`
+- **Impact**: A client can request a presign for an allowed size and then attempt a larger PUT. Actual enforcement depends on R2/S3 presign behavior and bucket configuration.
+- **Fix spec**: Enforce object-size limits at the Cloudflare R2 bucket level. Add defense-in-depth verification by issuing a post-upload `HEAD` check before persisting/using the URL, and reject or delete objects whose actual `Content-Length` exceeds the presigned limit.
+
 ## Admin / Dashboard Findings
 
 - `approveGuildMember` silently no-ops when recomputed eligibility is false. **Current state: Fixed.** Approval now uses a stateful form, reports unmet listing/account-age/case/sales criteria inline, and excludes externally refunded orders via `chargeRefundId`.
@@ -431,12 +470,26 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - `payment_intent.processing` / `payment_failed` handlers should be added or delayed methods should be explicitly disabled/documented.
 - Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`.
 - Audit log subject/body should sanitize persisted user-provided strings.
+- Upload presign per-request `fileIndex` is client-controlled; add per-user/hour Redis upload count tracking so parallel presigns cannot bypass max-count assumptions.
+- R2 objects are orphaned when photos/listings/reviews are deleted. Add R2 delete helpers and call `DeleteObjectCommand` after DB deletes for media fields.
+- Listing photo alt text generated in `api/listings/[id]/photos` should be sanitized and capped before persistence.
+- New-listing submitted alt text needs server-side max length and sanitization parity with edit/photo paths.
+- AI review prompt should isolate user-submitted listing fields inside explicit data delimiters and redact obvious prompt-injection phrases before interpolation.
+- Stripe fee estimate is hardcoded to 2.9% + 30 cents and will be wrong for Amex/international/FX cases. Prefer explicit Stripe application-fee accounting over estimated-fee transfer math.
+- Case message display-name fallback leaks email prefixes when `name` is null. Use the standard `name ?? email.split("@")[0] ?? "Someone"` fallback.
+- Notification dedup is per UTC day, not rolling 24 hours. Document the UTC-day boundary precisely in `CLAUDE.md`.
 - [FIXED 2026-04-26] Prevent self-feature by admin seller.
 - Block records and blocked-feed behavior need deleted-user policy. **Current state: Fixed.** Block helpers ignore deleted users, and account feed now distinguishes "all followed makers are blocked" from no follows.
 - Similar listings should avoid same-seller duplicates where possible. **Current state: Fixed.** Similar listing results now keep at most one listing per seller after scoring.
 - Analytics `avgPriceCents` should be weighted by quantity.
 - Drop duplicate/legacy `viewToClickRatio` once clients use `clickThroughRate`.
 - Reconcile period window definitions in metrics.
+- R2 media validation currently accepts legacy `*.r2.dev` URLs. Keep for compatibility, but decide whether to narrow to known account/bucket hostnames after old media is migrated.
+- GIF/video/PDF uploads may retain metadata and GIF/polyglot risks; current sharp processing only strips JPEG/PNG/WebP metadata.
+- Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification.
+- Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
+- Photo-add AI review currently reviews newly added photos, not the merged final set; acceptable for new-photo safety, but document the intended invariant.
+- Blog featured listing rendering should re-verify ownership/visibility at render time where not already guaranteed.
 
 ## Product / Legal / Business Items Still Not Solved By Code Alone
 
