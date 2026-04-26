@@ -240,9 +240,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: `IN_STOCK` listing can become `ACTIVE` with zero stock.
 - **Fix spec**: After AI activation, run guarded SQL to force `SOLD_OUT` if stock is <= 0.
 
-### H18. Fulfillment/case race
+### H18. [FIXED 2026-04-25] Fulfillment/case race
 
 - **File**: `src/app/api/orders/[id]/fulfillment/route.ts`
+- **Current state**: Fixed. Fulfillment updates now include active-case absence in the atomic `updateMany` predicate, so a concurrently opened case blocks shipped/picked-up transitions.
 - **Impact**: Seller can mark shipped/picked-up while buyer opens case concurrently.
 - **Fix spec**: Move case absence condition into the atomic update predicate.
 

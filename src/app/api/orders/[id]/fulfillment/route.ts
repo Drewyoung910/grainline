@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import type { FulfillmentStatus } from "@prisma/client";
+import { CaseStatus, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 
 const FulfillmentSchema = z.object({
@@ -21,6 +21,13 @@ export const preferredRegion = "iad1";
 
 const VALID_TRACKING_CARRIERS = new Set(["UPS", "USPS", "FedEx", "DHL", "Other"]);
 const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
+const ACTIVE_CASE_STATUSES = [
+  CaseStatus.OPEN,
+  CaseStatus.IN_DISCUSSION,
+  CaseStatus.PENDING_CLOSE,
+  CaseStatus.UNDER_REVIEW,
+] as const;
+const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
 
 async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   const me = await prisma.user.findUnique({
@@ -85,8 +92,7 @@ export async function POST(
     }
 
     const action = payload.action;
-    const activeCaseStatuses = new Set(["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"]);
-    if (action !== "update_notes" && authz.order.case && activeCaseStatuses.has(authz.order.case.status)) {
+    if (action !== "update_notes" && authz.order.case && ACTIVE_CASE_STATUS_SET.has(authz.order.case.status)) {
       return NextResponse.json(
         { error: "Resolve the open case before changing fulfillment." },
         { status: 409 },
@@ -172,6 +178,14 @@ export async function POST(
         id,
         sellerRefundId: null,
         ...(allowed ? { fulfillmentStatus: { in: allowed } } : {}),
+        ...(action !== "update_notes"
+          ? {
+              OR: [
+                { case: { is: null } },
+                { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
+              ],
+            }
+          : {}),
       },
       data,
     });

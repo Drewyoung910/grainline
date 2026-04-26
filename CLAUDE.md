@@ -5146,6 +5146,25 @@ This pass closed the bounded cron memory and cleanup issues from the Round 16-18
 - Cron idempotency run keys are still open across cron routes.
 - Refund tax/reverse-transfer accounting decision.
 
+## Audit Fix Pass — Fulfillment Case Race Guard (2026-04-25)
+
+This pass closed the remaining fulfillment/case race from the Round 18 race-condition list.
+
+### Fixed in this pass
+- **Fulfillment updates now atomically reject active cases**: `POST /api/orders/[id]/fulfillment` keeps the existing preflight check for user-facing errors, but also includes `case IS NULL OR case.status NOT IN active statuses` in the `updateMany` predicate. If a buyer opens a case between the preflight read and the seller's fulfillment write, the update now returns a 409 instead of marking the order shipped/picked up.
+- **Active case status list centralized**: the route now uses the Prisma `CaseStatus` enum for the OPEN / IN_DISCUSSION / PENDING_CLOSE / UNDER_REVIEW set.
+- **Open backlog updated**: `audit_open_findings.md` now marks H18 fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Refund tax/reverse-transfer accounting decision.
+- Cron idempotency run keys across cron routes.
+
 ## Audit Fix Pass — Notification Dedup + Saved Listing Visibility (2026-04-25)
 
 This pass closed the shared notification dedup gap and one saved-items visibility issue from the later audit backlog.
