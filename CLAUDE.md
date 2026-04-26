@@ -4620,6 +4620,8 @@ Read this section before continuing the remaining 300+ item audit queue. This pa
 - `npx tsc --noEmit --incremental false` ✅
 - `npx prisma validate` ✅
 - `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ (escalated build passed; sandboxed builds still hit Turbopack worker port restrictions)
 - `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
 - `npm run build` ✅ outside sandbox; sandbox build still fails on Turbopack internal worker port binding (`Operation not permitted`)
 - `npx prisma validate` ✅
@@ -4969,3 +4971,28 @@ This pass addressed the remaining Stripe manual-reconciliation gap: external ref
 - Partial refund inventory remains intentionally conservative: Stripe/external partial refunds do not automatically restock because Stripe refund events are not line-item-specific.
 - Seller-facing payout-failure banner remains a separate UX pass; current behavior sends a notification only.
 - Continue remaining lower-risk silent-failure cleanup and notification outbox work.
+
+## Audit Pass — Runtime Race + Metadata Hardening (2026-04-25)
+
+This pass targeted still-valid findings from the post-Round-7 list that were bounded and correctness-focused: webhook retry edge cases, unsafe webhook metadata parsing, helper-level predicate bugs, and unbounded cron loops.
+
+### Fixed in this pass
+- **Stripe webhook retry claiming tightened**: failed Stripe webhook events can now be reclaimed only when `processingStartedAt` is cleared or stale. A non-null `lastError` alone no longer lets concurrent retries process the same event while another worker still owns it.
+- **Webhook failure marking no longer masks the original error**: if `markStripeWebhookEventFailed()` itself fails, the webhook captures that marking failure to Sentry and still rethrows the original handler error.
+- **Webhook metadata integer parsing hardened**: single-checkout quantity, expired-session quantity, checkout price metadata, quoted shipping amount, and shipping ETA days now use finite integer parsers instead of `Number(...)` / `Math.max(...)` paths that could turn tampered metadata into `NaN`.
+- **Synthetic Shippo rate IDs no longer persist to orders**: checkout webhook normalization stores `null` for synthetic `"pickup"` and `"fallback"` rate IDs so order records do not look label-purchasable when no real Shippo rate exists.
+- **`fetchWithTimeout()` now composes caller abort signals correctly**: timeout aborts still fire even when the caller supplies its own signal, while caller aborts also cancel the shared controller.
+- **Open commission predicate composition fixed**: `openCommissionWhere(extra)` now combines caller filters with status/buyer/expiry guards via `AND`, preserving caller-provided `OR` filters instead of overwriting them.
+- **Listing soft-delete cleanup moved into a serializable transaction**: active-order/case checks, hiding the listing, and cleanup of favorites/stock notifications/cart items now run together under serializable isolation.
+- **Ban/unban state changes are atomic**: user ban state, seller profile gating, commission closure, and admin audit log writes now commit in one transaction. Unban likewise commits user restoration, Stripe-derived seller gating, and audit logging together.
+- **Case auto-close cron is bounded**: each cron run now processes the oldest 100 stale `PENDING_CLOSE` cases and oldest 100 abandoned open cases instead of loading an unbounded result set.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+
+### Still open / next good passes
+- Ban-time checkout-session expiry still needs a dedicated Redis/Stripe session design; this pass tightened ban persistence but did not attempt broad session cancellation.
+- Partial refund inventory remains conservative; line-item refund/restock semantics need product design.
+- Continue follower notification outbox work and remaining low-risk silent-failure cleanup.

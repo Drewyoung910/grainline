@@ -24,7 +24,6 @@ export async function beginStripeWebhookEvent(id: string, type: string): Promise
       OR: [
         { processingStartedAt: null },
         { processingStartedAt: { lt: staleBefore } },
-        { lastError: { not: null } },
       ],
     },
     data: {
@@ -52,4 +51,3 @@ export async function markStripeWebhookEventFailed(id: string, error: unknown): 
     },
   });
 }
-

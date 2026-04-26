@@ -1,35 +1,35 @@
 import { prisma } from './db'
-import { logAdminAction } from './audit'
 import { stripe } from './stripe'
 
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { banned: true, bannedAt: new Date(), banReason: reason, bannedBy: adminId }
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: { banned: true, bannedAt: new Date(), banReason: reason, bannedBy: adminId }
+    })
+    await tx.sellerProfile.updateMany({
+      where: { userId },
+      data: { chargesEnabled: false, vacationMode: true }
+    })
+    await tx.commissionRequest.updateMany({
+      where: { buyerId: userId, status: 'OPEN' },
+      data: { status: 'CLOSED' }
+    })
+    await tx.adminAuditLog.create({
+      data: { adminId, action: 'BAN_USER', targetType: 'USER', targetId: userId, reason }
+    })
   })
-  await prisma.sellerProfile.updateMany({
-    where: { userId },
-    data: { chargesEnabled: false, vacationMode: true }
-  })
-  await prisma.commissionRequest.updateMany({
-    where: { buyerId: userId, status: 'OPEN' },
-    data: { status: 'CLOSED' }
-  })
-  await logAdminAction({ adminId, action: 'BAN_USER', targetType: 'USER', targetId: userId, reason })
 }
 
 export async function unbanUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
-  await prisma.user.update({
-    where: { id: userId },
-    data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
-  })
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId }, select: { id: true, stripeAccountId: true }
   })
+  let sellerRestore: { id: string; chargesEnabled: boolean; vacationMode: boolean } | null = null
   if (seller?.stripeAccountId) {
     let chargesEnabled = false
     try {
@@ -42,10 +42,24 @@ export async function unbanUser({ userId, adminId, reason }: {
     } catch (err) {
       console.error("Failed to verify Stripe account during unban:", err)
     }
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: { chargesEnabled, vacationMode: !chargesEnabled }
-    })
+    sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
   }
-  await logAdminAction({ adminId, action: 'UNBAN_USER', targetType: 'USER', targetId: userId, reason })
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
+    })
+    if (sellerRestore) {
+      await tx.sellerProfile.update({
+        where: { id: sellerRestore.id },
+        data: {
+          chargesEnabled: sellerRestore.chargesEnabled,
+          vacationMode: sellerRestore.vacationMode,
+        }
+      })
+    }
+    await tx.adminAuditLog.create({
+      data: { adminId, action: 'UNBAN_USER', targetType: 'USER', targetId: userId, reason }
+    })
+  })
 }

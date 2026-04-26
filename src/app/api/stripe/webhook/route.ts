@@ -60,7 +60,14 @@ export async function POST(req: Request) {
       await markStripeWebhookEventProcessed(event.id);
       return response;
     } catch (handlerErr) {
-      await markStripeWebhookEventFailed(event.id, handlerErr);
+      try {
+        await markStripeWebhookEventFailed(event.id, handlerErr);
+      } catch (markErr) {
+        Sentry.captureException(markErr, {
+          tags: { source: "stripe_webhook_mark_failed" },
+          extra: { stripeEventId: event.id, stripeEventType: event.type },
+        });
+      }
       throw handlerErr;
     }
   }
@@ -103,6 +110,23 @@ export async function POST(req: Request) {
         metadata: data.metadata ?? undefined,
       },
     });
+  }
+
+  function parsePositiveInt(value: string | number | null | undefined, fallback: number): number {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  function parseOptionalNonNegativeInt(value: string | number | null | undefined): number | null {
+    if (value == null || value === "") return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  function normalizeShippoRateObjectId(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const normalized = value.trim().toLowerCase();
+    return normalized === "pickup" || normalized === "fallback" ? null : value;
   }
 
   try {
@@ -186,10 +210,7 @@ export async function POST(req: Request) {
       const quotedShipToCity = sessionMeta.quotedShipToCity || sessionMeta.quotedToCity || "";
       const quotedShipToCountry = sessionMeta.quotedShipToCountry || sessionMeta.quotedToCountry || "";
       const quotedShippingAmountCents =
-        sessionMeta.quotedShippingAmountCents != null &&
-        sessionMeta.quotedShippingAmountCents !== ""
-          ? Number(sessionMeta.quotedShippingAmountCents)
-          : null;
+        parseOptionalNonNegativeInt(sessionMeta.quotedShippingAmountCents);
 
       // Gift options from metadata
       const giftNote: string | null = sessionMeta.giftNote || null;
@@ -200,14 +221,13 @@ export async function POST(req: Request) {
       // Shippo IDs from metadata / selected shipping rate
       const shippoShipmentId: string | null = sessionMeta.shippoShipmentId || null;
       const selectedRateObjectId: string | null = sessionMeta.selectedRateObjectId || null;
-      const shippoRateObjectId: string | null = selectedRateObjectId || shippingRateObj?.metadata?.objectId || null;
+      const shippoRateObjectId: string | null = normalizeShippoRateObjectId(
+        selectedRateObjectId || shippingRateObj?.metadata?.objectId || null,
+      );
 
       // estDays stored in shipping rate metadata at checkout time; default 7 if missing
       const rawEstDays = shippingRateObj?.metadata?.estDays;
-      const estDays: number =
-        rawEstDays != null && rawEstDays !== "" && !isNaN(Number(rawEstDays))
-          ? Number(rawEstDays)
-          : 7;
+      const estDays: number = parsePositiveInt(rawEstDays, 7);
 
       // Mismatch checks
       const normalizeZip = (z: string) => z.split("-")[0];
@@ -616,9 +636,9 @@ export async function POST(req: Request) {
 
       // SINGLE LISTING CHECKOUT
       const listingId: string | undefined = sessionMeta.listingId;
-      const quantity: number = Math.max(1, Number(sessionMeta.quantity || 1));
+      const quantity: number = parsePositiveInt(sessionMeta.quantity, 1);
       const priceCentsFromMeta: number | null =
-        sessionMeta.priceCents != null ? Number(sessionMeta.priceCents) : null;
+        parseOptionalNonNegativeInt(sessionMeta.priceCents);
 
       if (listingId && buyerId) {
         const listingData = await prisma.listing.findUnique({
@@ -1171,7 +1191,7 @@ export async function POST(req: Request) {
 
       // Single-item checkout: restore the listing's stock
       const expiredListingId = expiredMeta.listingId;
-      const expiredQuantity = Math.max(1, Number(expiredMeta.quantity || 1));
+      const expiredQuantity = parsePositiveInt(expiredMeta.quantity, 1);
       if (expiredListingId) {
         await prisma.$executeRaw`
           UPDATE "Listing"

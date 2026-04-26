@@ -6,6 +6,7 @@ import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+const CASE_AUTO_CLOSE_BATCH_SIZE = 100;
 
 export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
@@ -17,6 +18,8 @@ export async function GET(req: Request) {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const staleCases = await prisma.case.findMany({
       where: { status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
+      orderBy: { updatedAt: "asc" },
+      take: CASE_AUTO_CLOSE_BATCH_SIZE,
       select: { id: true, buyerId: true, sellerId: true, orderId: true },
     });
 
@@ -49,6 +52,8 @@ export async function GET(req: Request) {
     const openCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const abandonedOpen = await prisma.case.findMany({
       where: { status: "OPEN", sellerRespondBy: { lt: openCutoff } },
+      orderBy: { sellerRespondBy: "asc" },
+      take: CASE_AUTO_CLOSE_BATCH_SIZE,
       select: { id: true, buyerId: true, sellerId: true, orderId: true },
     });
 

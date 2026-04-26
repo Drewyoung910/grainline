@@ -9,12 +9,13 @@ export function commissionExpiresAt(from = new Date()): Date {
 export function openCommissionWhere<T extends Prisma.CommissionRequestWhereInput>(
   extra?: T,
 ): Prisma.CommissionRequestWhereInput {
-  return {
-    ...extra,
-    status: CommissionStatus.OPEN,
-    buyer: { banned: false, deletedAt: null },
-    OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-  };
+  const base: Prisma.CommissionRequestWhereInput[] = [
+    { status: CommissionStatus.OPEN },
+    { buyer: { banned: false, deletedAt: null } },
+    { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+  ];
+
+  return extra ? { AND: [extra, ...base] } : { AND: base };
 }
 
 export function commissionIsExpired(request: { status: CommissionStatus; expiresAt: Date | null }) {
