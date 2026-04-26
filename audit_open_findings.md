@@ -302,10 +302,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: EMPLOYEE can hard-remove sensitive records.
 - **Fix spec**: Restrict permanent destructive actions to `ADMIN`; use soft moderation actions for `EMPLOYEE`.
 
-### H27. Admin PIN cookie secret falls back to PIN
+### H27. [FIXED 2026-04-25] Admin PIN cookie secret falls back to PIN
 
 - **File**: `src/lib/adminPin.ts`
-- **Current state**: Confirmed.
+- **Current state**: Fixed. Production cookie signing uses `ADMIN_PIN_COOKIE_SECRET` only; non-production without that env uses an ephemeral per-process fallback. Vercel Production was confirmed to have `ADMIN_PIN_COOKIE_SECRET`.
 - **Impact**: Knowledge of PIN becomes signing-secret knowledge.
 - **Fix spec**: Require `ADMIN_PIN_COOKIE_SECRET` in production. Add env var before deploying the code change.
 
@@ -322,15 +322,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Privacy promises portability/deletion beyond implemented code.
 - **Fix spec**: Add `/api/account/export`; scrub/anonymize message bodies, order shipping PII, maker verification text, listing media, newsletter email, reports, and R2 objects according to retention policy.
 
-### H30. Account deletion does not deauthorize Stripe Connect
+### H30. [FIXED 2026-04-26] Account deletion does not deauthorize Stripe Connect
 
 - **File**: `src/lib/accountDeletion.ts`
+- **Current state**: Fixed. Account deletion now attempts `stripe.accounts.reject(..., { reason: "other" })` before local anonymization/nulling. Stripe failures are captured to Sentry and do not block local deletion.
 - **Impact**: Seller's connected account can remain active after Grainline deletion.
 - **Fix spec**: Call Stripe account reject/deauthorize path before nulling local `stripeAccountId`; log failures to Sentry.
 
-### H31. NewsletterSubscriber retains email after deletion
+### H31. [FIXED 2026-04-26] NewsletterSubscriber retains email after deletion
 
 - **File**: `src/lib/accountDeletion.ts`
+- **Current state**: Fixed. Account deletion deletes the newsletter subscriber row and upserts an `EmailSuppression` record with reason `MANUAL` and source `account_deletion`.
 - **Impact**: GDPR/CCPA deletion gap.
 - **Fix spec**: Delete subscriber row and add `EmailSuppression` with reason `MANUAL_DELETION`.
 

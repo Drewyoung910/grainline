@@ -5124,6 +5124,31 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Resend Webhook Replay + Account Deletion Cleanup (2026-04-26)
+
+This pass closed two contained email/privacy items from the Round 16-18 backlog.
+
+### Fixed in this pass
+- **Resend webhook replay protection**: `/api/resend/webhook` now records verified `svix-id` values in `ResendWebhookEvent`, ignores processed replays, and allows failed attempts to retry instead of double-processing.
+- **Transient Resend failures tracked**: `email.failed` and `email.delivery_delayed` events update `EmailFailureCount`; 3 failures in 30 days suppress the recipient with source `resend_transient_failure`.
+- **Newsletter suppression item verified stale**: `/api/newsletter` already checks `isEmailSuppressed(email)` before reactivating subscribers.
+- **Admin PIN fallback item verified stale**: production admin PIN cookies already require `ADMIN_PIN_COOKIE_SECRET`; only non-production uses an ephemeral fallback.
+- **Account deletion rejects Stripe Connect accounts**: `anonymizeUserAccount()` now attempts `stripe.accounts.reject(..., { reason: "other" })` before local seller anonymization/nulling and captures failures to Sentry.
+- **Account deletion removes newsletter subscriber PII**: deletion now removes the `NewsletterSubscriber` row and keeps only an `EmailSuppression` record with reason `MANUAL` and source `account_deletion`.
+- **Open backlog updated**: `audit_open_findings.md` now marks H24, H25, H27, H30, and H31 as fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+- `npx prisma migrate deploy` ✅ applied `20260426083000_resend_webhook_replay_and_failures`
+
+### Still open / next good passes
+- Account export endpoint and broader GDPR scrubbing.
+- Blog/review deleted-user display snapshots.
+- Refund tax/reverse-transfer accounting and refund idempotency.
+
 ## Audit Fix Pass — Cron Scale Guardrails (2026-04-25)
 
 This pass closed the bounded cron memory and cleanup issues from the Round 16-18 backlog.

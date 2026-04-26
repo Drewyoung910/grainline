@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/db";
+import { stripe } from "@/lib/stripe";
+import { EmailSuppressionReason } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 
 const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
@@ -80,7 +83,35 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
   return blockers;
 }
 
+async function rejectConnectedStripeAccount(stripeAccountId: string, userId: string) {
+  try {
+    await stripe.accounts.reject(stripeAccountId, { reason: "other" });
+    return true;
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "account_delete_stripe_reject" },
+      extra: { userId, stripeAccountId },
+    });
+    return false;
+  }
+}
+
 export async function anonymizeUserAccount(userId: string) {
+  const account = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      deletedAt: true,
+      sellerProfile: { select: { stripeAccountId: true } },
+    },
+  });
+
+  if (!account) return { ok: true, alreadyDeleted: true };
+  if (account.deletedAt) return { ok: true, alreadyDeleted: true };
+
+  if (account.sellerProfile?.stripeAccountId) {
+    await rejectConnectedStripeAccount(account.sellerProfile.stripeAccountId, userId);
+  }
+
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: userId },
@@ -104,9 +135,23 @@ export async function anonymizeUserAccount(userId: string) {
     await tx.block.deleteMany({
       where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
     });
-    await tx.newsletterSubscriber.updateMany({
-      where: { email: user.email },
-      data: { active: false },
+    const suppressionEmail = user.email.trim().toLowerCase();
+    await tx.newsletterSubscriber.deleteMany({
+      where: { email: suppressionEmail },
+    });
+    await tx.emailSuppression.upsert({
+      where: { email: suppressionEmail },
+      create: {
+        email: suppressionEmail,
+        reason: EmailSuppressionReason.MANUAL,
+        source: "account_deletion",
+        details: { userId: user.id },
+      },
+      update: {
+        reason: EmailSuppressionReason.MANUAL,
+        source: "account_deletion",
+        details: { userId: user.id },
+      },
     });
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
