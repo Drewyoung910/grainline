@@ -5122,6 +5122,29 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Notification Dedup + Saved Listing Visibility (2026-04-25)
+
+This pass closed the shared notification dedup gap and one saved-items visibility issue from the later audit backlog.
+
+### Fixed in this pass
+- **Notification dedup is now database-enforced**: `Notification` has a nullable `dedupKey` plus a unique constraint on `(userId, type, dedupKey)`, added by migration `20260426043000_notification_dedup_keys`.
+- **`createNotification()` owns dedup semantics**: the helper computes a daily SHA-256 dedup key from recipient, type, link, title, and body; duplicate insert races return the existing notification instead of throwing or creating duplicates.
+- **Favorites/follows no longer use fuzzy dedup**: removed route-local notification dedup based only on listing link or follower-name substring. Legitimate distinct users are no longer suppressed by imprecise text matching.
+- **Saved listing count/cards share the same visibility filter**: `/account/saved` now hides private, draft/rejected/hidden, unpayable, vacation, banned/deleted-seller, and blocked-seller listings from both total count and card query so saved items do not link to broken or unavailable listings.
+- **Open backlog updated**: `audit_open_findings.md` now marks H8 fixed and notes that `/account/saved` broken-link behavior is closed.
+
+### Verification
+- `npx prisma validate` ✅
+- `npx prisma generate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+
+### Still open / next good passes
+- Apply `20260426043000_notification_dedup_keys` with `npx prisma migrate deploy`.
+- Webhook completed/expired session serialization with a PostgreSQL advisory lock.
+- Duplicate completed webhook email/outbox idempotency.
+- Refund tax/reverse-transfer accounting decision.
+
 ## Audit Fix Pass — Refund Pending Lock Cleanup (2026-04-25)
 
 This pass closed the confirmed refund `"pending"` sentinel leak and made refund locks recoverable. The remaining refund/payment work is still meaningful, but the specific UI leak and permanent-lock class are now addressed.

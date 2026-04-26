@@ -1002,9 +1002,11 @@ model Notification {
   title     String
   body      String
   link      String?
+  dedupKey  String?          @db.VarChar(64)
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
 
+  @@unique([userId, type, dedupKey])
   @@index([userId, read])
   @@index([userId, read, createdAt])
   @@index([userId, createdAt])

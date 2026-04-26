@@ -169,9 +169,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Buyer sees dispute and refund states interleaved.
 - **Fix spec**: Seller refund route must block if an order has an open `OrderPaymentEvent` dispute.
 
-### H8. Notification dedup is incomplete/missing
+### H8. [FIXED 2026-04-25] Notification dedup is incomplete/missing
 
 - **Files**: `src/lib/notifications.ts`, favorites/follow routes.
+- **Current state**: Fixed. `Notification` now has a shared `dedupKey` with a database unique constraint on `(userId, type, dedupKey)`. `createNotification()` computes a daily exact-content key and returns the existing notification on duplicate insert races. Favorites/follow routes no longer use fuzzy text/link-only route dedup that suppressed legitimate distinct users.
 - **Impact**: Duplicate notifications under concurrency; fuzzy dedup can suppress legitimate users.
 - **Fix spec**: Add `dedupKey` or metadata to `Notification`. Dedup by stable sender/action/listing keys, not text/link alone.
 
@@ -363,7 +364,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Stripe onboarding skip/return flow can land sellers at step 4/5 with unclear status. Show explicit Stripe incomplete banner keyed by account status.
 - Cart close/payment modal can orphan Stripe sessions and stock locks. Consider session cancel/release endpoint or clearer lock-expiry messaging.
 - Multi-seller success/receipt views need all seller receipts/items, not just last or first seller.
-- Soft-deleted saved favorites should show "No longer available" instead of broken links, or be hidden with an undo/history design.
+- Soft-deleted saved favorites no longer show broken listing links on `/account/saved`; a richer "No longer available" history section remains optional product polish.
 
 ## Search / SEO / i18n Findings
 

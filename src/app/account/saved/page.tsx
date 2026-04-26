@@ -10,6 +10,8 @@ import ListingCard from "@/components/ListingCard";
 import { ArrowLeft } from "@/components/icons";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
+import { ListingStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = {
   title: "Saved",
@@ -34,9 +36,22 @@ export default async function SavedPage({
   const sp = await searchParams;
   const tab = sp.tab === "posts" ? "posts" : "listings";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
+  const savedListingWhere: Prisma.FavoriteWhereInput = {
+    userId: me.id,
+    listing: {
+      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD, ListingStatus.SOLD_OUT] },
+      isPrivate: false,
+      ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+      seller: {
+        chargesEnabled: true,
+        vacationMode: false,
+        user: { banned: false, deletedAt: null },
+      },
+    },
+  };
 
   const [listingTotal, postTotal] = await Promise.all([
-    prisma.favorite.count({ where: { userId: me.id } }),
+    prisma.favorite.count({ where: savedListingWhere }),
     prisma.savedBlogPost.count({ where: { userId: me.id } }),
   ]);
 
@@ -47,7 +62,7 @@ export default async function SavedPage({
   if (tab === "listings") {
     const totalPages = Math.ceil(listingTotal / PAGE_SIZE);
     const favorites = await prisma.favorite.findMany({
-      where: { userId: me.id, ...(blockedSellerIds.length > 0 ? { listing: { sellerId: { notIn: blockedSellerIds } } } : {}) },
+      where: savedListingWhere,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,

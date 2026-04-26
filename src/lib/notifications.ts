@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NotificationType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
+import { createHash } from "crypto";
 
 const DEFAULT_OFF_EMAIL_KEYS = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
 
@@ -37,6 +38,34 @@ export const VALID_PREFERENCE_KEYS = [
   ...VALID_IN_APP_PREFERENCE_KEYS,
   ...VALID_EMAIL_PREFERENCE_KEYS,
 ] as const;
+
+function notificationDedupKey({
+  userId,
+  type,
+  title,
+  body,
+  link,
+}: {
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link?: string;
+}) {
+  const bucket = new Date().toISOString().slice(0, 10);
+  return createHash("sha256")
+    .update([bucket, userId, type, link ?? "", title, body].join("\u001f"))
+    .digest("hex");
+}
+
+function isNotificationDedupError(error: unknown) {
+  const err = error as { code?: string; meta?: { target?: string[] | string } };
+  if (err.code !== "P2002") return false;
+  const target = err.meta?.target;
+  return Array.isArray(target)
+    ? target.includes("dedupKey")
+    : typeof target === "string" && target.includes("dedupKey");
+}
 
 export async function shouldSendEmail(userId: string, prefKey: string): Promise<boolean> {
   try {
@@ -80,9 +109,20 @@ export async function createNotification({
     const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
     if (prefs[type] === false) return null;
 
-    return await prisma.notification.create({
-      data: { userId, type, title, body, link },
-    });
+    const dedupKey = notificationDedupKey({ userId, type, title, body, link });
+
+    try {
+      return await prisma.notification.create({
+        data: { userId, type, title, body, link, dedupKey },
+      });
+    } catch (error) {
+      if (isNotificationDedupError(error)) {
+        return prisma.notification.findUnique({
+          where: { userId_type_dedupKey: { userId, type, dedupKey } },
+        });
+      }
+      throw error;
+    }
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "create_notification", notificationType: type },
