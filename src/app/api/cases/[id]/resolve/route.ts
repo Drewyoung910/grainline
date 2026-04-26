@@ -2,11 +2,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
+import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/marketplaceRefunds";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { z } from "zod";
@@ -74,6 +74,11 @@ export async function POST(
             },
           },
         },
+        seller: {
+          select: {
+            sellerProfile: { select: { stripeAccountId: true } },
+          },
+        },
       },
     });
     if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
@@ -106,6 +111,8 @@ export async function POST(
     }
 
     let stripeRefundId: string | null = null;
+    let stripeRefundIds: string[] = [];
+    let refundNote: string | null = null;
     const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
     const refundAmountForOrder =
       resolution === "REFUND_FULL"
@@ -133,18 +140,47 @@ export async function POST(
       }
 
       try {
-        const refund = await stripe.refunds.create(
-          resolution === "REFUND_FULL"
-            ? { payment_intent: paymentIntentId, reason: "fraudulent", refund_application_fee: true, reverse_transfer: true }
-            : { payment_intent: paymentIntentId, amount: refundAmountCents!, refund_application_fee: true, reverse_transfer: true },
-          { idempotencyKey: `case-resolve:${id}:${resolution}:${refundAmountForOrder ?? 0}` },
-        );
-        stripeRefundId = refund.id;
+        const refund = await createMarketplaceRefund({
+          paymentIntentId,
+          resolution,
+          amountCents: refundAmountForOrder!,
+          itemsSubtotalCents: caseRecord.order.itemsSubtotalCents,
+          shippingAmountCents: caseRecord.order.shippingAmountCents,
+          taxAmountCents: caseRecord.order.taxAmountCents,
+          canReverseTransfer: Boolean(caseRecord.seller.sellerProfile?.stripeAccountId),
+          idempotencyKeyBase: `case-resolve:${id}:${resolution}:${refundAmountForOrder ?? 0}`,
+          reason: resolution === "REFUND_FULL" ? "fraudulent" : undefined,
+        });
+        stripeRefundId = refund.primaryRefundId;
+        stripeRefundIds = refund.refundIds;
+        refundNote = [
+          stripeRefundIds.length > 1
+            ? `Stripe refunds ${stripeRefundIds.join(", ")}`
+            : `Stripe refund ${stripeRefundId}`,
+          refund.usedPlatformOnly ? "seller Stripe account disconnected; transfer reversal requires manual reconciliation" : null,
+          refund.usedSplitTaxRefund ? "tax refunded separately without seller transfer reversal" : null,
+        ].filter(Boolean).join("; ");
       } catch (stripeErr) {
-        await prisma.order.updateMany({
-          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-          data: { sellerRefundId: null, sellerRefundLockedAt: null },
-        }).catch(() => {});
+        const partialRefundFailure = isStripeRefundPartialFailure(stripeErr) ? stripeErr : null;
+        if (partialRefundFailure?.primaryRefundId) {
+          stripeRefundId = partialRefundFailure.primaryRefundId;
+          stripeRefundIds = partialRefundFailure.refundIds;
+          await prisma.order.updateMany({
+            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+            data: {
+              sellerRefundId: stripeRefundId,
+              sellerRefundAmountCents: refundAmountForOrder,
+              sellerRefundLockedAt: null,
+              reviewNeeded: true,
+              reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} succeeded before a later refund step failed. Manual reconciliation required.`,
+            },
+          }).catch(() => {});
+        } else {
+          await prisma.order.updateMany({
+            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+            data: { sellerRefundId: null, sellerRefundLockedAt: null },
+          }).catch(() => {});
+        }
         throw stripeErr;
       }
     }
@@ -153,6 +189,7 @@ export async function POST(
     const resolutionNote = [
       `Case resolved: ${resolution}`,
       refundAmountCents ? `(refund: $${(refundAmountCents / 100).toFixed(2)})` : null,
+      refundNote,
       `by ${me.name ?? me.email} at ${now.toISOString()}`,
     ]
       .filter(Boolean)
@@ -204,7 +241,7 @@ export async function POST(
         console.error(`ORPHANED REFUND: ${stripeRefundId} for case ${id}. Manual reconciliation required.`);
         Sentry.captureException(txErr, {
           tags: { source: "case_refund_orphaned_after_stripe" },
-          extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, refundAmountForOrder },
+          extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, stripeRefundIds, refundAmountForOrder },
         });
         await prisma.order.updateMany({
           where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
@@ -213,7 +250,7 @@ export async function POST(
             sellerRefundAmountCents: refundAmountForOrder,
             sellerRefundLockedAt: null,
             reviewNeeded: true,
-            reviewNote: `ORPHANED REFUND: Stripe refund ${stripeRefundId} succeeded, but case resolution DB work failed. Manual reconciliation required.`,
+            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} succeeded, but case resolution DB work failed. Manual reconciliation required.`,
           },
         }).catch(() => {});
       } else if (refunding) {

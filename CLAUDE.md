@@ -5151,6 +5151,31 @@ This pass closed two contained email/privacy items from the Round 16-18 backlog.
 - Blog deleted-author public display policy.
 - Refund tax/reverse-transfer accounting and refund idempotency.
 
+## Audit Fix Pass — Account-State + Refund Accounting Sweep (2026-04-26)
+
+This pass closed several high-priority leftovers from the Round 16-18 fix backlog.
+
+### Fixed in this pass
+- **Refund tax accounting now splits tax from seller transfer reversal**: seller and case full refunds use `createMarketplaceRefund()`, reversing item/shipping against the seller transfer and refunding tax separately without `reverse_transfer`.
+- **Refunds survive disconnected sellers**: if the seller profile no longer has a Stripe account, seller/case refunds fall back to a platform-funded refund and write a manual reconciliation note instead of getting stuck on the pending lock.
+- **Partial Stripe refund success is tracked**: multi-step refunds now throw a typed partial-failure error that preserves already-created refund IDs, allowing the order to be marked for manual reconciliation instead of clearing the lock incorrectly.
+- **Transactional email skips inactive accounts**: `src/lib/email.ts` now checks suppression and then skips recipients whose user account is banned or deleted before calling Resend.
+- **Account-state enforcement widened**: blog save/unsave, listing stock mutation, review creation, and shipping quote now use the shared active-user guard. Previously verified guarded routes include notify/follow/refund/notifications/favorites/saved search.
+- **Back-in-stock fan-out is idempotent**: stock restock notifications now claim subscribers with `DELETE ... RETURNING` before sending, preventing duplicate notifications under rapid restock races.
+- **Cart checkout rejects stale prices**: `/api/cart/checkout-seller` compares live variant-adjusted price with the cart snapshot and returns HTTP 409 `PRICE_CHANGED` before Stripe session creation.
+- **Open backlog updated**: `audit_open_findings.md` now marks C13, H3-H5, H9, and H10 fixed, and H6 not reproduced under the current single-refund invariant.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Cron idempotency/run keys and remaining partial-failure isolation.
+- Account export endpoint and broader GDPR message/order/listing PII scrubbing.
+- Remaining admin/dashboard correctness items.
+
 ## Audit Fix Pass — Cron Scale Guardrails (2026-04-25)
 
 This pass closed the bounded cron memory and cleanup issues from the Round 16-18 backlog.

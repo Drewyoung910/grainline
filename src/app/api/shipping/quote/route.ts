@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippoRequest } from "@/lib/shippo";
 import { signRate } from "@/lib/shipping-token";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
@@ -78,9 +80,8 @@ export async function POST(req: Request) {
     const { success: rlOk, reset } = await safeRateLimit(shippingQuoteRatelimit, userId);
     if (!rlOk) return rateLimitResponse(reset, "Too many shipping quote requests.");
 
-    // Resolve DB user for cart ownership check
-    const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-    if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Resolve DB user for cart ownership check and account-state enforcement.
+    const me = await ensureUserByClerkId(userId);
 
     let body;
     try {
@@ -443,6 +444,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ rates: out });
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("POST /api/shipping/quote error:", err);
     // Fail closed: checkout requires a signed rate from this endpoint.
     return NextResponse.json({ rates: [] });

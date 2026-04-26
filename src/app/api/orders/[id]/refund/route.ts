@@ -5,10 +5,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
+import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/marketplaceRefunds";
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
@@ -62,7 +62,7 @@ export async function POST(
     // Verify seller owns this order (has a seller profile with items in it)
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
-      select: { id: true },
+      select: { id: true, stripeAccountId: true },
     });
     if (!seller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
@@ -139,17 +139,20 @@ export async function POST(
     }
 
     let refundId: string | null = null;
+    let refundIds: string[] = [];
     try {
-      // Issue Stripe refund with automatic fee + transfer reversal
-      const refundParams =
-        type === "FULL"
-          ? { payment_intent: order.stripePaymentIntentId, refund_application_fee: true, reverse_transfer: true }
-          : { payment_intent: order.stripePaymentIntentId, amount: amountCents!, refund_application_fee: true, reverse_transfer: true };
-
-      const refund = await stripe.refunds.create(refundParams, {
-        idempotencyKey: `seller-refund:${orderId}:${type}:${refundAmountCents}`,
+      const refund = await createMarketplaceRefund({
+        paymentIntentId: order.stripePaymentIntentId,
+        resolution: type,
+        amountCents: refundAmountCents,
+        itemsSubtotalCents: order.itemsSubtotalCents,
+        shippingAmountCents: order.shippingAmountCents,
+        taxAmountCents: order.taxAmountCents,
+        canReverseTransfer: Boolean(seller.stripeAccountId),
+        idempotencyKeyBase: `seller-refund:${orderId}:${type}:${refundAmountCents}`,
       });
-      refundId = refund.id;
+      refundId = refund.primaryRefundId;
+      refundIds = refund.refundIds;
 
       const stockRestoreOps =
         type === "FULL"
@@ -173,13 +176,22 @@ export async function POST(
       });
 
       const now = new Date();
-      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via Stripe (${refund.id})`;
+      const refundSummary = refundIds.length > 1
+        ? `Stripe refunds ${refundIds.join(", ")}`
+        : `Stripe refund ${refundId}`;
+      const transferNote = refund.usedPlatformOnly
+        ? " Seller Stripe account is disconnected; transfer reversal must be reconciled manually."
+        : "";
+      const taxNote = refund.usedSplitTaxRefund
+        ? " Tax was refunded separately without reversing seller transfer."
+        : "";
+      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}${taxNote}`;
 
       await prisma.$transaction([
         prisma.order.update({
           where: { id: orderId },
           data: {
-            sellerRefundId: refund.id,
+            sellerRefundId: refundId,
             sellerRefundAmountCents: refundAmountCents,
             sellerRefundLockedAt: null,
             reviewNeeded: true,
@@ -196,7 +208,7 @@ export async function POST(
                   status: "RESOLVED",
                   resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
                   refundAmountCents: refundAmountCents,
-                  stripeRefundId: refund.id,
+                  stripeRefundId: refundId,
                   resolvedAt: now,
                   resolvedById: me.id,
                 },
@@ -206,10 +218,15 @@ export async function POST(
         ...stockRestoreOps,
       ]);
     } catch (err) {
+      const partialRefundFailure = isStripeRefundPartialFailure(err) ? err : null;
+      if (partialRefundFailure) {
+        refundId = partialRefundFailure.primaryRefundId;
+        refundIds = partialRefundFailure.refundIds;
+      }
       if (refundId) {
         Sentry.captureException(err, {
           tags: { source: "seller_refund_orphaned_after_stripe" },
-          extra: { orderId, refundId, refundAmountCents },
+          extra: { orderId, refundId, refundIds, refundAmountCents },
         });
         await prisma.order.updateMany({
           where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
@@ -218,7 +235,7 @@ export async function POST(
             sellerRefundAmountCents: refundAmountCents,
             sellerRefundLockedAt: null,
             reviewNeeded: true,
-            reviewNote: `ORPHANED REFUND: Stripe refund ${refundId} succeeded, but follow-up DB work failed. Manual reconciliation required.`,
+            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} succeeded, but follow-up DB work failed. Manual reconciliation required.`,
           },
         }).catch(() => {});
       } else {
@@ -262,6 +279,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       refundId: refundId!,
+      refundIds,
       refundAmountCents,
     });
   } catch (err) {

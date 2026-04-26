@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { blogSaveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 async function getPost(slug: string) {
@@ -9,12 +11,7 @@ async function getPost(slug: string) {
 }
 
 async function getMe(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
-  if (!user || user.banned || user.deletedAt) return null;
-  return { id: user.id };
+  return ensureUserByClerkId(userId);
 }
 
 // GET — check if saved
@@ -26,7 +23,16 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ saved: false });
 
-  const [me, post] = await Promise.all([getMe(userId), getPost(slug)]);
+  let me: Awaited<ReturnType<typeof getMe>>;
+  try {
+    me = await getMe(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return NextResponse.json({ saved: false });
+    throw err;
+  }
+
+  const post = await getPost(slug);
   if (!me || !post) return NextResponse.json({ saved: false });
 
   const existing = await prisma.savedBlogPost.findUnique({
@@ -48,8 +54,17 @@ export async function POST(
   const { success: rlOk, reset } = await safeRateLimit(blogSaveRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
 
-  const [me, post] = await Promise.all([getMe(userId), getPost(slug)]);
-  if (!me || !post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  let me: Awaited<ReturnType<typeof getMe>>;
+  try {
+    me = await getMe(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
+
+  const post = await getPost(slug);
+  if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.savedBlogPost.upsert({
     where: { userId_blogPostId: { userId: me.id, blogPostId: post.id } },
@@ -71,8 +86,17 @@ export async function DELETE(
   const { success: rlOk, reset } = await safeRateLimit(blogSaveRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
 
-  const [me, post] = await Promise.all([getMe(userId), getPost(slug)]);
-  if (!me || !post) return NextResponse.json({ saved: false });
+  let me: Awaited<ReturnType<typeof getMe>>;
+  try {
+    me = await getMe(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
+
+  const post = await getPost(slug);
+  if (!post) return NextResponse.json({ saved: false });
 
   await prisma.savedBlogPost.deleteMany({
     where: { userId: me.id, blogPostId: post.id },

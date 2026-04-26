@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-04-25
+Last updated: 2026-04-26
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-18 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -119,9 +119,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Stock status can flip incorrectly under completed/expired/refund interleavings.
 - **Fix spec**: Replace `findUnique` then `update` with one guarded SQL update: `UPDATE Listing SET status='SOLD_OUT' WHERE id=$id AND stockQuantity <= 0 AND status='ACTIVE'`.
 
-### C13. Tax refund accounting can make platform absorb seller tax
+### C13. [FIXED 2026-04-26] Tax refund accounting can make platform absorb seller tax
 
 - **Files**: `src/app/api/orders/[id]/refund/route.ts`, `src/app/api/cases/[id]/resolve/route.ts`
+- **Current state**: Fixed. Full marketplace refunds now split item/shipping reversal from tax refunding when seller transfer reversal is available. The tax portion is refunded without `reverse_transfer`, and disconnected sellers use a platform-funded refund path with a manual reconciliation note.
 - **Impact**: Full refund includes tax while seller transfer excluded tax; with `reverse_transfer:true`, platform may absorb tax refund incorrectly.
 - **Fix spec**: Split item/shipping refund from tax refund, or define all refunds as platform-originated and reconcile seller balance separately. Requires Stripe accounting decision.
 
@@ -141,27 +142,31 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Banned seller can mutate listing photos.
 - **Fix spec**: Use `ensureSeller()` or join through seller user with `banned:false`, `deletedAt:null`.
 
-### H3. More mutation routes need account-state enforcement
+### H3. [FIXED 2026-04-26] More mutation routes need account-state enforcement
 
 - **Files**: listing notify, follow, refund caller, notifications poll/read, blog save, favorites, saved/search variants.
+- **Current state**: Fixed for the listed mutation surfaces. Existing guards were verified on notify/follow/refund/notifications/favorites/saved search; blog save, listing stock, review creation, and shipping quote now use the shared active-user guard and return typed suspended/deleted responses where appropriate.
 - **Impact**: Suspended/deleted users can still perform or observe certain actions.
 - **Fix spec**: Standardize a route wrapper or helper: `requireActiveUserFromClerk()` returning `{ user, response }`.
 
-### H4. Transactional emails can still send to banned/deleted users
+### H4. [FIXED 2026-04-26] Transactional emails can still send to banned/deleted users
 
 - **File**: `src/lib/email.ts`
+- **Current state**: Fixed. The shared `send()` helper checks `EmailSuppression` and then skips recipients whose `User` row is banned or deleted before calling Resend.
 - **Impact**: Suspended users can keep receiving operational mail.
 - **Fix spec**: In the shared email send helper, check recipient email against `User.banned/deletedAt` and `EmailSuppression`.
 
-### H5. Refund routes do not handle deauthorized Stripe accounts
+### H5. [FIXED 2026-04-26] Refund routes do not handle deauthorized Stripe accounts
 
 - **Files**: seller refund and case resolve routes.
+- **Current state**: Fixed. Seller and case refunds now check the seller profile's Stripe account before choosing refund parameters; if the account is unavailable, the refund is issued without transfer reversal and the order is marked for manual reconciliation.
 - **Impact**: `reverse_transfer` can fail after Connect deauthorization and leave refund locks.
 - **Fix spec**: Pre-check seller Stripe account state. If unavailable, use platform refund/manual reconciliation path and clear lock on failures.
 
-### H6. Seller refund idempotency key collides on identical partial refunds
+### H6. [NOT REPRODUCED 2026-04-26] Seller refund idempotency key collides on identical partial refunds
 
 - **File**: `src/app/api/orders/[id]/refund/route.ts`
+- **Current state**: Not reproduced in the current model. Orders allow only one seller/case refund because `sellerRefundId` blocks any later refund after success or while locked. Deterministic Stripe idempotency keys remain appropriate for retry safety under the current single-refund invariant.
 - **Impact**: Same partial amount within Stripe idempotency window can return prior refund.
 - **Fix spec**: Add `refundAttemptCount` or `SellerRefundAttempt` table; include attempt ID in idempotency key.
 
@@ -179,15 +184,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Duplicate notifications under concurrency; fuzzy dedup can suppress legitimate users.
 - **Fix spec**: Add `dedupKey` or metadata to `Notification`. Dedup by stable sender/action/listing keys, not text/link alone.
 
-### H9. Back-in-stock notification idempotency gap
+### H9. [FIXED 2026-04-26] Back-in-stock notification idempotency gap
 
 - **File**: `src/app/api/listings/[id]/stock/route.ts`
+- **Current state**: Fixed. Restock fan-out now claims subscribers with one `DELETE ... RETURNING "userId"` statement before sending, so racing restock jobs cannot notify the same subscription twice.
 - **Impact**: Fast 0->1->0->1 updates can double notify.
 - **Fix spec**: Add a stock notification sent marker or transactionally delete subscribed rows before sending through outbox.
 
-### H10. Checkout uses stale cart prices
+### H10. [FIXED 2026-04-26] Checkout uses stale cart prices
 
 - **File**: `src/app/api/cart/checkout-seller/route.ts`
+- **Current state**: Fixed. Checkout now compares the live listing + variant price against `CartItem.priceCents` and returns HTTP 409 with `code: "PRICE_CHANGED"` plus old/new prices before creating a Stripe session.
 - **Impact**: Seller edits price after cart add; buyer pays old snapshot.
 - **Fix spec**: Compare live listing variant-adjusted price with `CartItem.priceCents`; return 409 `price_changed` and require buyer confirmation/update.
 

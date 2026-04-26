@@ -231,6 +231,19 @@ export async function POST(req: Request) {
       }
 
       const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
+      if (unitPriceCents !== item.priceCents) {
+        return NextResponse.json(
+          {
+            error: "Price changed since this item was added to your cart. Review your cart before checking out.",
+            code: "PRICE_CHANGED",
+            cartItemId: item.id,
+            listingId: item.listingId,
+            oldPriceCents: item.priceCents,
+            newPriceCents: unitPriceCents,
+          },
+          { status: 409 },
+        );
+      }
       if (unitPriceCents < 1) {
         return NextResponse.json(
           { error: `"${item.listing.title}" has an invalid variant price.` },

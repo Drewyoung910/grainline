@@ -2,8 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendNewReviewEmail } from "@/lib/email";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText } from "@/lib/sanitize";
@@ -52,9 +54,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Who am I?
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   // Prevent reviewing own listing
   const listingForOwnerCheck = await prisma.listing.findUnique({

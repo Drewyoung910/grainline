@@ -2,6 +2,7 @@
 import { Resend } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 
@@ -165,6 +166,14 @@ async function send(to: string, subject: string, html: string) {
   try {
     if (await isEmailSuppressed(recipient)) {
       console.warn("[email] suppressed recipient skipped", { to: recipient, subject: sanitizedSubject });
+      return;
+    }
+    const account = await prisma.user.findUnique({
+      where: { email: recipient },
+      select: { banned: true, deletedAt: true },
+    });
+    if (account?.banned || account?.deletedAt) {
+      console.warn("[email] inactive recipient skipped", { to: recipient, subject: sanitizedSubject });
       return;
     }
 

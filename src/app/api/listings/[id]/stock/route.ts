@@ -3,8 +3,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { sendBackInStock } from "@/lib/email";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -46,6 +48,7 @@ export async function PATCH(
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { success, reset } = await safeRateLimit(listingMutationRatelimit, userId);
     if (!success) return rateLimitResponse(reset, "Too many listing updates.");
+    const me = await ensureUserByClerkId(userId);
 
     let stockParsed;
     try {
@@ -60,7 +63,7 @@ export async function PATCH(
 
     // Ownership check
     const listing = await prisma.listing.findFirst({
-      where: { id, seller: { user: { clerkId: userId } } },
+      where: { id, seller: { userId: me.id } },
       select: { id: true, listingType: true, status: true, isPrivate: true, seller: { select: { id: true, userId: true } } },
     });
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -112,35 +115,40 @@ export async function PATCH(
     if (listing.status === "SOLD_OUT" && newStatus === "ACTIVE") {
       after(async () => {
         try {
-          const subscribers = await prisma.stockNotification.findMany({
-            where: { listingId: id },
-            select: { userId: true, user: { select: { name: true, email: true, banned: true, deletedAt: true } } },
+          const claimedSubscribers = await prisma.$queryRaw<{ userId: string }[]>`
+            DELETE FROM "StockNotification"
+            WHERE "listingId" = ${id}
+            RETURNING "userId"
+          `;
+          if (claimedSubscribers.length === 0) return;
+
+          const activeSubscribers = await prisma.user.findMany({
+            where: {
+              id: { in: claimedSubscribers.map((sub) => sub.userId) },
+              banned: false,
+              deletedAt: null,
+            },
+            select: { id: true, name: true, email: true },
           });
-          const activeSubscribers = subscribers.filter((sub) => !sub.user?.banned && !sub.user?.deletedAt);
           const batchSize = 50;
           for (let i = 0; i < activeSubscribers.length; i += batchSize) {
             const batch = activeSubscribers.slice(i, i + batchSize);
             await Promise.allSettled(batch.map(async (sub) => {
               await createNotification({
-                userId: sub.userId,
+                userId: sub.id,
                 type: "BACK_IN_STOCK",
                 title: `${updated.title} is back in stock!`,
                 body: "The piece you saved is available again",
                 link: `/listing/${id}`,
               });
-              if (sub.user?.email) {
+              if (sub.email) {
                 await sendBackInStock({
-                  buyer: { name: sub.user.name, email: sub.user.email },
+                  buyer: { name: sub.name, email: sub.email },
                   listingTitle: updated.title,
                   listingId: id,
                 });
               }
             }));
-          }
-          if (subscribers.length > 0) {
-            await prisma.stockNotification.deleteMany({
-              where: { listingId: id, userId: { in: subscribers.map((sub) => sub.userId) } },
-            });
           }
         } catch { /* non-fatal */ }
       });
@@ -148,6 +156,9 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+
     console.error("PATCH /api/listings/[id]/stock error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
