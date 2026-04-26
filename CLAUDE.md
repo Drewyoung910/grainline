@@ -4825,6 +4825,8 @@ This pass continued the email infrastructure items from the Rounds 1-8 audit. Sa
 - **Email suppression table added**: `EmailSuppression` stores normalized recipient emails that should no longer receive Grainline mail, with `BOUNCE`, `COMPLAINT`, or `MANUAL` reasons plus source/event metadata.
 - **Resend webhook endpoint added**: `/api/resend/webhook` verifies Resend/Svix webhook signatures against the raw request body using `RESEND_WEBHOOK_SECRET`.
 - **Bounce/complaint handling implemented**: `email.bounced`, `email.complained`, and `email.suppressed` events suppress all recipient addresses from that event.
+- **Webhook replay protection implemented**: `ResendWebhookEvent` records every verified `svix-id`; processed events are ignored on replay, while stale failed attempts can retry after 5 minutes.
+- **Transient delivery failures tracked**: `email.failed` and `email.delivery_delayed` increment `EmailFailureCount`; 3 failures in 30 days suppress the recipient with source `resend_transient_failure`.
 - **Newsletter state synchronized**: suppressed emails are also marked inactive in `NewsletterSubscriber`, preventing later newsletter sends to bad/complaining addresses.
 - **Outbound sends respect suppressions**: the shared transactional email sender skips suppressed recipients before calling Resend.
 - **Admin direct emails respect suppressions**: `/api/admin/email` refuses to send to suppressed recipients and returns a clear 409 instead of attempting delivery.
@@ -4833,7 +4835,7 @@ This pass continued the email infrastructure items from the Rounds 1-8 audit. Sa
 
 ### Operational step
 - In Resend, create a webhook for `https://thegrainline.com/api/resend/webhook`.
-- Subscribe it to `email.bounced`, `email.complained`, and `email.suppressed`.
+- Subscribe it to `email.bounced`, `email.complained`, `email.suppressed`, `email.failed`, and `email.delivery_delayed`.
 - Add the webhook signing secret to Vercel as `RESEND_WEBHOOK_SECRET`.
 
 ### Verification

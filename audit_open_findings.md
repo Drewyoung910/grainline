@@ -281,15 +281,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: stack/path leakage in JSON responses; one record failure can stop batch.
 - **Fix spec**: Capture full details to Sentry, return counts/codes only, isolate per-record failures.
 
-### H24. Resend webhook gaps
+### H24. [FIXED 2026-04-26] Resend webhook gaps
 
 - **Files**: `src/app/api/resend/webhook/route.ts`
+- **Current state**: Fixed. Verified Resend webhooks now reserve/dedupe `svix-id` values in `ResendWebhookEvent`; processed replays return duplicate success. `email.failed` and `email.delivery_delayed` are tracked in `EmailFailureCount`, and 3 failures in 30 days suppress the recipient with source `resend_transient_failure`.
 - **Impact**: `email.failed` and `email.delivery_delayed` ignored; webhook replay not deduped.
 - **Fix spec**: Add `ResendWebhookEvent` table keyed by `svix-id`; track transient failures and suppress after threshold.
 
-### H25. Newsletter signup skips suppression check
+### H25. [FIXED 2026-04-26] Newsletter signup skips suppression check
 
 - **File**: `src/app/api/newsletter/route.ts`
+- **Current state**: Fixed. The route checks `isEmailSuppressed(email)` before upserting `NewsletterSubscriber` and returns a suppressed response.
 - **Impact**: Suppressed users can resubscribe only to be skipped later.
 - **Fix spec**: Check `EmailSuppression` before create/update; return clear suppressed state.
 
