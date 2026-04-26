@@ -31,10 +31,12 @@ export default async function FlaggedOrdersPage({
       include: {
         buyer: { select: { name: true, email: true } },
         items: {
-          take: 1,
           include: {
             listing: {
-              select: { seller: { select: { displayName: true } } },
+              select: {
+                title: true,
+                seller: { select: { id: true, displayName: true } },
+              },
             },
           },
         },
@@ -79,7 +81,19 @@ export default async function FlaggedOrdersPage({
                     (order.itemsSubtotalCents ?? 0) +
                     (order.shippingAmountCents ?? 0) +
                     (order.taxAmountCents ?? 0);
-                  const seller = order.items[0]?.listing.seller.displayName ?? "—";
+                  const sellers = Array.from(
+                    new Map(
+                      order.items.map((item) => [
+                        item.listing.seller.id,
+                        item.listing.seller.displayName ?? "Unnamed seller",
+                      ]),
+                    ).values(),
+                  );
+                  const itemSummary = order.items
+                    .slice(0, 3)
+                    .map((item) => `${item.quantity}× ${item.listing.title}`)
+                    .join(", ");
+                  const remainingItems = Math.max(0, order.items.length - 3);
                   const buyer = order.buyer?.name ?? order.buyer?.email ?? "Deleted user";
                   return (
                     <tr key={order.id} className="hover:bg-neutral-50">
@@ -92,7 +106,13 @@ export default async function FlaggedOrdersPage({
                           <div className="text-xs text-neutral-400">{order.buyerEmail}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-neutral-700">{seller}</td>
+                      <td className="px-4 py-3 text-neutral-700">
+                        <div className="font-medium">{sellers.length > 0 ? sellers.join(", ") : "—"}</div>
+                        <div className="mt-0.5 max-w-xs text-xs text-neutral-400">
+                          {itemSummary}
+                          {remainingItems > 0 ? `, +${remainingItems} more` : ""}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium">
                         {fmtMoney(total, order.currency)}
                       </td>

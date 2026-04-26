@@ -366,10 +366,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## Admin / Dashboard Findings
 
-- `approveGuildMember` silently no-ops when recomputed eligibility is false. Return an inline error explaining which criterion failed.
+- `approveGuildMember` silently no-ops when recomputed eligibility is false. **Current state: Fixed.** Approval now uses a stateful form, reports unmet listing/account-age/case/sales criteria inline, and excludes externally refunded orders via `chargeRefundId`.
 - [FIXED 2026-04-26] `appendNote` and `markReviewed` now return `{ ok:false, error }` state through a client action form instead of crashing the admin order page.
 - `updateSellerProfile` throws raw `Display name is required`. Convert to inline form error.
-- `/admin/orders` and `/admin/flagged` show only `items[0]` seller. Render all seller names/items for multi-seller orders.
+- `/admin/orders` and `/admin/flagged` show only `items[0]` seller. **Current state: Fixed.** Admin order tables now load all order items and render all distinct sellers plus item summaries.
 - [FIXED 2026-04-26] `VacationModeForm` now surfaces save errors and `Retry-After` rate-limit failures inline.
 - [FIXED 2026-04-26] `/admin/audit` has an action filter and hides Undo behind explicit undoability instead of showing an expired-looking control for non-undoable actions.
 - [FIXED 2026-04-26] Non-undoable moderation actions now render as "Not undoable"; admin undo API is also rate-limited.
@@ -411,7 +411,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Zero real test suite remains. Start with payment/webhook/refund/account-state route tests.
 - `tsconfig` target ES2017 may increase bundle size. Evaluate ES2022 target with Next/browser support.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
-- Sentry `beforeSend` filtering is missing. Add noise filtering and PII scrubbing.
+- Sentry `beforeSend` filtering is missing. **Current state: Fixed.** Shared server/edge/client filter drops common browser/network noise and redacts cookies, auth headers, token query params, user email/IP, and email-like strings.
 - Vercel/Resend/Stripe deploy checklist needs explicit webhook registration validation.
 
 ## Medium / Low Findings To Batch Later

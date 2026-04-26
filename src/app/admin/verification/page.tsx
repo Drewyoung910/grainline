@@ -13,6 +13,9 @@ import {
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 import { logAdminAction } from "@/lib/audit";
+import ActionForm, { SubmitButton } from "@/components/ActionForm";
+
+type ActionState = { ok: boolean; error?: string };
 
 // ── Shared auth helper ──────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -29,7 +32,7 @@ async function requireAdmin() {
 }
 
 // ── Guild Member actions ────────────────────────────────────────────────────
-async function approveGuildMember(formData: FormData) {
+async function approveGuildMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
   const me = await requireAdmin();
   const verificationId = String(formData.get("verificationId") ?? "");
@@ -45,8 +48,8 @@ async function approveGuildMember(formData: FormData) {
       },
     },
   });
-  if (!verification) return;
-  if (verification.status !== "PENDING") return;
+  if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
+  if (verification.status !== "PENDING") return { ok: false, error: "Application is no longer pending. Refresh this page." };
 
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   const [activeListings, salesRows, longCaseCount] = await Promise.all([
@@ -61,6 +64,7 @@ async function approveGuildMember(formData: FormData) {
       WHERE l."sellerId" = ${verification.sellerProfileId}
         AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
         AND o."sellerRefundId" IS NULL
+        AND o."chargeRefundId" IS NULL
     `,
     prisma.case.count({
       where: {
@@ -74,7 +78,16 @@ async function approveGuildMember(formData: FormData) {
   const accountAgeDays = Math.floor(
     (Date.now() - new Date(verification.sellerProfile.user.createdAt).getTime()) / (1000 * 60 * 60 * 24),
   );
-  if (activeListings < 5 || accountAgeDays < 30 || longCaseCount > 0 || (!adminOverride && totalSalesCents < 25_000)) {
+  const unmetRequirements = [
+    activeListings < 5 ? `${activeListings}/5 active public listings` : null,
+    accountAgeDays < 30 ? `${accountAgeDays}/30 account age days` : null,
+    longCaseCount > 0 ? `${longCaseCount} unresolved case${longCaseCount === 1 ? "" : "s"} older than 60 days` : null,
+    !adminOverride && totalSalesCents < 25_000
+      ? `${(totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}/$250 completed non-refunded sales`
+      : null,
+  ].filter(Boolean);
+
+  if (unmetRequirements.length > 0) {
     await logAdminAction({
       adminId: me.id,
       action: "APPROVE_GUILD_MEMBER_BLOCKED",
@@ -83,7 +96,10 @@ async function approveGuildMember(formData: FormData) {
       reason: "Server-side eligibility check failed",
       metadata: { activeListings, totalSalesCents, accountAgeDays, longCaseCount, adminOverride },
     });
-    return;
+    return {
+      ok: false,
+      error: `Approval blocked: ${unmetRequirements.join("; ")}.`,
+    };
   }
 
   const approvedAt = new Date();
@@ -110,7 +126,7 @@ async function approveGuildMember(formData: FormData) {
     });
     return true;
   });
-  if (!approved) return;
+  if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
 
   await createNotification({
     userId: verification.sellerProfile.userId,
@@ -135,6 +151,7 @@ async function approveGuildMember(formData: FormData) {
   await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId });
 
   revalidatePath("/admin/verification");
+  return { ok: true };
 }
 
 async function rejectGuildMember(formData: FormData) {
@@ -657,7 +674,7 @@ export default async function AdminVerificationPage() {
                 </div>
 
                 <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
-                  <form action={approveGuildMember} className="flex flex-col gap-2">
+                  <ActionForm action={approveGuildMember} className="flex flex-col gap-2">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <div className="flex items-center gap-2 text-xs text-neutral-600">
                       <input
@@ -671,10 +688,10 @@ export default async function AdminVerificationPage() {
                         <span className="text-neutral-400">(for trusted early sellers you know personally)</span>
                       </label>
                     </div>
-                    <button type="submit" className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 self-start">
+                    <SubmitButton className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60 self-start">
                       Approve Guild Member
-                    </button>
-                  </form>
+                    </SubmitButton>
+                  </ActionForm>
                   <form action={rejectGuildMember} className="flex items-start gap-2 flex-wrap">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <input
