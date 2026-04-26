@@ -246,21 +246,24 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Seller can mark shipped/picked-up while buyer opens case concurrently.
 - **Fix spec**: Move case absence condition into the atomic update predicate.
 
-### H19. Quality-score cron loads all active listings
+### H19. [FIXED 2026-04-25] Quality-score cron loads all active listings
 
 - **File**: `src/lib/quality-score.ts`
+- **Current state**: Fixed. Active listings are now cursor-paginated by listing ID and scored/updated one batch at a time.
 - **Impact**: OOM risk at scale.
 - **Fix spec**: Cursor paginate active listings in batches of 500 and process batch-by-batch.
 
-### H20. Guild metrics cron loads all Guild sellers
+### H20. [FIXED 2026-04-25] Guild metrics cron loads all Guild sellers
 
 - **File**: `src/app/api/cron/guild-metrics/route.ts`
+- **Current state**: Fixed. Guild sellers are now cursor-paginated in pages of 50 and processed with bounded concurrency of 5.
 - **Impact**: OOM/maxDuration risk.
 - **Fix spec**: Cursor paginate sellers in batches of 50 and limit inner concurrency to 3.
 
-### H21. Large deleteMany cron operations are unbounded
+### H21. [PARTIAL 2026-04-25] Large deleteMany cron operations are unbounded
 
 - **Files**: notification prune, `ListingViewDaily` cleanup.
+- **Current state**: `ListingViewDaily` cleanup is fixed in `guild-metrics` with 1,000-row SQL chunks. Notification prune still needs chunking.
 - **Impact**: Long table locks at large row counts.
 - **Fix spec**: Delete in SQL chunks of 1,000-5,000 rows per loop with max execution budget.
 
@@ -270,9 +273,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Vercel retry can double-warn/double-revoke/double-notify.
 - **Fix spec**: Add `CronRun` table and deterministic per-job time-bucket run ID.
 
-### H23. Cron failures leak internals and stop batches
+### H23. [PARTIAL 2026-04-25] Cron failures leak internals and stop batches
 
 - **Files**: guild cron routes and other sequential cron loops.
+- **Current state**: `guild-metrics` now isolates per-seller failures, captures full errors to Sentry, and returns sanitized error codes. Other cron routes still need the same sweep.
 - **Impact**: stack/path leakage in JSON responses; one record failure can stop batch.
 - **Fix spec**: Capture full details to Sentry, return counts/codes only, isolate per-record failures.
 

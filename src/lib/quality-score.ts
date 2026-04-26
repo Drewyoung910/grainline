@@ -115,8 +115,12 @@ async function computeGlobalMeans(): Promise<GlobalMeans> {
   return { avgConversion, avgCtr, avgRating };
 }
 
-async function fetchAllActiveListings(): Promise<ListingRow[]> {
-  return prisma.$queryRaw<ListingRow[]>`
+async function fetchActiveListingBatch(cursorId: string | null): Promise<ListingRow[]> {
+  const cursorPredicate = cursorId
+    ? Prisma.sql`AND l.id > ${cursorId}`
+    : Prisma.empty;
+
+  return prisma.$queryRaw<ListingRow[]>(Prisma.sql`
     SELECT
       l.id,
       l."sellerId",
@@ -164,7 +168,10 @@ async function fetchAllActiveListings(): Promise<ListingRow[]> {
       AND sp."vacationMode" = false
       AND u.banned = false
       AND u."deletedAt" IS NULL
-  `;
+      ${cursorPredicate}
+    ORDER BY l.id ASC
+    LIMIT ${BATCH_SIZE}
+  `);
 }
 
 function scoreRow(row: ListingRow, globals: GlobalMeans, now: number): number {
@@ -252,31 +259,31 @@ export async function recalculateAllQualityScores(): Promise<{
   zeroed: number;
 }> {
   const globals = await computeGlobalMeans();
-  const rows = await fetchAllActiveListings();
   const now = Date.now();
-
-  // Score all active non-private listings
-  const updates: { id: string; score: number }[] = rows.map((row) => ({
-    id: row.id,
-    score: scoreRow(row, globals, now),
-  }));
-
-  // Batch update active listings
   let updated = 0;
-  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-    const batch = updates.slice(i, i + BATCH_SIZE);
-    if (batch.length > 0) {
-      const values = Prisma.join(
-        batch.map((u) => Prisma.sql`(${u.id}, ${u.score})`),
-      );
-      await prisma.$executeRaw`
-        UPDATE "Listing" AS l
-        SET "qualityScore" = v.score::double precision
-        FROM (VALUES ${values}) AS v(id, score)
-        WHERE l.id = v.id::text
-      `;
+
+  // Score active listings in cursor pages so the cron does not hold the full
+  // Listing table in memory at marketplace scale.
+  let cursorId: string | null = null;
+  while (true) {
+    const rows = await fetchActiveListingBatch(cursorId);
+    if (rows.length === 0) break;
+
+    const values = Prisma.join(
+      rows.map((row) => Prisma.sql`(${row.id}, ${scoreRow(row, globals, now)})`),
+    );
+    await prisma.$executeRaw`
+      UPDATE "Listing" AS l
+      SET "qualityScore" = v.score::double precision
+      FROM (VALUES ${values}) AS v(id, score)
+      WHERE l.id = v.id::text
+    `;
+
+    updated += rows.length;
+    cursorId = rows[rows.length - 1]?.id ?? null;
+    if (rows.length < BATCH_SIZE) {
+      break;
     }
-    updated += batch.length;
   }
 
   // Zero out inactive/private listings

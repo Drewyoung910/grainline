@@ -5122,6 +5122,28 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Cron Scale Guardrails (2026-04-25)
+
+This pass closed the bounded cron memory and cleanup issues from the Round 16-18 backlog.
+
+### Fixed in this pass
+- **Quality-score cron no longer loads every active listing at once**: `src/lib/quality-score.ts` now cursor-paginates active, visible listings by listing ID and updates each score batch immediately.
+- **Guild metrics cron no longer loads every Guild seller at once**: `/api/cron/guild-metrics` now cursor-paginates seller profiles in pages of 50 and processes only 5 sellers concurrently.
+- **Guild metrics per-seller failures are isolated**: one seller metric failure no longer stops the cron page; full details go to Sentry and the JSON response returns sanitized error codes only.
+- **ListingViewDaily cleanup is chunked**: old analytics rows are deleted in 1,000-row SQL chunks instead of one unbounded `deleteMany`.
+- **Open backlog updated**: `audit_open_findings.md` now marks H19 and H20 fixed, and H21/H23 partially fixed for the `guild-metrics` surface.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Notification prune still needs chunked deletion.
+- Cron idempotency run keys are still open across cron routes.
+- Refund tax/reverse-transfer accounting decision.
+
 ## Audit Fix Pass — Notification Dedup + Saved Listing Visibility (2026-04-25)
 
 This pass closed the shared notification dedup gap and one saved-items visibility issue from the later audit backlog.
