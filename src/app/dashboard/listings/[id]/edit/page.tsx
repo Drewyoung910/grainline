@@ -13,6 +13,7 @@ import ListingTypeFields from "@/components/ListingTypeFields";
 import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { deleteR2ObjectByUrl } from "@/lib/r2";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -371,12 +372,15 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
-    select: { listing: { select: { status: true, isPrivate: true } } },
+    select: { url: true, listing: { select: { status: true, isPrivate: true } } },
   });
   if (!ok) return;
   if (ok.listing.status === "HIDDEN" && ok.listing.isPrivate) return;
 
   await prisma.photo.delete({ where: { id: photoId } });
+  await deleteR2ObjectByUrl(ok.url).catch((error) => {
+    console.error("[listing photo delete] R2 delete failed:", error);
+  });
 
   // Re-trigger AI review if listing is ACTIVE (image removed)
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
@@ -667,6 +671,5 @@ export default async function EditListingPage(props: {
     </main>
   );
 }
-
 
 

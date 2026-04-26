@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { sanitizeText } from "@/lib/sanitize";
 import { ListingStatus } from "@prisma/client";
 import { z } from "zod";
 
@@ -152,7 +153,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     for (const p of newPhotos) {
       const alt = await generateAltText(p.url);
       if (alt) {
-        await prisma.photo.update({ where: { id: p.id }, data: { altText: alt } });
+        const altText = sanitizeText(alt).slice(0, 200);
+        if (altText) {
+          await prisma.photo.update({ where: { id: p.id }, data: { altText } });
+        }
       }
     }
   } catch { /* non-fatal */ }

@@ -141,15 +141,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Full refund includes tax while seller transfer excluded tax; with `reverse_transfer:true`, platform may absorb tax refund incorrectly.
 - **Fix spec**: Split item/shipping refund from tax refund, or define all refunds as platform-originated and reconcile seller balance separately. Requires Stripe accounting decision.
 
-### C14. Stripe platform fee accounting/doc mismatch
+### C14. [FIXED 2026-04-26] Stripe platform fee accounting/doc mismatch
 
 - **Files**: `src/app/api/cart/checkout-seller/route.ts`, `src/app/api/cart/checkout/single/route.ts`, `CLAUDE.md`
+- **Current state**: Fixed by aligning code and docs on explicit `transfer_data.amount`. Embedded checkout routes retain platform fee/tax by transferring `itemsSubtotal + shipping + giftWrap - platformFee`; `application_fee_amount` is documented as not currently used.
 - **Impact**: Docs say `application_fee_amount` is used, but checkout currently relies on manual `transfer_data.amount` math. Stripe reporting and refund/reversal accounting can diverge from the documented marketplace model.
 - **Fix spec**: Decide the canonical Stripe Connect pattern and align code/docs. Recommended audit spec: set `application_fee_amount` explicitly in checkout session payment intent data and avoid manual platform-fee subtraction where Stripe can account for the fee directly.
 
-### C15. Seller effective fee contradicts stated platform-fee policy
+### C15. [FIXED 2026-04-26] Seller effective fee contradicts stated platform-fee policy
 
 - **Files**: `src/app/api/cart/checkout-seller/route.ts`, `src/app/api/cart/checkout/single/route.ts`, Terms/fee docs, `CLAUDE.md`
+- **Current state**: Fixed in code and docs. Checkout transfer math no longer subtracts estimated Stripe processing fees from seller payouts; platform absorbs processing fees from the 5% platform fee.
 - **Impact**: Code subtracts estimated Stripe processing fees from seller transfers, while docs state the platform absorbs Stripe processing fees from the 5% platform fee. Sellers may be paying an undisclosed ~7.9% effective rate. This is financial/product/legal risk.
 - **Fix spec**: Pick one policy and make it consistent:
   - Preferred code fix: remove the estimated Stripe fee deduction from seller transfer math so the platform absorbs Stripe processing fees as documented.
@@ -414,21 +416,24 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Personal data remains visible to counterparties.
 - **Fix spec**: Define retention rules. Scrub old fulfilled order shipping details, deleted user's sent messages, R2 attachments, listing descriptions/photos, verification notes.
 
-### H35. Signed shipping rate token is not buyer-bound
+### H35. [FIXED 2026-04-26] Signed shipping rate token is not buyer-bound
 
 - **File**: `src/lib/shipping-token.ts`
+- **Current state**: Fixed. Signed rate HMAC input now includes the authenticated buyer ID, and checkout verification supplies the current buyer ID.
 - **Impact**: A signed shipping rate can be replayed by a different buyer for the same object/postal combination during the token TTL.
 - **Fix spec**: Add `buyerId` to signed rate fields and canonical HMAC input. Quote routes should sign with the authenticated buyer ID; checkout routes should verify the token buyer matches the current buyer.
 
-### H36. Shipping quote route accepts mismatched cart and seller IDs
+### H36. [FIXED 2026-04-26] Shipping quote route accepts mismatched cart and seller IDs
 
 - **File**: `src/app/api/shipping/quote/route.ts`
+- **Current state**: Fixed. Cart quote requests with an explicit `cartId` and `sellerId` now require the seller to be present in that cart.
 - **Impact**: A buyer can pass their cart ID with an arbitrary seller ID. Combined with unbound shipping tokens, this can mint rates outside the intended cart/seller relationship.
 - **Fix spec**: When quoting for a cart, require `sellerId` to be present in that cart's items: `cart.items.some((item) => item.listing.sellerId === sellerId)`. Return 400 when mismatched.
 
-### H37. R2 presign trusts client-declared upload size
+### H37. [PARTIAL 2026-04-26] R2 presign trusts client-declared upload size
 
 - **File**: `src/app/api/upload/presign/route.ts`
+- **Current state**: Partially fixed. Presigned uploads now have stricter extension/type matching and an additional 50/hour per-user upload cap across presign and processed image routes. Bucket-level max object size and post-upload HEAD verification still need infrastructure/product follow-up.
 - **Impact**: A client can request a presign for an allowed size and then attempt a larger PUT. Actual enforcement depends on R2/S3 presign behavior and bucket configuration.
 - **Fix spec**: Enforce object-size limits at the Cloudflare R2 bucket level. Add defense-in-depth verification by issuing a post-upload `HEAD` check before persisting/using the URL, and reject or delete objects whose actual `Content-Length` exceeds the presigned limit.
 
@@ -446,15 +451,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: If regressed, Google can index inactive or unsafe listings.
 - **Fix spec**: Continue using `publicListingWhere()` for listing sitemap and metro/category sitemap grouping.
 
-### H40. chargesEnabled backfill script cannot run in production
+### H40. [FIXED 2026-04-26] chargesEnabled backfill script cannot run in production
 
 - **File**: `scripts/backfill-charges-enabled.ts`
+- **Current state**: Fixed. The script now requires `--force-prod` in production and syncs each seller from `stripe.accounts.retrieve(...).charges_enabled` instead of blindly setting `chargesEnabled: true`.
 - **Impact**: Future sellers with `stripeAccountId` but stale `chargesEnabled:false` can remain invisible if the only repair script refuses production execution.
 - **Fix spec**: Prefer a guarded admin-only sync action/route that retrieves Stripe accounts and updates `chargesEnabled`. If keeping the script, add an explicit `--force-prod` flag with confirmation logging and require `DIRECT_URL`.
 
-### H41. No CI/deploy enforcement for `prisma migrate deploy`
+### H41. [FIXED 2026-04-26] No CI/deploy enforcement for `prisma migrate deploy`
 
 - **Files**: `.github/workflows/ci.yml`, `vercel.json`
+- **Current state**: Fixed for production Vercel deploys. `vercel.json` now runs `npx prisma migrate deploy` before `npm run build` when `VERCEL_ENV=production`.
 - **Impact**: Code that references new columns can deploy before migrations run, causing production 500s until manual migration.
 - **Fix spec**: Add a production deploy workflow that runs `npx prisma migrate deploy` against `DIRECT_URL` before Vercel production deployment, or set Vercel `buildCommand` to run migrations before `next build` once env wiring is confirmed.
 
@@ -545,7 +552,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - `setStatus` and shop listing actions miss some `revalidatePath` calls.
 - `chargesEnabled` lost mid-edit silently moves listing to draft; surface warning.
 - `unhideListingAction` and `markAvailableAction` should return `publishListingAction` errors.
-- Photo delete should check listing state before delete.
+- Photo delete should check listing state before delete. **Current state: Fixed.** Listing photo delete checks archived state before deleting the DB row.
 - `computeGlobalMeans` for quality score should move to snapshot/materialized data.
 - Guild revocation/reinstatement races need stale-state guards.
 - `activeCaseCount` should be period-scoped or explicitly lifetime-scoped in Guild docs.
@@ -553,13 +560,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - `payment_intent.processing` / `payment_failed` handlers should be added or delayed methods should be explicitly disabled/documented.
 - Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`.
 - Audit log subject/body should sanitize persisted user-provided strings.
-- Upload presign per-request `fileIndex` is client-controlled; add per-user/hour Redis upload count tracking so parallel presigns cannot bypass max-count assumptions.
-- R2 objects are orphaned when photos/listings/reviews are deleted. Add R2 delete helpers and call `DeleteObjectCommand` after DB deletes for media fields.
-- Listing photo alt text generated in `api/listings/[id]/photos` should be sanitized and capped before persistence.
-- New-listing submitted alt text needs server-side max length and sanitization parity with edit/photo paths.
-- AI review prompt should isolate user-submitted listing fields inside explicit data delimiters and redact obvious prompt-injection phrases before interpolation.
-- Stripe fee estimate is hardcoded to 2.9% + 30 cents and will be wrong for Amex/international/FX cases. Prefer explicit Stripe application-fee accounting over estimated-fee transfer math.
-- Case message display-name fallback leaks email prefixes when `name` is null. Use the standard `name ?? email.split("@")[0] ?? "Someone"` fallback.
+- Upload presign per-request `fileIndex` is client-controlled. **Current state: Fixed for upload flood control.** Presign and processed image uploads now share an additional 50/hour per-user Redis limit; endpoint-specific file count remains client-index based.
+- R2 objects are orphaned when photos/listings/reviews are deleted. **Current state: Partial.** Listing photo deletion now attempts R2 object deletion after the DB row is removed; listing archive/delete and review-photo replacement still need the same cleanup.
+- Listing photo alt text generated in `api/listings/[id]/photos` should be sanitized and capped before persistence. **Current state: Fixed.**
+- New-listing submitted alt text needs server-side max length and sanitization parity with edit/photo paths. **Current state: Fixed.**
+- AI review prompt should isolate user-submitted listing fields inside explicit data delimiters and redact obvious prompt-injection phrases before interpolation. **Current state: Fixed.**
+- Stripe fee estimate is hardcoded to 2.9% + 30 cents and will be wrong for Amex/international/FX cases. **Current state: Fixed.** Estimated Stripe fee deduction was removed from checkout transfer math.
+- Case message display-name fallback leaks email prefixes when `name` is null. **Current state: Not reproduced.** Case messages already use `name ?? email.split("@")[0] ?? "Someone"`.
 - Notification dedup is per UTC day, not rolling 24 hours. Document the UTC-day boundary precisely in `CLAUDE.md`.
 - [FIXED 2026-04-26] Prevent self-feature by admin seller.
 - Block records and blocked-feed behavior need deleted-user policy. **Current state: Fixed.** Block helpers ignore deleted users, and account feed now distinguishes "all followed makers are blocked" from no follows.
@@ -577,7 +584,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Onboarding step 4 navigation should advance persisted step state, and the skip-Stripe path needs an explicit `chargesEnabled` warning.
 - Reverse-geocode throttling should move from Lambda-local memory to shared Redis/Upstash state.
 - Onboarding step 1 profile image state can be lost on browser back/forward navigation; persist draft/upload state.
-- `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step.
+- `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step. **Current state: Fixed.**
 - Loading skeleton coverage is still inconsistent across key dashboard/public pages.
 - Date formatting should use explicit locale/time zone where user-visible (`toLocaleString`, `toLocaleDateString`, JSON-LD/display dates).
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.

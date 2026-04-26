@@ -271,6 +271,7 @@ export async function POST(req: Request) {
         carrier: body.selectedRate.carrier,
         estDays: body.selectedRate.estDays,
         contextId,
+        buyerId: me.id,
         buyerPostal: body.shippingAddress.postalCode,
       },
       body.selectedRate.token,
@@ -331,15 +332,13 @@ export async function POST(req: Request) {
     const giftWrapCents = giftWrapping ? giftWrappingPriceCents : 0;
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
 
-    // Estimated Stripe processing fee (2.9% + 30¢) on pre-tax total — passed to seller
     const preTaxTotal = itemsSubtotalCents + shippingAmountCents + giftWrapCents;
-    const estimatedStripeFee = Math.round(preTaxTotal * 0.029 + 30);
 
     const sellerTransferAmount = Math.max(1,
-      preTaxTotal - platformFee - estimatedStripeFee
+      preTaxTotal - platformFee
     );
 
-    if (preTaxTotal - platformFee - estimatedStripeFee < 100) {
+    if (preTaxTotal - platformFee < 100) {
       return NextResponse.json(
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },

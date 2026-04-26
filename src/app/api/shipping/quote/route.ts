@@ -32,10 +32,12 @@ export const preferredRegion = "iad1";
 function fallbackRate({
   amountCents,
   contextId,
+  buyerId,
   buyerPostal,
 }: {
   amountCents: number;
   contextId: string;
+  buyerId: string;
   buyerPostal: string;
 }) {
   const label = "Standard shipping";
@@ -46,6 +48,7 @@ function fallbackRate({
     carrier: "fallback",
     estDays: null,
     contextId,
+    buyerId,
     buyerPostal,
   });
 
@@ -145,6 +148,12 @@ export async function POST(req: Request) {
         });
         if (cart && cart.userId !== me.id) {
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+        if (cart && body.sellerId) {
+          const sellerInCart = cart.items.some((item) => item.listing.sellerId === body.sellerId);
+          if (!sellerInCart) {
+            return NextResponse.json({ error: "sellerId not in cart" }, { status: 400 });
+          }
         }
       } else {
         cart = await prisma.cart.findFirst({
@@ -352,6 +361,7 @@ export async function POST(req: Request) {
           fallbackRate({
             amountCents: siteConfig?.fallbackShippingCents ?? 1500,
             contextId,
+            buyerId: me.id,
             buyerPostal: shipTo.postal,
           }),
         ],
@@ -387,6 +397,7 @@ export async function POST(req: Request) {
           carrier,
           estDays,
           contextId,
+          buyerId: me.id,
           buyerPostal: shipTo.postal,
         });
 
@@ -412,6 +423,7 @@ export async function POST(req: Request) {
         fallbackRate({
           amountCents: siteConfig?.fallbackShippingCents ?? 1500,
           contextId,
+          buyerId: me.id,
           buyerPostal: shipTo.postal,
         }),
       );
@@ -427,6 +439,7 @@ export async function POST(req: Request) {
         carrier: "pickup",
         estDays: null,
         contextId,
+        buyerId: me.id,
         buyerPostal: shipTo.postal,
       });
       out.unshift({

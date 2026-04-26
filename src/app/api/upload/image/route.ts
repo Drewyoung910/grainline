@@ -9,7 +9,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
-import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
+import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -76,6 +76,8 @@ export async function POST(req: Request) {
 
   const { success, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many uploads.");
+  const { success: hourlySuccess, reset: hourlyReset } = await safeRateLimit(uploadHourlyRatelimit, userId);
+  if (!hourlySuccess) return rateLimitResponse(hourlyReset, "Too many uploads.");
 
   const form = await req.formData();
   const parsed = FormSchema.safeParse({

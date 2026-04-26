@@ -178,6 +178,7 @@ export async function POST(req: Request) {
         carrier: body.selectedRate.carrier,
         estDays: body.selectedRate.estDays,
         contextId,
+        buyerId: me.id,
         buyerPostal: body.shippingAddress.postalCode,
       },
       body.selectedRate.token,
@@ -222,18 +223,17 @@ export async function POST(req: Request) {
     // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
     const platformFee = Math.round(itemsSubtotalCents * 0.05);
 
-    // Estimated Stripe processing fee (2.9% + 30¢) on pre-tax total — passed to seller
     const preTaxTotal = itemsSubtotalCents + shippingAmountCents + giftWrapCents;
-    const estimatedStripeFee = Math.round(preTaxTotal * 0.029 + 30);
 
-    // Seller receives items + shipping + gift wrap - platform fee - Stripe fee.
+    // Seller receives items + shipping + gift wrap - platform fee.
+    // Platform absorbs Stripe processing fees from the platform fee.
     // Tax is excluded — platform retains tax (marketplace facilitator).
     const sellerTransferAmount = Math.max(1,
-      preTaxTotal - platformFee - estimatedStripeFee
+      preTaxTotal - platformFee
     );
 
-    // Block orders where the effective payout is under $1 (fees exceed item value)
-    if (preTaxTotal - platformFee - estimatedStripeFee < 100) {
+    // Block orders where the effective payout is under $1.
+    if (preTaxTotal - platformFee < 100) {
       return NextResponse.json(
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },

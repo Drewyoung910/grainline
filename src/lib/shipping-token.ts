@@ -29,6 +29,7 @@ function canonicalInput(
   carrier: string,
   estDays: number | null,
   contextId: string,
+  buyerId: string,
   buyerPostal: string,
   expiresAt: number,
 ): string {
@@ -39,6 +40,7 @@ function canonicalInput(
     carrier,
     estDays != null ? String(estDays) : "null",
     contextId,
+    buyerId,
     buyerPostal,
     String(expiresAt),
   ].join(":");
@@ -51,6 +53,7 @@ export type SignedRateFields = {
   carrier: string;
   estDays: number | null;
   contextId: string;
+  buyerId: string;
   buyerPostal: string;
 };
 
@@ -66,6 +69,7 @@ export function signRate(
     fields.carrier,
     fields.estDays,
     fields.contextId,
+    fields.buyerId,
     fields.buyerPostal,
     expiresAt,
   );
@@ -102,6 +106,7 @@ export function verifyRate(
     fields.carrier,
     fields.estDays,
     fields.contextId,
+    fields.buyerId,
     fields.buyerPostal,
     expiresAt,
   );

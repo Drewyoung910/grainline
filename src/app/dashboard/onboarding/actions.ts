@@ -101,10 +101,13 @@ export async function advanceStep(targetStep: number): Promise<ActionResult> {
     if (normalizedStep > seller.onboardingStep + 1) {
       return { ok: false, error: "Complete the current onboarding step first." };
     }
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
+    const result = await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, onboardingStep: seller.onboardingStep },
       data: { onboardingStep: normalizedStep },
     });
+    if (result.count === 0) {
+      return { ok: false, error: "Onboarding changed in another tab. Refresh and try again." };
+    }
     revalidatePath("/dashboard/onboarding");
     return { ok: true };
   } catch (error) {

@@ -7,13 +7,20 @@ import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
-import { rateLimitResponse, safeRateLimit, uploadRatelimit } from "@/lib/ratelimit";
+import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 
 const ALLOWED_TYPES = [
   "image/gif",
   "video/mp4", "video/quicktime",
   "application/pdf",
 ];
+
+const ALLOWED_EXTENSIONS: Record<string, string[]> = {
+  "image/gif": ["gif"],
+  "video/mp4": ["mp4"],
+  "video/quicktime": ["mov", "qt"],
+  "application/pdf": ["pdf"],
+};
 
 const PROCESSED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "listingVideo", "bannerImage", "galleryImage"]);
@@ -65,6 +72,8 @@ export async function POST(req: NextRequest) {
 
   const { success: rlOk, reset } = await safeRateLimit(uploadRatelimit, userId);
   if (!rlOk) return rateLimitResponse(reset, "Too many uploads.");
+  const { success: hourlyOk, reset: hourlyReset } = await safeRateLimit(uploadHourlyRatelimit, userId);
+  if (!hourlyOk) return rateLimitResponse(hourlyReset, "Too many uploads.");
 
   let body;
   try {
@@ -96,6 +105,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File type not allowed" }, { status: 400 });
   }
 
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (!ALLOWED_EXTENSIONS[contentType]?.includes(ext)) {
+    return NextResponse.json({ error: "File extension does not match file type" }, { status: 400 });
+  }
+
   if (size > MAX_SIZES[endpoint]) {
     return NextResponse.json({ error: "File too large" }, { status: 400 });
   }
@@ -104,7 +118,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many files" }, { status: 400 });
   }
 
-  const ext = filename.split(".").pop() ?? "bin";
   const key = `${endpoint}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   const command = new PutObjectCommand({

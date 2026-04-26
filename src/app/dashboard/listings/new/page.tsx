@@ -201,7 +201,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       photos: { create: imageUrls.map((url, i) => ({
         url,
         sortOrder: i,
-        altText: imageAltTexts[i]?.trim() || null,
+        altText: imageAltTexts[i] ? sanitizeText(imageAltTexts[i].trim()).slice(0, 200) || null : null,
       })) },
       variantGroups: variantGroups.length > 0 ? {
         create: variantGroups.map((g, gi) => ({

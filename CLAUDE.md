@@ -2480,13 +2480,11 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 ### sendMessage rate limit
 - `sendMessage` server action in `messages/[id]/page.tsx` now uses `messageRatelimit` (30/60s). Prevents message spam.
 
-### Stripe processing fee passed to seller
-- Both `checkout-seller` and `checkout/single` now deduct estimated Stripe fee (2.9% + 30¢) from `transfer_data.amount`
-- Formula: `sellerTransferAmount = preTaxTotal - platformFee - estimatedStripeFee`
-- `estimatedStripeFee = Math.round(preTaxTotal * 0.029 + 30)`
-- `Math.max(1)` floor prevents negative/zero transfers
-- Platform no longer absorbs the ~3% Stripe processing fee
-- Note: estimate is on pre-tax total (slightly underestimates since Stripe charges on post-tax). Difference is negligible and in platform's favor.
+### Stripe processing fee absorbed by platform
+- `checkout-seller` and `checkout/single` transfer `preTaxTotal - platformFee` to the seller.
+- Formula: `sellerTransferAmount = itemsSubtotal + shipping + giftWrap - platformFee`.
+- Platform absorbs Stripe processing fees from the 5% platform fee; sellers are not charged an estimated processor fee in transfer math.
+- `Math.max(1)` floor prevents negative/zero transfers.
 
 ## Audit Hardening Pass (2026-04-23)
 
@@ -3609,7 +3607,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **`$queryRawUnsafe` security comment** — Added rationale comment to `src/app/commission/page.tsx` explaining why `$queryRawUnsafe` is used and confirming all user input is bound via positional parameters.
 
 ### Deployment rule
-**Always run `prisma migrate deploy` BEFORE `vercel --prod`** for migrations that add columns or constraints. Index-only migrations are safe to apply after deploy (queries are slower but correct). The pattern: `npx dotenv-cli -e .env -- npx prisma migrate deploy` → verify → `npx vercel --prod`.
+**Always run `prisma migrate deploy` BEFORE `vercel --prod`** for migrations that add columns or constraints. Index-only migrations are safe to apply after deploy (queries are slower but correct). Production Vercel builds now enforce this with `vercel.json` `buildCommand`: production runs `npx prisma migrate deploy` before `npm run build`. Manual deploy pattern remains: `npx dotenv-cli -e .env -- npx prisma migrate deploy` → verify → `npx vercel --prod`.
 
 ### Infrastructure improvements (2026-04-18)
 - **`.github/dependabot.yml`** — weekly npm security updates; minor/patch grouped into single PR; major version bumps ignored (require manual review); 10 open PR limit. Would have caught the Clerk 7.0.7 auth bypass CVE automatically.
@@ -3940,7 +3938,7 @@ Helper utilities:
 
 Stripe Connect is used so sellers receive payouts directly. Stripe webhook handler is at `src/app/api/stripe/webhook/route.ts`. The `stripe` client lives in `src/lib/stripe.ts`.
 
-**Platform fee: 5%** of item subtotal (excluding shipping and taxes), applied as `application_fee_amount` in all four checkout routes. Note: shipping cannot be included in fee because `application_fee_amount` is fixed at session creation and shipping amount depends on buyer's selection during checkout.
+**Platform fee: 5%** of item subtotal (excluding shipping and taxes). Current embedded checkout routes retain the fee by setting an explicit `transfer_data.amount` equal to `itemsSubtotal + shipping + giftWrap - platformFee`; tax remains on the platform because it is excluded from the seller transfer. `application_fee_amount` is not currently used.
 
 **CHECKOUT REBUILD — Phase 1 complete**: User model now has `shippingName`, `shippingLine1`, `shippingLine2`, `shippingCity`, `shippingState`, `shippingPostalCode`, `shippingPhone` fields (migration: `add_user_shipping_address`). `GET /api/account/shipping-address` returns saved address. `PUT /api/account/shipping-address` saves address (Zod validated: 2-letter state, 5-digit zip, sanitized text). Both routes auth-required, rate-limited via `shippingAddressRatelimit` (30/10min per userId).
 
@@ -3956,6 +3954,7 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 
 **CHECKOUT REBUILD — Phase 5 complete** (2026-04-16):
 - `checkout-seller` route rewritten: new payload schema (`shippingAddress` + `selectedRate` objects), `ui_mode: "embedded"`, returns `clientSecret`, explicit `transfer_data.amount` excludes tax (items + shipping + giftwrap - 5% fee), `on_behalf_of` intentionally deferred (fee allocation decision pending Terms update), `automatic_tax` with `liability: { type: "self" }`
+- Shipping rate HMACs are bound to the authenticated buyer ID, checkout context, postal code, amount, carrier/service labels, and expiry. Cart quote requests reject mismatched `cartId` + `sellerId` combinations.
 - `shipping_address_collection` removed from checkout-seller — address collected in cart UI
 - Webhook: `reverseTaxIfNeeded` removed (no longer needed — explicit `transfer_data.amount` retains tax on platform automatically). Address now read from session metadata with fallback to Stripe fields for legacy sessions. Per-seller cart cleanup added AFTER `$transaction` (non-fatal).
 - CSP updated: `checkout.stripe.com` added to `frame-src` and `connect-src` (required for embedded checkout iframe)
@@ -3976,7 +3975,7 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 **CHECKOUT REBUILD — Phase 6 complete** (2026-04-16):
 - `BuyNowCheckoutModal` (`src/components/BuyNowCheckoutModal.tsx`): new 3-step modal (Address → Shipping → Payment) reusing `ShippingAddressForm`, `ShippingRateSelector`, `EmbeddedCheckoutPanel`, `GiftNoteSection`. Sign-in gate on button click (redirects to `/sign-in?redirect_url=`). Payment state resets on close (address + rate preserved for quick re-open; `clientSecret` nulled because Stripe session expires). Escape key + backdrop click close handlers. Order summary shows items + shipping; tax shown as "Calculated at payment".
 - `BuyNowButton` (`src/components/BuyNowButton.tsx`): thin wrapper — click opens modal via `useState`; uses `useUser()` from Clerk for sign-in check. Old inline ZIP/state form removed entirely. New required props: `listingTitle`, `listingImageUrl`, `sellerName`, `sellerId`, `priceCents`; optional `quantity`, `offersGiftWrapping`, `giftWrappingPriceCents`.
-- `/api/cart/checkout/single` rewritten: new Zod payload (`shippingAddress` + `selectedRate` nested objects matching cart route), `ui_mode: "embedded"`, `redirect_on_completion: "if_required"`, explicit `transfer_data.amount = itemsSubtotal + shipping + giftWrap − 5% platformFee` (excludes tax — platform retains tax), returns `{ clientSecret }`. `taxRetainedAtCreation: "true"` metadata flag set. Sentry import added. Preserves rate limiter, `chargesEnabled` pre-flight guard, `statement_descriptor_suffix` derivation. Removed `shipping_address_collection`, `billing_address_collection`, `application_fee_amount`, `success_url`/`cancel_url`, old Shippo re-quote logic, old `to*` Zod fields. Fallback rate: if buyer picks `isFallbackRate(selectedRate)` (objectId `"fallback"`), reads `SiteConfig.fallbackShippingCents` (default $15) for the transfer calculation.
+- `/api/cart/checkout/single` rewritten: new Zod payload (`shippingAddress` + `selectedRate` nested objects matching cart route), `ui_mode: "embedded"`, `redirect_on_completion: "if_required"`, explicit `transfer_data.amount = itemsSubtotal + shipping + giftWrap - 5% platformFee` (excludes tax; platform retains tax and absorbs Stripe processing fees), returns `{ clientSecret }`. `taxRetainedAtCreation: "true"` metadata flag set. Sentry import added. Preserves rate limiter, `chargesEnabled` pre-flight guard, `statement_descriptor_suffix` derivation. Removed `shipping_address_collection`, `billing_address_collection`, `application_fee_amount`, `success_url`/`cancel_url`, old Shippo re-quote logic, old `to*` Zod fields. Fallback rate: if buyer picks `isFallbackRate(selectedRate)` (objectId `"fallback"`), reads `SiteConfig.fallbackShippingCents` (default $15) for the transfer calculation.
 - `ShippingRateSelector`: added `quoteBodyExtra?: Record<string, string>` prop for single-item mode (Buy Now passes `{ mode: "single", listingId }`). `quoteBodyStr = JSON.stringify(…)` stable dep for `useEffect`. Cart call site unchanged (omits prop → default cart behavior preserved).
 - Legacy routes deleted: `src/app/api/checkout/route.ts` (entire directory removed) and `src/app/api/cart/checkout/route.ts`. Zero UI callers confirmed before deletion. Preserved: `/api/cart/checkout/single` (Buy Now) and `/api/cart/checkout-seller` (cart).
 - Webhook: no change needed — both paths (cart + listingId) already write `quotedToName` and `quotedToPhone` from Phase 5.
@@ -4012,7 +4011,7 @@ All four checkout routes:
 
 Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 
-**Automatic tax**: `automatic_tax: { enabled: true }` on all four routes. Tax stays with platform per Stripe marketplace facilitator default (no explicit `transfer_data.amount` — Stripe auto-excludes tax from seller transfer).
+**Automatic tax**: `automatic_tax: { enabled: true }` on embedded checkout routes. Tax stays with platform because the explicit `transfer_data.amount` excludes tax; webhook metadata includes `taxRetainedAtCreation: "true"` for these sessions.
 
 **chargesEnabled enforcement** (audited 2026-04-15): all paths that can make a listing public check `seller.chargesEnabled`:
 - `publishListingAction` (shop) — returns error
