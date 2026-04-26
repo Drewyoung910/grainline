@@ -333,6 +333,13 @@ export default async function HomePage() {
       featuredListings = [...featuredListings, ...more];
     }
   }
+  const featuredMakerFallbackImage = featuredMaker
+    ? featuredListings[0]?.photos[0]?.url ??
+      featuredMaker.workshopImageUrl ??
+      featuredMaker.avatarImageUrl ??
+      featuredMaker.user?.imageUrl ??
+      null
+    : null;
 
   let saved = new Set<string>();
   let savedBlogSlugs = new Set<string>();
@@ -672,6 +679,7 @@ export default async function HomePage() {
             <div className="rounded-2xl bg-stone-50 overflow-hidden">
               <MediaImage
                 src={featuredMaker.bannerImageUrl}
+                fallbackSrc={featuredMakerFallbackImage}
                 alt={`${featuredMaker.displayName ?? "Maker"} workshop`}
                 loading="lazy"
                 className="h-48 w-full object-cover"

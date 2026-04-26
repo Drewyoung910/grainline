@@ -5049,3 +5049,29 @@ This pass focused on the Guild verification/admin cluster from the later audit r
 - Durable notification/email outbox semantics remain open for very large follower bases.
 - Larger SEO slug/canonical work remains open.
 - Partial refund line-item inventory semantics remain open and need product decisions.
+
+## Audit Pass — Media Fallback + Query Index Polish (2026-04-25)
+
+This pass addressed a visible production media regression and added only the missing high-value read indexes after confirming existing audit-requested indexes were already present.
+
+### Fixed in this pass
+- **Broken pre-hydration images now collapse to branded fallbacks**: `MediaImage` now checks `complete && naturalWidth === 0` after mount, so images that fail before React attaches `onError` no longer leave raw alt text visible.
+- **Media fallbacks can chain to a second trusted source**: `MediaImage` now supports `fallbackSrc`, trying a secondary image before rendering the styled fallback block.
+- **Listing cards fall back to the alternate listing photo**: if the primary card image is missing/dead, cards now try the secondary photo before showing the neutral placeholder.
+- **Meet a Maker banner has a real fallback source**: the homepage banner now falls back to the featured maker's first featured listing photo, then workshop/avatar image, before using the gradient block.
+- **Remaining query indexes added**: migration `20260425234500_audit_query_indexes` adds indexes for featured-maker lookup, Guild filtered lookup, listing quality score sorting, seller dashboard listing sort, buyer order timelines, fulfillment/admin order timelines, and unread notification timelines.
+
+### Verification
+- `npx prisma validate` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `git diff --check` ✅
+- `npx prisma generate` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npx prisma migrate deploy` ✅ (applied `20260425234500_audit_query_indexes`)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Repair/re-upload existing `cdn.thegrainline.com` media rows that return `Cache miss`; code can now degrade gracefully, but missing objects still need data repair.
+- Durable notification/email outbox semantics remain open for very large follower bases.
+- Larger SEO slug/canonical work remains open.
+- Partial refund line-item inventory semantics remain open and need product decisions.

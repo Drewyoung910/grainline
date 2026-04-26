@@ -240,6 +240,9 @@ model SellerProfile {
   followers            Follow[]
   broadcasts           SellerBroadcast[]
   commissionInterests  CommissionInterest[]
+
+  @@index([featuredUntil])
+  @@index([guildLevel, chargesEnabled, vacationMode])
 }
 
 model SellerFaq {
@@ -347,6 +350,8 @@ model Listing {
   @@index([clickCount])
   @@index([status, isPrivate, qualityScore])
   @@index([priceCents])
+  @@index([qualityScore])
+  @@index([sellerId, updatedAt])
 }
 
 model Photo {
@@ -519,9 +524,11 @@ model Order {
   case  Case?
 
   @@index([buyerId])
+  @@index([buyerId, createdAt])
   @@index([paidAt])
   @@index([createdAt])
   @@index([fulfillmentStatus])
+  @@index([fulfillmentStatus, createdAt])
 
   // Snapshot of the *selected* shipping service
   shippingCarrier  String?    // e.g., "UPS"
@@ -997,6 +1004,7 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([userId, read])
+  @@index([userId, read, createdAt])
   @@index([userId, createdAt])
   @@index([read, createdAt])
 }

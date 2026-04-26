@@ -58,6 +58,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
             <MediaImage
               alt={l.title}
               src={displayImg}
+              fallbackSrc={displayImg === l.secondPhotoUrl ? l.photoUrl : l.secondPhotoUrl}
               loading="lazy"
               className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
               fallbackClassName="w-full aspect-square bg-gradient-to-br from-amber-50 to-stone-100"
@@ -67,6 +68,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           <MediaImage
             alt={l.title}
             src={displayImg}
+            fallbackSrc={displayImg === l.secondPhotoUrl ? l.photoUrl : l.secondPhotoUrl}
             loading="lazy"
             className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
             fallbackClassName="w-full aspect-square bg-gradient-to-br from-amber-50 to-stone-100"
