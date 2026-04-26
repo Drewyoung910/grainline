@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   slug: string;
@@ -12,6 +13,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
   const router = useRouter();
   const [saved, setSaved] = React.useState(initialSaved);
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   async function toggle() {
     if (loading) return;
@@ -24,11 +26,20 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
         return;
       }
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { saved: boolean; error?: string };
         setSaved(data.saved);
+        return;
       }
+      let message = "Couldn’t update saved post.";
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (data.error) message = data.error;
+      } catch {
+        // keep generic message
+      }
+      toast(message, "error");
     } catch {
-      // ignore
+      toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
     }

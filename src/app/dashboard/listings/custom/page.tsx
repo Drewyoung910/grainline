@@ -7,6 +7,8 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderReady } from "@/lib/email";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
+import { sanitizeRichText, sanitizeText } from "@/lib/sanitize";
+import ActionForm from "@/components/ActionForm";
 import ImagesUploader from "@/components/ImagesUploader";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Metadata } from "next";
@@ -14,12 +16,13 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import { Palette } from "@/components/icons";
 import type { ListingType } from "@prisma/client";
+import type { AIReviewResult } from "@/lib/ai-review";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
 const lbToG = (v: number) => Math.round(v * 453.59237);
 
-async function createCustomListing(formData: FormData) {
+async function createCustomListing(_prevState: unknown, formData: FormData) {
   "use server";
 
   const { userId } = await auth();
@@ -31,33 +34,37 @@ async function createCustomListing(formData: FormData) {
   const reservedForUserId = String(formData.get("reservedForUserId") ?? "").trim();
 
   if (!conversationId || !reservedForUserId) {
-    throw new Error("Missing conversation or buyer context.");
+    return { ok: false, error: "Missing conversation or buyer context." };
   }
 
   // Guard: seller must have Stripe connected and not be on vacation/banned
-  if (!seller.chargesEnabled) throw new Error("Connect your bank account in Shop Settings to create listings.");
-  if (seller.vacationMode) throw new Error("Turn off vacation mode before creating listings.");
+  if (!seller.chargesEnabled) {
+    return { ok: false, error: "Connect your bank account in Shop Settings to create listings." };
+  }
+  if (seller.vacationMode) {
+    return { ok: false, error: "Turn off vacation mode before creating listings." };
+  }
 
   // Verify seller is a participant in this conversation
   const convo = await prisma.conversation.findFirst({
     where: { id: conversationId, OR: [{ userAId: me.id }, { userBId: me.id }] },
     select: { id: true, userAId: true, userBId: true },
   });
-  if (!convo) throw new Error("Conversation not found.");
+  if (!convo) return { ok: false, error: "Conversation not found." };
 
   // Validate reservedForUserId is the OTHER participant in this conversation
   const otherUserId = convo.userAId === me.id ? convo.userBId : convo.userAId;
   if (reservedForUserId !== otherUserId) {
-    throw new Error("Reserved user must be the conversation participant.");
+    return { ok: false, error: "Reserved user must be the conversation participant." };
   }
 
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
+  const title = sanitizeText(String(formData.get("title") ?? "").trim());
+  const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
   if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
-    throw new Error("Please fill title and price.");
+    return { ok: false, error: "Please fill title and price." };
   }
 
   // Photos (optional for custom listings)
@@ -129,6 +136,42 @@ async function createCustomListing(formData: FormData) {
       photos: { create: imageUrls.map((url, i) => ({ url, sortOrder: i })) },
     },
   });
+
+  const sellerInfo = await prisma.sellerProfile.findUnique({
+    where: { id: seller.id },
+    select: { displayName: true, _count: { select: { listings: true } } },
+  });
+  const { reviewListingWithAI } = await import("@/lib/ai-review");
+  const aiResult = await reviewListingWithAI({
+    sellerId: seller.id,
+    title: created.title,
+    description: created.description,
+    priceCents: created.priceCents,
+    category: created.category ?? null,
+    tags: created.tags,
+    sellerName: sellerInfo?.displayName ?? seller.displayName ?? "Unknown",
+    listingCount: sellerInfo?._count.listings ?? 0,
+    imageUrls: imageUrls.slice(0, 4),
+  }).catch((): AIReviewResult => ({
+    approved: false,
+    flags: ["AI review error"],
+    confidence: 0,
+    reason: "AI error — sending to admin review",
+    altTexts: [],
+  }));
+  const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
+  if (shouldHold) {
+    await prisma.listing.update({
+      where: { id: created.id },
+      data: {
+        status: "PENDING_REVIEW",
+        aiReviewFlags: aiResult.flags,
+        aiReviewScore: aiResult.confidence,
+      },
+    });
+    revalidatePath(`/messages/${conversationId}`);
+    redirect(`/listing/${created.id}?preview=1`);
+  }
 
   // Send a custom_order_link message back to the buyer
   await prisma.message.create({
@@ -277,7 +320,7 @@ export default async function CustomListingPage({
         </div>
       )}
 
-      <form action={createCustomListing} className="space-y-4">
+      <ActionForm action={createCustomListing} className="space-y-4">
         {/* Hidden fields */}
         <input type="hidden" name="conversationId" value={conversationId} />
         <input type="hidden" name="reservedForUserId" value={buyerId} />
@@ -377,7 +420,7 @@ export default async function CustomListingPage({
         <button type="submit" className="rounded px-4 py-2 bg-black text-white">
           Create Custom Listing &amp; Notify Buyer
         </button>
-      </form>
+      </ActionForm>
     </div>
   );
 }

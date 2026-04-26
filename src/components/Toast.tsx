@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 
 type ToastType = "success" | "error" | "info";
 
@@ -32,13 +32,23 @@ export function emitToast(message: string, type: ToastType = "info") {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   const toast = useCallback((message: string, type: ToastType = "info") => {
     const id = nextId++;
     setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3000);
+    timers.current.push(timer);
+  }, []);
+
+  useEffect(() => {
+    const activeTimers = timers.current;
+    return () => {
+      for (const timer of activeTimers) clearTimeout(timer);
+      activeTimers.length = 0;
+    };
   }, []);
 
   useEffect(() => {
@@ -54,7 +64,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[9999] space-y-2 pointer-events-none">
+      <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[9999] space-y-2 pointer-events-none">
         {toasts.map((t) => (
           <div
             key={t.id}

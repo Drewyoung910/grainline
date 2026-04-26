@@ -4619,6 +4619,10 @@ Read this section before continuing the remaining 300+ item audit queue. This pa
 ### Verification
 - `npx tsc --noEmit --incremental false` ✅
 - `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ with existing upstream `jsx-ast-utils` resolver notices only
+- `npm run build` ✅ outside sandbox; sandbox build still fails on Turbopack internal worker port binding (`Operation not permitted`)
+- `npx prisma validate` ✅
 - `npm run lint` ✅ with existing warnings only
 - `npm run build` ✅ when run outside sandbox; sandbox build fails on Turbopack internal worker port binding (`Operation not permitted`)
 
@@ -4910,3 +4914,31 @@ This pass responded to a production-visible media regression: the homepage "Meet
 - Continue lower-priority server-action UX cleanup where actions throw errors directly instead of returning inline form state.
 - Larger notification delivery work remains: durable outbox/queue semantics for very large follower bases.
 - Payment/manual reconciliation work remains for external refunds, partial refunds, and disputes.
+
+## Audit Pass — Server-Action UX + Moderation Fail-Closed (2026-04-25)
+
+This pass targeted a high-leverage cluster from the post-Round-7 audits: forms that still threw raw server-action errors into the global "Something splintered" boundary, silent client-side failures, and one remaining moderation fail-open path.
+
+### Fixed in this pass
+- **Shared inline server-action error display**: `ActionForm` now renders returned `{ ok: false, error }` messages above the form instead of only showing the success toast.
+- **Create listing validation no longer crashes the page**: `/dashboard/listings/new` now returns inline errors for create-rate-limit, missing title/photos/price, invalid price bounds, stock validation, and processing-time validation.
+- **Shop profile validation no longer crashes the page**: `/dashboard/profile` now returns inline display-name validation errors and returns `{ ok: true }` after a successful save so the shared action form can show a saved state.
+- **Shop settings validation no longer crashes the page**: `/dashboard/seller` now returns inline errors for missing display name and public-map opt-in without an exact pin.
+- **Blog create/edit validation no longer crashes the page**: blog post server actions now return inline errors for suspended accounts, publish rate limits, missing title/body, profanity on publish, unavailable post types, slug-generation failure, and invalid media URLs.
+- **Blog form upload failures surface to the user**: blog cover upload errors now use the shared toast channel instead of `console.error`.
+- **Custom listing validation no longer crashes the page**: `/dashboard/listings/custom` now returns inline errors for missing conversation context, missing Stripe setup, vacation mode, invalid conversation participation, tampered reserved buyer, and missing title/price.
+- **Custom listings now pass through AI moderation**: private custom-order listings are reviewed before the buyer is notified. Held listings are moved to `PENDING_REVIEW` and opened in seller preview instead of silently sending a buyer a purchasable link.
+- **AI listing review fails closed**: missing `OPENAI_API_KEY` or OpenAI/API/parsing errors now return `approved: false`, `confidence: 0`, and review flags, causing publish paths to hold listings for admin review instead of default-approving them.
+- **Notification preference failures are visible**: `NotificationToggle` now checks non-2xx responses, reverts optimistic state, and shows toast errors.
+- **Back-in-stock notification failures are visible**: `NotifyMeButton` now shows success/error toasts and handles non-2xx responses.
+- **Follow/save failures are visible**: `FollowButton`, `SaveBlogButton`, and `SaveSearchButton` now parse API errors and show toast failures instead of silently doing nothing.
+- **Toast cleanup and mobile placement improved**: toast timers are cleared on provider unmount, and the toast stack respects `safe-area-inset-bottom` on iOS devices.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+
+### Still open / next good passes
+- Continue the remaining silent-failure sweep for less critical polling/search/header components where failures should be logged or surfaced deliberately.
+- Continue payment/manual reconciliation work for external refunds, disputes, and partial-refund inventory semantics.
+- Add durable notification/email outbox semantics for very large follower bases.
+- Repair/re-upload the existing `cdn.thegrainline.com` media rows returning `Cache miss`.

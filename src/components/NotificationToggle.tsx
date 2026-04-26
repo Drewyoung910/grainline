@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useToast } from "@/components/Toast";
 
 export function NotificationToggle({
   type,
@@ -10,19 +11,32 @@ export function NotificationToggle({
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   async function toggle() {
     setLoading(true);
     const newValue = !enabled;
     setEnabled(newValue); // optimistic
     try {
-      await fetch("/api/account/notifications/preferences", {
+      const res = await fetch("/api/account/notifications/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, enabled: newValue }),
       });
+      if (!res.ok) {
+        let message = "Couldn’t save notification preference.";
+        try {
+          const data = (await res.json()) as { error?: string };
+          if (data.error) message = data.error;
+        } catch {
+          // keep the generic message
+        }
+        setEnabled(!newValue);
+        toast(message, "error");
+      }
     } catch {
       setEnabled(!newValue); // revert on error
+      toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
     }

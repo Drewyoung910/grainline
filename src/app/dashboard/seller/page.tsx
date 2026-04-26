@@ -8,6 +8,7 @@ import SellerLocationSection from "@/components/SellerLocationSection";
 import VacationModeForm from "./VacationModeForm";
 import BroadcastComposer from "@/components/BroadcastComposer";
 import GalleryUploader from "@/components/GalleryUploader";
+import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -29,7 +30,7 @@ function toFloat(v: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
-async function updateSellerProfile(formData: FormData) {
+async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   "use server";
 
   const { userId } = await auth();
@@ -57,10 +58,10 @@ async function updateSellerProfile(formData: FormData) {
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
   const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on"; // 👈 NEW
 
-  if (!displayName) throw new Error("Display name is required.");
+  if (!displayName) return { ok: false, error: "Display name is required." };
   if (publicMapOptIn) {
     if (!(Number.isFinite(lat as number) && Number.isFinite(lng as number))) {
-      throw new Error("To appear on the public map, set an exact pin location.");
+      return { ok: false, error: "To appear on the public map, set an exact pin location." };
     }
     // exact pin for public map
     radiusMeters = 0;
@@ -234,7 +235,7 @@ export default async function SellerSettingsPage() {
         vacationMessage={row?.vacationMessage ?? null}
       />
 
-      <form action={updateSellerProfile} className="space-y-6">
+      <ActionForm action={updateSellerProfile} className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Display name</label>
           <input
@@ -425,7 +426,7 @@ export default async function SellerSettingsPage() {
         <button type="submit" className="rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800">
           Save settings
         </button>
-      </form>
+      </ActionForm>
 
       {/* Shop Notifications */}
       <section className="card-section p-6 space-y-4">

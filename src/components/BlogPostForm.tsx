@@ -3,6 +3,8 @@ import * as React from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { BLOG_TYPE_LABELS } from "@/lib/blog";
 import MarkdownToolbar from "./MarkdownToolbar";
+import ActionForm, { SubmitButton } from "@/components/ActionForm";
+import { emitToast } from "@/components/Toast";
 import type { BlogPostType } from "@prisma/client";
 
 const STAFF_TYPES: BlogPostType[] = ["STANDARD", "MAKER_SPOTLIGHT", "BEHIND_THE_BUILD", "GIFT_GUIDE", "WOOD_EDUCATION"];
@@ -11,7 +13,7 @@ const MAKER_TYPES: BlogPostType[] = ["STANDARD", "BEHIND_THE_BUILD"];
 type Listing = { id: string; title: string };
 
 type Props = {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (prevState: unknown, formData: FormData) => Promise<{ ok: boolean; error?: string }>;
   isStaff: boolean;
   listings: Listing[];
   submitLabel?: string;
@@ -48,7 +50,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
     .replace(/^-|-$/g, "") || "your-post-slug";
 
   return (
-    <form action={action} className="space-y-6">
+    <ActionForm action={action} className="space-y-6">
       {/* Title */}
       <div className="space-y-1">
         <label className="block text-sm font-medium">Title <span className="text-red-500">*</span></label>
@@ -107,7 +109,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
               const url = (files[0] as { ufsUrl?: string })?.ufsUrl ?? "";
               if (url) setCoverImageUrl(url);
             }}
-            onUploadError={(err) => console.error("Upload error:", err)}
+            onUploadError={(err) => emitToast(err?.message || "Cover upload failed.", "error")}
           />
         )}
       </div>
@@ -220,12 +222,9 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
         </select>
       </div>
 
-      <button
-        type="submit"
-        className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700"
-      >
+      <SubmitButton className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-60">
         {submitLabel}
-      </button>
-    </form>
+      </SubmitButton>
+    </ActionForm>
   );
 }

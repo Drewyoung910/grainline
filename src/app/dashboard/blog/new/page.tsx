@@ -31,7 +31,7 @@ export default async function NewBlogPostPage() {
     select: { id: true, listings: { where: { status: "ACTIVE" }, select: { id: true, title: true }, orderBy: { updatedAt: "desc" } } },
   });
 
-  async function createBlogPost(formData: FormData) {
+  async function createBlogPost(_prevState: unknown, formData: FormData) {
     "use server";
     const { userId: uid } = await auth();
     if (!uid) redirect("/sign-in");
@@ -40,28 +40,37 @@ export default async function NewBlogPostPage() {
       select: { id: true, role: true, banned: true, deletedAt: true },
     });
     if (!author) redirect("/sign-in");
-    if (author.banned || author.deletedAt) throw new Error("Account is suspended.");
+    if (author.banned || author.deletedAt) return { ok: false, error: "Account is suspended." };
 
     const isStaffUser = author.role === "EMPLOYEE" || author.role === "ADMIN";
 
     // Rate limit: 3 blog posts per day
     const { safeRateLimit, blogCreateRatelimit } = await import("@/lib/ratelimit");
     const { success: rlOk } = await safeRateLimit(blogCreateRatelimit, author.id);
-    if (!rlOk) throw new Error("You can publish up to 3 blog posts per day.");
+    if (!rlOk) return { ok: false, error: "You can publish up to 3 blog posts per day." };
 
     const title = String(formData.get("title") ?? "").trim();
     const body = String(formData.get("body") ?? "").trim();
     const excerpt = String(formData.get("excerpt") ?? "").trim().slice(0, 200) || null;
     const metaDescription = String(formData.get("metaDescription") ?? "").trim().slice(0, 160) || null;
-    const coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"));
-    const videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
+    let coverImageUrl: string | null = null;
+    let videoUrl: string | null = null;
+    try {
+      coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"));
+      videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "One of the media URLs is invalid.",
+      };
+    }
     const type = (formData.get("type") as BlogPostType) ?? "STANDARD";
     const status = (formData.get("status") as "DRAFT" | "PUBLISHED") ?? "DRAFT";
     const tagsRaw = String(formData.get("tags") ?? "").trim();
     const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
     const featuredListingIds = formData.getAll("featuredListingIds").map(String).filter(Boolean);
 
-    if (!title || !body) return;
+    if (!title || !body) return { ok: false, error: "Title and body are required." };
 
     // Profanity check. Drafts may be saved for editing, but public posts fail closed.
     const { containsProfanity } = await import("@/lib/profanity");
@@ -69,7 +78,7 @@ export default async function NewBlogPostPage() {
     if (profCheck.flagged) {
       console.error(`[PROFANITY] Blog post by ${uid}: ${profCheck.matches.join(", ")}`);
       if (status === "PUBLISHED") {
-        throw new Error("This post needs edits before it can be published.");
+        return { ok: false, error: "This post needs edits before it can be published." };
       }
     }
 
@@ -77,7 +86,7 @@ export default async function NewBlogPostPage() {
     const allowedTypes: BlogPostType[] = isStaffUser
       ? Object.values(BlogPostType)
       : ["STANDARD", "BEHIND_THE_BUILD"];
-    if (!allowedTypes.includes(type)) return;
+    if (!allowedTypes.includes(type)) return { ok: false, error: "That blog post type is not available for this account." };
 
     // Generate unique slug
     let baseSlug = generateSlug(title);
@@ -85,7 +94,7 @@ export default async function NewBlogPostPage() {
     let slug = baseSlug;
     let attempt = 2;
     while (await prisma.blogPost.findUnique({ where: { slug }, select: { id: true } })) {
-      if (attempt > 100) throw new Error("Could not generate a unique blog slug.");
+      if (attempt > 100) return { ok: false, error: "Could not generate a unique blog slug." };
       slug = `${baseSlug}-${attempt++}`;
     }
 

@@ -21,7 +21,13 @@ export async function reviewListingWithAI(listing: {
   imageUrls?: string[]
 }): Promise<AIReviewResult> {
   if (!process.env.OPENAI_API_KEY) {
-    return { approved: true, flags: [], confidence: 1, reason: 'AI review disabled — no API key', altTexts: [] }
+    return {
+      approved: false,
+      flags: ['AI review unavailable — missing API key'],
+      confidence: 0,
+      reason: 'AI review unavailable — sending to admin review',
+      altTexts: [],
+    }
   }
 
   // Duplicate detection — catch spammers posting same listing repeatedly
@@ -199,10 +205,10 @@ Respond with ONLY valid JSON, no other text:
   } catch (error) {
     console.error('AI review failed:', error instanceof Error ? error.message : error)
     return {
-      approved: true,
+      approved: false,
       flags: ['AI review unavailable — manual spot check recommended'],
-      confidence: 0.5,
-      reason: 'AI review error — defaulting to approve',
+      confidence: 0,
+      reason: 'AI review error — sending to admin review',
       altTexts: [],
     }
   }

@@ -1,10 +1,12 @@
 "use client";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
   const [state, setState] = React.useState<"idle" | "saving" | "saved">("idle");
+  const { toast } = useToast();
 
   async function save() {
     if (!signedIn) {
@@ -30,7 +32,7 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : undefined;
       };
-      await fetch("/api/search/saved", {
+      const res = await fetch("/api/search/saved", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -48,9 +50,22 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
           tags,
         }),
       });
+      if (!res.ok) {
+        let message = "Couldn’t save this search.";
+        try {
+          const data = (await res.json()) as { error?: string };
+          if (data.error) message = data.error;
+        } catch {
+          // keep generic message
+        }
+        toast(message, "error");
+        setState("idle");
+        return;
+      }
       setState("saved");
     } catch {
       setState("idle");
+      toast("Network error. Please try again.", "error");
     }
   }
 

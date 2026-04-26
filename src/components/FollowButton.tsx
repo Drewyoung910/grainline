@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 type Props = {
   sellerProfileId: string;
@@ -22,6 +23,7 @@ export default function FollowButton({
   const [following, setFollowing] = React.useState(initialFollowing);
   const [count, setCount] = React.useState(initialCount);
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
 
   async function toggle() {
     if (loading) return;
@@ -35,12 +37,21 @@ export default function FollowButton({
         return;
       }
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { following: boolean; followerCount: number; error?: string };
         setFollowing(data.following);
         setCount(data.followerCount);
+        return;
       }
+      let message = "Couldn’t update follow status.";
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (data.error) message = data.error;
+      } catch {
+        // keep generic message
+      }
+      toast(message, "error");
     } catch {
-      // ignore
+      toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
     }

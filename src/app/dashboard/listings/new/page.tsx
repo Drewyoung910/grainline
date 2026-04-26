@@ -12,6 +12,7 @@ import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import PhotoManager from "@/components/PhotoManager";
+import ActionForm from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
@@ -31,7 +32,7 @@ function normalizeTag(input: string) {
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
 const lbToG  = (v: number) => Math.round(v * 453.59237);
 
-async function createListing(formData: FormData) {
+async function createListing(_prevState: unknown, formData: FormData) {
   "use server";
 
   const { userId } = await auth();
@@ -41,7 +42,7 @@ async function createListing(formData: FormData) {
   const saveAsDraft = formData.get("saveAsDraft") === "true";
 
   const { success: rlOk } = await safeRateLimit(listingCreateRatelimit, userId);
-  if (!rlOk) throw new Error("You can create up to 20 listings per day. Try again tomorrow.");
+  if (!rlOk) return { ok: false, error: "You can create up to 20 listings per day. Try again tomorrow." };
 
   const { seller } = await ensureSeller();
 
@@ -161,12 +162,14 @@ async function createListing(formData: FormData) {
   }
 
   if (!title || !imageUrls.length || !Number.isFinite(priceCents) || priceCents <= 0) {
-    throw new Error("Please fill title, price, and upload at least one photo.");
+    return { ok: false, error: "Please fill title, price, and upload at least one photo." };
   }
-  if (priceCents < 0) throw new Error("Price cannot be negative.");
-  if (priceCents > 10000000) throw new Error("Price cannot exceed $100,000.");
-  if (stockQuantity !== null && stockQuantity < 0) throw new Error("Stock quantity cannot be negative.");
-  if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) throw new Error("Processing time cannot exceed 365 days.");
+  if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
+  if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
+  if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) {
+    return { ok: false, error: "Processing time cannot exceed 365 days." };
+  }
 
   // 3. Create listing with status based on saveAsDraft
   const created = await prisma.listing.create({
@@ -419,7 +422,7 @@ export default async function NewListingPage({
 
       <h1 className="text-2xl font-semibold mb-6">Create a listing</h1>
 
-      <form action={createListing} className="space-y-4">
+      <ActionForm action={createListing} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
           <InputCharCounter name="title" maxLength={100} required />
@@ -552,7 +555,7 @@ export default async function NewListingPage({
             Save as Draft
           </button>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

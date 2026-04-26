@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useToast } from "@/components/Toast";
 
 export default function NotifyMeButton({
   listingId,
@@ -12,6 +13,7 @@ export default function NotifyMeButton({
 }) {
   const [subscribed, setSubscribed] = useState(initialSubscribed);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   async function toggle() {
     if (!signedIn) {
@@ -22,7 +24,21 @@ export default function NotifyMeButton({
     try {
       const method = subscribed ? "DELETE" : "POST";
       const res = await fetch(`/api/listings/${listingId}/notify`, { method });
-      if (res.ok) setSubscribed(!subscribed);
+      if (res.ok) {
+        setSubscribed(!subscribed);
+        toast(subscribed ? "Stock alert removed." : "We’ll notify you when this is back in stock.", "success");
+        return;
+      }
+      let message = "Couldn’t update stock alert.";
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (data.error) message = data.error;
+      } catch {
+        // keep generic message
+      }
+      toast(message, "error");
+    } catch {
+      toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
     }

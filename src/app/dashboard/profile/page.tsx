@@ -8,6 +8,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import ProfileBannerUploader from "@/components/ProfileBannerUploader";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
 import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
+import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -20,7 +21,7 @@ import { isR2PublicUrl } from "@/lib/urlValidation";
 // Server actions
 // ──────────────────────────────────────────────────────────────────────────────
 
-async function updateSellerProfile(formData: FormData) {
+async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
@@ -73,7 +74,7 @@ async function updateSellerProfile(formData: FormData) {
   }
 
   const displayNameRaw = (String(formData.get("displayName") ?? "")).trim();
-  if (!displayNameRaw) throw new Error("Display name is required.");
+  if (!displayNameRaw) return { ok: false, error: "Display name is required." };
   const displayName = sanitizeText(displayNameRaw);
 
   const taglineRaw = toNull(formData.get("tagline"));
@@ -161,6 +162,7 @@ async function updateSellerProfile(formData: FormData) {
   if (duplicate) {
     redirect("/dashboard/profile?warning=duplicate-name");
   }
+  return { ok: true };
 }
 
 async function addFaq(formData: FormData) {
@@ -306,7 +308,7 @@ export default async function ProfilePage({
         </Link>
       </div>
 
-      <form action={updateSellerProfile} className="space-y-10">
+      <ActionForm action={updateSellerProfile} className="space-y-10">
         {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
         <section className="space-y-4">
           <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Shop Identity</h2>
@@ -580,7 +582,7 @@ export default async function ProfilePage({
             Save profile
           </button>
         </div>
-      </form>
+      </ActionForm>
 
       {/* ── FAQs ───────────────────────────────────────────────────────────── */}
       <section className="space-y-4">
