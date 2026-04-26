@@ -88,6 +88,19 @@ export async function POST(req: NextRequest) {
   if ((normalizedLat === null) !== (normalizedLng === null) || ((normalizedLat !== null || normalizedLng !== null) && normalizedRadius === null)) {
     return NextResponse.json({ error: "Location searches require latitude, longitude, and radius" }, { status: 400 });
   }
+  const hasMeaningfulCriteria =
+    normalizedQuery !== null ||
+    categoryVal !== null ||
+    listingType !== null ||
+    normalizedShips !== null ||
+    normalizedRating !== null ||
+    normalizedLat !== null ||
+    normalizedMin !== null ||
+    normalizedMax !== null ||
+    normalizedTags.length > 0;
+  if (!hasMeaningfulCriteria) {
+    return NextResponse.json({ error: "Choose at least one search term or filter before saving." }, { status: 400 });
+  }
 
   const existing = await prisma.savedSearch.findFirst({
     where: {
@@ -150,6 +163,11 @@ export async function GET() {
 }
 
 export async function DELETE(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
+
   const userResult = await getDbUserResult();
   if (userResult.response) return userResult.response;
   const me = userResult.me;

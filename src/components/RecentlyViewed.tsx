@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { getRecentlyViewed } from "@/lib/recentlyViewed";
+import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
+import { useToast } from "@/components/Toast";
 
 type RecentListing = {
   id: string;
@@ -14,6 +15,7 @@ type RecentListing = {
 };
 
 export default function RecentlyViewed() {
+  const { toast } = useToast();
   const [listings, setListings] = React.useState<RecentListing[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -24,11 +26,21 @@ export default function RecentlyViewed() {
       return;
     }
     fetch(`/api/listings/recently-viewed?ids=${ids.join(",")}`)
-      .then((r) => r.json())
-      .then((data) => setListings((data.listings ?? []).slice(0, 6)))
-      .catch(() => {/* silent */})
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data?.error || "Could not load recently viewed listings.");
+        return data;
+      })
+      .then((data) => {
+        const nextListings = (data.listings ?? []).slice(0, 6);
+        setListings(nextListings);
+        setRecentlyViewed(nextListings.map((listing: RecentListing) => listing.id));
+      })
+      .catch((error) => {
+        toast(error instanceof Error ? error.message : "Could not load recently viewed listings.", "error");
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [toast]);
 
   if (!loading && listings.length === 0) return null;
 

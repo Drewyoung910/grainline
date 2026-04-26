@@ -163,11 +163,22 @@ export default async function SellerSettingsPage() {
     if (isAccountAccessError(error)) redirect("/banned");
     throw error;
   }
-  const [row, followerCount, draftCount, userRow] = await Promise.all([
+  if (!me) redirect("/sign-in?redirect_url=/dashboard/seller");
+
+  const [row, followerCount, draftCount, userRow, latestPayoutFailure] = await Promise.all([
     prisma.sellerProfile.findUnique({ where: { id: seller.id } }),
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
-    me ? prisma.user.findUnique({ where: { id: me.id }, select: { notificationPreferences: true } }) : null,
+    prisma.user.findUnique({ where: { id: me.id }, select: { notificationPreferences: true } }),
+    prisma.notification.findFirst({
+      where: {
+        userId: me.id,
+        type: "PAYOUT_FAILED",
+        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true, body: true },
+    }),
   ]);
 
   const prefs = (userRow?.notificationPreferences as Record<string, boolean>) ?? {};
@@ -191,6 +202,15 @@ export default async function SellerSettingsPage() {
         <p className="text-sm text-neutral-500">
           View your balance, payout history, and update your bank account in your Stripe dashboard.
         </p>
+        {latestPayoutFailure && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm font-medium text-red-800">Stripe payout failed</p>
+            <p className="mt-1 text-sm text-red-700">
+              {latestPayoutFailure.body} Last reported{" "}
+              {latestPayoutFailure.createdAt.toLocaleDateString()}.
+            </p>
+          </div>
+        )}
         {row?.chargesEnabled && row?.stripeAccountId ? (
           <div className="space-y-3">
             <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>

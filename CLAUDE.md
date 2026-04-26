@@ -4996,3 +4996,29 @@ This pass targeted still-valid findings from the post-Round-7 list that were bou
 - Ban-time checkout-session expiry still needs a dedicated Redis/Stripe session design; this pass tightened ban persistence but did not attempt broad session cancellation.
 - Partial refund inventory remains conservative; line-item refund/restock semantics need product design.
 - Continue follower notification outbox work and remaining low-risk silent-failure cleanup.
+
+## Audit Pass — Payout + Saved/Recent State Polish (2026-04-25)
+
+This pass addressed smaller but still valid findings from the post-Round-7 backlog: payout failure visibility, recently-viewed state cleanup/rate limiting, saved-search abuse gaps, and sign-out race handling.
+
+### Fixed in this pass
+- **Seller payout failures are visible in settings**: `/dashboard/seller` now shows a red Stripe payout-failed banner when the seller has a recent `PAYOUT_FAILED` notification, instead of relying only on the notification bell.
+- **Recently viewed endpoint is rate limited**: `/api/listings/recently-viewed` now uses the existing open search limiter by IP, closing the unauthenticated spam path for arbitrary CUID lookups.
+- **Recently viewed cookies prune stale IDs**: the client now rewrites the cookie from the server-filtered response, removing stale, deleted, blocked, or no-longer-public listings after a successful refresh.
+- **Recently viewed failures are no longer silent**: non-2xx responses and network failures now surface through the shared toast channel instead of an empty catch block.
+- **Saved searches must contain meaningful criteria**: `/api/search/saved` now rejects empty `{}` or sort-only saved searches, preventing users or bots from filling the 25-search cap with meaningless rows.
+- **Saved-search delete API is rate limited**: `DELETE /api/search/saved` now uses the same saved-search limiter as creation.
+- **Dashboard saved-search deletion is gated**: the dashboard server action now rate-limits deletes and ignores banned/deleted users before deleting saved searches.
+- **Header sign-out waits for Clerk completion**: both the mobile header drawer and avatar menu now await `signOut({ redirectUrl: "/" })`, avoiding races where navigation can interrupt sign-out.
+
+### Verification
+- `npx tsc --noEmit --incremental false` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Durable notification/email outbox semantics remain open for very large follower bases.
+- Payout failure state is now visible through recent notifications; a persistent Stripe-account status model/resolution workflow could make this stronger later.
+- Continue larger SEO, performance-index, and partial-refund inventory passes.

@@ -434,7 +434,10 @@ export default function Header() {
                 {/* Sign Out */}
                 <button
                   type="button"
-                  onClick={() => { signOut(); setDrawerOpen(false); }}
+                  onClick={async () => {
+                    setDrawerOpen(false);
+                    await signOut({ redirectUrl: "/" });
+                  }}
                   className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-red-600 hover:text-red-700 min-h-[44px]"
                 >
                   Sign Out

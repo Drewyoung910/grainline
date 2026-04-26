@@ -4,8 +4,12 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { getIP, rateLimitResponse, safeRateLimitOpen, searchRatelimit } from "@/lib/ratelimit";
 
 export async function GET(req: NextRequest) {
+  const { success, reset } = await safeRateLimitOpen(searchRatelimit, `recently-viewed:${getIP(req)}`);
+  if (!success) return rateLimitResponse(reset, "Too many recently viewed requests.");
+
   const idsParam = req.nextUrl.searchParams.get("ids") ?? "";
   const ids = idsParam
     .split(",")

@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 
 interface Props {
@@ -20,7 +20,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
   const menuRef = React.useRef<HTMLDivElement>(null);
   const { signOut, openUserProfile } = useClerk();
   const { user: clerkUser } = useUser();
-  const router = useRouter();
   const pathname = usePathname();
 
   // Close on navigation
@@ -143,9 +142,9 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setOpen(false);
-                signOut(() => router.push("/"));
+                await signOut({ redirectUrl: "/" });
               }}
               className="flex w-full items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
             >

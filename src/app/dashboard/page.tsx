@@ -11,6 +11,7 @@ import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, B
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
+import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -116,8 +117,11 @@ async function deleteSavedSearch(searchId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const { success } = await safeRateLimit(savedSearchRatelimit, `dashboard-delete:${userId}`);
+  if (!success) return;
+  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, banned: true, deletedAt: true } });
   if (!me) return;
+  if (me.banned || me.deletedAt) return;
   await prisma.savedSearch.deleteMany({ where: { id: searchId, userId: me.id } });
   revalidatePath("/dashboard");
 }
@@ -608,7 +612,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

@@ -22,6 +22,12 @@ export function addRecentlyViewed(listingId: string): void {
   if (typeof document === "undefined") return;
   const current = getRecentlyViewed().filter((id) => id !== listingId);
   const next = [listingId, ...current].slice(0, MAX_ITEMS);
+  setRecentlyViewed(next);
+}
+
+export function setRecentlyViewed(listingIds: string[]): void {
+  if (typeof document === "undefined") return;
+  const next = Array.from(new Set(listingIds.filter(Boolean))).slice(0, MAX_ITEMS);
   const expires = new Date();
   expires.setDate(expires.getDate() + EXPIRY_DAYS);
   document.cookie = `${COOKIE_KEY}=${encodeURIComponent(JSON.stringify(next))}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
