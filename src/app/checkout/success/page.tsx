@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function fmtMoney(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });

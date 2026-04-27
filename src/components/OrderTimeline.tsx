@@ -40,7 +40,7 @@ function carrierTrackingUrl(
 }
 
 function fmtDate(d: string | Date): string {
-  return new Date(d).toLocaleString(undefined, {
+  return new Date(d).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -50,7 +50,7 @@ function fmtDate(d: string | Date): string {
 }
 
 function fmtMoney(cents: number) {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
   });

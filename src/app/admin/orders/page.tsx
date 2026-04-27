@@ -5,7 +5,7 @@ const PAGE_SIZE = 25;
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });
@@ -106,7 +106,7 @@ export default async function AllOrdersPage({
                         </div>
                       </td>
                       <td className="px-4 py-3 text-xs text-neutral-500 whitespace-nowrap">
-                        {order.createdAt.toLocaleDateString()}
+                        {order.createdAt.toLocaleDateString("en-US")}
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium text-neutral-800">{buyer}</div>

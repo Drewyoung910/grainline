@@ -262,7 +262,7 @@ export default function ThreadMessages({
                   )}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-400">
-                  {new Date(m.createdAt).toLocaleString()}
+                  {new Date(m.createdAt).toLocaleString("en-US")}
                 </div>
               </li>
             );
@@ -316,7 +316,7 @@ export default function ThreadMessages({
                   )}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">
-                  {new Date(m.createdAt).toLocaleString()}
+                  {new Date(m.createdAt).toLocaleString("en-US")}
                 </div>
               </li>
             );
@@ -354,7 +354,7 @@ export default function ThreadMessages({
                   )}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">
-                  {new Date(m.createdAt).toLocaleString()}
+                  {new Date(m.createdAt).toLocaleString("en-US")}
                 </div>
               </li>
             );
@@ -456,7 +456,7 @@ export default function ThreadMessages({
                   {bubble}
                 </div>
                 <div className="mt-1 text-[11px] text-neutral-500">
-                  {new Date(m.createdAt).toLocaleString()}
+                  {new Date(m.createdAt).toLocaleString("en-US")}
                 </div>
               </div>
             </li>

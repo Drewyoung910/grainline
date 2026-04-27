@@ -132,7 +132,7 @@ export default async function AdminBroadcastsPage({
                     </span>
                     <span className="text-xs text-neutral-300">·</span>
                     <span className="text-xs text-neutral-400">
-                      {new Date(b.sentAt).toLocaleDateString(undefined, {
+                      {new Date(b.sentAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                         year: "numeric",

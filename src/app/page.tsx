@@ -21,6 +21,7 @@ import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
+import { getPopularListingTags } from "@/lib/popularTags";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -232,22 +233,7 @@ export default async function HomePage() {
       select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
       take: 200,
     }),
-    prisma.$queryRaw<{ tag: string; count: bigint }[]>`
-      SELECT tag, COUNT(*) as count
-      FROM "Listing" l
-      INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-      INNER JOIN "User" u ON u.id = sp."userId",
-      unnest(l.tags) as tag
-      WHERE l.status = 'ACTIVE'
-        AND l."isPrivate" = false
-        AND sp."chargesEnabled" = true
-        AND sp."vacationMode" = false
-        AND u.banned = false
-        AND u."deletedAt" IS NULL
-      GROUP BY tag
-      ORDER BY count DESC
-      LIMIT 5
-    `,
+    getPopularListingTags(5),
     Promise.all([
       prisma.listing.count({ where: publicListingWhere() }),
       prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null }, listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } } } }),
@@ -290,7 +276,7 @@ export default async function HomePage() {
   ]);
 
   const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;
-  const trendingTags = trendingTagsRaw.map((r) => r.tag);
+  const trendingTags = trendingTagsRaw;
 
   const mosaicPhotos: { url: string; listingId: string }[] = mosaicListings
     .filter(l => l.photos.length > 0)
@@ -542,22 +528,22 @@ export default async function HomePage() {
       <div className="border-b bg-amber-50">
         <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString()}</span>
+            <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-stone-500">pieces listed</span>
           </div>
           <span className="text-amber-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString()}</span>
+            <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-stone-500">active makers</span>
           </div>
           <span className="text-amber-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString()}</span>
+            <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-stone-500">members</span>
           </div>
           <span className="text-amber-300 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString()}</span>
+            <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
             <span className="text-sm text-stone-500">orders fulfilled</span>
           </div>
         </ScrollSection>
@@ -923,7 +909,7 @@ export default async function HomePage() {
                           <span className="text-xs text-stone-500">{authorName}</span>
                           {p.publishedAt && (
                             <span className="text-xs text-stone-400 ml-auto">
-                              {new Date(p.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                              {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </span>
                           )}
                         </div>

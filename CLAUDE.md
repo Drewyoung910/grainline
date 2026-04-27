@@ -5124,6 +5124,26 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — CI, Search Scale, and Locale Polish (2026-04-26)
+
+This pass targeted remaining lower-risk backlog items after the production retention/payout deploy.
+
+### Fixed in this pass
+- **CI is blocking again**: `.github/workflows/ci.yml` now runs `npm ci --ignore-scripts`, Prisma generate, TypeScript, `npm run lint`, `npm run build`, and `npm audit --audit-level=high` without `continue-on-error`.
+- **Popular listing tags share one cached query**: `src/lib/popularTags.ts` exposes `getPopularListingTags()` via `unstable_cache`; browse, home, and `/api/search/popular-tags` now reuse it instead of duplicating DB scans.
+- **Search scale indexes added**: migration `20260426191000_search_scale_indexes` enables `pg_trgm` and adds GIN indexes for active listing title similarity, published blog title similarity, and listing tags.
+- **Explicit locale formatting**: remaining app/component `toLocaleString()` and `toLocaleDateString()` calls without a locale were normalized to `en-US` so server/client rendering does not drift by host default locale.
+- **Backlog updated**: `audit_open_findings.md` now marks the CI build/lint enforcement, popular tags shared cache, featured-maker cache, trigram indexes, and explicit-locale sweep as fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `npx prisma generate` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `git diff --check` ✅
+- `npm run lint` ✅ (passes; existing upstream jsx-ast-utils resolver notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+- `npm audit --audit-level=high` ✅ (moderate advisories remain documented/non-blocking)
+
 ## Audit Fix Pass — Retention, Payout Ledger, and Photo Mutation Hardening (2026-04-26)
 
 This pass continued the remaining R19-R21 medium/high backlog after the scale and deletion passes.

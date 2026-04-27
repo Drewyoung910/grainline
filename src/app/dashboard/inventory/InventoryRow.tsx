@@ -76,7 +76,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
           {listing.title}
         </Link>
         <div className="text-xs text-neutral-500">
-          {(listing.priceCents / 100).toLocaleString(undefined, {
+          {(listing.priceCents / 100).toLocaleString("en-US", {
             style: "currency",
             currency: listing.currency,
           })}

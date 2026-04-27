@@ -81,7 +81,7 @@ export default function FollowButton({
   return (
     <button onClick={toggle} disabled={loading} className={style}>
       {following ? "Following ✓" : "Follow"}
-      <span className="text-xs opacity-70">· {count.toLocaleString()}</span>
+      <span className="text-xs opacity-70">· {count.toLocaleString("en-US")}</span>
     </button>
   );
 }

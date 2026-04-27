@@ -151,7 +151,7 @@ export default async function AdminUsersPage({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-neutral-500 text-xs">
-                  {new Date(u.createdAt).toLocaleDateString()}
+                  {new Date(u.createdAt).toLocaleDateString("en-US")}
                 </td>
                 <td className="px-4 py-3">
                   {u.banned ? (
@@ -159,7 +159,7 @@ export default async function AdminUsersPage({
                       <span className="text-xs text-red-700 font-medium">Banned</span>
                       {u.bannedAt && (
                         <div className="text-xs text-neutral-400">
-                          {new Date(u.bannedAt).toLocaleDateString()}
+                          {new Date(u.bannedAt).toLocaleDateString("en-US")}
                         </div>
                       )}
                       {u.banReason && (

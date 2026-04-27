@@ -17,7 +17,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function fmtMoney(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });

@@ -47,7 +47,7 @@ export default async function AdminReviewsPage() {
                     {r.listing.title}
                   </Link>
                   <span className="text-xs text-neutral-400">
-                    {new Date(r.createdAt).toLocaleDateString()}
+                    {new Date(r.createdAt).toLocaleDateString("en-US")}
                   </span>
                 </div>
                 {r.comment && (

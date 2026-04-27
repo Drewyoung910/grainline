@@ -16,6 +16,7 @@ import RecentlyViewed from "@/components/RecentlyViewed";
 import GuildBadge from "@/components/GuildBadge";
 import ListingCard from "@/components/ListingCard";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { getPopularListingTags } from "@/lib/popularTags";
 
 const PAGE_SIZE = 24;
 
@@ -366,24 +367,7 @@ export default async function BrowsePage({
     ]);
   }
 
-  // Popular tags (always from all active listings with connected sellers)
-  const tagRows = await prisma.listing.findMany({
-    where: publicListingWhere(),
-    select: { tags: true },
-    take: 500,
-    orderBy: { createdAt: "desc" },
-  });
-  const tagCounts = new Map<string, number>();
-  for (const row of tagRows) {
-    for (const t of row.tags || []) {
-      const k = t.toLowerCase();
-      tagCounts.set(k, (tagCounts.get(k) ?? 0) + 1);
-    }
-  }
-  const popularTags = Array.from(tagCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 12)
-    .map(([name]) => name);
+  const popularTags = await getPopularListingTags(12);
 
   // Saved set for current user
   let savedSet = new Set<string>();

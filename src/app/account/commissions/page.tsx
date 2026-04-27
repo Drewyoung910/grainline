@@ -118,7 +118,7 @@ export default async function MyCommissionsPage() {
                   </span>
                 )}
                 <span>
-                  {new Date(r.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                  {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
                 <Link href={`/commission/${r.id}`} className="ml-auto text-neutral-600 hover:underline">
                   View →

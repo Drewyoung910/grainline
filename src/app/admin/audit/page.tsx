@@ -153,7 +153,7 @@ export default async function AdminAuditPage({
                     {log.reason ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-neutral-500 text-xs whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString()}
+                    {new Date(log.createdAt).toLocaleString("en-US")}
                   </td>
                   <td className="px-4 py-3">
                     {undoable ? (

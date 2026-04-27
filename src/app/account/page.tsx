@@ -185,8 +185,8 @@ export default async function AccountPage() {
                       {firstItem?.listing.title ?? "Order"}
                     </p>
                     <p className="text-xs text-neutral-500 mt-0.5">
-                      {new Date(order.createdAt).toLocaleDateString()} ·{" "}
-                      {(total / 100).toLocaleString(undefined, {
+                      {new Date(order.createdAt).toLocaleDateString("en-US")} ·{" "}
+                      {(total / 100).toLocaleString("en-US", {
                         style: "currency",
                         currency: order.currency,
                       })}
@@ -239,7 +239,7 @@ export default async function AccountPage() {
                     <div className="p-2 bg-white border-t border-neutral-100">
                       <p className="text-xs font-medium truncate">{listing.title}</p>
                       <p className="text-xs text-neutral-500">
-                        {(listing.priceCents / 100).toLocaleString(undefined, {
+                        {(listing.priceCents / 100).toLocaleString("en-US", {
                           style: "currency",
                           currency: listing.currency,
                         })}

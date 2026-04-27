@@ -369,7 +369,7 @@ export default async function DashboardPage() {
             <p className="text-amber-800 text-sm mt-0.5">
               Your listings are hidden and new orders are blocked.
               {vacationReturnDate && (
-                <> Return date: {new Date(vacationReturnDate).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}.</>
+                <> Return date: {new Date(vacationReturnDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.</>
               )}
               {!vacationReturnDate && <> No return date set.</>}
             </p>
@@ -449,7 +449,7 @@ export default async function DashboardPage() {
                         ) : l.title}
                       </h3>
                       <span className="text-sm text-neutral-500">
-                        {(l.priceCents / 100).toLocaleString(undefined, {
+                        {(l.priceCents / 100).toLocaleString("en-US", {
                           style: "currency",
                           currency: l.currency,
                         })}
@@ -590,7 +590,7 @@ export default async function DashboardPage() {
                       {parts.length > 0 ? parts.join(" · ") : "All listings"}
                     </Link>
                     <div className="text-xs text-neutral-500 mt-0.5">
-                      Saved {new Date(s.createdAt).toLocaleDateString()}
+                      Saved {new Date(s.createdAt).toLocaleDateString("en-US")}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4">

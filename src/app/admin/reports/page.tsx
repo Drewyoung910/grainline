@@ -120,7 +120,7 @@ export default async function AdminReportsPage() {
                     {r.reason}
                   </span>
                   <span className="text-xs text-neutral-400">
-                    {new Date(r.createdAt).toLocaleDateString()}
+                    {new Date(r.createdAt).toLocaleDateString("en-US")}
                   </span>
                 </div>
                 {r.details && (

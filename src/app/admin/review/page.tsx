@@ -88,7 +88,7 @@ export default async function AdminReviewPage() {
                     <div className="text-sm text-neutral-500 mt-0.5">
                       by {listing.seller.displayName} ·{" "}
                       ${(listing.priceCents / 100).toFixed(2)} ·{" "}
-                      {new Date(listing.createdAt).toLocaleDateString()}
+                      {new Date(listing.createdAt).toLocaleDateString("en-US")}
                     </div>
                     {listing.aiReviewFlags.length > 0 && (
                       <div className="mt-2">

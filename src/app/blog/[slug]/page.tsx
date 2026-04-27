@@ -230,7 +230,7 @@ export default async function BlogPostPage({
         )}
         {post.publishedAt && (
           <span className="text-xs text-neutral-500">
-            {new Date(post.publishedAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+            {new Date(post.publishedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
           </span>
         )}
       </div>
@@ -350,7 +350,7 @@ export default async function BlogPostPage({
                   <div className="p-3">
                     <div className="font-medium text-sm line-clamp-1">{l.title}</div>
                     <div className="text-xs text-neutral-500">
-                      {(l.priceCents / 100).toLocaleString(undefined, { style: "currency", currency: l.currency })}
+                      {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
                     </div>
                     <div className="text-xs text-neutral-400">{l.seller.displayName}</div>
                   </div>
@@ -390,7 +390,7 @@ export default async function BlogPostPage({
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{c.author.name ?? "User"}</span>
                       <span className="text-xs text-neutral-400">
-                        {new Date(c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </span>
                       {meId && meId !== c.author.id && (
                         <span className="ml-auto">

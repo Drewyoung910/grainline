@@ -286,7 +286,7 @@ export default async function VerificationPage() {
             {fullSeller.guildMemberApprovedAt && (
               <p className="text-green-700 text-xs mt-1">
                 Approved on{" "}
-                {new Date(fullSeller.guildMemberApprovedAt).toLocaleDateString(undefined, {
+                {new Date(fullSeller.guildMemberApprovedAt).toLocaleDateString("en-US", {
                   month: "long",
                   day: "numeric",
                   year: "numeric",
@@ -347,7 +347,7 @@ export default async function VerificationPage() {
                   <span className={criteriaSalesMet ? "text-green-800" : "text-neutral-700"}>
                     Completed sales:{" "}
                     <span className="font-medium">
-                      {(totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                      {(totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}
                     </span> /{" "}
                     <span className="text-neutral-500">$250 required</span>
                   </span>
@@ -518,7 +518,7 @@ export default async function VerificationPage() {
                   <span className={masterCriteria.salesMet ? "text-green-800" : "text-neutral-700"}>
                     Completed sales:{" "}
                     <span className="font-medium">
-                      {(masterMetrics.totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                      {(masterMetrics.totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}
                     </span>
                     {" "}/ <span className="text-neutral-500">$1,000 required</span>
                   </span>
@@ -567,7 +567,7 @@ export default async function VerificationPage() {
                 {fullSeller.guildMasterApprovedAt && (
                   <p className="text-indigo-700 text-xs mt-1">
                     Approved on{" "}
-                    {new Date(fullSeller.guildMasterApprovedAt).toLocaleDateString(undefined, {
+                    {new Date(fullSeller.guildMasterApprovedAt).toLocaleDateString("en-US", {
                       month: "long",
                       day: "numeric",
                       year: "numeric",
@@ -585,7 +585,7 @@ export default async function VerificationPage() {
                     <strong>
                       {new Date(
                         new Date(fullSeller.metricWarningSentAt).getTime() + 30 * 24 * 60 * 60 * 1000
-                      ).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                      ).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
                     </strong>{" "}
                     to maintain your badge. If metrics remain below standard at the next monthly review your Guild Master status will be revoked (Guild Member remains active).
                   </p>
@@ -598,7 +598,7 @@ export default async function VerificationPage() {
                   <p>
                     Last metrics check:{" "}
                     <span className="text-neutral-700 font-medium">
-                      {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString(undefined, {
+                      {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString("en-US", {
                         month: "long",
                         day: "numeric",
                         year: "numeric",
@@ -630,7 +630,7 @@ export default async function VerificationPage() {
             <div className="card-section px-5 py-3 text-xs text-neutral-500">
               Last metrics check:{" "}
               <span className="text-neutral-700 font-medium">
-                {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString(undefined, {
+                {new Date(fullSeller.lastMetricCheckAt).toLocaleDateString("en-US", {
                   month: "long",
                   day: "numeric",
                   year: "numeric",

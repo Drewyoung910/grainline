@@ -34,15 +34,15 @@ export default async function AboutPage() {
 
         <div className="grid grid-cols-3 gap-4 mb-12">
           <div className="bg-amber-50 rounded-2xl p-6">
-            <div className="text-3xl font-bold text-neutral-900">{listingCount.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-neutral-900">{listingCount.toLocaleString("en-US")}</div>
             <div className="text-sm text-stone-500 mt-1">handmade pieces listed</div>
           </div>
           <div className="bg-amber-50 rounded-2xl p-6">
-            <div className="text-3xl font-bold text-neutral-900">{sellerCount.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-neutral-900">{sellerCount.toLocaleString("en-US")}</div>
             <div className="text-sm text-stone-500 mt-1">active makers</div>
           </div>
           <div className="bg-amber-50 rounded-2xl p-6">
-            <div className="text-3xl font-bold text-neutral-900">{memberCount.toLocaleString()}</div>
+            <div className="text-3xl font-bold text-neutral-900">{memberCount.toLocaleString("en-US")}</div>
             <div className="text-sm text-stone-500 mt-1">members</div>
           </div>
         </div>

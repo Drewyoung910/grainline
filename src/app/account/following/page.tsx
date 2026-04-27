@@ -102,7 +102,7 @@ export default async function FollowingPage() {
                     <span>·</span>
                     <span>{s._count.listings} listing{s._count.listings !== 1 ? "s" : ""}</span>
                     <span>·</span>
-                    <span>Since {new Date(createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</span>
+                    <span>Since {new Date(createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
                   </div>
                   {/* Latest listing */}
                   {s.listings[0] ? (

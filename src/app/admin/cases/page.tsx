@@ -179,7 +179,7 @@ export default async function AdminCasesPage({
                       {c._count.messages}
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-500 whitespace-nowrap">
-                      {c.createdAt.toLocaleDateString()}
+                      {c.createdAt.toLocaleDateString("en-US")}
                     </td>
                     <td className="px-4 py-3">
                       <Link

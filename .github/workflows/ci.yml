@@ -8,18 +8,23 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npx prisma generate
       - run: npx tsc --noEmit
       - name: Lint
-        run: npx next lint
-        continue-on-error: true
+        run: npm run lint
+      - name: Build
+        run: npm run build
       - name: Security audit
-        run: npm audit
-        continue-on-error: true
+        run: npm audit --audit-level=high

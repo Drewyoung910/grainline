@@ -86,7 +86,7 @@ export default function VacationModeForm({
   }
 
   const returnDateFormatted = returnDate
-    ? new Date(returnDate + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })
+    ? new Date(returnDate + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : null;
 
   return (

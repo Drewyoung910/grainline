@@ -337,7 +337,7 @@ export default async function ThreadPage({
           <div className="min-w-0">
             <div className="truncate font-medium">{ctx.title}</div>
             <div className="text-sm text-neutral-600">
-              {(ctx.priceCents / 100).toLocaleString(undefined, {
+              {(ctx.priceCents / 100).toLocaleString("en-US", {
                 style: "currency",
                 currency: ctx.currency ?? "USD",
               })}

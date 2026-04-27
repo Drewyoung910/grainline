@@ -112,7 +112,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     accountAgeDays < 30 ? `${accountAgeDays}/30 account age days` : null,
     longCaseCount > 0 ? `${longCaseCount} unresolved case${longCaseCount === 1 ? "" : "s"} older than 60 days` : null,
     !adminOverride && totalSalesCents < 25_000
-      ? `${(totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}/$250 completed non-refunded sales`
+      ? `${(totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}/$250 completed non-refunded sales`
       : null,
   ].filter(Boolean);
 
@@ -664,7 +664,7 @@ export default async function AdminVerificationPage() {
                   <div>
                     <div className="font-semibold text-base">{v.sellerProfile.displayName}</div>
                     <div className="text-xs text-neutral-500 mt-0.5">
-                      Applied {new Date(v.appliedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      Applied {new Date(v.appliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </div>
                   </div>
                   <a
@@ -780,7 +780,7 @@ export default async function AdminVerificationPage() {
                     <div className="text-xs text-neutral-500 mt-0.5">
                       Applied{" "}
                       {v.sellerProfile.guildMasterAppliedAt
-                        ? new Date(v.sellerProfile.guildMasterAppliedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                        ? new Date(v.sellerProfile.guildMasterAppliedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                         : "—"}
                     </div>
                   </div>
@@ -827,7 +827,7 @@ export default async function AdminVerificationPage() {
                         { label: "On-Time Shipping", value: `${(m.onTimeShippingRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%`, met: mc.shippingMet },
                         { label: "Response Rate", value: `${(m.responseRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%`, met: mc.responseMet },
                         { label: "Account Age", value: `${m.accountAgeDays}d`, req: `≥${GUILD_MASTER_REQUIREMENTS.accountAgeDays}d`, met: mc.ageMet },
-                        { label: "Total Sales", value: (m.totalSalesCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" }), req: "≥$1,000", met: mc.salesMet },
+                        { label: "Total Sales", value: (m.totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }), req: "≥$1,000", met: mc.salesMet },
                         { label: "Open Cases", value: String(m.activeCaseCount), req: "0", met: mc.casesMet },
                         { label: "Orders", value: String(m.completedOrderCount), req: "—", met: true },
                       ].map(({ label, value, req, met }) => (
@@ -839,7 +839,7 @@ export default async function AdminVerificationPage() {
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10px] text-indigo-500 pt-1">Metrics calculated {m.calculatedAt.toLocaleDateString()} · {m.periodMonths}-month period</p>
+                    <p className="text-[10px] text-indigo-500 pt-1">Metrics calculated {m.calculatedAt.toLocaleDateString("en-US")} · {m.periodMonths}-month period</p>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
@@ -886,7 +886,7 @@ export default async function AdminVerificationPage() {
                   <div className="font-medium text-sm">{s.displayName}</div>
                   {s.guildMemberApprovedAt && (
                     <div className="text-xs text-neutral-500">
-                      Approved {new Date(s.guildMemberApprovedAt).toLocaleDateString()}
+                      Approved {new Date(s.guildMemberApprovedAt).toLocaleDateString("en-US")}
                     </div>
                   )}
                 </div>
@@ -922,7 +922,7 @@ export default async function AdminVerificationPage() {
                   <div className="font-medium text-sm">{s.displayName}</div>
                   {s.guildMasterApprovedAt && (
                     <div className="text-xs text-neutral-500">
-                      Approved {new Date(s.guildMasterApprovedAt).toLocaleDateString()}
+                      Approved {new Date(s.guildMasterApprovedAt).toLocaleDateString("en-US")}
                     </div>
                   )}
                 </div>
@@ -957,7 +957,7 @@ export default async function AdminVerificationPage() {
                   <div className="font-medium text-sm">{s.displayName}</div>
                   {s.guildMemberApprovedAt && (
                     <div className="text-xs text-neutral-500">
-                      Was approved {new Date(s.guildMemberApprovedAt).toLocaleDateString()}
+                      Was approved {new Date(s.guildMemberApprovedAt).toLocaleDateString("en-US")}
                     </div>
                   )}
                 </div>

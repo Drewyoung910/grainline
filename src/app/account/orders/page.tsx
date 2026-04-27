@@ -157,7 +157,7 @@ export default async function AccountOrdersPage({
                           </Link>
                           <p className="text-xs text-neutral-500 mt-0.5">
                             Qty {item.quantity} ·{" "}
-                            {(item.priceCents / 100).toLocaleString(undefined, {
+                            {(item.priceCents / 100).toLocaleString("en-US", {
                               style: "currency",
                               currency: order.currency,
                             })} each
@@ -173,14 +173,14 @@ export default async function AccountOrdersPage({
                   <div className="text-sm">
                     <span className="text-neutral-500">Total: </span>
                     <span className="font-semibold">
-                      {(total / 100).toLocaleString(undefined, {
+                      {(total / 100).toLocaleString("en-US", {
                         style: "currency",
                         currency: order.currency,
                       })}
                     </span>
                     {(order.sellerRefundAmountCents ?? 0) > 0 && (
                       <span className="text-sm text-red-600 ml-2">
-                        (Refund: -{(order.sellerRefundAmountCents! / 100).toLocaleString(undefined, {
+                        (Refund: -{(order.sellerRefundAmountCents! / 100).toLocaleString("en-US", {
                           style: "currency",
                           currency: order.currency,
                         })})

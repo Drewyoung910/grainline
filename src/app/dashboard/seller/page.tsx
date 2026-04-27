@@ -209,7 +209,7 @@ export default async function SellerSettingsPage() {
               {latestPayoutFailure.failureMessage ??
                 "Stripe could not complete a payout. Review your Stripe account so the payout can be retried."}{" "}
               Last reported{" "}
-              {latestPayoutFailure.createdAt.toLocaleDateString()}.
+              {latestPayoutFailure.createdAt.toLocaleDateString("en-US")}.
             </p>
           </div>
         )}

@@ -144,7 +144,7 @@ export default async function AdminBlogPage() {
                       {c.post.title}
                     </Link>
                     {" · "}
-                    {new Date(c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <form action={approveComment.bind(null, c.id)}>
@@ -192,7 +192,7 @@ export default async function AdminBlogPage() {
                   <div className="font-medium truncate">{p.title}</div>
                   <div className="text-xs text-neutral-500">
                     by {p.author.name ?? p.author.email}
-                    {p.publishedAt && ` · ${new Date(p.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`}
+                    {p.publishedAt && ` · ${new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">

@@ -71,7 +71,7 @@ export default function BlogReplyToggle({
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{r.author.name ?? "User"}</span>
                   <span className="text-xs text-neutral-400">
-                    {new Date(r.createdAt).toLocaleDateString(undefined, {
+                    {new Date(r.createdAt).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -113,7 +113,7 @@ export default function BlogReplyToggle({
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{r3.author.name ?? "User"}</span>
                           <span className="text-xs text-neutral-400">
-                            {new Date(r3.createdAt).toLocaleDateString(undefined, {
+                            {new Date(r3.createdAt).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",

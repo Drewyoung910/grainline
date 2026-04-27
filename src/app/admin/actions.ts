@@ -53,7 +53,7 @@ export async function appendNote(orderId: string, _prevState: unknown, formData:
     const note = String(formData.get("note") ?? "").trim();
     if (!note) return { ok: false, error: "Enter a note before appending." };
     if (note.length > ORDER_NOTE_MAX_CHARS) {
-      return { ok: false, error: `Notes are limited to ${ORDER_NOTE_MAX_CHARS.toLocaleString()} characters per append.` };
+      return { ok: false, error: `Notes are limited to ${ORDER_NOTE_MAX_CHARS.toLocaleString("en-US")} characters per append.` };
     }
 
     const order = await prisma.order.findUnique({
@@ -68,7 +68,7 @@ export async function appendNote(orderId: string, _prevState: unknown, formData:
     if (updated.length > ORDER_REVIEW_NOTE_MAX_CHARS) {
       return {
         ok: false,
-        error: `This order already has too many review notes. Keep total notes under ${ORDER_REVIEW_NOTE_MAX_CHARS.toLocaleString()} characters.`,
+        error: `This order already has too many review notes. Keep total notes under ${ORDER_REVIEW_NOTE_MAX_CHARS.toLocaleString("en-US")} characters.`,
       };
     }
 

@@ -233,7 +233,7 @@ export default async function SavedPage({
                         <span className="text-xs text-neutral-500">{name}</span>
                         {p.publishedAt && (
                           <span className="text-xs text-neutral-400 ml-auto">
-                            {new Date(p.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                           </span>
                         )}
                       </div>

@@ -547,9 +547,9 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Blog slug generation normalizes diacritics (`Café` -> `cafe`) and falls back to a stable hash slug for non-Latin titles instead of returning empty.
 - Listings and sellers still primarily use CUID URLs. Slug work remains a larger SEO pass.
 - Browse rating filter performs heavy review scans. Add optimized aggregate/materialized rating fields.
-- Browse popular tags duplicates cached endpoint. Use ISR endpoint or shared cached query.
-- Featured maker fallback query runs every homepage hit. Cache/ISR or precompute featured maker data.
-- `pg_trgm` similarity/search lacks proper GIN indexes for keystroke-scale search.
+- [FIXED 2026-04-26] Browse popular tags now use a shared `getPopularListingTags()` cached query consumed by both `/api/search/popular-tags` and browse/home server renders.
+- [FIXED 2026-04-26] Featured maker fallback is cached with `unstable_cache` and a 1-hour revalidation window.
+- [FIXED 2026-04-26] Added pg_trgm-backed GIN indexes for active listing titles and published blog titles, plus a GIN index for listing tags.
 - Tag autocomplete cross-joins all `Listing x unnest(tags)` at scale. Use cached tag table/materialized view.
 - Browse canonical/noindex/page/filter strategy still needs one deliberate SEO decision.
 - Sitemap index splitting remains future scale work.
@@ -558,8 +558,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 - Schema has few `@db.VarChar(N)` caps. Add caps to bounded text fields; leave long bodies as `Text`.
 - Viewed cookies can leak listing IDs and hit header size limits. Cap count, compress, or move to server-side recently viewed for signed-in users.
-- CI still has non-blocking lint/audit in places. Make TypeScript/build blocking; keep audit advisory if needed.
-- Add `next build` to CI if not already blocking.
+- [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
 - Zero real test suite remains. Start with payment/webhook/refund/account-state route tests.
 - `tsconfig` target ES2017 may increase bundle size. Evaluate ES2022 target with Next/browser support.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
@@ -603,13 +602,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
 - Photo-add AI review currently reviews newly added photos, not the merged final set; acceptable for new-photo safety, but document the intended invariant.
 - Blog featured listing rendering should re-verify ownership/visibility at render time where not already guaranteed.
-- Featured maker queries should be cached/ISR-backed instead of sequential DB work on hot pages.
+- [FIXED 2026-04-26] Featured maker queries are cached through `unstable_cache`.
 - Onboarding step 4 navigation should advance persisted step state, and the skip-Stripe path needs an explicit `chargesEnabled` warning.
 - Reverse-geocode throttling should move from Lambda-local memory to shared Redis/Upstash state.
 - Onboarding step 1 profile image state can be lost on browser back/forward navigation; persist draft/upload state.
 - `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step. **Current state: Fixed.**
 - Loading skeleton coverage is still inconsistent across key dashboard/public pages.
-- Date formatting should use explicit locale/time zone where user-visible (`toLocaleString`, `toLocaleDateString`, JSON-LD/display dates).
+- [FIXED 2026-04-26] Remaining user-visible no-locale `toLocaleString`/`toLocaleDateString` calls in app/components were normalized to `en-US`.
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
 - Sitemap scale remains capped by single-file entry limits; add sitemap index splitting before large catalog growth.
 - `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage. **Current state: Partial.** Buy Now has a 44px minimum target and focus ring; listing gallery main image is now a semantic button with focus-visible outline.

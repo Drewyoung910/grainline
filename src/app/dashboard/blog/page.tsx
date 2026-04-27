@@ -90,7 +90,7 @@ export default async function DashboardBlogPage() {
                 <div className="font-medium truncate">{p.title}</div>
                 <div className="text-xs text-neutral-500 mt-0.5">
                   {p.publishedAt
-                    ? `Published ${new Date(p.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+                    ? `Published ${new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
                     : "Not published"}
                   {p.readingTimeMinutes ? ` · ${p.readingTimeMinutes} min read` : ""}
                 </div>

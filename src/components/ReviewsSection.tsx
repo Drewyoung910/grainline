@@ -205,7 +205,7 @@ export default async function ReviewsSection({
                     <span className="ml-2 rounded-full border px-2 py-0.5 text-[11px]">Verified purchase</span>
                   )}
                   <span className="ml-auto text-xs text-neutral-500">
-                    {new Date(mine.createdAt).toLocaleDateString()}
+                    {new Date(mine.createdAt).toLocaleDateString("en-US")}
                   </span>
                 </div>
                 {mine.comment && (
@@ -280,7 +280,7 @@ export default async function ReviewsSection({
                       )}
                       <span className="ml-auto flex items-center gap-1">
                         <span className="text-xs text-neutral-500">
-                          {new Date(r.createdAt).toLocaleDateString()}
+                          {new Date(r.createdAt).toLocaleDateString("en-US")}
                         </span>
                         {meId && meId !== r.reviewer.id && !r.reviewer.deletedAt && (
                           <BlockReportButton
@@ -317,7 +317,7 @@ export default async function ReviewsSection({
                             <div className="mb-1 text-xs text-neutral-500">Seller reply</div>
                             <div>{r.sellerReply}</div>
                             <div className="mt-1 text-[11px] text-neutral-500">
-                              {r.sellerReplyAt ? new Date(r.sellerReplyAt).toLocaleString() : ""}
+                              {r.sellerReplyAt ? new Date(r.sellerReplyAt).toLocaleString("en-US") : ""}
                             </div>
                           </div>
                         </div>

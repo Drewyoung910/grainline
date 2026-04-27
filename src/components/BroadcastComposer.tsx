@@ -115,7 +115,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
               <li key={b.id} className="rounded-lg border p-3 bg-stone-50 text-sm">
                 <p className="text-neutral-800">{b.message}</p>
                 <p className="text-xs text-neutral-400 mt-1">
-                  {new Date(b.sentAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                  {new Date(b.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   {" · "}
                   {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
                 </p>

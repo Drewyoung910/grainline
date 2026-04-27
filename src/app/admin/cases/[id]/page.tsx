@@ -7,7 +7,7 @@ import CaseReplyBox from "@/components/CaseReplyBox";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });
@@ -68,10 +68,10 @@ function fmtDeadline(deadline: Date | null): { text: string; overdue: boolean } 
   const now = new Date();
   const ms = deadline.getTime() - now.getTime();
   const overdue = ms <= 0;
-  if (overdue) return { text: `${deadline.toLocaleString()} (overdue)`, overdue: true };
+  if (overdue) return { text: `${deadline.toLocaleString("en-US")} (overdue)`, overdue: true };
   const hours = Math.floor(ms / (1000 * 60 * 60));
   const timeLeft = hours >= 48 ? `${Math.floor(hours / 24)}d remaining` : `${hours}h remaining`;
-  return { text: `${deadline.toLocaleString()} · ${timeLeft}`, overdue: false };
+  return { text: `${deadline.toLocaleString("en-US")} · ${timeLeft}`, overdue: false };
 }
 
 export default async function AdminCaseDetailPage({
@@ -130,7 +130,7 @@ export default async function AdminCaseDetailPage({
             <CaseStatusBadge status={caseRecord.status} />
           </div>
           <p className="mt-1 text-sm text-neutral-500">
-            Opened {caseRecord.createdAt.toLocaleString()} ·{" "}
+            Opened {caseRecord.createdAt.toLocaleString("en-US")} ·{" "}
             {REASON_LABELS[caseRecord.reason] ?? caseRecord.reason}
           </p>
         </div>
@@ -223,7 +223,7 @@ export default async function AdminCaseDetailPage({
                     <span>·</span>
                     <span>{msg.author.name ?? msg.author.email}</span>
                     <span>·</span>
-                    <span>{msg.createdAt.toLocaleString()}</span>
+                    <span>{msg.createdAt.toLocaleString("en-US")}</span>
                   </div>
                   <p className="text-sm text-neutral-800 whitespace-pre-wrap">{msg.body}</p>
                 </li>
@@ -277,7 +277,7 @@ export default async function AdminCaseDetailPage({
               <Field label="Stripe refund ID" value={caseRecord.stripeRefundId} />
             )}
             {caseRecord.resolvedAt && (
-              <Field label="Resolved at" value={caseRecord.resolvedAt.toLocaleString()} />
+              <Field label="Resolved at" value={caseRecord.resolvedAt.toLocaleString("en-US")} />
             )}
           </dl>
         </Section>

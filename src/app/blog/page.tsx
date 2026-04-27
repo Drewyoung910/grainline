@@ -372,7 +372,7 @@ export default async function BlogIndexPage({
                     })()}
                     {featured.publishedAt && (
                       <span className="text-xs text-neutral-400 ml-auto">
-                        {new Date(featured.publishedAt).toLocaleDateString(undefined, {
+                        {new Date(featured.publishedAt).toLocaleDateString("en-US", {
                           month: "short", day: "numeric", year: "numeric",
                         })}
                       </span>
@@ -428,7 +428,7 @@ export default async function BlogIndexPage({
                           <span className="text-xs text-neutral-500">{name}</span>
                           {post.publishedAt && (
                             <span className="text-xs text-neutral-400 ml-auto">
-                              {new Date(post.publishedAt).toLocaleDateString(undefined, {
+                              {new Date(post.publishedAt).toLocaleDateString("en-US", {
                                 month: "short", day: "numeric",
                               })}
                             </span>

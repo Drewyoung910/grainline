@@ -87,7 +87,7 @@ type AnalyticsData = {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
@@ -96,7 +96,7 @@ function fmt(cents: number, currency = "usd") {
 }
 
 function fmtExact(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, { style: "currency", currency });
+  return (cents / 100).toLocaleString("en-US", { style: "currency", currency });
 }
 
 function pct(val: number, decimals = 1) {
@@ -207,7 +207,7 @@ function LineChartSection({
 
   function formatValue(v: number) {
     if (metric === "revenue") return fmtExact(v);
-    return v.toLocaleString();
+    return v.toLocaleString("en-US");
   }
 
   return (
@@ -277,8 +277,8 @@ function LineChartSection({
                   fill="#9ca3af"
                 >
                   {metric === "revenue"
-                    ? `$${Math.round(tick / 100).toLocaleString()}`
-                    : tick.toLocaleString()}
+                    ? `$${Math.round(tick / 100).toLocaleString("en-US")}`
+                    : tick.toLocaleString("en-US")}
                 </text>
               </g>
             );
@@ -539,7 +539,7 @@ export default function AnalyticsPage() {
                 <p className="text-[10px] text-neutral-400">before fees, excluding refunded orders</p>
               </div>
               <div className="card-section p-5">
-                <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString()}</p>
+                <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString("en-US")}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Paid Orders</p>
                 <p className="text-[10px] text-neutral-400">excluding refunded orders</p>
               </div>
@@ -568,7 +568,7 @@ export default function AnalyticsPage() {
         ) : data ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             <div className="card-section p-3">
-              <p className="text-xl font-bold">{data.engagement.totalViews.toLocaleString()}</p>
+              <p className="text-xl font-bold">{data.engagement.totalViews.toLocaleString("en-US")}</p>
               <p className="text-xs font-medium text-neutral-700 mt-0.5">Listing Views</p>
               <p className="text-[10px] text-neutral-400">times your listing page was opened</p>
               <p className="text-[10px] text-neutral-400">each visitor counted once per day · updates daily</p>
@@ -576,7 +576,7 @@ export default function AnalyticsPage() {
             {[
               {
                 label: "Listing Clicks",
-                value: data.engagement.totalClicks.toLocaleString(),
+                value: data.engagement.totalClicks.toLocaleString("en-US"),
                 note: "times a listing card was clicked across the site",
               },
               {
@@ -591,22 +591,22 @@ export default function AnalyticsPage() {
               },
               {
                 label: "Profile Visits",
-                value: data.engagement.profileVisits.toLocaleString(),
+                value: data.engagement.profileVisits.toLocaleString("en-US"),
                 note: "all-time total",
               },
               {
                 label: "Cart Abandoned",
-                value: data.engagement.cartAbandonment.toLocaleString(),
+                value: data.engagement.cartAbandonment.toLocaleString("en-US"),
                 note: "items added to cart but not purchased · in range",
               },
               {
                 label: "Saved",
-                value: data.engagement.favoritesCount.toLocaleString(),
+                value: data.engagement.favoritesCount.toLocaleString("en-US"),
                 note: "new saves this period",
               },
               {
                 label: "Watching",
-                value: data.engagement.stockNotificationSubs.toLocaleString(),
+                value: data.engagement.stockNotificationSubs.toLocaleString("en-US"),
                 note: "new watchers this period",
               },
               {
@@ -696,7 +696,7 @@ export default function AnalyticsPage() {
                       {l.unitsSold !== 1 ? "s" : ""}
                     </p>
                     <p className="text-xs text-neutral-400 mt-0.5">
-                      <Eye size={11} className="inline align-middle" /> {l.viewCount.toLocaleString()} · clicks {l.clickCount.toLocaleString()} · <Heart size={11} className="inline align-middle" />{" "}
+                      <Eye size={11} className="inline align-middle" /> {l.viewCount.toLocaleString("en-US")} · clicks {l.clickCount.toLocaleString("en-US")} · <Heart size={11} className="inline align-middle" />{" "}
                       {l.favoritesCount} · <Bell size={11} className="inline align-middle" /> {l.stockNotificationCount}
                       {l.revenuePerActiveDayCents > 0 && (
                         <>
@@ -772,7 +772,7 @@ export default function AnalyticsPage() {
             </div>
             {data.guildMetrics.lastCalculatedAt && (
               <p className="text-xs text-neutral-400 mt-1">
-                Last updated: {new Date(data.guildMetrics.lastCalculatedAt).toLocaleString()}
+                Last updated: {new Date(data.guildMetrics.lastCalculatedAt).toLocaleString("en-US")}
               </p>
             )}
 
@@ -934,7 +934,7 @@ function RecentSales() {
                 return (
                   <tr key={order.id} className="hover:bg-neutral-50">
                     <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      {new Date(order.createdAt).toLocaleDateString("en-US")}
                     </td>
                     <td className="px-4 py-2 max-w-[180px] truncate">
                       <Link

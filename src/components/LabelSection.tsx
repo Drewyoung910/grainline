@@ -23,7 +23,7 @@ export type LabelSectionProps = {
 };
 
 function fmtMoney(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });
@@ -88,7 +88,7 @@ export default function LabelSection({
             );
           })()}
           {labelPurchasedAt && (
-            <div>Purchased: {new Date(labelPurchasedAt).toLocaleString()}</div>
+            <div>Purchased: {new Date(labelPurchasedAt).toLocaleString("en-US")}</div>
           )}
         </div>
       </div>

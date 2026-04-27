@@ -222,7 +222,7 @@ export default async function SellerShopPage({
           <p className="font-medium text-amber-900">This maker is currently on vacation and not accepting new orders.</p>
           {seller.vacationReturnDate && (
             <p className="text-amber-800 text-sm mt-0.5">
-              Expected return: {new Date(seller.vacationReturnDate).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+              Expected return: {new Date(seller.vacationReturnDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
             </p>
           )}
           {seller.vacationMessage && (

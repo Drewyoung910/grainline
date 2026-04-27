@@ -5,7 +5,7 @@ import AdminOrderActions from "./AdminOrderActions";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });
@@ -118,7 +118,7 @@ export default async function AdminOrderDetailPage({
             )}
           </div>
           <p className="mt-1 text-sm text-neutral-500">
-            {order.createdAt.toLocaleString()} ·{" "}
+            {order.createdAt.toLocaleString("en-US")} ·{" "}
             <span className="font-medium">
               {(order.fulfillmentStatus ?? "PENDING").replaceAll("_", " ")}
             </span>
@@ -302,7 +302,7 @@ export default async function AdminOrderDetailPage({
                     <div className="text-sm font-medium text-neutral-800">
                       {fmtMoney(event.amountCents, event.currency)}
                     </div>
-                    <div>{event.createdAt.toLocaleString()}</div>
+                    <div>{event.createdAt.toLocaleString("en-US")}</div>
                   </div>
                 </div>
                 {event.reason && (
@@ -428,7 +428,7 @@ export default async function AdminOrderDetailPage({
               <li key={label} className="flex items-baseline gap-3 text-sm">
                 <span className="w-2 h-2 rounded-full bg-neutral-300 shrink-0 mt-1" />
                 <span className="font-medium text-neutral-700 w-40 shrink-0">{label}</span>
-                <span className="text-neutral-500 text-xs">{at!.toLocaleString()}</span>
+                <span className="text-neutral-500 text-xs">{at!.toLocaleString("en-US")}</span>
               </li>
             ))}
           </ol>

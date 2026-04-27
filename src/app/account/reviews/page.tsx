@@ -62,7 +62,7 @@ export default async function MyReviewsPage() {
                     {"★".repeat(Math.round(r.ratingX2 / 2))}{"☆".repeat(5 - Math.round(r.ratingX2 / 2))}
                   </span>
                   <span className="text-xs text-neutral-400">
-                    {new Date(r.createdAt).toLocaleDateString()}
+                    {new Date(r.createdAt).toLocaleDateString("en-US")}
                   </span>
                   <span className="text-xs text-neutral-300">·</span>
                   <DeleteOwnReviewButton reviewId={r.id} />

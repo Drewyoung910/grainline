@@ -13,7 +13,7 @@ type Props = {
 const REFUND_LOCK_SENTINEL = "pending";
 
 function fmtMoney(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });

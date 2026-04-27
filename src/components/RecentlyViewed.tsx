@@ -81,7 +81,7 @@ export default function RecentlyViewed() {
                 <div className="mt-2 px-0.5 space-y-0.5">
                   <div className="font-medium text-sm line-clamp-1 text-neutral-900">{l.title}</div>
                   <div className="text-sm text-neutral-500">
-                    {(l.priceCents / 100).toLocaleString(undefined, {
+                    {(l.priceCents / 100).toLocaleString("en-US", {
                       style: "currency",
                       currency: l.currency,
                     })}

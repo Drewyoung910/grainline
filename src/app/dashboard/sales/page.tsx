@@ -12,7 +12,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 const PAGE_SIZE = 25;
 
 function fmtMoney(cents: number, currency = "usd") {
-  return (cents / 100).toLocaleString(undefined, {
+  return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
   });
