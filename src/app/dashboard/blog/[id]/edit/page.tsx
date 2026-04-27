@@ -7,6 +7,7 @@ import { calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
 import type { Metadata } from "next";
 
@@ -161,21 +162,15 @@ export default async function EditBlogPostPage({
           });
           if (followers.length > 0) {
             const sellerName = updated.sellerProfile?.displayName ?? "A maker you follow";
-            const batchSize = 100;
-            for (let i = 0; i < followers.length; i += batchSize) {
-              const batch = followers.slice(i, i + batchSize);
-              await Promise.allSettled(
-                batch.map((f) =>
-                  createNotification({
-                    userId: f.followerId,
-                    type: "FOLLOWED_MAKER_NEW_BLOG",
-                    title: `New post from ${sellerName}`,
-                    body: title,
-                    link: `/blog/${updated.slug}`,
-                  })
-                )
-              );
-            }
+            await mapWithConcurrency(followers, 10, (f) =>
+              createNotification({
+                userId: f.followerId,
+                type: "FOLLOWED_MAKER_NEW_BLOG",
+                title: `New post from ${sellerName}`,
+                body: title,
+                link: `/blog/${updated.slug}`,
+              }),
+            );
           }
         } catch { /* non-fatal */ }
       });

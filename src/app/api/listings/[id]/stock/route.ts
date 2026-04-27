@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { sendBackInStock } from "@/lib/email";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
@@ -122,18 +123,16 @@ export async function PATCH(
           `;
           if (claimedSubscribers.length === 0) return;
 
-          const activeSubscribers = await prisma.user.findMany({
-            where: {
-              id: { in: claimedSubscribers.map((sub) => sub.userId) },
-              banned: false,
-              deletedAt: null,
-            },
-            select: { id: true, name: true, email: true },
-          });
-          const batchSize = 50;
-          for (let i = 0; i < activeSubscribers.length; i += batchSize) {
-            const batch = activeSubscribers.slice(i, i + batchSize);
-            await Promise.allSettled(batch.map(async (sub) => {
+          for (const userIdChunk of chunkArray(claimedSubscribers.map((sub) => sub.userId), 500)) {
+            const activeSubscribers = await prisma.user.findMany({
+              where: {
+                id: { in: userIdChunk },
+                banned: false,
+                deletedAt: null,
+              },
+              select: { id: true, name: true, email: true },
+            });
+            await mapWithConcurrency(activeSubscribers, 5, async (sub) => {
               await createNotification({
                 userId: sub.id,
                 type: "BACK_IN_STOCK",
@@ -148,7 +147,7 @@ export async function PATCH(
                   listingId: id,
                 });
               }
-            }));
+            });
           }
         } catch { /* non-fatal */ }
       });

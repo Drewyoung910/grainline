@@ -45,12 +45,6 @@ export function isR2PublicUrl(input: string): boolean {
     }
   }
 
-  // Legacy Cloudflare R2 public bucket URLs look like
-  // https://pub-xxxxx.r2.dev/key. Grainline previously stored those before the
-  // cdn.thegrainline.com custom domain. Allow them as hosted media, but still
-  // reject arbitrary HTTPS/CDN URLs.
-  if (candidate.hostname.endsWith(".r2.dev")) return true;
-
   return false;
 }
 

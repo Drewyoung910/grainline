@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { deleteR2ObjectByUrl } from "@/lib/r2";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { EmailSuppressionReason } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 
@@ -96,6 +98,55 @@ async function rejectConnectedStripeAccount(stripeAccountId: string, userId: str
   }
 }
 
+async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]> {
+  const urls = new Set<string>();
+  const [sellerProfile, reviewPhotos, commissionRequests] = await Promise.all([
+    prisma.sellerProfile.findUnique({
+      where: { userId },
+      select: {
+        avatarImageUrl: true,
+        bannerImageUrl: true,
+        workshopImageUrl: true,
+        galleryImageUrls: true,
+        listings: {
+          select: {
+            videoUrl: true,
+            photos: { select: { url: true } },
+          },
+        },
+      },
+    }),
+    prisma.reviewPhoto.findMany({
+      where: { review: { reviewerId: userId } },
+      select: { url: true },
+    }),
+    prisma.commissionRequest.findMany({
+      where: { buyerId: userId },
+      select: { referenceImageUrls: true },
+    }),
+  ]);
+
+  if (sellerProfile) {
+    [
+      sellerProfile.avatarImageUrl,
+      sellerProfile.bannerImageUrl,
+      sellerProfile.workshopImageUrl,
+      ...sellerProfile.galleryImageUrls,
+    ].forEach((url) => {
+      if (url) urls.add(url);
+    });
+    sellerProfile.listings.forEach((listing) => {
+      if (listing.videoUrl) urls.add(listing.videoUrl);
+      listing.photos.forEach((photo) => urls.add(photo.url));
+    });
+  }
+
+  reviewPhotos.forEach((photo) => urls.add(photo.url));
+  commissionRequests.forEach((request) => request.referenceImageUrls.forEach((url) => urls.add(url)));
+
+  return [...urls];
+}
+
 export async function anonymizeUserAccount(userId: string) {
   const account = await prisma.user.findUnique({
     where: { id: userId },
@@ -112,7 +163,9 @@ export async function anonymizeUserAccount(userId: string) {
     await rejectConnectedStripeAccount(account.sellerProfile.stripeAccountId, userId);
   }
 
-  return prisma.$transaction(async (tx) => {
+  const mediaUrls = await collectAccountDeletionMediaUrls(userId);
+
+  const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: userId },
       include: { sellerProfile: { select: { id: true } } },
@@ -132,8 +185,44 @@ export async function anonymizeUserAccount(userId: string) {
     await tx.notification.deleteMany({ where: { userId: user.id } });
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
-    await tx.block.deleteMany({
-      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await tx.message.updateMany({
+      where: { senderId: user.id },
+      data: { body: "[Message deleted]" },
+    });
+    await tx.caseMessage.updateMany({
+      where: { authorId: user.id },
+      data: { body: "[Message deleted]" },
+    });
+    await tx.case.updateMany({
+      where: { buyerId: user.id },
+      data: { description: "[Case description deleted]" },
+    });
+    await tx.review.updateMany({
+      where: { reviewerId: user.id },
+      data: { comment: null },
+    });
+    await tx.reviewPhoto.deleteMany({
+      where: { review: { reviewerId: user.id } },
+    });
+    await tx.order.updateMany({
+      where: { buyerId: user.id },
+      data: {
+        buyerEmail: null,
+        buyerName: null,
+        shipToLine1: null,
+        shipToLine2: null,
+        quotedToLine1: null,
+        quotedToLine2: null,
+        quotedToName: null,
+        quotedToPhone: null,
+        giftNote: null,
+        buyerDataPurgedAt: now,
+      },
+    });
+    await tx.userReport.updateMany({
+      where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
+      data: { details: null },
     });
     const suppressionEmail = user.email.trim().toLowerCase();
     await tx.newsletterSubscriber.deleteMany({
@@ -159,9 +248,32 @@ export async function anonymizeUserAccount(userId: string) {
     });
 
     if (user.sellerProfile) {
+      await tx.photo.deleteMany({
+        where: { listing: { sellerId: user.sellerProfile.id } },
+      });
       await tx.listing.updateMany({
         where: { sellerId: user.sellerProfile.id },
-        data: { status: "HIDDEN", isPrivate: true },
+        data: {
+          status: "HIDDEN",
+          isPrivate: true,
+          description: "[Listing removed]",
+          videoUrl: null,
+          tags: [],
+          metaDescription: null,
+          materials: [],
+          aiReviewFlags: [],
+          aiReviewScore: null,
+          rejectionReason: "Seller account deleted",
+        },
+      });
+      await tx.makerVerification.updateMany({
+        where: { sellerProfileId: user.sellerProfile.id },
+        data: {
+          craftDescription: "[Deleted]",
+          guildMasterCraftBusiness: null,
+          portfolioUrl: null,
+          reviewNotes: null,
+        },
       });
       await tx.follow.deleteMany({
         where: {
@@ -234,6 +346,20 @@ export async function anonymizeUserAccount(userId: string) {
       await tx.follow.deleteMany({ where: { followerId: user.id } });
     }
 
+    await tx.commissionRequest.updateMany({
+      where: { buyerId: user.id },
+      data: {
+        title: "Deleted commission request",
+        description: "[Request deleted]",
+        timeline: null,
+        referenceImageUrls: [],
+        lat: null,
+        lng: null,
+        radiusMeters: null,
+        isNational: true,
+      },
+    });
+
     await tx.user.update({
       where: { id: user.id },
       data: {
@@ -259,6 +385,18 @@ export async function anonymizeUserAccount(userId: string) {
 
     return { ok: true, alreadyDeleted: false };
   });
+
+  const deletions = await mapWithConcurrency(mediaUrls, 5, (url) => deleteR2ObjectByUrl(url));
+  deletions.forEach((deletion, index) => {
+    if (deletion.status === "rejected") {
+      Sentry.captureException(deletion.reason, {
+        tags: { source: "account_delete_media_cleanup" },
+        extra: { userId, url: mediaUrls[index] },
+      });
+    }
+  });
+
+  return result;
 }
 
 export async function anonymizeUserAccountByClerkId(clerkId: string) {

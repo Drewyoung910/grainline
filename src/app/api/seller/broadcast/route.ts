@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
@@ -107,19 +108,15 @@ export async function POST(req: NextRequest) {
   after(async () => {
     try {
       const sellerName = seller.displayName ?? "A maker you follow";
-      const batchSize = 100;
-      for (let i = 0; i < followers.length; i += batchSize) {
-        const batch = followers.slice(i, i + batchSize);
-        await Promise.allSettled(batch.map((f) =>
-          createNotification({
-            userId: f.followerId,
-            type: "SELLER_BROADCAST",
-            title: `Update from ${sellerName}`,
-            body: message.slice(0, 100) + (message.length > 100 ? "…" : ""),
-            link: `/account/feed`,
-          })
-        ));
-      }
+      await mapWithConcurrency(followers, 10, (f) =>
+        createNotification({
+          userId: f.followerId,
+          type: "SELLER_BROADCAST",
+          title: `Update from ${sellerName}`,
+          body: message.slice(0, 100) + (message.length > 100 ? "…" : ""),
+          link: `/account/feed`,
+        }),
+      );
     } catch { /* non-fatal */ }
   });
 

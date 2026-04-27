@@ -41,6 +41,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **R21 cron/dedup regressions fixed.** Failed cron runs can be retried after five minutes, notification dedup no longer hashes title/body, `dedupKey` is required for new notifications, Guild cron concurrency is reduced, and quality-score global means are materialized in `SiteMetricsSnapshot`.
 - **Long-term scale guardrails added.** Sitemap listing chunking and five hot-path indexes were added; Vercel still needs `DATABASE_URL` switched to the Neon pooler endpoint.
 
+## Round 22 Fix Status Notes
+
+- **Follower and stock fan-out concurrency bounded.** Listing publish, blog publish/edit, seller broadcast, and back-in-stock fan-outs now use bounded concurrency instead of 50-100 parallel notification/email calls per batch.
+- **Account deletion scrubbing broadened.** Deleted users now have sent messages/case messages scrubbed, buyer order shipping/contact/gift PII purged with `buyerDataPurgedAt`, review comments/photos removed, buyer commission request text/media/location scrubbed, maker verification text/portfolio/review notes scrubbed, seller listing descriptions/photos/media hidden and scrubbed, report details nulled, newsletter rows deleted, and collected R2 media best-effort deleted.
+- **R2 media origin policy narrowed.** Write-path media validation no longer accepts arbitrary `*.r2.dev`; legacy R2 origins must be explicitly configured through the allowed R2 public URL env vars. CSP now uses configured R2/CDN origins instead of wildcard R2 image/connect/media sources.
+- **Low-risk accessibility/UX cleanup.** FollowButton now updates optimistically with rollback on failure, `LocalDate` uses an explicit `en-US` locale, and global CSS has a baseline `:focus-visible` outline for interactive controls.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
@@ -386,7 +393,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ### H29. Account deletion/export GDPR gaps
 
 - **Files**: account deletion library and account export route.
-- **Current state**: Partially fixed. `/api/account/export` now returns signed-in account portability JSON and omits buyer shipping/contact PII from seller-side sales exports. Broader deletion/anonymization scrubbing for historical messages, listings/media, reports, maker verification text, and retention policy documentation remains open.
+- **Current state**: Mostly fixed in code. `/api/account/export` returns signed-in account portability JSON, seller-side sales exports omit buyer shipping/contact PII, and account deletion now scrubs sent messages/case messages, buyer order shipping/contact/gift PII, review text/photos, buyer commission text/media/location, seller listing text/photos/media, maker verification text, report details, newsletter rows, and collected R2 media. Retention policy documentation and periodic old-order PII pruning remain open.
 - **Impact**: Privacy promises portability/deletion beyond implemented code.
 - **Fix spec**: Finish scrub/anonymize message bodies, order shipping PII, maker verification text, listing media, newsletter email, reports, and R2 objects according to retention policy.
 
@@ -421,6 +428,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ### H34. Message/order/listing PII persists after deletion
 
 - **Files**: account deletion and associated UI.
+- **Current state**: Fixed for user-initiated account deletion. Deleted-user sent messages/case messages are replaced with deletion placeholders; buyer order contact/shipping/gift fields are nulled and stamped with `buyerDataPurgedAt`; seller listings are hidden/private and stripped of description/media/tags/materials; listing/review/commission media is best-effort deleted from R2.
 - **Impact**: Personal data remains visible to counterparties.
 - **Fix spec**: Define retention rules. Scrub old fulfilled order shipping details, deleted user's sent messages, R2 attachments, listing descriptions/photos, verification notes.
 
@@ -582,7 +590,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Analytics `avgPriceCents` should be weighted by quantity. **Current state: Fixed.**
 - Drop duplicate/legacy `viewToClickRatio` once clients use `clickThroughRate`. **Current state: Fixed.**
 - Reconcile period window definitions in metrics. **Current state: Fixed for Guild metrics; calendar-month period windows and period-scoped active cases are now used.**
-- R2 media validation currently accepts legacy `*.r2.dev` URLs. Keep for compatibility, but decide whether to narrow to known account/bucket hostnames after old media is migrated.
+- R2 media validation previously accepted arbitrary legacy `*.r2.dev` URLs. **Current state: Fixed.** Write-path validation now accepts only configured Grainline R2/CDN origins and explicitly listed legacy origins; CSP no longer uses wildcard R2 media/connect sources.
 - GIF/video/PDF uploads may retain metadata; current state rejects GIF uploads and strips JPEG/PNG/WebP metadata, while video/PDF metadata retention remains disclosed/product-accepted.
 - Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification.
 - Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
@@ -598,7 +606,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
 - Sitemap scale remains capped by single-file entry limits; add sitemap index splitting before large catalog growth.
 - `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage. **Current state: Partial.** Buy Now has a 44px minimum target and focus ring; listing gallery main image is now a semantic button with focus-visible outline.
-- Follow/feed UI should add optimistic state, retry/error affordances, and accessible loading states.
+- Follow/feed UI should add retry/error affordances and accessible loading states. **Current state: Partial.** FollowButton now updates optimistically and rolls back on API/network failure.
 - Cron schedules are UTC; document or adjust jobs whose business deadlines are intended to be Central time.
 - `/api/health` currently does deep service pings despite docs claiming static/no-DB behavior; either split static and deep health endpoints, or update docs/monitoring.
 - [FIXED 2026-04-26] CSP report endpoint is IP rate-limited before forwarding high-signal script/frame violations to Sentry.

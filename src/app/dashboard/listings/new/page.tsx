@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
@@ -377,41 +378,29 @@ async function createListing(_prevState: unknown, formData: FormData) {
           select: { followerId: true, follower: { select: { email: true, name: true } } },
         });
         const sellerDisplay = seller.displayName ?? "A maker you follow";
-        const notificationBatchSize = 100;
-        for (let i = 0; i < followers.length; i += notificationBatchSize) {
-          const batch = followers.slice(i, i + notificationBatchSize);
-          await Promise.allSettled(
-            batch.map((f) =>
-              createNotification({
-                userId: f.followerId,
-                type: "FOLLOWED_MAKER_NEW_LISTING",
-                title: `New listing from ${sellerDisplay}`,
-                body: created.title,
-                link: `/listing/${created.id}`,
-              })
-            )
-          );
-        }
+        await mapWithConcurrency(followers, 10, (f) =>
+          createNotification({
+            userId: f.followerId,
+            type: "FOLLOWED_MAKER_NEW_LISTING",
+            title: `New listing from ${sellerDisplay}`,
+            body: created.title,
+            link: `/listing/${created.id}`,
+          }),
+        );
         const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/listing/${created.id}`;
         const listingPrice = `$${(created.priceCents / 100).toFixed(2)}`;
-        const emailBatchSize = 50;
         const emailRecipients = followers.filter((f) => f.follower?.email);
-        for (let i = 0; i < emailRecipients.length; i += emailBatchSize) {
-          const batch = emailRecipients.slice(i, i + emailBatchSize);
-          await Promise.allSettled(
-            batch.map(async (f) => {
-              if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
-                return sendNewListingFromFollowedMakerEmail({
-                  to: f.follower.email!,
-                  makerName: sellerDisplay,
-                  listingTitle: created.title,
-                  listingPrice,
-                  listingUrl,
-                });
-              }
-            })
-          );
-        }
+        await mapWithConcurrency(emailRecipients, 5, async (f) => {
+          if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
+            await sendNewListingFromFollowedMakerEmail({
+              to: f.follower.email!,
+              makerName: sellerDisplay,
+              listingTitle: created.title,
+              listingPrice,
+              listingUrl,
+            });
+          }
+        });
       } catch { /* non-fatal */ }
     });
   }

@@ -5124,6 +5124,29 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Round 22 GDPR + Fan-Out + Media Origin Cleanup (2026-04-26)
+
+This pass continued the remaining R19-R21 backlog with concrete fixes across high/medium/low priority items.
+
+### Fixed in this pass
+- **Account deletion PII scrubbing widened**: `anonymizeUserAccount()` now scrubs deleted-user sent messages and case messages, buyer order contact/shipping/gift fields, review comments/photos, buyer commission request text/media/location, maker verification text/portfolio/review notes, report details, and seller listing text/photos/media.
+- **Buyer order PII purge is auditable**: `Order.buyerDataPurgedAt` was added and stamped when buyer-side order PII is removed during account deletion.
+- **Deleted account media cleanup**: account deletion now collects listing, seller profile, review, and commission media URLs and best-effort deletes matching R2 objects after the DB transaction. `extractR2KeyFromUrl()` supports all configured Grainline R2/CDN public origins, not only one env URL.
+- **Block retention tightened**: deletion removes blocks created by the deleted user, but preserves records where other users blocked that account.
+- **Follower fan-out concurrency bounded**: listing publish, blog publish/edit, seller broadcast, and back-in-stock fan-outs now use `mapWithConcurrency()` instead of large `Promise.allSettled()` bursts.
+- **R2 origin acceptance narrowed**: write-path media validation no longer accepts arbitrary `*.r2.dev`; legacy R2 public origins must be explicitly configured via allowed R2 public URL env vars. CSP now emits configured R2/CDN origins instead of wildcard R2 media/connect sources.
+- **Follow UI optimistic update**: `FollowButton` now updates immediately and rolls back on API/network failure.
+- **Baseline focus-visible outline**: global CSS now provides a default focus-visible outline for interactive controls.
+- **LocalDate locale fixed**: client-side date formatting uses explicit `en-US`.
+
+### Migration
+- `20260426162000_order_buyer_data_purged_at` adds `Order.buyerDataPurgedAt` and an index.
+
+### Still open / next good passes
+- Periodic old fulfilled-order PII pruning outside explicit account deletion.
+- Durable notification/email outbox semantics for very large fan-outs.
+- Product/legal retention schedule for cases, reports, order records, and preserved public content.
+
 ## Audit Fix Pass — Round 21 Verification + Scale Guardrails (2026-04-26)
 
 This pass closed the live Round 21 regressions plus several earlier R19/R20 medium/high items that were still open in code.

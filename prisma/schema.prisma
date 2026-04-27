@@ -580,6 +580,7 @@ model Order {
   giftNote                String?
   giftWrapping            Boolean  @default(false)
   giftWrappingPriceCents  Int?
+  buyerDataPurgedAt       DateTime?
 
   shippingRateQuotes OrderShippingRateQuote[]
   paymentEvents      OrderPaymentEvent[]

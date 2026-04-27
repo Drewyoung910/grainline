@@ -129,6 +129,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         giftNote: true,
         giftWrapping: true,
         giftWrappingPriceCents: true,
+        buyerDataPurgedAt: true,
         items: {
           select: {
             listingId: true,

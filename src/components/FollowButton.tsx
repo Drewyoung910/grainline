@@ -29,10 +29,18 @@ export default function FollowButton({
     if (loading) return;
     setLoading(true);
 
-    const method = following ? "DELETE" : "POST";
+    const previousFollowing = following;
+    const previousCount = count;
+    const nextFollowing = !following;
+    setFollowing(nextFollowing);
+    setCount(Math.max(0, count + (nextFollowing ? 1 : -1)));
+
+    const method = previousFollowing ? "DELETE" : "POST";
     try {
       const res = await fetch(`/api/follow/${sellerProfileId}`, { method });
       if (res.status === 401) {
+        setFollowing(previousFollowing);
+        setCount(previousCount);
         router.push(`/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
@@ -49,8 +57,12 @@ export default function FollowButton({
       } catch {
         // keep generic message
       }
+      setFollowing(previousFollowing);
+      setCount(previousCount);
       toast(message, "error");
     } catch {
+      setFollowing(previousFollowing);
+      setCount(previousCount);
       toast("Network error. Please try again.", "error");
     } finally {
       setLoading(false);
