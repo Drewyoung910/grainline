@@ -529,7 +529,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] `/dashboard/inventory` stock saves now serialize per row and disable quantity edits while a save is in flight.
 - [FIXED 2026-04-26] `/dashboard/sales/[orderId]` now displays seller-owned item subtotal in the seller subtotal row.
 - [FIXED 2026-04-26] `appendNote` now caps each append at 2,000 chars and total review notes at 10,000 chars.
-- Admin prompt flows still use blocking `window.prompt`; replace with modal/action form over time.
+- [FIXED 2026-04-26] Admin prompt flows no longer use blocking `window.prompt`; listing rejection, audit undo, and ban/unban now collect required reasons in inline forms.
 
 ## UX / Product Correctness Findings
 
@@ -538,8 +538,8 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Cart and message routes call `ensureUserByClerkId` before seller/listing checks and return buyer-specific `ACCOUNT_SUSPENDED` / `ACCOUNT_DELETED` responses.
 - [FIXED 2026-04-26] AdminPinGate now uses the server `Retry-After` header and disables input until the server lockout expires.
 - [FIXED 2026-04-26] Onboarding Stripe step shows explicit incomplete-account and charges-disabled banners, and completion requires `chargesEnabled` server-side.
-- Cart close/payment modal can orphan Stripe sessions and stock locks. Consider session cancel/release endpoint or clearer lock-expiry messaging.
-- Multi-seller success/receipt views need all seller receipts/items, not just last or first seller.
+- [FIXED 2026-04-26] Checkout lock errors now tell buyers to complete the Stripe tab or wait up to 31 minutes for the reservation to expire. A first-class cancel/release endpoint remains a larger session-state design decision.
+- [FIXED 2026-04-26] Multi-seller cart checkout now carries all completed session IDs to the success page and renders all matching buyer orders/items, with a processing notice while webhooks catch up.
 - Soft-deleted saved favorites no longer show broken listing links on `/account/saved`; a richer "No longer available" history section remains optional product polish.
 
 ## Search / SEO / i18n Findings
@@ -570,7 +570,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] `CaseReplyBox` and `OpenCaseForm` now handle empty/non-JSON error responses without leaving spinners stuck.
 - [FIXED 2026-04-26] `POST /api/cases` now enforces the 20-character description minimum server-side.
 - [FIXED 2026-04-26] Message inbox snippets now use persisted `Message.kind` for structured cards instead of inferring from arbitrary JSON body shape.
-- [FIXED 2026-04-26] `MarkdownToolbar` now rejects unsafe link protocols such as `javascript:` before inserting markdown links.
+- [FIXED 2026-04-26] `MarkdownToolbar` now rejects unsafe link protocols such as `javascript:` and uses an inline link editor instead of a blocking prompt.
 - [FIXED 2026-04-26] Dashboard `setStatus` and shop listing actions revalidate dashboard, browse, listing detail, seller profile, and seller shop surfaces.
 - [FIXED 2026-04-26] Listing edit returns an inline Stripe-disconnected error if an active listing is moved back to draft during moderation.
 - [FIXED 2026-04-26] `unhideListingAction` and `markAvailableAction` return `publishListingAction` errors to the caller.
@@ -611,7 +611,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Remaining user-visible no-locale `toLocaleString`/`toLocaleDateString` calls in app/components were normalized to `en-US`.
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
 - [FIXED 2026-04-26] Sitemap listing URLs are chunked via `generateSitemaps()` in 5K listing chunks with seller/listing safety filters and `updatedAt` last-modified values.
-- `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage. **Current state: Partial.** Buy Now has a 44px minimum target and focus ring; listing gallery main image is now a semantic button with focus-visible outline.
+- [FIXED 2026-04-26] `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters now have semantic controls, focus-visible coverage, or 44px-equivalent hit targets where applicable.
 - Follow/feed UI should add retry/error affordances and accessible loading states. **Current state: Partial.** FollowButton now updates optimistically and rolls back on API/network failure.
 - [FIXED 2026-04-26] Cron schedules are documented as UTC in `CLAUDE.md` and `vercel.json`; Terms also define server-side deadlines as UTC.
 - [FIXED 2026-04-26] `/api/health` docs now match the dynamic deep health behavior for DB, Redis, and R2 checks.

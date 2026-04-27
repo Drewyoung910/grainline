@@ -380,7 +380,7 @@ export async function POST(req: Request) {
         });
       }
       return NextResponse.json(
-        { error: "A checkout session is already open for this seller. Complete it or wait a few minutes before trying again." },
+        { error: "A checkout session is already open for this seller. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
         { status: 409 },
       );
     }

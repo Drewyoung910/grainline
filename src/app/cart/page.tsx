@@ -654,9 +654,12 @@ function CartPage() {
                   sessionStorage.removeItem(CART_CHECKOUTS_KEY);
                   sessionStorage.removeItem(CART_RATES_KEY);
                   sessionStorage.removeItem(CART_ADDRESS_KEY);
-                  const lastSecret = clientSecrets[clientSecrets.length - 1].secret;
-                  const sessionId = lastSecret.split("_secret_")[0];
-                  router.push(`/checkout/success?session_id=${sessionId}`);
+                  const sessionIds = clientSecrets.map((entry) => entry.secret.split("_secret_")[0]);
+                  const params = new URLSearchParams({
+                    session_id: sessionIds[sessionIds.length - 1],
+                    session_ids: sessionIds.join(","),
+                  });
+                  router.push(`/checkout/success?${params.toString()}`);
                 }
               }}
             />

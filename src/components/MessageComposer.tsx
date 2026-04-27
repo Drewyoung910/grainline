@@ -75,7 +75,7 @@ export default function MessageComposer({
                   type="button"
                   aria-label="Remove file"
                   onClick={() => removeAttachment(a.id)}
-                  className="rounded-full p-1 hover:bg-neutral-100"
+                  className="relative rounded-full h-6 w-6 flex items-center justify-center hover:bg-neutral-100 after:absolute after:-inset-2"
                 >
                   ✕
                 </button>
@@ -94,7 +94,7 @@ export default function MessageComposer({
               container: "inline-block align-bottom",
               // Force visible circle + dark icon regardless of inherited styles
               button:
-                "h-9 w-9 rounded-full border border-neutral-300 bg-neutral-100 " +
+                "h-11 w-11 rounded-full border border-neutral-300 bg-neutral-100 " +
                 "p-0 flex items-center justify-center hover:bg-neutral-200 " +
                 "focus:outline-none focus:ring-2 focus:ring-neutral-300",
               allowedContent: "hidden",
@@ -212,8 +212,6 @@ export default function MessageComposer({
     </div>
   );
 }
-
-
 
 
 

@@ -204,7 +204,7 @@ export default function NewCommissionPage() {
                   <button
                     type="button"
                     onClick={() => setReferenceImageUrls((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute -top-1 -right-1 bg-white border border-neutral-200 rounded-full w-4 h-4 text-xs flex items-center justify-center hover:bg-red-50 hover:text-red-600"
+                    className="absolute -top-2 -right-2 bg-white border border-neutral-200 rounded-full h-7 w-7 text-sm flex items-center justify-center hover:bg-red-50 hover:text-red-600 after:absolute after:-inset-2"
                     aria-label="Remove"
                   >
                     ×

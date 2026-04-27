@@ -34,7 +34,7 @@ export default function GalleryUploader({
               <button
                 type="button"
                 onClick={() => setUrls((prev) => prev.filter((_, j) => j !== i))}
-                className="absolute top-1 right-1 bg-white border border-neutral-200 rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600"
+                className="absolute top-1 right-1 bg-white border border-neutral-200 rounded-full h-7 w-7 text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600 after:absolute after:-inset-2"
                 aria-label="Remove"
               >
                 ×

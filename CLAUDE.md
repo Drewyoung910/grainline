@@ -1663,9 +1663,9 @@ Full audit trail for admin actions with 24-hour undo window. Fields: `action` (s
 - **`/banned` page** (`src/app/banned/page.tsx`): branded suspension page with support email; `robots: { index: false }`
 
 ### Client components
-- **`BanUserButton`** — `window.prompt` for reason, optimistic toggle, POST/DELETE to ban route
-- **`UndoActionButton`** — shows "Undo" within 24h, "Expired" after; `window.prompt` for reason
-- **`ReviewListingButtons`** — Approve (no reason needed) / Reject (prompts for reason); calls `PATCH /api/admin/listings/[id]/review`; calls `router.refresh()` on success
+- **`BanUserButton`** — inline reason form, POST/DELETE to ban route, closes form after success
+- **`UndoActionButton`** — shows "Undo" within 24h, "Expired" after; inline reason form posts to undo route
+- **`ReviewListingButtons`** — Approve (no reason needed) / Reject with inline seller-visible reason form; calls `PATCH /api/admin/listings/[id]/review`; calls `router.refresh()` on success
 
 ### `LISTING_APPROVED` and `LISTING_REJECTED` notification types
 Added to `NotificationType` enum. Sent to seller on admin approve/reject. `createNotification` preference check applies (type string `"LISTING_APPROVED"` / `"LISTING_REJECTED"`).
@@ -5123,6 +5123,28 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
+
+## Audit Fix Pass — Promptless Admin Flows, Multi-Receipt Checkout, and Touch Targets (2026-04-26)
+
+This pass closed several still-live lower/medium-priority backlog items after the production deploy for `2f0071c`.
+
+### Fixed in this pass
+- **Admin flows no longer use blocking browser prompts**: listing rejection, audit undo, and ban/unban now collect required reasons through inline forms with validation and cancel paths.
+- **Blog markdown link insertion is promptless**: `MarkdownToolbar` now uses an inline URL field with Apply/Remove/Cancel controls while retaining safe-link normalization.
+- **Checkout lock errors are explicit**: cart checkout APIs now tell buyers that an existing Stripe checkout reservation expires after up to 31 minutes.
+- **Multi-seller checkout success shows all receipts**: cart completion passes all session IDs to `/checkout/success`; the success page renders every matching buyer order and shows a processing notice while remaining webhook-created orders arrive.
+- **Small touch targets improved**: message attachment remove, gallery upload remove, commission reference-image remove, and message attachment controls now have larger interaction areas.
+- **Mobile filter controls meet touch-target sizing**: filter/sort trigger buttons, sheet inputs/selects, and tag chips now have 44px minimum target sizing, with white trigger backgrounds so the bar does not visually merge into the page.
+- **Open backlog updated**: `audit_open_findings.md` now marks the admin prompt, multi-seller receipt, markdown prompt, and checkout lock messaging items fixed or partially fixed where a larger cancel/release endpoint remains a product design.
+
+### Verification
+- `git diff --check` ✅
+- `npx prisma validate` ✅
+- `npx tsc --noEmit --incremental false` ✅
+
+### Still open / next good passes
+- Loading skeleton coverage across dashboard/public pages remains inconsistent.
+- Larger SEO slug/canonical work and browse rating aggregate strategy remain open.
 
 ## Audit Fix Pass — Tracking Cookies, Search Scale, and Stale Backlog Cleanup (2026-04-26)
 

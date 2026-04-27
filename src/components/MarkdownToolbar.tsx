@@ -40,6 +40,8 @@ export default function MarkdownToolbar({
   name,
 }: Props) {
   const { toast } = useToast();
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -174,20 +176,70 @@ export default function MarkdownToolbar({
           type="button"
           title="Link"
           onClick={() => {
-            const url = prompt("Enter URL:");
-            if (url) {
-              const safeUrl = normalizeSafeLink(url);
-              if (!safeUrl) {
-                toast("Enter a valid http, https, mailto, or internal URL.", "error");
-                return;
-              }
-              editor.chain().focus().setLink({ href: safeUrl }).run();
-            }
+            setShowLinkInput((open) => !open);
+            setLinkUrl(editor.getAttributes("link").href ?? "");
           }}
           className={btnClass(editor.isActive("link"))}
         >
           Link
         </button>
+        {showLinkInput && (
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const safeUrl = normalizeSafeLink(linkUrl);
+              if (!safeUrl) {
+                toast("Enter a valid http, https, mailto, or internal URL.", "error");
+                return;
+              }
+              editor.chain().focus().setLink({ href: safeUrl }).run();
+              setShowLinkInput(false);
+              setLinkUrl("");
+            }}
+          >
+            <label className="sr-only" htmlFor="markdown-link-url">
+              Link URL
+            </label>
+            <input
+              id="markdown-link-url"
+              value={linkUrl}
+              onChange={(event) => setLinkUrl(event.target.value)}
+              placeholder="https://example.com"
+              className="h-8 w-44 rounded-md border border-neutral-300 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            />
+            <button
+              type="submit"
+              className="h-8 rounded-md bg-neutral-900 px-2 text-xs text-white hover:bg-neutral-800 disabled:opacity-50"
+              disabled={!linkUrl.trim()}
+            >
+              Apply
+            </button>
+            {editor.isActive("link") && (
+              <button
+                type="button"
+                className="h-8 rounded-md border border-neutral-300 px-2 text-xs text-neutral-700 hover:bg-neutral-100"
+                onClick={() => {
+                  editor.chain().focus().unsetLink().run();
+                  setShowLinkInput(false);
+                  setLinkUrl("");
+                }}
+              >
+                Remove
+              </button>
+            )}
+            <button
+              type="button"
+              className="h-8 rounded-md border border-neutral-300 px-2 text-xs text-neutral-700 hover:bg-neutral-100"
+              onClick={() => {
+                setShowLinkInput(false);
+                setLinkUrl("");
+              }}
+            >
+              Cancel
+            </button>
+          </form>
+        )}
         <button
           type="button"
           title="Image"

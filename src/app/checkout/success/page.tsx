@@ -22,11 +22,21 @@ function fmtMoney(cents: number, currency = "usd") {
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string }>;
+  searchParams: Promise<{ session_id?: string; session_ids?: string }>;
 }) {
   const sp = await searchParams;
   const sessionId = sp?.session_id;
   if (!sessionId) redirect("/cart");
+  const sessionIds = Array.from(
+    new Set(
+      [
+        ...(sp.session_ids ?? "").split(","),
+        sessionId,
+      ]
+        .map((id) => id.trim())
+        .filter((id) => /^cs_/.test(id)),
+    ),
+  ).slice(0, 10);
 
   const me = await ensureUserForPage(`/checkout/success?session_id=${encodeURIComponent(sessionId)}`);
 
@@ -40,6 +50,134 @@ export default async function CheckoutSuccessPage({
   }
 
   if (s.payment_status !== "paid") redirect("/cart");
+
+  if (sessionIds.length > 1) {
+    const orders = await prisma.order.findMany({
+      where: { stripeSessionId: { in: sessionIds }, buyerId: me.id },
+      include: {
+        items: {
+          include: {
+            listing: {
+              include: {
+                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                seller: { select: { displayName: true } },
+              },
+            },
+          },
+        },
+        buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (orders.length > 0) {
+      const currency = orders[0]?.currency || "usd";
+      const totalChargedCents = orders.reduce((sum, order) => {
+        const itemsSubtotalCents =
+          order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+        return sum + itemsSubtotalCents + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0);
+      }, 0);
+      const pendingCount = Math.max(0, sessionIds.length - orders.length);
+
+      return (
+        <main className="mx-auto max-w-3xl p-8 space-y-6">
+          <header className="space-y-1">
+            <h1 className="text-2xl font-semibold">Thanks for your purchase!</h1>
+            <p className="text-neutral-600 text-sm">
+              {orders.length} {orders.length === 1 ? "order has" : "orders have"} been paid.
+            </p>
+          </header>
+
+          {pendingCount > 0 && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              {pendingCount} {pendingCount === 1 ? "order is" : "orders are"} still being processed and will appear in your orders momentarily.
+            </div>
+          )}
+
+          <section className="card-section">
+            <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+              <div className="text-sm">
+                <div className="font-medium">Receipts</div>
+                <div className="text-xs text-neutral-500">
+                  Buyer: {orders[0]?.buyer?.name ?? orders[0]?.buyer?.email ?? "Guest"}
+                </div>
+              </div>
+              <div className="text-sm font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
+            </div>
+
+            <div className="divide-y divide-neutral-100">
+              {orders.map((order) => {
+                const orderCurrency = order.currency || currency;
+                const itemsSubtotalCents =
+                  order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+                const shippingAmountCents = order.shippingAmountCents || 0;
+                const taxAmountCents = order.taxAmountCents || 0;
+                const orderTotalCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents;
+
+                return (
+                  <div key={order.id}>
+                    <div className="flex items-center justify-between bg-neutral-50 px-4 py-3 text-sm">
+                      <div>
+                        <div className="font-medium">Order #{order.id.slice(-8)}</div>
+                        <div className="text-neutral-500"><LocalDate date={order.createdAt} /></div>
+                      </div>
+                      <div className="font-semibold">{fmtMoney(orderTotalCents, orderCurrency)}</div>
+                    </div>
+
+                    <ul className="divide-y divide-neutral-100">
+                      {order.items.map((it) => {
+                        const img = it.listing.photos[0]?.url;
+                        return (
+                          <li key={it.id} className="flex items-center gap-3 px-4 py-3">
+                            {img ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
+                            ) : (
+                              <div className="h-16 w-16 rounded border bg-neutral-100" />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <Link href={`/listing/${it.listingId}`} className="block truncate text-sm font-medium hover:underline">
+                                {it.listing.title}
+                              </Link>
+                              <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
+                              <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, orderCurrency)} x {it.quantity}</div>
+                            </div>
+                            <div className="text-sm font-medium">{fmtMoney(it.priceCents * it.quantity, orderCurrency)}</div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    <div className="px-4 py-3 border-t border-neutral-100 space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-neutral-600">Items subtotal</div>
+                        <div className="font-medium">{fmtMoney(itemsSubtotalCents, orderCurrency)}</div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-neutral-600">
+                          Shipping{order.shippingTitle ? ` — ${order.shippingTitle}` : ""}
+                        </div>
+                        <div className="font-medium">{fmtMoney(shippingAmountCents, orderCurrency)}</div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-neutral-600">Tax</div>
+                        <div className="font-medium">{fmtMoney(taxAmountCents, orderCurrency)}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <div className="flex gap-3">
+            <Link href="/dashboard/orders" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50">View my orders</Link>
+            <Link href="/browse" className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50">Keep shopping</Link>
+          </div>
+        </main>
+      );
+    }
+  }
 
   let order = await prisma.order.findFirst({
     where: { stripeSessionId: sessionId, buyerId: me.id },
