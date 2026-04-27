@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
 
 const SELLER_PAGE_SIZE = 50;
-const SELLER_PROCESS_CONCURRENCY = 5;
+const SELLER_PROCESS_CONCURRENCY = 3;
 const VIEW_CLEANUP_BATCH_SIZE = 1000;
 
 export async function GET(request: NextRequest) {

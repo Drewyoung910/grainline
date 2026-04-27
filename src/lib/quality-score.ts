@@ -21,6 +21,7 @@
 
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { getSiteMetricsSnapshot } from "@/lib/site-metrics-snapshot";
 
 const DAMPENING_C = 50;
 const BATCH_SIZE = 200;
@@ -49,70 +50,12 @@ interface GlobalMeans {
 }
 
 async function computeGlobalMeans(): Promise<GlobalMeans> {
-  // Compute site-wide averages across all active non-private listings
-  const rows = await prisma.$queryRaw<
-    Array<{
-      totalViews: bigint;
-      totalOrders: bigint;
-      totalClicks: bigint;
-      listingCount: bigint;
-    }>
-  >`
-    SELECT
-      COALESCE(SUM(l."viewCount"), 0) AS "totalViews",
-      COALESCE(
-        (SELECT COUNT(*) FROM "OrderItem" oi
-         JOIN "Order" o ON o.id = oi."orderId"
-         JOIN "Listing" il ON oi."listingId" = il.id
-         JOIN "SellerProfile" isp ON isp.id = il."sellerId"
-         JOIN "User" iu ON iu.id = isp."userId"
-         WHERE il.status = 'ACTIVE'
-           AND il."isPrivate" = false
-           AND o."sellerRefundId" IS NULL
-           AND isp."chargesEnabled" = true
-           AND isp."vacationMode" = false
-           AND iu.banned = false
-           AND iu."deletedAt" IS NULL),
-        0
-      ) AS "totalOrders",
-      COALESCE(SUM(l."clickCount"), 0) AS "totalClicks",
-      COUNT(l.id) AS "listingCount"
-    FROM "Listing" l
-    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-    JOIN "User" u ON u.id = sp."userId"
-    WHERE l.status = 'ACTIVE'
-      AND l."isPrivate" = false
-      AND sp."chargesEnabled" = true
-      AND sp."vacationMode" = false
-      AND u.banned = false
-      AND u."deletedAt" IS NULL
-  `;
-
-  const r = rows[0];
-  const totalViews = Number(r?.totalViews ?? 0);
-  const totalOrders = Number(r?.totalOrders ?? 0);
-  const totalClicks = Number(r?.totalClicks ?? 0);
-
-  const avgConversion = totalViews > 0 ? totalOrders / totalViews : 0;
-  const avgCtr = totalViews > 0 ? totalClicks / totalViews : 0;
-
-  // Global average seller rating
-  const ratingRows = await prisma.$queryRaw<Array<{ avgRating: number | null }>>`
-    SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating"
-    FROM "Review" r
-    JOIN "Listing" l ON l.id = r."listingId"
-    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-    JOIN "User" u ON u.id = sp."userId"
-    WHERE l.status = 'ACTIVE'
-      AND l."isPrivate" = false
-      AND sp."chargesEnabled" = true
-      AND sp."vacationMode" = false
-      AND u.banned = false
-      AND u."deletedAt" IS NULL
-  `;
-  const avgRating = ratingRows[0]?.avgRating ?? 3.0;
-
-  return { avgConversion, avgCtr, avgRating };
+  const snapshot = await getSiteMetricsSnapshot();
+  return {
+    avgConversion: snapshot.avgConversion,
+    avgCtr: snapshot.avgCtr,
+    avgRating: snapshot.avgRating,
+  };
 }
 
 async function fetchActiveListingBatch(cursorId: string | null): Promise<ListingRow[]> {

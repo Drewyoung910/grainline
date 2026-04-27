@@ -475,6 +475,12 @@ export default function OnboardingWizard({
               </div>
             )}
 
+            {!chargesEnabled && !completed.step3 && (
+              <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Stripe must be fully connected before onboarding can be completed or listings can publish.
+              </div>
+            )}
+
             <button
               onClick={() => advance(4)}
               disabled={loading}
@@ -518,6 +524,9 @@ export default function OnboardingWizard({
               <div className="mb-6">
                 <Link
                   href="/dashboard/listings/new"
+                  onClick={() => {
+                    void advanceStep(5);
+                  }}
                   className="block w-full text-center bg-amber-500 hover:bg-amber-600 text-white font-medium px-6 py-3 min-h-[44px] transition-colors"
                 >
                   Create a Listing →

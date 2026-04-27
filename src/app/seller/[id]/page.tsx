@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { safeJsonLd } from "@/lib/json-ld";
 import { prisma } from "@/lib/db";
-import MapCard from "@/components/MapCard";
+import DynamicMapCard from "@/components/DynamicMapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
@@ -509,7 +509,7 @@ export default async function SellerPublicPage({
         {lat != null && lng != null && (
           <section className="mb-8 card-section p-4 space-y-3">
             <h2 className="text-lg font-medium">Pickup area</h2>
-            <MapCard
+            <DynamicMapCard
               lat={lat}
               lng={lng}
               label={cityState || seller.displayName || "Pickup area"}

@@ -14,6 +14,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/site-metrics-snapshot",
+      "schedule": "30 5 * * *"
+    },
+    {
       "path": "/api/cron/case-auto-close",
       "schedule": "0 7 * * *"
     },

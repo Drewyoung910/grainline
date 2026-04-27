@@ -447,6 +447,7 @@ export async function POST(req: Request) {
       // 31 min (not 30) provides a buffer against clock skew — Stripe's minimum is 30.
       expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       mode: "payment",
+      payment_method_types: ["card"],
       return_url,
       line_items,
       shipping_options: [

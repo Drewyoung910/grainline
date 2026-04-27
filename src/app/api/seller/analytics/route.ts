@@ -197,8 +197,6 @@ export async function GET(req: Request) {
     ]);
     const totalViews = rangeViewAgg._sum.views ?? 0;
     const totalClicks = rangeViewAgg._sum.clicks ?? 0;
-    // viewToClickRatio kept for legacy, but surfaced as clickThroughRate below
-    const viewToClickRatio = totalViews > 0 ? (totalClicks / totalViews) * 100 : 0;
     // Conversion rate: null when no view data but orders exist (ListingViewDaily tracking wasn't active yet)
     // Cap at 100% to handle edge cases. Returns 0 when both are 0.
     const conversionRate: number | null =
@@ -459,7 +457,11 @@ export async function GET(req: Request) {
         (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
         COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
         COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
-        COALESCE(AVG(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" ELSE NULL END), 0) AS avg_price,
+        COALESCE(
+          SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END)
+          / NULLIF(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0),
+          0
+        ) AS avg_price,
         l."viewCount" AS view_count,
         l."clickCount" AS click_count,
         l."createdAt" AS created_at
@@ -578,7 +580,6 @@ export async function GET(req: Request) {
         totalViews,
         totalClicks,
         profileVisits: sellerProfile.profileViews,
-        viewToClickRatio: Math.round(viewToClickRatio * 10) / 10,
         conversionRate: conversionRate !== null ? Math.round(conversionRate * 100) / 100 : null,
         clickThroughRate: clickThroughRate !== null ? Math.round(clickThroughRate * 10) / 10 : null,
         cartAbandonment,

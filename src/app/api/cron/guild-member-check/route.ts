@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const SELLER_PAGE_SIZE = 50;
-const SELLER_PROCESS_CONCURRENCY = 5;
+const SELLER_PROCESS_CONCURRENCY = 3;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {

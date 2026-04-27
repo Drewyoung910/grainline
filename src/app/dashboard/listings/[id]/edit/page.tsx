@@ -189,6 +189,19 @@ async function updateListing(
   const titleChanged = title !== listing.title;
   const descChanged = description !== listing.description;
   const categoryChanged = (category ?? null) !== (listing.category ?? null);
+  const tagsChanged = JSON.stringify([...tags].sort()) !== JSON.stringify([...listing.tags].sort());
+  const materialsChanged = materials !== listing.materials;
+  const metaDescriptionChanged = metaDescription !== listing.metaDescription;
+  const productDimsChanged =
+    productLengthIn !== listing.productLengthIn ||
+    productWidthIn !== listing.productWidthIn ||
+    productHeightIn !== listing.productHeightIn;
+  const listingTypeChanged = listingType !== listing.listingType;
+  const stockChanged = stockQuantity !== listing.stockQuantity;
+  const shippingChanged =
+    shipsWithinDays !== listing.shipsWithinDays ||
+    processingTimeMinDays !== listing.processingTimeMinDays ||
+    processingTimeMaxDays !== listing.processingTimeMaxDays;
   const priceRatio = listing.priceCents > 0 ? Math.abs(priceCents - listing.priceCents) / listing.priceCents : 0;
   const priceChanged = priceRatio > 0.5; // >50% price change
   const previousVariantGroups = normalizeVariantGroupsForCompare(listing.variantGroups);
@@ -205,10 +218,22 @@ async function updateListing(
     }))
   );
   const variantsChanged = JSON.stringify(previousVariantGroups) !== JSON.stringify(nextVariantGroups);
-  const substantiveChange = titleChanged || descChanged || categoryChanged || priceChanged || variantsChanged;
+  const substantiveChange =
+    titleChanged ||
+    descChanged ||
+    categoryChanged ||
+    tagsChanged ||
+    materialsChanged ||
+    metaDescriptionChanged ||
+    productDimsChanged ||
+    listingTypeChanged ||
+    stockChanged ||
+    shippingChanged ||
+    priceChanged ||
+    variantsChanged;
   const requiresReview = listing.status === ListingStatus.ACTIVE && substantiveChange;
 
-  await prisma.listing.update({
+  const updatedListing = await prisma.listing.update({
     where: { id: listingId },
     data: {
       title,
@@ -236,6 +261,7 @@ async function updateListing(
         aiReviewScore: 0,
       } : {}),
     },
+    select: { updatedAt: true },
   });
 
   // Update variants — delete existing and recreate
@@ -269,7 +295,10 @@ async function updateListing(
       });
       // If seller lost chargesEnabled, revert listing to DRAFT
       if (!seller?.chargesEnabled) {
-        await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.DRAFT } });
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
+          data: { status: ListingStatus.DRAFT },
+        });
         return {
           ok: false,
           error: "Stripe disconnected — listing moved to draft. Reconnect Stripe to publish.",
@@ -278,7 +307,7 @@ async function updateListing(
       const photos = await prisma.photo.findMany({
         where: { listingId },
         select: { url: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { sortOrder: "asc" },
         take: 4,
       });
       const { reviewListingWithAI } = await import("@/lib/ai-review");
@@ -295,14 +324,17 @@ async function updateListing(
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review" }));
 
       if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        await prisma.listing.update({
-          where: { id: listingId },
+        const activated = await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: {
             status: ListingStatus.ACTIVE,
             aiReviewFlags: aiResult.flags,
             aiReviewScore: aiResult.confidence,
           },
         });
+        if (activated.count === 0) {
+          return { ok: false, error: "Listing state changed during review. Refresh and try again." };
+        }
         await prisma.$executeRaw`
           UPDATE "Listing"
           SET status = 'SOLD_OUT'
@@ -312,8 +344,8 @@ async function updateListing(
             AND status = 'ACTIVE'
         `;
       } else {
-        await prisma.listing.update({
-          where: { id: listingId },
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: {
             status: ListingStatus.PENDING_REVIEW,
             aiReviewFlags: aiResult.flags,
@@ -322,8 +354,8 @@ async function updateListing(
         });
       }
     } catch {
-      await prisma.listing.update({
-        where: { id: listingId },
+      await prisma.listing.updateMany({
+        where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
         data: {
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: ["AI review error"],
@@ -335,6 +367,8 @@ async function updateListing(
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
   revalidatePath("/dashboard");
   revalidatePath("/browse");
 
@@ -361,6 +395,8 @@ async function reorderPhotos(listingId: string, photoIds: string[]) {
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
   revalidatePath("/browse");
   revalidatePath("/dashboard");
 }
@@ -372,7 +408,7 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
-    select: { url: true, listing: { select: { status: true, isPrivate: true } } },
+    select: { url: true, listing: { select: { status: true, isPrivate: true, updatedAt: true, sellerId: true } } },
   });
   if (!ok) return;
   if (ok.listing.status === "HIDDEN" && ok.listing.isPrivate) return;
@@ -385,24 +421,30 @@ async function deletePhotoAction(listingId: string, photoId: string) {
   // Re-trigger AI review if listing is ACTIVE (image removed)
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
   if (listing?.status === ListingStatus.ACTIVE) {
-    await prisma.listing.update({
-      where: { id: listingId },
+    const pending = await prisma.listing.updateMany({
+      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: listing.updatedAt },
       data: {
         status: ListingStatus.PENDING_REVIEW,
         aiReviewFlags: ["pending-ai-review"],
         aiReviewScore: 0,
       },
     });
+    if (pending.count === 0) return;
+    const reviewSnapshot = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { updatedAt: true },
+    });
+    if (!reviewSnapshot) return;
     try {
       const currentPhotos = await prisma.photo.findMany({
         where: { listingId },
         select: { url: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: { sortOrder: "asc" },
         take: 4,
       });
       if (currentPhotos.length === 0) {
-        await prisma.listing.update({
-          where: { id: listingId },
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["missing-photo"], aiReviewScore: 0 },
         });
         return;
@@ -412,7 +454,10 @@ async function deletePhotoAction(listingId: string, photoId: string) {
         select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
       if (!seller?.chargesEnabled) {
-        await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.DRAFT } });
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
+          data: { status: ListingStatus.DRAFT },
+        });
         return;
       }
       const { reviewListingWithAI } = await import("@/lib/ai-review");
@@ -429,8 +474,8 @@ async function deletePhotoAction(listingId: string, photoId: string) {
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
 
       if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        await prisma.listing.update({
-          where: { id: listingId },
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
         });
         await prisma.$executeRaw`
@@ -442,14 +487,14 @@ async function deletePhotoAction(listingId: string, photoId: string) {
             AND status = 'ACTIVE'
         `;
       } else {
-        await prisma.listing.update({
-          where: { id: listingId },
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
         });
       }
     } catch {
-      await prisma.listing.update({
-        where: { id: listingId },
+      await prisma.listing.updateMany({
+        where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
         data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
       });
     }
@@ -457,6 +502,8 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${ok.listing.sellerId}`);
+  revalidatePath(`/seller/${ok.listing.sellerId}/shop`);
   revalidatePath("/dashboard");
 }
 
@@ -480,6 +527,8 @@ async function saveAltTextsAction(listingId: string, altTexts: Record<string, st
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
 }
 
 export default async function EditListingPage(props: {
@@ -671,5 +720,3 @@ export default async function EditListingPage(props: {
     </main>
   );
 }
-
-

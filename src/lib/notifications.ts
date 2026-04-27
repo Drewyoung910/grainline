@@ -42,19 +42,15 @@ export const VALID_PREFERENCE_KEYS = [
 function notificationDedupKey({
   userId,
   type,
-  title,
-  body,
   link,
 }: {
   userId: string;
   type: NotificationType;
-  title: string;
-  body: string;
   link?: string;
 }) {
   const bucket = new Date().toISOString().slice(0, 10);
   return createHash("sha256")
-    .update([bucket, userId, type, link ?? "", title, body].join("\u001f"))
+    .update([bucket, userId, type, link ?? ""].join("\u001f"))
     .digest("hex");
 }
 
@@ -109,7 +105,7 @@ export async function createNotification({
     const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
     if (prefs[type] === false) return null;
 
-    const dedupKey = notificationDedupKey({ userId, type, title, body, link });
+    const dedupKey = notificationDedupKey({ userId, type, link });
 
     try {
       return await prisma.notification.create({

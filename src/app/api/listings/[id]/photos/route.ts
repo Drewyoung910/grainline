@@ -78,26 +78,46 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     })),
   });
 
+  let generateAltTextForNewPhotos = false;
+
   // Re-trigger AI review if listing is ACTIVE (image content changed)
   if (listing.status === ListingStatus.ACTIVE) {
-    await prisma.listing.update({
-      where: { id: listingId },
+    const pending = await prisma.listing.updateMany({
+      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: listing.updatedAt },
       data: {
         status: ListingStatus.PENDING_REVIEW,
         aiReviewFlags: ["pending-ai-review"],
         aiReviewScore: 0,
       },
     });
+    if (pending.count === 0) {
+      revalidatePath("/dashboard");
+      revalidatePath(`/dashboard/listings/${listingId}/edit`);
+      revalidatePath(`/listing/${listingId}`);
+      revalidatePath(`/seller/${listing.sellerId}`);
+      revalidatePath(`/seller/${listing.sellerId}/shop`);
+      return NextResponse.json({ added: toAdd.length, warning: "Listing state changed; refresh and try again." });
+    }
+    const reviewSnapshot = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { updatedAt: true },
+    });
+    if (!reviewSnapshot) return NextResponse.json({ added: toAdd.length });
     try {
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
         select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
       if (!seller?.chargesEnabled) {
-        await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.DRAFT } });
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
+          data: { status: ListingStatus.DRAFT },
+        });
         revalidatePath("/dashboard");
         revalidatePath(`/dashboard/listings/${listingId}/edit`);
         revalidatePath(`/listing/${listingId}`);
+        revalidatePath(`/seller/${listing.sellerId}`);
+        revalidatePath(`/seller/${listing.sellerId}/shop`);
         return NextResponse.json({
           added: toAdd.length,
           warning: "Stripe disconnected — listing moved to draft. Reconnect Stripe to publish.",
@@ -117,10 +137,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
 
       if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        await prisma.listing.update({
-          where: { id: listingId },
+        const activated = await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
         });
+        generateAltTextForNewPhotos = activated.count === 1;
         await prisma.$executeRaw`
           UPDATE "Listing"
           SET status = 'SOLD_OUT'
@@ -130,41 +151,45 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
             AND status = 'ACTIVE'
         `;
       } else {
-        await prisma.listing.update({
-          where: { id: listingId },
+        await prisma.listing.updateMany({
+          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
           data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
         });
       }
     } catch {
-      await prisma.listing.update({
-        where: { id: listingId },
+      await prisma.listing.updateMany({
+        where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
         data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
       });
     }
   }
 
   // Generate alt text for new photos (fire-and-forget, non-blocking)
-  try {
-    const { generateAltText } = await import("@/lib/ai-review");
-    const newPhotos = await prisma.photo.findMany({
-      where: { listingId, altText: null, url: { in: toAdd } },
-      select: { id: true, url: true },
-    });
-    for (const p of newPhotos) {
-      const alt = await generateAltText(p.url);
-      if (alt) {
-        const altText = sanitizeText(alt).slice(0, 200);
-        if (altText) {
-          await prisma.photo.update({ where: { id: p.id }, data: { altText } });
+  if (generateAltTextForNewPhotos) {
+    try {
+      const { generateAltText } = await import("@/lib/ai-review");
+      const newPhotos = await prisma.photo.findMany({
+        where: { listingId, altText: null, url: { in: toAdd } },
+        select: { id: true, url: true },
+      });
+      for (const p of newPhotos) {
+        const alt = await generateAltText(p.url);
+        if (alt) {
+          const altText = sanitizeText(alt).slice(0, 200);
+          if (altText) {
+            await prisma.photo.update({ where: { id: p.id }, data: { altText } });
+          }
         }
       }
-    }
-  } catch { /* non-fatal */ }
+    } catch { /* non-fatal */ }
+  }
 
   // Revalidate pages that show these photos
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${listing.sellerId}`);
+  revalidatePath(`/seller/${listing.sellerId}/shop`);
 
   return NextResponse.json({ added: toAdd.length });
 }

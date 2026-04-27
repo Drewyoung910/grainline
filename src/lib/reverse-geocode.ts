@@ -1,8 +1,9 @@
 // src/lib/reverse-geocode.ts
 // Reverse geocoding via Nominatim (OpenStreetMap).
-// Nominatim policy: max 1 request per second. Uses an in-memory throttle.
+// Nominatim policy: max 1 request per second.
 // Never crashes — all errors return null.
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { redis } from "@/lib/ratelimit";
 
 const STATE_CODES: Record<string, string> = {
   Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
@@ -21,13 +22,33 @@ const STATE_CODES: Record<string, string> = {
 
 let lastRequestTime = 0;
 
-async function throttledFetch(url: string): Promise<Response> {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForLocalThrottle() {
   const now = Date.now();
   const elapsed = now - lastRequestTime;
   if (elapsed < 1100) {
-    await new Promise((r) => setTimeout(r, 1100 - elapsed));
+    await sleep(1100 - elapsed);
   }
   lastRequestTime = Date.now();
+}
+
+async function waitForSharedThrottle() {
+  try {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const locked = await redis.set("reverse-geocode:nominatim:lock", "1", { nx: true, px: 1100 });
+      if (locked) return;
+      await sleep(200);
+    }
+  } catch {
+    await waitForLocalThrottle();
+  }
+}
+
+async function throttledFetch(url: string): Promise<Response> {
+  await waitForSharedThrottle();
   return fetchWithTimeout(url, {
     headers: { "User-Agent": "Grainline/1.0 (thegrainline.com)" },
   }, 8_000);

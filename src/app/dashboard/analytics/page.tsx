@@ -68,7 +68,6 @@ type AnalyticsData = {
     totalViews: number;
     totalClicks: number;
     profileVisits: number;
-    viewToClickRatio: number;
     conversionRate: number | null;
     clickThroughRate: number | null;
     cartAbandonment: number;

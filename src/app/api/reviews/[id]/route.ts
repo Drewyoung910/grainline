@@ -7,6 +7,7 @@ import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { deleteR2ObjectByUrl } from "@/lib/r2";
 
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
@@ -61,6 +62,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Edit window expired" }, { status: 403 });
   }
 
+  const oldPhotos = await prisma.reviewPhoto.findMany({
+    where: { reviewId: id },
+    select: { url: true },
+  });
+
   await prisma.$transaction(async (tx) => {
     await tx.review.update({
       where: { id },
@@ -77,6 +83,13 @@ export async function PATCH(
       })),
     });
   });
+
+  const retainedUrls = new Set(photos);
+  await Promise.allSettled(
+    oldPhotos
+      .filter((photo) => !retainedUrls.has(photo.url))
+      .map((photo) => deleteR2ObjectByUrl(photo.url)),
+  );
 
   // revalidate listing page
   revalidatePath(`/listing/${r.listingId}`);
@@ -109,7 +122,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const photos = await prisma.reviewPhoto.findMany({
+    where: { reviewId: id },
+    select: { url: true },
+  });
+
   await prisma.review.delete({ where: { id } });
+  await Promise.allSettled(photos.map((photo) => deleteR2ObjectByUrl(photo.url)));
 
   revalidatePath(`/listing/${review.listingId}`);
   revalidatePath("/account/reviews");

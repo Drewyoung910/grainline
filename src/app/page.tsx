@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { ListingStatus, Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
+import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
 import MakersMapSection from "@/components/MakersMapSection";
 import SearchBar from "@/components/SearchBar";
@@ -74,7 +75,7 @@ function makerWeekIndex(count: number) {
   return Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % count;
 }
 
-async function getFeaturedMaker(): Promise<FeaturedMaker | null> {
+const getFeaturedMaker = unstable_cache(async (): Promise<FeaturedMaker | null> => {
   const now = new Date();
   const curated = await prisma.sellerProfile.findFirst({
     where: {
@@ -123,7 +124,7 @@ async function getFeaturedMaker(): Promise<FeaturedMaker | null> {
     where: { ...featuredMakerWhere, id: topSellerId },
     include: featuredMakerInclude,
   });
-}
+}, ["home-featured-maker"], { revalidate: 3600, tags: ["home-featured-maker"] });
 
 const CATEGORIES = [
   { key: "FURNITURE", label: "Furniture",     Icon: Armchair  },

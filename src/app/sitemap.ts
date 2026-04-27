@@ -7,8 +7,32 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 
 const BASE_URL = "https://thegrainline.com";
 const SITEMAP_ENTRY_LIMIT = 50_000;
+const SITEMAP_CHUNK_SIZE = 5_000;
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+export async function generateSitemaps() {
+  const listingCount = await prisma.listing.count({ where: publicListingWhere() });
+  const listingChunks = Math.ceil(listingCount / SITEMAP_CHUNK_SIZE);
+  return Array.from({ length: listingChunks + 1 }, (_, id) => ({ id }));
+}
+
+export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise<MetadataRoute.Sitemap> {
+  if (id > 0) {
+    const listings = await prisma.listing.findMany({
+      where: publicListingWhere(),
+      select: { id: true, updatedAt: true },
+      orderBy: { id: "asc" },
+      skip: (id - 1) * SITEMAP_CHUNK_SIZE,
+      take: SITEMAP_CHUNK_SIZE,
+    });
+
+    return listings.map((l) => ({
+      url: `${BASE_URL}/listing/${l.id}`,
+      lastModified: l.updatedAt,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    }));
+  }
+
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/`, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
     { url: `${BASE_URL}/browse`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
@@ -19,13 +43,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/map`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
   ];
 
-  const [listings, sellers, blogPosts, openCommissions] = await Promise.all([
-    prisma.listing.findMany({
-      where: publicListingWhere(),
-      select: { id: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-      take: SITEMAP_ENTRY_LIMIT,
-    }),
+  const [sellers, blogPosts, openCommissions] = await Promise.all([
     prisma.sellerProfile.findMany({
       where: {
         chargesEnabled: true,
@@ -140,13 +158,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ---------------------------------------------------------------------------
   // Build route arrays
   // ---------------------------------------------------------------------------
-  const listingRoutes: MetadataRoute.Sitemap = listings.map((l) => ({
-    url: `${BASE_URL}/listing/${l.id}`,
-    lastModified: l.updatedAt,
-    changeFrequency: "weekly",
-    priority: 0.8,
-  }));
-
   const sellerRoutes: MetadataRoute.Sitemap = sellers.flatMap((s) => [
     {
       url: `${BASE_URL}/seller/${s.id}`,
@@ -220,7 +231,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...staticRoutes,
     ...blogIndexRoute,
-    ...listingRoutes,
     ...sellerRoutes,
     ...blogRoutes,
     ...commissionRoutes,

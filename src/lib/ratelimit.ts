@@ -334,6 +334,13 @@ export const uploadHourlyRatelimit = new Ratelimit({
   prefix: "rl:upload-hourly",
 });
 
+export const accountExportRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "24 h"),
+  analytics: true,
+  prefix: "rl:account-export",
+});
+
 // Stripe Connect account creation/onboarding (fail closed — Stripe API calls)
 export const stripeConnectRatelimit = new Ratelimit({
   redis,

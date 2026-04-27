@@ -34,6 +34,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Sitemap seller/listing leak findings were stale.** `publicListingWhere()` already filters `chargesEnabled`, `vacationMode`, banned users, deleted users, `ACTIVE`, and `isPrivate:false`; seller sitemap entries use the same account-state filters.
 - **Round 20 adds roughly 50 actionable items**: 3 reported critical, 8 high, about 20 medium, and about 19 low. The real engineering gaps are configuration drift, missing migration enforcement, onboarding validation, map bundle splitting, CSP reporting, and UI accessibility/polish.
 
+## Round 21 Corrections / Status Notes
+
+- **Round 21 payment findings verified solid.** No new payment bugs were reproduced in this fix pass.
+- **R21 listing moderation regressions fixed.** Edit/delete-photo AI review now uses cover-order photos, AI activation writes are guarded with `updatedAt`/status checks, custom listing activation is guarded, and active-listing substantive-change detection now covers tags/materials/meta/dimensions/listing type/stock/shipping windows.
+- **R21 cron/dedup regressions fixed.** Failed cron runs can be retried after five minutes, notification dedup no longer hashes title/body, `dedupKey` is required for new notifications, Guild cron concurrency is reduced, and quality-score global means are materialized in `SiteMetricsSnapshot`.
+- **Long-term scale guardrails added.** Sitemap listing chunking and five hot-path indexes were added; Vercel still needs `DATABASE_URL` switched to the Neon pooler endpoint.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
@@ -229,10 +236,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Buyer sees dispute and refund states interleaved.
 - **Fix spec**: Seller refund route must block if an order has an open `OrderPaymentEvent` dispute.
 
-### H8. [FIXED 2026-04-25] Notification dedup is incomplete/missing
+### H8. [FIXED 2026-04-26] Notification dedup is incomplete/missing
 
 - **Files**: `src/lib/notifications.ts`, favorites/follow routes.
-- **Current state**: Fixed. `Notification` now has a shared `dedupKey` with a database unique constraint on `(userId, type, dedupKey)`. `createNotification()` computes a daily exact-content key and returns the existing notification on duplicate insert races. Favorites/follow routes no longer use fuzzy text/link-only route dedup that suppressed legitimate distinct users.
+- **Current state**: Fixed. `Notification` now has a required shared `dedupKey` with a database unique constraint on `(userId, type, dedupKey)`. `createNotification()` computes a daily key from recipient, notification type, and link; title/body are excluded so copy changes do not bypass dedup. Favorites/follow routes no longer use fuzzy text/link-only route dedup that suppressed legitimate distinct users.
 - **Impact**: Duplicate notifications under concurrency; fuzzy dedup can suppress legitimate users.
 - **Fix spec**: Add `dedupKey` or metadata to `Notification`. Dedup by stable sender/action/listing keys, not text/link alone.
 
@@ -378,9 +385,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ### H29. Account deletion/export GDPR gaps
 
-- **Files**: account deletion library and missing export route.
+- **Files**: account deletion library and account export route.
+- **Current state**: Partially fixed. `/api/account/export` now returns signed-in account portability JSON and omits buyer shipping/contact PII from seller-side sales exports. Broader deletion/anonymization scrubbing for historical messages, listings/media, reports, maker verification text, and retention policy documentation remains open.
 - **Impact**: Privacy promises portability/deletion beyond implemented code.
-- **Fix spec**: Add `/api/account/export`; scrub/anonymize message bodies, order shipping PII, maker verification text, listing media, newsletter email, reports, and R2 objects according to retention policy.
+- **Fix spec**: Finish scrub/anonymize message bodies, order shipping PII, maker verification text, listing media, newsletter email, reports, and R2 objects according to retention policy.
 
 ### H30. [FIXED 2026-04-26] Account deletion does not deauthorize Stripe Connect
 
@@ -561,19 +569,19 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`.
 - Audit log subject/body should sanitize persisted user-provided strings.
 - Upload presign per-request `fileIndex` is client-controlled. **Current state: Fixed for upload flood control.** Presign and processed image uploads now share an additional 50/hour per-user Redis limit; endpoint-specific file count remains client-index based.
-- R2 objects are orphaned when photos/listings/reviews are deleted. **Current state: Partial.** Listing photo deletion now attempts R2 object deletion after the DB row is removed; listing archive/delete and review-photo replacement still need the same cleanup.
+- R2 objects are orphaned when photos/listings/reviews are deleted. **Current state: Partial.** Listing photo deletion and review photo replacement/deletion now attempt R2 object deletion after the DB row is removed; listing archive/delete still preserves media by product decision and may need a retention cleanup policy.
 - Listing photo alt text generated in `api/listings/[id]/photos` should be sanitized and capped before persistence. **Current state: Fixed.**
 - New-listing submitted alt text needs server-side max length and sanitization parity with edit/photo paths. **Current state: Fixed.**
 - AI review prompt should isolate user-submitted listing fields inside explicit data delimiters and redact obvious prompt-injection phrases before interpolation. **Current state: Fixed.**
 - Stripe fee estimate is hardcoded to 2.9% + 30 cents and will be wrong for Amex/international/FX cases. **Current state: Fixed.** Estimated Stripe fee deduction was removed from checkout transfer math.
 - Case message display-name fallback leaks email prefixes when `name` is null. **Current state: Not reproduced.** Case messages already use `name ?? email.split("@")[0] ?? "Someone"`.
-- Notification dedup is per UTC day, not rolling 24 hours. Document the UTC-day boundary precisely in `CLAUDE.md`.
+- Notification dedup is per UTC day, not rolling 24 hours. **Current state: Documented in `CLAUDE.md`; accepted for now.**
 - [FIXED 2026-04-26] Prevent self-feature by admin seller.
 - Block records and blocked-feed behavior need deleted-user policy. **Current state: Fixed.** Block helpers ignore deleted users, and account feed now distinguishes "all followed makers are blocked" from no follows.
 - Similar listings should avoid same-seller duplicates where possible. **Current state: Fixed.** Similar listing results now keep at most one listing per seller after scoring.
-- Analytics `avgPriceCents` should be weighted by quantity.
-- Drop duplicate/legacy `viewToClickRatio` once clients use `clickThroughRate`.
-- Reconcile period window definitions in metrics.
+- Analytics `avgPriceCents` should be weighted by quantity. **Current state: Fixed.**
+- Drop duplicate/legacy `viewToClickRatio` once clients use `clickThroughRate`. **Current state: Fixed.**
+- Reconcile period window definitions in metrics. **Current state: Fixed for Guild metrics; calendar-month period windows and period-scoped active cases are now used.**
 - R2 media validation currently accepts legacy `*.r2.dev` URLs. Keep for compatibility, but decide whether to narrow to known account/bucket hostnames after old media is migrated.
 - GIF/video/PDF uploads may retain metadata; current state rejects GIF uploads and strips JPEG/PNG/WebP metadata, while video/PDF metadata retention remains disclosed/product-accepted.
 - Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification.

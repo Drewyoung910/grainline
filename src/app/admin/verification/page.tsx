@@ -2,7 +2,7 @@
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createNotification } from "@/lib/notifications";
 import {
   sendGuildMasterRevokedEmail,
@@ -16,6 +16,35 @@ import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 
 type ActionState = { ok: boolean; error?: string };
+
+type CachedSellerMetrics = {
+  calculatedAt: Date;
+  periodMonths: number;
+  averageRating: number;
+  reviewCount: number;
+  onTimeShippingRate: number;
+  responseRate: number;
+  totalSalesCents: number;
+  completedOrderCount: number;
+  activeCaseCount: number;
+  accountAgeDays: number;
+};
+
+function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMetrics): SellerMetricsResult {
+  return {
+    sellerProfileId,
+    calculatedAt: metrics.calculatedAt,
+    periodMonths: metrics.periodMonths,
+    averageRating: metrics.averageRating,
+    reviewCount: metrics.reviewCount,
+    onTimeShippingRate: metrics.onTimeShippingRate,
+    responseRate: metrics.responseRate,
+    totalSalesCents: metrics.totalSalesCents,
+    completedOrderCount: metrics.completedOrderCount,
+    activeCaseCount: metrics.activeCaseCount,
+    accountAgeDays: metrics.accountAgeDays,
+  };
+}
 
 // ── Shared auth helper ──────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -521,6 +550,7 @@ async function featureMaker(sellerProfileId: string) {
 
   revalidatePath("/admin/verification");
   revalidatePath("/");
+  revalidateTag("home-featured-maker", "max");
 }
 
 async function unfeatureMaker(sellerProfileId: string) {
@@ -542,6 +572,7 @@ async function unfeatureMaker(sellerProfileId: string) {
 
   revalidatePath("/admin/verification");
   revalidatePath("/");
+  revalidateTag("home-featured-maker", "max");
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────
@@ -560,7 +591,27 @@ export default async function AdminVerificationPage() {
       orderBy: { appliedAt: "asc" },
       take: 50,
       include: {
-        sellerProfile: { select: { displayName: true, id: true, guildMasterAppliedAt: true } },
+        sellerProfile: {
+          select: {
+            displayName: true,
+            id: true,
+            guildMasterAppliedAt: true,
+            sellerMetrics: {
+              select: {
+                calculatedAt: true,
+                periodMonths: true,
+                averageRating: true,
+                reviewCount: true,
+                onTimeShippingRate: true,
+                responseRate: true,
+                totalSalesCents: true,
+                completedOrderCount: true,
+                activeCaseCount: true,
+                accountAgeDays: true,
+              },
+            },
+          },
+        },
       },
     }),
     prisma.sellerProfile.findMany({
@@ -583,16 +634,12 @@ export default async function AdminVerificationPage() {
     }),
   ]);
 
-  // Fetch live metrics for each Guild Master applicant
   const masterMetricsMap = new Map<string, SellerMetricsResult>();
-  await Promise.allSettled(
-    masterPending.map(async (v) => {
-      try {
-        const m = await calculateSellerMetrics(v.sellerProfile.id);
-        masterMetricsMap.set(v.id, m);
-      } catch { /* non-fatal */ }
-    })
-  );
+  for (const v of masterPending) {
+    if (v.sellerProfile.sellerMetrics) {
+      masterMetricsMap.set(v.id, cachedMetricsToResult(v.sellerProfile.id, v.sellerProfile.sellerMetrics));
+    }
+  }
 
   return (
     <div className="space-y-10">
@@ -765,7 +812,7 @@ export default async function AdminVerificationPage() {
                 </div>
 
                 {/* ── Live metrics dashboard ── */}
-                {m && mc && (
+                {m && mc ? (
                   <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide">Live Metrics</p>
@@ -793,6 +840,10 @@ export default async function AdminVerificationPage() {
                       ))}
                     </div>
                     <p className="text-[10px] text-indigo-500 pt-1">Metrics calculated {m.calculatedAt.toLocaleDateString()} · {m.periodMonths}-month period</p>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                    Cached Guild metrics are not available yet. Approval still recalculates live metrics before changing status.
                   </div>
                 )}
 

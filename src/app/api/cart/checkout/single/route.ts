@@ -375,6 +375,7 @@ export async function POST(req: Request) {
       expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       mode: "payment",
+      payment_method_types: ["card"],
       line_items,
       shipping_options: [
         {

@@ -3793,8 +3793,8 @@ All emoji replaced with SVG icon components from `src/components/icons/` or plai
 - **Blog comment notifications** — moved from POST handler (fires on creation with `approved: false`) to the `approveComment` server action in `src/app/admin/blog/page.tsx`. `NEW_BLOG_COMMENT` and `BLOG_COMMENT_REPLY` now fire only when an admin approves the comment.
 
 ### Notification dedup
-- **Favorites** — `NEW_FAVORITE` notifications check for existing notification with same `type` + `link` within 24 hours before creating. Prevents spam on favorite/unfavorite toggle cycles.
-- **Follows** — `NEW_FOLLOWER` notifications check for existing notification with same `type` + follower name within 24 hours. Prevents spam on follow/unfollow/refollow.
+- **Shared helper** — `createNotification()` owns notification dedup. It writes a database-enforced daily `dedupKey` based on UTC day + recipient + type + link, so copy changes in title/body do not bypass dedup.
+- **Favorites/follows** — route-local fuzzy dedup was removed. Legitimate distinct users are no longer suppressed by follower-name substring or listing-link-only checks.
 
 ### Fulfillment notification matrix (complete)
 | Action | Status | In-app notification | Email |
@@ -5124,6 +5124,43 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Round 21 Verification + Scale Guardrails (2026-04-26)
+
+This pass closed the live Round 21 regressions plus several earlier R19/R20 medium/high items that were still open in code.
+
+### Fixed in this pass
+- **Admin Guild Master verification no longer recalculates metrics for every applicant during page render**: `/admin/verification` now reads cached `SellerMetrics`; the approve server action still recalculates live metrics before changing status.
+- **Guild metric period handling tightened**: `calculateSellerMetrics()` now uses calendar-month subtraction and scopes active case count to the metrics period instead of lifetime active cases.
+- **Seller analytics corrected**: top-listing `avgPriceCents` is now quantity-weighted, and the duplicate legacy `viewToClickRatio` response field was removed in favor of `clickThroughRate`.
+- **Delayed payment methods explicitly disabled**: both checkout session creation routes set `payment_method_types: ["card"]`; ACH/SEPA-style `payment_intent.processing` handlers are not needed for the current card-only product.
+- **Account export endpoint added**: `/api/account/export` supports signed-in GET/POST JSON downloads with user, seller, listing, order, message, review, blog, cart, saved, follow, commission, case, and notification data. Seller-side sales exports omit buyer shipping/contact PII.
+- **Reverse-geocode throttle made cross-lambda**: Nominatim calls now coordinate through Redis with a local fallback, preserving the 1 request/sec policy across serverless instances.
+- **Review photo R2 cleanup added**: replacing or deleting review photos now attempts R2 object deletion after the DB mutation.
+- **MapLibre bundle splitting extended**: seller profile pages now use `DynamicMapCard`; listing detail already did.
+- **Featured maker fallback cached**: homepage featured maker selection is cached for one hour and invalidated when admins feature/unfeature a maker.
+- **Onboarding UX tightened**: step 3 explicitly tells sellers Stripe is required before completing onboarding/publishing, and the Step 4 create-listing link advances persisted onboarding state.
+- **Listing edit/delete AI review paths hardened**: edit and delete-photo re-review now use cover-order photos (`sortOrder asc`), not newest-upload order.
+- **AI reactivation race guards added**: edit, photo-add/delete, and custom-listing activation paths use guarded `updateMany` with `updatedAt`/status checks before moving listings back to `ACTIVE`.
+- **Substantive edit detection widened**: tags, materials, meta description, product dimensions, listing type, stock, shipping/processing windows, and variants now trigger AI re-review on active listings.
+- **Photo-add alt-text cost reduced**: new photo alt text is generated only after an active listing is re-approved, not while held in pending review.
+- **Cron retry deadlock fixed**: failed cron runs older than five minutes can be reclaimed by Vercel retry instead of returning `cron_run_already_claimed` forever.
+- **Cron pool pressure reduced**: Guild metric cron seller concurrency was reduced from 5 to 3, capping the current `calculateSellerMetrics()` fan-out at 15 concurrent queries instead of 25.
+- **Quality-score global means materialized**: added `SiteMetricsSnapshot`, `/api/cron/site-metrics-snapshot`, and quality-score reads from the snapshot instead of scanning global order/review facts during every quality-score run.
+- **Sitemap listing chunking added**: `generateSitemaps()` now emits 5K-listing chunks instead of putting all listing URLs into one sitemap response.
+- **Hot-path indexes added**: migration `20260426145000_hot_path_scale_indexes` adds partial/compound indexes for visible quality-score browse, buyer paid order timelines, message threads, banned/deleted user joins, and payment-event dispute lookups.
+
+### Verification
+- `git diff --check` ✅
+- `npx prisma validate` ✅
+- `npx prisma generate` ✅
+- `npx tsc --noEmit --incremental false` ✅
+
+### Still open / next good passes
+- Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
+- Durable notification/email outbox semantics for very large follower fan-outs.
+- Broader GDPR scrubbing of old message/listing/order PII beyond the new export endpoint.
+- Partial refund line-item inventory semantics still need a product decision.
+
 ## Audit Fix Pass — Admin/Dashboard Correctness Sweep (2026-04-26)
 
 This pass closed several Round 13 admin/dashboard UX and data-integrity findings without schema changes.
@@ -5326,8 +5363,8 @@ This pass closed the shared-office lockout issue in the admin PIN verifier.
 This pass closed the shared notification dedup gap and one saved-items visibility issue from the later audit backlog.
 
 ### Fixed in this pass
-- **Notification dedup is now database-enforced**: `Notification` has a nullable `dedupKey` plus a unique constraint on `(userId, type, dedupKey)`, added by migration `20260426043000_notification_dedup_keys`.
-- **`createNotification()` owns dedup semantics**: the helper computes a daily SHA-256 dedup key from recipient, type, link, title, and body; duplicate insert races return the existing notification instead of throwing or creating duplicates.
+- **Notification dedup is database-enforced**: `Notification` has a required `dedupKey` plus a unique constraint on `(userId, type, dedupKey)`, added by migrations `20260426043000_notification_dedup_keys` and `20260426143000_notification_dedup_not_null`.
+- **`createNotification()` owns dedup semantics**: the helper computes a daily SHA-256 dedup key from recipient, type, and link; duplicate insert races return the existing notification instead of throwing or creating duplicates. Title/body are deliberately excluded so copy changes do not bypass dedup.
 - **Favorites/follows no longer use fuzzy dedup**: removed route-local notification dedup based only on listing link or follower-name substring. Legitimate distinct users are no longer suppressed by imprecise text matching.
 - **Saved listing count/cards share the same visibility filter**: `/account/saved` now hides private, draft/rejected/hidden, unpayable, vacation, banned/deleted-seller, and blocked-seller listings from both total count and card query so saved items do not link to broken or unavailable listings.
 - **Open backlog updated**: `audit_open_findings.md` now marks H8 fixed and notes that `/account/saved` broken-link behavior is closed.
@@ -5339,10 +5376,7 @@ This pass closed the shared notification dedup gap and one saved-items visibilit
 - `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
 
 ### Still open / next good passes
-- Apply `20260426043000_notification_dedup_keys` with `npx prisma migrate deploy`.
-- Webhook completed/expired session serialization with a PostgreSQL advisory lock.
-- Duplicate completed webhook email/outbox idempotency.
-- Refund tax/reverse-transfer accounting decision.
+- Durable notification/email outbox semantics for very large follower bases.
 
 ## Audit Fix Pass — Checkout Session Webhook Serialization (2026-04-25)
 

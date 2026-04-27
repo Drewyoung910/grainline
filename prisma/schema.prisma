@@ -1003,6 +1003,15 @@ model SellerMetrics {
   accountAgeDays      Int           @default(0)
 }
 
+model SiteMetricsSnapshot {
+  id             Int      @id @default(1)
+  avgConversion Float    @default(0)
+  avgCtr        Float    @default(0)
+  avgRating     Float    @default(3)
+  calculatedAt  DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 enum NotificationType {
   NEW_MESSAGE
   NEW_ORDER
@@ -1040,7 +1049,7 @@ model Notification {
   title     String
   body      String
   link      String?
-  dedupKey  String?          @db.VarChar(64)
+  dedupKey  String           @default(cuid()) @db.VarChar(64)
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
 

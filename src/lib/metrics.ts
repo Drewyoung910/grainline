@@ -51,7 +51,8 @@ export async function calculateSellerMetrics(
   sellerProfileId: string,
   periodMonths = 3
 ): Promise<SellerMetricsResult> {
-  const periodStart = new Date(Date.now() - periodMonths * 30 * 24 * 60 * 60 * 1000);
+  const periodStart = new Date();
+  periodStart.setMonth(periodStart.getMonth() - periodMonths);
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
@@ -109,6 +110,7 @@ export async function calculateSellerMetrics(
         where: {
           sellerId: seller.userId,
           status: { notIn: ["RESOLVED", "CLOSED"] },
+          createdAt: { gte: periodStart },
         },
       }),
 
