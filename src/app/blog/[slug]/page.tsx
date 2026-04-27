@@ -17,6 +17,7 @@ import MediaImage from "@/components/MediaImage";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 export async function generateMetadata({
   params,
@@ -152,7 +153,10 @@ export default async function BlogPostPage({
   }> = [];
   if (post.featuredListingIds.length > 0) {
     featuredListings = await prisma.listing.findMany({
-      where: { id: { in: post.featuredListingIds }, status: "ACTIVE" },
+      where: publicListingWhere({
+        id: { in: post.featuredListingIds },
+        ...(post.sellerProfile?.id ? { sellerId: post.sellerProfile.id } : {}),
+      }),
       select: {
         id: true, title: true, priceCents: true, currency: true,
         photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },

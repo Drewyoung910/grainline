@@ -5,6 +5,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { searchRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { getPopularListingTags } from "@/lib/popularTags";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimitOpen(searchRatelimit, getIP(req));
@@ -22,7 +23,13 @@ export async function GET(req: NextRequest) {
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const [listings, sellers, tagRows, fuzzyRows] = await Promise.all([
+  const qLower = q.toLowerCase();
+  const tagRows = (await getPopularListingTags(200))
+    .filter((tag) => tag.toLowerCase().includes(qLower))
+    .slice(0, 2)
+    .map((tag) => ({ tag }));
+
+  const [listings, sellers, fuzzyRows] = await Promise.all([
     // Exact title prefix / substring matches
     prisma.listing.findMany({
       where: {
@@ -48,32 +55,6 @@ export async function GET(req: NextRequest) {
       select: { displayName: true },
       take: 2,
     }),
-
-    // Partial tag matches via unnest
-    blockedSellerIds.length > 0
-      ? prisma.$queryRaw<Array<{ tag: string; cnt: bigint }>>`
-          SELECT tag, COUNT(*) as cnt
-          FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-          INNER JOIN "User" u ON u.id = sp."userId"
-          , unnest(l.tags) as tag
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false AND u.banned = false AND u."deletedAt" IS NULL
-            AND tag ILIKE ${`%${q}%`}
-            AND l."sellerId" != ALL(${blockedSellerIds})
-          GROUP BY tag ORDER BY cnt DESC LIMIT 2
-        `
-      : prisma.$queryRaw<Array<{ tag: string; cnt: bigint }>>`
-          SELECT tag, COUNT(*) as cnt
-          FROM "Listing" l
-          INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-          INNER JOIN "User" u ON u.id = sp."userId"
-          , unnest(l.tags) as tag
-          WHERE l.status = 'ACTIVE' AND l."isPrivate" = false AND sp."chargesEnabled" = true
-            AND sp."vacationMode" = false AND u.banned = false AND u."deletedAt" IS NULL
-            AND tag ILIKE ${`%${q}%`}
-          GROUP BY tag ORDER BY cnt DESC LIMIT 2
-        `,
 
     // Fuzzy title suggestions via pg_trgm (similarity > 0.25)
     blockedSellerIds.length > 0
@@ -109,7 +90,6 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Category suggestions: if query matches a category label, include the label
-  const qLower = q.toLowerCase();
   const matchingCategoryValues = CATEGORY_VALUES.filter((v) =>
     CATEGORY_LABELS[v].toLowerCase().includes(qLower)
   );

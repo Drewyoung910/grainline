@@ -229,6 +229,7 @@ export default async function BrowsePage({
   const radiusRaw = sp.radius ? Number(sp.radius) : null;
   const radiusFilter = radiusRaw != null && Number.isFinite(radiusRaw) ? Math.max(1, radiusRaw) : null;
   const hasLocationFilter = latFilter !== null && lngFilter !== null && radiusFilter !== null;
+  const popularTags = await getPopularListingTags(q ? 200 : 12);
 
   // Price filter
   const priceFilter: { gte?: number; lte?: number } = {};
@@ -267,23 +268,15 @@ export default async function BrowsePage({
     sellerIdFilters.push(rows.map((r) => r.id));
   }
 
-  // Partial tag matches via unnest — match any search word against tags
+  // Partial tag matches use cached popular tags instead of per-request unnest.
   let partialTagMatches: string[] = [];
   if (q) {
     const searchWords = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
     if (searchWords.length > 0) {
-      const patterns = searchWords.map((w) => `%${w}%`);
-      const rows = await prisma.$queryRaw<Array<{ tag: string }>>`
-        SELECT DISTINCT tag
-        FROM "Listing" l
-        JOIN "SellerProfile" sp ON sp.id = l."sellerId" AND sp."chargesEnabled" = true AND sp."vacationMode" = false
-        JOIN "User" u ON u.id = sp."userId" AND u.banned = false AND u."deletedAt" IS NULL,
-        unnest(l.tags) AS tag
-        WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
-          AND tag ILIKE ANY(${patterns}::text[])
-        LIMIT 20
-      `;
-      partialTagMatches = rows.map((r) => r.tag);
+      const lowerWords = searchWords.map((word) => word.toLowerCase());
+      partialTagMatches = popularTags
+        .filter((tag) => lowerWords.some((word) => tag.toLowerCase().includes(word)))
+        .slice(0, 20);
     }
   }
 
@@ -367,7 +360,7 @@ export default async function BrowsePage({
     ]);
   }
 
-  const popularTags = await getPopularListingTags(12);
+  const visiblePopularTags = popularTags.slice(0, 12);
 
   // Saved set for current user
   let savedSet = new Set<string>();
@@ -439,10 +432,10 @@ export default async function BrowsePage({
     return (
       <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
-        <MobileFilterBar popularTags={popularTags} />
+        <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
           <div className="sticky top-4 self-start">
-            <FilterSidebar popularTags={popularTags} />
+            <FilterSidebar popularTags={visiblePopularTags} />
           </div>
           <div className="flex-1 min-w-0 space-y-8">
             <div className="space-y-2">
@@ -454,11 +447,11 @@ export default async function BrowsePage({
               </p>
             </div>
 
-            {popularTags.length > 0 && (
+            {visiblePopularTags.length > 0 && (
               <div>
                 <div className="font-medium mb-2">Try searching for:</div>
                 <div className="flex flex-wrap gap-2">
-                  {popularTags.slice(0, 3).map((t) => (
+                  {visiblePopularTags.slice(0, 3).map((t) => (
                     <Link
                       key={t}
                       href={`/browse?q=${encodeURIComponent(t)}`}
@@ -632,11 +625,11 @@ export default async function BrowsePage({
   return (
     <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
     <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
-      <MobileFilterBar popularTags={popularTags} />
+      <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Left sidebar */}
         <div className="sticky top-4 self-start">
-          <FilterSidebar popularTags={popularTags} />
+          <FilterSidebar popularTags={visiblePopularTags} />
         </div>
 
         {/* Main content */}

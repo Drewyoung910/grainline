@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { viewRatelimit, profileViewRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
+import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
+
+const VIEWED_LISTING_IDS_COOKIE = "viewed_listing_ids";
 
 export async function POST(
   req: NextRequest,
@@ -18,10 +21,26 @@ export async function POST(
   if (!dedupOk) return NextResponse.json({ ok: true, skipped: true });
 
   const cookieStore = await cookies();
-  const cookieName = `viewed_${id}`;
+  const legacyCookieName = `viewed_${id}`;
+  const tracking = hasTrackingCookie(
+    cookieStore,
+    VIEWED_LISTING_IDS_COOKIE,
+    legacyCookieName,
+    id
+  );
 
-  if (cookieStore.get(cookieName)) {
-    return NextResponse.json({ ok: true, skipped: true });
+  if (tracking.hasTracked) {
+    const res = NextResponse.json({ ok: true, skipped: true });
+    if (tracking.hasLegacyCookie) {
+      setTrackingCookie(
+        res.cookies,
+        VIEWED_LISTING_IDS_COOKIE,
+        tracking.aggregateIds,
+        id,
+        legacyCookieName
+      );
+    }
+    return res;
   }
 
   const listing = await prisma.listing.findUnique({ where: { id }, select: { sellerId: true } });
@@ -38,11 +57,6 @@ export async function POST(
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(cookieName, "1", {
-    maxAge: 60 * 60 * 24,
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-  });
+  setTrackingCookie(res.cookies, VIEWED_LISTING_IDS_COOKIE, tracking.aggregateIds, id);
   return res;
 }

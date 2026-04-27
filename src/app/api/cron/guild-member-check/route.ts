@@ -110,8 +110,7 @@ async function checkGuildMemberSeller(
   });
 
   if (longCase) {
-    await revokeMember(seller, "An unresolved dispute has been open for over 90 days.");
-    return 1;
+    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.");
   }
 
   // Check 2: active listings below 5 for 30+ consecutive days
@@ -119,11 +118,10 @@ async function checkGuildMemberSeller(
     seller.listingsBelowThresholdSince &&
     new Date(seller.listingsBelowThresholdSince) < thirtyDaysAgo
   ) {
-    await revokeMember(
+    return revokeMember(
       seller,
       "Your shop has had fewer than 5 active listings for over 30 consecutive days."
     );
-    return 1;
   }
 
   return 0;
@@ -132,22 +130,25 @@ async function checkGuildMemberSeller(
 async function revokeMember(
   seller: { id: string; userId: string; user: { name?: string | null; email?: string | null } | null },
   reason: string
-) {
-  await prisma.$transaction([
-    prisma.sellerProfile.update({
-      where: { id: seller.id },
+): Promise<number> {
+  const revoked = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: "GUILD_MEMBER" },
       data: {
         guildLevel: "NONE",
         isVerifiedMaker: false,
         consecutiveMetricFailures: 0,
         metricWarningSentAt: null,
       },
-    }),
-    prisma.makerVerification.updateMany({
+    });
+    if (updated.count === 0) return false;
+    await tx.makerVerification.updateMany({
       where: { sellerProfileId: seller.id },
       data: { status: "REJECTED", reviewNotes: reason },
-    }),
-  ]);
+    });
+    return true;
+  });
+  if (!revoked) return 0;
 
   await createNotification({
     userId: seller.userId,
@@ -167,6 +168,7 @@ async function revokeMember(
       Sentry.captureException(err, { tags: { source: "cron_guild_member_check_revoked_email", sellerId: seller.id } });
     }
   }
+  return 1;
 }
 
 function getErrorCode(err: unknown): string {

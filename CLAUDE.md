@@ -237,15 +237,15 @@ The browse page (`src/app/browse/page.tsx`) is a full-featured search experience
 
 `GET /api/search/suggestions?q=` returns up to 8 deduplicated suggestions from 4 parallel queries:
 1. Listing title substring matches (ILIKE) — filtered `seller: { chargesEnabled: true }`
-2. Tag partial matches via `unnest(tags) ILIKE` (raw SQL, `INNER JOIN "SellerProfile" sp ON sp.id = l."sellerId"`, `AND sp."chargesEnabled" = true`)
-3. Seller displayName matches — not filtered by chargesEnabled (sellers appear regardless)
+2. Tag partial matches from cached `getPopularListingTags(200)` results, avoiding per-request `Listing x unnest(tags)` scans.
+3. Seller displayName matches — filtered to sellers who are not banned/deleted, not on vacation, and `chargesEnabled = true`.
 4. Fuzzy title matches via `similarity(title, q) > 0.25` (pg_trgm) — same `INNER JOIN` + chargesEnabled filter
 
 Plus category label matches from `CATEGORY_VALUES`.
 
 `SearchBar` (`src/components/SearchBar.tsx`) — "use client" header component with 300ms debounce, dropdown, Escape/click-outside dismiss, `onMouseDown + e.preventDefault()` on suggestion buttons to avoid blur-before-click race. **Suggestions trigger at 2 characters** (was 3). **Popular tags on focus**: when the input is focused and empty, fetches `GET /api/search/popular-tags` (ISR 1hr, top 8 by active listing count) and shows them as a "Popular searches" section above regular suggestions; loaded once per session (`popularLoaded` guard).
 
-`GET /api/search/popular-tags` — public route, ISR cached 1 hour (`export const revalidate = 3600`); raw SQL `unnest(tags)` grouped by count on ACTIVE non-private listings; returns `{ tags: string[] }` (up to 8). Used only by `SearchBar`.
+`GET /api/search/popular-tags` — public route, ISR cached 1 hour (`export const revalidate = 3600`); delegates to shared `getPopularListingTags()` (`unstable_cache`) grouped by active public listing count with seller safety filters; returns `{ tags: string[] }` (up to 8). Used by `SearchBar`; browse and homepage also use the shared helper directly.
 
 `GET /api/search/popular-blog-tags` — public route, ISR cached 1 hour; raw SQL `unnest(tags)` grouped by count on PUBLISHED blog posts; returns `{ tags: string[] }` (up to 8). Used by `BlogSearchBar` — shows popular blog topics, not listing tags.
 
@@ -253,8 +253,8 @@ Plus category label matches from `CATEGORY_VALUES`.
 
 ### Analytics fields
 
-- `viewCount` — incremented by `POST /api/listings/[id]/view` (24h `httpOnly` cookie deduplication). `ListingViewTracker` ("use client") fires this on mount from listing detail pages.
-- `clickCount` — incremented by `POST /api/listings/[id]/click` (same cookie pattern). `ClickTracker` fires this on card click in browse and all other listing card surfaces (see ClickTracker entry above).
+- `viewCount` — incremented by `POST /api/listings/[id]/view` (24h `httpOnly` aggregate cookie deduplication, capped at 50 listing IDs to avoid header growth). `ListingViewTracker` ("use client") fires this on mount from listing detail pages.
+- `clickCount` — incremented by `POST /api/listings/[id]/click` (same aggregate cookie pattern). `ClickTracker` fires this on card click in browse and all other listing card surfaces (see ClickTracker entry above).
 
 ### Saved Searches
 
@@ -5123,6 +5123,31 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
+
+## Audit Fix Pass — Tracking Cookies, Search Scale, and Stale Backlog Cleanup (2026-04-26)
+
+This pass closed several remaining Round 19-21 and stale audit-backlog items after verifying that many listed findings had already been fixed in code.
+
+### Fixed in this pass
+- **Listing analytics cookies no longer grow without bound**: `/api/listings/[id]/view` and `/api/listings/[id]/click` now use compact 24h aggregate httpOnly cookies (`viewed_listing_ids`, `clicked_listing_ids`) capped at 50 listing IDs each. Legacy per-listing cookies are migrated into the aggregate cookie and expired when encountered.
+- **Search tag suggestions no longer unnest tags per request**: `/api/search/suggestions` and browse partial-tag matching now use cached `getPopularListingTags()` results instead of `Listing x unnest(tags)` scans on every request.
+- **Guild cron revokes are stale-state guarded**: Guild Master and Guild Member cron revocations now use `updateMany` predicates on the current `guildLevel`; notifications/emails are skipped if an admin changed the seller state concurrently.
+- **Blog featured listings are re-verified at render time**: blog post featured listings now pass through `publicListingWhere()` and seller-authored posts also re-check listing ownership by `sellerProfileId`.
+- **TypeScript target updated**: `tsconfig.json` now targets `ES2022` instead of `ES2017`.
+- **Launch checklist tightened**: production checklist now includes `UNSUBSCRIBE_SECRET`, `SENTRY_DSN`, `RESEND_WEBHOOK_SECRET`, and explicit Clerk/Stripe/Resend webhook endpoint/event requirements.
+- **Stale backlog reconciled**: `audit_open_findings.md` now marks already-fixed items around admin forms, onboarding Stripe status, sitemap chunking, delayed payment methods, presign extension allowlists, health-check docs, reverse-geocode Redis throttling, and cron UTC documentation.
+
+### Verification
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; existing warnings only: middleware convention deprecation, pg SSL-mode advisory, edge-runtime static-generation warning.
+
+### Still open / next good passes
+- Add actual route tests for payment/webhook/refund/account-state flows.
+- Browse rating filter still needs a materialized/aggregate strategy.
+- Remaining product/legal decisions: partial-refund inventory semantics, seller public-content retention, insurance/INFORM/attorney sign-off.
 
 ## Audit Fix Pass — CI, Search Scale, and Locale Polish (2026-04-26)
 

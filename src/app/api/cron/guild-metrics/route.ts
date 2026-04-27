@@ -130,8 +130,8 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   if (seller.guildLevel !== "GUILD_MASTER") {
     // GUILD_MEMBER — just refresh metrics timestamp, no revocation logic here
     // (member revocation handled in daily guild-member-check cron)
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
+    await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: seller.guildLevel },
       data: { lastMetricCheckAt: now },
     });
     return { processed: 1, warned: 0, revokedMaster: 0 };
@@ -141,8 +141,8 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
 
   if (criteria.allMet) {
     // All good — reset failure tracking
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
+    await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: "GUILD_MASTER" },
       data: {
         consecutiveMetricFailures: 0,
         metricWarningSentAt: null,
@@ -156,14 +156,15 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     // First failure — send warning
     const failedLabels = buildFailedLabels(criteria, metrics);
 
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
+    const warned = await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: 0 },
       data: {
         consecutiveMetricFailures: 1,
         metricWarningSentAt: now,
         lastMetricCheckAt: now,
       },
     });
+    if (warned.count === 0) return { processed: 1, warned: 0, revokedMaster: 0 };
 
     await createNotification({
       userId: seller.userId,
@@ -188,21 +189,24 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   }
 
   // Second consecutive failure — revoke Guild Master
-  await prisma.$transaction([
-    prisma.sellerProfile.update({
-      where: { id: seller.id },
+  const revoked = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
       data: {
         guildLevel: "GUILD_MEMBER",
         consecutiveMetricFailures: 0,
         metricWarningSentAt: null,
         lastMetricCheckAt: now,
       },
-    }),
-    prisma.makerVerification.updateMany({
+    });
+    if (updated.count === 0) return false;
+    await tx.makerVerification.updateMany({
       where: { sellerProfileId: seller.id },
       data: { status: "GUILD_MASTER_REJECTED", reviewNotes: "Metrics fell below requirements for two consecutive months." },
-    }),
-  ]);
+    });
+    return true;
+  });
+  if (!revoked) return { processed: 1, warned: 0, revokedMaster: 0 };
 
   await createNotification({
     userId: seller.userId,

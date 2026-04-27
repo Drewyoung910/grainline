@@ -513,8 +513,9 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Rate limiting cookies.</strong> We use httpOnly cookies to prevent abuse of view
-              and click tracking endpoints. These cookies are set per listing and per IP address,
-              contain no personally identifiable information, and expire within 24 hours.
+              and click tracking endpoints. These cookies store capped lists of recent listing
+              identifiers for deduplication, contain no directly identifying personal information,
+              and expire within 24 hours.
             </li>
             <li>
               <strong>Recently viewed cookie.</strong> We store a client-side cookie containing the
@@ -536,7 +537,7 @@ export default function PrivacyPage() {
             <li><strong>Clerk authentication cookies:</strong> Session cookies set by our authentication provider to maintain your logged-in state. These are essential cookies that expire when your session ends or after the period configured by Clerk.</li>
             <li><strong>Cloudflare security cookies (__cf_bm):</strong> Set by Cloudflare to distinguish humans from bots and protect against DDoS attacks. Expires after 30 minutes of inactivity.</li>
             <li><strong>Stripe cookies:</strong> Set by Stripe&apos;s client-side library (Stripe.js) on pages with payment functionality for fraud prevention and payment processing. Governed by Stripe&apos;s Cookie Policy.</li>
-            <li><strong>Grainline rate-limiting cookies:</strong> httpOnly cookies set per listing and per IP address to prevent abuse of tracking endpoints. Contain no personally identifiable information. Expire within 24 hours.</li>
+            <li><strong>Grainline rate-limiting cookies:</strong> httpOnly cookies that store up to 50 recently viewed or clicked listing IDs to prevent duplicate tracking counts. Expire within 24 hours.</li>
             <li><strong>Grainline recently-viewed cookie:</strong> Client-side cookie containing listing IDs (up to 10) for your browsing history display. Expires after 30 days. Contains only listing identifiers — no personal information.</li>
           </ul>
           <p className="mt-3">

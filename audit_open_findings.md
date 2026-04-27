@@ -520,12 +520,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 - `approveGuildMember` silently no-ops when recomputed eligibility is false. **Current state: Fixed.** Approval now uses a stateful form, reports unmet listing/account-age/case/sales criteria inline, and excludes externally refunded orders via `chargeRefundId`.
 - [FIXED 2026-04-26] `appendNote` and `markReviewed` now return `{ ok:false, error }` state through a client action form instead of crashing the admin order page.
-- `updateSellerProfile` throws raw `Display name is required`. Convert to inline form error.
+- [FIXED 2026-04-26] `updateSellerProfile` returns inline form errors instead of throwing raw display-name validation errors.
 - `/admin/orders` and `/admin/flagged` show only `items[0]` seller. **Current state: Fixed.** Admin order tables now load all order items and render all distinct sellers plus item summaries.
 - [FIXED 2026-04-26] `VacationModeForm` now surfaces save errors and `Retry-After` rate-limit failures inline.
 - [FIXED 2026-04-26] `/admin/audit` has an action filter and hides Undo behind explicit undoability instead of showing an expired-looking control for non-undoable actions.
 - [FIXED 2026-04-26] Non-undoable moderation actions now render as "Not undoable"; admin undo API is also rate-limited.
-- `/admin/verification` still risks N x `calculateSellerMetrics` per render. Cache metrics or load precomputed `SellerMetrics`.
+- [FIXED 2026-04-26] `/admin/verification` reads cached `SellerMetrics` for Guild Master applicant cards and only recalculates inside explicit admin actions.
 - [FIXED 2026-04-26] `/dashboard/inventory` stock saves now serialize per row and disable quantity edits while a save is in flight.
 - [FIXED 2026-04-26] `/dashboard/sales/[orderId]` now displays seller-owned item subtotal in the seller subtotal row.
 - [FIXED 2026-04-26] `appendNote` now caps each append at 2,000 chars and total review notes at 10,000 chars.
@@ -535,9 +535,9 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 - Buyer cannot delete their own review. **Current state: Fixed.** Reviewer-owned reviews can now be deleted through `DELETE /api/reviews/[id]`, and `/account/reviews` exposes the action.
 - [FIXED 2026-04-26] Authenticated banned/deleted users are redirected to `/banned` from public pages and receive consistent account-state JSON from non-bypass API routes.
-- Banned user cart/message errors can be misleading. Return buyer-specific suspended-account messages.
+- [FIXED 2026-04-26] Cart and message routes call `ensureUserByClerkId` before seller/listing checks and return buyer-specific `ACCOUNT_SUSPENDED` / `ACCOUNT_DELETED` responses.
 - [FIXED 2026-04-26] AdminPinGate now uses the server `Retry-After` header and disables input until the server lockout expires.
-- Stripe onboarding skip/return flow can land sellers at step 4/5 with unclear status. Show explicit Stripe incomplete banner keyed by account status.
+- [FIXED 2026-04-26] Onboarding Stripe step shows explicit incomplete-account and charges-disabled banners, and completion requires `chargesEnabled` server-side.
 - Cart close/payment modal can orphan Stripe sessions and stock locks. Consider session cancel/release endpoint or clearer lock-expiry messaging.
 - Multi-seller success/receipt views need all seller receipts/items, not just last or first seller.
 - Soft-deleted saved favorites no longer show broken listing links on `/account/saved`; a richer "No longer available" history section remains optional product polish.
@@ -550,20 +550,20 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Browse popular tags now use a shared `getPopularListingTags()` cached query consumed by both `/api/search/popular-tags` and browse/home server renders.
 - [FIXED 2026-04-26] Featured maker fallback is cached with `unstable_cache` and a 1-hour revalidation window.
 - [FIXED 2026-04-26] Added pg_trgm-backed GIN indexes for active listing titles and published blog titles, plus a GIN index for listing tags.
-- Tag autocomplete cross-joins all `Listing x unnest(tags)` at scale. Use cached tag table/materialized view.
+- [FIXED 2026-04-26] Search suggestions and browse partial-tag matching now use cached `getPopularListingTags()` results instead of per-request `Listing x unnest(tags)` scans.
 - Browse canonical/noindex/page/filter strategy still needs one deliberate SEO decision.
-- Sitemap index splitting remains future scale work.
+- [FIXED 2026-04-26] Sitemap listing chunks are emitted through `generateSitemaps()` before single-file listing limits become a blocker.
 
 ## Schema / CI / Platform Findings
 
 - Schema has few `@db.VarChar(N)` caps. Add caps to bounded text fields; leave long bodies as `Text`.
-- Viewed cookies can leak listing IDs and hit header size limits. Cap count, compress, or move to server-side recently viewed for signed-in users.
+- [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
 - Zero real test suite remains. Start with payment/webhook/refund/account-state route tests.
-- `tsconfig` target ES2017 may increase bundle size. Evaluate ES2022 target with Next/browser support.
+- [FIXED 2026-04-26] `tsconfig` target is now ES2022 to avoid unnecessary downleveling; Next/Turbopack still handles final browser/server output.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
 - Sentry `beforeSend` filtering is missing. **Current state: Fixed.** Shared server/edge/client filter drops common browser/network noise and redacts cookies, auth headers, token query params, user email/IP, and email-like strings.
-- Vercel/Resend/Stripe deploy checklist needs explicit webhook registration validation.
+- [FIXED 2026-04-26] Launch checklist now explicitly lists production Clerk, Stripe, and Resend webhook endpoints/events plus `UNSUBSCRIBE_SECRET`, `SENTRY_DSN`, and `RESEND_WEBHOOK_SECRET`.
 
 ## Medium / Low Findings To Batch Later
 
@@ -571,17 +571,17 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] `POST /api/cases` now enforces the 20-character description minimum server-side.
 - [FIXED 2026-04-26] Message inbox snippets now use persisted `Message.kind` for structured cards instead of inferring from arbitrary JSON body shape.
 - [FIXED 2026-04-26] `MarkdownToolbar` now rejects unsafe link protocols such as `javascript:` before inserting markdown links.
-- `setStatus` and shop listing actions miss some `revalidatePath` calls.
-- `chargesEnabled` lost mid-edit silently moves listing to draft; surface warning.
-- `unhideListingAction` and `markAvailableAction` should return `publishListingAction` errors.
+- [FIXED 2026-04-26] Dashboard `setStatus` and shop listing actions revalidate dashboard, browse, listing detail, seller profile, and seller shop surfaces.
+- [FIXED 2026-04-26] Listing edit returns an inline Stripe-disconnected error if an active listing is moved back to draft during moderation.
+- [FIXED 2026-04-26] `unhideListingAction` and `markAvailableAction` return `publishListingAction` errors to the caller.
 - Photo delete should check listing state before delete. **Current state: Fixed.** Listing photo delete checks archived state before deleting the DB row.
-- `computeGlobalMeans` for quality score should move to snapshot/materialized data.
-- Guild revocation/reinstatement races need stale-state guards.
-- `activeCaseCount` should be period-scoped or explicitly lifetime-scoped in Guild docs.
-- `payout.failed` should write a durable seller payout event ledger.
-- `payment_intent.processing` / `payment_failed` handlers should be added or delayed methods should be explicitly disabled/documented.
+- [FIXED 2026-04-26] Quality score global means read from `SiteMetricsSnapshot` instead of running per-cron full-table aggregate joins.
+- [FIXED 2026-04-26] Guild metric/member cron revokes now use stale-state `updateMany` guards and skip notifications/emails when the seller level changed concurrently.
+- [FIXED 2026-04-26] Guild `activeCaseCount` is period-scoped with calendar-month period windows.
+- [FIXED 2026-04-26] `payout.failed` writes durable `SellerPayoutEvent` ledger rows and seller settings reads that state.
+- [FIXED 2026-04-26] Delayed payment methods are explicitly disabled in Checkout (`payment_method_types: ["card"]`), and checkout async success/failure session events are handled.
 - Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`. **Current state: Fixed.** Enum values, preference keys, notification icons, refund notification wiring, and listing-report notifications are implemented.
-- Audit log subject/body should sanitize persisted user-provided strings.
+- [FIXED 2026-04-26] Admin email subjects are CRLF/control-character sanitized before email send, notification creation, and audit log persistence.
 - Upload presign per-request `fileIndex` is client-controlled. **Current state: Fixed for upload flood control.** Presign and processed image uploads now share an additional 50/hour per-user Redis limit; endpoint-specific file count remains client-index based.
 - R2 objects are orphaned when photos/listings/reviews are deleted. **Current state: Partial.** Listing photo deletion and review photo replacement/deletion now attempt R2 object deletion after the DB row is removed; listing archive/delete still preserves media by product decision and may need a retention cleanup policy.
 - Listing photo alt text generated in `api/listings/[id]/photos` should be sanitized and capped before persistence. **Current state: Fixed.**
@@ -599,25 +599,25 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - R2 media validation previously accepted arbitrary legacy `*.r2.dev` URLs. **Current state: Fixed.** Write-path validation now accepts only configured Grainline R2/CDN origins and explicitly listed legacy origins; CSP no longer uses wildcard R2 media/connect sources.
 - GIF/video/PDF uploads may retain metadata; current state rejects GIF uploads and strips JPEG/PNG/WebP metadata, while video/PDF metadata retention remains disclosed/product-accepted.
 - Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification. **Current state: Fixed.** Active-listing photo additions now require the shared listing mutation limiter plus a dedicated `listingPhotoAiRatelimit` before triggering AI re-review/alt-text work.
-- Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
-- Photo-add AI review currently reviews newly added photos, not the merged final set; acceptable for new-photo safety, but document the intended invariant.
-- Blog featured listing rendering should re-verify ownership/visibility at render time where not already guaranteed.
+- [FIXED 2026-04-26] Presigned upload route now validates endpoint-specific MIME types and matching file extensions before issuing an R2 signed URL.
+- [FIXED 2026-04-26] Photo-add AI review invariant is documented: new uploads are reviewed directly, while edit/delete/full-listing re-review uses the buyer-visible sorted photo set.
+- [FIXED 2026-04-26] Blog post featured listings are re-filtered at render time through `publicListingWhere()` and seller ownership is re-verified for seller-authored posts.
 - [FIXED 2026-04-26] Featured maker queries are cached through `unstable_cache`.
-- Onboarding step 4 navigation should advance persisted step state, and the skip-Stripe path needs an explicit `chargesEnabled` warning.
-- Reverse-geocode throttling should move from Lambda-local memory to shared Redis/Upstash state.
+- [FIXED 2026-04-26] Onboarding step navigation uses guarded `advanceStep`, step 4 persists progression, and the skip-Stripe path shows an explicit `chargesEnabled` warning.
+- [FIXED 2026-04-26] Reverse-geocode throttling uses a shared Upstash Redis lock with local-memory fallback.
 - Onboarding step 1 profile image state can be lost on browser back/forward navigation; persist draft/upload state.
 - `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step. **Current state: Fixed.**
 - Loading skeleton coverage is still inconsistent across key dashboard/public pages.
 - [FIXED 2026-04-26] Remaining user-visible no-locale `toLocaleString`/`toLocaleDateString` calls in app/components were normalized to `en-US`.
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
-- Sitemap scale remains capped by single-file entry limits; add sitemap index splitting before large catalog growth.
+- [FIXED 2026-04-26] Sitemap listing URLs are chunked via `generateSitemaps()` in 5K listing chunks with seller/listing safety filters and `updatedAt` last-modified values.
 - `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters need 44px touch targets and semantic button/focus-visible coverage. **Current state: Partial.** Buy Now has a 44px minimum target and focus ring; listing gallery main image is now a semantic button with focus-visible outline.
 - Follow/feed UI should add retry/error affordances and accessible loading states. **Current state: Partial.** FollowButton now updates optimistically and rolls back on API/network failure.
-- Cron schedules are UTC; document or adjust jobs whose business deadlines are intended to be Central time.
-- `/api/health` currently does deep service pings despite docs claiming static/no-DB behavior; either split static and deep health endpoints, or update docs/monitoring.
+- [FIXED 2026-04-26] Cron schedules are documented as UTC in `CLAUDE.md` and `vercel.json`; Terms also define server-side deadlines as UTC.
+- [FIXED 2026-04-26] `/api/health` docs now match the dynamic deep health behavior for DB, Redis, and R2 checks.
 - [FIXED 2026-04-26] CSP report endpoint is IP rate-limited before forwarding high-signal script/frame violations to Sentry.
 - [FIXED 2026-04-26] Sentry `enableLogs` is disabled in server, edge, and client configs to avoid log-volume billing/noise.
-- Robots/blog API allowlist and lazy-loading coverage claims need doc/code reconciliation.
+- [FIXED 2026-04-26] Robots and public API docs match current behavior: `robots.txt` disallows `/api`, while middleware public allowlists `/api/blog(.*)` for browser/API access, not crawler indexing.
 
 ## Product / Legal / Business Items Still Not Solved By Code Alone
 

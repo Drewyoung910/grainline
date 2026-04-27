@@ -24,11 +24,14 @@ Confirm production and preview values in Vercel:
 - `SHIPPO_API_KEY`
 - `SHIPPING_RATE_SECRET`
 - `RESEND_API_KEY`
+- `RESEND_WEBHOOK_SECRET`
 - `EMAIL_FROM`
 - `UPSTASH_REDIS_REST_URL`
 - `UPSTASH_REDIS_REST_TOKEN`
 - `OPENAI_API_KEY`
 - `CRON_SECRET`
+- `UNSUBSCRIBE_SECRET`
+- `SENTRY_DSN`
 - `NEXT_PUBLIC_SENTRY_DSN`
 - `SENTRY_AUTH_TOKEN`
 
@@ -38,12 +41,12 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 
 - Clerk: production domain configured.
 - Clerk: bot protection, disposable email blocking, enumeration protection, and account lockout enabled.
-- Clerk: webhook endpoint registered at `https://thegrainline.com/api/clerk/webhook` for `user.created` and `user.updated`.
+- Clerk: webhook endpoint registered at `https://thegrainline.com/api/clerk/webhook` for `user.created`, `user.updated`, and `user.deleted`.
 - Stripe: Connect live mode enabled and identity verification complete.
-- Stripe: live webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook`.
+- Stripe: live webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook` with at least `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `account.updated`, `account.application.deauthorized`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`, and `payout.failed`.
 - Stripe: `thegrainline.com` registered for Apple Pay/payment method domains.
 - Resend: sending domain verified.
-- Resend: bounce and complaint webhooks configured when suppression handling is implemented.
+- Resend: webhook endpoint registered at `https://thegrainline.com/api/resend/webhook` with bounce, complaint, delivery delayed, failed, and suppressed events enabled; `RESEND_WEBHOOK_SECRET` configured in production.
 - Shippo: live API key configured.
 - Cloudflare R2: bucket CORS and public URL verified.
 - Upstash: production Redis database configured.
