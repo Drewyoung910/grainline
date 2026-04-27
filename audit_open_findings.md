@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-04-26
+Last updated: 2026-04-27
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -54,6 +54,11 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Payout failures now have a durable ledger.** Stripe `payout.failed` upserts `SellerPayoutEvent` rows and the seller settings banner reads the ledger instead of relying only on dismissible notifications.
 - **Refund/report notification types added.** `REFUND_ISSUED`, `ACCOUNT_WARNING`, and `LISTING_FLAGGED_BY_USER` are now enum-backed notification types; seller refunds and refund case resolutions use `REFUND_ISSUED`, and listing reports create a deduped seller notification.
 - **Photo mutation hardening continued.** Listing photo AI review has a dedicated rate limit, manual alt-text saves are sanitized/capped and constrained to the listing, and photo reordering now only updates photos belonging to the edited listing.
+
+## Round 24 Fix Status Notes
+
+- **CI-enforced test baseline added.** `npm test` now runs in CI, and the first Node test suite covers signed shipping-rate HMAC behavior: same-buyer verification, cross-buyer replay rejection, tampered amount/context/postal rejection, expiry, and malformed tokens.
+- **Broader test backlog remains.** Payment/webhook/refund/account-state integration tests are still needed; this pass converts the audit item from "zero tests" to "baseline exists, expand coverage."
 
 ## Recommended Fix Order
 
@@ -559,7 +564,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Schema has few `@db.VarChar(N)` caps. Add caps to bounded text fields; leave long bodies as `Text`.
 - [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
-- Zero real test suite remains. Start with payment/webhook/refund/account-state route tests.
+- [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner, and `tests/shipping-token.test.mjs` covers buyer-bound signed shipping-rate tokens, replay rejection, tampering, expiry, and malformed token handling. Expand next into payment/webhook/refund/account-state route tests.
 - [FIXED 2026-04-26] `tsconfig` target is now ES2022 to avoid unnecessary downleveling; Next/Turbopack still handles final browser/server output.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
 - Sentry `beforeSend` filtering is missing. **Current state: Fixed.** Shared server/edge/client filter drops common browser/network noise and redacts cookies, auth headers, token query params, user email/IP, and email-like strings.

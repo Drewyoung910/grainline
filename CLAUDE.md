@@ -5124,6 +5124,23 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
+
+This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.
+
+### Fixed in this pass
+- **`npm test` added**: the project now runs Node's built-in test runner with TypeScript stripping enabled for targeted unit tests.
+- **CI test step added**: GitHub Actions now runs `npm test` between lint and build.
+- **Shipping-rate token behavior covered**: `tests/shipping-token.test.mjs` verifies same-buyer signed-rate validation, cross-buyer replay rejection, tampered amount/context/postal rejection, expired tokens, and malformed tokens.
+- **Open backlog updated**: `audit_open_findings.md` now marks the "zero real test suite" item as partially closed instead of unresolved.
+
+### Verification
+- `npm test` ✅
+
+### Still open / next good passes
+- Add route/integration coverage for payment, webhook, refund, and account-state paths.
+- Add regression tests for unsubscribe token lifecycle and notification dedup once DB-backed test helpers exist.
+
 ## Audit Fix Pass — Promptless Admin Flows, Multi-Receipt Checkout, and Touch Targets (2026-04-26)
 
 This pass closed several still-live lower/medium-priority backlog items after the production deploy for `2f0071c`.
