@@ -17,6 +17,7 @@ import GuildBadge from "@/components/GuildBadge";
 import ListingCard from "@/components/ListingCard";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
+import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 
 const PAGE_SIZE = 24;
 
@@ -51,35 +52,6 @@ function StarsInline({ value }: { value: number }) {
       </span>
     </span>
   );
-}
-
-async function getSellerRatingMap(sellerIds: string[]) {
-  if (sellerIds.length === 0) return new Map<string, { avg: number; count: number }>();
-
-  const rows = await prisma.$queryRaw<Array<{
-    sellerId: string;
-    avg: number;
-    count: bigint;
-  }>>`
-    SELECT
-      l."sellerId",
-      AVG(r."ratingX2")::float / 2.0 AS avg,
-      COUNT(r.id) AS count
-    FROM "Review" r
-    JOIN "Listing" l ON l.id = r."listingId"
-    WHERE l."sellerId" = ANY(${sellerIds})
-    GROUP BY l."sellerId"
-    HAVING COUNT(r.id) > 0
-  `;
-
-  const result = new Map<string, { avg: number; count: number }>();
-  for (const row of rows) {
-    result.set(row.sellerId, {
-      avg: row.avg,
-      count: Number(row.count),
-    });
-  }
-  return result;
 }
 
 type ListingWithIncludes = Awaited<ReturnType<typeof fetchListings>>[number];
@@ -238,19 +210,9 @@ export default async function BrowsePage({
   if (Number.isFinite(minNum) && min !== "" && minNum >= 0) priceFilter.gte = Math.round(Math.min(minNum, 500000) * 100);
   if (Number.isFinite(maxNum) && max !== "" && maxNum >= 0) priceFilter.lte = Math.round(Math.min(maxNum, 500000) * 100);
 
-  // Pre-pass: collect seller ID constraints from rating + location filters
+  // Pre-pass: collect seller ID constraints from location filters. Rating is
+  // applied via SellerRatingSummary so browse does not aggregate every review.
   const sellerIdFilters: string[][] = [];
-
-  if (ratingFilter && Number.isFinite(ratingFilter)) {
-    const rows = await prisma.$queryRaw<Array<{ sellerId: string }>>`
-      SELECT l."sellerId"
-      FROM "Review" r
-      JOIN "Listing" l ON r."listingId" = l.id
-      GROUP BY l."sellerId"
-      HAVING (SUM(r."ratingX2"::float) / COUNT(r.id)) / 2 >= ${ratingFilter}
-    `;
-    sellerIdFilters.push(rows.map((r) => r.sellerId));
-  }
 
   if (hasLocationFilter) {
     const rows = await prisma.$queryRaw<Array<{ id: string }>>`
@@ -322,6 +284,18 @@ export default async function BrowsePage({
       where.listingType = ListingType.IN_STOCK;
     }
     where.shipsWithinDays = { lte: shipsFilter };
+  }
+  if (ratingFilter && Number.isFinite(ratingFilter)) {
+    const sellerWhere = (where.seller ?? {}) as Prisma.SellerProfileWhereInput;
+    where.seller = {
+      ...sellerWhere,
+      ratingSummary: {
+        is: {
+          averageRating: { gte: ratingFilter },
+          reviewCount: { gt: 0 },
+        },
+      },
+    };
   }
 
   // Apply intersected seller ID constraints (preserve block notIn if set)

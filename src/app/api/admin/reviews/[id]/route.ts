@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
+import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
+import { deleteR2ObjectByUrl } from "@/lib/r2";
 
 export async function DELETE(
   _request: Request,
@@ -21,11 +23,27 @@ export async function DELETE(
   const { id } = await params;
   const review = await prisma.review.findUnique({
     where: { id },
-    select: { id: true, listingId: true, reviewerId: true },
+    select: {
+      id: true,
+      listingId: true,
+      reviewerId: true,
+      listing: { select: { sellerId: true } },
+    },
   });
   if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const photos = await prisma.reviewPhoto.findMany({
+    where: { reviewId: id },
+    select: { url: true },
+  });
+
   await prisma.review.delete({ where: { id } });
+  try {
+    await refreshSellerRatingSummary(review.listing.sellerId);
+  } catch (error) {
+    console.error("Failed to refresh seller rating summary after admin review delete:", error);
+  }
+  await Promise.allSettled(photos.map((photo) => deleteR2ObjectByUrl(photo.url)));
 
   await logAdminAction({
     adminId: admin.id,

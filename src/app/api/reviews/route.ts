@@ -11,6 +11,7 @@ import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
+import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { z } from "zod";
 
 const ReviewSchema = z.object({
@@ -130,6 +131,13 @@ export async function POST(req: NextRequest) {
     where: { id: listingId },
     select: { title: true, seller: { select: { userId: true, id: true } } },
   });
+  if (listing?.seller.id) {
+    try {
+      await refreshSellerRatingSummary(listing.seller.id);
+    } catch (error) {
+      console.error("Failed to refresh seller rating summary after review create:", error);
+    }
+  }
   if (listing?.seller.userId) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
     const reviewerName = me.name ?? me.email?.split("@")[0] ?? "Someone";

@@ -8,6 +8,7 @@ import { sanitizeRichText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
+import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
@@ -49,7 +50,14 @@ export async function PATCH(
 
   const r = await prisma.review.findUnique({
     where: { id },
-    select: { id: true, reviewerId: true, createdAt: true, listingId: true, sellerReplyAt: true },
+    select: {
+      id: true,
+      reviewerId: true,
+      createdAt: true,
+      listingId: true,
+      sellerReplyAt: true,
+      listing: { select: { sellerId: true } },
+    },
   });
   if (!r || r.reviewerId !== me.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -83,6 +91,11 @@ export async function PATCH(
       })),
     });
   });
+  try {
+    await refreshSellerRatingSummary(r.listing.sellerId);
+  } catch (error) {
+    console.error("Failed to refresh seller rating summary after review edit:", error);
+  }
 
   const retainedUrls = new Set(photos);
   await Promise.allSettled(
@@ -116,7 +129,12 @@ export async function DELETE(
 
   const review = await prisma.review.findUnique({
     where: { id },
-    select: { id: true, reviewerId: true, listingId: true },
+    select: {
+      id: true,
+      reviewerId: true,
+      listingId: true,
+      listing: { select: { sellerId: true } },
+    },
   });
   if (!review || review.reviewerId !== me.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -128,6 +146,11 @@ export async function DELETE(
   });
 
   await prisma.review.delete({ where: { id } });
+  try {
+    await refreshSellerRatingSummary(review.listing.sellerId);
+  } catch (error) {
+    console.error("Failed to refresh seller rating summary after review delete:", error);
+  }
   await Promise.allSettled(photos.map((photo) => deleteR2ObjectByUrl(photo.url)));
 
   revalidatePath(`/listing/${review.listingId}`);

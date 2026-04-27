@@ -5141,6 +5141,32 @@ This pass addressed the early audit finding that the project had no real test su
 - Add route/integration coverage for payment, webhook, refund, and account-state paths.
 - Add regression tests for unsubscribe token lifecycle and notification dedup once DB-backed test helpers exist.
 
+## Audit Fix Pass — Seller Rating Summary for Browse Scale (2026-04-27)
+
+This pass closed the browse rating-filter scale finding without changing buyer-facing filter semantics.
+
+### Fixed in this pass
+- **Persisted seller rating summaries**: added `SellerRatingSummary` with `averageRating`, `reviewCount`, and a rating/count index.
+- **Existing reviews backfilled**: migration `20260427110000_seller_rating_summary` seeds summaries from current `Review -> Listing -> SellerProfile` data.
+- **Browse rating filters avoid full review scans**: `/browse` now filters through `seller.ratingSummary` instead of running a grouped `Review` aggregate on every request.
+- **Listing-card seller ratings avoid per-request aggregation**: browse and homepage cards read the summary table through `getSellerRatingMap()`.
+- **Quality-score rating lookup avoids per-listing review aggregates**: the quality-score listing batch joins `SellerRatingSummary` instead of running a lateral review aggregate per listing.
+- **Review mutations refresh summaries**: review create/edit/delete/admin-delete paths refresh the affected seller's summary, and admin review deletion now also removes associated R2 review photos.
+- **Open backlog updated**: `audit_open_findings.md` now marks the browse rating filter review-scan item fixed.
+
+### Verification
+- `npx prisma validate` ✅
+- `npx prisma generate` ✅
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Larger listing-detail query shaping remains open.
+- Seller/listing slug and canonical URL strategy remains open.
+
 ## Audit Fix Pass — Promptless Admin Flows, Multi-Receipt Checkout, and Touch Targets (2026-04-26)
 
 This pass closed several still-live lower/medium-priority backlog items after the production deploy for `2f0071c`.

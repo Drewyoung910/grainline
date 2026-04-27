@@ -77,7 +77,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       l."createdAt",
       sp."createdAt" AS "sellerCreatedAt",
       sp."guildLevel",
-      sr."avgRating" AS "sellerAvgRating",
+      sr."averageRating" AS "sellerAvgRating",
       COALESCE(sr."reviewCount", 0) AS "sellerReviewCount"
     FROM "Listing" l
     JOIN "SellerProfile" sp ON sp.id = l."sellerId"
@@ -96,14 +96,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
              BOOL_OR(p."altText" IS NOT NULL AND p."altText" != '') AS "hasAlt"
       FROM "Photo" p WHERE p."listingId" = l.id
     ) ph ON true
-    LEFT JOIN LATERAL (
-      SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating",
-             COUNT(r.id) AS "reviewCount"
-      FROM "Review" r
-      JOIN "Listing" rl ON r."listingId" = rl.id
-      WHERE rl."sellerId" = l."sellerId"
-      HAVING COUNT(r.id) > 0
-    ) sr ON true
+    LEFT JOIN "SellerRatingSummary" sr ON sr."sellerProfileId" = l."sellerId"
     JOIN "User" u ON u.id = sp."userId"
     WHERE l.status = 'ACTIVE'
       AND l."isPrivate" = false

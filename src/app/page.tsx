@@ -22,6 +22,7 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
+import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -46,24 +47,6 @@ const featuredMakerWhere = {
   vacationMode: false,
   user: { banned: false, deletedAt: null },
 } satisfies Prisma.SellerProfileWhereInput;
-
-async function getSellerRatingMap(sellerIds: string[]) {
-  if (sellerIds.length === 0) return new Map<string, { avg: number; count: number }>();
-
-  const rows = await prisma.$queryRaw<Array<{ sellerId: string; avgX2: number | null; count: bigint }>>`
-    SELECT l."sellerId", AVG(r."ratingX2")::float AS "avgX2", COUNT(*) AS count
-    FROM "Review" r
-    INNER JOIN "Listing" l ON l.id = r."listingId"
-    WHERE l."sellerId" IN (${Prisma.join(sellerIds)})
-    GROUP BY l."sellerId"
-  `;
-  const result = new Map<string, { avg: number; count: number }>();
-  for (const row of rows) {
-    const count = Number(row.count);
-    if (count > 0 && row.avgX2) result.set(row.sellerId, { avg: row.avgX2 / 2, count });
-  }
-  return result;
-}
 
 function makerWeekIndex(count: number) {
   if (count <= 0) return 0;
@@ -103,19 +86,22 @@ const getFeaturedMaker = unstable_cache(async (): Promise<FeaturedMaker | null> 
   }
 
   const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
-    SELECT l."sellerId", COUNT(r.id) as review_count
-    FROM "Listing" l
-    JOIN "SellerProfile" sp ON sp.id = l."sellerId"
+    SELECT sp.id AS "sellerId"
+    FROM "SellerProfile" sp
     JOIN "User" u ON u.id = sp."userId"
-    LEFT JOIN "Review" r ON r."listingId" = l.id
+    LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
     WHERE sp."chargesEnabled" = true
       AND sp."vacationMode" = false
       AND u.banned = false
       AND u."deletedAt" IS NULL
-      AND l.status = 'ACTIVE'
-      AND l."isPrivate" = false
-    GROUP BY l."sellerId"
-    ORDER BY review_count DESC
+      AND EXISTS (
+        SELECT 1
+        FROM "Listing" l
+        WHERE l."sellerId" = sp.id
+          AND l.status = 'ACTIVE'
+          AND l."isPrivate" = false
+      )
+    ORDER BY COALESCE(srs."reviewCount", 0) DESC
     LIMIT 1
   `;
   const topSellerId = topReviewedRows[0]?.sellerId;

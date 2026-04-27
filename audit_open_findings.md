@@ -551,7 +551,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 - [FIXED 2026-04-26] Blog slug generation normalizes diacritics (`Café` -> `cafe`) and falls back to a stable hash slug for non-Latin titles instead of returning empty.
 - Listings and sellers still primarily use CUID URLs. Slug work remains a larger SEO pass.
-- Browse rating filter performs heavy review scans. Add optimized aggregate/materialized rating fields.
+- [FIXED 2026-04-27] Browse rating filters and listing-card seller ratings now use `SellerRatingSummary` instead of per-request `Review` table aggregation. Review create/edit/delete/admin-delete paths refresh the summary, and migration `20260427110000_seller_rating_summary` backfills existing reviews.
 - [FIXED 2026-04-26] Browse popular tags now use a shared `getPopularListingTags()` cached query consumed by both `/api/search/popular-tags` and browse/home server renders.
 - [FIXED 2026-04-26] Featured maker fallback is cached with `unstable_cache` and a 1-hour revalidation window.
 - [FIXED 2026-04-26] Added pg_trgm-backed GIN indexes for active listing titles and published blog titles, plus a GIN index for listing tags.

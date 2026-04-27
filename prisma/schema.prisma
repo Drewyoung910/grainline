@@ -236,6 +236,7 @@ model SellerProfile {
   makerVerification   MakerVerification?
   blogPosts           BlogPost[]
   sellerMetrics       SellerMetrics?
+  ratingSummary       SellerRatingSummary?
   viewDailies         ListingViewDaily[]
   followers           Follow[]
   broadcasts          SellerBroadcast[]
@@ -1019,6 +1020,16 @@ model SellerMetrics {
   completedOrderCount Int           @default(0)
   activeCaseCount     Int           @default(0)
   accountAgeDays      Int           @default(0)
+}
+
+model SellerRatingSummary {
+  sellerProfileId String        @id
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  averageRating   Float         @default(0)
+  reviewCount     Int           @default(0)
+  updatedAt       DateTime      @updatedAt
+
+  @@index([averageRating, reviewCount])
 }
 
 model SiteMetricsSnapshot {
