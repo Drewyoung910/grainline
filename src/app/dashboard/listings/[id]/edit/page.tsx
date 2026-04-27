@@ -389,7 +389,7 @@ async function reorderPhotos(listingId: string, photoIds: string[]) {
 
   await Promise.all(
     photoIds.map((id, i) =>
-      prisma.photo.update({ where: { id }, data: { sortOrder: i } })
+      prisma.photo.updateMany({ where: { id, listingId }, data: { sortOrder: i } })
     )
   );
 
@@ -519,9 +519,10 @@ async function saveAltTextsAction(listingId: string, altTexts: Record<string, st
   if (listing.status === "HIDDEN" && listing.isPrivate) return;
 
   for (const [photoId, text] of Object.entries(altTexts)) {
-    await prisma.photo.update({
-      where: { id: photoId },
-      data: { altText: text.trim() || null },
+    const altText = sanitizeText(text.trim()).slice(0, 200) || null;
+    await prisma.photo.updateMany({
+      where: { id: photoId, listingId },
+      data: { altText },
     });
   }
 

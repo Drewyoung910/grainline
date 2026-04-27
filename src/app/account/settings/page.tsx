@@ -140,6 +140,11 @@ export default async function AccountSettingsPage() {
             description="When a case you are involved in is resolved"
           />
           <Row
+            type="REFUND_ISSUED"
+            label="Refunds"
+            description="When a refund is issued for one of your orders"
+          />
+          <Row
             type="CUSTOM_ORDER_LINK"
             label="Custom piece ready"
             description="When a maker sends you a custom listing to purchase"
@@ -169,6 +174,11 @@ export default async function AccountSettingsPage() {
             type="EMAIL_CASE_RESOLVED"
             label="Case resolutions"
             description="Email when a case you are involved in is resolved"
+          />
+          <EmailRow
+            type="EMAIL_REFUND_ISSUED"
+            label="Refunds"
+            description="Email when a refund is issued for one of your orders"
           />
         </section>
 

@@ -120,7 +120,10 @@ export default async function SellerOrderDetailPage({
   const orderTotal = itemsSubtotal + shipping + tax;
   const hasAddress =
     !!(order.shipToLine1 || order.shipToCity || order.shipToPostalCode || order.shipToCountry);
+  const shippingDetailsPurged =
+    !!order.buyerDataPurgedAt && !order.shipToLine1 && !order.shipToLine2;
   const isPickup =
+    order.fulfillmentMethod === "PICKUP" ||
     (order.shippingTitle?.toLowerCase().includes("pickup") ?? false) ||
     (shipping === 0 && !hasAddress);
 
@@ -466,6 +469,16 @@ export default async function SellerOrderDetailPage({
               Ready for pickup since <LocalDate date={order.pickupReadyAt} />
             </div>
           )}
+        </div>
+      ) : shippingDetailsPurged && order.buyerDataPurgedAt ? (
+        <div className="card-section bg-neutral-50 px-4 py-3 text-sm">
+          <div className="font-medium text-neutral-800">Shipping details purged</div>
+          <div className="text-neutral-700">
+            Street address, buyer contact, and gift note details were removed under the retention policy.
+          </div>
+          <div className="mt-2 text-neutral-600">
+            Purged on <LocalDate date={order.buyerDataPurgedAt} />
+          </div>
         </div>
       ) : hasAddress ? (
         <div className="card-section bg-neutral-50 px-4 py-3 text-sm">

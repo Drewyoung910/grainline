@@ -1356,17 +1356,41 @@ export async function POST(req: Request) {
     if (event.type === "payout.failed") {
       return processIdempotentEvent(async () => {
         const accountId = (event as { account?: string }).account;
+        const payout = event.data.object as Stripe.Payout;
         if (accountId) {
           const seller = await prisma.sellerProfile.findFirst({
             where: { stripeAccountId: accountId },
-            select: { userId: true },
+            select: { id: true, userId: true },
           });
           if (seller) {
+            await prisma.sellerPayoutEvent.upsert({
+              where: { stripePayoutId: payout.id },
+              create: {
+                sellerProfileId: seller.id,
+                stripePayoutId: payout.id,
+                status: payout.status ?? "failed",
+                amountCents: payout.amount ?? null,
+                currency: payout.currency ?? "usd",
+                failureCode: payout.failure_code ?? null,
+                failureMessage: payout.failure_message ?? null,
+                stripeEventId: event.id,
+              },
+              update: {
+                status: payout.status ?? "failed",
+                amountCents: payout.amount ?? null,
+                currency: payout.currency ?? "usd",
+                failureCode: payout.failure_code ?? null,
+                failureMessage: payout.failure_message ?? null,
+                stripeEventId: event.id,
+              },
+            });
             await createNotification({
               userId: seller.userId,
               type: "PAYOUT_FAILED",
               title: "Payout failed",
-              body: "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.",
+              body: payout.failure_message
+                ? `Stripe could not complete a payout: ${payout.failure_message}`
+                : "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.",
               link: "/dashboard/seller",
             });
           }

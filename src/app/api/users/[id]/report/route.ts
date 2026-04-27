@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { createNotification } from "@/lib/notifications";
 import { z } from "zod";
 import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -114,6 +115,16 @@ export async function POST(
   await prisma.userReport.create({
     data: { reporterId: me.id, reportedId, reason: body.reason, details: body.details, targetType: body.targetType ?? null, targetId: body.targetId ?? null },
   });
+
+  if (body.targetType === "LISTING" && body.targetId) {
+    await createNotification({
+      userId: reportedId,
+      type: "LISTING_FLAGGED_BY_USER",
+      title: "Listing report received",
+      body: "A report about one of your listings was received and will be reviewed by Grainline staff.",
+      link: `/dashboard/listings/${body.targetId}/edit`,
+    }).catch(() => {});
+  }
 
   return NextResponse.json({ ok: true });
 }

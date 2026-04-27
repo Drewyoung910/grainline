@@ -195,6 +195,13 @@ export const listingMutationRatelimit = new Ratelimit({
   prefix: "rl:listing_mutation",
 });
 
+export const listingPhotoAiRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "60 m"),
+  analytics: true,
+  prefix: "rl:listing_photo_ai",
+});
+
 export const fulfillmentRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(30, "60 m"),

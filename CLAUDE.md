@@ -123,7 +123,7 @@ Fulfillment enums: `FulfillmentMethod` (PICKUP | SHIPPING), `FulfillmentStatus` 
 
 `CaseResolution` enum: `REFUND_FULL | REFUND_PARTIAL | DISMISSED`
 
-`NotificationType` enum (26 values): `NEW_MESSAGE | NEW_ORDER | ORDER_SHIPPED | ORDER_DELIVERED | CASE_OPENED | CASE_MESSAGE | CASE_RESOLVED | CUSTOM_ORDER_REQUEST | CUSTOM_ORDER_LINK | VERIFICATION_APPROVED | VERIFICATION_REJECTED | BACK_IN_STOCK | NEW_REVIEW | LOW_STOCK | NEW_FAVORITE | NEW_BLOG_COMMENT | BLOG_COMMENT_REPLY | NEW_FOLLOWER | FOLLOWED_MAKER_NEW_LISTING | FOLLOWED_MAKER_NEW_BLOG | SELLER_BROADCAST | COMMISSION_INTEREST | LISTING_APPROVED | LISTING_REJECTED | PAYMENT_DISPUTE | PAYOUT_FAILED`
+`NotificationType` enum (29 values): `NEW_MESSAGE | NEW_ORDER | ORDER_SHIPPED | ORDER_DELIVERED | CASE_OPENED | CASE_MESSAGE | CASE_RESOLVED | REFUND_ISSUED | CUSTOM_ORDER_REQUEST | CUSTOM_ORDER_LINK | VERIFICATION_APPROVED | VERIFICATION_REJECTED | BACK_IN_STOCK | NEW_REVIEW | LOW_STOCK | NEW_FAVORITE | NEW_BLOG_COMMENT | BLOG_COMMENT_REPLY | NEW_FOLLOWER | FOLLOWED_MAKER_NEW_LISTING | FOLLOWED_MAKER_NEW_BLOG | SELLER_BROADCAST | COMMISSION_INTEREST | LISTING_APPROVED | LISTING_REJECTED | ACCOUNT_WARNING | LISTING_FLAGGED_BY_USER | PAYMENT_DISPUTE | PAYOUT_FAILED`
 
 ### Order — delivery estimate fields
 
@@ -778,7 +778,7 @@ Second mobile fix pass (2026-03-29). Zero TypeScript errors.
 - **Messages drawer row fixed** — the "Messages" text span was not navigable (only the `MessageIconLink` icon was a link). Restructured: `MessageIconLink` (icon + unread badge) stays as the icon, a sibling `<Link href="/messages">` covers the text label. Both elements are now independently navigable.
 
 ### Notifications API (`src/app/api/notifications/route.ts`)
-- **Auto-cleanup** — on `GET /api/notifications`, fire-and-forget `deleteMany` removes `read: true` notifications older than 90 days. **Runs only when `getMinutes() === 0`** (~1/60th of requests) — was running on every poll, a 60x unnecessary write load. Only read notifications are pruned; unread are never deleted.
+- **Auto-cleanup moved to cron** — notification polling no longer performs cleanup writes. `GET /api/cron/notification-prune` deletes read notifications older than 90 days in bounded SQL chunks; unread notifications are retained until read or account deletion.
 
 ### Dashboard listings (`src/app/dashboard/page.tsx`)
 - "My Listings" section: `flex overflow-x-auto snap-x snap-mandatory` on mobile → `sm:grid sm:grid-cols-2 lg:grid-cols-3` on desktop. Each card gets `min-w-[220px] flex-none snap-start sm:min-w-0`.
@@ -5123,6 +5123,25 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
+
+## Audit Fix Pass — Retention, Payout Ledger, and Photo Mutation Hardening (2026-04-26)
+
+This pass continued the remaining R19-R21 medium/high backlog after the scale and deletion passes.
+
+### Fixed in this pass
+- **Periodic fulfilled-order buyer PII pruning**: added `GET /api/cron/order-pii-prune`, protected by `verifyCronRequest()` and `CronRun`, scheduled daily at `45 7 * * *`. It removes buyer street/contact/gift-note fields from delivered/picked-up orders after 90 days, stamps `Order.buyerDataPurgedAt`, and uses bounded SQL batches.
+- **Order views handle purged buyer data**: buyer, seller, and admin order detail views show a retention notice when shipping/contact details were purged instead of rendering partial addresses.
+- **Durable payout failure ledger**: added `SellerPayoutEvent`; Stripe `payout.failed` now upserts a durable event row and still sends a `PAYOUT_FAILED` notification. Seller settings now reads recent payout failures from the ledger rather than relying only on dismissible notifications.
+- **Refund/report notification types**: added `REFUND_ISSUED`, `ACCOUNT_WARNING`, and `LISTING_FLAGGED_BY_USER` to `NotificationType`; refund routes use `REFUND_ISSUED`, and listing reports create a deduped seller notification without exposing reporter identity.
+- **Photo mutation hardening**: listing photo AI review has a dedicated `listingPhotoAiRatelimit`; manual alt-text saves are sanitized, capped to 200 chars, and constrained to the listing; photo reordering now only updates photos belonging to the edited listing.
+- **Open backlog updated**: `audit_open_findings.md` now marks missing notification types, photo-AI rate limiting, periodic fulfilled-order PII pruning, and payout-failure durability as fixed or partially fixed where legal/product decisions remain.
+
+### Verification
+- `npx prisma format` ✅
+- `npx prisma generate` ✅
+- `npx prisma validate` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `git diff --check` ✅
 
 ## Audit Fix Pass — Round 22 GDPR + Fan-Out + Media Origin Cleanup (2026-04-26)
 

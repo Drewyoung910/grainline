@@ -42,10 +42,15 @@ function typeIcon(type: NotificationType) {
       return { Icon: Wrench, color: "text-amber-600" };
     case "CASE_OPENED":
     case "CASE_RESOLVED":
+    case "REFUND_ISSUED":
+    case "ACCOUNT_WARNING":
+    case "LISTING_FLAGGED_BY_USER":
+    case "PAYMENT_DISPUTE":
       return { Icon: AlertTriangle, color: "text-amber-500" };
     case "VERIFICATION_APPROVED":
       return { Icon: CheckCircle, color: "text-green-600" };
     case "VERIFICATION_REJECTED":
+    case "PAYOUT_FAILED":
       return { Icon: XCircle, color: "text-red-500" };
     case "BACK_IN_STOCK":
     case "LOW_STOCK":

@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/notification-prune",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/order-pii-prune",
+      "schedule": "45 7 * * *"
     }
   ]
 }

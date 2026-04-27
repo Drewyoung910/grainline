@@ -6,6 +6,7 @@ import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { createNotification } from "@/lib/notifications";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
@@ -129,6 +130,16 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[admin email] send failed:", err);
     return NextResponse.json({ error: "Email send failed" }, { status: 500 });
+  }
+
+  if (body.userId) {
+    await createNotification({
+      userId: body.userId,
+      type: "ACCOUNT_WARNING",
+      title: sanitizedSubject,
+      body: htmlToText(escapedBody).slice(0, 500) || "Message from the Grainline team.",
+      link: "/account",
+    }).catch(() => {});
   }
 
   // Audit log

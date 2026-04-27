@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  listingMutationRatelimit,
+  listingPhotoAiRatelimit,
+  rateLimitResponse,
+  safeRateLimit,
+} from "@/lib/ratelimit";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { sanitizeText } from "@/lib/sanitize";
 import { ListingStatus } from "@prisma/client";
@@ -67,6 +72,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   // Enforce max 8 photos total
   const remaining = Math.max(0, 8 - listing.photos.length);
   const toAdd = clean.slice(0, remaining);
+  if (toAdd.length === 0) {
+    return NextResponse.json({ added: 0, warning: "Listing already has the maximum number of photos." });
+  }
+  if (toAdd.length > 0 && listing.status === ListingStatus.ACTIVE) {
+    const { success: aiSuccess, reset: aiReset } = await safeRateLimit(
+      listingPhotoAiRatelimit,
+      me.id,
+    );
+    if (!aiSuccess) return rateLimitResponse(aiReset, "Too many photo review requests.");
+  }
 
   // Determine next sortOrder start
   const startOrder = listing.photos.length;

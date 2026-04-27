@@ -58,6 +58,9 @@ function typeIcon(type: NotificationType) {
       return { Icon: Wrench, color: "text-amber-600" };
     case "CASE_OPENED":
     case "CASE_RESOLVED":
+    case "REFUND_ISSUED":
+    case "ACCOUNT_WARNING":
+    case "LISTING_FLAGGED_BY_USER":
     case "PAYMENT_DISPUTE":
       return { Icon: AlertTriangle, color: "text-amber-500" };
     case "VERIFICATION_APPROVED":

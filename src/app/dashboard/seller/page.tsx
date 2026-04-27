@@ -170,14 +170,14 @@ export default async function SellerSettingsPage() {
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
     prisma.user.findUnique({ where: { id: me.id }, select: { notificationPreferences: true } }),
-    prisma.notification.findFirst({
+    prisma.sellerPayoutEvent.findFirst({
       where: {
-        userId: me.id,
-        type: "PAYOUT_FAILED",
+        sellerProfileId: seller.id,
+        status: "failed",
         createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
       orderBy: { createdAt: "desc" },
-      select: { createdAt: true, body: true },
+      select: { createdAt: true, failureMessage: true, amountCents: true, currency: true },
     }),
   ]);
 
@@ -206,7 +206,9 @@ export default async function SellerSettingsPage() {
           <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3">
             <p className="text-sm font-medium text-red-800">Stripe payout failed</p>
             <p className="mt-1 text-sm text-red-700">
-              {latestPayoutFailure.body} Last reported{" "}
+              {latestPayoutFailure.failureMessage ??
+                "Stripe could not complete a payout. Review your Stripe account so the payout can be retried."}{" "}
+              Last reported{" "}
               {latestPayoutFailure.createdAt.toLocaleDateString()}.
             </p>
           </div>
@@ -464,8 +466,12 @@ export default async function SellerSettingsPage() {
             { type: "CUSTOM_ORDER_REQUEST", label: "Custom order requests", desc: "When a buyer requests a custom piece" },
             { type: "NEW_FAVORITE", label: "Someone saves your listing", desc: "When a buyer hearts one of your pieces (off by default)" },
             { type: "CASE_OPENED", label: "Cases opened", desc: "When a buyer opens a case on one of your orders" },
+            { type: "REFUND_ISSUED", label: "Refunds issued", desc: "When a refund is issued on an order" },
             { type: "NEW_BLOG_COMMENT", label: "Blog comments", desc: "When someone comments on your blog post (off by default)" },
             { type: "BLOG_COMMENT_REPLY", label: "Blog replies", desc: "When someone replies to your comment (off by default)" },
+            { type: "LISTING_FLAGGED_BY_USER", label: "Listing reports", desc: "When a report about one of your listings is received" },
+            { type: "ACCOUNT_WARNING", label: "Account warnings", desc: "Important account notices from Grainline" },
+            { type: "PAYOUT_FAILED", label: "Payout failures", desc: "When Stripe reports a failed payout" },
           ].map((r) => (
             <div key={r.type} className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
               <div>
@@ -483,8 +489,12 @@ export default async function SellerSettingsPage() {
             { type: "EMAIL_NEW_ORDER", label: "New orders", desc: "Email when a buyer purchases from your shop" },
             { type: "EMAIL_CUSTOM_ORDER", label: "Custom order requests", desc: "Email when a buyer sends you a custom order request" },
             { type: "EMAIL_CASE_OPENED", label: "Cases opened", desc: "Email when a buyer opens a case" },
+            { type: "EMAIL_REFUND_ISSUED", label: "Refunds issued", desc: "Email when a refund is issued on an order" },
             { type: "EMAIL_NEW_REVIEW", label: "New reviews", desc: "Email when a buyer leaves a review" },
             { type: "EMAIL_NEW_FOLLOWER", label: "New followers", desc: "Email when someone follows your shop (off by default)" },
+            { type: "EMAIL_ACCOUNT_WARNING", label: "Account warnings", desc: "Important account notices from Grainline" },
+            { type: "EMAIL_LISTING_FLAGGED_BY_USER", label: "Listing reports", desc: "Email when a report about one of your listings is received" },
+            { type: "EMAIL_PAYOUT_FAILED", label: "Payout failures", desc: "Email when Stripe reports a failed payout" },
           ].map((r) => (
             <div key={r.type} className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
               <div>

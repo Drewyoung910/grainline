@@ -271,8 +271,8 @@ export async function POST(
 
     await createNotification({
       userId: caseRecord.buyerId,
-      type: "CASE_RESOLVED",
-      title: "Your case has been resolved",
+      type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
+      title: refunding ? "Refund issued" : "Your case has been resolved",
       body: resolutionLabel,
       link: `/dashboard/orders/${caseRecord.orderId}`,
     });

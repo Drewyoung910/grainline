@@ -51,30 +51,30 @@ enum ListingStatus {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
-  email     String   @unique
+  id        String    @id @default(cuid())
+  clerkId   String    @unique
+  email     String    @unique
   name      String?
   imageUrl  String?
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      Role      @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // Compliance / lifecycle
-  termsAcceptedAt  DateTime?
-  termsVersion     String?
-  ageAttestedAt    DateTime?
+  termsAcceptedAt    DateTime?
+  termsVersion       String?
+  ageAttestedAt      DateTime?
   welcomeEmailSentAt DateTime?
 
   // Buyer shipping address
-  shippingName        String?
-  shippingLine1       String?
-  shippingLine2       String?
-  shippingCity        String?
-  shippingState       String?
-  shippingPostalCode  String?
-  shippingPhone       String?
+  shippingName       String?
+  shippingLine1      String?
+  shippingLine2      String?
+  shippingCity       String?
+  shippingState      String?
+  shippingPostalCode String?
+  shippingPhone      String?
 
   conversationsAsA Conversation[] @relation("ConvoA")
   conversationsAsB Conversation[] @relation("ConvoB")
@@ -90,76 +90,76 @@ model User {
   reviewVotes ReviewVote[]
 
   // Cart
-  cart        Cart?
+  cart Cart?
 
   // Cases
-  casesAsBuyer   Case[]        @relation("CasesByBuyer")
-  casesAsSeller  Case[]        @relation("CasesBySeller")
-  casesResolved  Case[]        @relation("CasesResolvedBy")
-  caseMessages   CaseMessage[] @relation("CaseMessages")
+  casesAsBuyer  Case[]        @relation("CasesByBuyer")
+  casesAsSeller Case[]        @relation("CasesBySeller")
+  casesResolved Case[]        @relation("CasesResolvedBy")
+  caseMessages  CaseMessage[] @relation("CaseMessages")
 
-  savedSearches  SavedSearch[]
+  savedSearches      SavedSearch[]
   stockNotifications StockNotification[]
 
-  reservedListings      Listing[]             @relation("ReservedListings")
-  verificationReviews   MakerVerification[]   @relation("VerificationReviews")
-  blogPosts             BlogPost[]            @relation("BlogPostsAuthored")
-  blogComments          BlogComment[]         @relation("BlogCommentsAuthored")
-  notifications         Notification[]
+  reservedListings    Listing[]           @relation("ReservedListings")
+  verificationReviews MakerVerification[] @relation("VerificationReviews")
+  blogPosts           BlogPost[]          @relation("BlogPostsAuthored")
+  blogComments        BlogComment[]       @relation("BlogCommentsAuthored")
+  notifications       Notification[]
 
-  follows           Follow[]        @relation("UserFollows")
-  savedBlogPosts    SavedBlogPost[]
+  follows            Follow[]            @relation("UserFollows")
+  savedBlogPosts     SavedBlogPost[]
   commissionRequests CommissionRequest[] @relation("CommissionRequests")
 
   notificationPreferences Json @default("{}")
 
-  banned      Boolean   @default(false)
-  bannedAt    DateTime?
-  banReason   String?
-  bannedBy    String?
+  banned       Boolean         @default(false)
+  bannedAt     DateTime?
+  banReason    String?
+  bannedBy     String?
   adminActions AdminAuditLog[] @relation("AdminActions")
 
-  blocks      Block[]      @relation("UserBlocks")
-  blockedBy   Block[]      @relation("UserBlockedBy")
-  reports     UserReport[] @relation("UserReports")
-  reportedBy  UserReport[] @relation("UserReportedBy")
+  blocks          Block[]      @relation("UserBlocks")
+  blockedBy       Block[]      @relation("UserBlockedBy")
+  reports         UserReport[] @relation("UserReports")
+  reportedBy      UserReport[] @relation("UserReportedBy")
   reportsResolved UserReport[] @relation("UserReportsResolved")
 
   @@index([deletedAt])
 }
 
 model SellerProfile {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName      String
-  bio              String?
-  city             String?
-  state            String?
-  lat              Float?
-  lng              Float?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  radiusMeters     Int?
-  publicMapOptIn   Boolean  @default(false)
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName    String
+  bio            String?
+  city           String?
+  state          String?
+  lat            Float?
+  lng            Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  radiusMeters   Int?
+  publicMapOptIn Boolean  @default(false)
 
   // Stripe Connect
-  stripeAccountId  String?  @unique
-  chargesEnabled   Boolean  @default(false)
+  stripeAccountId String? @unique
+  chargesEnabled  Boolean @default(false)
 
   // Flat-rate shipping (legacy/simple fallback)
   shippingFlatRateCents Int?
   freeShippingOverCents Int?
-  allowLocalPickup Boolean @default(false)
+  allowLocalPickup      Boolean @default(false)
 
   // 🆕 Ship-from address (used for live-rate quoting/labels)
-  shipFromName     String?
-  shipFromLine1    String?
-  shipFromLine2    String?
-  shipFromCity     String?
-  shipFromState    String?
-  shipFromPostal   String?
-  shipFromCountry  String?  @default("US")
+  shipFromName    String?
+  shipFromLine1   String?
+  shipFromLine2   String?
+  shipFromCity    String?
+  shipFromState   String?
+  shipFromPostal  String?
+  shipFromCountry String? @default("US")
 
   // 🆕 Default package (used when listings don’t specify packaged dims)
   defaultPkgWeightGrams Int?
@@ -186,17 +186,17 @@ model SellerProfile {
   tiktokUrl                 String?
   websiteUrl                String?
   yearsInBusiness           Int?
-  acceptsCustomOrders       Boolean  @default(false)
-  acceptingNewOrders        Boolean  @default(true)
+  acceptsCustomOrders       Boolean    @default(false)
+  acceptingNewOrders        Boolean    @default(true)
   customOrderTurnaroundDays Int?
-  offersGiftWrapping        Boolean  @default(false)
+  offersGiftWrapping        Boolean    @default(false)
   giftWrappingPriceCents    Int?
   returnPolicy              String?
   customOrderPolicy         String?
   shippingPolicy            String?
-  featuredListingIds        String[] @default([])
-  galleryImageUrls          String[] @default([])
-  isVerifiedMaker           Boolean  @default(false)
+  featuredListingIds        String[]   @default([])
+  galleryImageUrls          String[]   @default([])
+  isVerifiedMaker           Boolean    @default(false)
   verifiedAt                DateTime?
   guildLevel                GuildLevel @default(NONE)
   guildMemberApprovedAt     DateTime?
@@ -205,10 +205,10 @@ model SellerProfile {
   guildMasterReviewNotes    String?
 
   // Guild Phase 3 — revoke tracking
-  consecutiveMetricFailures    Int       @default(0)
-  lastMetricCheckAt            DateTime?
-  metricWarningSentAt          DateTime?
-  listingsBelowThresholdSince  DateTime?
+  consecutiveMetricFailures   Int       @default(0)
+  lastMetricCheckAt           DateTime?
+  metricWarningSentAt         DateTime?
+  listingsBelowThresholdSince DateTime?
 
   // Seller onboarding wizard
   onboardingStep     Int     @default(0)
@@ -220,26 +220,27 @@ model SellerProfile {
   vacationMessage    String?
 
   // Analytics
-  profileViews  Int  @default(0)
+  profileViews Int @default(0)
 
   // Admin-featured spotlight (set by admin for 7 days to pin to Meet a Maker)
   featuredUntil DateTime?
 
   // Metro geography (set automatically from lat/lng)
   metroId     String?
-  metro       Metro?   @relation("SellerMetro", fields: [metroId], references: [id])
+  metro       Metro?  @relation("SellerMetro", fields: [metroId], references: [id])
   cityMetroId String?
-  cityMetro   Metro?   @relation("SellerCityMetro", fields: [cityMetroId], references: [id])
+  cityMetro   Metro?  @relation("SellerCityMetro", fields: [cityMetroId], references: [id])
 
-  listings             Listing[]
-  faqs                 SellerFaq[]
-  makerVerification    MakerVerification?
-  blogPosts            BlogPost[]
-  sellerMetrics        SellerMetrics?
-  viewDailies          ListingViewDaily[]
-  followers            Follow[]
-  broadcasts           SellerBroadcast[]
-  commissionInterests  CommissionInterest[]
+  listings            Listing[]
+  faqs                SellerFaq[]
+  makerVerification   MakerVerification?
+  blogPosts           BlogPost[]
+  sellerMetrics       SellerMetrics?
+  viewDailies         ListingViewDaily[]
+  followers           Follow[]
+  broadcasts          SellerBroadcast[]
+  commissionInterests CommissionInterest[]
+  payoutEvents        SellerPayoutEvent[]
 
   @@index([featuredUntil])
   @@index([guildLevel, chargesEnabled, vacationMode])
@@ -256,7 +257,6 @@ model SellerFaq {
 
   @@index([sellerProfileId, sortOrder])
 }
-
 
 model Listing {
   id          String        @id @default(cuid())
@@ -290,15 +290,15 @@ model Listing {
   // Ships-within days (IN_STOCK only; used instead of processingTimeMaxDays for delivery estimate)
   shipsWithinDays Int?
 
-  photos      Photo[]
-  favorites   Favorite[]
-  reviews     Review[]
+  photos    Photo[]
+  favorites Favorite[]
+  reviews   Review[]
 
   // purchases
-  orderItems  OrderItem[]
+  orderItems OrderItem[]
 
   // Cart back-rel
-  cartItems   CartItem[]
+  cartItems CartItem[]
 
   // 🆕 Packaged dimensions/weight (final, ready-to-ship per unit)
   packagedWeightGrams Int?
@@ -306,41 +306,41 @@ model Listing {
   packagedWidthCm     Float?
   packagedHeightCm    Float?
 
-  contextConversations Conversation[] @relation("ConversationContextListing")
+  contextConversations Conversation[]      @relation("ConversationContextListing")
   stockNotifications   StockNotification[]
   viewDailies          ListingViewDaily[]
 
   // Custom order fields
-  isPrivate                 Boolean  @default(false)
+  isPrivate                 Boolean @default(false)
   reservedForUserId         String?
-  reservedForUser           User?    @relation("ReservedListings", fields: [reservedForUserId], references: [id])
+  reservedForUser           User?   @relation("ReservedListings", fields: [reservedForUserId], references: [id])
   customOrderConversationId String?
 
   // AI review fields
-  aiReviewFlags     String[]  @default([])
-  aiReviewScore     Float?
-  reviewedByAdmin   Boolean   @default(false)
-  reviewedAt        DateTime?
-  rejectionReason   String?
+  aiReviewFlags   String[]  @default([])
+  aiReviewScore   Float?
+  reviewedByAdmin Boolean   @default(false)
+  reviewedAt      DateTime?
+  rejectionReason String?
 
   // SEO & product details
-  metaDescription   String?
-  materials         String[]  @default([])
-  productLengthIn   Float?
-  productWidthIn    Float?
-  productHeightIn   Float?
+  metaDescription String?
+  materials       String[] @default([])
+  productLengthIn Float?
+  productWidthIn  Float?
+  productHeightIn Float?
 
   // Variants (up to 3 groups × 10 options each)
   variantGroups ListingVariantGroup[]
 
   // Quality score (recalculated daily by cron)
-  qualityScore      Float     @default(0)
+  qualityScore Float @default(0)
 
   // Metro geography (set automatically on create/update from seller location)
   metroId     String?
-  metro       Metro?   @relation("ListingMetro", fields: [metroId], references: [id])
+  metro       Metro?  @relation("ListingMetro", fields: [metroId], references: [id])
   cityMetroId String?
-  cityMetro   Metro?   @relation("ListingCityMetro", fields: [cityMetroId], references: [id])
+  cityMetro   Metro?  @relation("ListingCityMetro", fields: [cityMetroId], references: [id])
 
   @@index([sellerId, status])
   @@index([status, createdAt])
@@ -377,19 +377,19 @@ model Favorite {
 }
 
 model Review {
-  id          String   @id @default(cuid())
-  listingId   String
-  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  reviewerId  String
-  reviewer    User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
-  ratingX2    Int
-  comment     String?
-  verified    Boolean  @default(false)
-  helpfulCount Int     @default(0)
-  sellerReply String?
+  id            String    @id @default(cuid())
+  listingId     String
+  listing       Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  reviewer      User      @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  ratingX2      Int
+  comment       String?
+  verified      Boolean   @default(false)
+  helpfulCount  Int       @default(0)
+  sellerReply   String?
   sellerReplyAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   photos ReviewPhoto[]
   votes  ReviewVote[]
@@ -423,18 +423,18 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderId       String
-  sender         User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Cascade)
-  recipientId    String
-  recipient      User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Cascade)
-  body           String
-  kind              String?
-  isSystemMessage   Boolean   @default(false)
-  readAt         DateTime?
-  createdAt      DateTime     @default(now())
+  id              String       @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId        String
+  sender          User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId     String
+  recipient       User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Cascade)
+  body            String
+  kind            String?
+  isSystemMessage Boolean      @default(false)
+  readAt          DateTime?
+  createdAt       DateTime     @default(now())
 
   @@index([conversationId])
   @@index([conversationId, createdAt])
@@ -481,11 +481,11 @@ model Order {
   stripeSessionId String? @unique
 
   // What Stripe actually charged / decided
-  currency             String  @default("usd")
-  itemsSubtotalCents   Int     @default(0)  // items subtotal (excl. shipping & tax)
-  shippingTitle        String?
-  shippingAmountCents  Int     @default(0)
-  taxAmountCents       Int     @default(0)
+  currency            String  @default("usd")
+  itemsSubtotalCents  Int     @default(0) // items subtotal (excl. shipping & tax)
+  shippingTitle       String?
+  shippingAmountCents Int     @default(0)
+  taxAmountCents      Int     @default(0)
 
   // Buyer snapshot
   buyerEmail       String?
@@ -498,67 +498,59 @@ model Order {
   shipToCountry    String?
 
   // Stripe references
-  stripePaymentIntentId   String? @unique(map: "Order_stripePaymentIntentId_idx")
-  stripeChargeId          String? @unique(map: "Order_stripeChargeId_idx")
-  stripeApplicationFeeId  String?
-  stripeTransferId        String?
+  stripePaymentIntentId  String? @unique(map: "Order_stripePaymentIntentId_idx")
+  stripeChargeId         String? @unique(map: "Order_stripeChargeId_idx")
+  stripeApplicationFeeId String?
+  stripeTransferId       String?
 
   // 🆕 Fulfillment
-  fulfillmentMethod  FulfillmentMethod?
-  fulfillmentStatus  FulfillmentStatus @default(PENDING)
-  trackingCarrier    String?
-  trackingNumber     String?
-  pickupReadyAt      DateTime?
-  pickedUpAt         DateTime?
-  shippedAt          DateTime?
-  deliveredAt        DateTime?
-  sellerNotes        String?
+  fulfillmentMethod FulfillmentMethod?
+  fulfillmentStatus FulfillmentStatus  @default(PENDING)
+  trackingCarrier   String?
+  trackingNumber    String?
+  pickupReadyAt     DateTime?
+  pickedUpAt        DateTime?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  sellerNotes       String?
 
   items OrderItem[]
 
   // Delivery estimate fields
-  estimatedDeliveryDate DateTime?  // processing + transit shown to buyer
-  processingDeadline    DateTime?  // when seller should ship by
+  estimatedDeliveryDate DateTime? // processing + transit shown to buyer
+  processingDeadline    DateTime? // when seller should ship by
 
   // Case back-relation
-  case  Case?
-
-  @@index([buyerId])
-  @@index([buyerId, createdAt])
-  @@index([paidAt])
-  @@index([createdAt])
-  @@index([fulfillmentStatus])
-  @@index([fulfillmentStatus, createdAt])
-  @@index([sellerRefundId, sellerRefundLockedAt])
+  case Case?
 
   // Snapshot of the *selected* shipping service
-  shippingCarrier  String?    // e.g., "UPS"
-  shippingService  String?    // e.g., "Ground"
-  shippingEta      DateTime?  // carrier ETA if provided
+  shippingCarrier String? // e.g., "UPS"
+  shippingService String? // e.g., "Ground"
+  shippingEta     DateTime? // carrier ETA if provided
 
   /// What we quoted *before* Checkout (from your site/UI)
   quotedShippingAmountCents Int?
 
   /// Flag when Checkout address/rate doesn’t match our quote
-  reviewNeeded  Boolean  @default(false)
-  reviewNote    String?
+  reviewNeeded Boolean @default(false)
+  reviewNote   String?
 
   /// Tax reversal audit trail (webhook reverses tax portion of seller transfer)
   taxReversalId          String?
   taxReversalAmountCents Int?
 
-    // 👇 NEW: what the buyer typed on your site (used for mismatch detection)
-  
-  quotedToLine1                String?
-  quotedToLine2                String?
-  quotedToCity                 String?
-  quotedToState                String?
-  quotedToPostalCode           String?
-  quotedToCountry              String?
-  quotedToName                 String?
-  quotedToPhone                String?
-  quotedAt                     DateTime?
-  quotedUseCalculatedShipping  Boolean?  // what path we used
+  // 👇 NEW: what the buyer typed on your site (used for mismatch detection)
+
+  quotedToLine1               String?
+  quotedToLine2               String?
+  quotedToCity                String?
+  quotedToState               String?
+  quotedToPostalCode          String?
+  quotedToCountry             String?
+  quotedToName                String?
+  quotedToPhone               String?
+  quotedAt                    DateTime?
+  quotedUseCalculatedShipping Boolean? // what path we used
 
   // Seller-initiated refund
   sellerRefundId          String?
@@ -577,13 +569,22 @@ model Order {
   labelStatus         LabelStatus?
 
   // Gift options
-  giftNote                String?
-  giftWrapping            Boolean  @default(false)
-  giftWrappingPriceCents  Int?
-  buyerDataPurgedAt       DateTime?
+  giftNote               String?
+  giftWrapping           Boolean   @default(false)
+  giftWrappingPriceCents Int?
+  buyerDataPurgedAt      DateTime?
 
   shippingRateQuotes OrderShippingRateQuote[]
   paymentEvents      OrderPaymentEvent[]
+
+  @@index([buyerId])
+  @@index([buyerId, createdAt])
+  @@index([paidAt])
+  @@index([createdAt])
+  @@index([fulfillmentStatus])
+  @@index([fulfillmentStatus, createdAt])
+  @@index([sellerRefundId, sellerRefundLockedAt])
+  @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
 }
 
 model OrderShippingRateQuote {
@@ -622,18 +623,35 @@ model OrderPaymentEvent {
   @@index([stripeObjectId])
 }
 
+model SellerPayoutEvent {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  stripePayoutId  String        @unique
+  status          String
+  amountCents     Int?
+  currency        String        @default("usd")
+  failureCode     String?
+  failureMessage  String?
+  stripeEventId   String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([sellerProfileId, createdAt])
+  @@index([status, createdAt])
+}
 
 model OrderItem {
-  id        String @id @default(cuid())
-  orderId   String
-  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  listingId String
-  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Restrict)
-  quantity   Int      @default(1)
-  priceCents Int
-  listingSnapshot    Json?
-  selectedVariants   Json?    // [{ groupName, optionLabel, priceAdjustCents }]
-  createdAt  DateTime @default(now())
+  id               String   @id @default(cuid())
+  orderId          String
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  listingId        String
+  listing          Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  quantity         Int      @default(1)
+  priceCents       Int
+  listingSnapshot  Json?
+  selectedVariants Json? // [{ groupName, optionLabel, priceAdjustCents }]
+  createdAt        DateTime @default(now())
 
   @@index([orderId])
   @@index([listingId])
@@ -651,28 +669,27 @@ model Cart {
 }
 
 model CartItem {
-  id        String   @id @default(cuid())
-  cartId    String
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  quantity   Int      @default(1)
-  priceCents Int
-  selectedVariantOptionIds String[]  @default([])
-  variantKey               String    @default("") // sorted option IDs, for unique constraint
-  createdAt  DateTime @default(now())
+  id                       String   @id @default(cuid())
+  cartId                   String
+  cart                     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  listingId                String
+  listing                  Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  quantity                 Int      @default(1)
+  priceCents               Int
+  selectedVariantOptionIds String[] @default([])
+  variantKey               String   @default("") // sorted option IDs, for unique constraint
+  createdAt                DateTime @default(now())
 
   @@unique([cartId, listingId, variantKey])
   @@index([cartId])
 }
 
-
 model ListingVariantGroup {
-  id        String   @id @default(cuid())
+  id        String                 @id @default(cuid())
   listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  name      String   // seller-defined: "Size", "Wood Type", "Finish", etc.
-  sortOrder Int      @default(0)
+  listing   Listing                @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  name      String // seller-defined: "Size", "Wood Type", "Finish", etc.
+  sortOrder Int                    @default(0)
   options   ListingVariantOption[]
 
   @@index([listingId, sortOrder])
@@ -682,7 +699,7 @@ model ListingVariantOption {
   id               String              @id @default(cuid())
   groupId          String
   group            ListingVariantGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  label            String              // seller-defined: "Large", "Walnut", "Dark Stain", etc.
+  label            String // seller-defined: "Large", "Walnut", "Dark Stain", etc.
   priceAdjustCents Int                 @default(0) // +5000 = +$50, -2000 = -$20, 0 = no change
   sortOrder        Int                 @default(0)
   inStock          Boolean             @default(true)
@@ -701,11 +718,11 @@ enum FulfillmentMethod {
 }
 
 enum FulfillmentStatus {
-  PENDING           // default after payment
-  READY_FOR_PICKUP  // seller marked ready (pickup flow)
-  PICKED_UP         // buyer received (pickup flow)
-  SHIPPED           // label purchased / handed to carrier
-  DELIVERED         // delivered confirmation
+  PENDING // default after payment
+  READY_FOR_PICKUP // seller marked ready (pickup flow)
+  PICKED_UP // buyer received (pickup flow)
+  SHIPPED // label purchased / handed to carrier
+  DELIVERED // delivered confirmation
 }
 
 enum CaseReason {
@@ -732,30 +749,30 @@ enum CaseResolution {
 }
 
 model Case {
-  id                String          @id @default(cuid())
-  orderId           String          @unique
-  order             Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  buyerId           String
-  buyer             User            @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
-  sellerId          String
-  seller            User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  reason            CaseReason
-  description       String
-  status            CaseStatus      @default(OPEN)
-  resolution        CaseResolution?
-  refundAmountCents Int?
-  stripeRefundId    String?
-  sellerRespondBy       DateTime
-  discussionStartedAt   DateTime?
-  escalateUnlocksAt     DateTime?
-  buyerMarkedResolved   Boolean         @default(false)
-  sellerMarkedResolved  Boolean         @default(false)
-  resolvedAt            DateTime?
-  resolvedById          String?
-  resolvedBy            User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
-  messages              CaseMessage[]
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  id                   String          @id @default(cuid())
+  orderId              String          @unique
+  order                Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  buyerId              String
+  buyer                User            @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  sellerId             String
+  seller               User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  reason               CaseReason
+  description          String
+  status               CaseStatus      @default(OPEN)
+  resolution           CaseResolution?
+  refundAmountCents    Int?
+  stripeRefundId       String?
+  sellerRespondBy      DateTime
+  discussionStartedAt  DateTime?
+  escalateUnlocksAt    DateTime?
+  buyerMarkedResolved  Boolean         @default(false)
+  sellerMarkedResolved Boolean         @default(false)
+  resolvedAt           DateTime?
+  resolvedById         String?
+  resolvedBy           User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  messages             CaseMessage[]
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   @@index([buyerId])
   @@index([status, createdAt])
@@ -775,23 +792,23 @@ model CaseMessage {
 }
 
 model SavedSearch {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  query       String?
-  category    Category?
-  listingType ListingType?
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query           String?
+  category        Category?
+  listingType     ListingType?
   shipsWithinDays Int?
-  minRating   Int?
-  lat         Float?
-  lng         Float?
-  radiusMiles Int?
-  sort        String?
-  minPrice    Int?
-  maxPrice    Int?
-  tags        String[]  @default([])
-  notifyEmail Boolean   @default(true)
-  createdAt   DateTime  @default(now())
+  minRating       Int?
+  lat             Float?
+  lng             Float?
+  radiusMiles     Int?
+  sort            String?
+  minPrice        Int?
+  maxPrice        Int?
+  tags            String[]     @default([])
+  notifyEmail     Boolean      @default(true)
+  createdAt       DateTime     @default(now())
 
   @@index([userId])
 }
@@ -825,19 +842,19 @@ enum GuildLevel {
 }
 
 model MakerVerification {
-  id               String             @id @default(cuid())
-  sellerProfileId  String             @unique
-  sellerProfile    SellerProfile      @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  craftDescription String
+  id                       String             @id @default(cuid())
+  sellerProfileId          String             @unique
+  sellerProfile            SellerProfile      @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  craftDescription         String
   guildMasterCraftBusiness String?
-  yearsExperience  Int
-  portfolioUrl     String?
-  status           VerificationStatus @default(PENDING)
-  reviewedById     String?
-  reviewedBy       User?              @relation("VerificationReviews", fields: [reviewedById], references: [id])
-  reviewNotes      String?
-  appliedAt        DateTime           @default(now())
-  reviewedAt       DateTime?
+  yearsExperience          Int
+  portfolioUrl             String?
+  status                   VerificationStatus @default(PENDING)
+  reviewedById             String?
+  reviewedBy               User?              @relation("VerificationReviews", fields: [reviewedById], references: [id])
+  reviewNotes              String?
+  appliedAt                DateTime           @default(now())
+  reviewedAt               DateTime?
 }
 
 enum BlogPostType {
@@ -860,27 +877,27 @@ enum BlogAuthorType {
 }
 
 model BlogPost {
-  id                 String         @id @default(cuid())
-  slug               String         @unique
+  id                 String          @id @default(cuid())
+  slug               String          @unique
   title              String
   excerpt            String?
   body               String
   coverImageUrl      String?
   videoUrl           String?
   authorId           String
-  author             User           @relation("BlogPostsAuthored", fields: [authorId], references: [id])
+  author             User            @relation("BlogPostsAuthored", fields: [authorId], references: [id])
   authorType         BlogAuthorType
   sellerProfileId    String?
-  sellerProfile      SellerProfile? @relation(fields: [sellerProfileId], references: [id])
-  type               BlogPostType   @default(STANDARD)
-  status             BlogPostStatus @default(DRAFT)
-  featuredListingIds String[]       @default([])
-  tags               String[]       @default([])
+  sellerProfile      SellerProfile?  @relation(fields: [sellerProfileId], references: [id])
+  type               BlogPostType    @default(STANDARD)
+  status             BlogPostStatus  @default(DRAFT)
+  featuredListingIds String[]        @default([])
+  tags               String[]        @default([])
   metaDescription    String?
   readingTimeMinutes Int?
   publishedAt        DateTime?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
   comments           BlogComment[]
   savedBy            SavedBlogPost[]
 
@@ -892,17 +909,17 @@ model BlogPost {
 }
 
 model BlogComment {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   postId    String
-  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      BlogPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  author    User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
   body      String
-  approved  Boolean  @default(false)
+  approved  Boolean       @default(false)
   parentId  String?
-  parent    BlogComment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   BlogComment[]  @relation("CommentReplies")
-  createdAt DateTime @default(now())
+  parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   BlogComment[] @relation("CommentReplies")
+  createdAt DateTime      @default(now())
 
   @@index([postId])
   @@index([postId, createdAt])
@@ -1005,7 +1022,7 @@ model SellerMetrics {
 }
 
 model SiteMetricsSnapshot {
-  id             Int      @id @default(1)
+  id            Int      @id @default(1)
   avgConversion Float    @default(0)
   avgCtr        Float    @default(0)
   avgRating     Float    @default(3)
@@ -1021,6 +1038,7 @@ enum NotificationType {
   CASE_OPENED
   CASE_MESSAGE
   CASE_RESOLVED
+  REFUND_ISSUED
   CUSTOM_ORDER_REQUEST
   CUSTOM_ORDER_LINK
   VERIFICATION_APPROVED
@@ -1038,6 +1056,8 @@ enum NotificationType {
   COMMISSION_INTEREST
   LISTING_APPROVED
   LISTING_REJECTED
+  ACCOUNT_WARNING
+  LISTING_FLAGGED_BY_USER
   PAYMENT_DISPUTE
   PAYOUT_FAILED
 }
@@ -1067,7 +1087,7 @@ model ListingViewDaily {
   listing         Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
   sellerProfileId String
   sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  date            DateTime      // stored as midnight UTC of that day
+  date            DateTime // stored as midnight UTC of that day
   views           Int           @default(0)
   clicks          Int           @default(0)
 
@@ -1148,9 +1168,9 @@ model CommissionRequest {
 
   // Metro geography (set automatically on create from buyer location)
   metroId     String?
-  metro       Metro?   @relation("CommissionMetro", fields: [metroId], references: [id])
+  metro       Metro?  @relation("CommissionMetro", fields: [metroId], references: [id])
   cityMetroId String?
-  cityMetro   Metro?   @relation("CommissionCityMetro", fields: [cityMetroId], references: [id])
+  cityMetro   Metro?  @relation("CommissionCityMetro", fields: [cityMetroId], references: [id])
 
   @@index([buyerId])
   @@index([status, createdAt])
@@ -1171,29 +1191,29 @@ model CommissionInterest {
 }
 
 model Metro {
-  id           String   @id @default(cuid())
-  slug         String   @unique
-  name         String
-  state        String
-  latitude     Float
-  longitude    Float
-  radiusMiles  Int      @default(45)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  state       String
+  latitude    Float
+  longitude   Float
+  radiusMiles Int      @default(45)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Self-relation: child metros roll up to a parent major metro
   parentMetroId String?
-  parentMetro   Metro?   @relation("MetroChildren", fields: [parentMetroId], references: [id])
-  childMetros   Metro[]  @relation("MetroChildren")
+  parentMetro   Metro?  @relation("MetroChildren", fields: [parentMetroId], references: [id])
+  childMetros   Metro[] @relation("MetroChildren")
 
   // Back-relations
-  listings           Listing[]           @relation("ListingMetro")
-  listingCityMetros  Listing[]           @relation("ListingCityMetro")
-  commissions        CommissionRequest[] @relation("CommissionMetro")
+  listings             Listing[]           @relation("ListingMetro")
+  listingCityMetros    Listing[]           @relation("ListingCityMetro")
+  commissions          CommissionRequest[] @relation("CommissionMetro")
   commissionCityMetros CommissionRequest[] @relation("CommissionCityMetro")
-  sellerProfiles     SellerProfile[]     @relation("SellerMetro")
-  sellerCityProfiles SellerProfile[]     @relation("SellerCityMetro")
+  sellerProfiles       SellerProfile[]     @relation("SellerMetro")
+  sellerCityProfiles   SellerProfile[]     @relation("SellerCityMetro")
 
   @@index([slug])
   @@index([parentMetroId])
@@ -1236,20 +1256,20 @@ model Block {
 }
 
 model UserReport {
-  id         String   @id @default(cuid())
-  reporterId String
-  reportedId String
-  reason     String
-  details    String?
-  targetType String?
-  targetId   String?
-  resolved   Boolean  @default(false)
-  resolvedAt DateTime?
+  id           String    @id @default(cuid())
+  reporterId   String
+  reportedId   String
+  reason       String
+  details      String?
+  targetType   String?
+  targetId     String?
+  resolved     Boolean   @default(false)
+  resolvedAt   DateTime?
   resolvedById String?
-  createdAt  DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
-  reporter User @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
-  reported User @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter   User  @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported   User  @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Cascade)
   resolvedBy User? @relation("UserReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([reporterId])

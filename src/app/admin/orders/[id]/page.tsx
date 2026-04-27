@@ -20,6 +20,14 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function PurgedBuyerData({ date }: { date: Date }) {
+  return (
+    <span className="text-neutral-500">
+      Buyer street/contact details purged on {date.toLocaleDateString("en-US")}.
+    </span>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-neutral-200 bg-white">
@@ -143,7 +151,9 @@ export default async function AdminOrderDetailPage({
             <Field
               label="Ship to"
               value={
-                order.shipToLine1 ? (
+                order.buyerDataPurgedAt && !order.shipToLine1 ? (
+                  <PurgedBuyerData date={order.buyerDataPurgedAt} />
+                ) : order.shipToLine1 ? (
                   <span>
                     {order.shipToLine1}
                     {order.shipToLine2 && <>, {order.shipToLine2}</>}
@@ -377,7 +387,9 @@ export default async function AdminOrderDetailPage({
               <Field
                 label="Address"
                 value={
-                  order.shipToPostalCode ? (
+                  order.buyerDataPurgedAt && !order.shipToLine1 ? (
+                    <PurgedBuyerData date={order.buyerDataPurgedAt} />
+                  ) : order.shipToPostalCode ? (
                     <span>
                       {order.shipToLine1 && <>{order.shipToLine1}<br /></>}
                       {[order.shipToCity, order.shipToState, order.shipToPostalCode]

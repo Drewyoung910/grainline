@@ -48,6 +48,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **R2 media origin policy narrowed.** Write-path media validation no longer accepts arbitrary `*.r2.dev`; legacy R2 origins must be explicitly configured through the allowed R2 public URL env vars. CSP now uses configured R2/CDN origins instead of wildcard R2 image/connect/media sources.
 - **Low-risk accessibility/UX cleanup.** FollowButton now updates optimistically with rollback on failure, `LocalDate` uses an explicit `en-US` locale, and global CSS has a baseline `:focus-visible` outline for interactive controls.
 
+## Round 23 Fix Status Notes
+
+- **Periodic fulfilled-order buyer PII pruning added.** New `order-pii-prune` cron removes buyer street/contact/gift-note fields from delivered/picked-up orders after 90 days, stamps `buyerDataPurgedAt`, and updates buyer/seller/admin order views to show a retention notice instead of partial addresses.
+- **Payout failures now have a durable ledger.** Stripe `payout.failed` upserts `SellerPayoutEvent` rows and the seller settings banner reads the ledger instead of relying only on dismissible notifications.
+- **Refund/report notification types added.** `REFUND_ISSUED`, `ACCOUNT_WARNING`, and `LISTING_FLAGGED_BY_USER` are now enum-backed notification types; seller refunds and refund case resolutions use `REFUND_ISSUED`, and listing reports create a deduped seller notification.
+- **Photo mutation hardening continued.** Listing photo AI review has a dedicated rate limit, manual alt-text saves are sanitized/capped and constrained to the listing, and photo reordering now only updates photos belonging to the edited listing.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
@@ -393,7 +400,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ### H29. Account deletion/export GDPR gaps
 
 - **Files**: account deletion library and account export route.
-- **Current state**: Mostly fixed in code. `/api/account/export` returns signed-in account portability JSON, seller-side sales exports omit buyer shipping/contact PII, and account deletion now scrubs sent messages/case messages, buyer order shipping/contact/gift PII, review text/photos, buyer commission text/media/location, seller listing text/photos/media, maker verification text, report details, newsletter rows, and collected R2 media. Retention policy documentation and periodic old-order PII pruning remain open.
+- **Current state**: Fixed in code for the identified engineering gap. `/api/account/export` returns signed-in account portability JSON, seller-side sales exports omit buyer shipping/contact PII, account deletion scrubs the listed PII/media surfaces, and the `order-pii-prune` cron now removes fulfilled-order buyer street/contact/gift-note fields after 90 days. Broader legal retention schedule decisions remain product/legal work.
 - **Impact**: Privacy promises portability/deletion beyond implemented code.
 - **Fix spec**: Finish scrub/anonymize message bodies, order shipping PII, maker verification text, listing media, newsletter email, reports, and R2 objects according to retention policy.
 
@@ -428,7 +435,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ### H34. Message/order/listing PII persists after deletion
 
 - **Files**: account deletion and associated UI.
-- **Current state**: Fixed for user-initiated account deletion. Deleted-user sent messages/case messages are replaced with deletion placeholders; buyer order contact/shipping/gift fields are nulled and stamped with `buyerDataPurgedAt`; seller listings are hidden/private and stripped of description/media/tags/materials; listing/review/commission media is best-effort deleted from R2.
+- **Current state**: Fixed for user-initiated account deletion and old fulfilled-order buyer PII. Deleted-user sent messages/case messages are replaced with deletion placeholders; buyer order contact/shipping/gift fields are nulled and stamped with `buyerDataPurgedAt`; seller listings are hidden/private and stripped of description/media/tags/materials; listing/review/commission media is best-effort deleted from R2. A daily cron now applies the buyer order PII purge to delivered/picked-up orders after 90 days.
 - **Impact**: Personal data remains visible to counterparties.
 - **Fix spec**: Define retention rules. Scrub old fulfilled order shipping details, deleted user's sent messages, R2 attachments, listing descriptions/photos, verification notes.
 
@@ -574,7 +581,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - `activeCaseCount` should be period-scoped or explicitly lifetime-scoped in Guild docs.
 - `payout.failed` should write a durable seller payout event ledger.
 - `payment_intent.processing` / `payment_failed` handlers should be added or delayed methods should be explicitly disabled/documented.
-- Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`.
+- Missing notification types: `REFUND_ISSUED`, `ACCOUNT_WARNING`, `LISTING_FLAGGED_BY_USER`. **Current state: Fixed.** Enum values, preference keys, notification icons, refund notification wiring, and listing-report notifications are implemented.
 - Audit log subject/body should sanitize persisted user-provided strings.
 - Upload presign per-request `fileIndex` is client-controlled. **Current state: Fixed for upload flood control.** Presign and processed image uploads now share an additional 50/hour per-user Redis limit; endpoint-specific file count remains client-index based.
 - R2 objects are orphaned when photos/listings/reviews are deleted. **Current state: Partial.** Listing photo deletion and review photo replacement/deletion now attempt R2 object deletion after the DB row is removed; listing archive/delete still preserves media by product decision and may need a retention cleanup policy.
@@ -592,7 +599,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Reconcile period window definitions in metrics. **Current state: Fixed for Guild metrics; calendar-month period windows and period-scoped active cases are now used.**
 - R2 media validation previously accepted arbitrary legacy `*.r2.dev` URLs. **Current state: Fixed.** Write-path validation now accepts only configured Grainline R2/CDN origins and explicitly listed legacy origins; CSP no longer uses wildcard R2 media/connect sources.
 - GIF/video/PDF uploads may retain metadata; current state rejects GIF uploads and strips JPEG/PNG/WebP metadata, while video/PDF metadata retention remains disclosed/product-accepted.
-- Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification.
+- Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification. **Current state: Fixed.** Active-listing photo additions now require the shared listing mutation limiter plus a dedicated `listingPhotoAiRatelimit` before triggering AI re-review/alt-text work.
 - Presign extension/type handling should use an explicit allowlist in addition to MIME checks.
 - Photo-add AI review currently reviews newly added photos, not the merged final set; acceptable for new-photo safety, but document the intended invariant.
 - Blog featured listing rendering should re-verify ownership/visibility at render time where not already guaranteed.
@@ -619,6 +626,6 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - Money transmitter / Stripe Connect "agent of payee" confirmation.
 - INFORM Consumers Act reporting/disclosure workflow if promised in Terms.
 - Business/cyber/marketplace liability insurance.
-- Data retention schedule for tax, fraud, cases, messages, order shipping addresses, and R2 media.
+- Data retention schedule for tax, fraud, cases, messages, order shipping addresses, and R2 media. **Current state: Partially fixed.** Order shipping/contact/gift-note PII has a 90-day fulfilled-order purge and Privacy Policy disclosure; remaining legal/product decisions cover cases, reports, messages, tax/fraud holds, and archived listing/R2 media.
 - Decision on partial-refund inventory semantics and line-item refunds.
 - Decision on whether deleted seller public content is preserved as marketplace history.

@@ -584,6 +584,9 @@ export default function PrivacyPage() {
               <strong>Transaction records.</strong> Order and payment records are retained for a
               minimum of <strong>7 years</strong> to comply with tax, accounting, and legal
               requirements.
+              Buyer street address, buyer contact, and gift note details for fulfilled orders are
+              removed from active application views after <strong>90 days</strong>, unless a dispute,
+              legal hold, fraud investigation, or tax obligation requires longer retention.
             </li>
             <li>
               <strong>Sales tax records.</strong> Sales tax records, including transaction details
