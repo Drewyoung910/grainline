@@ -5143,7 +5143,25 @@ This pass closed several still-live lower/medium-priority backlog items after th
 - `npx tsc --noEmit --incremental false` ✅
 
 ### Still open / next good passes
-- Loading skeleton coverage across dashboard/public pages remains inconsistent.
+- Broader route-level skeleton polish can continue as pages evolve, but the main dynamic route groups now have baseline loading states.
+- Larger SEO slug/canonical work and browse rating aggregate strategy remain open.
+
+## Audit Fix Pass — Route Loading Skeleton Coverage (2026-04-26)
+
+This pass closed the remaining loading-state coverage finding with a shared route skeleton.
+
+### Fixed in this pass
+- **Shared loading skeleton component added**: `PageLoadingSkeleton` supports grid, table/list, and detail layouts.
+- **Main dynamic route groups now have loading states**: account, admin, blog, commission, dashboard, map, messages, and seller profile routes now render consistent skeletons while server data loads.
+- **Onboarding avatar drafts persist across step navigation**: `ProfileAvatarUploader` supports an optional `storageKey`; the onboarding wizard uses session storage to preserve a step-1 uploaded avatar URL until the profile step is saved.
+- **Open backlog updated**: `audit_open_findings.md` now marks loading skeleton coverage fixed for the major app surfaces.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+
+### Still open / next good passes
 - Larger SEO slug/canonical work and browse rating aggregate strategy remain open.
 
 ## Audit Fix Pass — Tracking Cookies, Search Scale, and Stale Backlog Cleanup (2026-04-26)

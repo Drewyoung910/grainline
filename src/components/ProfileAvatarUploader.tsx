@@ -1,15 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 
 export default function ProfileAvatarUploader({
   initialUrl,
+  storageKey,
 }: {
   initialUrl?: string | null;
+  storageKey?: string;
 }) {
   const [url, setUrl] = useState<string | null>(initialUrl ?? null);
+
+  useEffect(() => {
+    if (!storageKey || initialUrl) return;
+    try {
+      const storedUrl = window.sessionStorage.getItem(storageKey);
+      if (storedUrl) setUrl(storedUrl);
+    } catch {
+      // Session storage is best-effort draft recovery only.
+    }
+  }, [initialUrl, storageKey]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      if (url) window.sessionStorage.setItem(storageKey, url);
+      else window.sessionStorage.removeItem(storageKey);
+    } catch {
+      // Ignore storage failures; the hidden input still submits the current URL.
+    }
+  }, [storageKey, url]);
 
   return (
     <div className="flex items-center gap-4">

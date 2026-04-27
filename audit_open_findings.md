@@ -605,9 +605,9 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Featured maker queries are cached through `unstable_cache`.
 - [FIXED 2026-04-26] Onboarding step navigation uses guarded `advanceStep`, step 4 persists progression, and the skip-Stripe path shows an explicit `chargesEnabled` warning.
 - [FIXED 2026-04-26] Reverse-geocode throttling uses a shared Upstash Redis lock with local-memory fallback.
-- Onboarding step 1 profile image state can be lost on browser back/forward navigation; persist draft/upload state.
+- [FIXED 2026-04-26] Onboarding step 1 avatar uploads persist in session storage until the step is saved, so browser back/forward or step navigation does not drop the uploaded image URL.
 - `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step. **Current state: Fixed.**
-- Loading skeleton coverage is still inconsistent across key dashboard/public pages.
+- [FIXED 2026-04-26] Loading skeleton coverage now exists for the main dynamic account, admin, blog, commission, dashboard, map, messages, seller, browse, and listing route groups.
 - [FIXED 2026-04-26] Remaining user-visible no-locale `toLocaleString`/`toLocaleDateString` calls in app/components were normalized to `en-US`.
 - COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
 - [FIXED 2026-04-26] Sitemap listing URLs are chunked via `generateSitemaps()` in 5K listing chunks with seller/listing safety filters and `updatedAt` last-modified values.

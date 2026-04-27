@@ -84,6 +84,11 @@ export default function OnboardingWizard({
         setActionError(result.error);
         return;
       }
+      try {
+        window.sessionStorage.removeItem("grainline:onboarding:avatarImageUrl");
+      } catch {
+        // Draft cleanup is best effort.
+      }
       setCompleted((c) => ({ ...c, step1: true }));
       setStep(2);
     } finally {
@@ -264,7 +269,7 @@ export default function OnboardingWizard({
                   Profile Photo{" "}
                   <span className="text-neutral-400 font-normal">(optional)</span>
                 </p>
-                <ProfileAvatarUploader initialUrl={avatarImageUrl} />
+                <ProfileAvatarUploader initialUrl={avatarImageUrl} storageKey="grainline:onboarding:avatarImageUrl" />
               </div>
 
               <div className="flex gap-3 pt-2">
