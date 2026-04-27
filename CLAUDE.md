@@ -5124,6 +5124,19 @@ This pass closed the confirmed Round 14/16 email-compliance regressions around o
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
 
+## Audit Fix Pass — Bounded Text Column Caps (2026-04-27)
+
+This pass closed the schema finding that bounded strings were still stored as unbounded PostgreSQL `text`.
+
+### Fixed in this pass
+- **Database caps added for structured strings**: user emails/names, shipping addresses, Stripe/Shippo/Resend IDs, currencies, statuses, URLs, notification titles/bodies, review/comment bodies with existing UI caps, case/message bodies, saved-search queries, blog metadata, seller broadcast text, commission request text, admin audit reasons, and report details now use `@db.VarChar(N)`.
+- **Long-form content intentionally remains `Text`**: listing descriptions, profile stories, shop policies, blog post bodies, and ledger/debug descriptions were left uncapped at the DB type level to avoid truncating legitimate long-form content.
+- **Migration added**: `20260427123000_bound_text_columns` applies the corresponding column type changes.
+- **Open backlog updated**: `audit_open_findings.md` now marks the bounded text-column finding fixed.
+
+### Verification
+- Pending in current pass: `npx prisma validate`, TypeScript, lint, tests, and build.
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.

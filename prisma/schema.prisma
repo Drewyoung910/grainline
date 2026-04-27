@@ -52,10 +52,10 @@ enum ListingStatus {
 
 model User {
   id        String    @id @default(cuid())
-  clerkId   String    @unique
-  email     String    @unique
-  name      String?
-  imageUrl  String?
+  clerkId   String    @unique @db.VarChar(255)
+  email     String    @unique @db.VarChar(254)
+  name      String?   @db.VarChar(100)
+  imageUrl  String?   @db.VarChar(2048)
   role      Role      @default(USER)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -63,18 +63,18 @@ model User {
 
   // Compliance / lifecycle
   termsAcceptedAt    DateTime?
-  termsVersion       String?
+  termsVersion       String?   @db.VarChar(50)
   ageAttestedAt      DateTime?
   welcomeEmailSentAt DateTime?
 
   // Buyer shipping address
-  shippingName       String?
-  shippingLine1      String?
-  shippingLine2      String?
-  shippingCity       String?
-  shippingState      String?
-  shippingPostalCode String?
-  shippingPhone      String?
+  shippingName       String?   @db.VarChar(100)
+  shippingLine1      String?   @db.VarChar(200)
+  shippingLine2      String?   @db.VarChar(200)
+  shippingCity       String?   @db.VarChar(100)
+  shippingState      String?   @db.VarChar(50)
+  shippingPostalCode String?   @db.VarChar(20)
+  shippingPhone      String?   @db.VarChar(30)
 
   conversationsAsA Conversation[] @relation("ConvoA")
   conversationsAsB Conversation[] @relation("ConvoB")
@@ -115,8 +115,8 @@ model User {
 
   banned       Boolean         @default(false)
   bannedAt     DateTime?
-  banReason    String?
-  bannedBy     String?
+  banReason    String?         @db.VarChar(500)
+  bannedBy     String?         @db.VarChar(255)
   adminActions AdminAuditLog[] @relation("AdminActions")
 
   blocks          Block[]      @relation("UserBlocks")
@@ -132,10 +132,10 @@ model SellerProfile {
   id             String   @id @default(cuid())
   userId         String   @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName    String
+  displayName    String   @db.VarChar(100)
   bio            String?
-  city           String?
-  state          String?
+  city           String?  @db.VarChar(100)
+  state          String?  @db.VarChar(50)
   lat            Float?
   lng            Float?
   createdAt      DateTime @default(now())
@@ -144,7 +144,7 @@ model SellerProfile {
   publicMapOptIn Boolean  @default(false)
 
   // Stripe Connect
-  stripeAccountId String? @unique
+  stripeAccountId String? @unique @db.VarChar(255)
   chargesEnabled  Boolean @default(false)
 
   // Flat-rate shipping (legacy/simple fallback)
@@ -153,13 +153,13 @@ model SellerProfile {
   allowLocalPickup      Boolean @default(false)
 
   // 🆕 Ship-from address (used for live-rate quoting/labels)
-  shipFromName    String?
-  shipFromLine1   String?
-  shipFromLine2   String?
-  shipFromCity    String?
-  shipFromState   String?
-  shipFromPostal  String?
-  shipFromCountry String? @default("US")
+  shipFromName    String? @db.VarChar(100)
+  shipFromLine1   String? @db.VarChar(200)
+  shipFromLine2   String? @db.VarChar(200)
+  shipFromCity    String? @db.VarChar(100)
+  shipFromState   String? @db.VarChar(50)
+  shipFromPostal  String? @db.VarChar(20)
+  shipFromCountry String? @default("US") @db.VarChar(2)
 
   // 🆕 Default package (used when listings don’t specify packaged dims)
   defaultPkgWeightGrams Int?
@@ -174,17 +174,17 @@ model SellerProfile {
   preferredCarriers String[] @default([])
 
   // Rich profile / personalization
-  tagline                   String?
-  bannerImageUrl            String?
-  avatarImageUrl            String?
-  workshopImageUrl          String?
-  storyTitle                String?
+  tagline                   String?    @db.VarChar(140)
+  bannerImageUrl            String?    @db.VarChar(2048)
+  avatarImageUrl            String?    @db.VarChar(2048)
+  workshopImageUrl          String?    @db.VarChar(2048)
+  storyTitle                String?    @db.VarChar(200)
   storyBody                 String?
-  instagramUrl              String?
-  facebookUrl               String?
-  pinterestUrl              String?
-  tiktokUrl                 String?
-  websiteUrl                String?
+  instagramUrl              String?    @db.VarChar(2048)
+  facebookUrl               String?    @db.VarChar(2048)
+  pinterestUrl              String?    @db.VarChar(2048)
+  tiktokUrl                 String?    @db.VarChar(2048)
+  websiteUrl                String?    @db.VarChar(2048)
   yearsInBusiness           Int?
   acceptsCustomOrders       Boolean    @default(false)
   acceptingNewOrders        Boolean    @default(true)
@@ -202,7 +202,7 @@ model SellerProfile {
   guildMemberApprovedAt     DateTime?
   guildMasterApprovedAt     DateTime?
   guildMasterAppliedAt      DateTime?
-  guildMasterReviewNotes    String?
+  guildMasterReviewNotes    String?    @db.VarChar(2000)
 
   // Guild Phase 3 — revoke tracking
   consecutiveMetricFailures   Int       @default(0)
@@ -217,7 +217,7 @@ model SellerProfile {
   // Vacation mode
   vacationMode       Boolean   @default(false)
   vacationReturnDate DateTime?
-  vacationMessage    String?
+  vacationMessage    String?   @db.VarChar(500)
 
   // Analytics
   profileViews Int @default(0)
@@ -251,8 +251,8 @@ model SellerFaq {
   id              String        @id @default(cuid())
   sellerProfileId String
   sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  question        String
-  answer          String
+  question        String        @db.VarChar(200)
+  answer          String        @db.VarChar(2000)
   sortOrder       Int           @default(0)
   createdAt       DateTime      @default(now())
 
@@ -263,12 +263,12 @@ model Listing {
   id          String        @id @default(cuid())
   sellerId    String
   seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  title       String
+  title       String        @db.VarChar(150)
   description String
   priceCents  Int
-  currency    String        @default("usd")
+  currency    String        @default("usd") @db.VarChar(3)
   status      ListingStatus @default(ACTIVE)
-  videoUrl    String?
+  videoUrl    String?       @db.VarChar(2048)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -322,10 +322,10 @@ model Listing {
   aiReviewScore   Float?
   reviewedByAdmin Boolean   @default(false)
   reviewedAt      DateTime?
-  rejectionReason String?
+  rejectionReason String?   @db.VarChar(1000)
 
   // SEO & product details
-  metaDescription String?
+  metaDescription String?   @db.VarChar(320)
   materials       String[] @default([])
   productLengthIn Float?
   productWidthIn  Float?
@@ -359,8 +359,8 @@ model Photo {
   id        String   @id @default(cuid())
   listingId String
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  url       String
-  altText   String?
+  url       String   @db.VarChar(2048)
+  altText   String?  @db.VarChar(200)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
@@ -384,10 +384,10 @@ model Review {
   reviewerId    String
   reviewer      User      @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
   ratingX2      Int
-  comment       String?
+  comment       String?   @db.VarChar(2000)
   verified      Boolean   @default(false)
   helpfulCount  Int       @default(0)
-  sellerReply   String?
+  sellerReply   String?   @db.VarChar(2000)
   sellerReplyAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -431,8 +431,8 @@ model Message {
   sender          User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Cascade)
   recipientId     String
   recipient       User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Cascade)
-  body            String
-  kind            String?
+  body            String       @db.VarChar(5000)
+  kind            String?      @db.VarChar(50)
   isSystemMessage Boolean      @default(false)
   readAt          DateTime?
   createdAt       DateTime     @default(now())
@@ -446,8 +446,8 @@ model ReviewPhoto {
   id        String   @id @default(cuid())
   reviewId  String
   review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  url       String
-  altText   String?
+  url       String   @db.VarChar(2048)
+  altText   String?  @db.VarChar(200)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
@@ -479,36 +479,36 @@ model Order {
   paidAt    DateTime?
 
   // Stripe idempotency
-  stripeSessionId String? @unique
+  stripeSessionId String? @unique @db.VarChar(255)
 
   // What Stripe actually charged / decided
-  currency            String  @default("usd")
+  currency            String  @default("usd") @db.VarChar(3)
   itemsSubtotalCents  Int     @default(0) // items subtotal (excl. shipping & tax)
-  shippingTitle       String?
+  shippingTitle       String? @db.VarChar(200)
   shippingAmountCents Int     @default(0)
   taxAmountCents      Int     @default(0)
 
   // Buyer snapshot
-  buyerEmail       String?
-  buyerName        String?
-  shipToLine1      String?
-  shipToLine2      String?
-  shipToCity       String?
-  shipToState      String?
-  shipToPostalCode String?
-  shipToCountry    String?
+  buyerEmail       String? @db.VarChar(254)
+  buyerName        String? @db.VarChar(200)
+  shipToLine1      String? @db.VarChar(200)
+  shipToLine2      String? @db.VarChar(200)
+  shipToCity       String? @db.VarChar(100)
+  shipToState      String? @db.VarChar(50)
+  shipToPostalCode String? @db.VarChar(20)
+  shipToCountry    String? @db.VarChar(2)
 
   // Stripe references
-  stripePaymentIntentId  String? @unique(map: "Order_stripePaymentIntentId_idx")
-  stripeChargeId         String? @unique(map: "Order_stripeChargeId_idx")
-  stripeApplicationFeeId String?
-  stripeTransferId       String?
+  stripePaymentIntentId  String? @unique(map: "Order_stripePaymentIntentId_idx") @db.VarChar(255)
+  stripeChargeId         String? @unique(map: "Order_stripeChargeId_idx") @db.VarChar(255)
+  stripeApplicationFeeId String? @db.VarChar(255)
+  stripeTransferId       String? @db.VarChar(255)
 
   // 🆕 Fulfillment
   fulfillmentMethod FulfillmentMethod?
   fulfillmentStatus FulfillmentStatus  @default(PENDING)
-  trackingCarrier   String?
-  trackingNumber    String?
+  trackingCarrier   String? @db.VarChar(100)
+  trackingNumber    String? @db.VarChar(100)
   pickupReadyAt     DateTime?
   pickedUpAt        DateTime?
   shippedAt         DateTime?
@@ -525,8 +525,8 @@ model Order {
   case Case?
 
   // Snapshot of the *selected* shipping service
-  shippingCarrier String? // e.g., "UPS"
-  shippingService String? // e.g., "Ground"
+  shippingCarrier String? @db.VarChar(100) // e.g., "UPS"
+  shippingService String? @db.VarChar(100) // e.g., "Ground"
   shippingEta     DateTime? // carrier ETA if provided
 
   /// What we quoted *before* Checkout (from your site/UI)
@@ -537,40 +537,40 @@ model Order {
   reviewNote   String?
 
   /// Tax reversal audit trail (webhook reverses tax portion of seller transfer)
-  taxReversalId          String?
+  taxReversalId          String? @db.VarChar(255)
   taxReversalAmountCents Int?
 
   // 👇 NEW: what the buyer typed on your site (used for mismatch detection)
 
-  quotedToLine1               String?
-  quotedToLine2               String?
-  quotedToCity                String?
-  quotedToState               String?
-  quotedToPostalCode          String?
-  quotedToCountry             String?
-  quotedToName                String?
-  quotedToPhone               String?
+  quotedToLine1               String?   @db.VarChar(200)
+  quotedToLine2               String?   @db.VarChar(200)
+  quotedToCity                String?   @db.VarChar(100)
+  quotedToState               String?   @db.VarChar(50)
+  quotedToPostalCode          String?   @db.VarChar(20)
+  quotedToCountry             String?   @db.VarChar(2)
+  quotedToName                String?   @db.VarChar(200)
+  quotedToPhone               String?   @db.VarChar(30)
   quotedAt                    DateTime?
   quotedUseCalculatedShipping Boolean? // what path we used
 
   // Seller-initiated refund
-  sellerRefundId          String?
+  sellerRefundId          String?   @db.VarChar(255)
   sellerRefundAmountCents Int?
   sellerRefundLockedAt    DateTime?
 
   // Shippo label
-  shippoShipmentId    String?
-  shippoRateObjectId  String?
-  shippoTransactionId String?
-  labelUrl            String?
-  labelCarrier        String?
-  labelTrackingNumber String?
+  shippoShipmentId    String? @db.VarChar(255)
+  shippoRateObjectId  String? @db.VarChar(255)
+  shippoTransactionId String? @db.VarChar(255)
+  labelUrl            String? @db.VarChar(2048)
+  labelCarrier        String? @db.VarChar(100)
+  labelTrackingNumber String? @db.VarChar(100)
   labelPurchasedAt    DateTime?
   labelCostCents      Int?
   labelStatus         LabelStatus?
 
   // Gift options
-  giftNote               String?
+  giftNote               String?   @db.VarChar(500)
   giftWrapping           Boolean   @default(false)
   giftWrappingPriceCents Int?
   buyerDataPurgedAt      DateTime?
@@ -592,7 +592,7 @@ model OrderShippingRateQuote {
   id         String   @id @default(cuid())
   orderId    String
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  shipmentId String
+  shipmentId String   @db.VarChar(255)
   rates      Json
   expiresAt  DateTime
   createdAt  DateTime @default(now())
@@ -606,14 +606,14 @@ model OrderPaymentEvent {
   id               String   @id @default(cuid())
   orderId          String
   order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stripeEventId    String   @unique
-  stripeObjectId   String?
-  stripeObjectType String?
-  eventType        String
+  stripeEventId    String   @unique @db.VarChar(255)
+  stripeObjectId   String?  @db.VarChar(255)
+  stripeObjectType String?  @db.VarChar(100)
+  eventType        String   @db.VarChar(100)
   amountCents      Int?
-  currency         String   @default("usd")
-  status           String?
-  reason           String?
+  currency         String   @default("usd") @db.VarChar(3)
+  status           String?  @db.VarChar(100)
+  reason           String?  @db.VarChar(255)
   description      String?
   metadata         Json?
   createdAt        DateTime @default(now())
@@ -628,13 +628,13 @@ model SellerPayoutEvent {
   id              String        @id @default(cuid())
   sellerProfileId String
   sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  stripePayoutId  String        @unique
-  status          String
+  stripePayoutId  String        @unique @db.VarChar(255)
+  status          String        @db.VarChar(100)
   amountCents     Int?
-  currency        String        @default("usd")
-  failureCode     String?
-  failureMessage  String?
-  stripeEventId   String?
+  currency        String        @default("usd") @db.VarChar(3)
+  failureCode     String?       @db.VarChar(100)
+  failureMessage  String?       @db.VarChar(1000)
+  stripeEventId   String?       @db.VarChar(255)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -678,7 +678,7 @@ model CartItem {
   quantity                 Int      @default(1)
   priceCents               Int
   selectedVariantOptionIds String[] @default([])
-  variantKey               String   @default("") // sorted option IDs, for unique constraint
+  variantKey               String   @default("") @db.VarChar(255) // sorted option IDs, for unique constraint
   createdAt                DateTime @default(now())
 
   @@unique([cartId, listingId, variantKey])
@@ -689,7 +689,7 @@ model ListingVariantGroup {
   id        String                 @id @default(cuid())
   listingId String
   listing   Listing                @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  name      String // seller-defined: "Size", "Wood Type", "Finish", etc.
+  name      String                 @db.VarChar(100) // seller-defined: "Size", "Wood Type", "Finish", etc.
   sortOrder Int                    @default(0)
   options   ListingVariantOption[]
 
@@ -700,7 +700,7 @@ model ListingVariantOption {
   id               String              @id @default(cuid())
   groupId          String
   group            ListingVariantGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  label            String // seller-defined: "Large", "Walnut", "Dark Stain", etc.
+  label            String              @db.VarChar(100) // seller-defined: "Large", "Walnut", "Dark Stain", etc.
   priceAdjustCents Int                 @default(0) // +5000 = +$50, -2000 = -$20, 0 = no change
   sortOrder        Int                 @default(0)
   inStock          Boolean             @default(true)
@@ -758,11 +758,11 @@ model Case {
   sellerId             String
   seller               User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
   reason               CaseReason
-  description          String
+  description          String          @db.VarChar(5000)
   status               CaseStatus      @default(OPEN)
   resolution           CaseResolution?
   refundAmountCents    Int?
-  stripeRefundId       String?
+  stripeRefundId       String?         @db.VarChar(255)
   sellerRespondBy      DateTime
   discussionStartedAt  DateTime?
   escalateUnlocksAt    DateTime?
@@ -785,7 +785,7 @@ model CaseMessage {
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
-  body      String
+  body      String   @db.VarChar(5000)
   createdAt DateTime @default(now())
 
   @@index([caseId])
@@ -796,7 +796,7 @@ model SavedSearch {
   id              String       @id @default(cuid())
   userId          String
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  query           String?
+  query           String?      @db.VarChar(200)
   category        Category?
   listingType     ListingType?
   shipsWithinDays Int?
@@ -804,7 +804,7 @@ model SavedSearch {
   lat             Float?
   lng             Float?
   radiusMiles     Int?
-  sort            String?
+  sort            String?      @db.VarChar(50)
   minPrice        Int?
   maxPrice        Int?
   tags            String[]     @default([])
@@ -846,14 +846,14 @@ model MakerVerification {
   id                       String             @id @default(cuid())
   sellerProfileId          String             @unique
   sellerProfile            SellerProfile      @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  craftDescription         String
-  guildMasterCraftBusiness String?
+  craftDescription         String             @db.VarChar(1000)
+  guildMasterCraftBusiness String?            @db.VarChar(1000)
   yearsExperience          Int
-  portfolioUrl             String?
+  portfolioUrl             String?            @db.VarChar(2048)
   status                   VerificationStatus @default(PENDING)
   reviewedById             String?
   reviewedBy               User?              @relation("VerificationReviews", fields: [reviewedById], references: [id])
-  reviewNotes              String?
+  reviewNotes              String?            @db.VarChar(2000)
   appliedAt                DateTime           @default(now())
   reviewedAt               DateTime?
 }
@@ -879,12 +879,12 @@ enum BlogAuthorType {
 
 model BlogPost {
   id                 String          @id @default(cuid())
-  slug               String          @unique
-  title              String
-  excerpt            String?
+  slug               String          @unique @db.VarChar(255)
+  title              String          @db.VarChar(200)
+  excerpt            String?         @db.VarChar(500)
   body               String
-  coverImageUrl      String?
-  videoUrl           String?
+  coverImageUrl      String?         @db.VarChar(2048)
+  videoUrl           String?         @db.VarChar(2048)
   authorId           String
   author             User            @relation("BlogPostsAuthored", fields: [authorId], references: [id])
   authorType         BlogAuthorType
@@ -894,7 +894,7 @@ model BlogPost {
   status             BlogPostStatus  @default(DRAFT)
   featuredListingIds String[]        @default([])
   tags               String[]        @default([])
-  metaDescription    String?
+  metaDescription    String?         @db.VarChar(320)
   readingTimeMinutes Int?
   publishedAt        DateTime?
   createdAt          DateTime        @default(now())
@@ -915,7 +915,7 @@ model BlogComment {
   post      BlogPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
   author    User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
-  body      String
+  body      String        @db.VarChar(2000)
   approved  Boolean       @default(false)
   parentId  String?
   parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
@@ -929,8 +929,8 @@ model BlogComment {
 
 model NewsletterSubscriber {
   id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
+  email        String   @unique @db.VarChar(254)
+  name         String?  @db.VarChar(200)
   subscribedAt DateTime @default(now())
   active       Boolean  @default(true)
 }
@@ -943,10 +943,10 @@ enum EmailSuppressionReason {
 
 model EmailSuppression {
   id        String                 @id @default(cuid())
-  email     String                 @unique
+  email     String                 @unique @db.VarChar(254)
   reason    EmailSuppressionReason
-  source    String?
-  eventId   String?
+  source    String?                @db.VarChar(100)
+  eventId   String?                @db.VarChar(255)
   details   Json                   @default("{}")
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
@@ -956,11 +956,11 @@ model EmailSuppression {
 }
 
 model ResendWebhookEvent {
-  svixId              String    @id
-  type                String
+  svixId              String    @id @db.VarChar(255)
+  type                String    @db.VarChar(100)
   processingStartedAt DateTime?
   processedAt         DateTime?
-  lastError           String?
+  lastError           String?   @db.VarChar(2000)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -969,10 +969,10 @@ model ResendWebhookEvent {
 }
 
 model CronRun {
-  id          String    @id
-  jobName     String
-  bucket      String
-  status      String    @default("RUNNING")
+  id          String    @id @db.VarChar(160)
+  jobName     String    @db.VarChar(100)
+  bucket      String    @db.VarChar(32)
+  status      String    @default("RUNNING") @db.VarChar(32)
   result      Json?
   startedAt   DateTime  @default(now())
   completedAt DateTime?
@@ -984,21 +984,21 @@ model CronRun {
 }
 
 model EmailFailureCount {
-  email         String   @id
+  email         String   @id @db.VarChar(254)
   count         Int      @default(0)
   firstFailedAt DateTime @default(now())
   lastFailedAt  DateTime @default(now())
-  lastEventId   String?
+  lastEventId   String?  @db.VarChar(255)
 
   @@index([lastFailedAt])
 }
 
 model StripeWebhookEvent {
-  id                  String    @id
-  type                String
+  id                  String    @id @db.VarChar(255)
+  type                String    @db.VarChar(100)
   processingStartedAt DateTime?
   processedAt         DateTime?
-  lastError           String?
+  lastError           String?   @db.VarChar(2000)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -1078,9 +1078,9 @@ model Notification {
   userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      NotificationType
-  title     String
-  body      String
-  link      String?
+  title     String           @db.VarChar(200)
+  body      String           @db.VarChar(1000)
+  link      String?          @db.VarChar(2048)
   dedupKey  String           @default(cuid()) @db.VarChar(64)
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
@@ -1137,8 +1137,8 @@ model SellerBroadcast {
   id              String        @id @default(cuid())
   sellerProfileId String
   sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
-  message         String
-  imageUrl        String?
+  message         String        @db.VarChar(500)
+  imageUrl        String?       @db.VarChar(2048)
   sentAt          DateTime      @default(now())
   recipientCount  Int           @default(0)
 
@@ -1158,12 +1158,12 @@ model CommissionRequest {
   id                 String           @id @default(cuid())
   buyerId            String
   buyer              User             @relation("CommissionRequests", fields: [buyerId], references: [id], onDelete: Cascade)
-  title              String
-  description        String
+  title              String           @db.VarChar(150)
+  description        String           @db.VarChar(5000)
   category           Category?
   budgetMinCents     Int?
   budgetMaxCents     Int?
-  timeline           String?
+  timeline           String?          @db.VarChar(200)
   referenceImageUrls String[]         @default([])
   status             CommissionStatus @default(OPEN)
   interestedCount    Int              @default(0)
@@ -1203,9 +1203,9 @@ model CommissionInterest {
 
 model Metro {
   id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  state       String
+  slug        String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(100)
+  state       String   @db.VarChar(50)
   latitude    Float
   longitude   Float
   radiusMiles Int      @default(45)
@@ -1235,15 +1235,15 @@ model AdminAuditLog {
   id           String    @id @default(cuid())
   adminId      String
   admin        User      @relation("AdminActions", fields: [adminId], references: [id])
-  action       String
-  targetType   String
-  targetId     String
-  reason       String?
+  action       String    @db.VarChar(100)
+  targetType   String    @db.VarChar(100)
+  targetId     String    @db.VarChar(255)
+  reason       String?   @db.VarChar(1000)
   metadata     Json      @default("{}")
   undone       Boolean   @default(false)
   undoneAt     DateTime?
-  undoneBy     String?
-  undoneReason String?
+  undoneBy     String?   @db.VarChar(255)
+  undoneReason String?   @db.VarChar(1000)
   createdAt    DateTime  @default(now())
 
   @@index([adminId])
@@ -1270,10 +1270,10 @@ model UserReport {
   id           String    @id @default(cuid())
   reporterId   String
   reportedId   String
-  reason       String
-  details      String?
-  targetType   String?
-  targetId     String?
+  reason       String    @db.VarChar(100)
+  details      String?   @db.VarChar(2000)
+  targetType   String?   @db.VarChar(100)
+  targetId     String?   @db.VarChar(255)
   resolved     Boolean   @default(false)
   resolvedAt   DateTime?
   resolvedById String?

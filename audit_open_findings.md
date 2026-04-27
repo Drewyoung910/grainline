@@ -561,7 +561,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 
 ## Schema / CI / Platform Findings
 
-- Schema has few `@db.VarChar(N)` caps. Add caps to bounded text fields; leave long bodies as `Text`.
+- [FIXED 2026-04-27] Bounded text fields now have database-level `@db.VarChar(N)` caps and migration `20260427123000_bound_text_columns`. Long-form listing/blog/profile/policy bodies intentionally remain `Text`.
 - [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
 - [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner, and `tests/shipping-token.test.mjs` covers buyer-bound signed shipping-rate tokens, replay rejection, tampering, expiry, and malformed token handling. Expand next into payment/webhook/refund/account-state route tests.
