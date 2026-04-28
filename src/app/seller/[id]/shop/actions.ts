@@ -2,10 +2,18 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { ListingStatus } from "@prisma/client";
+import { renderNewListingFromFollowedMakerEmail } from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { mapWithConcurrency } from "@/lib/concurrency";
+import { publicListingPath } from "@/lib/publicPaths";
 
 const STAFF_REMOVAL_REJECTION_REASON = "Removed by Grainline staff.";
+const FOLLOWER_FANOUT_LIMIT = 10000;
+const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Ensure the calling user owns this listing; returns listing + seller or null
 async function getOwnedListing(listingId: string) {
@@ -31,6 +39,75 @@ function revalidateListingSurfaces(listingId: string, sellerId: string) {
   revalidatePath(`/listing/${listingId}`);
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+}
+
+function shouldNotifyFollowersOnActivation(listing: { status: ListingStatus; updatedAt: Date }) {
+  if (
+    listing.status === ListingStatus.DRAFT ||
+    listing.status === ListingStatus.PENDING_REVIEW ||
+    listing.status === ListingStatus.REJECTED
+  ) {
+    return true;
+  }
+  if (listing.status === ListingStatus.HIDDEN) {
+    return Date.now() - listing.updatedAt.getTime() >= REPUBLISH_NOTIFY_AFTER_MS;
+  }
+  return false;
+}
+
+function queueFollowerFanoutForActiveListing(listing: {
+  id: string;
+  title: string;
+  priceCents: number;
+  sellerId: string;
+  seller: { displayName: string | null };
+}) {
+  after(async () => {
+    try {
+      const followers = await prisma.follow.findMany({
+        where: {
+          sellerProfileId: listing.sellerId,
+          follower: { banned: false, deletedAt: null },
+        },
+        select: { followerId: true, follower: { select: { email: true } } },
+        take: FOLLOWER_FANOUT_LIMIT,
+      });
+      const sellerDisplay = listing.seller.displayName ?? "A maker you follow";
+      const listingPath = publicListingPath(listing.id, listing.title);
+      await mapWithConcurrency(followers, 10, (f) =>
+        createNotification({
+          userId: f.followerId,
+          type: "FOLLOWED_MAKER_NEW_LISTING",
+          title: `New listing from ${sellerDisplay}`,
+          body: listing.title,
+          link: listingPath,
+        }),
+      );
+
+      const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${listingPath}`;
+      const listingPrice = `$${(listing.priceCents / 100).toFixed(2)}`;
+      const emailBucket = new Date().toISOString().slice(0, 10);
+      await mapWithConcurrency(followers.filter((f) => f.follower?.email), 5, async (f) => {
+        if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
+          const email = renderNewListingFromFollowedMakerEmail({
+            to: f.follower.email!,
+            makerName: sellerDisplay,
+            listingTitle: listing.title,
+            listingPrice,
+            listingUrl,
+          });
+          await enqueueEmailOutbox({
+            ...email,
+            dedupKey: `followed-listing-active:${listing.id}:${f.followerId}:${emailBucket}`,
+            userId: f.followerId,
+            preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
+          });
+        }
+      });
+    } catch {
+      // Non-fatal: listing activation should not roll back if follower fan-out fails.
+    }
+  });
 }
 
 async function syncThreshold(sellerId: string) {
@@ -197,6 +274,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "PENDING_REVIEW" };
     } else {
+      const shouldNotifyFollowers = shouldNotifyFollowersOnActivation(listing);
       const updateResult = await prisma.listing.updateMany({
         where: {
           id: listingId,
@@ -210,6 +288,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         return { error: "Listing state changed; refresh and try again." };
       }
       await syncThreshold(listing.sellerId);
+      if (shouldNotifyFollowers) {
+        queueFollowerFanoutForActiveListing(listing);
+      }
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "ACTIVE" };
     }

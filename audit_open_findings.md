@@ -79,6 +79,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Email outbox first slice added.** `EmailOutbox` now stores durable, deduped email jobs with user/preference context, retry status, attempts, next-attempt timing, sent timestamp, and last error.
 - **Outbox drain cron added.** `/api/cron/email-outbox` runs under cron auth plus `CronRun` idempotency, drains due email jobs with bounded concurrency and capped retry backoff, and recovers jobs stuck in `PROCESSING` for more than 10 minutes.
 - **High-volume fan-out emails are queued.** Followed-maker new-listing emails and back-in-stock subscriber emails now enqueue outbox rows instead of sending every email inline.
+- **Shop listing reactivation fan-out restored.** Seller shop publish/unhide flows that activate a draft, rejected, pending, or long-hidden listing now run the same capped follower notification and queued email fan-out as new listing creation, with a 30-day guard for hidden-listing republish spam.
 - **Preference changes before drain are respected.** Queued non-transactional emails are skipped if the stored email preference is disabled before the outbox cron sends them.
 - **Notifications remain direct.** In-app fan-out notifications still create directly so users see state immediately; this pass only moves email delivery off the request path.
 - **Transactional mail remains direct by design.** Order, refund, payment, and case emails were not moved into the outbox in this slice because they need separate retry/user-feedback semantics.
