@@ -5883,3 +5883,28 @@ This pass adds durable delivery for the highest-volume email fan-outs without ch
 - Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
 - Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
 - Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
+
+## Audit Fix Pass — CI Build Gate and Pure Regression Tests (2026-04-27)
+
+This pass closed a documentation/code mismatch around CI build enforcement and expanded the pure test baseline around two previously high-risk compliance/dedup helpers.
+
+### Fixed in this pass
+- **CI runs production build again**: `.github/workflows/ci.yml` now runs `npm run build` after tests and `npm audit --audit-level=high`, matching the documented CI baseline. Vercel still runs `prisma migrate deploy && npm run build` for production deploys.
+- **Unsubscribe token logic isolated**: token creation, URL construction, normalization, expiry, and timing-safe verification now live in `src/lib/unsubscribeToken.ts`, keeping DB unsubscribe side effects separate from pure compliance logic.
+- **Unsubscribe lifecycle tests added**: tests cover normalized emails, tokenized one-click URL shape, address/token tampering rejection, 90-day TTL enforcement, and future-issued token rejection.
+- **Notification dedup key isolated**: daily dedup key generation now lives in `src/lib/notificationDedup.ts` and remains based only on UTC day, recipient, type, and link.
+- **Notification dedup tests added**: tests verify stable same-action keys, separation across users/types/links/day buckets, and independence from mutable notification title/body copy.
+- **Test baseline expanded**: `npm test` now runs 28 assertions across cron auth, listing variants, media URL/R2 keys, Sentry filtering, public paths, shipping tokens, unsubscribe tokens, and notification dedup keys.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm test` ✅ (28 tests)
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; emits existing Postgres `sslmode=verify-full` env warning
+
+### Still open / next good passes
+- Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
+- Add route/integration coverage for payment, webhook, refund, account-state, and account export paths.
+- Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
+- Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.

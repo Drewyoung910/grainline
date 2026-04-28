@@ -82,6 +82,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Notifications remain direct.** In-app fan-out notifications still create directly so users see state immediately; this pass only moves email delivery off the request path.
 - **Transactional mail remains direct by design.** Order, refund, payment, and case emails were not moved into the outbox in this slice because they need separate retry/user-feedback semantics.
 
+## Round 28 Fix Status Notes
+
+- **CI build gate restored.** GitHub Actions now runs `npm run build` after lint, tests, and high-severity audit checks, matching the documented launch-safety baseline while Vercel still runs production migrations/builds on deploy.
+- **Unsubscribe token regression tests added.** Token creation/verification logic is isolated in `src/lib/unsubscribeToken.ts` and covered for email normalization, tokenized URL shape, address/token tampering, expiry, and future-issued token rejection.
+- **Notification dedup regression tests added.** Dedup key generation is isolated in `src/lib/notificationDedup.ts` and covered for stable `(UTC day, user, type, link)` semantics without depending on mutable title/body copy.
+- **Test baseline expanded to 28 assertions.** Pure coverage now includes cron auth, listing variants, media URL/R2 key validation, Sentry filtering, public slug helpers, shipping-rate HMACs, unsubscribe tokens, and notification dedup keys.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
@@ -587,7 +594,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
 - [FIXED 2026-04-27] CI now declares the production-like secret surface needed by build/test paths, including Stripe, Clerk, R2 aliases, Upstash, Resend, unsubscribe, Sentry, admin, and cron env vars.
-- [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner. Coverage now includes buyer-bound signed shipping-rate tokens and media URL/R2 key validation. Expand next into payment/webhook/refund/account-state route tests.
+- [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner. Coverage now includes buyer-bound signed shipping-rate tokens, media URL/R2 key validation, unsubscribe token lifecycle, notification dedup key behavior, Sentry filtering, cron auth, route slug helpers, and listing variant selection. Expand next into payment/webhook/refund/account-state route tests.
 - [FIXED 2026-04-26] `tsconfig` target is now ES2022 to avoid unnecessary downleveling; Next/Turbopack still handles final browser/server output.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
 - Sentry `beforeSend` filtering is missing. **Current state: Fixed.** Shared server/edge/client filter drops common browser/network noise and redacts cookies, auth headers, token query params, user email/IP, and email-like strings.

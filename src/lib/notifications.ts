@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NotificationType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
-import { createHash } from "crypto";
+import { notificationDedupKey } from "@/lib/notificationDedup";
 
 const DEFAULT_OFF_EMAIL_KEYS = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
 
@@ -40,21 +40,6 @@ export const VALID_PREFERENCE_KEYS = [
   ...VALID_IN_APP_PREFERENCE_KEYS,
   ...VALID_EMAIL_PREFERENCE_KEYS,
 ] as const;
-
-function notificationDedupKey({
-  userId,
-  type,
-  link,
-}: {
-  userId: string;
-  type: NotificationType;
-  link?: string;
-}) {
-  const bucket = new Date().toISOString().slice(0, 10);
-  return createHash("sha256")
-    .update([bucket, userId, type, link ?? ""].join("\u001f"))
-    .digest("hex");
-}
 
 function isNotificationDedupError(error: unknown) {
   const err = error as { code?: string; meta?: { target?: string[] | string } };
