@@ -4,6 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
+const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
+
 export type FeedItem = {
   kind: "listing" | "blog" | "broadcast";
   date: string;
@@ -43,11 +45,14 @@ export async function GET(req: NextRequest) {
   const follows = await prisma.follow.findMany({
     where: { followerId: me.id },
     select: { sellerProfileId: true },
+    orderBy: { createdAt: "desc" },
+    take: MAX_FOLLOWED_SELLERS_FOR_FEED,
   });
   const rawSellerIds = follows.map((f) => f.sellerProfileId);
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+  const blockedSellerIdSet = new Set(blockedSellerIds);
   const sellerIds = blockedSellerIds.length > 0
-    ? rawSellerIds.filter((id) => !blockedSellerIds.includes(id))
+    ? rawSellerIds.filter((id) => !blockedSellerIdSet.has(id))
     : rawSellerIds;
 
   if (sellerIds.length === 0) {
