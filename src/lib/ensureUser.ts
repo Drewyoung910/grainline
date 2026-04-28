@@ -1,6 +1,7 @@
 // src/lib/ensureUser.ts
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { sanitizeUserName } from "@/lib/sanitize";
 
 export class AccountAccessError extends Error {
   status = 403;
@@ -63,7 +64,7 @@ export async function ensureUserByClerkId(
       updateData.email = opts.email.trim();
     }
     if (opts && "name" in opts) {
-      updateData.name = opts.name ?? null;
+      updateData.name = opts.name ? sanitizeUserName(opts.name) || null : null;
     }
     if (opts && "imageUrl" in opts) {
       updateData.imageUrl = opts.imageUrl ?? null;
@@ -102,7 +103,7 @@ export async function ensureUserByClerkId(
 
   // CREATE path: allow placeholder email if none provided
   const email = (opts?.email ?? `${clerkId}@placeholder.invalid`).trim();
-  const name = (opts?.name ?? null) as string | null;
+  const name = opts?.name ? sanitizeUserName(opts.name) || null : null;
   const imageUrl = (opts?.imageUrl ?? null) as string | null;
 
   return prisma.user.create({
@@ -178,4 +179,3 @@ export async function ensureUser() {
   }
   return result;
 }
-

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { newsletterRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
+import { sanitizeUserName } from "@/lib/sanitize";
 import { z } from "zod";
 
 const NewsletterSchema = z.object({
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const email = parsed.email.trim().toLowerCase();
-    const name = parsed.name?.trim() || null;
+    const name = parsed.name ? sanitizeUserName(parsed.name, 200) || null : null;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "Valid email required" }, { status: 400 });

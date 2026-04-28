@@ -9,6 +9,7 @@ import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
+import { sanitizeText } from "@/lib/sanitize";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -50,7 +51,7 @@ export default async function NewBlogPostPage() {
     const { success: rlOk } = await safeRateLimit(blogCreateRatelimit, author.id);
     if (!rlOk) return { ok: false, error: "You can publish up to 3 blog posts per day." };
 
-    const title = String(formData.get("title") ?? "").trim();
+    const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 200);
     const body = String(formData.get("body") ?? "").trim();
     const excerpt = String(formData.get("excerpt") ?? "").trim().slice(0, 200) || null;
     const metaDescription = String(formData.get("metaDescription") ?? "").trim().slice(0, 160) || null;
@@ -150,6 +151,7 @@ export default async function NewBlogPostPage() {
               follower: { banned: false, deletedAt: null },
             },
             select: { followerId: true },
+            take: 10000,
           });
           const sellerProfile = await prisma.sellerProfile.findUnique({
             where: { id: sellerProfileId },

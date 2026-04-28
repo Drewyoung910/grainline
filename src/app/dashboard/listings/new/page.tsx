@@ -54,7 +54,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     redirect("/dashboard/listings/new?error=stripe");
   }
 
-  const title = sanitizeText(String(formData.get("title") ?? "").trim());
+  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
   const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
@@ -378,6 +378,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
             follower: { banned: false, deletedAt: null },
           },
           select: { followerId: true, follower: { select: { email: true, name: true } } },
+          take: 10000,
         });
         const sellerDisplay = seller.displayName ?? "A maker you follow";
         await mapWithConcurrency(followers, 10, (f) =>

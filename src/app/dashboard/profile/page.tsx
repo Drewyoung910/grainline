@@ -14,7 +14,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
-import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeRichText, sanitizeUserName } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 
@@ -76,7 +76,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   const displayNameRaw = (String(formData.get("displayName") ?? "")).trim();
   if (!displayNameRaw) return { ok: false, error: "Display name is required." };
-  const displayName = sanitizeText(displayNameRaw);
+  const displayName = sanitizeUserName(displayNameRaw);
+  if (!displayName) return { ok: false, error: "Display name is required." };
 
   const taglineRaw = toNull(formData.get("tagline"));
   const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;

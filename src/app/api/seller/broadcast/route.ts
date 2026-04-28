@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
       },
     },
     select: { followerId: true },
+    take: 10000,
   });
 
   // Create broadcast record

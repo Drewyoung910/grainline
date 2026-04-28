@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { stripBidiControls } from "@/lib/sanitize";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -29,7 +30,10 @@ function esc(s: string) {
 
 /** Strip HTML-like characters from user content in email subjects */
 function safeSubject(s: string) {
-  return s.replace(/[\r\n]+/g, " ").replace(/[\x00-\x1F\x7F<>"'&]/g, "").trim();
+  return stripBidiControls(s.normalize("NFKC"))
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
+    .trim();
 }
 
 /** Validate and escape a URL for use in img src attributes */

@@ -6,6 +6,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendWelcomeBuyer, sendWelcomeSeller } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
+import { sanitizeUserName } from "@/lib/sanitize";
 
 interface ClerkEmailAddress {
   id?: string | null;
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
 
   const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url, unsafe_metadata, legal_accepted_at } = event.data;
 
-  const name = [first_name, last_name].filter(Boolean).join(" ") || null;
+  const name = sanitizeUserName([first_name, last_name].filter(Boolean).join(" ")) || null;
   const email =
     email_addresses?.find((e) => e.id === primary_email_address_id)?.email_address ??
     email_addresses?.[0]?.email_address;

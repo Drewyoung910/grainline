@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { sanitizeRichText, sanitizeText } from "@/lib/sanitize";
+import { sanitizeRichText, sanitizeText, sanitizeUserName } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -45,7 +45,7 @@ async function getSeller(): Promise<{
 export async function saveStep1(formData: FormData): Promise<ActionResult> {
   try {
     const seller = await getSeller();
-    const displayName = sanitizeText(String(formData.get("displayName") || "").trim().slice(0, 100));
+    const displayName = sanitizeUserName(String(formData.get("displayName") || ""));
     const bioRaw = String(formData.get("bio") || "").trim().slice(0, 500);
     const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
     const taglineRaw = String(formData.get("tagline") || "").trim().slice(0, 100);

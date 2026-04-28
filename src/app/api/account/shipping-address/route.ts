@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { shippingAddressRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
-import { sanitizeText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeUserName } from "@/lib/sanitize";
 import { z } from "zod";
 
 const US_STATE_CODES = new Set([
@@ -93,7 +93,7 @@ export async function PUT(req: Request) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      shippingName: sanitizeText(body.name),
+      shippingName: sanitizeUserName(body.name),
       shippingLine1: sanitizeText(body.line1),
       shippingLine2: body.line2 ? sanitizeText(body.line2) : null,
       shippingCity: sanitizeText(body.city),

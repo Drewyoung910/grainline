@@ -59,7 +59,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     return { ok: false, error: "Reserved user must be the conversation participant." };
   }
 
-  const title = sanitizeText(String(formData.get("title") ?? "").trim());
+  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
   const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);

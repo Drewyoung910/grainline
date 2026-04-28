@@ -26,6 +26,41 @@ const PROFANITY_REGEX = new RegExp(
   "gi"
 );
 
+const CYRILLIC_CONFUSABLES: Record<string, string> = {
+  А: "A",
+  а: "a",
+  В: "B",
+  Е: "E",
+  е: "e",
+  К: "K",
+  к: "k",
+  М: "M",
+  Н: "H",
+  О: "O",
+  о: "o",
+  Р: "P",
+  р: "p",
+  С: "C",
+  с: "c",
+  Т: "T",
+  т: "t",
+  Х: "X",
+  х: "x",
+  У: "Y",
+  у: "y",
+  І: "I",
+  і: "i",
+  Ј: "J",
+  ј: "j",
+};
+
+export function normalizeProfanityText(text: string): string {
+  return text
+    .normalize("NFKC")
+    .replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g, "")
+    .replace(/[АаВЕеКкМНОоРрСсТтХхУуІіЈј]/g, (char) => CYRILLIC_CONFUSABLES[char] ?? char);
+}
+
 /**
  * Check text for profanity. Returns which words matched (if any).
  * Does NOT block — callers should log only.
@@ -33,7 +68,7 @@ const PROFANITY_REGEX = new RegExp(
 export function containsProfanity(text: string): { flagged: boolean; matches: string[] } {
   if (!text) return { flagged: false, matches: [] };
 
-  const found = text.match(PROFANITY_REGEX);
+  const found = normalizeProfanityText(text).match(PROFANITY_REGEX);
   if (!found || found.length === 0) return { flagged: false, matches: [] };
 
   // Deduplicate and lowercase

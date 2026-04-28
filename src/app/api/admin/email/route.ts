@@ -7,6 +7,7 @@ import { Resend } from "resend";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
+import { stripBidiControls } from "@/lib/sanitize";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
@@ -21,7 +22,10 @@ const Schema = z.object({
 });
 
 function safeSubject(subject: string) {
-  return subject.replace(/[\r\n]+/g, " ").replace(/[\x00-\x1F\x7F<>"'&]/g, "").trim();
+  return stripBidiControls(subject.normalize("NFKC"))
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
+    .trim();
 }
 
 function htmlToText(html: string) {

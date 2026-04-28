@@ -2,6 +2,7 @@
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { AccountAccessError } from "@/lib/ensureUser";
+import { sanitizeUserName } from "@/lib/sanitize";
 
 export async function ensureSeller() {
   const { userId } = await auth();
@@ -19,7 +20,7 @@ export async function ensureSeller() {
       u?.emailAddresses?.find(e => e.id === u.primaryEmailAddressId)?.emailAddress ??
       u?.emailAddresses?.[0]?.emailAddress ??
       "";
-    const name = u?.fullName ?? null;
+    const name = u?.fullName ? sanitizeUserName(u.fullName) || null : null;
     const imageUrl = u?.imageUrl ?? null;
 
     me = await prisma.user.create({
@@ -45,7 +46,7 @@ export async function ensureSeller() {
     seller = await prisma.sellerProfile.create({
       data: {
         userId: me.id,
-        displayName: me.name ?? me.email.split("@")[0],
+        displayName: sanitizeUserName(me.name ?? me.email.split("@")[0]) || "Maker",
       },
     });
   }
