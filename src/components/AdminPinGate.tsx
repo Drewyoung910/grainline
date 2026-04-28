@@ -15,15 +15,18 @@ export default function AdminPinGate({
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
-  const locked = Boolean(lockoutUntil && Date.now() < lockoutUntil);
-  const lockoutSeconds = lockoutUntil ? Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000)) : 0;
+  const locked = Boolean(lockoutUntil && now < lockoutUntil);
+  const lockoutSeconds = lockoutUntil ? Math.max(0, Math.ceil((lockoutUntil - now) / 1000)) : 0;
   const lockoutMinutes = Math.max(1, Math.ceil(lockoutSeconds / 60));
 
   useEffect(() => {
     if (!lockoutUntil) return;
     const id = window.setInterval(() => {
-      if (Date.now() >= lockoutUntil) {
+      const nextNow = Date.now();
+      setNow(nextNow);
+      if (nextNow >= lockoutUntil) {
         setLockoutUntil(null);
         setAttempts(0);
         setError(null);
@@ -53,6 +56,7 @@ export default function AdminPinGate({
           ? Date.now() + retryAfter * 1000
           : Date.now() + 15 * 60 * 1000;
         setLockoutUntil(until);
+        setNow(Date.now());
         setError(`Too many attempts. Try again in ${Math.max(1, Math.ceil((until - Date.now()) / 60000))} minutes.`);
       } else if (res.status === 503) {
         setError("Admin PIN is not configured.");

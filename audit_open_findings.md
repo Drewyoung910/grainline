@@ -60,6 +60,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **CI-enforced test baseline added.** `npm test` now runs in CI, and the first Node test suite covers signed shipping-rate HMAC behavior: same-buyer verification, cross-buyer replay rejection, tampered amount/context/postal rejection, expiry, and malformed tokens.
 - **Broader test backlog remains.** Payment/webhook/refund/account-state integration tests are still needed; this pass converts the audit item from "zero tests" to "baseline exists, expand coverage."
 
+## Round 25 Fix Status Notes
+
+- **Admin verification feedback tightened.** Guild Master approval now uses inline `ActionForm` state and reports exact server-side metric failures instead of silently no-oping when live eligibility fails.
+- **Admin PIN lockout countdown is live.** The PIN gate now updates its `Retry-After` countdown while the server lockout is active.
+- **Sentry filtering has regression tests.** New tests cover noisy browser/network drops plus redaction of auth/cookie headers, token query params, user email/IP, and nested event payloads.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.

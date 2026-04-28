@@ -5249,6 +5249,21 @@ This follow-up finished the known route-wide readable-link cleanup for app-gener
 - `npm test` ✅ (13 tests)
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
+## Audit Fix Pass — Admin Feedback Cleanup (2026-04-27)
+
+This pass closed two remaining admin feedback gaps without changing admin permissions or verification criteria.
+
+### Fixed in this pass
+- **Guild Master approval failures surface inline**: `/admin/verification` now uses the shared `ActionForm` for Guild Master approvals. If live metrics fail server-side, the pending application card shows the exact failed requirements instead of silently no-oping.
+- **Admin PIN lockout countdown updates live**: `AdminPinGate` now rerenders from the server `Retry-After` lockout clock instead of showing a static retry time until the lock expires.
+- **Stale follow-up notes removed**: older "still open" notes for Guild Member inline failures, multi-seller admin order display, Sentry filtering, and AdminPinGate timing were updated to match the current code.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (16 tests)
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.
@@ -5478,9 +5493,7 @@ This pass closed several Round 13 admin/dashboard UX and data-integrity findings
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ### Still open / next good passes
-- `approveGuildMember` should surface eligibility failure details directly in the pending application card.
-- Multi-seller admin order and flagged views still need a focused display pass.
-- GDPR export/deletion and Sentry filtering remain high-value next batches.
+- GDPR deletion retention policy and long-term outbox semantics remain high-value future batches.
 
 ## Audit Fix Pass — Case/Message Safety Sweep (2026-04-26)
 
@@ -5650,8 +5663,7 @@ This pass closed the shared-office lockout issue in the admin PIN verifier.
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ### Still open / next good passes
-- AdminPinGate UI still does not display Retry-After lockout timing.
-- Refund tax/reverse-transfer accounting decision.
+- Refund tax/reverse-transfer accounting is handled by marketplace split refunds; remaining refund work is limited to product decisions around partial line-item inventory.
 
 ## Audit Fix Pass — Notification Dedup + Saved Listing Visibility (2026-04-25)
 

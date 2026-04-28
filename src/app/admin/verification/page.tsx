@@ -47,6 +47,39 @@ function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMet
   };
 }
 
+function formatUsd(cents: number) {
+  return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+function guildMasterFailureDetails(
+  metrics: SellerMetricsResult,
+  criteria: ReturnType<typeof meetsGuildMasterRequirements>,
+) {
+  return [
+    !criteria.ratingMet
+      ? `${metrics.averageRating.toFixed(1)}/${GUILD_MASTER_REQUIREMENTS.averageRating} average rating`
+      : null,
+    !criteria.reviewsMet
+      ? `${metrics.reviewCount}/${GUILD_MASTER_REQUIREMENTS.reviewCount} reviews`
+      : null,
+    !criteria.shippingMet
+      ? `${(metrics.onTimeShippingRate * 100).toFixed(0)}%/${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}% on-time shipping`
+      : null,
+    !criteria.responseMet
+      ? `${(metrics.responseRate * 100).toFixed(0)}%/${GUILD_MASTER_REQUIREMENTS.responseRate * 100}% response rate`
+      : null,
+    !criteria.ageMet
+      ? `${metrics.accountAgeDays}/${GUILD_MASTER_REQUIREMENTS.accountAgeDays} account age days`
+      : null,
+    !criteria.salesMet
+      ? `${formatUsd(metrics.totalSalesCents)}/${formatUsd(GUILD_MASTER_REQUIREMENTS.totalSalesCents)} completed sales`
+      : null,
+    !criteria.casesMet
+      ? `${metrics.activeCaseCount} active case${metrics.activeCaseCount === 1 ? "" : "s"}`
+      : null,
+  ].filter(Boolean);
+}
+
 // ── Shared auth helper ──────────────────────────────────────────────────────
 async function requireAdmin() {
   const { userId } = await auth();
@@ -299,9 +332,10 @@ async function revokeMember(sellerProfileId: string) {
 }
 
 // ── Guild Master actions ─────────────────────────────────────────────────────
-async function approveGuildMaster(verificationId: string) {
+async function approveGuildMaster(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
   const me = await requireAdmin();
+  const verificationId = String(formData.get("verificationId") ?? "");
 
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },
@@ -313,8 +347,10 @@ async function approveGuildMaster(verificationId: string) {
       },
     },
   });
-  if (!verification) return;
-  if (verification.status !== "GUILD_MASTER_PENDING") return;
+  if (!verification) return { ok: false, error: "Application was not found. Refresh and try again." };
+  if (verification.status !== "GUILD_MASTER_PENDING") {
+    return { ok: false, error: "Application is no longer pending. Refresh this page." };
+  }
 
   const metrics = await calculateSellerMetrics(verification.sellerProfileId);
   const criteria = meetsGuildMasterRequirements(metrics);
@@ -327,7 +363,10 @@ async function approveGuildMaster(verificationId: string) {
       reason: "Server-side Guild Master metrics check failed",
       metadata: { metrics, criteria },
     });
-    return;
+    return {
+      ok: false,
+      error: `Approval blocked: ${guildMasterFailureDetails(metrics, criteria).join("; ")}.`,
+    };
   }
 
   const approvedAt = new Date();
@@ -344,7 +383,7 @@ async function approveGuildMaster(verificationId: string) {
     });
     return true;
   });
-  if (!approved) return;
+  if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
 
   await createNotification({
     userId: verification.sellerProfile.userId,
@@ -369,6 +408,7 @@ async function approveGuildMaster(verificationId: string) {
   await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: verification.sellerProfileId });
 
   revalidatePath("/admin/verification");
+  return { ok: true };
 }
 
 async function rejectGuildMaster(formData: FormData) {
@@ -828,7 +868,7 @@ export default async function AdminVerificationPage() {
                         { label: "On-Time Shipping", value: `${(m.onTimeShippingRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.onTimeShippingRate * 100}%`, met: mc.shippingMet },
                         { label: "Response Rate", value: `${(m.responseRate * 100).toFixed(0)}%`, req: `≥${GUILD_MASTER_REQUIREMENTS.responseRate * 100}%`, met: mc.responseMet },
                         { label: "Account Age", value: `${m.accountAgeDays}d`, req: `≥${GUILD_MASTER_REQUIREMENTS.accountAgeDays}d`, met: mc.ageMet },
-                        { label: "Total Sales", value: (m.totalSalesCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }), req: "≥$1,000", met: mc.salesMet },
+                        { label: "Total Sales", value: formatUsd(m.totalSalesCents), req: "≥$1,000", met: mc.salesMet },
                         { label: "Open Cases", value: String(m.activeCaseCount), req: "0", met: mc.casesMet },
                         { label: "Orders", value: String(m.completedOrderCount), req: "—", met: true },
                       ].map(({ label, value, req, met }) => (
@@ -849,11 +889,12 @@ export default async function AdminVerificationPage() {
                 )}
 
                 <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
-                  <form action={approveGuildMaster.bind(null, v.id)}>
-                    <button type="submit" className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600">
+                  <ActionForm action={approveGuildMaster}>
+                    <input type="hidden" name="verificationId" value={v.id} />
+                    <SubmitButton className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60">
                       Approve Guild Master
-                    </button>
-                  </form>
+                    </SubmitButton>
+                  </ActionForm>
                   <form action={rejectGuildMaster} className="flex items-start gap-2 flex-wrap">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <input

@@ -11,9 +11,9 @@ const NOISY_PATTERNS = [
   /Loading chunk \d+ failed/i,
 ];
 
-const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
+const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?address|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const TOKEN_QUERY_PATTERN = /([?&](?:token|signature|sig|code|session_id|client_secret)=)[^&\s]+/gi;
+const TOKEN_QUERY_PATTERN = /(^|[?&])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s]+/gi;
 
 function eventText(event: ErrorEvent, hint?: EventHint) {
   const exceptionValues = event.exception?.values?.map((value) => value.value).filter(Boolean).join(" ") ?? "";
@@ -29,7 +29,7 @@ function eventText(event: ErrorEvent, hint?: EventHint) {
 function scrubString(value: string) {
   return value
     .replace(EMAIL_PATTERN, "[redacted-email]")
-    .replace(TOKEN_QUERY_PATTERN, "$1[redacted]");
+    .replace(TOKEN_QUERY_PATTERN, "$1$2[redacted]");
 }
 
 function scrubValue(value: unknown, depth = 0): unknown {
