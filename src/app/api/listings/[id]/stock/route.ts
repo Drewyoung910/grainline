@@ -4,8 +4,9 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { createNotification } from "@/lib/notifications";
-import { sendBackInStock } from "@/lib/email";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { renderBackInStockEmail } from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
@@ -141,11 +142,17 @@ export async function PATCH(
                 body: "The piece you saved is available again",
                 link: publicListingPath(id, updated.title),
               });
-              if (sub.email) {
-                await sendBackInStock({
+              if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
+                const email = renderBackInStockEmail({
                   buyer: { name: sub.name, email: sub.email },
                   listingTitle: updated.title,
                   listingId: id,
+                });
+                await enqueueEmailOutbox({
+                  ...email,
+                  dedupKey: `back-in-stock:${id}:${sub.id}`,
+                  userId: sub.id,
+                  preferenceKey: "EMAIL_BACK_IN_STOCK",
                 });
               }
             });

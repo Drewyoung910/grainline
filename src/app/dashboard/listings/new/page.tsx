@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { sendFirstListingCongrats, sendNewListingFromFollowedMakerEmail } from "@/lib/email";
+import { renderNewListingFromFollowedMakerEmail, sendFirstListingCongrats } from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -393,12 +394,18 @@ async function createListing(_prevState: unknown, formData: FormData) {
         const emailRecipients = followers.filter((f) => f.follower?.email);
         await mapWithConcurrency(emailRecipients, 5, async (f) => {
           if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
-            await sendNewListingFromFollowedMakerEmail({
+            const email = renderNewListingFromFollowedMakerEmail({
               to: f.follower.email!,
               makerName: sellerDisplay,
               listingTitle: created.title,
               listingPrice,
               listingUrl,
+            });
+            await enqueueEmailOutbox({
+              ...email,
+              dedupKey: `followed-listing:${created.id}:${f.followerId}`,
+              userId: f.followerId,
+              preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
             });
           }
         });

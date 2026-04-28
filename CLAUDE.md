@@ -5854,5 +5854,32 @@ This pass closed codeable mobile/accessibility backlog items without changing ma
 
 ### Still open / next good passes
 - Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
-- Durable notification/email outbox semantics for very large follower fan-outs.
+- Extend outbox semantics beyond high-volume follower/back-in-stock fan-outs if payment/case/order email retry semantics become a product requirement.
+- Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
+
+## Audit Fix Pass — Email Outbox First Slice (2026-04-27)
+
+This pass adds durable delivery for the highest-volume email fan-outs without changing buyer checkout, refund, case, or order confirmation semantics.
+
+### Fixed in this pass
+- **EmailOutbox model added**: durable queued emails now persist recipient, optional user/preference context, subject, HTML body, dedup key, status, attempts, retry timing, and last error with indexes on drain and recipient history.
+- **Outbox drain cron added**: `/api/cron/email-outbox` runs under cron bearer auth and `CronRun` idempotency, claims due rows, drains up to 50 emails with concurrency 5, retries transient failures with capped exponential backoff, and marks repeated failures dead after 10 attempts.
+- **Rendered email helpers added**: back-in-stock and followed-maker-new-listing emails can now be rendered once, queued durably, and sent later through the existing suppression/account-state-aware email path.
+- **Follower new-listing fan-out queued**: listing publish fan-out now writes one deduped outbox row per follower email instead of trying to send every follower email inline.
+- **Back-in-stock fan-out queued**: stock restore fan-out keeps in-app notifications direct but queues subscriber emails with `back-in-stock:${listingId}:${subscriptionId}` dedup keys.
+- **Queued preference checks fail closed**: queued non-transactional email rows store the relevant notification preference key and are skipped at drain time if the recipient opts out before the cron sends the job.
+- **Transactional emails intentionally unchanged**: order/refund/case/payment emails remain direct because they are low-volume and often need immediate user feedback; extending the outbox there is a separate product/retry-semantics decision.
+
+### Verification
+- `npx prisma generate` ✅
+- `npx prisma validate` ✅
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm test` ✅ (21 tests)
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
+### Still open / next good passes
+- Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
+- Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
 - Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.

@@ -73,13 +73,22 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Location picker remains usable without WebGL.** Sellers can still search an address and submit coordinates when the map cannot initialize.
 - **Photo management touch targets improved.** Listing creation/edit photo remove, reorder, alt-text, and cover controls now meet 44px-equivalent sizing and wrap cleanly on narrow cards.
 
+## Round 27 Fix Status Notes
+
+- **Email outbox first slice added.** `EmailOutbox` now stores durable, deduped email jobs with user/preference context, retry status, attempts, next-attempt timing, sent timestamp, and last error.
+- **Outbox drain cron added.** `/api/cron/email-outbox` runs under cron auth plus `CronRun` idempotency and drains due email jobs with bounded concurrency and capped retry backoff.
+- **High-volume fan-out emails are queued.** Followed-maker new-listing emails and back-in-stock subscriber emails now enqueue outbox rows instead of sending every email inline.
+- **Preference changes before drain are respected.** Queued non-transactional emails are skipped if the stored email preference is disabled before the outbox cron sends them.
+- **Notifications remain direct.** In-app fan-out notifications still create directly so users see state immediately; this pass only moves email delivery off the request path.
+- **Transactional mail remains direct by design.** Order, refund, payment, and case emails were not moved into the outbox in this slice because they need separate retry/user-feedback semantics.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
 2. **Refund/payment race safety**: remove `"pending"` UI leaks, timestamp refund locks, serialize completed/expired webhooks, fix tax-refund accounting, add banned-seller checks in webhook order creation.
 3. **Moderation/listing state invariants**: block admin-removed listing resubmission, make edits/photos/variants fail closed to review, close active listing visibility windows during AI review.
 4. **Account-state enforcement**: banned/deleted users must not mutate messages, photos, follows, notification state, saved state, or checkout/webhook side effects.
-5. **Cron and notification scale**: paginate large cron jobs, batch destructive deletes, add idempotent cron run keys, implement durable notification/email queue or outbox.
+5. **Cron and notification scale**: paginate large cron jobs, batch destructive deletes, add idempotent cron run keys, and extend outbox semantics beyond the high-volume follower/back-in-stock email slice if needed.
 6. **GDPR/account deletion**: export endpoint, Stripe deauthorization, newsletter/email erasure, message/photo/order PII scrubbing, retention documentation.
 7. **Admin/dashboard correctness**: no-op actions must report errors, note caps, multi-seller math, audit filters, role separation for destructive actions.
 8. **SEO/search/performance polish**: slug/i18n handling, GIN/pg_trgm indexes, tag/search endpoint reuse, canonical/noindex decisions.

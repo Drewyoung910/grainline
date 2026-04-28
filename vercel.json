@@ -30,6 +30,10 @@
       "schedule": "30 7 * * *"
     },
     {
+      "path": "/api/cron/email-outbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/order-pii-prune",
       "schedule": "45 7 * * *"
     }

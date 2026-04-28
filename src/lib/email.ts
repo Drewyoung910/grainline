@@ -146,7 +146,13 @@ function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: n
   </table>`;
 }
 
-async function send(to: string, subject: string, html: string) {
+type RenderedEmail = {
+  to: string;
+  subject: string;
+  html: string;
+};
+
+async function send(to: string, subject: string, html: string, opts: { throwOnFailure?: boolean } = {}) {
   const sanitizedSubject = safeSubject(subject);
   const recipient = normalizeEmailAddress(to);
   if (!recipient) {
@@ -196,7 +202,12 @@ async function send(to: string, subject: string, html: string) {
   } catch (err) {
     console.error("[email] send failed:", err);
     Sentry.captureException(err, { tags: { source: "email_send" }, extra: { to: recipient, subject } });
+    if (opts.throwOnFailure) throw err;
   }
+}
+
+export async function sendRenderedEmail(email: RenderedEmail, opts: { throwOnFailure?: boolean } = {}) {
+  await send(email.to, email.subject, email.html, opts);
 }
 
 // ─── Transactional emails ────────────────────────────────────────────────────
@@ -447,11 +458,11 @@ export async function sendCustomOrderReady(opts: {
   await send(buyer.email, "Your custom piece is ready to purchase!", baseTemplate("Your Custom Piece is Ready", body));
 }
 
-export async function sendBackInStock(opts: {
+export function renderBackInStockEmail(opts: {
   buyer: { name?: string | null; email: string };
   listingTitle: string;
   listingId: string;
-}) {
+}): RenderedEmail {
   const { buyer, listingTitle, listingId } = opts;
   const name = buyer.name || "there";
   const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
@@ -462,7 +473,20 @@ export async function sendBackInStock(opts: {
     ${btn("Shop now", listingUrl)}
   `;
 
-  await send(buyer.email, `${safeSubject(listingTitle)} is back in stock!`, baseTemplate("Back in Stock", body));
+  return {
+    to: buyer.email,
+    subject: `${safeSubject(listingTitle)} is back in stock!`,
+    html: baseTemplate("Back in Stock", body),
+  };
+}
+
+export async function sendBackInStock(opts: {
+  buyer: { name?: string | null; email: string };
+  listingTitle: string;
+  listingId: string;
+}) {
+  const rendered = renderBackInStockEmail(opts);
+  await sendRenderedEmail(rendered);
 }
 
 export async function sendVerificationApproved(opts: {
@@ -685,14 +709,14 @@ export async function sendGuildMemberRevokedEmail(opts: {
 
 // ─── Following ────────────────────────────────────────────────────────────────
 
-export async function sendNewListingFromFollowedMakerEmail(opts: {
+export function renderNewListingFromFollowedMakerEmail(opts: {
   to: string;
   makerName: string;
   listingTitle: string;
   listingPrice: string;
   listingUrl: string;
   listingImageUrl?: string;
-}) {
+}): RenderedEmail {
   const { to, makerName, listingTitle, listingPrice, listingUrl, listingImageUrl } = opts;
 
   const validImgUrl = safeImgUrl(listingImageUrl);
@@ -708,7 +732,23 @@ export async function sendNewListingFromFollowedMakerEmail(opts: {
     ${btn("View Listing", listingUrl)}
   `;
 
-  await send(to, `${safeSubject(makerName)} just posted a new listing on Grainline`, baseTemplate("New Listing", body));
+  return {
+    to,
+    subject: `${safeSubject(makerName)} just posted a new listing on Grainline`,
+    html: baseTemplate("New Listing", body),
+  };
+}
+
+export async function sendNewListingFromFollowedMakerEmail(opts: {
+  to: string;
+  makerName: string;
+  listingTitle: string;
+  listingPrice: string;
+  listingUrl: string;
+  listingImageUrl?: string;
+}) {
+  const rendered = renderNewListingFromFollowedMakerEmail(opts);
+  await sendRenderedEmail(rendered);
 }
 
 export async function sendNewMessageEmail(opts: {
