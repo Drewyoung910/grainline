@@ -98,7 +98,20 @@ export default function FeedClient() {
       </div>
 
       {error && (
-        <div className="border border-red-200 bg-red-50 text-red-700 text-sm p-3 mb-4">{error}</div>
+        <div
+          role="alert"
+          className="flex flex-col gap-3 border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center justify-center border border-red-300 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+          >
+            {loading ? "Retrying..." : "Retry"}
+          </button>
+        </div>
       )}
 
       <div className="space-y-4">

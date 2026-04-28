@@ -5135,7 +5135,31 @@ This pass closed the schema finding that bounded strings were still stored as un
 - **Open backlog updated**: `audit_open_findings.md` now marks the bounded text-column finding fixed.
 
 ### Verification
-- Pending in current pass: `npx prisma validate`, TypeScript, lint, tests, and build.
+- `npx prisma validate` ✅
+- `npx prisma generate` ✅
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+- `npx vercel --prod` ✅ (`dpl_HiKxUzzQnuaCxKVAyfyzoyrtrMim`)
+
+## Audit Fix Pass — Feed Retry, COOP Popup Compatibility, Media URL Tests (2026-04-27)
+
+This pass closed the remaining code-actionable feed/COOP/media-test items from the medium/low backlog.
+
+### Fixed in this pass
+- **Feed load failures are actionable**: `/account/feed` now renders failed loads as an accessible alert with a retry button instead of a dead error message.
+- **COOP no longer blocks payment/auth popups**: `Cross-Origin-Opener-Policy` is now `same-origin-allow-popups`, preserving Stripe/Clerk popup compatibility while retaining opener isolation for non-popup windows.
+- **Media origin hardening is tested**: `tests/media-url.test.mjs` covers configured first-party media origins, legacy display origins, rejection of arbitrary `*.r2.dev`/lookalike hosts, trusted-display-only hosts, URL filtering, and R2 key extraction from configured public bases only.
+- **Open backlog updated**: `audit_open_findings.md` now marks feed retry and COOP/R2 recheck fixed, and updates the CI test baseline coverage.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (9 tests: shipping tokens + media URL/R2 key validation)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 

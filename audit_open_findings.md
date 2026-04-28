@@ -564,7 +564,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-27] Bounded text fields now have database-level `@db.VarChar(N)` caps and migration `20260427123000_bound_text_columns`. Long-form listing/blog/profile/policy bodies intentionally remain `Text`.
 - [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
-- [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner, and `tests/shipping-token.test.mjs` covers buyer-bound signed shipping-rate tokens, replay rejection, tampering, expiry, and malformed token handling. Expand next into payment/webhook/refund/account-state route tests.
+- [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner. Coverage now includes buyer-bound signed shipping-rate tokens and media URL/R2 key validation. Expand next into payment/webhook/refund/account-state route tests.
 - [FIXED 2026-04-26] `tsconfig` target is now ES2022 to avoid unnecessary downleveling; Next/Turbopack still handles final browser/server output.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
 - Sentry `beforeSend` filtering is missing. **Current state: Fixed.** Shared server/edge/client filter drops common browser/network noise and redacts cookies, auth headers, token query params, user email/IP, and email-like strings.
@@ -614,10 +614,10 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - `advanceStep` can race under concurrent submits; use a guarded `updateMany` with expected current step. **Current state: Fixed.**
 - [FIXED 2026-04-26] Loading skeleton coverage now exists for the main dynamic account, admin, blog, commission, dashboard, map, messages, seller, browse, and listing route groups.
 - [FIXED 2026-04-26] Remaining user-visible no-locale `toLocaleString`/`toLocaleDateString` calls in app/components were normalized to `en-US`.
-- COOP/CORP settings should be rechecked against Stripe popup and legacy `*.r2.dev` media behavior before hardening further.
+- [FIXED 2026-04-27] COOP is now `same-origin-allow-popups` to preserve Stripe/Clerk popup compatibility while retaining opener isolation for non-popup windows. R2 media behavior is covered by first-party/legacy-origin tests.
 - [FIXED 2026-04-26] Sitemap listing URLs are chunked via `generateSitemaps()` in 5K listing chunks with seller/listing safety filters and `updatedAt` last-modified values.
 - [FIXED 2026-04-26] `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters now have semantic controls, focus-visible coverage, or 44px-equivalent hit targets where applicable.
-- Follow/feed UI should add retry/error affordances and accessible loading states. **Current state: Partial.** FollowButton now updates optimistically and rolls back on API/network failure.
+- Follow/feed UI should add retry/error affordances and accessible loading states. **Current state: Fixed.** FollowButton updates optimistically and rolls back on API/network failure; feed load failures now render an accessible alert with a retry button.
 - [FIXED 2026-04-26] Cron schedules are documented as UTC in `CLAUDE.md` and `vercel.json`; Terms also define server-side deadlines as UTC.
 - [FIXED 2026-04-26] `/api/health` docs now match the dynamic deep health behavior for DB, Redis, and R2 checks.
 - [FIXED 2026-04-26] CSP report endpoint is IP rate-limited before forwarding high-signal script/frame violations to Sentry.
