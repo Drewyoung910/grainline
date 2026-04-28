@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
         createdAt: { gte: since },
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
         sellerRefundId: null,
+        paymentEvents: { none: { eventType: "REFUND" } },
       },
     },
     select: { id: true },

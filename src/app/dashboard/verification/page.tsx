@@ -44,6 +44,11 @@ async function getGuildMemberEligibility({
       WHERE l."sellerId" = ${sellerProfileId}
         AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
         AND o."sellerRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'REFUND'
+        )
     `,
     prisma.case.count({
       where: {

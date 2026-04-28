@@ -5911,3 +5911,24 @@ This pass closed a documentation/code mismatch around CI build enforcement and e
 - Add route/integration coverage for payment, webhook, refund, account-state, and account export paths.
 - Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
 - Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
+
+## Audit Fix Pass — Cached Guild Approval and External Refund Accounting (2026-04-28)
+
+This pass closes two live correctness gaps from the later audit rounds without changing public marketplace flows.
+
+### Fixed in this pass
+- **Admin Guild Master approval no longer recalculates live metrics**: `/admin/verification` now requires fresh cached `SellerMetrics` before rendering/enabling Guild Master approval. The server action also rejects missing or stale metrics instead of calling `calculateSellerMetrics()` on admin click.
+- **Seller metrics freshness helper added**: cache freshness is centralized in `src/lib/metricsFreshness.ts` with a seven-day freshness window and far-future timestamp rejection.
+- **External Stripe refunds excluded through the payment ledger**: because `Order` does not have a `chargeRefundId` field, all non-refunded-sales filters now use the durable `OrderPaymentEvent(eventType='REFUND')` ledger to exclude externally refunded Stripe orders.
+- **Refund-aware surfaces aligned**: Guild Member eligibility, Guild Master metrics, quality-score conversion counts, `SiteMetricsSnapshot`, seller analytics, review eligibility, homepage order stats, listing deletion gates, account deletion active-order gates, seller refund locks, case refund locks, fulfillment changes, and shipping-label purchase locks all exclude ledger-refunded orders.
+- **Regression coverage added**: `npm test` includes pure tests for seller metrics cache freshness.
+
+### Verification
+- `npm test` ✅ (43 tests)
+- `git diff --check` ✅
+
+### Still open / next good passes
+- Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
+- Add route/integration coverage for payment, webhook, refund, account-state, and account export paths.
+- Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
+- Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.

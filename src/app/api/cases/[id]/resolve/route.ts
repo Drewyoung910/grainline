@@ -129,7 +129,7 @@ export async function POST(
       }
 
       const lockResult = await prisma.order.updateMany({
-        where: { id: caseRecord.orderId, sellerRefundId: null },
+        where: { id: caseRecord.orderId, sellerRefundId: null, paymentEvents: { none: { eventType: "REFUND" } } },
         data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
       });
       if (lockResult.count === 0) {

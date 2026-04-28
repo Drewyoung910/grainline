@@ -228,6 +228,7 @@ export default async function HomePage() {
         where: {
           paidAt: { not: null },
           sellerRefundId: null,
+          paymentEvents: { none: { eventType: "REFUND" } },
           fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
         },
       }),

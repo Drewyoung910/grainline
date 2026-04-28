@@ -74,6 +74,11 @@ export async function POST(req: Request) {
         WHERE l."sellerId" = ${seller.id}
           AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
       `,
       prisma.case.count({
         where: {

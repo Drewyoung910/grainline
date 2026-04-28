@@ -27,6 +27,7 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
         buyerId: userId,
         fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
         sellerRefundId: null,
+        paymentEvents: { none: { eventType: "REFUND" } },
       },
     }),
     seller
@@ -34,6 +35,7 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
           where: {
             fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
             sellerRefundId: null,
+            paymentEvents: { none: { eventType: "REFUND" } },
             items: { some: { listing: { sellerId: seller.id } } },
           },
         })

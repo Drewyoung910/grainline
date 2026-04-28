@@ -119,7 +119,7 @@ export async function POST(
 
     // Atomic lock: claim refund slot to prevent double-refund race
     const lockResult = await prisma.order.updateMany({
-      where: { id: orderId, sellerRefundId: null },
+      where: { id: orderId, sellerRefundId: null, paymentEvents: { none: { eventType: "REFUND" } } },
       data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
     });
     if (lockResult.count === 0) {

@@ -37,6 +37,11 @@ export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapsho
           JOIN "Order" o ON o.id = oi."orderId"
           JOIN visible_listings vl ON vl.id = oi."listingId"
           WHERE o."sellerRefundId" IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM "OrderPaymentEvent" ope
+              WHERE ope."orderId" = o.id
+                AND ope."eventType" = 'REFUND'
+            )
             AND o."paidAt" IS NOT NULL
         ), 0) AS "totalOrders"
     `,

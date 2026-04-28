@@ -177,6 +177,11 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
       `,
@@ -226,7 +231,12 @@ export async function GET(req: Request) {
         prisma.orderItem.findMany({
           where: {
             listing: { sellerId },
-            order: { paidAt: { not: null }, sellerRefundId: null, createdAt: { gte: startDate, lte: endDate } },
+            order: {
+              paidAt: { not: null },
+              sellerRefundId: null,
+              paymentEvents: { none: { eventType: "REFUND" } },
+              createdAt: { gte: startDate, lte: endDate },
+            },
           },
           select: { listingId: true },
         }),
@@ -245,6 +255,11 @@ export async function GET(req: Request) {
       WHERE l."sellerId" = ${sellerId}
         AND o."paidAt" IS NOT NULL
         AND o."sellerRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'REFUND'
+        )
       GROUP BY o."buyerId"
     `;
     const totalBuyers = buyerRows.length;
@@ -262,6 +277,11 @@ export async function GET(req: Request) {
         AND o."shippedAt" IS NOT NULL
         AND o."paidAt" IS NOT NULL
         AND o."sellerRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'REFUND'
+        )
         AND o."createdAt" >= ${startDate}
         AND o."createdAt" <= ${endDate}
     `;
@@ -306,6 +326,11 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -342,6 +367,11 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -373,6 +403,11 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -410,6 +445,11 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           AND o."paidAt" IS NOT NULL
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" <= ${endDate}
         GROUP BY bucket
@@ -467,7 +507,14 @@ export async function GET(req: Request) {
         l."createdAt" AS created_at
       FROM "Listing" l
       LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
-      LEFT JOIN "Order" o ON o.id = oi."orderId" AND o."paidAt" IS NOT NULL AND o."sellerRefundId" IS NULL
+      LEFT JOIN "Order" o ON o.id = oi."orderId"
+        AND o."paidAt" IS NOT NULL
+        AND o."sellerRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'REFUND'
+        )
       WHERE l."sellerId" = ${sellerId}
       GROUP BY l.id, l.title, l."viewCount", l."clickCount", l."createdAt"
       ORDER BY total_revenue DESC

@@ -7,6 +7,7 @@ export async function softDeleteListingWithCleanup(listingId: string) {
       where: {
         items: { some: { listingId } },
         sellerRefundId: null,
+        paymentEvents: { none: { eventType: "REFUND" } },
         OR: [
           { fulfillmentStatus: { in: ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] } },
           { case: { is: { status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] } } } },

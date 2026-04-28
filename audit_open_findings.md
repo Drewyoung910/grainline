@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-04-27
+Last updated: 2026-04-28
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -99,6 +99,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Commission SEO/account-state alignment tightened.** Commission detail metadata and sitemap commission entries now exclude banned/deleted buyers through the same `openCommissionWhere()` account-state filter used by commission list pages.
 - **Unicode tag normalization centralized.** Listing tags, blog tags, saved-search tags, and the client tag input now share a Unicode-aware normalizer that preserves non-Latin tags, folds accented Latin text, strips bidi controls, dedupes normalized tags, and caps tag length. Blog slug preview now uses the same server slug generator used at save time.
 - **Test baseline expanded to 41 assertions.** Added pure coverage for Unicode tag normalization, non-Latin preservation, bidi stripping, length caps, and normalized dedupe behavior.
+
+## Round 30 Fix Status Notes
+
+- **Admin Guild Master approval no longer recalculates live metrics.** The admin list and approval action now require fresh cached `SellerMetrics` (seven-day window) and block approval with inline state when cached metrics are missing/stale, removing the last synchronous per-click metrics calculation from `/admin/verification`.
+- **Seller metrics cache freshness has pure tests.** Added a small Prisma-free helper and regression coverage for fresh, stale, invalid, and far-future metric timestamps.
+- **External Stripe refunds now disqualify sales consistently.** Guild eligibility, Guild Master metrics, quality-score conversion, site metrics snapshots, seller analytics, review eligibility, homepage order stats, active-order deletion/account-deletion gates, refund locks, fulfillment changes, and label purchase locks now exclude orders that have durable `OrderPaymentEvent` refund ledger entries, closing the older `chargeRefundId`/external-refund accounting gap without adding a nonexistent Prisma field.
 
 ## Recommended Fix Order
 

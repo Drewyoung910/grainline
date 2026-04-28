@@ -177,6 +177,7 @@ export async function POST(
       where: {
         id,
         sellerRefundId: null,
+        paymentEvents: { none: { eventType: "REFUND" } },
         ...(allowed ? { fulfillmentStatus: { in: allowed } } : {}),
         ...(action !== "update_notes"
           ? {

@@ -10,7 +10,8 @@ import {
   sendVerificationApproved,
   sendVerificationRejected,
 } from "@/lib/email";
-import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
+import { meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
+import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
@@ -128,7 +129,11 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
       WHERE l."sellerId" = ${verification.sellerProfileId}
         AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
         AND o."sellerRefundId" IS NULL
-        AND o."chargeRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'REFUND'
+        )
     `,
     prisma.case.count({
       where: {
@@ -372,9 +377,17 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     return { ok: false, error: "Application is no longer pending. Refresh this page." };
   }
 
-  const metrics = verification.sellerProfile.sellerMetrics
-    ? cachedMetricsToResult(verification.sellerProfileId, verification.sellerProfile.sellerMetrics)
-    : await calculateSellerMetrics(verification.sellerProfileId);
+  if (
+    !verification.sellerProfile.sellerMetrics ||
+    !isSellerMetricsFresh(verification.sellerProfile.sellerMetrics)
+  ) {
+    return {
+      ok: false,
+      error: "Cached Guild metrics are missing or stale. Ask the seller to refresh the verification page, or run the metrics cron, before approval.",
+    };
+  }
+
+  const metrics = cachedMetricsToResult(verification.sellerProfileId, verification.sellerProfile.sellerMetrics);
   const criteria = meetsGuildMasterRequirements(metrics);
   if (!criteria.allMet) {
     await logAdminAction({
@@ -699,7 +712,7 @@ export default async function AdminVerificationPage() {
 
   const masterMetricsMap = new Map<string, SellerMetricsResult>();
   for (const v of masterPending) {
-    if (v.sellerProfile.sellerMetrics) {
+    if (v.sellerProfile.sellerMetrics && isSellerMetricsFresh(v.sellerProfile.sellerMetrics)) {
       masterMetricsMap.set(v.id, cachedMetricsToResult(v.sellerProfile.id, v.sellerProfile.sellerMetrics));
     }
   }
@@ -874,11 +887,11 @@ export default async function AdminVerificationPage() {
                   )}
                 </div>
 
-                {/* ── Live metrics dashboard ── */}
+                {/* ── Cached metrics dashboard ── */}
                 {m && mc ? (
                   <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide">Live Metrics</p>
+                      <p className="text-xs font-semibold text-indigo-800 uppercase tracking-wide">Cached Metrics</p>
                       {mc.allMet
                         ? <span className="text-xs text-green-700 font-medium">✓ All requirements met</span>
                         : <span className="text-xs text-amber-700 font-medium">⚠ Some requirements not met</span>}
@@ -902,21 +915,33 @@ export default async function AdminVerificationPage() {
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10px] text-indigo-500 pt-1">Metrics calculated {m.calculatedAt.toLocaleDateString("en-US")} · {m.periodMonths}-month period</p>
+                    <p className="text-[10px] text-indigo-500 pt-1">
+                      Metrics calculated {m.calculatedAt.toLocaleDateString("en-US")} · {m.periodMonths}-month period · valid for {Math.round(SELLER_METRICS_MAX_AGE_MS / (24 * 60 * 60 * 1000))} days
+                    </p>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                    Cached Guild metrics are not available yet. Approval still recalculates live metrics before changing status.
+                    Cached Guild metrics are missing or stale. Approval is blocked until the seller refreshes their verification page or the metrics cron updates this profile.
                   </div>
                 )}
 
                 <div className="flex flex-wrap items-start gap-3 pt-2 border-t border-neutral-100">
-                  <ActionForm action={approveGuildMaster}>
-                    <input type="hidden" name="verificationId" value={v.id} />
-                    <SubmitButton className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60">
-                      Approve Guild Master
-                    </SubmitButton>
-                  </ActionForm>
+                  {m && mc ? (
+                    <ActionForm action={approveGuildMaster}>
+                      <input type="hidden" name="verificationId" value={v.id} />
+                      <SubmitButton className="rounded-lg bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60">
+                        Approve Guild Master
+                      </SubmitButton>
+                    </ActionForm>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="rounded-lg bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-500 disabled:cursor-not-allowed"
+                    >
+                      Approval unavailable
+                    </button>
+                  )}
                   <form action={rejectGuildMaster} className="flex items-start gap-2 flex-wrap">
                     <input type="hidden" name="verificationId" value={v.id} />
                     <input

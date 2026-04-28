@@ -90,6 +90,11 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       JOIN "Order" o ON o.id = oi."orderId"
       WHERE oi."listingId" = l.id
         AND o."sellerRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'REFUND'
+        )
     ) ord ON true
     LEFT JOIN LATERAL (
       SELECT COUNT(*) AS cnt,

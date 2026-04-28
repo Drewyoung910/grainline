@@ -85,6 +85,11 @@ export async function calculateSellerMetrics(
         WHERE l."sellerId" = ${sellerProfileId}
           AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
           AND o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
       `,
 
       prisma.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
@@ -93,6 +98,11 @@ export async function calculateSellerMetrics(
           COUNT(*) FILTER (WHERE o."shippedAt" <= o."processingDeadline")::bigint AS "onTimeCount"
         FROM "Order" o
         WHERE o."sellerRefundId" IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = o.id
+              AND ope."eventType" = 'REFUND'
+          )
           AND o."shippedAt" IS NOT NULL
           AND o."shippedAt" >= ${periodStart}
           AND o."processingDeadline" IS NOT NULL

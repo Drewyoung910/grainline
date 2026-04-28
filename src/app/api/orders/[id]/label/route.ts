@@ -313,6 +313,11 @@ export async function POST(
       WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
         AND "fulfillmentStatus" = 'PENDING'::"FulfillmentStatus"
         AND "sellerRefundId" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = "Order".id
+            AND ope."eventType" = 'REFUND'
+        )
     `;
     if (labelLockResult === 0) {
       return NextResponse.json({ error: "Label already purchased or order status changed." }, { status: 400 });
