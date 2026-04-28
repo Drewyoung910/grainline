@@ -5863,7 +5863,7 @@ This pass adds durable delivery for the highest-volume email fan-outs without ch
 
 ### Fixed in this pass
 - **EmailOutbox model added**: durable queued emails now persist recipient, optional user/preference context, subject, HTML body, dedup key, status, attempts, retry timing, and last error with indexes on drain and recipient history.
-- **Outbox drain cron added**: `/api/cron/email-outbox` runs under cron bearer auth and `CronRun` idempotency, claims due rows, drains up to 50 emails with concurrency 5, retries transient failures with capped exponential backoff, and marks repeated failures dead after 10 attempts.
+- **Outbox drain cron added**: `/api/cron/email-outbox` runs under cron bearer auth and `CronRun` idempotency, claims due rows, drains up to 50 emails with concurrency 5, retries transient failures with capped exponential backoff, recovers jobs stuck in `PROCESSING` for more than 10 minutes, and marks repeated failures dead after 10 attempts.
 - **Rendered email helpers added**: back-in-stock and followed-maker-new-listing emails can now be rendered once, queued durably, and sent later through the existing suppression/account-state-aware email path.
 - **Follower new-listing fan-out queued**: listing publish fan-out now writes one deduped outbox row per follower email instead of trying to send every follower email inline.
 - **Back-in-stock fan-out queued**: stock restore fan-out keeps in-app notifications direct but queues subscriber emails with `back-in-stock:${listingId}:${subscriptionId}` dedup keys.

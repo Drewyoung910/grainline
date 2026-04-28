@@ -9,6 +9,7 @@ import { shouldSendEmail } from "@/lib/notifications";
 const MAX_ATTEMPTS = 10;
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 5;
+const PROCESSING_STALE_MS = 10 * 60 * 1000;
 
 export type QueuedEmail = {
   to: string;
@@ -64,10 +65,19 @@ export async function processEmailOutboxBatch({
   concurrency?: number;
 } = {}) {
   const now = new Date();
+  const staleProcessingCutoff = new Date(now.getTime() - PROCESSING_STALE_MS);
   const jobs = await prisma.emailOutbox.findMany({
     where: {
-      status: { in: ["PENDING", "FAILED"] },
-      nextAttemptAt: { lte: now },
+      OR: [
+        {
+          status: { in: ["PENDING", "FAILED"] },
+          nextAttemptAt: { lte: now },
+        },
+        {
+          status: "PROCESSING",
+          updatedAt: { lt: staleProcessingCutoff },
+        },
+      ],
     },
     orderBy: { createdAt: "asc" },
     take,
@@ -81,8 +91,16 @@ export async function processEmailOutboxBatch({
     const claimed = await prisma.emailOutbox.updateMany({
       where: {
         id: job.id,
-        status: { in: ["PENDING", "FAILED"] },
-        nextAttemptAt: { lte: new Date() },
+        OR: [
+          {
+            status: { in: ["PENDING", "FAILED"] },
+            nextAttemptAt: { lte: new Date() },
+          },
+          {
+            status: "PROCESSING",
+            updatedAt: { lt: staleProcessingCutoff },
+          },
+        ],
       },
       data: {
         status: "PROCESSING",
