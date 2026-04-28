@@ -2,6 +2,8 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState, useMemo } from "react";
 import maplibregl from "maplibre-gl";
+import MapFallback from "@/components/MapFallback";
+import { maplibreSupported } from "@/lib/mapSupport";
 
 export default function LocationPicker({
   defaultLat,
@@ -23,6 +25,7 @@ export default function LocationPicker({
   const [miles, setMiles] = useState<number>(
     defaultRadiusMeters ? Math.round(defaultRadiusMeters / 1609.34) : 0
   );
+  const [mapUnavailable, setMapUnavailable] = useState(false);
   const meters = miles > 0 ? Math.round(miles * 1609.34) : 0;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,14 +63,25 @@ export default function LocationPicker({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    setMapUnavailable(false);
+    if (!maplibreSupported(maplibregl)) {
+      setMapUnavailable(true);
+      return;
+    }
     const [startLat, startLng] = start;
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: "https://tiles.openfreemap.org/styles/liberty",
-      center: [startLng, startLat],
-      zoom: 11,
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center: [startLng, startLat],
+        zoom: 11,
+      });
+    } catch {
+      setMapUnavailable(true);
+      return;
+    }
 
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -182,12 +196,21 @@ export default function LocationPicker({
         </button>
       </div>
 
-      <div className="rounded-xl overflow-hidden border border-neutral-200">
-        <div ref={containerRef} style={{ height: 260, width: "100%" }} />
-      </div>
+      {mapUnavailable ? (
+        <MapFallback
+          className="min-h-[260px] w-full rounded-xl border border-neutral-200"
+          message="Map picker is unavailable because WebGL is disabled or unsupported. Search an address to set the coordinates."
+          lat={pos[0]}
+          lng={pos[1]}
+        />
+      ) : (
+        <div className="rounded-xl overflow-hidden border border-neutral-200">
+          <div ref={containerRef} style={{ height: 260, width: "100%" }} />
+        </div>
+      )}
 
       <div className="text-sm text-neutral-600">
-        Drag the pin or click the map to set your pickup location.
+        {mapUnavailable ? "Search an address to set your pickup location." : "Drag the pin or click the map to set your pickup location."}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

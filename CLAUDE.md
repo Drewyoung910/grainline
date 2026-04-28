@@ -5834,3 +5834,25 @@ This pass closed two small confirmed high-risk items from the Round 16-18 verifi
 
 ### Still open / next good passes
 - Refund `"pending"` UI/lock cleanup and broader refund race fixes.
+
+## Audit Fix Pass — Map Fallback and Photo Touch Targets (2026-04-27)
+
+This pass closed codeable mobile/accessibility backlog items without changing marketplace flows or data models.
+
+### Fixed in this pass
+- **MapLibre WebGL fallback**: `MapCard`, `MaplibreMap`, `SellersMap`, `AllSellersMap`, and `LocationPicker` now detect unsupported/blocked WebGL through a typed support wrapper and render a first-party fallback instead of a blank map.
+- **Fallbacks keep navigation useful**: read-only map fallbacks show approximate coordinates plus OpenStreetMap links; seller map fallbacks expose top seller links; the location picker tells sellers to use address search when the map cannot initialize.
+- **Map constructor failures fail visibly**: map components catch construction failures and switch to fallback UI instead of leaving an empty container.
+- **Photo management controls are touch-sized**: listing creation and listing edit photo controls now use 44px-equivalent remove/reorder/alt/cover buttons with explicit ARIA labels.
+- **Photo controls avoid mobile overflow**: reorder/action rows wrap on narrow cards instead of squeezing small buttons into a single line.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (21 tests)
+
+### Still open / next good passes
+- Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
+- Durable notification/email outbox semantics for very large follower fan-outs.
+- Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.

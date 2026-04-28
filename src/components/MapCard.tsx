@@ -1,8 +1,10 @@
 // src/components/MapCard.tsx
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
+import MapFallback from "@/components/MapFallback";
+import { maplibreSupported } from "@/lib/mapSupport";
 
 // --- deterministic PRNG so jitter stays stable per seed ---
 function xmur3(str: string) {
@@ -66,9 +68,16 @@ export default function MapCard({
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    setMapUnavailable(false);
+
+    if (!maplibreSupported(maplibregl)) {
+      setMapUnavailable(true);
+      return;
+    }
 
     let displayLat = lat;
     let displayLng = lng;
@@ -78,13 +87,19 @@ export default function MapCard({
       displayLng = jittered.lng;
     }
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: "https://tiles.openfreemap.org/styles/liberty",
-      center: [displayLng, displayLat],
-      zoom: radiusMeters ? Math.max(9, 14 - Math.log2(radiusMeters / 100)) : 13,
-      // interactive defaults to true — pan and zoom enabled
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center: [displayLng, displayLat],
+        zoom: radiusMeters ? Math.max(9, 14 - Math.log2(radiusMeters / 100)) : 13,
+        // interactive defaults to true — pan and zoom enabled
+      });
+    } catch {
+      setMapUnavailable(true);
+      return;
+    }
 
     map.scrollZoom.disable(); // prevent scroll hijacking on page
     map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -138,10 +153,17 @@ export default function MapCard({
     return () => map.remove();
   }, [lat, lng, radiusMeters, showPinWithRadius, seed, label]);
 
-  return (
-    <div
-      ref={containerRef}
-      className={className ?? "h-48 w-full rounded-xl border border-neutral-200 overflow-hidden"}
-    />
-  );
+  const resolvedClassName = className ?? "h-48 w-full rounded-xl border border-neutral-200 overflow-hidden";
+  if (mapUnavailable) {
+    return (
+      <MapFallback
+        className={resolvedClassName}
+        lat={lat}
+        lng={lng}
+        message="Map preview is unavailable because WebGL is disabled or unsupported."
+      />
+    );
+  }
+
+  return <div ref={containerRef} className={resolvedClassName} />;
 }

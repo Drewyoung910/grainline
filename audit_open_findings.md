@@ -67,6 +67,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Sentry filtering has regression tests.** New tests cover noisy browser/network drops plus redaction of auth/cookie headers, token query params, user email/IP, and nested event payloads.
 - **Test baseline expanded to 21 assertions.** Cron bearer auth and listing variant pricing/selection helpers now have pure unit coverage.
 
+## Round 26 Fix Status Notes
+
+- **Map no-WebGL fallback added.** All MapLibre map surfaces now detect unsupported/blocked WebGL and render useful fallback UI instead of blank containers.
+- **Location picker remains usable without WebGL.** Sellers can still search an address and submit coordinates when the map cannot initialize.
+- **Photo management touch targets improved.** Listing creation/edit photo remove, reorder, alt-text, and cover controls now meet 44px-equivalent sizing and wrap cleanly on narrow cards.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
@@ -625,6 +631,8 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-27] COOP is now `same-origin-allow-popups` to preserve Stripe/Clerk popup compatibility while retaining opener isolation for non-popup windows. R2 media behavior is covered by first-party/legacy-origin tests.
 - [FIXED 2026-04-26] Sitemap listing URLs are chunked via `generateSitemaps()` in 5K listing chunks with seller/listing safety filters and `updatedAt` last-modified values.
 - [FIXED 2026-04-26] `BuyNowButton`, gallery controls, attachment remove buttons, and mobile filters now have semantic controls, focus-visible coverage, or 44px-equivalent hit targets where applicable.
+- [FIXED 2026-04-27] MapLibre surfaces now render first-party fallback UI when WebGL is disabled/unsupported instead of leaving blank maps.
+- [FIXED 2026-04-27] Listing create/edit photo management controls now have 44px-equivalent remove/reorder/alt/cover targets with ARIA labels and wrapping action rows.
 - Follow/feed UI should add retry/error affordances and accessible loading states. **Current state: Fixed.** FollowButton updates optimistically and rolls back on API/network failure; feed load failures now render an accessible alert with a retry button.
 - [FIXED 2026-04-26] Cron schedules are documented as UTC in `CLAUDE.md` and `vercel.json`; Terms also define server-side deadlines as UTC.
 - [FIXED 2026-04-26] `/api/health` docs now match the dynamic deep health behavior for DB, Redis, and R2 checks.

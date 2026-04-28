@@ -1,8 +1,10 @@
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
+import MapFallback from "@/components/MapFallback";
+import { maplibreSupported } from "@/lib/mapSupport";
 
 type SellerPin = {
   id: string;
@@ -15,6 +17,7 @@ type SellerPin = {
 
 export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
 
   const center: [number, number] = useMemo(
     () => (sellers.length ? [sellers[0].lng, sellers[0].lat] : [-98.35, 39.5]),
@@ -23,13 +26,24 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    setMapUnavailable(false);
+    if (!maplibreSupported(maplibregl)) {
+      setMapUnavailable(true);
+      return;
+    }
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: "https://tiles.openfreemap.org/styles/liberty",
-      center,
-      zoom: sellers.length ? 8 : 4,
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center,
+        zoom: sellers.length ? 8 : 4,
+      });
+    } catch {
+      setMapUnavailable(true);
+      return;
+    }
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
@@ -66,6 +80,21 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
     return () => map.remove();
   }, [sellers, center]);
+
+  if (mapUnavailable) {
+    return (
+      <MapFallback
+        className="min-h-[320px] w-full rounded-xl border border-neutral-200"
+        message="Map is unavailable because WebGL is disabled or unsupported."
+        lat={sellers[0]?.lat}
+        lng={sellers[0]?.lng}
+        links={sellers.slice(0, 6).map((seller) => ({
+          href: publicSellerPath(seller.id, seller.name),
+          label: seller.name,
+        }))}
+      />
+    );
+  }
 
   return (
     <div className="rounded-xl overflow-hidden border">

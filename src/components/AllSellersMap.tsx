@@ -1,9 +1,11 @@
 // src/components/AllSellersMap.tsx
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
+import MapFallback from "@/components/MapFallback";
+import { maplibreSupported } from "@/lib/mapSupport";
 
 type Point = {
   id: string;
@@ -28,20 +30,32 @@ export default function AllSellersMap({
   height = 520,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    setMapUnavailable(false);
+    if (!maplibreSupported(maplibregl)) {
+      setMapUnavailable(true);
+      return;
+    }
 
     const center: [number, number] = initialCenter
       ? [initialCenter.lng, initialCenter.lat]
       : [-96, 38];
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: "https://tiles.openfreemap.org/styles/liberty",
-      center,
-      zoom: initialZoom,
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        center,
+        zoom: initialZoom,
+      });
+    } catch {
+      setMapUnavailable(true);
+      return;
+    }
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
@@ -184,6 +198,21 @@ export default function AllSellersMap({
       map.remove();
     };
   }, [points, initialCenter, initialZoom]);
+
+  if (mapUnavailable) {
+    return (
+      <MapFallback
+        className="w-full rounded-xl border border-neutral-200"
+        message="Map is unavailable because WebGL is disabled or unsupported."
+        lat={initialCenter?.lat ?? points[0]?.lat}
+        lng={initialCenter?.lng ?? points[0]?.lng}
+        links={points.slice(0, 8).map((point) => ({
+          href: publicSellerPath(point.id, point.name),
+          label: point.name,
+        }))}
+      />
+    );
+  }
 
   return <div ref={containerRef} style={{ height, width: "100%" }} />;
 }

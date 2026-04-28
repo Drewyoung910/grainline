@@ -159,8 +159,9 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                 <button
                   type="button"
                   onClick={() => remove(i)}
-                  className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80 transition-colors"
+                  className="absolute right-2 top-2 flex min-h-11 min-w-11 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/85 transition-colors"
                   title="Remove photo"
+                  aria-label={`Remove photo ${i + 1}`}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -170,14 +171,15 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               </div>
 
               {/* Bottom controls */}
-              <div className="p-2 flex items-center justify-between text-xs" draggable={false}>
-                <div className="flex items-center gap-1">
+              <div className="p-2 flex flex-wrap items-center gap-2 text-xs" draggable={false}>
+                <div className="flex flex-wrap items-center gap-1">
                   <button
                     type="button"
                     onClick={() => moveUp(i)}
                     disabled={i === 0}
-                    className="rounded border border-neutral-200 px-1.5 py-0.5 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="min-h-11 min-w-11 rounded border border-neutral-200 px-2 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move left"
+                    aria-label={`Move photo ${i + 1} left`}
                   >
                     ←
                   </button>
@@ -185,8 +187,9 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                     type="button"
                     onClick={() => moveDown(i)}
                     disabled={i === photos.length - 1}
-                    className="rounded border border-neutral-200 px-1.5 py-0.5 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="min-h-11 min-w-11 rounded border border-neutral-200 px-2 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move right"
+                    aria-label={`Move photo ${i + 1} right`}
                   >
                     →
                   </button>
@@ -195,8 +198,9 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                   <button
                     type="button"
                     onClick={() => setAltModalIdx(i)}
-                    className="rounded border border-neutral-200 px-2 py-0.5 hover:bg-neutral-50"
+                    className="min-h-11 rounded border border-neutral-200 px-3 hover:bg-neutral-50"
                     title="Edit alt text"
+                    aria-label={`Edit alt text for photo ${i + 1}`}
                   >
                     {photo.altText ? "Alt ✓" : "Alt"}
                   </button>
@@ -204,7 +208,8 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                     <button
                       type="button"
                       onClick={() => makeCover(i)}
-                      className="rounded border border-neutral-200 px-2 py-0.5 hover:bg-neutral-50"
+                      className="min-h-11 rounded border border-neutral-200 px-3 hover:bg-neutral-50"
+                      aria-label={`Make photo ${i + 1} the cover photo`}
                     >
                       Cover
                     </button>
