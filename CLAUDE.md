@@ -1696,13 +1696,14 @@ Added to `NotificationType` enum. Sent to seller on admin approve/reject. `creat
 - **Full audit (2026-04-15)**: 15 status-change locations found. All 4 seller-accessible paths to ACTIVE check for REJECTED. Admin paths (approve, undo) intentionally bypass.
 
 ### `reviewListingWithAI` (`src/lib/ai-review.ts`)
-- **Model**: gpt-4o-mini with vision, temperature 0.1, max 300 tokens
+- **Model**: gpt-4o-mini with vision, temperature 0.1, max 700 tokens, OpenAI strict JSON schema response format
+- **Prompt-injection hardening**: moderation policy is sent as the system message; seller-submitted listing fields are sent separately in a delimited user message and are treated only as data. The response is constrained with `response_format: { type: "json_schema", strict: true }` and normalized again before use.
 - **Text review**: 13 explicit prohibited categories (counterfeit goods, unlicensed IP like Disney/Marvel/sports logos, regulated goods like firearms/tobacco/cannabis/Rx, weapons as weapons, adult content, hate symbols, protected species, medical claims, services disguised as goods, digital-only, mass-produced/dropshipped, scams/spam, non-woodworking primary goods)
 - **Image review** (strict mode): up to 4 images at `detail: "low"` (~85 tokens/image). Rejects: graphics/logos/SVGs/clipart instead of product photos, headshots/portraits without visible product, stock photos, mismatched product images, sexualized content. Single-image listings rejected if image doesn't clearly show described product. When in doubt: reject (seller can resubmit with proper photos). Includes worked examples of both violations and valid listings in prompt.
 - **Description quality**: under 20 chars or no product info → flag `low-quality-description` (new sellers get pass); 3+ listings with very low quality → reject; missing description → always reject.
-- **Signature**: optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing. Returns `{ approved, flags, confidence, reason }`.
+- **Signature**: optional `imageUrls?: string[]` param — backward compatible; callers pass first 4 photo URLs from listing. Returns `{ approved, flags, confidence, reason, altTexts }`.
 - **Leniency**: 0-2 listing count = benefit of doubt on borderline cases, 3+ = standard strictness. Always reject clear violations regardless of seller experience.
-- **Fallback**: returns `approved: true` on any error (API down, rate limit, no key) with manual review flag. Gracefully returns `{ approved: true, confidence: 1 }` if `OPENAI_API_KEY` env var is missing.
+- **Fallback**: fails closed. Missing `OPENAI_API_KEY`, OpenAI/API errors, parse errors, and invalid schema responses return `approved: false`, `confidence: 0`, and manual-review flags so listings remain held for admin review.
 - **Error logging**: `console.error` on catch for debugging
 - **Cost**: ~$0.0006 per listing with 4 images (~85 tokens per low-detail image)
 - **Callers**: `dashboard/listings/new/page.tsx` (passes `imageUrls.slice(0, 4)` from form data) and `seller/[id]/shop/actions.ts` (`publishListingAction` — fetches first 4 photos via `prisma.photo.findMany`)
