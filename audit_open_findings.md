@@ -564,6 +564,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-27] Bounded text fields now have database-level `@db.VarChar(N)` caps and migration `20260427123000_bound_text_columns`. Long-form listing/blog/profile/policy bodies intentionally remain `Text`.
 - [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
+- [FIXED 2026-04-27] CI now declares the production-like secret surface needed by build/test paths, including Stripe, Clerk, R2 aliases, Upstash, Resend, unsubscribe, Sentry, admin, and cron env vars.
 - [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner. Coverage now includes buyer-bound signed shipping-rate tokens and media URL/R2 key validation. Expand next into payment/webhook/refund/account-state route tests.
 - [FIXED 2026-04-26] `tsconfig` target is now ES2022 to avoid unnecessary downleveling; Next/Turbopack still handles final browser/server output.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.

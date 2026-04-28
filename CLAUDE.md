@@ -5161,6 +5161,19 @@ This pass closed the remaining code-actionable feed/COOP/media-test items from t
 - `npm test` ✅ (9 tests: shipping tokens + media URL/R2 key validation)
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
+## Audit Fix Pass — CI Environment Parity (2026-04-27)
+
+This pass tightened GitHub Actions around the now-larger build/test surface.
+
+### Fixed in this pass
+- **CI declares the app's build/test secret surface**: `.github/workflows/ci.yml` now passes database, Clerk, Stripe, R2 public/private aliases, Upstash, Shippo, Resend, unsubscribe, OpenAI, admin, cron, Sentry, and app URL environment variables into the check job.
+- **Postinstall remains disabled in CI install**: `npm ci --ignore-scripts` stays in place; Prisma generation runs explicitly in the next step.
+- **Open backlog updated**: `audit_open_findings.md` now records CI env parity as fixed.
+
+### Verification
+- `git diff --check` ✅
+- CI env parity smoke check ✅
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.
