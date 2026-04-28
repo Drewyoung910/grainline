@@ -47,6 +47,9 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   ): string | null {
     const raw = toNull(v);
     if (!raw) return null;
+    if (raw.length > 2048) {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
     let parsed: URL;
     try {
       parsed = new URL(raw);
@@ -68,6 +71,9 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   function normalizeR2ImageUrl(v: FormDataEntryValue | null): string | null {
     const raw = toNull(v);
     if (!raw) return null;
+    if (raw.length > 2048) {
+      redirect("/dashboard/profile?warning=invalid-url");
+    }
     if (!isR2PublicUrl(raw)) {
       redirect("/dashboard/profile?warning=invalid-url");
     }
@@ -80,11 +86,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   if (!displayName) return { ok: false, error: "Display name is required." };
 
   const taglineRaw = toNull(formData.get("tagline"));
-  const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
+  const tagline = taglineRaw ? sanitizeText(taglineRaw).slice(0, 140) : null;
   const bioRaw = toNull(formData.get("bio"));
   const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
   const storyTitleRaw = toNull(formData.get("storyTitle"));
-  const storyTitle = storyTitleRaw ? sanitizeText(storyTitleRaw) : null;
+  const storyTitle = storyTitleRaw ? sanitizeText(storyTitleRaw).slice(0, 200) : null;
   const storyBodyRaw = toNull(formData.get("storyBody"));
   const storyBody = storyBodyRaw ? sanitizeRichText(storyBodyRaw) : null;
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
@@ -173,8 +179,8 @@ async function addFaq(formData: FormData) {
   if (!userId) return;
   const { seller } = await ensureSeller();
 
-  const question = (String(formData.get("question") ?? "")).trim();
-  const answer = (String(formData.get("answer") ?? "")).trim();
+  const question = sanitizeText(String(formData.get("question") ?? "")).slice(0, 200).trim();
+  const answer = sanitizeRichText(String(formData.get("answer") ?? "")).slice(0, 2000).trim();
   if (!question || !answer) return;
 
   const last = await prisma.sellerFaq.findFirst({

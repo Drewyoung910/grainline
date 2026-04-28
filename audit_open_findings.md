@@ -66,6 +66,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Admin PIN lockout countdown is live.** The PIN gate now updates its `Retry-After` countdown while the server lockout is active.
 - **Sentry filtering has regression tests.** New tests cover noisy browser/network drops plus redaction of auth/cookie headers, token query params, user email/IP, and nested event payloads.
 - **Test baseline expanded to 21 assertions.** Cron bearer auth and listing variant pricing/selection helpers now have pure unit coverage.
+- **DB-bound user text caps extended.** Message attachment metadata, seller settings ship-from fields, richer profile tagline/story/FAQ fields, and admin verification review notes now sanitize and cap before Prisma writes, closing remaining varchar/P2000 paths from the Unicode/input pass.
 
 ## Round 26 Fix Status Notes
 

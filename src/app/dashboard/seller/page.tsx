@@ -15,7 +15,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
-import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeRichText, sanitizeUserName } from "@/lib/sanitize";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { publicSellerShopPath } from "@/lib/publicPaths";
@@ -23,6 +23,10 @@ import { publicSellerShopPath } from "@/lib/publicPaths";
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
   return s === "" || s === undefined ? null : s;
+}
+function shortText(v: unknown, maxLength: number) {
+  const s = typeof v === "string" ? sanitizeText(v).slice(0, maxLength).trim() : "";
+  return s || null;
 }
 function toFloat(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -39,9 +43,9 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   const { seller } = await ensureSeller();
 
-  const displayName = sanitizeText(String(formData.get("displayName") ?? "").trim());
-  const city = toNull(formData.get("city"));
-  const state = toNull(formData.get("state"));
+  const displayName = sanitizeUserName(String(formData.get("displayName") ?? "").trim());
+  const city = shortText(formData.get("city"), 100);
+  const state = shortText(formData.get("state"), 50);
   const bioRaw = toNull(formData.get("bio"));
   const bio = bioRaw ? sanitizeRichText(String(bioRaw)) : null;
 
@@ -69,13 +73,13 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   }
 
   // Ship-from address
-  const shipFromName = toNull(formData.get("shipFromName"));
-  const shipFromLine1 = toNull(formData.get("shipFromLine1"));
-  const shipFromLine2 = toNull(formData.get("shipFromLine2"));
-  const shipFromCity = toNull(formData.get("shipFromCity"));
-  const shipFromState = toNull(formData.get("shipFromState"));
-  const shipFromPostal = toNull(formData.get("shipFromPostal"));
-  const shipFromCountry = toNull(formData.get("shipFromCountry")) ?? "US";
+  const shipFromName = shortText(formData.get("shipFromName"), 100);
+  const shipFromLine1 = shortText(formData.get("shipFromLine1"), 200);
+  const shipFromLine2 = shortText(formData.get("shipFromLine2"), 200);
+  const shipFromCity = shortText(formData.get("shipFromCity"), 100);
+  const shipFromState = shortText(formData.get("shipFromState"), 50);
+  const shipFromPostal = shortText(formData.get("shipFromPostal"), 20);
+  const shipFromCountry = shortText(formData.get("shipFromCountry"), 2)?.toUpperCase() ?? "US";
 
   // Preferred carriers
   const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);

@@ -14,8 +14,9 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import Link from "next/link";
 import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
 import BlockReportButton from "@/components/BlockReportButton";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { normalizeMessageAttachments } from "@/lib/messageAttachments";
 import { publicListingPath } from "@/lib/publicPaths";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 
 export default async function ThreadPage({
   params,
@@ -105,12 +106,7 @@ export default async function ThreadPage({
     if (!rlOk) return { ok: false, error: "You're sending messages too quickly. Please wait a moment." };
 
     const body = String(formData.get("body") ?? "").trim().slice(0, 2000);
-    const raw = String(formData.get("attachments") ?? "[]");
-    let atts: Array<{ url: string; name?: string; type?: string }> = [];
-    try {
-      atts = JSON.parse(raw);
-      if (!Array.isArray(atts)) atts = [];
-    } catch {}
+    const atts = normalizeMessageAttachments(String(formData.get("attachments") ?? "[]"), isR2PublicUrl);
 
     // Profanity check (log-only)
     if (body) {
@@ -142,13 +138,11 @@ export default async function ThreadPage({
 
     // 1) attachments -> each as its own message (JSON payload in body)
     for (const a of atts) {
-      if (!a?.url) continue;
-      if (!isR2PublicUrl(a.url)) continue;
       const payload = JSON.stringify({
         kind: "file",
         url: a.url,
-        name: a.name ?? null,
-        type: a.type ?? null,
+        name: a.name,
+        type: a.type,
       });
       await prisma.message.create({
         data: { conversationId: id, senderId: me.id, recipientId, body: payload },
@@ -363,6 +357,4 @@ export default async function ThreadPage({
     </main>
   );
 }
-
-
 
