@@ -4,6 +4,7 @@ import type { MetadataRoute } from "next";
 import { CommissionStatus } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 
 const BASE_URL = "https://thegrainline.com";
 const SITEMAP_ENTRY_LIMIT = 50_000;
@@ -19,14 +20,14 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   if (id > 0) {
     const listings = await prisma.listing.findMany({
       where: publicListingWhere(),
-      select: { id: true, updatedAt: true },
+      select: { id: true, title: true, updatedAt: true },
       orderBy: { id: "asc" },
       skip: (id - 1) * SITEMAP_CHUNK_SIZE,
       take: SITEMAP_CHUNK_SIZE,
     });
 
     return listings.map((l) => ({
-      url: `${BASE_URL}/listing/${l.id}`,
+      url: `${BASE_URL}${publicListingPath(l.id, l.title)}`,
       lastModified: l.updatedAt,
       changeFrequency: "weekly",
       priority: 0.8,
@@ -51,7 +52,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
         user: { banned: false, deletedAt: null },
         listings: { some: publicListingWhere() },
       },
-      select: { id: true, updatedAt: true },
+      select: { id: true, displayName: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,
     }),
@@ -160,13 +161,13 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   // ---------------------------------------------------------------------------
   const sellerRoutes: MetadataRoute.Sitemap = sellers.flatMap((s) => [
     {
-      url: `${BASE_URL}/seller/${s.id}`,
+      url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}`,
       lastModified: s.updatedAt,
       changeFrequency: "monthly" as const,
       priority: 0.6,
     },
     {
-      url: `${BASE_URL}/seller/${s.id}/shop`,
+      url: `${BASE_URL}${publicSellerShopPath(s.id, s.displayName)}`,
       lastModified: s.updatedAt,
       changeFrequency: "monthly" as const,
       priority: 0.6,

@@ -5191,6 +5191,27 @@ This pass closed the remaining non-Guild cron isolation gap for cron routes that
 - `npm test` ✅ (9 tests)
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
+## Audit Fix Pass — Public URL Canonicals + Browse Robots (2026-04-27)
+
+This pass addressed the remaining codeable SEO/canonical backlog without requiring a listing/seller slug schema migration.
+
+### Fixed in this pass
+- **Readable public listing URLs**: `publicListingPath()` emits `/listing/{id}--{slug}` paths, while the listing page still accepts legacy `/listing/{id}` URLs by extracting the database ID before querying.
+- **Readable public seller URLs**: `publicSellerPath()` and `publicSellerShopPath()` emit `/seller/{id}--{slug}` and `/seller/{id}--{slug}/shop`; seller profile/shop pages accept both slugged and legacy CUID-only paths.
+- **Canonical metadata moved to slugged paths**: listing, seller, and seller shop metadata point search engines at readable canonical URLs while preserving existing links.
+- **Sitemap emits readable URLs**: listing and seller sitemap entries now include title/display-name slugs with last-modified data preserved.
+- **Listing cards use readable URLs**: the shared card component links listing and seller cards through the same public path helpers.
+- **Browse filter canonicals tightened**: browse search/filter/sort/pagination/location/tag variants are `noindex, follow` and canonicalize to `/browse` or the first-page category URL; only base browse and first-page category browse remain indexable.
+- **Path helper tests added**: Node tests cover diacritic slug normalization, non-Latin fallback slugs, slugged listing/seller path generation, and legacy/slugged ID extraction.
+- **Open backlog updated**: `audit_open_findings.md` now marks browse canonical/noindex fixed and CUID slug work partially closed for public canonical surfaces.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (13 tests)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.

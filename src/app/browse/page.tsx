@@ -18,6 +18,7 @@ import ListingCard from "@/components/ListingCard";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 const PAGE_SIZE = 24;
 
@@ -124,18 +125,37 @@ export async function generateMetadata({
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
   const page = parseInt(sp.page ?? "1", 10);
-  const pageSuffix = page > 1 ? `${q || categoryFilter ? "&" : "?"}page=${page}` : "";
+  const hasTags = Array.isArray(sp.tag) ? sp.tag.length > 0 : Boolean(sp.tag);
+  const hasNonCanonicalFilters = Boolean(
+    q ||
+    sp.min ||
+    sp.max ||
+    sp.sort ||
+    sp.type ||
+    sp.ships ||
+    sp.rating ||
+    sp.lat ||
+    sp.lng ||
+    sp.radius ||
+    (sp.view && sp.view !== "grid") ||
+    hasTags ||
+    page > 1,
+  );
+  const canonical = categoryFilter
+    ? `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}`
+    : "https://thegrainline.com/browse";
+  const robots = hasNonCanonicalFilters ? { index: false, follow: true } : undefined;
 
   if (q) {
     const title = `${q} — Handmade Woodworking | Grainline`;
     const description = `Find handmade woodworking items matching "${q}" on Grainline`;
-    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?q=${encodeURIComponent(q)}${pageSuffix}` } };
+    return { title, description, robots, openGraph: { title, description, url: canonical }, alternates: { canonical } };
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
     const title = `Handmade ${label} | Grainline`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
-    return { title, description, openGraph: { title, description }, alternates: { canonical: `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}${pageSuffix}` } };
+    return { title, description, robots, openGraph: { title, description, url: canonical }, alternates: { canonical } };
   }
   return {
     title: "Browse Handmade Woodworking",
@@ -143,8 +163,10 @@ export async function generateMetadata({
     openGraph: {
       title: "Browse Handmade Woodworking",
       description: "Browse thousands of unique handmade woodworking pieces from local artisans",
+      url: canonical,
     },
-    alternates: { canonical: `https://thegrainline.com/browse${pageSuffix}` },
+    robots,
+    alternates: { canonical },
   };
 }
 
@@ -444,7 +466,7 @@ export default async function BrowsePage({
                 <ul className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {featured.map((l) => (
                     <li key={l.id} className="border border-neutral-200 overflow-hidden">
-                      <Link href={`/listing/${l.id}`} className="block">
+                      <Link href={publicListingPath(l.id, l.title)} className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={l.photos[0]?.url ?? "/favicon.ico"} alt={l.title} loading="lazy" className="h-36 w-full object-cover" />
                         <div className="p-2 text-sm font-medium truncate">{l.title}</div>
@@ -530,20 +552,20 @@ export default async function BrowsePage({
 
     return (
       <div className="flex">
-        <Link href={`/listing/${l.id}`} className="shrink-0 w-36 sm:w-44 aspect-square overflow-hidden bg-neutral-100">
+        <Link href={publicListingPath(l.id, l.title)} className="shrink-0 w-36 sm:w-44 aspect-square overflow-hidden bg-neutral-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img alt={l.title} src={img} loading="lazy" className="h-full w-full object-cover" />
         </Link>
         <div className="flex-1 min-w-0 p-4">
           <div className="flex items-start justify-between gap-3">
-            <Link href={`/listing/${l.id}`} className="font-medium hover:underline leading-snug">
+            <Link href={publicListingPath(l.id, l.title)} className="font-medium hover:underline leading-snug">
               {l.title}
             </Link>
             <div className="shrink-0 font-medium">${(l.priceCents / 100).toFixed(2)}</div>
           </div>
 
           <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-            <Link href={`/seller/${l.sellerId}`} className="text-xs text-neutral-500 hover:underline">
+            <Link href={publicSellerPath(l.sellerId, l.seller.displayName)} className="text-xs text-neutral-500 hover:underline">
               {sellerName}
             </Link>
             <GuildBadge level={l.seller.guildLevel} showLabel={false} size={22} />

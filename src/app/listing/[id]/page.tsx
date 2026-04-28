@@ -22,6 +22,7 @@ import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
 import { canViewListingDetail, isPublicListing } from "@/lib/listingVisibility";
+import { extractRouteId, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -32,12 +33,13 @@ export async function generateMetadata(
   { params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[]>> }
 ): Promise<Metadata> {
   const { id } = await params;
+  const listingId = extractRouteId(id);
   const sp = await searchParams;
   if (sp.preview === "1") {
     return { robots: { index: false, follow: false } };
   }
   const listing = await prisma.listing.findUnique({
-    where: { id },
+    where: { id: listingId },
     select: {
       title: true,
       description: true,
@@ -78,7 +80,7 @@ export async function generateMetadata(
       title,
       description: desc,
       images: img ? [{ url: img }] : undefined,
-      url: siteUrl(`/listing/${id}`),
+      url: siteUrl(publicListingPath(listingId, listing.title)),
     },
     twitter: {
       card: "summary_large_image",
@@ -90,7 +92,7 @@ export async function generateMetadata(
       "product:price:amount": price,
       "product:price:currency": currency,
     },
-    alternates: { canonical: `https://thegrainline.com/listing/${id}` },
+    alternates: { canonical: `https://thegrainline.com${publicListingPath(listingId, listing.title)}` },
   };
 }
 
@@ -123,6 +125,7 @@ export default async function ListingPage({
   searchParams: Promise<{ rsort?: string; redit?: string; preview?: string }>;
 }) {
   const { id } = await params;
+  const listingId = extractRouteId(id);
 
   const sp = await searchParams;
   const sortKey = (sp.rsort as "top" | "new" | "rating" | "photos") ?? "top";
@@ -137,7 +140,7 @@ export default async function ListingPage({
   const blockedUserIds = await getBlockedUserIdsFor(meId);
 
   const listing = await prisma.listing.findUnique({
-    where: { id },
+    where: { id: listingId },
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
       seller: { include: { user: { select: { id: true, clerkId: true, email: true, imageUrl: true, banned: true, deletedAt: true } } } },
@@ -165,7 +168,7 @@ export default async function ListingPage({
 
   const [ratingAgg, sellerRatingAgg, moreFromSeller, topReviews] = await Promise.all([
     prisma.review.aggregate({
-      where: { listingId: id },
+      where: { listingId },
       _avg: { ratingX2: true },
       _count: { _all: true },
     }),
@@ -188,7 +191,7 @@ export default async function ListingPage({
       },
     }),
     prisma.review.findMany({
-      where: { listingId: id },
+      where: { listingId },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -214,7 +217,7 @@ export default async function ListingPage({
   let isFavorited = false;
   if (meId) {
     isFavorited = !!(await prisma.favorite.findFirst({
-      where: { userId: meId, listingId: id },
+      where: { userId: meId, listingId },
       select: { userId: true },
     }));
   }
@@ -243,14 +246,14 @@ export default async function ListingPage({
   let isNotified = false;
   if (meId && isOutOfStock) {
     isNotified = !!(await prisma.stockNotification.findUnique({
-      where: { listingId_userId: { listingId: id, userId: meId } },
+      where: { listingId_userId: { listingId, userId: meId } },
       select: { id: true },
     }));
   }
 
   const sellerName =
     listing.seller.displayName ?? listing.seller.user?.email ?? "Maker";
-  const sellerHref = `/seller/${listing.sellerId}`;
+  const sellerHref = publicSellerPath(listing.sellerId, sellerName);
   const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
 
   const sellerDbUserId = listing.seller.user?.id ?? null;
@@ -272,7 +275,7 @@ export default async function ListingPage({
 
   const signedInMessageHref =
     sellerUserId
-      ? `/messages/new?to=${encodeURIComponent(sellerUserId)}&listing=${encodeURIComponent(id)}`
+      ? `/messages/new?to=${encodeURIComponent(sellerUserId)}&listing=${encodeURIComponent(listingId)}`
       : "#";
   const hideMessage = !!meId && !!sellerUserId && meId === sellerUserId;
 
@@ -307,7 +310,7 @@ export default async function ListingPage({
     image: listing.photos.map((p) => p.url).slice(0, 8),
     sku: listing.id,
     brand: { "@type": "Brand", name: sellerName },
-    url: siteUrl(`/listing/${listing.id}`),
+    url: siteUrl(publicListingPath(listing.id, listing.title)),
     offers: {
       "@type": "Offer",
       priceCurrency: (listing.currency || "usd").toUpperCase(),
@@ -317,8 +320,8 @@ export default async function ListingPage({
         : listing.listingType === "MADE_TO_ORDER"
         ? "https://schema.org/PreOrder"
         : "https://schema.org/InStock",
-      url: siteUrl(`/listing/${listing.id}`),
-      seller: { "@type": "Organization", name: sellerName, url: `https://thegrainline.com/seller/${listing.sellerId}` },
+      url: siteUrl(publicListingPath(listing.id, listing.title)),
+      seller: { "@type": "Organization", name: sellerName, url: `https://thegrainline.com${sellerHref}` },
     },
   };
   if (countReviews > 0 && avgStarsRaw != null) {
@@ -364,14 +367,14 @@ export default async function ListingPage({
       "@type": "ListItem",
       position: 3,
       name: listing.title,
-      item: `https://thegrainline.com/listing/${id}`,
+      item: `https://thegrainline.com${publicListingPath(listing.id, listing.title)}`,
     });
   } else {
     breadcrumbItems.push({
       "@type": "ListItem",
       position: 2,
       name: listing.title,
-      item: `https://thegrainline.com/listing/${id}`,
+      item: `https://thegrainline.com${publicListingPath(listing.id, listing.title)}`,
     });
   }
   const breadcrumbLd = {
@@ -388,8 +391,8 @@ export default async function ListingPage({
       </div>
     )}
     <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-6">
-      <ListingViewTracker listingId={id} />
-      <RecentlyViewedTracker listingId={id} />
+      <ListingViewTracker listingId={listingId} />
+      <RecentlyViewedTracker listingId={listingId} />
       {/* JSON-LD */}
       <script
         type="application/ld+json"
@@ -424,7 +427,7 @@ export default async function ListingPage({
         <div className="relative">
           {/* Favorite button overlaid */}
           <div className="absolute right-3 top-3 z-10">
-            <FavoriteButton listingId={id} initialSaved={isFavorited} size={24} />
+            <FavoriteButton listingId={listingId} initialSaved={isFavorited} size={24} />
           </div>
           <ListingGallery photos={listing.photos} title={listing.title} />
         </div>
@@ -458,7 +461,7 @@ export default async function ListingPage({
                 inStock: o.inStock,
               })),
             }))}
-            listingId={id}
+            listingId={listingId}
             listingTitle={listing.title}
             listingImageUrl={listing.photos[0]?.url}
             sellerId={listing.sellerId}
@@ -493,14 +496,14 @@ export default async function ListingPage({
                 <CustomOrderRequestForm
                   sellerUserId={sellerUserId!}
                   sellerName={sellerName}
-                  listingId={id}
+                  listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
                   triggerClassName="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 />
               ) : (
                 <Link
-                  href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${id}`)}`}
+                  href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
                   className="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
                 >
                   <Hammer size={15} />
@@ -759,7 +762,7 @@ export default async function ListingPage({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
-              <Link key={ml.id} href={`/listing/${ml.id}`} className="group">
+              <Link key={ml.id} href={publicListingPath(ml.id, ml.title)} className="group">
                 <div className="rounded-2xl overflow-hidden aspect-square bg-neutral-100">
                   {ml.photos[0]?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -782,13 +785,13 @@ export default async function ListingPage({
       {/* ── Similar items ─────────────────────────────────────────────────── */}
       <section className="mb-10">
         <h2 className="font-semibold font-display text-neutral-900 mb-4">You might also like</h2>
-        <SimilarItems listingId={id} />
+        <SimilarItems listingId={listingId} />
       </section>
 
       {/* ── Reviews ───────────────────────────────────────────────────────── */}
       <section id="reviews">
         <ReviewsSection
-          listingId={id}
+          listingId={listingId}
           meId={meId}
           sellerUserId={canReplyClerkId}
           initialSort={sortKey}

@@ -13,6 +13,7 @@ import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
+import { publicListingPath } from "@/lib/publicPaths";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -212,7 +213,7 @@ export default async function BrowseMetroPage({
       "@type": "ListItem",
       "position": i + 1,
       "name": l.title,
-      "url": `${BASE_URL}/listing/${l.id}`,
+      "url": `${BASE_URL}${publicListingPath(l.id, l.title)}`,
       "image": l.photos[0]?.url,
       "offers": { "@type": "Offer", "priceCurrency": l.currency.toUpperCase(), "price": (l.priceCents / 100).toFixed(2) },
     })),

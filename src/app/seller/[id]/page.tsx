@@ -19,6 +19,7 @@ import ListingCard from "@/components/ListingCard";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { extractRouteId, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 
 export async function generateMetadata({
   params,
@@ -26,8 +27,9 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
+  const sellerId = extractRouteId(id);
   const seller = await prisma.sellerProfile.findUnique({
-    where: { id },
+    where: { id: sellerId },
     select: {
       displayName: true,
       bio: true,
@@ -51,7 +53,7 @@ export async function generateMetadata({
     `Shop handmade woodworking pieces by ${name} on Grainline`;
 
   const firstPhoto = await prisma.listing.findFirst({
-    where: publicListingWhere({ sellerId: id }),
+    where: publicListingWhere({ sellerId }),
     select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
     orderBy: { updatedAt: "desc" },
   });
@@ -76,7 +78,7 @@ export async function generateMetadata({
       description,
       images: img ? [img] : undefined,
     },
-    alternates: { canonical: `https://thegrainline.com/seller/${id}` },
+    alternates: { canonical: `https://thegrainline.com${publicSellerPath(sellerId, name)}` },
   };
 }
 
@@ -98,9 +100,10 @@ export default async function SellerPublicPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const sellerId = extractRouteId(id);
 
   const seller = await prisma.sellerProfile.findUnique({
-    where: { id },
+    where: { id: sellerId },
     include: {
       user: { select: { id: true, clerkId: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
       faqs: { orderBy: { sortOrder: "asc" } },
@@ -218,7 +221,7 @@ export default async function SellerPublicPage({
     "@type": "LocalBusiness",
     name: seller.displayName ?? "Maker",
     description: seller.bio ?? undefined,
-    url: `https://thegrainline.com/seller/${seller.id}`,
+    url: `https://thegrainline.com${publicSellerPath(seller.id, seller.displayName)}`,
     knowsAbout: "Handmade Woodworking",
     ...(cityState
       ? {
@@ -399,7 +402,7 @@ export default async function SellerPublicPage({
               />
             ) : !meId ? (
               <Link
-                href={`/sign-in?redirect_url=/seller/${id}`}
+                href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
                 className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
               >
                 <Hammer size={15} />
@@ -656,7 +659,7 @@ export default async function SellerPublicPage({
             <h2 className="text-lg font-semibold">All Listings</h2>
             {activePublicCount > 0 && (
               <Link
-                href={`/seller/${id}/shop`}
+                href={publicSellerShopPath(seller.id, seller.displayName)}
                 className="text-sm text-neutral-600 underline hover:text-neutral-900"
               >
                 See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
@@ -708,7 +711,7 @@ export default async function SellerPublicPage({
             return activePublicCount > 8 ? (
               <div className="mt-4 text-center">
                 <Link
-                  href={`/seller/${id}/shop`}
+                  href={publicSellerShopPath(seller.id, seller.displayName)}
                   className="inline-block rounded border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
                 >
                   See all {activePublicCount} pieces →

@@ -1,13 +1,16 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { publicSellerShopPath } from "@/lib/publicPaths";
 
 export default function SortSelect({
   currentSort,
   sellerId,
+  sellerName,
   category,
 }: {
   currentSort: string;
   sellerId: string;
+  sellerName: string | null;
   category: string | null;
 }) {
   const router = useRouter();
@@ -16,7 +19,7 @@ export default function SortSelect({
     const params = new URLSearchParams();
     if (category) params.set("category", category);
     params.set("sort", e.target.value);
-    router.push(`/seller/${sellerId}/shop?${params.toString()}`);
+    router.push(`${publicSellerShopPath(sellerId, sellerName)}?${params.toString()}`);
   };
 
   return (

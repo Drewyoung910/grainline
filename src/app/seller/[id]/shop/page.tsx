@@ -13,6 +13,7 @@ import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 
 const PAGE_SIZE = 20;
 
@@ -40,8 +41,9 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
+  const sellerId = extractRouteId(id);
   const seller = await prisma.sellerProfile.findUnique({
-    where: { id },
+    where: { id: sellerId },
     select: {
       displayName: true,
       chargesEnabled: true,
@@ -57,7 +59,7 @@ export async function generateMetadata({
   return {
     title: { absolute: `${name}'s Shop — Grainline` },
     description: `Browse all handmade woodworking pieces by ${name} on Grainline`,
-    alternates: { canonical: `https://thegrainline.com/seller/${id}/shop` },
+    alternates: { canonical: `https://thegrainline.com${publicSellerShopPath(sellerId, name)}` },
   };
 }
 
@@ -69,6 +71,7 @@ export default async function SellerShopPage({
   searchParams: Promise<ShopSearch>;
 }) {
   const { id } = await params;
+  const sellerId = extractRouteId(id);
   const sp = await searchParams;
 
   const sort = sp.sort && ["newest", "price_asc", "price_desc", "popular"].includes(sp.sort)
@@ -82,7 +85,7 @@ export default async function SellerShopPage({
   const statusRaw = sp.status ?? "";
 
   const seller = await prisma.sellerProfile.findUnique({
-    where: { id },
+    where: { id: sellerId },
     select: {
       id: true,
       userId: true,
@@ -101,6 +104,7 @@ export default async function SellerShopPage({
   });
 
   if (!seller) return notFound();
+  const sellerShopHref = publicSellerShopPath(seller.id, seller.displayName);
 
   // Get current viewer for favorites
   const { userId } = await auth();
@@ -117,10 +121,10 @@ export default async function SellerShopPage({
 
   // Follow data
   const [followerCount, isFollowing] = await Promise.all([
-    prisma.follow.count({ where: { sellerProfileId: id } }),
+    prisma.follow.count({ where: { sellerProfileId: sellerId } }),
     meId
       ? prisma.follow.findUnique({
-          where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: id } },
+          where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: sellerId } },
           select: { id: true },
         }).then((r) => r !== null)
       : Promise.resolve(false),
@@ -135,11 +139,11 @@ export default async function SellerShopPage({
   // Distinct categories — for owner show all statuses (optionally filtered by status), for buyers show ACTIVE only
   const categoryGroupWhere = isOwner
     ? {
-        sellerId: id,
+        sellerId,
         category: { not: null },
         ...(statusFilter ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" } : {}),
       }
-    : publicListingWhere({ sellerId: id, category: { not: null } });
+    : publicListingWhere({ sellerId, category: { not: null } });
 
   const categoryGroups = await prisma.listing.groupBy({
     by: ["category"],
@@ -157,8 +161,8 @@ export default async function SellerShopPage({
     ? { status: statusFilter as "ACTIVE" | "DRAFT" | "HIDDEN" | "SOLD" | "SOLD_OUT" | "PENDING_REVIEW" | "REJECTED" }
     : {};
   const where = isOwner
-    ? { sellerId: id, ...ownerStatusFilter, ...categoryFilter }
-    : publicListingWhere({ sellerId: id, ...categoryFilter });
+    ? { sellerId, ...ownerStatusFilter, ...categoryFilter }
+    : publicListingWhere({ sellerId, ...categoryFilter });
 
   // Build orderBy
   type OrderBy =
@@ -209,7 +213,7 @@ export default async function SellerShopPage({
     if (p > 1) params.set("page", String(p));
     if (st) params.set("status", st);
     const qs = params.toString();
-    return `/seller/${id}/shop${qs ? `?${qs}` : ""}`;
+    return `${sellerShopHref}${qs ? `?${qs}` : ""}`;
   }
 
   const avatarSrc = seller.avatarImageUrl ?? seller.user?.imageUrl ?? null;
@@ -268,7 +272,7 @@ export default async function SellerShopPage({
         </div>
 
         <Link
-          href={`/seller/${id}`}
+          href={publicSellerPath(seller.id, seller.displayName)}
           className="text-sm text-neutral-600 underline shrink-0"
         >
           ← Back to profile
@@ -305,7 +309,7 @@ export default async function SellerShopPage({
         </div>
 
         {/* Sort */}
-        <SortSelect currentSort={sort} sellerId={id} category={category} />
+        <SortSelect currentSort={sort} sellerId={seller.id} sellerName={seller.displayName} category={category} />
       </div>
 
       {/* ── Status tabs (owner only) ────────────────────────────────── */}
@@ -398,7 +402,7 @@ export default async function SellerShopPage({
                       isOwner && isArchived
                         ? null
                         : isOwner && l.status === "DRAFT"
-                          ? `/listing/${l.id}?preview=1`
+                          ? `${publicListingPath(l.id, l.title)}?preview=1`
                           : undefined
                     }
                   />

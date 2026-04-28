@@ -5,6 +5,7 @@ import Link from "next/link";
 import FavoriteButton from "@/components/FavoriteButton";
 import GuildBadge, { type GuildLevelValue } from "@/components/GuildBadge";
 import MediaImage from "@/components/MediaImage";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 export type ListingCardData = {
   id: string;
@@ -39,7 +40,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
   const [hovered, setHovered] = useState(false);
   const img = l.photoUrl ?? "/favicon.ico";
   const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
-  const listingHref = href === null ? null : href ?? `/listing/${l.id}`;
+  const listingHref = href === null ? null : href ?? publicListingPath(l.id, l.title);
   const sellerName = l.seller.displayName ?? "Maker";
   const shop = l.rating;
   const city = l.seller.city;
@@ -113,7 +114,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
               </>
             )}
             <Link
-              href={`/seller/${l.seller.id}`}
+              href={publicSellerPath(l.seller.id, sellerName)}
               className="hover:text-neutral-600 hover:underline truncate max-w-[120px]"
             >
               {sellerName}

@@ -550,13 +550,13 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ## Search / SEO / i18n Findings
 
 - [FIXED 2026-04-26] Blog slug generation normalizes diacritics (`Café` -> `cafe`) and falls back to a stable hash slug for non-Latin titles instead of returning empty.
-- Listings and sellers still primarily use CUID URLs. Slug work remains a larger SEO pass.
+- [PARTIAL 2026-04-27] Listing and seller public pages now accept slugged `id--readable-name` URLs, publish canonical metadata to slugged paths, emit slugged URLs from sitemap and listing cards, and keep legacy CUID-only URLs working. Deeper route-wide link cleanup can continue incrementally.
 - [FIXED 2026-04-27] Browse rating filters and listing-card seller ratings now use `SellerRatingSummary` instead of per-request `Review` table aggregation. Review create/edit/delete/admin-delete paths refresh the summary, and migration `20260427110000_seller_rating_summary` backfills existing reviews.
 - [FIXED 2026-04-26] Browse popular tags now use a shared `getPopularListingTags()` cached query consumed by both `/api/search/popular-tags` and browse/home server renders.
 - [FIXED 2026-04-26] Featured maker fallback is cached with `unstable_cache` and a 1-hour revalidation window.
 - [FIXED 2026-04-26] Added pg_trgm-backed GIN indexes for active listing titles and published blog titles, plus a GIN index for listing tags.
 - [FIXED 2026-04-26] Search suggestions and browse partial-tag matching now use cached `getPopularListingTags()` results instead of per-request `Listing x unnest(tags)` scans.
-- Browse canonical/noindex/page/filter strategy still needs one deliberate SEO decision.
+- [FIXED 2026-04-27] Browse canonical/noindex/page/filter strategy now indexes only the base browse page and first-page category browse URLs; search, pagination, tags, price, rating, location, type, shipping, sort, and view variants are `noindex, follow` with canonical URLs back to the base/category browse route.
 - [FIXED 2026-04-26] Sitemap listing chunks are emitted through `generateSitemaps()` before single-file listing limits become a blocker.
 
 ## Schema / CI / Platform Findings
