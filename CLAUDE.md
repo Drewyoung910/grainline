@@ -5264,6 +5264,17 @@ This pass closed two remaining admin feedback gaps without changing admin permis
 - `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
 - `npm test` ✅ (16 tests)
 
+## Audit Fix Pass — Test Harness Expansion (2026-04-27)
+
+This pass added dependency-light regression tests for two high-risk pure helper areas without requiring database fixtures.
+
+### Fixed in this pass
+- **Cron bearer auth is tested**: `tests/cron-auth.test.mjs` verifies that cron routes fail closed when `CRON_SECRET` is missing and accept only an exact `Bearer` token.
+- **Listing variant resolution is tested**: `tests/listing-variants.test.mjs` covers variant price adjustment snapshots, stable variant keys, exactly-one-option-per-group validation, duplicate IDs, invalid IDs, and out-of-stock options.
+
+### Verification
+- `npm test` ✅ (21 tests)
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.

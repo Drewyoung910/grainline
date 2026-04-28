@@ -65,6 +65,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Admin verification feedback tightened.** Guild Master approval now uses inline `ActionForm` state and reports exact server-side metric failures instead of silently no-oping when live eligibility fails.
 - **Admin PIN lockout countdown is live.** The PIN gate now updates its `Retry-After` countdown while the server lockout is active.
 - **Sentry filtering has regression tests.** New tests cover noisy browser/network drops plus redaction of auth/cookie headers, token query params, user email/IP, and nested event payloads.
+- **Test baseline expanded to 21 assertions.** Cron bearer auth and listing variant pricing/selection helpers now have pure unit coverage.
 
 ## Recommended Fix Order
 
