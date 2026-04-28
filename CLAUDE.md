@@ -5174,6 +5174,23 @@ This pass tightened GitHub Actions around the now-larger build/test surface.
 - `git diff --check` ✅
 - CI env parity smoke check ✅
 
+## Audit Fix Pass — Cron Per-Record Isolation Sweep (2026-04-27)
+
+This pass closed the remaining non-Guild cron isolation gap for cron routes that process user/business records with side effects.
+
+### Fixed in this pass
+- **Commission expiry isolates bad rows**: one failing commission request no longer aborts the entire `/api/cron/commission-expire` run. Per-request failures are captured to Sentry and returned as sanitized `{ requestId, code }` entries.
+- **Case auto-close isolates bad rows**: one failing case no longer aborts the entire `/api/cron/case-auto-close` run. Pending-close and abandoned-open transitions use guarded `updateMany` predicates so concurrent user/admin mutations are respected.
+- **Cron responses stay sanitized**: record-level responses include counts and error codes only; stack traces and paths stay in Sentry.
+- **Open backlog updated**: `audit_open_findings.md` now marks the remaining per-record cron isolation sweep fixed for side-effecting record-processing crons.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (9 tests)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.

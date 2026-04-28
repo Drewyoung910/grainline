@@ -9,6 +9,11 @@ import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } fr
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+function cronErrorCode(error: unknown) {
+  const err = error as { code?: string; name?: string };
+  return err.code ?? err.name ?? "UNKNOWN";
+}
+
 export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,39 +42,49 @@ export async function GET(req: Request) {
     });
 
     let expired = 0;
+    const failures: Array<{ requestId: string; code: string }> = [];
     for (const request of expiring) {
-      const updated = await prisma.commissionRequest.updateMany({
-        where: { id: request.id, status: CommissionStatus.OPEN },
-        data: { status: CommissionStatus.EXPIRED },
-      });
-      if (updated.count === 0) continue;
-      expired += 1;
+      try {
+        const updated = await prisma.commissionRequest.updateMany({
+          where: { id: request.id, status: CommissionStatus.OPEN },
+          data: { status: CommissionStatus.EXPIRED },
+        });
+        if (updated.count === 0) continue;
+        expired += 1;
 
-      const title = request.title.slice(0, 80);
-      const sellerUserIds = Array.from(
-        new Set(request.interests.map((i) => i.sellerProfile.userId).filter(Boolean)),
-      );
-      await Promise.allSettled([
-        createNotification({
-          userId: request.buyerId,
-          type: "COMMISSION_INTEREST",
-          title: "Commission request expired",
-          body: `"${title}" is now closed to new maker interest.`,
-          link: `/commission/${request.id}`,
-        }),
-        ...sellerUserIds.map((userId) =>
+        const title = request.title.slice(0, 80);
+        const sellerUserIds = Array.from(
+          new Set(request.interests.map((i) => i.sellerProfile.userId).filter(Boolean)),
+        );
+        await Promise.allSettled([
           createNotification({
-            userId,
+            userId: request.buyerId,
             type: "COMMISSION_INTEREST",
             title: "Commission request expired",
-            body: `"${title}" is no longer accepting interest.`,
+            body: `"${title}" is now closed to new maker interest.`,
             link: `/commission/${request.id}`,
           }),
-        ),
-      ]);
+          ...sellerUserIds.map((userId) =>
+            createNotification({
+              userId,
+              type: "COMMISSION_INTEREST",
+              title: "Commission request expired",
+              body: `"${title}" is no longer accepting interest.`,
+              link: `/commission/${request.id}`,
+            }),
+          ),
+        ]);
+      } catch (error) {
+        const code = cronErrorCode(error);
+        failures.push({ requestId: request.id, code });
+        Sentry.captureException(error, {
+          tags: { source: "cron_commission_expire_record", code },
+          extra: { requestId: request.id },
+        });
+      }
     }
 
-    const response = { ok: true, expired, checked: expiring.length };
+    const response = { ok: true, expired, checked: expiring.length, failures };
     await completeCronRun(cronRun, response);
     return NextResponse.json(response);
   } catch (error) {

@@ -363,7 +363,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 ### H23. [PARTIAL 2026-04-25] Cron failures leak internals and stop batches
 
 - **Files**: guild cron routes and other sequential cron loops.
-- **Current state**: Guild metrics and Guild member check now isolate per-seller failures, capture full errors to Sentry, and return sanitized error codes. Other cron routes still need the same sweep.
+- **Current state**: Fixed for record-processing cron routes. Guild metrics/member check isolate per-seller failures; commission-expire and case-auto-close now isolate per-record failures, capture details to Sentry, and return sanitized codes/counts. Bulk prune/snapshot crons fail as whole-job operations because they have no independent per-record side effects.
 - **Impact**: stack/path leakage in JSON responses; one record failure can stop batch.
 - **Fix spec**: Capture full details to Sentry, return counts/codes only, isolate per-record failures.
 

@@ -9,6 +9,11 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 const CASE_AUTO_CLOSE_BATCH_SIZE = 100;
 
+function cronErrorCode(error: unknown) {
+  const err = error as { code?: string; name?: string };
+  return err.code ?? err.name ?? "UNKNOWN";
+}
+
 export async function GET(req: Request) {
   if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,28 +33,43 @@ export async function GET(req: Request) {
     });
 
     let closed = 0;
+    let stalePendingClosed = 0;
+    let abandonedEscalated = 0;
+    const failures: Array<{ caseId: string; action: "close" | "escalate"; code: string }> = [];
     for (const c of staleCases) {
-      await prisma.case.update({
-        where: { id: c.id },
-        data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt: new Date() },
-      });
-      await Promise.allSettled([
-        createNotification({
-          userId: c.buyerId,
-          type: "CASE_RESOLVED",
-          title: "Case closed",
-          body: "This case was closed automatically after the resolution window expired.",
-          link: `/dashboard/orders/${c.orderId}`,
-        }),
-        createNotification({
-          userId: c.sellerId,
-          type: "CASE_RESOLVED",
-          title: "Case closed",
-          body: "This case was closed automatically after the resolution window expired.",
-          link: `/dashboard/sales/${c.orderId}`,
-        }),
-      ]);
-      closed++;
+      try {
+        const updated = await prisma.case.updateMany({
+          where: { id: c.id, status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
+          data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt: new Date() },
+        });
+        if (updated.count === 0) continue;
+
+        await Promise.allSettled([
+          createNotification({
+            userId: c.buyerId,
+            type: "CASE_RESOLVED",
+            title: "Case closed",
+            body: "This case was closed automatically after the resolution window expired.",
+            link: `/dashboard/orders/${c.orderId}`,
+          }),
+          createNotification({
+            userId: c.sellerId,
+            type: "CASE_RESOLVED",
+            title: "Case closed",
+            body: "This case was closed automatically after the resolution window expired.",
+            link: `/dashboard/sales/${c.orderId}`,
+          }),
+        ]);
+        stalePendingClosed++;
+        closed++;
+      } catch (error) {
+        const code = cronErrorCode(error);
+        failures.push({ caseId: c.id, action: "close", code });
+        Sentry.captureException(error, {
+          tags: { source: "cron_case_auto_close_record", action: "close", code },
+          extra: { caseId: c.id },
+        });
+      }
     }
 
     // Escalate OPEN cases where seller never responded (14+ days past sellerRespondBy)
@@ -62,30 +82,49 @@ export async function GET(req: Request) {
     });
 
     for (const c of abandonedOpen) {
-      await prisma.case.update({
-        where: { id: c.id },
-        data: { status: "UNDER_REVIEW" },
-      });
-      await Promise.allSettled([
-        createNotification({
-          userId: c.buyerId,
-          type: "CASE_MESSAGE",
-          title: "Case under review",
-          body: "The seller did not respond in time, so Grainline staff will review this case.",
-          link: `/dashboard/orders/${c.orderId}`,
-        }),
-        createNotification({
-          userId: c.sellerId,
-          type: "CASE_MESSAGE",
-          title: "Case escalated",
-          body: "This case was escalated to Grainline staff because the response window expired.",
-          link: `/dashboard/sales/${c.orderId}`,
-        }),
-      ]);
-      closed++;
+      try {
+        const updated = await prisma.case.updateMany({
+          where: { id: c.id, status: "OPEN", sellerRespondBy: { lt: openCutoff } },
+          data: { status: "UNDER_REVIEW" },
+        });
+        if (updated.count === 0) continue;
+
+        await Promise.allSettled([
+          createNotification({
+            userId: c.buyerId,
+            type: "CASE_MESSAGE",
+            title: "Case under review",
+            body: "The seller did not respond in time, so Grainline staff will review this case.",
+            link: `/dashboard/orders/${c.orderId}`,
+          }),
+          createNotification({
+            userId: c.sellerId,
+            type: "CASE_MESSAGE",
+            title: "Case escalated",
+            body: "This case was escalated to Grainline staff because the response window expired.",
+            link: `/dashboard/sales/${c.orderId}`,
+          }),
+        ]);
+        abandonedEscalated++;
+        closed++;
+      } catch (error) {
+        const code = cronErrorCode(error);
+        failures.push({ caseId: c.id, action: "escalate", code });
+        Sentry.captureException(error, {
+          tags: { source: "cron_case_auto_close_record", action: "escalate", code },
+          extra: { caseId: c.id },
+        });
+      }
     }
 
-    const response = { closed, stalePendingClose: staleCases.length, abandonedOpen: abandonedOpen.length };
+    const response = {
+      closed,
+      stalePendingClose: staleCases.length,
+      stalePendingClosed,
+      abandonedOpen: abandonedOpen.length,
+      abandonedEscalated,
+      failures,
+    };
     await completeCronRun(cronRun, response);
     return NextResponse.json(response);
   } catch (error) {
