@@ -21,6 +21,7 @@ import ListingTypeFields from "@/components/ListingTypeFields";
 import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 import { CATEGORY_VALUES } from "@/lib/categories";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -243,7 +244,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // 4. Draft: redirect to preview so seller can see what it looks like
   if (saveAsDraft) {
-    redirect(`/listing/${created.id}?preview=1`);
+    redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
   // Non-draft: run all side effects unchanged
@@ -384,10 +385,10 @@ async function createListing(_prevState: unknown, formData: FormData) {
             type: "FOLLOWED_MAKER_NEW_LISTING",
             title: `New listing from ${sellerDisplay}`,
             body: created.title,
-            link: `/listing/${created.id}`,
+            link: publicListingPath(created.id, created.title),
           }),
         );
-        const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/listing/${created.id}`;
+        const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${publicListingPath(created.id, created.title)}`;
         const listingPrice = `$${(created.priceCents / 100).toFixed(2)}`;
         const emailRecipients = followers.filter((f) => f.follower?.email);
         await mapWithConcurrency(emailRecipients, 5, async (f) => {
@@ -405,7 +406,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     });
   }
 
-  redirect(`/listing/${created.id}`);
+  redirect(publicListingPath(created.id, created.title));
 }
 
 export default async function NewListingPage({

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -146,7 +147,7 @@ export default async function SalesPage({
                           )}
                           <div className="min-w-0 flex-1">
                             <a
-                              href={`/listing/${it.listingId}`}
+                              href={publicListingPath(it.listingId, it.listing.title)}
                               className="block truncate text-sm font-medium hover:underline"
                             >
                               {it.listing.title}

@@ -12,6 +12,7 @@ import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
+import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -387,7 +388,7 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold font-display">My Listings</h2>
           <Link
-            href={`/seller/${seller.id}/shop`}
+            href={publicSellerShopPath(seller.id, seller.displayName)}
             className="text-sm text-neutral-600 underline hover:text-neutral-900"
           >
             View My Shop →
@@ -422,7 +423,7 @@ export default async function DashboardPage() {
               return (
                 <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
                   {l.status !== "DRAFT" && !isArchived ? (
-                    <Link href={`/listing/${l.id}`} className="block">
+                    <Link href={publicListingPath(l.id, l.title)} className="block">
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={thumb} alt={l.title} className="h-48 w-full object-cover" />
@@ -445,7 +446,7 @@ export default async function DashboardPage() {
                     <div className="flex items-baseline justify-between">
                       <h3 className="font-medium">
                         {l.status !== "DRAFT" && !isArchived ? (
-                          <Link href={`/listing/${l.id}`} className="hover:underline">{l.title}</Link>
+                          <Link href={publicListingPath(l.id, l.title)} className="hover:underline">{l.title}</Link>
                         ) : l.title}
                       </h3>
                       <span className="text-sm text-neutral-500">
@@ -487,7 +488,7 @@ export default async function DashboardPage() {
                           </Link>
                           {(l.status === "DRAFT" || l.status === "HIDDEN" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") && (
                             <Link
-                              href={`/listing/${l.id}?preview=1`}
+                              href={`${publicListingPath(l.id, l.title)}?preview=1`}
                               className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
                               target="_blank"
                             >
@@ -615,7 +616,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

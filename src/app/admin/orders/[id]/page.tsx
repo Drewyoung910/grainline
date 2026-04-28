@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import AdminOrderActions from "./AdminOrderActions";
+import { publicListingPath } from "@/lib/publicPaths";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
@@ -201,7 +202,7 @@ export default async function AdminOrderDetailPage({
                 )}
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/listing/${it.listingId}`}
+                    href={publicListingPath(it.listingId, it.listing.title)}
                     className="block truncate text-sm font-medium text-neutral-800 hover:underline"
                   >
                     {it.listing.title}

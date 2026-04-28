@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -117,7 +118,7 @@ export default async function OrdersPage() {
                         )}
                         <div className="min-w-0 flex-1">
                           <Link
-                            href={`/listing/${it.listingId}`}
+                            href={publicListingPath(it.listingId, it.listing.title)}
                             className="block truncate text-sm font-medium hover:underline"
                           >
                             {it.listing.title}
@@ -181,6 +182,5 @@ export default async function OrdersPage() {
     </main>
   );
 }
-
 
 

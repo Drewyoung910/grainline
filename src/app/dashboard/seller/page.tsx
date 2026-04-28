@@ -18,6 +18,7 @@ import { NotificationToggle } from "@/components/NotificationToggle";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
+import { publicSellerShopPath } from "@/lib/publicPaths";
 
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -223,7 +224,7 @@ export default async function SellerSettingsPage() {
                   You have {draftCount} draft {draftCount === 1 ? "listing" : "listings"} ready to activate.
                 </p>
                 <a
-                  href={`/seller/${seller.id}/shop?status=DRAFT`}
+                  href={`${publicSellerShopPath(seller.id, seller.displayName)}?status=DRAFT`}
                   className="text-sm text-amber-700 underline"
                 >
                   Go to My Shop to publish →

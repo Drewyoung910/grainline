@@ -13,6 +13,7 @@ import { ArrowLeft, Gift } from "@/components/icons";
 import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -389,7 +390,7 @@ export default async function SellerOrderDetailPage({
                 <div className="min-w-0 flex-1">
                   {it.listing.status === "ACTIVE" ? (
                     <Link
-                      href={`/listing/${it.listingId}`}
+                      href={publicListingPath(it.listingId, it.listing.title)}
                       className="block truncate text-sm font-medium hover:underline"
                     >
                       {it.listing.title}

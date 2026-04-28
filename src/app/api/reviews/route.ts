@@ -12,6 +12,7 @@ import { sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { z } from "zod";
 
 const ReviewSchema = z.object({
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
   // Notify the seller
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    select: { title: true, seller: { select: { userId: true, id: true } } },
+    select: { title: true, seller: { select: { userId: true, id: true, displayName: true } } },
   });
   if (listing?.seller.id) {
     try {
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
       type: "NEW_REVIEW",
       title: `${reviewerName} left you a ${stars}-star review`,
       body: listing.title,
-      link: `/seller/${listing.seller.id}`,
+      link: publicSellerPath(listing.seller.id, listing.seller.displayName),
     });
 
     try {
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
             listingTitle: listing.title,
             rating: ratingX2 / 2,
             reviewPreview: (comment ?? "").slice(0, 200),
-            reviewUrl: `https://thegrainline.com/listing/${listingId}#reviews`,
+            reviewUrl: `https://thegrainline.com${publicListingPath(listingId, listing.title)}#reviews`,
           });
         }
       }

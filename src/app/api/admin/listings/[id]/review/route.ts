@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
+import { publicListingPath } from '@/lib/publicPaths'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -61,7 +62,7 @@ export async function PATCH(
       type: 'LISTING_APPROVED',
       title: 'Listing approved',
       body: `Your listing "${listing.title}" has been approved and is now live!`,
-      link: `/listing/${id}`,
+      link: publicListingPath(id, listing.title),
     }).catch(() => {})
   } else if (action === 'reject') {
     if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })

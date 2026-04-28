@@ -11,6 +11,7 @@ import LocalDate from "@/components/LocalDate";
 import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
@@ -268,7 +269,7 @@ export default async function BuyerOrderDetailPage({
                 <div className="min-w-0 flex-1">
                   {it.listing.status === "ACTIVE" ? (
                     <Link
-                      href={`/listing/${it.listingId}`}
+                      href={publicListingPath(it.listingId, it.listing.title)}
                       className="block truncate text-sm font-medium hover:underline"
                     >
                       {it.listing.title}

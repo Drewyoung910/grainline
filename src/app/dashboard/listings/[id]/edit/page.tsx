@@ -14,6 +14,7 @@ import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -261,7 +262,7 @@ async function updateListing(
         aiReviewScore: 0,
       } : {}),
     },
-    select: { updatedAt: true },
+    select: { title: true, updatedAt: true },
   });
 
   // Update variants — delete existing and recreate
@@ -372,7 +373,7 @@ async function updateListing(
   revalidatePath("/dashboard");
   revalidatePath("/browse");
 
-  redirect(`/listing/${listingId}`);
+  redirect(publicListingPath(listingId, updatedListing.title));
 }
 
 

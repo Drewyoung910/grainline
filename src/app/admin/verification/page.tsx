@@ -14,6 +14,7 @@ import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQU
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -162,7 +163,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     type: "VERIFICATION_APPROVED",
     title: "You are now a Guild Member!",
     body: "Your Guild Member badge is now live on your profile",
-    link: `/seller/${verification.sellerProfile.id}`,
+    link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
   });
 
   if (verification.sellerProfile.user?.email) {
@@ -350,7 +351,7 @@ async function approveGuildMaster(verificationId: string) {
     type: "VERIFICATION_APPROVED",
     title: "You are now a Guild Master!",
     body: "Your Guild Master badge is now live on your profile",
-    link: `/seller/${verification.sellerProfile.id}`,
+    link: publicSellerPath(verification.sellerProfile.id, verification.sellerProfile.displayName),
   });
 
   if (verification.sellerProfile.user?.email) {
@@ -668,7 +669,7 @@ export default async function AdminVerificationPage() {
                     </div>
                   </div>
                   <a
-                    href={`/seller/${v.sellerProfile.id}`}
+                    href={publicSellerPath(v.sellerProfile.id, v.sellerProfile.displayName)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs underline text-neutral-500 hover:text-neutral-700 shrink-0"
@@ -785,7 +786,7 @@ export default async function AdminVerificationPage() {
                     </div>
                   </div>
                   <a
-                    href={`/seller/${v.sellerProfile.id}`}
+                    href={publicSellerPath(v.sellerProfile.id, v.sellerProfile.displayName)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs underline text-neutral-500 hover:text-neutral-700 shrink-0"

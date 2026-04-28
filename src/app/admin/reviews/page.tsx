@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { DeleteReviewButton } from "@/components/admin/DeleteReviewButton";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export const metadata: Metadata = { title: "Reviews — Admin" };
 
@@ -43,7 +44,7 @@ export default async function AdminReviewsPage() {
                     by {r.reviewer.name ?? r.reviewer.email ?? "Unknown"}
                   </span>
                   <span className="text-xs text-neutral-400">on</span>
-                  <Link href={`/listing/${r.listing.id}`} className="text-xs text-neutral-600 hover:underline">
+                  <Link href={publicListingPath(r.listing.id, r.listing.title)} className="text-xs text-neutral-600 hover:underline">
                     {r.listing.title}
                   </Link>
                   <span className="text-xs text-neutral-400">

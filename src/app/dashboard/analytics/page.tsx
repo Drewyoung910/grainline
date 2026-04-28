@@ -4,6 +4,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Eye, Heart, Bell } from "@/components/icons";
+import { publicListingPath } from "@/lib/publicPaths";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -686,7 +687,7 @@ export default function AnalyticsPage() {
                   )}
                   <div className="flex-1 min-w-0">
                     <Link
-                      href={`/listing/${l.id}`}
+                      href={publicListingPath(l.id, l.title)}
                       className="text-sm font-medium hover:underline truncate block"
                     >
                       {l.title}

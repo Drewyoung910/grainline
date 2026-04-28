@@ -5230,6 +5230,25 @@ This follow-up widened the readable URL rollout from canonical metadata/cards in
 - `npm test` ✅ (13 tests)
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
+## Audit Fix Pass — Public URL Link Cleanup II (2026-04-27)
+
+This follow-up finished the known route-wide readable-link cleanup for app-generated listing/seller links that already have title/display-name context.
+
+### Fixed in this pass
+- **Notification payloads use readable URLs**: favorite, review, back-in-stock, custom-order, listing-approval, Guild approval, and followed-maker listing notifications now use public path helpers.
+- **Seller listing creation flows redirect to readable URLs**: new listing, draft preview, custom listing preview, and edit-save redirects now preserve slugged listing paths.
+- **Dashboard buyer/seller surfaces use readable links**: dashboard home, analytics, order detail/list, sales detail/list, seller settings, and profile public-link CTAs now emit readable listing/seller/shop paths.
+- **Admin contextual links use readable paths where resolvable**: review queues, review admin, broadcast admin, report context links, and admin order detail now resolve known listing/seller labels before linking.
+- **Legacy fallbacks remain**: ID-only admin report targets still fall back to legacy `/listing/{id}` or `/seller/{id}` when the target record cannot be resolved.
+
+### Verification
+- `rg` found no remaining app-generated raw listing/seller href or notification/email link patterns outside legacy fallbacks/revalidation paths.
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (13 tests)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.

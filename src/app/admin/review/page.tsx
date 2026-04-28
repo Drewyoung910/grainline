@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ReviewListingButtons } from "@/components/ReviewListingButtons";
 import { DeleteListingButton } from "@/components/admin/DeleteListingButton";
 import Link from "next/link";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Review Queue — Admin" };
@@ -73,7 +74,7 @@ export default async function AdminReviewPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2 flex-wrap">
                       <Link
-                        href={`/listing/${listing.id}`}
+                        href={publicListingPath(listing.id, listing.title)}
                         target="_blank"
                         className="font-semibold hover:underline"
                       >
@@ -113,7 +114,7 @@ export default async function AdminReviewPage() {
                   <ReviewListingButtons listingId={listing.id} />
                   <DeleteListingButton listingId={listing.id} />
                   <Link
-                    href={`/listing/${listing.id}`}
+                    href={publicListingPath(listing.id, listing.title)}
                     target="_blank"
                     className="text-sm text-neutral-500 underline hover:text-neutral-900"
                   >

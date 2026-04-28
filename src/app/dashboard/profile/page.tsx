@@ -16,6 +16,7 @@ import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -300,7 +301,7 @@ export default async function ProfilePage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Shop Profile</h1>
         <Link
-          href={`/seller/${seller.id}`}
+          href={publicSellerPath(seller.id, seller.displayName)}
           target="_blank"
           className="text-sm underline text-neutral-600"
         >

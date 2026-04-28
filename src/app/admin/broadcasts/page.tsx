@@ -6,6 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminAction } from "@/lib/audit";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
@@ -122,7 +123,7 @@ export default async function AdminBroadcastsPage({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Link
-                      href={`/seller/${b.sellerProfile?.id}`}
+                      href={b.sellerProfile ? publicSellerPath(b.sellerProfile.id, b.sellerProfile.displayName) : "#"}
                       className="text-sm font-medium text-neutral-800 hover:underline"
                     >
                       {b.sellerProfile?.displayName ?? "Unknown maker"}

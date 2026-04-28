@@ -6,6 +6,7 @@ import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { publicListingPath } from "@/lib/publicPaths";
 import { z } from "zod";
 
 const FavoriteSchema = z.object({
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
         type: "NEW_FAVORITE",
         title: `${favName} hearted your listing`,
         body: listing!.title,
-        link: `/listing/${listingId}`,
+        link: publicListingPath(listingId, listing!.title),
       });
     }
   } catch (e) {

@@ -9,6 +9,7 @@ import { sendBackInStock } from "@/lib/email";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
+import { publicListingPath } from "@/lib/publicPaths";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
@@ -138,7 +139,7 @@ export async function PATCH(
                 type: "BACK_IN_STOCK",
                 title: `${updated.title} is back in stock!`,
                 body: "The piece you saved is available again",
-                link: `/listing/${id}`,
+                link: publicListingPath(id, updated.title),
               });
               if (sub.email) {
                 await sendBackInStock({

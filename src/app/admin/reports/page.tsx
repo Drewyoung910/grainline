@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ResolveReportButton } from "@/components/admin/ResolveReportButton";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 export const metadata: Metadata = { title: "Reports — Admin" };
 
@@ -40,17 +41,45 @@ export default async function AdminReportsPage() {
   const blogCommentTargetIds = reports
     .filter((r) => r.targetType === "BLOG_COMMENT" && r.targetId)
     .map((r) => r.targetId!);
+  const listingTargetIds = reports
+    .filter((r) => r.targetType === "LISTING" && r.targetId)
+    .map((r) => r.targetId!);
+  const sellerTargetIds = reports
+    .filter((r) => r.targetType === "SELLER" && r.targetId)
+    .map((r) => r.targetId!);
 
-  const reviewListingMap = new Map<string, string>();
+  const reviewListingMap = new Map<string, { id: string; title: string }>();
   const blogCommentSlugMap = new Map<string, string>();
+  const listingPathMap = new Map<string, string>();
+  const sellerPathMap = new Map<string, string>();
 
   if (reviewTargetIds.length > 0) {
     const reviews = await prisma.review.findMany({
       where: { id: { in: reviewTargetIds } },
-      select: { id: true, listingId: true },
+      select: { id: true, listing: { select: { id: true, title: true } } },
     });
     for (const rv of reviews) {
-      reviewListingMap.set(rv.id, rv.listingId);
+      reviewListingMap.set(rv.id, rv.listing);
+    }
+  }
+
+  if (listingTargetIds.length > 0) {
+    const listings = await prisma.listing.findMany({
+      where: { id: { in: listingTargetIds } },
+      select: { id: true, title: true },
+    });
+    for (const listing of listings) {
+      listingPathMap.set(listing.id, publicListingPath(listing.id, listing.title));
+    }
+  }
+
+  if (sellerTargetIds.length > 0) {
+    const sellers = await prisma.sellerProfile.findMany({
+      where: { id: { in: sellerTargetIds } },
+      select: { id: true, displayName: true },
+    });
+    for (const seller of sellers) {
+      sellerPathMap.set(seller.id, publicSellerPath(seller.id, seller.displayName));
     }
   }
 
@@ -129,10 +158,10 @@ export default async function AdminReportsPage() {
                 {r.targetType && r.targetId && (
                   <div>
                     {r.targetType === "LISTING" && (
-                      <Link href={`/listing/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View listing →</Link>
+                      <Link href={listingPathMap.get(r.targetId) ?? `/listing/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View listing →</Link>
                     )}
                     {r.targetType === "SELLER" && (
-                      <Link href={`/seller/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View seller →</Link>
+                      <Link href={sellerPathMap.get(r.targetId) ?? `/seller/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View seller →</Link>
                     )}
                     {r.targetType === "MESSAGE_THREAD" && (
                       <Link href={`/messages/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View thread →</Link>
@@ -141,7 +170,7 @@ export default async function AdminReportsPage() {
                       <Link href={`/blog/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View post →</Link>
                     )}
                     {r.targetType === "REVIEW" && reviewListingMap.has(r.targetId) && (
-                      <Link href={`/listing/${reviewListingMap.get(r.targetId)}#reviews`} target="_blank" className="text-xs text-blue-600 hover:underline">View review →</Link>
+                      <Link href={`${publicListingPath(reviewListingMap.get(r.targetId)!.id, reviewListingMap.get(r.targetId)!.title)}#reviews`} target="_blank" className="text-xs text-blue-600 hover:underline">View review →</Link>
                     )}
                     {r.targetType === "BLOG_COMMENT" && blogCommentSlugMap.has(r.targetId) && (
                       <Link href={`/blog/${blogCommentSlugMap.get(r.targetId)}`} target="_blank" className="text-xs text-blue-600 hover:underline">View blog post →</Link>

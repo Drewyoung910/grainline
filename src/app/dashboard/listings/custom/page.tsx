@@ -17,6 +17,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import { Palette } from "@/components/icons";
 import { ListingStatus, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
+import { publicListingPath } from "@/lib/publicPaths";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -175,7 +176,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     });
     if (held.count === 0) return { ok: false, error: "Listing state changed during review. Refresh and try again." };
     revalidatePath(`/messages/${conversationId}`);
-    redirect(`/listing/${created.id}?preview=1`);
+    redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
   }
 
   const activated = await prisma.listing.updateMany({
@@ -222,7 +223,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     type: "CUSTOM_ORDER_LINK",
     title: "Your custom piece is ready to review!",
     body: `${created.title} — review and purchase`,
-    link: `/listing/${created.id}`,
+    link: publicListingPath(created.id, created.title),
   });
 
   try {
