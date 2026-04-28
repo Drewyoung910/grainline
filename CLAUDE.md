@@ -3938,7 +3938,7 @@ Helper utilities:
 
 Stripe Connect is used so sellers receive payouts directly. Stripe webhook handler is at `src/app/api/stripe/webhook/route.ts`. The `stripe` client lives in `src/lib/stripe.ts`.
 
-**Platform fee: 5%** of item subtotal (excluding shipping and taxes). Current embedded checkout routes retain the fee by setting an explicit `transfer_data.amount` equal to `itemsSubtotal + shipping + giftWrap - platformFee`; tax remains on the platform because it is excluded from the seller transfer. `application_fee_amount` is not currently used.
+**Platform fee: 5%** of item subtotal (excluding shipping and taxes). Current embedded checkout routes retain the fee by setting an explicit `transfer_data.amount` equal to `itemsSubtotal + shipping + giftWrap - platformFee`; tax remains on the platform because it is excluded from the seller transfer. `application_fee_amount` is intentionally not used with this manual-transfer model; adding it on top of `transfer_data.amount` would change Connect accounting and must be treated as a separate payment-design migration.
 
 **CHECKOUT REBUILD — Phase 1 complete**: User model now has `shippingName`, `shippingLine1`, `shippingLine2`, `shippingCity`, `shippingState`, `shippingPostalCode`, `shippingPhone` fields (migration: `add_user_shipping_address`). `GET /api/account/shipping-address` returns saved address. `PUT /api/account/shipping-address` saves address (Zod validated: 2-letter state, 5-digit zip, sanitized text). Both routes auth-required, rate-limited via `shippingAddressRatelimit` (30/10min per userId).
 

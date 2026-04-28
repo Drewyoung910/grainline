@@ -147,6 +147,14 @@ async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]
   return [...urls];
 }
 
+function mediaUrlHost(url: string) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "invalid-url";
+  }
+}
+
 export async function anonymizeUserAccount(userId: string) {
   const account = await prisma.user.findUnique({
     where: { id: userId },
@@ -177,6 +185,7 @@ export async function anonymizeUserAccount(userId: string) {
     const now = new Date();
     const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
     const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
+    const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
 
     await tx.cart.deleteMany({ where: { userId: user.id } });
     await tx.favorite.deleteMany({ where: { userId: user.id } });
@@ -234,13 +243,22 @@ export async function anonymizeUserAccount(userId: string) {
         email: suppressionEmail,
         reason: EmailSuppressionReason.MANUAL,
         source: "account_deletion",
-        details: { userId: user.id },
+        details: { accountDeleted: true },
       },
       update: {
         reason: EmailSuppressionReason.MANUAL,
         source: "account_deletion",
-        details: { userId: user.id },
+        details: { accountDeleted: true },
       },
+    });
+    await tx.adminAuditLog.updateMany({
+      where: {
+        OR: [
+          { adminId: user.id },
+          ...(auditTargetIds.length > 0 ? [{ targetId: { in: auditTargetIds } }] : []),
+        ],
+      },
+      data: { metadata: { redactedForAccountDeletion: true } },
     });
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
@@ -391,7 +409,15 @@ export async function anonymizeUserAccount(userId: string) {
     if (deletion.status === "rejected") {
       Sentry.captureException(deletion.reason, {
         tags: { source: "account_delete_media_cleanup" },
-        extra: { userId, url: mediaUrls[index] },
+        extra: { userId, host: mediaUrlHost(mediaUrls[index]) },
+      });
+      return;
+    }
+    if (deletion.value === false) {
+      Sentry.captureMessage("Account deletion skipped non-R2 media cleanup", {
+        level: "warning",
+        tags: { source: "account_delete_media_cleanup", host: mediaUrlHost(mediaUrls[index]) },
+        extra: { userId },
       });
     }
   });

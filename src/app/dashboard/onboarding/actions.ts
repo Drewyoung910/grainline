@@ -14,7 +14,12 @@ function actionError(error: unknown): ActionResult {
   return { ok: false, error: "We couldn't save that step. Please try again." };
 }
 
-async function getSeller(): Promise<{ id: string; onboardingStep: number; chargesEnabled: boolean }> {
+async function getSeller(): Promise<{
+  id: string;
+  onboardingStep: number;
+  chargesEnabled: boolean;
+  listingCount: number;
+}> {
   const { userId } = await auth();
   if (!userId) throw new Error("Not signed in");
   const seller = await prisma.sellerProfile.findFirst({
@@ -23,12 +28,18 @@ async function getSeller(): Promise<{ id: string; onboardingStep: number; charge
       id: true,
       onboardingStep: true,
       chargesEnabled: true,
+      _count: { select: { listings: true } },
       user: { select: { banned: true, deletedAt: true } },
     },
   });
   if (!seller) throw new Error("No seller profile");
   if (seller.user.banned || seller.user.deletedAt) throw new Error("Account suspended");
-  return { id: seller.id, onboardingStep: seller.onboardingStep, chargesEnabled: seller.chargesEnabled };
+  return {
+    id: seller.id,
+    onboardingStep: seller.onboardingStep,
+    chargesEnabled: seller.chargesEnabled,
+    listingCount: seller._count.listings,
+  };
 }
 
 export async function saveStep1(formData: FormData): Promise<ActionResult> {
@@ -123,6 +134,9 @@ export async function completeOnboarding(): Promise<ActionResult> {
     }
     if (!seller.chargesEnabled) {
       return { ok: false, error: "Connect Stripe before completing onboarding." };
+    }
+    if (seller.listingCount < 1) {
+      return { ok: false, error: "Create your first listing before completing onboarding." };
     }
     await prisma.sellerProfile.update({
       where: { id: seller.id },

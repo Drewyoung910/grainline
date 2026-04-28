@@ -343,7 +343,26 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
       status: true,
       sellerProfileId: true,
       sellerProfile: {
-        select: { userId: true, id: true, displayName: true, user: { select: { email: true } } },
+        select: {
+          userId: true,
+          id: true,
+          displayName: true,
+          user: { select: { email: true } },
+          sellerMetrics: {
+            select: {
+              calculatedAt: true,
+              periodMonths: true,
+              averageRating: true,
+              reviewCount: true,
+              onTimeShippingRate: true,
+              responseRate: true,
+              totalSalesCents: true,
+              completedOrderCount: true,
+              activeCaseCount: true,
+              accountAgeDays: true,
+            },
+          },
+        },
       },
     },
   });
@@ -352,7 +371,9 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
     return { ok: false, error: "Application is no longer pending. Refresh this page." };
   }
 
-  const metrics = await calculateSellerMetrics(verification.sellerProfileId);
+  const metrics = verification.sellerProfile.sellerMetrics
+    ? cachedMetricsToResult(verification.sellerProfileId, verification.sellerProfile.sellerMetrics)
+    : await calculateSellerMetrics(verification.sellerProfileId);
   const criteria = meetsGuildMasterRequirements(metrics);
   if (!criteria.allMet) {
     await logAdminAction({

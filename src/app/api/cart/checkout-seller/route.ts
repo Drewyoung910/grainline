@@ -469,6 +469,8 @@ export async function POST(req: Request) {
       payment_intent_data: {
         transfer_data: {
           destination,
+          // Platform fee is retained by transferring only the seller portion.
+          // Do not also set application_fee_amount with this manual transfer model.
           amount: sellerTransferAmount,
         },
         ...(csDescriptor.length > 0 && { statement_descriptor_suffix: csDescriptor }),

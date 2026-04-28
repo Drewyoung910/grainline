@@ -474,8 +474,8 @@ export default function OnboardingWizard({
                   {connectingStripe ? "Connecting…" : "Connect Stripe →"}
                 </button>
                 <p className="text-xs text-neutral-500">
-                  You can still create listings without Stripe, but you won&apos;t receive payouts
-                  until connected.
+                  You can draft your first listing now, but Stripe must be fully connected before
+                  onboarding can finish or any listing can publish.
                 </p>
               </div>
             )}
@@ -541,14 +541,14 @@ export default function OnboardingWizard({
 
             <button
               onClick={() => advance(5)}
-              disabled={loading}
+              disabled={loading || (listingCount === 0 && !completed.step4)}
               className="w-full border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
             >
               {loading
                 ? "Loading…"
                 : listingCount > 0 || completed.step4
                 ? "Continue →"
-                : "I'll do this later"}
+                : "Create a listing first"}
             </button>
           </div>
         )}
@@ -609,7 +609,7 @@ export default function OnboardingWizard({
 
             <button
               onClick={handleComplete}
-              disabled={loading}
+              disabled={loading || !chargesEnabled || listingCount < 1}
               className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}
