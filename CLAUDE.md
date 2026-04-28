@@ -5894,14 +5894,16 @@ This pass closed a documentation/code mismatch around CI build enforcement and e
 - **Unsubscribe lifecycle tests added**: tests cover normalized emails, tokenized one-click URL shape, address/token tampering rejection, 90-day TTL enforcement, and future-issued token rejection.
 - **Notification dedup key isolated**: daily dedup key generation now lives in `src/lib/notificationDedup.ts` and remains based only on UTC day, recipient, type, and link.
 - **Notification dedup tests added**: tests verify stable same-action keys, separation across users/types/links/day buckets, and independence from mutable notification title/body copy.
-- **Test baseline expanded**: `npm test` now runs 28 assertions across cron auth, listing variants, media URL/R2 keys, Sentry filtering, public paths, shipping tokens, unsubscribe tokens, and notification dedup keys.
+- **Runtime DB SSL mode pinned**: `src/lib/db.ts` normalizes ambiguous `sslmode=require/prefer/verify-ca` runtime database URLs to `sslmode=verify-full`, preserving current security behavior before the next `pg` semantics change.
+- **Database URL tests added**: pure tests cover SSL mode normalization without exposing or rewriting secret values.
+- **Test baseline expanded**: `npm test` now runs 30 assertions across cron auth, listing variants, media URL/R2 keys, Sentry filtering, public paths, shipping tokens, unsubscribe tokens, notification dedup keys, and database URL normalization.
 
 ### Verification
 - `git diff --check` ✅
 - `npx tsc --noEmit --incremental false` ✅
-- `npm test` ✅ (28 tests)
+- `npm test` ✅ (30 tests)
 - `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
-- `npm run build` ✅ outside sandbox; emits existing Postgres `sslmode=verify-full` env warning
+- `npm run build` ✅ outside sandbox; previous Postgres SSL-mode warning no longer emitted
 
 ### Still open / next good passes
 - Switch `DATABASE_URL` in Vercel to the Neon pooler endpoint; keep `DIRECT_URL` direct for migrations.
