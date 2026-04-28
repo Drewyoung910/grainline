@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { useToast } from "@/components/Toast";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export default function AddToCartButton({
   listingId,
+  listingTitle,
   signedIn,
   className = "",
   redirectToCart = false,
@@ -12,6 +14,7 @@ export default function AddToCartButton({
   variantRequired = false,
 }: {
   listingId: string;
+  listingTitle: string;
   signedIn: boolean;
   className?: string;
   redirectToCart?: boolean;
@@ -61,7 +64,7 @@ export default function AddToCartButton({
   if (!signedIn) {
     return (
       <a
-        href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${listingId}`)}`}
+        href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listingId, listingTitle))}`}
         className={className || "rounded border px-3 py-1.5 text-sm"}
       >
         Sign in to add
@@ -80,6 +83,5 @@ export default function AddToCartButton({
     </button>
   );
 }
-
 
 

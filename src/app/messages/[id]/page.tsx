@@ -15,6 +15,7 @@ import Link from "next/link";
 import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export default async function ThreadPage({
   params,
@@ -327,7 +328,7 @@ export default async function ThreadPage({
 
       {ctx && (
         <Link
-          href={`/listing/${ctx.id}`}
+          href={publicListingPath(ctx.id, ctx.title)}
           className="flex items-center gap-3 rounded-lg border bg-white p-3 hover:bg-neutral-50"
         >
           <div className="h-14 w-14 rounded-lg overflow-hidden bg-neutral-100">
@@ -362,7 +363,6 @@ export default async function ThreadPage({
     </main>
   );
 }
-
 
 
 

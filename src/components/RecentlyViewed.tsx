@@ -3,6 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
 import { useToast } from "@/components/Toast";
+import { publicListingPath } from "@/lib/publicPaths";
 
 type RecentListing = {
   id: string;
@@ -64,7 +65,7 @@ export default function RecentlyViewed() {
         <ul className="flex gap-4 overflow-x-auto pb-0">
           {listings.map((l) => (
             <li key={l.id} className="shrink-0 w-48 group">
-              <Link href={`/listing/${l.id}`} className="block">
+              <Link href={publicListingPath(l.id, l.title)} className="block">
                 <div className="rounded-2xl overflow-hidden aspect-square bg-neutral-100">
                   {l.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

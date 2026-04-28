@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { FeedItem } from "@/app/api/account/feed/route";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 export default function FeedClient() {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -147,9 +148,10 @@ function timeAgo(dateStr: string): string {
 }
 
 function FeedCard({ item }: { item: FeedItem }) {
-  const sellerHref = item.sellerProfileId ? `/seller/${item.sellerProfileId}` : "#";
+  const sellerHref = item.sellerProfileId ? publicSellerPath(item.sellerProfileId, item.sellerName) : "#";
 
   if (item.kind === "listing") {
+    const listingHref = item.id ? publicListingPath(item.id, item.title) : "#";
     return (
       <div className="card-listing">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-100">
@@ -161,7 +163,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <Link href={`/listing/${item.id}`} className="block">
+        <Link href={listingHref} className="block">
           {item.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />

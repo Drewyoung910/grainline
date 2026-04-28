@@ -5212,6 +5212,24 @@ This pass addressed the remaining codeable SEO/canonical backlog without requiri
 - `npm test` ✅ (13 tests)
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
+## Audit Fix Pass — Public URL Link Cleanup (2026-04-27)
+
+This follow-up widened the readable URL rollout from canonical metadata/cards into more user-visible surfaces.
+
+### Fixed in this pass
+- **Homepage and hero mosaic use readable listing/seller URLs**: maker feed cards, Meet a Maker links, featured listing tiles, and animated mosaic anchors now call the public path helpers.
+- **Public editorial/map surfaces use readable URLs**: blog featured listings, blog maker author links, commission interested-maker links, metro maker cards, and map popups now emit slugged seller/listing paths where names are available.
+- **Buyer-facing account/cart/order surfaces use readable listing URLs**: saved/reviewed/following/feed/cart/order/success links now prefer `/listing/{id}--{slug}` paths.
+- **Transactional email CTAs use readable URLs**: custom-order-ready, back-in-stock, Guild approval, and first-listing emails now use slugged listing/seller paths.
+- **Purchase and message redirects preserve readable URLs**: sign-in redirects for buy/add/notify flows and custom-order message cards now use the same listing path helper.
+
+### Verification
+- `git diff --check` ✅
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+- `npm test` ✅ (13 tests)
+- `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
+
 ## Audit Fix Pass — CI Test Harness Baseline (2026-04-27)
 
 This pass addressed the early audit finding that the project had no real test suite. It intentionally starts with a small, dependency-light baseline that CI can run consistently.

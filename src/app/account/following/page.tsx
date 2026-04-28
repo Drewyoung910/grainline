@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import FollowButton from "@/components/FollowButton";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
@@ -80,7 +81,7 @@ export default async function FollowingPage() {
             const location = [s.city, s.state].filter(Boolean).join(", ");
             return (
               <li key={s.id} className="card-section p-4 flex items-center gap-4">
-                <Link href={`/seller/${s.id}`} className="flex-none">
+                <Link href={publicSellerPath(s.id, s.displayName)} className="flex-none">
                   {avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={avatar} alt={s.displayName ?? ""} className="h-14 w-14 rounded-full object-cover" />
@@ -91,7 +92,7 @@ export default async function FollowingPage() {
                   )}
                 </Link>
                 <div className="flex-1 min-w-0">
-                  <Link href={`/seller/${s.id}`} className="font-semibold text-neutral-900 hover:underline">
+                  <Link href={publicSellerPath(s.id, s.displayName)} className="font-semibold text-neutral-900 hover:underline">
                     {s.displayName ?? "Maker"}
                   </Link>
                   {s.tagline && <p className="text-sm text-neutral-500 truncate">{s.tagline}</p>}
@@ -106,7 +107,7 @@ export default async function FollowingPage() {
                   </div>
                   {/* Latest listing */}
                   {s.listings[0] ? (
-                    <Link href={`/listing/${s.listings[0].id}`} className="flex items-center gap-2 mt-2 group w-fit">
+                    <Link href={publicListingPath(s.listings[0].id, s.listings[0].title)} className="flex items-center gap-2 mt-2 group w-fit">
                       {s.listings[0].photos[0]?.url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={s.listings[0].photos[0].url} alt={s.listings[0].title} className="h-10 w-10 object-cover border border-neutral-200 shrink-0" />

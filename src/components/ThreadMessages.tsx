@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Palette, Logs } from "@/components/icons";
+import { publicListingPath } from "@/lib/publicPaths";
 
 type Msg = {
   id: string;
@@ -346,7 +347,7 @@ export default function ThreadMessages({
                   )}
                   {link.listingId && (
                     <Link
-                      href={`/listing/${link.listingId}`}
+                      href={publicListingPath(link.listingId, link.title)}
                       className="inline-flex items-center gap-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 mt-1"
                     >
                       Purchase This Piece →
@@ -466,7 +467,6 @@ export default function ThreadMessages({
     </div>
   );
 }
-
 
 
 

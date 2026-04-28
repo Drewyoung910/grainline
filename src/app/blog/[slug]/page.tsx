@@ -18,6 +18,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 export async function generateMetadata({
   params,
@@ -256,7 +257,7 @@ export default async function BlogPostPage({
         <div>
           <div className="font-medium text-sm">
             {post.authorType === "MAKER" && post.sellerProfile ? (
-              <Link href={`/seller/${post.sellerProfile.id}`} className="hover:underline">
+              <Link href={publicSellerPath(post.sellerProfile.id, authorName)} className="hover:underline">
                 {authorName}
               </Link>
             ) : (
@@ -338,7 +339,7 @@ export default async function BlogPostPage({
           <ul className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {featuredListings.map((l) => (
               <li key={l.id} className="card-listing">
-                <Link href={`/listing/${l.id}`} className="block">
+                <Link href={publicListingPath(l.id, l.title)} className="block">
                   <div className="h-36 bg-neutral-100 overflow-hidden">
                     {l.photos[0]?.url ? (
                       <MediaImage

@@ -6,6 +6,7 @@ import BuyNowButton from "./BuyNowButton";
 import AddToCartButton from "./AddToCartButton";
 import NotifyMeButton from "./NotifyMeButton";
 import { Gift } from "./icons";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export default function ListingPurchasePanel({
   basePriceCents,
@@ -54,6 +55,7 @@ export default function ListingPurchasePanel({
   const [totalPriceCents, setTotalPriceCents] = useState(basePriceCents);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const variantRequired = hasVariants;
+  const listingPath = publicListingPath(listingId, listingTitle);
 
   const handleSelectionChange = useCallback(
     (ids: string[], price: number) => {
@@ -118,6 +120,7 @@ export default function ListingPurchasePanel({
       {isActive && !isOwnListing && isOutOfStock && (
         <NotifyMeButton
           listingId={listingId}
+          listingTitle={listingTitle}
           initialSubscribed={isNotified}
           signedIn={!!userId}
         />
@@ -144,7 +147,7 @@ export default function ListingPurchasePanel({
             </BuyNowButton>
           ) : (
             <a
-              href={`/sign-in?redirect_url=${encodeURIComponent(`/listing/${listingId}`)}`}
+              href={`/sign-in?redirect_url=${encodeURIComponent(listingPath)}`}
               className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
             >
               Sign in to buy
@@ -152,6 +155,7 @@ export default function ListingPurchasePanel({
           )}
           <AddToCartButton
             listingId={listingId}
+            listingTitle={listingTitle}
             signedIn={!!userId}
             selectedVariantOptionIds={selectedOptionIds}
             variantRequired={variantRequired}

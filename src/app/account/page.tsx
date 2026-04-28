@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -229,7 +230,7 @@ export default async function AccountPage() {
               const thumb = listing.photos[0]?.url;
               return (
                 <ClickTracker key={listing.id} listingId={listing.id} className="card-listing shrink-0 w-40 transition-colors">
-                  <Link href={`/listing/${listing.id}`} className="block">
+                  <Link href={publicListingPath(listing.id, listing.title)} className="block">
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={thumb} alt={listing.title} className="h-32 w-full object-cover" />

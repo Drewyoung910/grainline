@@ -9,6 +9,7 @@ import { ListingStatus } from "@prisma/client";
 import GuildBadge from "@/components/GuildBadge";
 import type { GuildLevelValue } from "@/components/GuildBadge";
 import { safeJsonLd } from "@/lib/json-ld";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -160,7 +161,7 @@ export default async function MakersMetroPage({
         "@type": "LocalBusiness",
         "name": s.displayName,
         "description": s.tagline ?? `Handmade woodworking by ${s.displayName}`,
-        "url": `${BASE_URL}/seller/${s.id}`,
+        "url": `${BASE_URL}${publicSellerPath(s.id, s.displayName)}`,
         "image": s.avatarImageUrl ?? s.user?.imageUrl,
         ...(s.city && s.state ? { "address": { "@type": "PostalAddress", "addressLocality": s.city, "addressRegion": s.state } } : {}),
         "knowsAbout": "Handmade Woodworking",
@@ -254,7 +255,7 @@ export default async function MakersMetroPage({
                       {activeCount} active piece{activeCount !== 1 ? "s" : ""}
                     </span>
                     <Link
-                      href={`/seller/${seller.id}`}
+                      href={publicSellerPath(seller.id, seller.displayName)}
                       className="text-xs border border-neutral-900 px-3 py-1 hover:bg-neutral-900 hover:text-white transition-colors"
                     >
                       View Shop

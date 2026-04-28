@@ -23,6 +23,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -252,6 +253,7 @@ export default async function HomePage() {
       take: 16,
       select: {
         id: true,
+        title: true,
         photos: {
           take: 1,
           orderBy: { sortOrder: "asc" },
@@ -264,9 +266,9 @@ export default async function HomePage() {
   const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;
   const trendingTags = trendingTagsRaw;
 
-  const mosaicPhotos: { url: string; listingId: string }[] = mosaicListings
+  const mosaicPhotos: { url: string; listingId: string; title: string }[] = mosaicListings
     .filter(l => l.photos.length > 0)
-    .map(l => ({ url: l.photos[0].url, listingId: l.id }))
+    .map(l => ({ url: l.photos[0].url, listingId: l.id, title: l.title }))
     .filter(item => isTrustedMediaUrl(item.url));
 
   const mapPoints = mapRows
@@ -569,7 +571,7 @@ export default async function HomePage() {
               {fromYourMakers.map((item) => (
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-                    <Link href={`/listing/${item.id}`} className="block">
+                    <Link href={publicListingPath(item.id, item.title)} className="block">
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
                         <MediaImage
                           src={item.photoUrl}
@@ -713,7 +715,7 @@ export default async function HomePage() {
 
                     <div className="pt-1">
                       <Link
-                        href={`/seller/${featuredMaker.id}`}
+                        href={publicSellerPath(featuredMaker.id, featuredMaker.displayName)}
                         className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-xs font-medium text-white hover:bg-[#3A2A24] transition-colors"
                       >
                         Visit Their Workshop →
@@ -726,7 +728,7 @@ export default async function HomePage() {
                 {featuredListings.length > 0 && (
                   <div className="grid grid-cols-3 gap-3 self-start">
                     {featuredListings.map((fl) => (
-                      <Link key={fl.id} href={`/listing/${fl.id}`} className="block group">
+                      <Link key={fl.id} href={publicListingPath(fl.id, fl.title)} className="block group">
                         <div className="aspect-square overflow-hidden rounded-xl">
                           <MediaImage
                             src={fl.photos[0]?.url ?? null}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { DeleteOwnReviewButton } from "@/components/DeleteOwnReviewButton";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export const metadata: Metadata = { title: "My Reviews", robots: { index: false, follow: false } };
 
@@ -44,7 +45,7 @@ export default async function MyReviewsPage() {
           {reviews.map((r) => (
             <div key={r.id} className="card-section p-4 flex gap-4">
               {r.listing.photos[0]?.url && (
-                <Link href={`/listing/${r.listing.id}`} className="shrink-0">
+                <Link href={publicListingPath(r.listing.id, r.listing.title)} className="shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={r.listing.photos[0].url}
@@ -54,7 +55,7 @@ export default async function MyReviewsPage() {
                 </Link>
               )}
               <div className="flex-1 min-w-0">
-                <Link href={`/listing/${r.listing.id}`} className="font-medium text-sm text-neutral-900 hover:underline line-clamp-1">
+                <Link href={publicListingPath(r.listing.id, r.listing.title)} className="font-medium text-sm text-neutral-900 hover:underline line-clamp-1">
                   {r.listing.title}
                 </Link>
                 <div className="flex items-center gap-2 mt-0.5">

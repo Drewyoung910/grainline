@@ -18,6 +18,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 // ---------------------------------------------------------------------------
 // generateStaticParams — include both active metro slugs and open commission IDs
@@ -523,7 +524,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
               return (
                 <Link
                   key={interest.id}
-                  href={`/seller/${sp.id}`}
+                  href={publicSellerPath(sp.id, sp.displayName)}
                   className="flex items-center gap-2 border border-neutral-200 rounded-full px-3 py-1.5 hover:bg-neutral-50 transition-colors"
                 >
                   {avatar ? (

@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
 import { ensureUserForPage } from "@/lib/pageAuth";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -136,7 +137,7 @@ export default async function CheckoutSuccessPage({
                               <div className="h-16 w-16 rounded border bg-neutral-100" />
                             )}
                             <div className="min-w-0 flex-1">
-                              <Link href={`/listing/${it.listingId}`} className="block truncate text-sm font-medium hover:underline">
+                              <Link href={publicListingPath(it.listingId, it.listing.title)} className="block truncate text-sm font-medium hover:underline">
                                 {it.listing.title}
                               </Link>
                               <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
@@ -540,7 +541,7 @@ export default async function CheckoutSuccessPage({
                   <div className="h-16 w-16 rounded border bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <Link href={`/listing/${it.listingId}`} className="block truncate text-sm font-medium hover:underline">
+                  <Link href={publicListingPath(it.listingId, it.listing.title)} className="block truncate text-sm font-medium hover:underline">
                     {it.listing.title}
                   </Link>
                   <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>

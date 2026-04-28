@@ -1,8 +1,11 @@
 "use client";
 
+import { publicListingPath } from "@/lib/publicPaths";
+
 type PhotoItem = {
   url: string;
   listingId: string;
+  title: string;
 };
 
 type Props = {
@@ -34,7 +37,7 @@ export default function HeroMosaic({ photos }: Props) {
         {row1.map((item, i) => (
           <a
             key={i}
-            href={`/listing/${item.listingId}`}
+            href={publicListingPath(item.listingId, item.title)}
             className="flex-none w-64 h-full overflow-hidden block"
             tabIndex={-1}
             aria-hidden="true"
@@ -57,7 +60,7 @@ export default function HeroMosaic({ photos }: Props) {
         {row2.map((item, i) => (
           <a
             key={i}
-            href={`/listing/${item.listingId}`}
+            href={publicListingPath(item.listingId, item.title)}
             className="flex-none w-64 h-full overflow-hidden block"
             tabIndex={-1}
             aria-hidden="true"

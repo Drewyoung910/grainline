@@ -2,6 +2,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef } from "react";
 import maplibregl from "maplibre-gl";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 type SellerPin = {
   id: string;
@@ -49,7 +50,7 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
         }
 
         const link = document.createElement("a");
-        link.href = `/seller/${encodeURIComponent(seller.id)}`;
+        link.href = publicSellerPath(seller.id, seller.name);
         link.className = "text-xs text-amber-700 underline mt-1 block";
         link.textContent = "View shop";
         popupContent.appendChild(link);

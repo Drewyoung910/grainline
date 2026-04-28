@@ -3,6 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
+import { publicSellerPath } from "@/lib/publicPaths";
 
 type Point = {
   id: string;
@@ -129,7 +130,7 @@ export default function AllSellersMap({
       }
 
       const link = document.createElement("a");
-      link.href = `/seller/${encodeURIComponent(id)}`;
+      link.href = publicSellerPath(id, nameText);
       link.style.fontSize = "12px";
       link.style.color = "#92400e";
       link.style.textDecoration = "underline";

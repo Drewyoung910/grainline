@@ -1,13 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export default function NotifyMeButton({
   listingId,
+  listingTitle,
   initialSubscribed,
   signedIn,
 }: {
   listingId: string;
+  listingTitle: string;
   initialSubscribed: boolean;
   signedIn: boolean;
 }) {
@@ -17,7 +20,7 @@ export default function NotifyMeButton({
 
   async function toggle() {
     if (!signedIn) {
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(`/listing/${listingId}`)}`;
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listingId, listingTitle))}`;
       return;
     }
     setLoading(true);

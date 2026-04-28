@@ -10,6 +10,7 @@ import ShippingAddressForm from "@/components/ShippingAddressForm";
 import ShippingRateSelector from "@/components/ShippingRateSelector";
 import EmbeddedCheckoutPanel from "@/components/EmbeddedCheckoutPanel";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
+import { publicListingPath } from "@/lib/publicPaths";
 
 export default function CartPageWrapper() {
   return (
@@ -285,7 +286,7 @@ function CartPage() {
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <Link href={`/listing/${i.listing.id}`} className="block truncate text-sm font-medium hover:underline">
+                  <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
                     {i.listing.title}
                   </Link>
                   {(i.variantLabels ?? []).length > 0 && (

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
+import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -150,7 +151,7 @@ export default async function AccountOrdersPage({
                         )}
                         <div className="flex-1 min-w-0">
                           <Link
-                            href={`/listing/${item.listing.id}`}
+                            href={publicListingPath(item.listing.id, item.listing.title)}
                             className="text-sm font-medium hover:underline truncate block"
                           >
                             {item.listing.title}

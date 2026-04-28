@@ -5,6 +5,7 @@ import { isR2PublicUrl } from "@/lib/urlValidation";
 import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -434,7 +435,7 @@ export async function sendCustomOrderReady(opts: {
   const { buyer, sellerName, listingTitle, priceCents, listingId } = opts;
   const name = buyer.name || "there";
   const seller = sellerName || "Your maker";
-  const listingUrl = `${APP_URL}/listing/${listingId}`;
+  const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(seller)}</strong> has created your custom piece!</p>
@@ -453,7 +454,7 @@ export async function sendBackInStock(opts: {
 }) {
   const { buyer, listingTitle, listingId } = opts;
   const name = buyer.name || "there";
-  const listingUrl = `${APP_URL}/listing/${listingId}`;
+  const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, good news — a piece you saved is back in stock!</p>
@@ -470,7 +471,7 @@ export async function sendVerificationApproved(opts: {
 }) {
   const { seller, profileId } = opts;
   const name = seller.displayName || "there";
-  const profileUrl = `${APP_URL}/seller/${profileId}`;
+  const profileUrl = `${APP_URL}${publicSellerPath(profileId, name)}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Congratulations, ${esc(name)}! You are now a <strong>Guild Member</strong> on Grainline.</p>
@@ -574,7 +575,7 @@ export async function sendFirstListingCongrats(opts: {
 }) {
   const { seller, listing } = opts;
   const name = seller.displayName || "there";
-  const listingUrl = `${APP_URL}/listing/${listing.id}`;
+  const listingUrl = `${APP_URL}${publicListingPath(listing.id, listing.title)}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your first piece is live on Grainline!</p>
