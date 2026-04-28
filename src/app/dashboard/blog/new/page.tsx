@@ -10,6 +10,7 @@ import { createNotification } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
 import { sanitizeText } from "@/lib/sanitize";
+import { normalizeTags } from "@/lib/tags";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -69,7 +70,7 @@ export default async function NewBlogPostPage() {
     const type = (formData.get("type") as BlogPostType) ?? "STANDARD";
     const status = (formData.get("status") as "DRAFT" | "PUBLISHED") ?? "DRAFT";
     const tagsRaw = String(formData.get("tags") ?? "").trim();
-    const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
+    const tags = tagsRaw ? normalizeTags(tagsRaw.split(",")) : [];
     const featuredListingIds = formData.getAll("featuredListingIds").map(String).filter(Boolean);
 
     if (!title || !body) return { ok: false, error: "Title and body are required." };

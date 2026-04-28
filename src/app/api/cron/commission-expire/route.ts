@@ -5,9 +5,12 @@ import { CommissionStatus } from "@prisma/client";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
+import { mapWithConcurrency } from "@/lib/concurrency";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const COMMISSION_INTEREST_NOTIFY_LIMIT = 10000;
 
 function cronErrorCode(error: unknown) {
   const err = error as { code?: string; name?: string };
@@ -34,6 +37,12 @@ export async function GET(req: Request) {
         title: true,
         buyerId: true,
         interests: {
+          where: {
+            sellerProfile: {
+              user: { banned: false, deletedAt: null },
+            },
+          },
+          take: COMMISSION_INTEREST_NOTIFY_LIMIT,
           select: {
             sellerProfile: { select: { userId: true } },
           },
@@ -56,24 +65,22 @@ export async function GET(req: Request) {
         const sellerUserIds = Array.from(
           new Set(request.interests.map((i) => i.sellerProfile.userId).filter(Boolean)),
         );
-        await Promise.allSettled([
+        await createNotification({
+          userId: request.buyerId,
+          type: "COMMISSION_INTEREST",
+          title: "Commission request expired",
+          body: `"${title}" is now closed to new maker interest.`,
+          link: `/commission/${request.id}`,
+        });
+        await mapWithConcurrency(sellerUserIds, 10, (userId) =>
           createNotification({
-            userId: request.buyerId,
+            userId,
             type: "COMMISSION_INTEREST",
             title: "Commission request expired",
-            body: `"${title}" is now closed to new maker interest.`,
+            body: `"${title}" is no longer accepting interest.`,
             link: `/commission/${request.id}`,
           }),
-          ...sellerUserIds.map((userId) =>
-            createNotification({
-              userId,
-              type: "COMMISSION_INTEREST",
-              title: "Commission request expired",
-              body: `"${title}" is no longer accepting interest.`,
-              link: `/commission/${request.id}`,
-            }),
-          ),
-        ]);
+        );
       } catch (error) {
         const code = cronErrorCode(error);
         failures.push({ requestId: request.id, code });

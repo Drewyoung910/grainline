@@ -6,11 +6,15 @@ import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
+import { mapWithConcurrency } from "@/lib/concurrency";
 import { z } from "zod";
 
 const CommissionPatchSchema = z.object({
   status: z.enum(["FULFILLED", "CLOSED"]),
 });
+
+const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
+const COMMISSION_INTEREST_NOTIFY_LIMIT = 10000;
 
 export async function GET(
   _req: NextRequest,
@@ -43,6 +47,7 @@ export async function GET(
             user: { banned: false, deletedAt: null },
           },
         },
+        take: COMMISSION_INTEREST_DISPLAY_LIMIT,
         select: {
           id: true,
           createdAt: true,
@@ -93,6 +98,12 @@ export async function PATCH(
       expiresAt: true,
       title: true,
       interests: {
+        where: {
+          sellerProfile: {
+            user: { banned: false, deletedAt: null },
+          },
+        },
+        take: COMMISSION_INTEREST_NOTIFY_LIMIT,
         select: {
           sellerProfile: { select: { userId: true } },
         },
@@ -129,8 +140,10 @@ export async function PATCH(
   const isFulfilled = (status as CommissionStatus) === CommissionStatus.FULFILLED;
   after(async () => {
     try {
-      await Promise.all(
-        request.interests.map((interest) =>
+      await mapWithConcurrency(
+        request.interests,
+        10,
+        (interest) =>
           createNotification({
             userId: interest.sellerProfile.userId,
             type: "COMMISSION_INTEREST",
@@ -139,8 +152,7 @@ export async function PATCH(
               ? `The request "${request.title}" has been fulfilled. Thanks for your interest!`
               : `The request "${request.title}" has been closed by the buyer.`,
             link: isFulfilled ? `/commission/${id}` : `/commission`,
-          })
-        )
+          }),
       );
     } catch { /* non-fatal */ }
   });

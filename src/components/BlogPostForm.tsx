@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import UploadButton from "@/components/R2UploadButton";
-import { BLOG_TYPE_LABELS } from "@/lib/blog";
+import { BLOG_TYPE_LABELS, generateSlug } from "@/lib/blog";
 import MarkdownToolbar from "./MarkdownToolbar";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { emitToast } from "@/components/Toast";
@@ -41,13 +41,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
   const allowedTypes = isStaff ? STAFF_TYPES : MAKER_TYPES;
 
   // Derive slug preview
-  const slugPreview = title
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "your-post-slug";
+  const slugPreview = title.trim() ? generateSlug(title) : "your-post-slug";
 
   return (
     <ActionForm action={action} className="space-y-6">

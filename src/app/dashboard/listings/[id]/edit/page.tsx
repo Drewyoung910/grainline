@@ -15,20 +15,13 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { publicListingPath } from "@/lib/publicPaths";
+import { normalizeTag } from "@/lib/tags";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 type SaveResult = { ok: boolean; error?: string };
 
-function normalizeTag(input: string) {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-_]/g, "")
-    .slice(0, 24);
-}
 const toFloat = (v: unknown) => {
   const s = typeof v === "string" ? v.trim() : v;
   if (s === "" || s === undefined) return null;

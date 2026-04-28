@@ -1,10 +1,10 @@
 // src/app/sitemap.ts
 import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
-import { CommissionStatus } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
+import { openCommissionWhere } from "@/lib/commissionExpiry";
 
 const BASE_URL = "https://thegrainline.com";
 const SITEMAP_ENTRY_LIMIT = 50_000;
@@ -63,10 +63,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.commissionRequest.findMany({
-      where: {
-        status: CommissionStatus.OPEN,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
+      where: openCommissionWhere(),
       select: { id: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,
@@ -94,8 +91,8 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       where: {
         isActive: true,
         OR: [
-          { commissions: { some: { status: CommissionStatus.OPEN, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } } },
-          { commissionCityMetros: { some: { status: CommissionStatus.OPEN, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } } },
+          { commissions: { some: openCommissionWhere() } },
+          { commissionCityMetros: { some: openCommissionWhere() } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },

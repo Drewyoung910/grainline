@@ -92,6 +92,14 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Runtime DB SSL mode pinned.** The Prisma runtime adapter now normalizes ambiguous `sslmode=require/prefer/verify-ca` database URLs to `sslmode=verify-full`, preserving current security behavior before the next `pg` semantics change.
 - **Test baseline expanded to 30 assertions.** Pure coverage now includes cron auth, listing variants, media URL/R2 key validation, Sentry filtering, public slug helpers, shipping-rate HMACs, unsubscribe tokens, notification dedup keys, and database URL SSL normalization.
 
+## Round 29 Fix Status Notes
+
+- **Commission fan-out bounded.** Commission close/fulfill and commission-expire notification fan-outs now cap interested-maker recipients at 10,000 and use `mapWithConcurrency()` instead of unbounded notification arrays.
+- **Commission public interest lists capped and filtered.** Public commission detail and API responses now show only active, payable, non-vacation, non-banned/non-deleted interested makers and cap the displayed list at 100 makers.
+- **Commission SEO/account-state alignment tightened.** Commission detail metadata and sitemap commission entries now exclude banned/deleted buyers through the same `openCommissionWhere()` account-state filter used by commission list pages.
+- **Unicode tag normalization centralized.** Listing tags, blog tags, saved-search tags, and the client tag input now share a Unicode-aware normalizer that preserves non-Latin tags, folds accented Latin text, strips bidi controls, dedupes normalized tags, and caps tag length. Blog slug preview now uses the same server slug generator used at save time.
+- **Test baseline expanded to 41 assertions.** Added pure coverage for Unicode tag normalization, non-Latin preservation, bidi stripping, length caps, and normalized dedupe behavior.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.

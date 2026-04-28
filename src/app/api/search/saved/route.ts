@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
+import { normalizeTags } from "@/lib/tags";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -68,11 +69,7 @@ export async function POST(req: NextRequest) {
 
   const normalizedQuery = q?.trim().replace(/\s+/g, " ").slice(0, 200) || null;
   const listingType = type === "IN_STOCK" || type === "MADE_TO_ORDER" ? (type as ListingType) : null;
-  const normalizedTags = Array.from(new Set(
-    (tags ?? [])
-      .map((tag) => tag.trim().toLowerCase().replace(/\s+/g, "-"))
-      .filter(Boolean)
-  )).slice(0, 20);
+  const normalizedTags = normalizeTags(tags ?? [], 20);
   const normalizedMin = typeof minPrice === "number" && Number.isFinite(minPrice) ? minPrice : null;
   const normalizedMax = typeof maxPrice === "number" && Number.isFinite(maxPrice) ? maxPrice : null;
   const normalizedShips = typeof shipsWithinDays === "number" && Number.isFinite(shipsWithinDays) ? shipsWithinDays : null;

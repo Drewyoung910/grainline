@@ -20,6 +20,8 @@ import { safeJsonLd } from "@/lib/json-ld";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
 import { publicSellerPath } from "@/lib/publicPaths";
 
+const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
+
 // ---------------------------------------------------------------------------
 // generateStaticParams — include both active metro slugs and open commission IDs
 // ---------------------------------------------------------------------------
@@ -85,10 +87,10 @@ export async function generateMetadata({
       interestedCount: true,
       status: true,
       expiresAt: true,
-      buyer: { select: { sellerProfile: { select: { city: true, state: true } } } },
+      buyer: { select: { banned: true, deletedAt: true, sellerProfile: { select: { city: true, state: true } } } },
     },
   });
-  if (!req || commissionIsExpired(req)) return {};
+  if (!req || req.buyer.banned || req.buyer.deletedAt || commissionIsExpired(req)) return {};
 
   const location = req.isNational
     ? "Ships Anywhere"
@@ -350,9 +352,25 @@ async function CommissionDetailPage({ id }: { id: string }) {
       cityMetroId: true,
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
-      buyer: { select: { name: true, imageUrl: true, sellerProfile: { select: { city: true, state: true } } } },
+      buyer: {
+        select: {
+          name: true,
+          imageUrl: true,
+          banned: true,
+          deletedAt: true,
+          sellerProfile: { select: { city: true, state: true } },
+        },
+      },
       interests: {
+        where: {
+          sellerProfile: {
+            chargesEnabled: true,
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
+        },
         orderBy: { createdAt: "asc" },
+        take: COMMISSION_INTEREST_DISPLAY_LIMIT,
         select: {
           id: true,
           createdAt: true,
@@ -370,7 +388,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
     },
   });
 
-  if (!request || commissionIsExpired(request)) return notFound();
+  if (!request || request.buyer.banned || request.buyer.deletedAt || commissionIsExpired(request)) return notFound();
 
   const { userId } = await auth();
   let meId: string | null = null;
@@ -514,7 +532,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       {request.interests.length > 0 && (
         <section className="mb-6">
           <h2 className="font-semibold text-neutral-800 mb-3">
-            {request.interests.length} Interested Maker{request.interests.length !== 1 ? "s" : ""}
+            Interested Maker{request.interests.length !== 1 ? "s" : ""}
           </h2>
           <div className="flex flex-wrap gap-3">
             {request.interests.map((interest) => {
@@ -539,6 +557,11 @@ async function CommissionDetailPage({ id }: { id: string }) {
               );
             })}
           </div>
+          {request.interestedCount > request.interests.length && (
+            <p className="mt-3 text-xs text-neutral-500">
+              Showing the first {request.interests.length} active maker{request.interests.length !== 1 ? "s" : ""}.
+            </p>
+          )}
         </section>
       )}
 

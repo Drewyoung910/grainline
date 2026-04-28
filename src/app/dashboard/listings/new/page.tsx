@@ -23,13 +23,10 @@ import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingPath } from "@/lib/publicPaths";
+import { normalizeTag } from "@/lib/tags";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
-
-function normalizeTag(input: string) {
-  return input.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-_]/g, "").slice(0, 24);
-}
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;

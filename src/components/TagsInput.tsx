@@ -2,16 +2,7 @@
 "use client";
 
 import * as React from "react";
-
-function normalizeTag(input: string) {
-  // trim -> lowercase -> collapse spaces -> hyphenate -> strip non-url-safe
-  const t = input
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-_]/g, "");
-  return t.slice(0, 24); // hard cap
-}
+import { normalizeTag } from "@/lib/tags";
 
 export default function TagsInput({
   name = "tagsJson",
