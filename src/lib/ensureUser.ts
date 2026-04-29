@@ -2,22 +2,9 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { sanitizeUserName } from "@/lib/sanitize";
+import { AccountAccessError, isAccountAccessError } from "@/lib/accountAccessError";
 
-export class AccountAccessError extends Error {
-  status = 403;
-
-  constructor(
-    message: string,
-    public code: "ACCOUNT_SUSPENDED" | "ACCOUNT_DELETED",
-  ) {
-    super(message);
-    this.name = "AccountAccessError";
-  }
-}
-
-export function isAccountAccessError(error: unknown): error is AccountAccessError {
-  return error instanceof AccountAccessError;
-}
+export { AccountAccessError, isAccountAccessError };
 
 /**
  * Upserts a User row given a Clerk userId.

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { isAccountAccessError } from "@/lib/ensureUser";
+import { accountAccessErrorPayload } from "@/lib/accountAccessError";
 
 export function accountAccessErrorResponse(error: unknown) {
-  if (!isAccountAccessError(error)) return null;
-  return NextResponse.json(
-    { error: error.message, code: error.code },
-    { status: error.status },
-  );
+  const payload = accountAccessErrorPayload(error);
+  if (!payload) return null;
+  return NextResponse.json(payload.body, { status: payload.status });
 }

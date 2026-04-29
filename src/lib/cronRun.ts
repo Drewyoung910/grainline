@@ -1,14 +1,13 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import * as Sentry from "@sentry/nextjs";
+import { cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
 
 export type CronRunHandle =
   | { acquired: true; runId: string; jobName: string; bucket: string }
   | { acquired: false; runId: string; jobName: string; bucket: string };
 
-export function cronUtcHourBucket(date = new Date()) {
-  return date.toISOString().slice(0, 13);
-}
+export { CRON_RUN_FAILED_RECLAIM_MS, cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
 
 export async function beginCronRun(jobName: string, bucket = cronUtcHourBucket()): Promise<CronRunHandle> {
   const runId = `${jobName}:${bucket}`;
@@ -29,10 +28,7 @@ export async function beginCronRun(jobName: string, bucket = cronUtcHourBucket()
         where: { id: runId },
         select: { status: true, startedAt: true },
       });
-      if (
-        existing?.status === "FAILED" &&
-        existing.startedAt < new Date(Date.now() - 5 * 60 * 1000)
-      ) {
+      if (shouldReclaimFailedCronRun(existing)) {
         await prisma.cronRun.delete({ where: { id: runId } }).catch((deleteError) => {
           if (
             deleteError instanceof Prisma.PrismaClientKnownRequestError &&

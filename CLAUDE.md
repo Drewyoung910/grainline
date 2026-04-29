@@ -5914,6 +5914,27 @@ This pass closed a documentation/code mismatch around CI build enforcement and e
 - Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
 - Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
 
+## Audit Fix Pass — Account-State and Cron Retry Coverage (2026-04-28)
+
+This pass continues the route/integration coverage backlog by isolating two high-risk route contracts into pure helpers that the Node test runner can load without Next or Prisma.
+
+### Fixed in this pass
+- **Account access error contract isolated**: `AccountAccessError`, `isAccountAccessError()`, and clean `{ status, body }` payload generation now live in `src/lib/accountAccessError.ts`. `ensureUser.ts` re-exports the same symbols for existing route imports.
+- **Account-state response coverage added**: tests verify suspended and deleted account errors produce stable 403 payloads with machine-readable codes, while unrelated errors are not masked.
+- **Cron retry reclaim rule isolated**: UTC cron run bucket generation and the five-minute failed-run reclaim predicate now live in `src/lib/cronRunState.ts`, keeping the retry-deadlock fix covered without importing Prisma.
+- **Cron retry regression coverage added**: tests verify deterministic UTC hour buckets and that only failed runs older than the retry window are eligible for reclaim.
+- **Test baseline expanded**: `npm test` now runs 70 assertions across 22 suites.
+
+### Verification
+- `npm test` ✅ (70 tests)
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notice only)
+
+### Still open / next good passes
+- Add deeper mocked route/integration coverage for payment webhook, refund route branching, and account export payload shape.
+- Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
+- Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
+
 ## Audit Fix Pass — Cached Guild Approval and External Refund Accounting (2026-04-28)
 
 This pass closes two live correctness gaps from the later audit rounds without changing public marketplace flows.

@@ -111,6 +111,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Email outbox daily quota reservation is atomic and exact.** The daily Redis quota counter now increments only by the number of emails actually allowed, preventing capped jobs from inflating usage and delaying later jobs unnecessarily.
 - **Stripe Connect return URL hardening has pure regression tests.** The internal return URL sanitizer is isolated and tested against protocol-relative redirects, backslash redirects, absolute URLs, non-path values, and malformed app origins.
 - **Checkout session lock transitions are compare-and-set guarded.** `markCheckoutLockReady()` now only promotes the matching `preparing` lock to `ready`; webhook release is session-bound so stale Stripe session events cannot delete a newer checkout lock.
+- **Account-state and cron retry contracts are isolated and tested.** `AccountAccessError` and clean API error payloads now live in a Prisma-free helper, and the failed-cron reclaim window lives in a Prisma-free helper. Regression coverage verifies suspended/deleted account responses, UTC cron buckets, and five-minute failed-run reclaim behavior.
 
 ## Recommended Fix Order
 
