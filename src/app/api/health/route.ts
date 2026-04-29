@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getIP, healthRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import {
+  healthResponsePayload,
+  isFreshHealthResult,
+  isVerboseHealthRequest,
+  type HealthCheckResult,
+} from "@/lib/healthState";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
 
-export async function GET() {
+let cachedHealth: HealthCheckResult | null = null;
+
+async function runHealthChecks(): Promise<HealthCheckResult> {
   const checks: Record<string, "ok" | "fail"> = {};
 
   // DB check
@@ -36,9 +45,21 @@ export async function GET() {
   }
 
   const allOk = Object.values(checks).every((v) => v === "ok");
+  return { ok: allOk, checks, timestamp: Date.now() };
+}
+
+export async function GET(req: Request) {
+  const { success, reset } = await safeRateLimitOpen(healthRatelimit, getIP(req));
+  if (!success) return rateLimitResponse(reset, "Too many health checks.");
+
+  const verbose = isVerboseHealthRequest(req.url, process.env.HEALTH_CHECK_TOKEN);
+  const cached = isFreshHealthResult(cachedHealth);
+  if (!cached) {
+    cachedHealth = await runHealthChecks();
+  }
 
   return NextResponse.json(
-    { ok: allOk, checks, timestamp: Date.now() },
-    { status: allOk ? 200 : 503 }
+    healthResponsePayload(cachedHealth!, verbose, cached),
+    { status: cachedHealth!.ok ? 200 : 503 },
   );
 }

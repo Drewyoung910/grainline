@@ -310,6 +310,14 @@ export const cspReportRatelimit = new Ratelimit({
   prefix: "rl:csp-report",
 });
 
+// Public health checks hit real backend dependencies; cache plus rate-limit them.
+export const healthRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "60 s"),
+  analytics: true,
+  prefix: "rl:health",
+});
+
 // Blog comment creation (fail closed — abuse has real cost)
 export const blogCommentRatelimit = new Ratelimit({
   redis,

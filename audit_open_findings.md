@@ -128,6 +128,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Blocked-checkout automatic refunds now respect open Stripe disputes.** `refundBlockedCheckout()` checks the latest durable `OrderPaymentEvent` dispute row before calling Stripe refunds and holds the order for manual reconciliation when the dispute is still open.
 - **Seller refund stale-lock cleanup now runs after order ownership.** `/api/orders/[id]/refund` verifies the seller owns at least one order item before releasing stale refund locks for the URL order ID, with a source-order regression test preventing the cleanup from moving back above the ownership gate.
 - **Remaining unbounded `Promise.allSettled` calls are removed.** Case auto-close notifications and review R2 cleanup now use `mapWithConcurrency`, closing the Round 42 partial concurrency gap without changing per-record failure isolation.
+- **Public health checks are rate-limited, cached, and non-verbose by default.** `/api/health` now rate-limits by IP, caches backend dependency checks for 30 seconds, and returns only `{ ok }` anonymously; detailed DB/Redis/R2 status requires `HEALTH_CHECK_TOKEN`.
 
 ## Recommended Fix Order
 
