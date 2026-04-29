@@ -2,14 +2,18 @@ import { ListingStatus, Prisma } from "@prisma/client";
 
 export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
   return {
-    status: ListingStatus.ACTIVE,
-    isPrivate: false,
-    seller: {
-      chargesEnabled: true,
-      vacationMode: false,
-      user: { banned: false, deletedAt: null },
-    },
-    ...extra,
+    AND: [
+      {
+        status: ListingStatus.ACTIVE,
+        isPrivate: false,
+        seller: {
+          chargesEnabled: true,
+          vacationMode: false,
+          user: { banned: false, deletedAt: null },
+        },
+      },
+      extra,
+    ],
   };
 }
 
