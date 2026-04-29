@@ -121,6 +121,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Stripe dispute webhook decisions are isolated and tested.** The webhook now uses pure helpers for dispute ledger rows, order review notes, active-case promotion, closed-case no-op behavior, and new case deadline/description creation.
 - **Stripe payout-failure webhook decisions are isolated and tested.** The webhook now uses a pure helper for durable `SellerPayoutEvent` upsert payloads and seller notification copy/fallbacks.
 - **Listing edit state is guarded consistently.** The edit page now blocks sold, in-review, archived, and staff-removed listings across save, photo reorder/delete, and alt-text mutation paths using a shared tested helper.
+- **Admin PIN cookie secret now fails loud in production.** `src/lib/adminPin.ts` asserts `ADMIN_PIN_COOKIE_SECRET` at module load in production, while preserving the local development fallback; pure tests cover production configured/missing and development fallback behavior.
 
 ## Recommended Fix Order
 

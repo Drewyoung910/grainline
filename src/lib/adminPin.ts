@@ -4,6 +4,15 @@ export const ADMIN_PIN_MAX_AGE_SECONDS = 60 * 60 * 4;
 const encoder = new TextEncoder();
 const DEV_ADMIN_PIN_COOKIE_SECRET =
   process.env.ADMIN_PIN_COOKIE_SECRET_DEV || (process.env.NODE_ENV !== "production" ? crypto.randomUUID() : "");
+const ADMIN_PIN_COOKIE_SECRET_ERROR = "ADMIN_PIN_COOKIE_SECRET is required in production";
+
+export function assertAdminPinCookieSecretConfigured(env: NodeJS.ProcessEnv = process.env) {
+  if (env.NODE_ENV === "production" && !env.ADMIN_PIN_COOKIE_SECRET) {
+    throw new Error(ADMIN_PIN_COOKIE_SECRET_ERROR);
+  }
+}
+
+assertAdminPinCookieSecretConfigured();
 
 function getCookieSecret() {
   return process.env.ADMIN_PIN_COOKIE_SECRET || DEV_ADMIN_PIN_COOKIE_SECRET;
