@@ -25,6 +25,7 @@ import {
   invalidCheckoutSellerReason,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
+  payoutFailureState,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
 } from "@/lib/stripeWebhookState";
@@ -1299,35 +1300,20 @@ export async function POST(req: Request) {
             select: { id: true, userId: true },
           });
           if (seller) {
+            const payoutFailure = payoutFailureState(payout, event.id);
+            const { stripePayoutId, ...payoutEventData } = payoutFailure.event;
             await prisma.sellerPayoutEvent.upsert({
-              where: { stripePayoutId: payout.id },
+              where: { stripePayoutId },
               create: {
                 sellerProfileId: seller.id,
-                stripePayoutId: payout.id,
-                status: payout.status ?? "failed",
-                amountCents: payout.amount ?? null,
-                currency: payout.currency ?? "usd",
-                failureCode: payout.failure_code ?? null,
-                failureMessage: payout.failure_message ?? null,
-                stripeEventId: event.id,
+                stripePayoutId,
+                ...payoutEventData,
               },
-              update: {
-                status: payout.status ?? "failed",
-                amountCents: payout.amount ?? null,
-                currency: payout.currency ?? "usd",
-                failureCode: payout.failure_code ?? null,
-                failureMessage: payout.failure_message ?? null,
-                stripeEventId: event.id,
-              },
+              update: payoutEventData,
             });
             await createNotification({
               userId: seller.userId,
-              type: "PAYOUT_FAILED",
-              title: "Payout failed",
-              body: payout.failure_message
-                ? `Stripe could not complete a payout: ${payout.failure_message}`
-                : "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.",
-              link: "/dashboard/seller",
+              ...payoutFailure.notification,
             });
           }
         }

@@ -8,6 +8,7 @@ const {
   invalidCheckoutSellerReason,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
+  payoutFailureState,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
 } = await import("../src/lib/stripeWebhookState.ts");
@@ -210,5 +211,45 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(action.status, "UNDER_REVIEW");
     assert.equal(action.description, "Stripe payment dispute dp_1: product_not_received");
     assert.equal(action.sellerRespondBy.toISOString(), "2026-05-01T12:00:00.000Z");
+  });
+
+  it("builds durable payout-failure ledger state and seller notification copy", () => {
+    const state = payoutFailureState(
+      {
+        id: "po_1",
+        status: null,
+        amount: 10_500,
+        currency: "usd",
+        failure_code: "account_closed",
+        failure_message: "The destination account is closed.",
+      },
+      "evt_1",
+    );
+
+    assert.deepEqual(state.event, {
+      stripePayoutId: "po_1",
+      status: "failed",
+      amountCents: 10_500,
+      currency: "usd",
+      failureCode: "account_closed",
+      failureMessage: "The destination account is closed.",
+      stripeEventId: "evt_1",
+    });
+    assert.deepEqual(state.notification, {
+      type: "PAYOUT_FAILED",
+      title: "Payout failed",
+      body: "Stripe could not complete a payout: The destination account is closed.",
+      link: "/dashboard/seller",
+    });
+  });
+
+  it("uses safe payout-failure fallbacks when Stripe omits optional fields", () => {
+    const state = payoutFailureState({ id: "po_1" }, "evt_1");
+
+    assert.equal(state.event.status, "failed");
+    assert.equal(state.event.amountCents, null);
+    assert.equal(state.event.currency, "usd");
+    assert.equal(state.event.failureCode, null);
+    assert.equal(state.notification.body, "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.");
   });
 });

@@ -82,6 +82,33 @@ export type DisputeCaseAction =
   | { action: "update"; caseId: string; status: "UNDER_REVIEW" }
   | { action: "create"; status: "UNDER_REVIEW"; sellerRespondBy: Date; description: string };
 
+export type StripePayoutFailureLike = {
+  id: string;
+  status?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  failure_code?: string | null;
+  failure_message?: string | null;
+};
+
+export type PayoutFailureState = {
+  event: {
+    stripePayoutId: string;
+    status: string;
+    amountCents: number | null;
+    currency: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    stripeEventId: string;
+  };
+  notification: {
+    type: "PAYOUT_FAILED";
+    title: "Payout failed";
+    body: string;
+    link: "/dashboard/seller";
+  };
+};
+
 export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
   return refunds
     .filter((refund) => refund.status !== "failed")
@@ -249,5 +276,28 @@ export function disputeCaseAction({
     status: "UNDER_REVIEW",
     sellerRespondBy: new Date(now.getTime() + 48 * 60 * 60 * 1000),
     description: `Stripe payment dispute ${dispute.id ?? ""}${dispute.reason ? `: ${dispute.reason}` : ""}`.trim(),
+  };
+}
+
+export function payoutFailureState(payout: StripePayoutFailureLike, stripeEventId: string): PayoutFailureState {
+  const failureMessage = payout.failure_message ?? null;
+  return {
+    event: {
+      stripePayoutId: payout.id,
+      status: payout.status ?? "failed",
+      amountCents: payout.amount ?? null,
+      currency: payout.currency ?? "usd",
+      failureCode: payout.failure_code ?? null,
+      failureMessage,
+      stripeEventId,
+    },
+    notification: {
+      type: "PAYOUT_FAILED",
+      title: "Payout failed",
+      body: failureMessage
+        ? `Stripe could not complete a payout: ${failureMessage}`
+        : "Stripe could not complete a payout. Review your Stripe account so the payout can be retried.",
+      link: "/dashboard/seller",
+    },
   };
 }

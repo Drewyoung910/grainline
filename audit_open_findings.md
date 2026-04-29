@@ -119,6 +119,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Account feed cursoring now has a tie-breaker.** `/api/account/feed` still accepts legacy ISO cursors but now emits structured cursors keyed by `(date, kind, id)`, sorts same-timestamp items deterministically, and keyset-filters equal timestamp rows so bulk-created listings/posts/broadcasts are not skipped between pages.
 - **Stripe `charge.refunded` ledger decisions are isolated and tested.** The webhook now uses a pure helper for local refund confirmation, external refund recording, additional external refund preservation, fallback charge-level refund data, ledger metadata, and order review/update decisions.
 - **Stripe dispute webhook decisions are isolated and tested.** The webhook now uses pure helpers for dispute ledger rows, order review notes, active-case promotion, closed-case no-op behavior, and new case deadline/description creation.
+- **Stripe payout-failure webhook decisions are isolated and tested.** The webhook now uses a pure helper for durable `SellerPayoutEvent` upsert payloads and seller notification copy/fallbacks.
 
 ## Recommended Fix Order
 
