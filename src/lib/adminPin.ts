@@ -7,7 +7,8 @@ const DEV_ADMIN_PIN_COOKIE_SECRET =
 const ADMIN_PIN_COOKIE_SECRET_ERROR = "ADMIN_PIN_COOKIE_SECRET is required in production";
 
 export function assertAdminPinCookieSecretConfigured(env: NodeJS.ProcessEnv = process.env) {
-  if (env.NODE_ENV === "production" && !env.ADMIN_PIN_COOKIE_SECRET) {
+  const isNextProductionBuild = env.NEXT_PHASE === "phase-production-build";
+  if (env.NODE_ENV === "production" && !isNextProductionBuild && !env.ADMIN_PIN_COOKIE_SECRET) {
     throw new Error(ADMIN_PIN_COOKIE_SECRET_ERROR);
   }
 }

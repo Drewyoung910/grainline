@@ -24,4 +24,13 @@ describe("admin PIN cookie secret configuration", () => {
     assert.doesNotThrow(() => assertAdminPinCookieSecretConfigured({ NODE_ENV: "development" }));
     assert.doesNotThrow(() => assertAdminPinCookieSecretConfigured({}));
   });
+
+  it("allows Next production builds to collect page data before runtime env injection", () => {
+    assert.doesNotThrow(() =>
+      assertAdminPinCookieSecretConfigured({
+        NODE_ENV: "production",
+        NEXT_PHASE: "phase-production-build",
+      }),
+    );
+  });
 });
