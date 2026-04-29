@@ -121,6 +121,144 @@ export async function POST(req: Request) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${sessionId}))`;
   }
 
+  type CheckoutLineItem = {
+    quantity?: number | null;
+    price?: {
+      unit_amount?: number | null;
+      product?: { metadata?: Record<string, string> } | string | null;
+    } | null;
+  };
+
+  type RestorableStockItem = { listingId: string; quantity: number };
+
+  function isPrismaUniqueViolation(error: unknown) {
+    return Boolean(
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2002",
+    );
+  }
+
+  function mergeRestorableStockItems(items: RestorableStockItem[]) {
+    const merged = new Map<string, number>();
+    for (const item of items) {
+      if (!item.listingId || item.quantity <= 0) continue;
+      merged.set(item.listingId, (merged.get(item.listingId) ?? 0) + item.quantity);
+    }
+    return [...merged.entries()].map(([listingId, quantity]) => ({ listingId, quantity }));
+  }
+
+  function restorableStockItemsFromLineItems(lineItems: CheckoutLineItem[]) {
+    return mergeRestorableStockItems(
+      lineItems.flatMap((lineItem) => {
+        const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
+        const listingId = product?.metadata?.listingId;
+        const quantity = parsePositiveInt(lineItem.quantity, 0);
+        return listingId && quantity > 0 ? [{ listingId, quantity }] : [];
+      }),
+    );
+  }
+
+  function restorableStockItemsFromMetadata(metadata: Record<string, string | undefined>) {
+    const items: RestorableStockItem[] = [];
+    const singleListingId = metadata.listingId;
+    const singleQuantity = parsePositiveInt(metadata.quantity, 0);
+    if (singleListingId && singleQuantity > 0) {
+      items.push({ listingId: singleListingId, quantity: singleQuantity });
+    }
+
+    for (const token of (metadata.reservedStock ?? "").split(",")) {
+      const [listingId, quantityValue] = token.split(":");
+      const quantity = parsePositiveInt(quantityValue, 0);
+      if (listingId && quantity > 0) items.push({ listingId, quantity });
+    }
+
+    return mergeRestorableStockItems(items);
+  }
+
+  async function restoreReservedStockItems(tx: Prisma.TransactionClient, items: RestorableStockItem[]) {
+    for (const item of mergeRestorableStockItems(items)) {
+      await tx.$executeRaw`
+        UPDATE "Listing"
+        SET "stockQuantity" = "stockQuantity" + ${item.quantity}
+        WHERE id = ${item.listingId}
+          AND "listingType" = 'IN_STOCK'
+      `;
+      await tx.listing.updateMany({
+        where: { id: item.listingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
+        data: { status: "ACTIVE" },
+      });
+    }
+  }
+
+  async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {
+    try {
+      await tx.stripeWebhookEvent.create({
+        data: {
+          id: `checkout-stock-restore:${sessionId}`,
+          type: "checkout.session.stock_restored",
+          processingStartedAt: new Date(),
+          processedAt: new Date(),
+        },
+      });
+      return true;
+    } catch (error) {
+      if (isPrismaUniqueViolation(error)) return false;
+      throw error;
+    }
+  }
+
+  async function restoreUnorderedCheckoutStockOnce(input: {
+    sessionId: string;
+    metadata: Record<string, string | undefined>;
+    lineItems?: CheckoutLineItem[];
+  }) {
+    await prisma.$transaction(async (tx) => {
+      await lockCheckoutSessionMutation(tx, input.sessionId);
+
+      const orderExists = await tx.order.findFirst({
+        where: { stripeSessionId: input.sessionId },
+        select: { id: true },
+      });
+      if (orderExists) return;
+
+      let items = restorableStockItemsFromLineItems(input.lineItems ?? []);
+      if (items.length === 0) {
+        items = restorableStockItemsFromMetadata(input.metadata);
+      }
+
+      if (items.length === 0 && input.metadata.cartId && input.metadata.sellerId) {
+        const cartItems = await tx.cartItem.findMany({
+          where: { cartId: input.metadata.cartId, listing: { sellerId: input.metadata.sellerId } },
+          select: { listingId: true, quantity: true },
+        });
+        items = mergeRestorableStockItems(cartItems);
+      }
+
+      if (items.length === 0) {
+        Sentry.captureMessage("Checkout stock restoration skipped because no reserved items were recoverable", {
+          level: "warning",
+          tags: { source: "checkout_stock_restore" },
+          extra: {
+            stripeSessionId: input.sessionId,
+            cartId: input.metadata.cartId,
+            sellerId: input.metadata.sellerId,
+            listingId: input.metadata.listingId,
+          },
+        });
+        return;
+      }
+
+      const claimed = await claimCheckoutStockRestore(tx, input.sessionId);
+      if (!claimed) return;
+
+      await restoreReservedStockItems(tx, items);
+    });
+
+    await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
+  }
+
   try {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       return processIdempotentEvent(async () => {
@@ -150,9 +288,14 @@ export async function POST(req: Request) {
       const s = await stripe.checkout.sessions.retrieve(sessionId, {
         expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate", "line_items.data.price.product"],
       });
+      const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
 
       // Only process paid sessions — skip async/pending payments
-      if (s.payment_status !== "paid") return NextResponse.json({ ok: true });
+      if (s.payment_status !== "paid") {
+        const lineItems = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+        await restoreUnorderedCheckoutStockOnce({ sessionId, metadata: sessionMeta, lineItems });
+        return NextResponse.json({ ok: true });
+      }
 
       // Stripe snapshots
       const currency: string = (s.currency || "usd").toLowerCase();
@@ -169,7 +312,6 @@ export async function POST(req: Request) {
       const shippingTitle: string | undefined = shippingRateObj?.display_name || undefined;
       const taxAmountCents: number = s.total_details?.amount_tax ?? 0;
 
-      const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
       const buyerEmail: string | undefined = s.customer_details?.email || undefined;
       const buyerName: string | undefined = sessionMeta.quotedToName ?? s.customer_details?.name ?? undefined;
       const shipToLine1 = sessionMeta.quotedToLine1 ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.line1 ?? null;
@@ -259,38 +401,9 @@ export async function POST(req: Request) {
         return { processingDeadline, estimatedDeliveryDate };
       }
 
-      type CheckoutLineItem = {
-        quantity?: number | null;
-        price?: {
-          unit_amount?: number | null;
-          product?: { metadata?: Record<string, string> } | string | null;
-        } | null;
-      };
-
       async function restoreReservedStockFromLineItems(lineItems: CheckoutLineItem[]) {
-        const restoreByListingId = new Map<string, number>();
-        for (const lineItem of lineItems) {
-          const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
-          const listingId = product?.metadata?.listingId;
-          const quantity = lineItem.quantity ?? 0;
-          if (!listingId || quantity <= 0) continue;
-          restoreByListingId.set(listingId, (restoreByListingId.get(listingId) ?? 0) + quantity);
-        }
-        if (restoreByListingId.size === 0) return;
-
         await prisma.$transaction(async (tx) => {
-          for (const [listingId, quantity] of restoreByListingId.entries()) {
-            await tx.$executeRaw`
-              UPDATE "Listing"
-              SET "stockQuantity" = "stockQuantity" + ${quantity}
-              WHERE id = ${listingId}
-                AND "listingType" = 'IN_STOCK'
-            `;
-            await tx.listing.updateMany({
-              where: { id: listingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-              data: { status: "ACTIVE" },
-            });
-          }
+          await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(lineItems));
         });
       }
 
@@ -1373,67 +1486,33 @@ export async function POST(req: Request) {
       const expiredMeta = expiredSession.metadata ?? {};
       const expiredCartId = expiredMeta.cartId;
       const expiredSellerId = expiredMeta.sellerId;
-      type ExpiredLineItem = { quantity?: number | null; price?: { product?: { metadata?: Record<string, string> } | string | null } | null };
-      let expiredLineItems: ExpiredLineItem[] = [];
+      let expiredLineItems: CheckoutLineItem[] = [];
 
       // Retrieve Stripe line items before the DB transaction. The transaction
       // re-checks order existence after taking the advisory lock.
       if (expiredCartId && expiredSellerId) {
-        const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
-          expand: ["line_items.data.price.product"],
-        });
-        expiredLineItems = (expiredS as { line_items?: { data?: ExpiredLineItem[] } }).line_items?.data ?? [];
-      }
-
-      await prisma.$transaction(async (tx) => {
-        await lockCheckoutSessionMutation(tx, expiredSession.id);
-
-        // Check this session didn't already create an order (edge case: completed + expired both fire)
-        const orderExists = await tx.order.findFirst({
-          where: { stripeSessionId: expiredSession.id },
-          select: { id: true },
-        });
-        if (orderExists) return; // paid — don't restore
-
-        // Single-item checkout: restore the listing's stock
-        const expiredListingId = expiredMeta.listingId;
-        const expiredQuantity = parsePositiveInt(expiredMeta.quantity, 1);
-        if (expiredListingId) {
-          await tx.$executeRaw`
-            UPDATE "Listing"
-            SET "stockQuantity" = "stockQuantity" + ${expiredQuantity}
-            WHERE id = ${expiredListingId}
-              AND "listingType" = 'IN_STOCK'
-          `;
-          // If stock was 0 (SOLD_OUT from reservation), restore to ACTIVE
-          await tx.listing.updateMany({
-            where: { id: expiredListingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-            data: { status: "ACTIVE" },
+        try {
+          const expiredS = await stripe.checkout.sessions.retrieve(expiredSession.id, {
+            expand: ["line_items.data.price.product"],
+          });
+          expiredLineItems = (expiredS as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+        } catch (error) {
+          Sentry.captureException(error, {
+            tags: { source: "stripe_webhook_expired_line_items_retrieve" },
+            extra: {
+              stripeSessionId: expiredSession.id,
+              cartId: expiredCartId,
+              sellerId: expiredSellerId,
+            },
           });
         }
+      }
 
-        // Cart checkout: restore stock for all items from this seller
-        if (expiredCartId && expiredSellerId) {
-          for (const li of expiredLineItems) {
-            const prod = typeof li.price?.product === "object" ? li.price?.product : null;
-            const lid = prod?.metadata?.listingId;
-            if (lid && li.quantity) {
-              await tx.$executeRaw`
-                UPDATE "Listing"
-                SET "stockQuantity" = "stockQuantity" + ${li.quantity}
-                WHERE id = ${lid}
-                  AND "listingType" = 'IN_STOCK'
-              `;
-              await tx.listing.updateMany({
-                where: { id: lid, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-                data: { status: "ACTIVE" },
-              });
-            }
-          }
-        }
+      await restoreUnorderedCheckoutStockOnce({
+        sessionId: expiredSession.id,
+        metadata: expiredMeta,
+        lineItems: expiredLineItems,
       });
-
-      await releaseCheckoutLock(expiredMeta.checkoutLockKey, expiredSession.id);
 
       return NextResponse.json({ ok: true });
       });

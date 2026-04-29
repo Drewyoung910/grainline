@@ -144,8 +144,10 @@ model SellerProfile {
   publicMapOptIn Boolean  @default(false)
 
   // Stripe Connect
-  stripeAccountId String? @unique @db.VarChar(255)
-  chargesEnabled  Boolean @default(false)
+  stripeAccountId                   String? @unique @db.VarChar(255)
+  chargesEnabled                    Boolean @default(false)
+  manualStripeReconciliationNeeded  Boolean @default(false)
+  manualStripeReconciliationNote    String? @db.VarChar(1000)
 
   // Flat-rate shipping (legacy/simple fallback)
   shippingFlatRateCents Int?
@@ -956,6 +958,19 @@ model EmailSuppression {
 }
 
 model ResendWebhookEvent {
+  svixId              String    @id @db.VarChar(255)
+  type                String    @db.VarChar(100)
+  processingStartedAt DateTime?
+  processedAt         DateTime?
+  lastError           String?   @db.VarChar(2000)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([type, createdAt])
+  @@index([processedAt])
+}
+
+model ClerkWebhookEvent {
   svixId              String    @id @db.VarChar(255)
   type                String    @db.VarChar(100)
   processingStartedAt DateTime?

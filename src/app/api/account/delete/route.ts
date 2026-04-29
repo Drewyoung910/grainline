@@ -27,16 +27,22 @@ export async function POST() {
     );
   }
 
-  await anonymizeUserAccount(me.id);
-
   try {
     await (await clerkClient()).users.deleteUser(clerkId);
   } catch (error) {
     Sentry.captureException(error, { tags: { source: "account_delete_clerk" }, extra: { dbUserId: me.id } });
     return NextResponse.json({
-      ok: true,
-      warning: "Your Grainline account data was anonymized, but Clerk account deletion needs manual support follow-up.",
-    });
+      error: "Account deletion is temporarily unavailable. Please try again.",
+    }, { status: 503 });
+  }
+
+  try {
+    await anonymizeUserAccount(me.id);
+  } catch (error) {
+    Sentry.captureException(error, { tags: { source: "account_delete_anonymize" }, extra: { dbUserId: me.id } });
+    return NextResponse.json({
+      error: "Your sign-in was deleted, but account data anonymization needs manual support follow-up.",
+    }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

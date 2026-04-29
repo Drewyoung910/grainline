@@ -7,6 +7,7 @@ import { sendWelcomeBuyer, sendWelcomeSeller } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
 import { sanitizeUserName } from "@/lib/sanitize";
+import * as Sentry from "@sentry/nextjs";
 
 interface ClerkEmailAddress {
   id?: string | null;
@@ -35,6 +36,72 @@ function dateFromMetadata(value: unknown): Date | null {
     return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;
+}
+
+const CLERK_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
+
+function isUniqueViolation(err: unknown) {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
+}
+
+function errorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+async function reserveClerkWebhookEvent(svixId: string, type: string): Promise<"process" | "processed" | "in_progress"> {
+  const now = new Date();
+  try {
+    await prisma.clerkWebhookEvent.create({
+      data: { svixId, type, processingStartedAt: now },
+    });
+    return "process";
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+  }
+
+  const existing = await prisma.clerkWebhookEvent.findUnique({
+    where: { svixId },
+    select: { processedAt: true, processingStartedAt: true },
+  });
+  if (existing?.processedAt) return "processed";
+
+  const retryBefore = new Date(now.getTime() - CLERK_WEBHOOK_RETRY_AFTER_MS);
+  const claimed = await prisma.clerkWebhookEvent.updateMany({
+    where: {
+      svixId,
+      processedAt: null,
+      OR: [
+        { lastError: { not: null } },
+        { processingStartedAt: null },
+        { processingStartedAt: { lt: retryBefore } },
+      ],
+    },
+    data: {
+      type,
+      processingStartedAt: now,
+      lastError: null,
+    },
+  });
+
+  return claimed.count === 1 ? "process" : "in_progress";
+}
+
+async function markClerkWebhookProcessed(svixId: string) {
+  await prisma.clerkWebhookEvent.update({
+    where: { svixId },
+    data: { processedAt: new Date(), lastError: null },
+  });
+}
+
+async function markClerkWebhookFailed(svixId: string, err: unknown) {
+  await prisma.clerkWebhookEvent.updateMany({
+    where: { svixId, processedAt: null },
+    data: {
+      processingStartedAt: null,
+      lastError: errorMessage(err).slice(0, 2000),
+    },
+  });
 }
 
 export async function POST(req: Request) {
@@ -66,12 +133,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  const reservation = await reserveClerkWebhookEvent(svixId, event.type);
+  if (reservation !== "process") {
+    return NextResponse.json({ ok: true });
+  }
+
+  try {
   if (event.type === "user.deleted") {
     await anonymizeUserAccountByClerkId(event.data.id);
+    await markClerkWebhookProcessed(svixId);
     return NextResponse.json({ ok: true });
   }
 
   if (event.type !== "user.created" && event.type !== "user.updated") {
+    await markClerkWebhookProcessed(svixId);
     return NextResponse.json({ ok: true });
   }
 
@@ -87,6 +162,7 @@ export async function POST(req: Request) {
     select: { banned: true, deletedAt: true },
   });
   if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
+    await markClerkWebhookProcessed(svixId);
     return NextResponse.json({ ok: true });
   }
 
@@ -129,8 +205,27 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: { welcomeEmailSentAt: new Date() },
       });
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: "clerk_webhook_welcome_email" },
+        extra: { svixId, clerkId: id, userId: user.id },
+      });
+    }
   }
 
+  await markClerkWebhookProcessed(svixId);
   return NextResponse.json({ ok: true });
+  } catch (error) {
+    await markClerkWebhookFailed(svixId, error).catch((markError) => {
+      Sentry.captureException(markError, {
+        tags: { source: "clerk_webhook_mark_failed" },
+        extra: { svixId, eventType: event.type },
+      });
+    });
+    Sentry.captureException(error, {
+      tags: { source: "clerk_webhook" },
+      extra: { svixId, eventType: event.type },
+    });
+    throw error;
+  }
 }

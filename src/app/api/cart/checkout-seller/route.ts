@@ -439,6 +439,9 @@ export async function POST(req: Request) {
 
     const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")
       .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
+    const reservedStockMetadata = reservedItems
+      .map((item) => `${item.listingId}:${item.quantity}`)
+      .join(",");
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
@@ -494,6 +497,7 @@ export async function POST(req: Request) {
         giftWrapping: giftWrapping ? "true" : "false",
         giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
         checkoutLockKey: checkoutLockKeyValue,
+        ...(reservedStockMetadata.length <= 500 && { reservedStock: reservedStockMetadata }),
       },
     });
 

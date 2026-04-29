@@ -449,6 +449,7 @@ export async function POST(req: Request) {
           ).slice(0, 500);
         })(),
         checkoutLockKey: checkoutLockKeyValue,
+        reservedStock: `${body.listingId}:${body.quantity}`,
       },
     });
 

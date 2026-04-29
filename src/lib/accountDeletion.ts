@@ -104,9 +104,26 @@ async function rejectConnectedStripeAccount(stripeAccountId: string, userId: str
   }
 }
 
+function messageAttachmentUrl(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      (parsed as { kind?: unknown }).kind === "file" &&
+      typeof (parsed as { url?: unknown }).url === "string"
+    ) {
+      return (parsed as { url: string }).url;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]> {
   const urls = new Set<string>();
-  const [sellerProfile, reviewPhotos, commissionRequests] = await Promise.all([
+  const [sellerProfile, reviewPhotos, commissionRequests, messages] = await Promise.all([
     prisma.sellerProfile.findUnique({
       where: { userId },
       select: {
@@ -130,6 +147,10 @@ async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]
       where: { buyerId: userId },
       select: { referenceImageUrls: true },
     }),
+    prisma.message.findMany({
+      where: { OR: [{ senderId: userId }, { recipientId: userId }] },
+      select: { body: true },
+    }),
   ]);
 
   if (sellerProfile) {
@@ -149,6 +170,10 @@ async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]
 
   reviewPhotos.forEach((photo) => urls.add(photo.url));
   commissionRequests.forEach((request) => request.referenceImageUrls.forEach((url) => urls.add(url)));
+  messages.forEach((message) => {
+    const url = messageAttachmentUrl(message.body);
+    if (url) urls.add(url);
+  });
 
   return [...urls];
 }
@@ -173,9 +198,10 @@ export async function anonymizeUserAccount(userId: string) {
   if (!account) return { ok: true, alreadyDeleted: true };
   if (account.deletedAt) return { ok: true, alreadyDeleted: true };
 
-  if (account.sellerProfile?.stripeAccountId) {
-    await rejectConnectedStripeAccount(account.sellerProfile.stripeAccountId, userId);
-  }
+  const stripeAccountId = account.sellerProfile?.stripeAccountId ?? null;
+  const stripeRejectSucceeded = stripeAccountId
+    ? await rejectConnectedStripeAccount(stripeAccountId, userId)
+    : true;
 
   const mediaUrls = await collectAccountDeletionMediaUrls(userId);
 
@@ -208,6 +234,9 @@ export async function anonymizeUserAccount(userId: string) {
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await tx.conversation.deleteMany({
+      where: { OR: [{ userAId: user.id }, { userBId: user.id }] },
+    });
     await tx.message.updateMany({
       where: { senderId: user.id },
       data: { body: "[Message deleted]" },
@@ -352,6 +381,10 @@ export async function anonymizeUserAccount(userId: string) {
           publicMapOptIn: false,
           stripeAccountId: null,
           chargesEnabled: false,
+          manualStripeReconciliationNeeded: !stripeRejectSucceeded,
+          manualStripeReconciliationNote: stripeRejectSucceeded
+            ? null
+            : `Account deletion could not reject Stripe Connect account ${stripeAccountId}; manual Stripe dashboard reconciliation required.`,
           shippingFlatRateCents: null,
           freeShippingOverCents: null,
           allowLocalPickup: false,
