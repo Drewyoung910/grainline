@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 const {
   isOpenStripeDisputeStatus,
+  orderHasRefundLedger,
   orderRefundTotalCents,
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
@@ -62,6 +63,25 @@ describe("refund route state", () => {
       status: 400,
       error: "A refund has already been issued for this order.",
     });
+  });
+
+  it("detects local and external refund ledgers for route guards", () => {
+    assert.equal(orderHasRefundLedger({ sellerRefundId: null, paymentEvents: [] }), false);
+    assert.equal(orderHasRefundLedger({ sellerRefundId: "re_123", paymentEvents: [] }), true);
+    assert.equal(
+      orderHasRefundLedger({
+        sellerRefundId: null,
+        paymentEvents: [{ eventType: "DISPUTE" }, { eventType: "REFUND" }],
+      }),
+      true,
+    );
+    assert.equal(
+      orderHasRefundLedger({
+        sellerRefundId: null,
+        paymentEvents: [{ eventType: "DISPUTE" }],
+      }),
+      false,
+    );
   });
 
   it("aggregates only positive in-stock item quantities for refund stock restoration", () => {

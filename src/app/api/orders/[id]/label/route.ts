@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
 import { labelPurchaseRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { orderHasRefundLedger } from "@/lib/refundRouteState";
 import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -98,6 +99,11 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
     where: { id: orderId },
     include: {
       case: { select: { status: true } },
+      paymentEvents: {
+        where: { eventType: "REFUND" },
+        take: 1,
+        select: { eventType: true },
+      },
       items: {
         include: {
           listing: {
@@ -157,7 +163,7 @@ export async function POST(
       );
     }
     // Block label purchase if order has been refunded or has an open case
-    if (order.sellerRefundId) {
+    if (orderHasRefundLedger(order)) {
       return NextResponse.json({ error: "Cannot purchase label — order has been refunded." }, { status: 400 });
     }
     if (order.fulfillmentMethod === "PICKUP") {

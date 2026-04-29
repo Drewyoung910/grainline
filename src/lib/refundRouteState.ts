@@ -64,6 +64,14 @@ export function sellerRefundConflictResponse(sellerRefundId: string | null | und
   };
 }
 
+export function orderHasRefundLedger(order: {
+  sellerRefundId?: string | null | undefined;
+  paymentEvents?: Array<{ eventType?: string | null | undefined }> | null | undefined;
+}) {
+  return Boolean(order.sellerRefundId) ||
+    Boolean(order.paymentEvents?.some((event) => event.eventType === "REFUND"));
+}
+
 type RefundStockRestoreItem = {
   listingId: string;
   quantity: number;

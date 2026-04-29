@@ -6,6 +6,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
 import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { orderHasRefundLedger } from "@/lib/refundRouteState";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -45,6 +46,11 @@ export async function POST(req: Request) {
       where: { id: orderId },
       include: {
         case: { select: { id: true } },
+        paymentEvents: {
+          where: { eventType: "REFUND" },
+          take: 1,
+          select: { eventType: true },
+        },
         items: {
           take: 1,
           include: {
@@ -64,7 +70,7 @@ export async function POST(req: Request) {
     }
 
     // Block case if seller already refunded
-    if (order.sellerRefundId) {
+    if (orderHasRefundLedger(order)) {
       return NextResponse.json(
         { error: "A refund has already been issued for this order." },
         { status: 400 }
