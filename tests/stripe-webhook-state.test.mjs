@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  chargeRefundLedgerState,
   invalidCheckoutSellerReason,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
@@ -67,5 +68,76 @@ describe("Stripe webhook state helpers", () => {
     assert.match(invalidCheckoutSellerReason(seller({ chargesEnabled: false })), /disabled/);
     assert.match(invalidCheckoutSellerReason(seller({ stripeAccountId: null })), /disconnected/);
     assert.equal(invalidCheckoutSellerReason(seller()), null);
+  });
+
+  it("classifies Stripe-confirmed local refunds without changing the order row", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 4_000,
+      latestRefund: { id: "re_local", amount: 4_000, status: "succeeded", created: 10 },
+      order: { currency: "usd", sellerRefundId: "re_local", sellerRefundAmountCents: 4_000 },
+    });
+
+    assert.equal(state.latestRefundId, "re_local");
+    assert.equal(state.ledger.reason, "local_refund_confirmed");
+    assert.equal(state.ledger.description, "Stripe confirmed a Grainline-tracked refund.");
+    assert.equal(state.ledger.metadata.preservedLocalRefundId, null);
+    assert.equal(state.orderUpdate, null);
+  });
+
+  it("records external Stripe refunds and marks the order for review", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: null,
+      amountRefundedCents: 2_500,
+      latestRefund: { id: "re_external", amount: 2_500, status: "succeeded", created: 10, reason: "requested_by_customer" },
+      order: { currency: "usd", sellerRefundId: null, sellerRefundAmountCents: null },
+    });
+
+    assert.equal(state.ledger.stripeObjectId, "re_external");
+    assert.equal(state.ledger.amountCents, 2_500);
+    assert.equal(state.ledger.currency, "usd");
+    assert.equal(state.ledger.reason, "requested_by_customer");
+    assert.deepEqual(state.orderUpdate, {
+      sellerRefundId: "re_external",
+      sellerRefundAmountCents: 2_500,
+      sellerRefundLockedAt: null,
+      reviewNeeded: true,
+      reviewNote: "Stripe refund was created outside Grainline.",
+    });
+  });
+
+  it("preserves a local refund id when Stripe reports an additional external refund", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 6_000,
+      latestRefund: { id: "re_new_external", amount: 1_500, status: "succeeded", created: 20 },
+      order: { currency: "usd", sellerRefundId: "re_local", sellerRefundAmountCents: 4_000 },
+    });
+
+    assert.equal(state.ledger.reason, "additional_external_refund");
+    assert.equal(state.ledger.metadata.preservedLocalRefundId, "re_local");
+    assert.deepEqual(state.orderUpdate, {
+      sellerRefundAmountCents: 6_000,
+      sellerRefundLockedAt: null,
+      reviewNeeded: true,
+      reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
+    });
+  });
+
+  it("falls back to charge-level refund data when Stripe omits refund details", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      amountRefundedCents: 900,
+      latestRefund: null,
+      order: { currency: "usd", sellerRefundId: null, sellerRefundAmountCents: null },
+    });
+
+    assert.equal(state.ledger.stripeObjectId, "external:ch_1");
+    assert.equal(state.ledger.amountCents, 900);
+    assert.equal(state.ledger.status, "refunded");
+    assert.equal(state.orderUpdate?.sellerRefundId, "external:ch_1");
   });
 });

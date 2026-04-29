@@ -117,6 +117,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **External refund list/admin surfaces now read the durable refund ledger.** Buyer order lists, seller sales lists, and admin order details now surface refund amounts from `OrderPaymentEvent` refund rows when the local `sellerRefundId` fields were not set by an external Stripe-dashboard refund.
 - **External refund prechecks are explicit on refund routes.** Seller refund and admin case-resolution refund routes now load durable refund ledger rows before claiming a refund lock and return the standard already-refunded response for external Stripe-dashboard refunds.
 - **Account feed cursoring now has a tie-breaker.** `/api/account/feed` still accepts legacy ISO cursors but now emits structured cursors keyed by `(date, kind, id)`, sorts same-timestamp items deterministically, and keyset-filters equal timestamp rows so bulk-created listings/posts/broadcasts are not skipped between pages.
+- **Stripe `charge.refunded` ledger decisions are isolated and tested.** The webhook now uses a pure helper for local refund confirmation, external refund recording, additional external refund preservation, fallback charge-level refund data, ledger metadata, and order review/update decisions.
 
 ## Recommended Fix Order
 

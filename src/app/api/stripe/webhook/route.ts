@@ -19,6 +19,7 @@ import {
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import {
+  chargeRefundLedgerState,
   invalidCheckoutSellerReason,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
@@ -1149,67 +1150,37 @@ export async function POST(req: Request) {
         };
         if (charge.id) {
           const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
-          const latestRefundId = latestRefund?.id ?? `external:${charge.id}`;
           const existingOrder = await prisma.order.findFirst({
             where: { stripeChargeId: charge.id },
             select: { id: true, currency: true, sellerRefundId: true, sellerRefundAmountCents: true },
           });
           if (existingOrder) {
-            const totalRefundedCents = charge.amount_refunded ?? latestRefund?.amount ?? 0;
-            const hasLocalRefundAudit =
-              !!existingOrder.sellerRefundId &&
-              existingOrder.sellerRefundId !== "pending" &&
-              !existingOrder.sellerRefundId.startsWith("external:");
-            const isKnownLocalRefund = hasLocalRefundAudit && existingOrder.sellerRefundId === latestRefundId;
-            const isAdditionalExternalRefund = hasLocalRefundAudit && !isKnownLocalRefund;
+            const refundLedger = chargeRefundLedgerState({
+              chargeId: charge.id,
+              chargeCurrency: charge.currency,
+              amountRefundedCents: charge.amount_refunded,
+              latestRefund,
+              order: existingOrder,
+            });
 
             await recordOrderPaymentEvent({
               orderId: existingOrder.id,
               stripeEventId: event.id,
-              stripeObjectId: latestRefundId,
+              stripeObjectId: refundLedger.ledger.stripeObjectId,
               stripeObjectType: "refund",
               eventType: "REFUND",
-              amountCents: latestRefund?.amount ?? totalRefundedCents,
-              currency: charge.currency ?? existingOrder.currency,
-              status: latestRefund?.status ?? "refunded",
-              reason:
-                latestRefund?.reason ??
-                (isKnownLocalRefund
-                  ? "local_refund_confirmed"
-                  : isAdditionalExternalRefund
-                    ? "additional_external_refund"
-                    : "external_refund"),
-              description: isKnownLocalRefund
-                ? "Stripe confirmed a Grainline-tracked refund."
-                : isAdditionalExternalRefund
-                ? "Stripe reported an additional refund outside the local Grainline refund record."
-                : "Stripe reported a refund created outside Grainline.",
-              metadata: {
-                chargeId: charge.id,
-                latestRefundId,
-                latestRefundAmountCents: latestRefund?.amount ?? null,
-                totalRefundedCents,
-                preservedLocalRefundId: isAdditionalExternalRefund ? existingOrder.sellerRefundId : null,
-              },
+              amountCents: refundLedger.ledger.amountCents,
+              currency: refundLedger.ledger.currency,
+              status: refundLedger.ledger.status,
+              reason: refundLedger.ledger.reason,
+              description: refundLedger.ledger.description,
+              metadata: refundLedger.ledger.metadata,
             });
 
-            if (existingOrder.sellerRefundId !== latestRefundId) {
+            if (refundLedger.orderUpdate) {
               await prisma.order.update({
                 where: { id: existingOrder.id },
-                data: isAdditionalExternalRefund
-                  ? {
-                      sellerRefundAmountCents: Math.max(existingOrder.sellerRefundAmountCents ?? 0, totalRefundedCents),
-                      sellerRefundLockedAt: null,
-                      reviewNeeded: true,
-                      reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
-                    }
-                  : {
-                      sellerRefundId: latestRefundId,
-                      sellerRefundAmountCents: totalRefundedCents,
-                      sellerRefundLockedAt: null,
-                      reviewNeeded: true,
-                      reviewNote: "Stripe refund was created outside Grainline.",
-                    },
+                data: refundLedger.orderUpdate,
               });
             }
           }
