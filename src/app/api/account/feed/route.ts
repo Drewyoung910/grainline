@@ -3,6 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import {
+  accountFeedCursorTieMode,
+  buildAccountFeedCursor,
+  compareAccountFeedItemsDesc,
+  isAccountFeedItemAfterCursor,
+  parseAccountFeedCursor,
+  type AccountFeedKind,
+} from "@/lib/accountFeedCursor";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -40,6 +48,7 @@ export async function GET(req: NextRequest) {
   const cursor = url.searchParams.get("cursor");
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
   const take = limit + 1;
+  const parsedCursor = parseAccountFeedCursor(cursor);
 
   // Get followed seller profile IDs
   const follows = await prisma.follow.findMany({
@@ -65,13 +74,23 @@ export async function GET(req: NextRequest) {
 
   // First page: 90-day cutoff. Subsequent pages: use cursor (fetch items older than cursor).
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const listingDateFilter = cursor ? { lt: new Date(cursor) } : { gte: cutoff };
-  const blogDateFilter = cursor ? { lt: new Date(cursor), not: null as null } : { gte: cutoff, not: null as null };
-  const broadcastDateFilter = cursor ? { lt: new Date(cursor) } : { gte: cutoff };
   const followedSellerVisibility = {
     chargesEnabled: true,
     vacationMode: false,
     user: { banned: false, deletedAt: null },
+  };
+  const timestampCursorWhere = (kind: AccountFeedKind, dateField: "createdAt" | "publishedAt" | "sentAt") => {
+    if (!parsedCursor) return { [dateField]: { gte: cutoff } };
+    if (parsedCursor.legacy) return { [dateField]: { lt: parsedCursor.date } };
+
+    const sameTimestampMode = accountFeedCursorTieMode(kind, parsedCursor);
+    const sameTimestamp =
+      sameTimestampMode === "all"
+        ? [{ [dateField]: parsedCursor.date }]
+        : sameTimestampMode === "after-id" && parsedCursor.id
+          ? [{ [dateField]: parsedCursor.date, id: { lt: parsedCursor.id } }]
+          : [];
+    return { OR: [{ [dateField]: { lt: parsedCursor.date } }, ...sameTimestamp] };
   };
 
   const [listings, blogPosts, broadcasts] = await Promise.all([
@@ -80,10 +99,10 @@ export async function GET(req: NextRequest) {
         sellerId: { in: sellerIds },
         status: "ACTIVE",
         isPrivate: false,
-        createdAt: listingDateFilter,
+        ...timestampCursorWhere("listing", "createdAt"),
         seller: followedSellerVisibility,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take,
       select: {
         id: true,
@@ -100,11 +119,12 @@ export async function GET(req: NextRequest) {
       where: {
         sellerProfileId: { in: sellerIds },
         status: "PUBLISHED",
-        publishedAt: blogDateFilter,
+        publishedAt: { not: null },
+        ...timestampCursorWhere("blog", "publishedAt"),
         author: { banned: false, deletedAt: null },
         sellerProfile: followedSellerVisibility,
       },
-      orderBy: { publishedAt: "desc" },
+      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       take,
       select: {
         id: true,
@@ -120,10 +140,10 @@ export async function GET(req: NextRequest) {
     prisma.sellerBroadcast.findMany({
       where: {
         sellerProfileId: { in: sellerIds },
-        sentAt: broadcastDateFilter,
+        ...timestampCursorWhere("broadcast", "sentAt"),
         sellerProfile: followedSellerVisibility,
       },
-      orderBy: { sentAt: "desc" },
+      orderBy: [{ sentAt: "desc" }, { id: "desc" }],
       take,
       select: {
         id: true,
@@ -172,11 +192,13 @@ export async function GET(req: NextRequest) {
       sellerProfileId: br.sellerProfileId,
       sentAt: br.sentAt.toISOString(),
     })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  ]
+    .sort(compareAccountFeedItemsDesc)
+    .filter((item) => !parsedCursor || isAccountFeedItemAfterCursor(item, parsedCursor));
 
   const hasMore = merged.length > limit;
   const pageItems = merged.slice(0, limit);
-  const nextCursor = hasMore && pageItems.length > 0 ? pageItems[pageItems.length - 1].date : null;
+  const nextCursor = hasMore && pageItems.length > 0 ? buildAccountFeedCursor(pageItems[pageItems.length - 1]) : null;
 
   return NextResponse.json({ items: pageItems, nextCursor, hasMore });
 }
