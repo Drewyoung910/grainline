@@ -75,8 +75,6 @@ export async function POST(
     });
     if (!seller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
-    await releaseStaleRefundLocks(orderId);
-
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -98,6 +96,8 @@ export async function POST(
 
     const myItems = order.items.filter((it) => it.listing.sellerId === seller.id);
     if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+
+    await releaseStaleRefundLocks(orderId);
 
     const latestDispute = await prisma.orderPaymentEvent.findFirst({
       where: { orderId, eventType: "DISPUTE" },

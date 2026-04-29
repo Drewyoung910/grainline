@@ -9,6 +9,7 @@ import { isR2PublicUrl } from "@/lib/urlValidation";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
+import { mapWithConcurrency } from "@/lib/concurrency";
 
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
@@ -98,10 +99,10 @@ export async function PATCH(
   }
 
   const retainedUrls = new Set(photos);
-  await Promise.allSettled(
-    oldPhotos
-      .filter((photo) => !retainedUrls.has(photo.url))
-      .map((photo) => deleteR2ObjectByUrl(photo.url)),
+  await mapWithConcurrency(
+    oldPhotos.filter((photo) => !retainedUrls.has(photo.url)),
+    5,
+    (photo) => deleteR2ObjectByUrl(photo.url),
   );
 
   // revalidate listing page
@@ -151,7 +152,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Failed to refresh seller rating summary after review delete:", error);
   }
-  await Promise.allSettled(photos.map((photo) => deleteR2ObjectByUrl(photo.url)));
+  await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
 
   revalidatePath(`/listing/${review.listingId}`);
   revalidatePath("/account/reviews");

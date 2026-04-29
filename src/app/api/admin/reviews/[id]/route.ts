@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
+import { mapWithConcurrency } from "@/lib/concurrency";
 
 export async function DELETE(
   _request: Request,
@@ -43,7 +44,7 @@ export async function DELETE(
   } catch (error) {
     console.error("Failed to refresh seller rating summary after admin review delete:", error);
   }
-  await Promise.allSettled(photos.map((photo) => deleteR2ObjectByUrl(photo.url)));
+  await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
 
   await logAdminAction({
     adminId: admin.id,

@@ -126,6 +126,8 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Admin audit undo now requires separation of duties.** `undoAdminAction()` rejects attempts by the same admin who created the original action, and the API returns a specific safe error instead of allowing self-undo.
 - **Account-state API handling sweep is verified closed.** Every `src/app/api/**` route that calls `ensureUser()` or `ensureSeller()` now also handles `AccountAccessError` through `accountAccessErrorResponse()` or `isAccountAccessError`.
 - **Blocked-checkout automatic refunds now respect open Stripe disputes.** `refundBlockedCheckout()` checks the latest durable `OrderPaymentEvent` dispute row before calling Stripe refunds and holds the order for manual reconciliation when the dispute is still open.
+- **Seller refund stale-lock cleanup now runs after order ownership.** `/api/orders/[id]/refund` verifies the seller owns at least one order item before releasing stale refund locks for the URL order ID, with a source-order regression test preventing the cleanup from moving back above the ownership gate.
+- **Remaining unbounded `Promise.allSettled` calls are removed.** Case auto-close notifications and review R2 cleanup now use `mapWithConcurrency`, closing the Round 42 partial concurrency gap without changing per-record failure isolation.
 
 ## Recommended Fix Order
 
