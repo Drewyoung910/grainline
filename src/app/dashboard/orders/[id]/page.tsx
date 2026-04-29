@@ -12,6 +12,7 @@ import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
+import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
@@ -110,6 +111,12 @@ export default async function BuyerOrderDetailPage({
           },
         },
       },
+      paymentEvents: {
+        where: { eventType: "REFUND" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { eventType: true, amountCents: true },
+      },
     },
   });
 
@@ -143,6 +150,7 @@ export default async function BuyerOrderDetailPage({
     !terminalStatuses.includes(status);
 
   const activeCase = order.case;
+  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const sellerRefundPending = order.sellerRefundId === "pending";
   const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
 
@@ -150,8 +158,9 @@ export default async function BuyerOrderDetailPage({
   const refundCents =
     (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
+    externalRefund?.amountCents ??
     null;
-  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId;
+  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
 
   const caseOpen =
     activeCase &&

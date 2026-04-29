@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { orderHasRefundLedger } from "@/lib/refundRouteState";
 import { CaseStatus, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 
@@ -47,6 +48,11 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
     where: { id: orderId },
     include: {
       case: { select: { status: true } },
+      paymentEvents: {
+        where: { eventType: "REFUND" },
+        take: 1,
+        select: { eventType: true },
+      },
       items: { include: { listing: { select: { sellerId: true } } } },
     },
   });
@@ -98,7 +104,7 @@ export async function POST(
         { status: 409 },
       );
     }
-    if (action !== "update_notes" && authz.order.sellerRefundId) {
+    if (action !== "update_notes" && orderHasRefundLedger(authz.order)) {
       return NextResponse.json(
         { error: "Refunded orders cannot be fulfilled." },
         { status: 400 },

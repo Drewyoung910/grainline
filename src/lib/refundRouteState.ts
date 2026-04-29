@@ -72,6 +72,12 @@ export function orderHasRefundLedger(order: {
     Boolean(order.paymentEvents?.some((event) => event.eventType === "REFUND"));
 }
 
+export function latestRefundLedgerEvent<T extends {
+  eventType?: string | null | undefined;
+}>(paymentEvents: T[] | null | undefined): T | null {
+  return paymentEvents?.find((event) => event.eventType === "REFUND") ?? null;
+}
+
 type RefundStockRestoreItem = {
   listingId: string;
   quantity: number;

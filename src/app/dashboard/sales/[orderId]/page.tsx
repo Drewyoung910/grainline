@@ -14,6 +14,7 @@ import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
+import { latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -102,6 +103,12 @@ export default async function SellerOrderDetailPage({
           },
         },
       },
+      paymentEvents: {
+        where: { eventType: "REFUND" },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { eventType: true, amountCents: true, stripeObjectId: true },
+      },
     },
   });
 
@@ -132,6 +139,7 @@ export default async function SellerOrderDetailPage({
   const method = order.fulfillmentMethod ?? (isPickup ? "PICKUP" : "SHIPPING");
 
   const activeCase = order.case;
+  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const now = new Date();
   const sellerRefundPending = order.sellerRefundId === "pending";
   const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
@@ -139,8 +147,9 @@ export default async function SellerOrderDetailPage({
   const refundCents =
     (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
+    externalRefund?.amountCents ??
     null;
-  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId;
+  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
 
@@ -536,7 +545,7 @@ export default async function SellerOrderDetailPage({
       ) : null}
 
       {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
-      {order.paidAt && !order.sellerRefundId && !activeCase?.stripeRefundId && (
+      {order.paidAt && !orderHasRefundLedger(order) && !activeCase?.stripeRefundId && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
@@ -552,6 +561,15 @@ export default async function SellerOrderDetailPage({
           orderTotalCents={orderTotal}
           alreadyRefundedId={order.sellerRefundId}
           alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
+        />
+      )}
+      {!order.sellerRefundId && externalRefund && (
+        <SellerRefundPanel
+          orderId={order.id}
+          currency={currency}
+          orderTotalCents={orderTotal}
+          alreadyRefundedId={externalRefund.stripeObjectId ?? "external-refund"}
+          alreadyRefundedCents={externalRefund.amountCents ?? null}
         />
       )}
 

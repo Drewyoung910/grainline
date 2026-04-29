@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
+import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -41,6 +42,12 @@ export default async function AccountOrdersPage({
         fulfillmentStatus: true,
         labelTrackingNumber: true,
         labelCarrier: true,
+        paymentEvents: {
+          where: { eventType: "REFUND" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { eventType: true, amountCents: true },
+        },
         items: {
           select: {
             id: true,
@@ -118,6 +125,8 @@ export default async function AccountOrdersPage({
             const total = computedTotal > 0
               ? computedTotal
               : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+            const refundAmountCents =
+              order.sellerRefundAmountCents ?? latestRefundLedgerEvent(order.paymentEvents)?.amountCents ?? null;
 
             return (
               <li key={order.id} className="border border-neutral-200">
@@ -179,9 +188,9 @@ export default async function AccountOrdersPage({
                         currency: order.currency,
                       })}
                     </span>
-                    {(order.sellerRefundAmountCents ?? 0) > 0 && (
+                    {(refundAmountCents ?? 0) > 0 && (
                       <span className="text-sm text-red-600 ml-2">
-                        (Refund: -{(order.sellerRefundAmountCents! / 100).toLocaleString("en-US", {
+                        (Refund: -{(refundAmountCents! / 100).toLocaleString("en-US", {
                           style: "currency",
                           currency: order.currency,
                         })})

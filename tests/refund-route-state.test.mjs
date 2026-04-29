@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 const {
   isOpenStripeDisputeStatus,
+  latestRefundLedgerEvent,
   orderHasRefundLedger,
   orderRefundTotalCents,
   partialRefundExceedsOrderTotal,
@@ -82,6 +83,17 @@ describe("refund route state", () => {
       }),
       false,
     );
+  });
+
+  it("selects the first refund ledger event from already-sorted payment events", () => {
+    const events = [
+      { eventType: "DISPUTE", amountCents: 2_000 },
+      { eventType: "REFUND", amountCents: 1_500, stripeObjectId: "re_new" },
+      { eventType: "REFUND", amountCents: 1_000, stripeObjectId: "re_old" },
+    ];
+    assert.deepEqual(latestRefundLedgerEvent(events), events[1]);
+    assert.equal(latestRefundLedgerEvent([{ eventType: "DISPUTE" }]), null);
+    assert.equal(latestRefundLedgerEvent(null), null);
   });
 
   it("aggregates only positive in-stock item quantities for refund stock restoration", () => {
