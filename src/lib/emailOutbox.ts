@@ -8,14 +8,17 @@ import { shouldSendEmail } from "@/lib/notifications";
 import { redis } from "@/lib/ratelimit";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
+  emailOutboxProcessingStaleCutoff,
+  emailOutboxRetryDelayMs,
+  isTerminalEmailOutboxAttempt,
+} from "@/lib/emailOutboxState";
+import {
   EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT,
   reserveEmailOutboxDailySendAllowance,
 } from "@/lib/emailOutboxQuota";
 
-const MAX_ATTEMPTS = 10;
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 5;
-const PROCESSING_STALE_MS = 10 * 60 * 1000;
 const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 
 export type QueuedEmail = {
@@ -29,11 +32,6 @@ export type QueuedEmail = {
 
 function isUniqueError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
-}
-
-function retryDelayMs(attempts: number) {
-  const seconds = Math.min(6 * 60 * 60, 60 * 2 ** Math.max(0, attempts - 1));
-  return seconds * 1000;
 }
 
 async function reserveDailySendAllowance(requested: number, now: Date) {
@@ -81,7 +79,7 @@ export async function processEmailOutboxBatch({
   concurrency?: number;
 } = {}) {
   const now = new Date();
-  const staleProcessingCutoff = new Date(now.getTime() - PROCESSING_STALE_MS);
+  const staleProcessingCutoff = emailOutboxProcessingStaleCutoff(now);
   const jobs = await prisma.emailOutbox.findMany({
     where: {
       OR: [
@@ -174,13 +172,15 @@ export async function processEmailOutboxBatch({
       });
       sent += 1;
     } catch (error) {
-      const terminal = attempts >= MAX_ATTEMPTS;
+      const terminal = isTerminalEmailOutboxAttempt(attempts);
       failed += 1;
       await prisma.emailOutbox.update({
         where: { id: job.id },
         data: {
           status: terminal ? "DEAD" : "FAILED",
-          nextAttemptAt: terminal ? new Date("9999-12-31T00:00:00.000Z") : new Date(Date.now() + retryDelayMs(attempts)),
+          nextAttemptAt: terminal
+            ? new Date("9999-12-31T00:00:00.000Z")
+            : new Date(Date.now() + emailOutboxRetryDelayMs(attempts)),
           lastError: sanitizeEmailOutboxError(error),
         },
       });
