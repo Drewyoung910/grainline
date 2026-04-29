@@ -1,7 +1,23 @@
 import type Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL";
+type CreatedRefund = Pick<Stripe.Refund, "id">;
+type RefundCreator = (
+  params: Stripe.RefundCreateParams,
+  requestOptions: { idempotencyKey: string },
+) => Promise<CreatedRefund>;
+
+type MarketplaceRefundOptions = {
+  paymentIntentId: string;
+  resolution: RefundResolution;
+  amountCents: number;
+  itemsSubtotalCents: number;
+  shippingAmountCents: number;
+  taxAmountCents: number;
+  canReverseTransfer: boolean;
+  idempotencyKeyBase: string;
+  reason?: Stripe.RefundCreateParams.Reason;
+};
 
 export class StripeRefundPartialFailure extends Error {
   refundIds: string[];
@@ -21,17 +37,10 @@ export function isStripeRefundPartialFailure(error: unknown): error is StripeRef
   return error instanceof StripeRefundPartialFailure;
 }
 
-export async function createMarketplaceRefund(opts: {
-  paymentIntentId: string;
-  resolution: RefundResolution;
-  amountCents: number;
-  itemsSubtotalCents: number;
-  shippingAmountCents: number;
-  taxAmountCents: number;
-  canReverseTransfer: boolean;
-  idempotencyKeyBase: string;
-  reason?: Stripe.RefundCreateParams.Reason;
-}) {
+export async function createMarketplaceRefundWithCreator(
+  opts: MarketplaceRefundOptions,
+  createStripeRefund: RefundCreator,
+) {
   if (opts.amountCents <= 0) {
     throw new Error("Refund amount must be positive.");
   }
@@ -42,7 +51,7 @@ export async function createMarketplaceRefund(opts: {
   const isFullRefund = opts.resolution === "FULL" || opts.resolution === "REFUND_FULL";
 
   const createRefund = async (params: Stripe.RefundCreateParams, suffix: string) => {
-    const refund = await stripe.refunds.create(params, {
+    const refund = await createStripeRefund(params, {
       idempotencyKey: `${opts.idempotencyKeyBase}:${suffix}`,
     });
     refundIds.push(refund.id);
@@ -145,4 +154,11 @@ export async function createMarketplaceRefund(opts: {
     }
     throw error;
   }
+}
+
+export async function createMarketplaceRefund(opts: MarketplaceRefundOptions) {
+  const { stripe } = await import("@/lib/stripe");
+  return createMarketplaceRefundWithCreator(opts, (params, requestOptions) =>
+    stripe.refunds.create(params, requestOptions),
+  );
 }
