@@ -44,6 +44,7 @@ export async function POST(
       'Already undone',
       'Already undone (concurrent request)',
       'Undo window expired (24 hours)',
+      'Admins cannot undo their own actions',
     ])
     const safeMessage = safeMessages.has(message) || message.endsWith('cannot be undone')
       ? message
