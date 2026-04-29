@@ -15,14 +15,17 @@ import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { z } from "zod";
 
+const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
+  (u) => isR2PublicUrl(u),
+  { message: "Invalid photo URL" }
+)).max(6).optional();
+
 const ReviewSchema = z.object({
   listingId: z.string().min(1),
   ratingX2: z.number().int().min(2).max(10),
   comment: z.string().max(2000).optional().nullable(),
-  photoUrls: z.array(z.string().url().refine(
-    (u) => isR2PublicUrl(u),
-    { message: "Invalid photo URL" }
-  )).max(6).optional(),
+  photoUrls: ReviewPhotoUrlsSchema,
+  photos: ReviewPhotoUrlsSchema,
 });
 
 const REVIEW_WINDOW_DAYS = 90;
@@ -45,7 +48,8 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const { listingId, ratingX2, comment, photoUrls } = parsed;
+  const { listingId, ratingX2, comment } = parsed;
+  const photoUrls = parsed.photoUrls ?? parsed.photos ?? [];
 
   // Profanity check (log-only — does not block submission)
   if (comment) {

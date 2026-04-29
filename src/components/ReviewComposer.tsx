@@ -59,11 +59,15 @@ export default function ReviewComposer(props: {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    const payload = {
+    const payload = editing ? {
+      ratingX2,
+      comment: comment.trim(),
+      photos: photoUrls.slice(0, 6), // existing PATCH contract
+    } : {
       listingId,
       ratingX2,
       comment: comment.trim(),
-      photos: photoUrls.slice(0, 6), // up to 6
+      photoUrls: photoUrls.slice(0, 6), // existing POST contract
     };
 
     const res = await fetch(
@@ -191,4 +195,3 @@ export default function ReviewComposer(props: {
     </form>
   );
 }
-

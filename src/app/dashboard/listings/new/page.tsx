@@ -52,7 +52,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
 
   const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
-  const description = sanitizeRichText(String(formData.get("description") ?? "").trim());
+  const description = sanitizeRichText(String(formData.get("description") ?? "").trim()).slice(0, 5000);
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 

@@ -1,5 +1,8 @@
+import { randomUUID } from "crypto";
 import { prisma } from '@/lib/db'
-import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { fetchWithTimeout } from "./fetchWithTimeout";
+import { filterAIReviewImageUrls, redactPromptInjection, sanitizeAIAltText } from "./aiReviewSafety";
+import { isR2PublicUrl } from "./urlValidation";
 
 export interface AIReviewResult {
   approved: boolean
@@ -40,7 +43,7 @@ function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIRevi
   const altTexts = Array.isArray(value.altTexts)
     ? value.altTexts
         .filter((alt): alt is string => typeof alt === "string")
-        .map((alt) => alt.replace(/\s+/g, " ").trim().slice(0, 200))
+        .map((alt) => sanitizeAIAltText(alt))
         .filter(Boolean)
         .slice(0, expectedAltTexts)
     : [];
@@ -111,13 +114,6 @@ export async function reviewListingWithAI(listing: {
     // Non-fatal — continue to AI review
   }
 
-  const redactPromptInjection = (value: string) =>
-    value
-      .replace(/\b(ignore|disregard|forget)\b/gi, "[redacted]")
-      .replace(/\b(system|assistant|developer|user)\s*:/gi, "[redacted-role]:")
-      .replace(/```/g, "`\u200b``")
-      .slice(0, 4000);
-
   const userListingData = {
     title: redactPromptInjection(listing.title),
     description: redactPromptInjection(listing.description || "None provided"),
@@ -128,7 +124,7 @@ export async function reviewListingWithAI(listing: {
     sellerTotalListings: listing.listingCount,
   };
 
-  const imagesToReview = listing.imageUrls?.slice(0, 4) ?? [];
+  const imagesToReview = filterAIReviewImageUrls(listing.imageUrls, isR2PublicUrl);
 
   const systemPrompt = `You are a content moderator for Grainline, a handmade woodworking marketplace serving the US and Canada.
 
@@ -222,9 +218,10 @@ Respond with ONLY valid JSON, no other text:
   "altTexts": ["brief alt text for image 1", "brief alt text for image 2"]
 }`
 
-  const userPrompt = `USER_LISTING_DATA_BEGIN
+  const delimiterId = randomUUID();
+  const userPrompt = `USER_LISTING_DATA_${delimiterId}_BEGIN
 ${JSON.stringify(userListingData, null, 2)}
-USER_LISTING_DATA_END`
+USER_LISTING_DATA_${delimiterId}_END`
 
   try {
     const messageContent: Array<{
@@ -287,6 +284,7 @@ USER_LISTING_DATA_END`
 export async function generateAltText(imageUrl: string): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
+  if (filterAIReviewImageUrls([imageUrl], isR2PublicUrl).length === 0) return null;
 
   try {
     const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
@@ -321,8 +319,7 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content?.trim() ?? null;
     if (!text) return null;
-    // Strip any HTML tags or script injection from AI response
-    return text.replace(/<[^>]*>/g, "").slice(0, 200);
+    return sanitizeAIAltText(text) || null;
   } catch {
     return null;
   }

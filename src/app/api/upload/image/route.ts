@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import sharp from "sharp";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -10,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
+import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -118,14 +120,23 @@ export async function POST(req: Request) {
   const output = outputFor(file.type);
   const key = `${endpoint}/${userId}/${Date.now()}-${randomUUID()}.${output.ext}`;
 
-  await r2.send(new PutObjectCommand({
-    Bucket: R2_BUCKET,
-    Key: key,
-    Body: processed,
-    ContentType: output.contentType,
-    ContentLength: processed.byteLength,
-    CacheControl: "public, max-age=31536000, immutable",
-  }));
+  try {
+    await r2.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: processed,
+      ContentType: output.contentType,
+      ContentLength: processed.byteLength,
+      CacheControl: "public, max-age=31536000, immutable",
+    }));
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "upload_image_put_object", endpoint },
+      extra: { contentType: output.contentType, size: processed.byteLength },
+    });
+    const failure = uploadServiceFailure("object-write");
+    return NextResponse.json(failure.body, failure.init);
+  }
 
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
   try {

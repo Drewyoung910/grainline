@@ -11,12 +11,15 @@ import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { mapWithConcurrency } from "@/lib/concurrency";
 
+const ReviewPhotoUrlsSchema = z.array(
+  z.string().url().refine((url) => isR2PublicUrl(url), { message: "Invalid image URL" })
+).max(6).optional();
+
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
   comment: z.string().max(2000).optional().nullable(),
-  photos: z.array(
-    z.string().url().refine((url) => isR2PublicUrl(url), { message: "Invalid image URL" })
-  ).max(6).optional(),
+  photos: ReviewPhotoUrlsSchema,
+  photoUrls: ReviewPhotoUrlsSchema,
 });
 
 export async function PATCH(
@@ -39,7 +42,8 @@ export async function PATCH(
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const { ratingX2, comment, photos = [] } = reviewPatchParsed;
+  const { ratingX2, comment } = reviewPatchParsed;
+  const photos = reviewPatchParsed.photos ?? reviewPatchParsed.photoUrls ?? [];
 
   // ensure owner & editable
   const me = await prisma.user.findUnique({

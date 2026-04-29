@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
@@ -8,6 +9,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
+import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { createUploadVerificationToken } from "@/lib/uploadVerificationToken";
 
 const ALLOWED_TYPES = [
@@ -139,7 +141,17 @@ export async function POST(req: NextRequest) {
     CacheControl: "public, max-age=31536000, immutable",
   });
 
-  const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
+  let presignedUrl: string;
+  try {
+    presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "upload_presign_get_signed_url", endpoint },
+      extra: { contentType, size },
+    });
+    const failure = uploadServiceFailure("presign");
+    return NextResponse.json(failure.body, failure.init);
+  }
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
   const verification = createUploadVerificationToken({
     key,
