@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
+import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -72,6 +73,12 @@ export default async function SalesPage({
           },
         },
         buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
+        paymentEvents: {
+          where: { eventType: "REFUND" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { eventType: true, amountCents: true },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip,
@@ -107,6 +114,8 @@ export default async function SalesPage({
               // Use this seller's items subtotal (not all-seller itemsSubtotalCents)
               const orderTotal = mySubtotalCents + shipping + tax;
               const status = o.fulfillmentStatus ?? "PENDING";
+              const refundAmountCents =
+                o.sellerRefundAmountCents ?? latestRefundLedgerEvent(o.paymentEvents)?.amountCents ?? null;
 
               return (
                 <li key={o.id} className="card-section">
@@ -185,11 +194,11 @@ export default async function SalesPage({
                         {fmtMoney(orderTotal, currency)}
                       </span>
                     </div>
-                    {(o.sellerRefundAmountCents ?? 0) > 0 && (
+                    {(refundAmountCents ?? 0) > 0 && (
                       <div className="flex items-center justify-between">
                         <span className="text-red-600">Refund issued</span>
                         <span className="text-sm text-red-600">
-                          -{fmtMoney(o.sellerRefundAmountCents!, currency)}
+                          -{fmtMoney(refundAmountCents!, currency)}
                         </span>
                       </div>
                     )}

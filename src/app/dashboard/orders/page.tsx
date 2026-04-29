@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
+import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -38,6 +39,12 @@ export default async function OrdersPage() {
               },
             },
           },
+        },
+        paymentEvents: {
+          where: { eventType: "REFUND" },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { eventType: true, amountCents: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -78,6 +85,8 @@ export default async function OrdersPage() {
             const shipping = o.shippingAmountCents ?? 0;
             const tax = o.taxAmountCents ?? 0;
             const total = itemsSubtotal + shipping + tax;
+            const refundAmountCents =
+              o.sellerRefundAmountCents ?? latestRefundLedgerEvent(o.paymentEvents)?.amountCents ?? null;
 
             return (
               <li key={o.id} className="card-section">
@@ -157,11 +166,11 @@ export default async function OrdersPage() {
                     <span className="text-neutral-800">Total</span>
                     <span className="text-base font-semibold">{fmtMoney(total, currency)}</span>
                   </div>
-                  {(o.sellerRefundAmountCents ?? 0) > 0 && (
+                  {(refundAmountCents ?? 0) > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-red-600">Refund</span>
                       <span className="text-sm text-red-600">
-                        -{fmtMoney(o.sellerRefundAmountCents!, currency)}
+                        -{fmtMoney(refundAmountCents!, currency)}
                       </span>
                     </div>
                   )}
@@ -182,5 +191,4 @@ export default async function OrdersPage() {
     </main>
   );
 }
-
 

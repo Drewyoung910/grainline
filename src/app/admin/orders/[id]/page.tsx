@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import AdminOrderActions from "./AdminOrderActions";
 import { publicListingPath } from "@/lib/publicPaths";
+import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
@@ -102,6 +103,7 @@ export default async function AdminOrderDetailPage({
   const sellers = Array.from(
     new Map(order.items.map((it) => [it.listing.seller.id, it.listing.seller])).values()
   );
+  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -271,6 +273,17 @@ export default async function AdminOrderDetailPage({
                 </span>
               </span>
               <span className="font-medium">{fmtMoney(order.case.refundAmountCents, currency)}</span>
+            </div>
+          )}
+          {!order.sellerRefundId && !order.case?.stripeRefundId && externalRefund && (
+            <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
+              <span>
+                External Stripe refund
+                <span className="ml-1 text-xs text-neutral-400 font-normal">
+                  ({externalRefund.stripeObjectId ?? "refund event"})
+                </span>
+              </span>
+              <span className="font-medium">{fmtMoney(externalRefund.amountCents, currency)}</span>
             </div>
           )}
         </div>

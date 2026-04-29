@@ -114,6 +114,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Refund stock restoration now avoids stale status reactivation.** Seller refunds and admin case-resolution refunds aggregate restored in-stock quantities, increment stock first, and only reactivate listings that are currently `SOLD_OUT`, currently `IN_STOCK`, non-private, and positive after the increment. Pure tests cover aggregation and the current-state reactivation invariant.
 - **External refund route guards now use the durable refund ledger.** Buyer case creation and seller label purchase now block both local `sellerRefundId` refunds and Stripe-webhook `OrderPaymentEvent` refund rows, so externally created Stripe refunds cannot bypass those guards.
 - **External refund UI and fulfillment checks now read the durable refund ledger.** Buyer order detail/list pages and seller order detail pages include refund payment events when displaying refund amounts, and seller fulfillment updates now give the explicit refunded-order response before hitting the atomic update guard.
+- **External refund list/admin surfaces now read the durable refund ledger.** Buyer order lists, seller sales lists, and admin order details now surface refund amounts from `OrderPaymentEvent` refund rows when the local `sellerRefundId` fields were not set by an external Stripe-dashboard refund.
 
 ## Recommended Fix Order
 
