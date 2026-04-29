@@ -2,8 +2,12 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { EmailSuppressionReason } from "@prisma/client";
+import {
+  type Prisma,
+  EmailSuppressionReason,
+} from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
+import { redactAccountDeletionAuditMetadata } from "@/lib/accountDeletionAuditRedaction";
 
 const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
@@ -188,6 +192,13 @@ export async function anonymizeUserAccount(userId: string) {
     const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
     const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
+    const auditSensitiveValues = [
+      user.id,
+      user.clerkId,
+      user.email,
+      user.email.toLowerCase(),
+      user.sellerProfile?.id,
+    ].filter(Boolean) as string[];
 
     await tx.cart.deleteMany({ where: { userId: user.id } });
     await tx.favorite.deleteMany({ where: { userId: user.id } });
@@ -253,6 +264,28 @@ export async function anonymizeUserAccount(userId: string) {
         details: { accountDeleted: true },
       },
     });
+    const auditLogsByMetadata = new Map<string, Prisma.JsonValue>();
+    for (const value of auditSensitiveValues) {
+      const matches = await tx.$queryRaw<{ id: string; metadata: Prisma.JsonValue }[]>`
+        SELECT id, metadata
+        FROM "AdminAuditLog"
+        WHERE position(${value.toLowerCase()} in lower(metadata::text)) > 0
+        LIMIT 1000
+      `;
+      matches.forEach((log) => auditLogsByMetadata.set(log.id, log.metadata));
+    }
+    for (const [id, metadata] of auditLogsByMetadata) {
+      const redacted = redactAccountDeletionAuditMetadata(
+        metadata as Parameters<typeof redactAccountDeletionAuditMetadata>[0],
+        auditSensitiveValues,
+      );
+      if (!redacted.changed) continue;
+      await tx.adminAuditLog.update({
+        where: { id },
+        data: { metadata: redacted.metadata as Prisma.InputJsonValue },
+      });
+    }
+
     await tx.adminAuditLog.updateMany({
       where: {
         OR: [
