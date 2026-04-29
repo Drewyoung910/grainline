@@ -104,10 +104,22 @@ export function useR2Upload({
           throw new Error((err as { error?: string }).error ?? "Failed to get upload URL");
         }
 
-        const { presignedUrl, publicUrl, key } = await res.json() as {
+        const {
+          presignedUrl,
+          publicUrl,
+          key,
+          contentType,
+          expectedSize,
+          verificationToken,
+          verificationExpiresAt,
+        } = await res.json() as {
           presignedUrl: string;
           publicUrl: string;
           key: string;
+          contentType: string;
+          expectedSize: number;
+          verificationToken: string;
+          verificationExpiresAt: number;
         };
 
         const uploadRes = await fetch(presignedUrl, {
@@ -124,7 +136,10 @@ export function useR2Upload({
           body: JSON.stringify({
             key,
             endpoint,
-            expectedSize: file.size,
+            expectedSize,
+            contentType,
+            verificationToken,
+            verificationExpiresAt,
           }),
         });
         if (!verifyRes.ok) {

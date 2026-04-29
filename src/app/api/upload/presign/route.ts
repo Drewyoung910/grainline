@@ -8,6 +8,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
+import { createUploadVerificationToken } from "@/lib/uploadVerificationToken";
 
 const ALLOWED_TYPES = [
   "video/mp4", "video/quicktime",
@@ -140,6 +141,23 @@ export async function POST(req: NextRequest) {
 
   const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+  const verification = createUploadVerificationToken({
+    key,
+    endpoint,
+    expectedSize: size,
+    contentType,
+  });
+  if (!verification) {
+    return NextResponse.json({ error: "Upload verification is not configured" }, { status: 500 });
+  }
 
-  return NextResponse.json({ presignedUrl, publicUrl, key });
+  return NextResponse.json({
+    presignedUrl,
+    publicUrl,
+    key,
+    contentType,
+    expectedSize: size,
+    verificationToken: verification.token,
+    verificationExpiresAt: verification.expiresAt,
+  });
 }
