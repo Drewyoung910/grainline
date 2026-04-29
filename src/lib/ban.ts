@@ -1,10 +1,21 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
+import { buildBanAuditMetadata } from './banAuditMetadata'
 
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
   await prisma.$transaction(async (tx) => {
+    const [sellerProfile, commissionRequests] = await Promise.all([
+      tx.sellerProfile.findUnique({
+        where: { userId },
+        select: { id: true, chargesEnabled: true, vacationMode: true },
+      }),
+      tx.commissionRequest.findMany({
+        where: { buyerId: userId, status: 'OPEN' },
+        select: { id: true, status: true },
+      }),
+    ])
     await tx.user.update({
       where: { id: userId },
       data: { banned: true, bannedAt: new Date(), banReason: reason, bannedBy: adminId }
@@ -18,7 +29,14 @@ export async function banUser({ userId, adminId, reason }: {
       data: { status: 'CLOSED' }
     })
     await tx.adminAuditLog.create({
-      data: { adminId, action: 'BAN_USER', targetType: 'USER', targetId: userId, reason }
+      data: {
+        adminId,
+        action: 'BAN_USER',
+        targetType: 'USER',
+        targetId: userId,
+        reason,
+        metadata: buildBanAuditMetadata({ sellerProfile, commissionRequests }),
+      }
     })
   })
 }
@@ -45,6 +63,16 @@ export async function unbanUser({ userId, adminId, reason }: {
     sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
   }
   await prisma.$transaction(async (tx) => {
+    const [previousUser, previousSellerProfile] = await Promise.all([
+      tx.user.findUnique({
+        where: { id: userId },
+        select: { banned: true, bannedAt: true, banReason: true, bannedBy: true },
+      }),
+      tx.sellerProfile.findUnique({
+        where: { userId },
+        select: { id: true, chargesEnabled: true, vacationMode: true },
+      }),
+    ])
     await tx.user.update({
       where: { id: userId },
       data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
@@ -59,7 +87,25 @@ export async function unbanUser({ userId, adminId, reason }: {
       })
     }
     await tx.adminAuditLog.create({
-      data: { adminId, action: 'UNBAN_USER', targetType: 'USER', targetId: userId, reason }
+      data: {
+        adminId,
+        action: 'UNBAN_USER',
+        targetType: 'USER',
+        targetId: userId,
+        reason,
+        metadata: {
+          previousUser: previousUser
+            ? {
+                banned: previousUser.banned,
+                bannedAt: previousUser.bannedAt?.toISOString() ?? null,
+                banReason: previousUser.banReason,
+                bannedBy: previousUser.bannedBy,
+              }
+            : null,
+          previousSellerProfile,
+          restoredSellerProfile: sellerRestore,
+        },
+      }
     })
   })
 }

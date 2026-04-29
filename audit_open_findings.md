@@ -122,6 +122,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Stripe payout-failure webhook decisions are isolated and tested.** The webhook now uses a pure helper for durable `SellerPayoutEvent` upsert payloads and seller notification copy/fallbacks.
 - **Listing edit state is guarded consistently.** The edit page now blocks sold, in-review, archived, and staff-removed listings across save, photo reorder/delete, and alt-text mutation paths using a shared tested helper.
 - **Admin PIN cookie secret now fails loud in production runtime.** `src/lib/adminPin.ts` asserts `ADMIN_PIN_COOKIE_SECRET` at module load outside Next's production build phase, while preserving the local development fallback; pure tests cover production configured/missing, production-build, and development fallback behavior.
+- **Ban audit logs now capture pre-state for faithful undo.** `banUser()` records previous seller `chargesEnabled`/`vacationMode` plus closed commission request IDs/statuses before mutation, `unbanUser()` records prior user/seller state for audit traceability, and `undoAdminAction()` restores from metadata before falling back to live Stripe state for legacy logs.
 
 ## Recommended Fix Order
 

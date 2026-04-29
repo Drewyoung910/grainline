@@ -1,6 +1,7 @@
 import { ListingStatus } from '@prisma/client'
 import { prisma } from './db'
 import { stripe } from './stripe'
+import { readBanAuditMetadata } from './banAuditMetadata'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -53,26 +54,31 @@ export async function undoAdminAction({
   const metadata = (log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata))
     ? log.metadata as Record<string, unknown>
     : {}
+  const banMetadata = log.action === 'BAN_USER' ? readBanAuditMetadata(metadata) : null
 
   let sellerRestore: { id: string; chargesEnabled: boolean; vacationMode: boolean } | null = null
   if (log.action === 'BAN_USER') {
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { userId: log.targetId },
-      select: { id: true, stripeAccountId: true },
-    })
-    if (seller?.stripeAccountId) {
-      let chargesEnabled = false
-      try {
-        const account = await stripe.accounts.retrieve(seller.stripeAccountId)
-        chargesEnabled = Boolean(
-          account.charges_enabled &&
-          account.details_submitted &&
-          !account.requirements?.disabled_reason
-        )
-      } catch (err) {
-        console.error('Failed to verify Stripe account during admin undo:', err)
+    if (banMetadata?.previousSellerProfile) {
+      sellerRestore = banMetadata.previousSellerProfile
+    } else {
+      const seller = await prisma.sellerProfile.findUnique({
+        where: { userId: log.targetId },
+        select: { id: true, stripeAccountId: true },
+      })
+      if (seller?.stripeAccountId) {
+        let chargesEnabled = false
+        try {
+          const account = await stripe.accounts.retrieve(seller.stripeAccountId)
+          chargesEnabled = Boolean(
+            account.charges_enabled &&
+            account.details_submitted &&
+            !account.requirements?.disabled_reason
+          )
+        } catch (err) {
+          console.error('Failed to verify Stripe account during admin undo:', err)
+        }
+        sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
       }
-      sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
     }
   }
 
@@ -99,6 +105,16 @@ export async function undoAdminAction({
               vacationMode: sellerRestore.vacationMode,
             }
           })
+        }
+        if (banMetadata?.previousCommissionRequests.length) {
+          await Promise.all(
+            banMetadata.previousCommissionRequests.map((request) =>
+              tx.commissionRequest.updateMany({
+                where: { id: request.id, buyerId: log.targetId, status: 'CLOSED' },
+                data: { status: request.status },
+              })
+            )
+          )
         }
         break
       case 'REMOVE_LISTING':
