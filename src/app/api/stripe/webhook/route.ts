@@ -12,6 +12,7 @@ import {
   sendFirstSaleCongrats,
 } from "@/lib/email";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
+import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
 import {
   beginStripeWebhookEvent,
   markStripeWebhookEventFailed,
@@ -216,23 +217,18 @@ export async function POST(req: Request) {
       const rawEstDays = shippingRateObj?.metadata?.estDays;
       const estDays: number = parsePositiveInt(rawEstDays, 7);
 
-      // Mismatch checks
-      const normalizeZip = (z: string) => z.split("-")[0];
-      const normalizeState = (s: string) => s.toUpperCase();
-      const normalizeCity = (c: string) => c.trim().toLowerCase();
-
-      const addressMismatch =
-        (quotedShipToPostalCode && normalizeZip(quotedShipToPostalCode) !== normalizeZip(shipToPostalCode || "")) ||
-        (quotedShipToState && normalizeState(quotedShipToState) !== normalizeState(shipToState || "")) ||
-        (quotedShipToCity && normalizeCity(quotedShipToCity) !== normalizeCity(shipToCity || "")) ||
-        (quotedShipToCountry && quotedShipToCountry !== (shipToCountry || ""));
-
-      const amountMismatch =
-        quotedShippingAmountCents != null &&
-        shippingAmountCents != null &&
-        quotedShippingAmountCents !== shippingAmountCents;
-
-      const reviewNeeded = !!(addressMismatch || amountMismatch);
+      const reviewNeeded = checkoutCompletionNeedsReview({
+        quotedPostalCode: quotedShipToPostalCode,
+        actualPostalCode: shipToPostalCode,
+        quotedState: quotedShipToState,
+        actualState: shipToState,
+        quotedCity: quotedShipToCity,
+        actualCity: shipToCity,
+        quotedCountry: quotedShipToCountry,
+        actualCountry: shipToCountry,
+        quotedShippingAmountCents,
+        actualShippingAmountCents: shippingAmountCents,
+      });
 
       // Service info (best-effort)
       const shippingCarrier: string | null =
