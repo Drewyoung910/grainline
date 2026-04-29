@@ -12,7 +12,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 | --- | --- | --- |
 | Launch-quality code issues | No known unfixed critical/high engineering item is currently listed in this file. | Keep verifying with focused regression tests before broad new audit rounds. |
 | Test coverage gaps | Partially open. Pure tests now cover account-state errors, account-export download formatting/payload shape, shipping tokens, unsubscribe tokens, notification dedup, Sentry filters, cron auth/retry helpers, listing variants, slug helpers, media URL/R2 key validation, DB URL SSL normalization, marketplace refund splitting, refund-lock state, Stripe webhook event state, and refund-route guard state. | Continue route-level payment/webhook/refund coverage where pure helpers can be extracted without brittle mocks. |
-| Infra/config follow-up | Partially open. Production/deploy code is guarded, but environment-level settings still need operator verification. | Verify Vercel `DATABASE_URL` uses the Neon pooler where appropriate and R2 bucket object-size limits are configured. |
+| Infra/config follow-up | Partially open. Production/deploy code is guarded, and production Vercel now has separate `DATABASE_URL`/`DIRECT_URL` entries so runtime can use the Neon pooler while migrations use the direct URL. | Verify R2 bucket object-size limits are configured in Cloudflare; keep Preview/Development DB env separation under review if preview deploys become required. |
 | Product/legal decisions | Open by design. | Attorney/product decisions remain for retention schedules, partial-refund inventory semantics, deleted-seller public-content policy, money-transmitter/agent-of-payee positioning, INFORM workflows, and insurance. |
 | Data cleanup tasks | Open as operational/data work, not app-code bugs. | Repair legacy `cdn.thegrainline.com` cache-miss media rows if still present in production data. |
 
@@ -36,7 +36,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Round 21 payment findings verified solid.** No new payment bugs were reproduced in this fix pass.
 - **R21 listing moderation regressions fixed.** Edit/delete-photo AI review now uses cover-order photos, AI activation writes are guarded with `updatedAt`/status checks, custom listing activation is guarded, and active-listing substantive-change detection now covers tags/materials/meta/dimensions/listing type/stock/shipping windows.
 - **R21 cron/dedup regressions fixed.** Failed cron runs can be retried after five minutes, notification dedup no longer hashes title/body, `dedupKey` is required for new notifications, Guild cron concurrency is reduced, and quality-score global means are materialized in `SiteMetricsSnapshot`.
-- **Long-term scale guardrails added.** Sitemap listing chunking and five hot-path indexes were added; Vercel still needs `DATABASE_URL` switched to the Neon pooler endpoint.
+- **Long-term scale guardrails added.** Sitemap listing chunking and five hot-path indexes were added. Production Vercel env was updated on 2026-04-28 with separate `DATABASE_URL` and `DIRECT_URL` entries so runtime can use the Neon pooler while migrations use the direct URL.
 
 ## Round 22 Fix Status Notes
 
