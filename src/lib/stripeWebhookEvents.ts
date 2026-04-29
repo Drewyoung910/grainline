@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-
-const STALE_PROCESSING_MS = 2 * 60 * 1000;
+import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
 
 export async function beginStripeWebhookEvent(id: string, type: string): Promise<boolean> {
   const now = new Date();
@@ -16,7 +15,7 @@ export async function beginStripeWebhookEvent(id: string, type: string): Promise
     }
   }
 
-  const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS);
+  const staleBefore = new Date(Date.now() - STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS);
   const claimed = await prisma.stripeWebhookEvent.updateMany({
     where: {
       id,

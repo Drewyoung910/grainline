@@ -4,20 +4,17 @@ Last updated: 2026-04-28
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
-## Current Backlog Estimate
+## Current Live Ledger
 
-Raw audit volume across all rounds is now roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product decisions, legal/business tasks, and false positives.
+Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-After de-duplication, the current engineering backlog is approximately:
-
-| Priority | Estimated open items | Notes |
-| --- | ---: | --- |
-| Critical / launch-quality | 35-45 | Email compliance, payment/refund races, moderation bypasses, auth/account-state gaps, severe data integrity. |
-| High | 80-110 | GDPR gaps, admin/dashboard correctness, scale risks, webhook/cron robustness, rate-limit gaps. |
-| Medium | 90-130 | UX state, SEO, notification dedup, analytics definition drift, API contract cleanup. |
-| Low / cleanup / future | 50-80 | Slugs, richer SEO, code organization, nice-to-have features, non-blocking polish. |
-
-Practical remaining total: about 250-320 unique actionable items. The next fix effort should target critical/high items first, not the raw 750 count.
+| Bucket | Current state | Next action |
+| --- | --- | --- |
+| Launch-quality code issues | No known unfixed critical/high engineering item is currently listed in this file. | Keep verifying with focused regression tests before broad new audit rounds. |
+| Test coverage gaps | Partially open. Pure tests now cover account-state errors, account-export download formatting, shipping tokens, unsubscribe tokens, notification dedup, Sentry filters, cron auth/retry helpers, listing variants, slug helpers, media URL/R2 key validation, and DB URL SSL normalization. | Continue payment/webhook/refund/account-export payload coverage. |
+| Infra/config follow-up | Partially open. Production/deploy code is guarded, but environment-level settings still need operator verification. | Verify Vercel `DATABASE_URL` uses the Neon pooler where appropriate and R2 bucket object-size limits are configured. |
+| Product/legal decisions | Open by design. | Attorney/product decisions remain for retention schedules, partial-refund inventory semantics, deleted-seller public-content policy, money-transmitter/agent-of-payee positioning, INFORM workflows, and insurance. |
+| Data cleanup tasks | Open as operational/data work, not app-code bugs. | Repair legacy `cdn.thegrainline.com` cache-miss media rows if still present in production data. |
 
 ## Round 19 Corrections / Status Notes
 
@@ -113,6 +110,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Checkout session lock transitions are compare-and-set guarded.** `markCheckoutLockReady()` now only promotes the matching `preparing` lock to `ready`; webhook release is session-bound so stale Stripe session events cannot delete a newer checkout lock.
 - **Account-state and cron retry contracts are isolated and tested.** `AccountAccessError` and clean API error payloads now live in a Prisma-free helper, and the failed-cron reclaim window lives in a Prisma-free helper. Regression coverage verifies suspended/deleted account responses, UTC cron buckets, and five-minute failed-run reclaim behavior.
 - **Account export download contract is isolated and tested.** JSON export response formatting now lives in a Prisma-free helper with coverage for dated filenames, no-store download headers, and stable pretty JSON bodies.
+- **Payment/refund/webhook state coverage is expanding.** Stripe webhook event reclaim timing and refund-lock stale-state semantics now live in Prisma-free helpers with regression tests. Refund-lock cleanup also reclaims legacy `"pending"` locks that are missing `sellerRefundLockedAt`, and marketplace refund tests now cover partial refunds with tax and full tax-only refunds.
 
 ## Recommended Fix Order
 
@@ -414,7 +412,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Impact**: Vercel retry can double-warn/double-revoke/double-notify.
 - **Fix spec**: Add `CronRun` table and deterministic per-job time-bucket run ID.
 
-### H23. [PARTIAL 2026-04-25] Cron failures leak internals and stop batches
+### H23. [FIXED 2026-04-28] Cron failures leak internals and stop batches
 
 - **Files**: guild cron routes and other sequential cron loops.
 - **Current state**: Fixed for record-processing cron routes. Guild metrics/member check isolate per-seller failures; commission-expire and case-auto-close now isolate per-record failures, capture details to Sentry, and return sanitized codes/counts. Bulk prune/snapshot crons fail as whole-job operations because they have no independent per-record side effects.
@@ -619,7 +617,7 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - [FIXED 2026-04-26] Listing view/click analytics now use two 24h aggregate httpOnly cookies capped at 50 listing IDs each, replacing unbounded per-listing `viewed_*` / `clicked_*` cookies.
 - [FIXED 2026-04-26] CI lint and high-severity audit checks are now blocking, and CI runs `npm run build` after TypeScript.
 - [FIXED 2026-04-27] CI now declares the production-like secret surface needed by build/test paths, including Stripe, Clerk, R2 aliases, Upstash, Resend, unsubscribe, Sentry, admin, and cron env vars.
-- [PARTIAL 2026-04-27] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner. Coverage now includes buyer-bound signed shipping-rate tokens, media URL/R2 key validation, unsubscribe token lifecycle, notification dedup key behavior, database URL SSL normalization, Sentry filtering, cron auth, route slug helpers, and listing variant selection. Expand next into payment/webhook/refund/account-state route tests.
+- [PARTIAL 2026-04-28] A real CI-enforced test baseline now exists. `npm test` runs Node's built-in test runner. Coverage now includes buyer-bound signed shipping-rate tokens, media URL/R2 key validation, unsubscribe token lifecycle, notification dedup key behavior, database URL SSL normalization, Sentry filtering, cron auth/retry helpers, route slug helpers, listing variant selection, account-state API error contracts, account-export download formatting, marketplace refund splitting, refund-lock stale-state handling, and Stripe webhook event reclaim timing. Expand next into route-level payment/webhook/refund/account-export payload tests.
 - [FIXED 2026-04-26] `tsconfig` target is now ES2022 to avoid unnecessary downleveling; Next/Turbopack still handles final browser/server output.
 - `npm audit`: no current critical/high from dependency pass; moderate findings are mostly transitive/gated. Track Next/Clerk/maplibre updates.
 - Sentry `beforeSend` filtering is missing. **Current state: Fixed.** Shared server/edge/client filter drops common browser/network noise and redacts cookies, auth headers, token query params, user email/IP, and email-like strings.

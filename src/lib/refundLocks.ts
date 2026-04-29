@@ -1,15 +1,18 @@
 import { prisma } from "@/lib/db";
+import { REFUND_LOCK_SENTINEL, refundLockCutoff } from "@/lib/refundLockState";
 
-export const REFUND_LOCK_SENTINEL = "pending";
-export const REFUND_LOCK_STALE_MS = 5 * 60 * 1000;
+export { REFUND_LOCK_SENTINEL, REFUND_LOCK_STALE_MS } from "@/lib/refundLockState";
 
 export async function releaseStaleRefundLocks(orderId?: string) {
-  const cutoff = new Date(Date.now() - REFUND_LOCK_STALE_MS);
+  const cutoff = refundLockCutoff();
   return prisma.order.updateMany({
     where: {
       ...(orderId ? { id: orderId } : {}),
       sellerRefundId: REFUND_LOCK_SENTINEL,
-      sellerRefundLockedAt: { lt: cutoff },
+      OR: [
+        { sellerRefundLockedAt: null },
+        { sellerRefundLockedAt: { lt: cutoff } },
+      ],
     },
     data: {
       sellerRefundId: null,

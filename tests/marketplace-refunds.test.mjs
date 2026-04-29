@@ -87,6 +87,75 @@ describe("marketplace refunds", () => {
     ]);
   });
 
+  it("does not split partial refunds even when the original order included tax", async () => {
+    const calls = [];
+    const result = await createMarketplaceRefundWithCreator(
+      baseOpts({
+        resolution: "PARTIAL",
+        amountCents: 1_200,
+        reason: "requested_by_customer",
+      }),
+      async (params, requestOptions) => {
+        calls.push({ params, requestOptions });
+        return { id: "re_partial" };
+      },
+    );
+
+    assert.deepEqual(result, {
+      primaryRefundId: "re_partial",
+      refundIds: ["re_partial"],
+      sellerPortionCents: 1_200,
+      taxAmountCents: 0,
+      usedPlatformOnly: false,
+      usedSplitTaxRefund: false,
+    });
+    assert.deepEqual(calls, [
+      {
+        params: {
+          payment_intent: "pi_test",
+          amount: 1_200,
+          refund_application_fee: true,
+          reverse_transfer: true,
+          reason: "requested_by_customer",
+        },
+        requestOptions: { idempotencyKey: "refund:order_1:seller" },
+      },
+    ]);
+  });
+
+  it("uses a single platform refund for full tax-only refunds", async () => {
+    const calls = [];
+    const result = await createMarketplaceRefundWithCreator(
+      baseOpts({
+        amountCents: 825,
+        itemsSubtotalCents: 0,
+        shippingAmountCents: 0,
+      }),
+      async (params, requestOptions) => {
+        calls.push({ params, requestOptions });
+        return { id: "re_tax_only" };
+      },
+    );
+
+    assert.deepEqual(result, {
+      primaryRefundId: "re_tax_only",
+      refundIds: ["re_tax_only"],
+      sellerPortionCents: 0,
+      taxAmountCents: 825,
+      usedPlatformOnly: false,
+      usedSplitTaxRefund: false,
+    });
+    assert.deepEqual(calls, [
+      {
+        params: {
+          payment_intent: "pi_test",
+          amount: 825,
+        },
+        requestOptions: { idempotencyKey: "refund:order_1:tax-only" },
+      },
+    ]);
+  });
+
   it("preserves succeeded refund IDs when a later split-refund step fails", async () => {
     const failure = new Error("stripe unavailable");
 
