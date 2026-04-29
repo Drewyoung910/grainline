@@ -2805,6 +2805,8 @@ Follow-up implementation pass for the Opus Round 4 findings after auditing each 
 - Checkout locks are scoped to buyer/cart or buyer/listing and include a request payload hash so a stale session cannot be reused for a changed cart, address, shipping method, or rate.
 - Matching in-progress sessions return HTTP 409; matching ready sessions return the existing Stripe `clientSecret` instead of reserving stock again.
 - Stripe session metadata includes `checkoutLockKey`; the webhook releases locks on paid completion, expired checkout sessions, empty-cart fallback paths, and existing-order edge cases.
+- Ready-state writes are compare-and-set guarded on the existing `preparing` lock and payload hash. A stale worker cannot overwrite a newer checkout attempt after the lock changes.
+- Webhook lock release is session-bound after Stripe session creation. Completed/expired events for an old Stripe session cannot delete a newer checkout lock that reused the same buyer/cart or buyer/listing key.
 - Existing atomic stock decrement remains the final oversell guard.
 
 ### Deferred side effects

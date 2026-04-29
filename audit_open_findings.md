@@ -106,6 +106,12 @@ Practical remaining total: about 250-320 unique actionable items. The next fix e
 - **Seller metrics cache freshness has pure tests.** Added a small Prisma-free helper and regression coverage for fresh, stale, invalid, and far-future metric timestamps.
 - **External Stripe refunds now disqualify sales consistently.** Guild eligibility, Guild Master metrics, quality-score conversion, site metrics snapshots, seller analytics, review eligibility, homepage order stats, active-order deletion/account-deletion gates, refund locks, fulfillment changes, and label purchase locks now exclude orders that have durable `OrderPaymentEvent` refund ledger entries, closing the older `chargeRefundId`/external-refund accounting gap without adding a nonexistent Prisma field.
 
+## Continued Fix Status Notes — 2026-04-28
+
+- **Email outbox daily quota reservation is atomic and exact.** The daily Redis quota counter now increments only by the number of emails actually allowed, preventing capped jobs from inflating usage and delaying later jobs unnecessarily.
+- **Stripe Connect return URL hardening has pure regression tests.** The internal return URL sanitizer is isolated and tested against protocol-relative redirects, backslash redirects, absolute URLs, non-path values, and malformed app origins.
+- **Checkout session lock transitions are compare-and-set guarded.** `markCheckoutLockReady()` now only promotes the matching `preparing` lock to `ready`; webhook release is session-bound so stale Stripe session events cannot delete a newer checkout lock.
+
 ## Recommended Fix Order
 
 1. **Email compliance and unsubscribe correctness**: unblock provider one-click unsubscribe, tokenize links properly, disable all non-transactional prefs, add rate limit/expiry.
