@@ -10,10 +10,12 @@ import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/mar
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
+  orderHasRefundLedger,
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
   refundStockRestoreQuantities,
+  sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -75,6 +77,11 @@ export async function POST(
                 listing: { select: { id: true, listingType: true, stockQuantity: true, status: true } },
               },
             },
+            paymentEvents: {
+              where: { eventType: "REFUND" },
+              take: 1,
+              select: { eventType: true },
+            },
           },
         },
         seller: {
@@ -90,19 +97,20 @@ export async function POST(
       return NextResponse.json({ error: "Case is already resolved." }, { status: 400 });
     }
 
-    // Block refund if seller already issued one
-    if (
-      (resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL") &&
-      caseRecord.order.sellerRefundId
-    ) {
-      return NextResponse.json(
-        {
-          error: caseRecord.order.sellerRefundId === REFUND_LOCK_SENTINEL
-            ? "A refund is already being processed for this order."
-            : "A refund has already been issued for this order by the seller.",
-        },
-        { status: caseRecord.order.sellerRefundId === REFUND_LOCK_SENTINEL ? 409 : 400 }
-      );
+    const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
+
+    // Block refund if one is already in flight, locally recorded, or recorded by Stripe webhook.
+    if (refunding) {
+      const refundConflict = sellerRefundConflictResponse(caseRecord.order.sellerRefundId);
+      if (refundConflict) {
+        return NextResponse.json(
+          { error: refundConflict.error },
+          { status: refundConflict.status },
+        );
+      }
+      if (orderHasRefundLedger(caseRecord.order)) {
+        return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
+      }
     }
 
     // Partial refund amount cap
@@ -113,7 +121,6 @@ export async function POST(
     let stripeRefundId: string | null = null;
     let stripeRefundIds: string[] = [];
     let refundNote: string | null = null;
-    const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
     const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
 
     if (refunding) {

@@ -18,6 +18,7 @@ import {
   partialRefundInputError,
   refundAmountForResolution,
   refundStockRestoreQuantities,
+  orderHasRefundLedger,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
 import { z } from "zod";
@@ -86,6 +87,11 @@ export async function POST(
             },
           },
         },
+        paymentEvents: {
+          where: { eventType: "REFUND" },
+          take: 1,
+          select: { eventType: true },
+        },
       },
     });
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
@@ -111,6 +117,9 @@ export async function POST(
         { error: refundConflict.error },
         { status: refundConflict.status },
       );
+    }
+    if (orderHasRefundLedger(order)) {
+      return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
     }
 
     if (!order.stripePaymentIntentId) {
