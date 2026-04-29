@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
+import {
+  ORDER_BUYER_PII_RETENTION_DAYS,
+  orderBuyerPiiRetentionCutoff,
+} from "@/lib/orderPiiRetentionState";
 
-export const ORDER_BUYER_PII_RETENTION_DAYS = 90;
+export {
+  ORDER_BUYER_PII_RETENTION_DAYS,
+  orderBuyerPiiRetentionCutoff,
+} from "@/lib/orderPiiRetentionState";
 const DEFAULT_BATCH_SIZE = 1000;
 const DEFAULT_TIME_BUDGET_MS = 45_000;
 
@@ -19,7 +26,7 @@ export async function purgeOldFulfilledOrderBuyerPii({
   batchSize?: number;
   timeBudgetMs?: number;
 } = {}): Promise<OrderPiiPruneResult> {
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const cutoff = orderBuyerPiiRetentionCutoff({ retentionDays });
   const deadline = Date.now() + timeBudgetMs;
   let purged = 0;
 
