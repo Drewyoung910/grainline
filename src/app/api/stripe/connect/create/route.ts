@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { safeInternalReturnUrl } from "@/lib/internalReturnUrl";
 import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -12,20 +13,6 @@ const ConnectCreateSchema = z.object({
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
-
-function safeInternalReturnUrl(returnUrl: string | null | undefined): string | null {
-  if (!returnUrl || !returnUrl.startsWith("/") || returnUrl.startsWith("//") || returnUrl.startsWith("/\\")) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(returnUrl, APP_URL);
-    if (parsed.origin !== new URL(APP_URL).origin) return null;
-    return parsed.toString();
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -53,7 +40,7 @@ export async function POST(req: Request) {
   let customReturnUrl: string | undefined;
   try {
     const body = ConnectCreateSchema.parse(await req.json());
-    customReturnUrl = safeInternalReturnUrl(body.returnUrl) ?? undefined;
+    customReturnUrl = safeInternalReturnUrl(body.returnUrl, APP_URL) ?? undefined;
   } catch {
     // no body or invalid JSON — use default
   }
