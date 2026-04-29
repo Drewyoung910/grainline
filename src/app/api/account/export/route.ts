@@ -3,6 +3,7 @@ import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
+import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 
 export const runtime = "nodejs";
 
@@ -341,35 +342,14 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     }),
   ]);
 
-  return {
-    generatedAt: new Date().toISOString(),
-    account: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      imageUrl: user.imageUrl,
-      role: user.role,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      termsAcceptedAt: user.termsAcceptedAt,
-      termsVersion: user.termsVersion,
-      ageAttestedAt: user.ageAttestedAt,
-      shippingName: user.shippingName,
-      shippingLine1: user.shippingLine1,
-      shippingLine2: user.shippingLine2,
-      shippingCity: user.shippingCity,
-      shippingState: user.shippingState,
-      shippingPostalCode: user.shippingPostalCode,
-      shippingPhone: user.shippingPhone,
-      notificationPreferences: user.notificationPreferences,
-    },
+  return buildAccountExportPayload(user, {
     sellerProfile,
     listings,
     buyerOrders,
     sellerOrders,
     messagesSent,
     messagesReceived,
-    cases: caseRows,
+    caseRows,
     reviews,
     blogPosts,
     blogComments,
@@ -381,7 +361,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     commissionRequests,
     commissionInterests,
     notifications,
-  };
+  });
 }
 
 async function handleExport() {
