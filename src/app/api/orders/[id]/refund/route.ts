@@ -12,6 +12,13 @@ import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/mar
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import {
+  isOpenStripeDisputeStatus,
+  partialRefundExceedsOrderTotal,
+  partialRefundInputError,
+  refundAmountForResolution,
+  sellerRefundConflictResponse,
+} from "@/lib/refundRouteState";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -52,7 +59,7 @@ export async function POST(
     const type: "FULL" | "PARTIAL" = refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";
     const amountCents: number | null = refundParsed.amountCents ?? null;
 
-    if (type === "PARTIAL" && (amountCents == null || amountCents <= 0)) {
+    if (partialRefundInputError(type, amountCents)) {
       return NextResponse.json(
         { error: "amountCents is required and must be positive for PARTIAL refunds." },
         { status: 400 }
@@ -90,23 +97,18 @@ export async function POST(
       orderBy: { createdAt: "desc" },
       select: { status: true },
     });
-    const disputeClosedStatuses = new Set(["won", "lost", "warning_closed"]);
-    if (latestDispute && !disputeClosedStatuses.has((latestDispute.status ?? "").toLowerCase())) {
+    if (latestDispute && isOpenStripeDisputeStatus(latestDispute.status)) {
       return NextResponse.json(
         { error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund." },
         { status: 409 },
       );
     }
 
-    if (order.sellerRefundId) {
-      const pending = order.sellerRefundId === REFUND_LOCK_SENTINEL;
+    const refundConflict = sellerRefundConflictResponse(order.sellerRefundId);
+    if (refundConflict) {
       return NextResponse.json(
-        {
-          error: pending
-            ? "A refund is already being processed for this order."
-            : "A refund has already been issued for this order.",
-        },
-        { status: pending ? 409 : 400 },
+        { error: refundConflict.error },
+        { status: refundConflict.status },
       );
     }
 
@@ -117,25 +119,24 @@ export async function POST(
       );
     }
 
-    // Atomic lock: claim refund slot to prevent double-refund race
+    const refundAmountCents = refundAmountForResolution(type, order, amountCents);
+    if (refundAmountCents == null) {
+      return NextResponse.json(
+        { error: "amountCents is required and must be positive for PARTIAL refunds." },
+        { status: 400 },
+      );
+    }
+    if (partialRefundExceedsOrderTotal(type, amountCents, order)) {
+      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
+    }
+
+    // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
     const lockResult = await prisma.order.updateMany({
       where: { id: orderId, sellerRefundId: null, paymentEvents: { none: { eventType: "REFUND" } } },
       data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
     });
     if (lockResult.count === 0) {
       return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
-    }
-
-    // Partial refund amount cap
-    const refundAmountCents = type === "FULL"
-      ? (order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents)
-      : amountCents!;
-
-    const orderTotal = (order.itemsSubtotalCents ?? 0) + (order.shippingAmountCents ?? 0) + (order.taxAmountCents ?? 0);
-    if (type === "PARTIAL" && amountCents! > orderTotal) {
-      // Clear the lock
-      await prisma.order.update({ where: { id: orderId }, data: { sellerRefundId: null, sellerRefundLockedAt: null } }).catch(() => {});
-      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
     }
 
     let refundId: string | null = null;

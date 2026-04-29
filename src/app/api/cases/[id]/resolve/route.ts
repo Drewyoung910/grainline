@@ -9,6 +9,11 @@ import { sendCaseResolved } from "@/lib/email";
 import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/marketplaceRefunds";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import {
+  partialRefundExceedsOrderTotal,
+  partialRefundInputError,
+  refundAmountForResolution,
+} from "@/lib/refundRouteState";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -52,10 +57,7 @@ export async function POST(
     }
     const { resolution, refundAmountCents } = parsed;
 
-    if (
-      resolution === "REFUND_PARTIAL" &&
-      (refundAmountCents == null || refundAmountCents <= 0)
-    ) {
+    if (partialRefundInputError(resolution, refundAmountCents)) {
       return NextResponse.json(
         { error: "refundAmountCents is required and must be positive for REFUND_PARTIAL." },
         { status: 400 }
@@ -103,21 +105,15 @@ export async function POST(
     }
 
     // Partial refund amount cap
-    if (resolution === "REFUND_PARTIAL" && refundAmountCents) {
-      const orderTotal = (caseRecord.order.itemsSubtotalCents ?? 0) + (caseRecord.order.shippingAmountCents ?? 0) + (caseRecord.order.taxAmountCents ?? 0);
-      if (refundAmountCents > orderTotal) {
-        return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
-      }
+    if (partialRefundExceedsOrderTotal(resolution, refundAmountCents, caseRecord.order)) {
+      return NextResponse.json({ error: "Refund amount exceeds order total." }, { status: 400 });
     }
 
     let stripeRefundId: string | null = null;
     let stripeRefundIds: string[] = [];
     let refundNote: string | null = null;
     const refunding = resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
-    const refundAmountForOrder =
-      resolution === "REFUND_FULL"
-        ? caseRecord.order.itemsSubtotalCents + caseRecord.order.shippingAmountCents + caseRecord.order.taxAmountCents
-        : refundAmountCents ?? null;
+    const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
 
     if (refunding) {
       const paymentIntentId = caseRecord.order.stripePaymentIntentId;
