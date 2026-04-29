@@ -7,12 +7,16 @@ import { sendRenderedEmail } from "@/lib/email";
 import { shouldSendEmail } from "@/lib/notifications";
 import { redis } from "@/lib/ratelimit";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import {
+  EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT,
+  reserveEmailOutboxDailySendAllowance,
+} from "@/lib/emailOutboxQuota";
 
 const MAX_ATTEMPTS = 10;
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 5;
 const PROCESSING_STALE_MS = 10 * 60 * 1000;
-const DEFAULT_DAILY_SEND_LIMIT = 3000;
+const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 
 export type QueuedEmail = {
   to: string;
@@ -32,33 +36,18 @@ function retryDelayMs(attempts: number) {
   return seconds * 1000;
 }
 
-function configuredDailySendLimit() {
-  const parsed = Number.parseInt(process.env.EMAIL_OUTBOX_DAILY_LIMIT ?? "", 10);
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return DEFAULT_DAILY_SEND_LIMIT;
-}
-
-function nextUtcMidnight(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1));
-}
-
 async function reserveDailySendAllowance(requested: number, now: Date) {
-  const limit = configuredDailySendLimit();
-  const resetAt = nextUtcMidnight(now);
-  if (requested <= 0) return { allowed: 0, limit, resetAt };
-
-  const key = `email-outbox:sent:${now.toISOString().slice(0, 10)}`;
-  try {
-    const count = await redis.incrby(key, requested);
-    if (count === requested) {
-      await redis.expire(key, Math.ceil((resetAt.getTime() - now.getTime()) / 1000) + 3600);
-    }
-    const overLimit = Math.max(0, count - limit);
-    return { allowed: Math.max(0, requested - overLimit), limit, resetAt };
-  } catch (error) {
-    Sentry.captureException(error, { tags: { source: "email_outbox_daily_quota" } });
-    return { allowed: requested, limit, resetAt };
-  }
+  return reserveEmailOutboxDailySendAllowance({
+    requested,
+    now,
+    counter: ({ key, requested: requestedCount, limit, ttlSeconds }) =>
+      dailySendAllowanceScript.eval(
+        [key],
+        [String(requestedCount), String(limit), String(ttlSeconds)],
+      ),
+    onCounterError: (error) =>
+      Sentry.captureException(error, { tags: { source: "email_outbox_daily_quota" } }),
+  });
 }
 
 export async function enqueueEmailOutbox(email: QueuedEmail) {
