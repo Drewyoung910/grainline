@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  disputeCaseAction,
   invalidCheckoutSellerReason,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
@@ -139,5 +141,74 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(state.ledger.amountCents, 900);
     assert.equal(state.ledger.status, "refunded");
     assert.equal(state.orderUpdate?.sellerRefundId, "external:ch_1");
+  });
+
+  it("builds dispute ledger rows and order review updates", () => {
+    const state = chargeDisputeLedgerState({
+      chargeId: "ch_1",
+      eventType: "charge.dispute.created",
+      orderCurrency: "usd",
+      dispute: { id: "dp_1", amount: 3_200, currency: null, reason: "fraudulent", status: null },
+    });
+
+    assert.deepEqual(state.ledger, {
+      stripeObjectId: "dp_1",
+      amountCents: 3_200,
+      currency: "usd",
+      status: "created",
+      reason: "fraudulent",
+      description: "Stripe dispute charge.dispute.created: fraudulent",
+      metadata: {
+        chargeId: "ch_1",
+        disputeId: "dp_1",
+        stripeEventType: "charge.dispute.created",
+      },
+    });
+    assert.deepEqual(state.orderUpdate, {
+      reviewNeeded: true,
+      reviewNote: "Stripe dispute charge.dispute.created: fraudulent",
+    });
+  });
+
+  it("updates only active existing cases for new Stripe disputes", () => {
+    assert.deepEqual(
+      disputeCaseAction({
+        eventType: "charge.dispute.created",
+        existingCase: { id: "case_1", status: "OPEN" },
+        dispute: { id: "dp_1" },
+      }),
+      { action: "update", caseId: "case_1", status: "UNDER_REVIEW" },
+    );
+    assert.deepEqual(
+      disputeCaseAction({
+        eventType: "charge.dispute.created",
+        existingCase: { id: "case_1", status: "RESOLVED" },
+        dispute: { id: "dp_1" },
+      }),
+      { action: "none" },
+    );
+    assert.deepEqual(
+      disputeCaseAction({
+        eventType: "charge.dispute.closed",
+        existingCase: null,
+        dispute: { id: "dp_1" },
+      }),
+      { action: "none" },
+    );
+  });
+
+  it("creates a case action for new Stripe disputes without an existing case", () => {
+    const now = new Date("2026-04-29T12:00:00.000Z");
+    const action = disputeCaseAction({
+      eventType: "charge.dispute.created",
+      existingCase: null,
+      dispute: { id: "dp_1", reason: "product_not_received" },
+      now,
+    });
+
+    assert.equal(action.action, "create");
+    assert.equal(action.status, "UNDER_REVIEW");
+    assert.equal(action.description, "Stripe payment dispute dp_1: product_not_received");
+    assert.equal(action.sellerRespondBy.toISOString(), "2026-05-01T12:00:00.000Z");
   });
 });

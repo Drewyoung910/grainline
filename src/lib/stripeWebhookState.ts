@@ -49,6 +49,39 @@ export type ChargeRefundLedgerState = {
     | null;
 };
 
+export type StripeDisputeLike = {
+  id?: string;
+  amount?: number | null;
+  currency?: string | null;
+  reason?: string | null;
+  status?: string | null;
+};
+
+export type ChargeDisputeLedgerState = {
+  ledger: {
+    stripeObjectId: string | null;
+    amountCents: number | null;
+    currency: string;
+    status: string;
+    reason: string | null;
+    description: string;
+    metadata: {
+      chargeId: string;
+      disputeId: string | null;
+      stripeEventType: string;
+    };
+  };
+  orderUpdate: {
+    reviewNeeded: true;
+    reviewNote: string;
+  };
+};
+
+export type DisputeCaseAction =
+  | { action: "none" }
+  | { action: "update"; caseId: string; status: "UNDER_REVIEW" }
+  | { action: "create"; status: "UNDER_REVIEW"; sellerRespondBy: Date; description: string };
+
 export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
   return refunds
     .filter((refund) => refund.status !== "failed")
@@ -159,5 +192,62 @@ export function chargeRefundLedgerState({
       reviewNeeded: true,
       reviewNote: "Stripe refund was created outside Grainline.",
     },
+  };
+}
+
+export function chargeDisputeLedgerState({
+  chargeId,
+  eventType,
+  dispute,
+  orderCurrency,
+}: {
+  chargeId: string;
+  eventType: string;
+  dispute: StripeDisputeLike;
+  orderCurrency: string;
+}): ChargeDisputeLedgerState {
+  const description = `Stripe dispute ${eventType}${dispute.reason ? `: ${dispute.reason}` : ""}`;
+  return {
+    ledger: {
+      stripeObjectId: dispute.id ?? null,
+      amountCents: dispute.amount ?? null,
+      currency: dispute.currency ?? orderCurrency,
+      status: dispute.status ?? eventType.replace("charge.dispute.", ""),
+      reason: dispute.reason ?? null,
+      description,
+      metadata: {
+        chargeId,
+        disputeId: dispute.id ?? null,
+        stripeEventType: eventType,
+      },
+    },
+    orderUpdate: {
+      reviewNeeded: true,
+      reviewNote: description,
+    },
+  };
+}
+
+export function disputeCaseAction({
+  eventType,
+  existingCase,
+  dispute,
+  now = new Date(),
+}: {
+  eventType: string;
+  existingCase?: { id: string; status: string } | null;
+  dispute: StripeDisputeLike;
+  now?: Date;
+}): DisputeCaseAction {
+  if (eventType !== "charge.dispute.created") return { action: "none" };
+  if (existingCase) {
+    if (existingCase.status === "RESOLVED" || existingCase.status === "CLOSED") return { action: "none" };
+    return { action: "update", caseId: existingCase.id, status: "UNDER_REVIEW" };
+  }
+  return {
+    action: "create",
+    status: "UNDER_REVIEW",
+    sellerRespondBy: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+    description: `Stripe payment dispute ${dispute.id ?? ""}${dispute.reason ? `: ${dispute.reason}` : ""}`.trim(),
   };
 }

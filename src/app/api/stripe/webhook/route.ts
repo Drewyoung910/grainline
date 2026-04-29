@@ -19,7 +19,9 @@ import {
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import {
+  chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  disputeCaseAction,
   invalidCheckoutSellerReason,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
@@ -1224,48 +1226,50 @@ export async function POST(req: Request) {
           });
           if (order) {
             const sellerUserId = order.items[0]?.listing.seller.userId;
+            const disputeLedger = chargeDisputeLedgerState({
+              chargeId,
+              eventType: event.type,
+              dispute,
+              orderCurrency: order.currency,
+            });
             await recordOrderPaymentEvent({
               orderId: order.id,
               stripeEventId: event.id,
-              stripeObjectId: dispute.id ?? null,
+              stripeObjectId: disputeLedger.ledger.stripeObjectId,
               stripeObjectType: "dispute",
               eventType: "DISPUTE",
-              amountCents: dispute.amount ?? null,
-              currency: dispute.currency ?? order.currency,
-              status: dispute.status ?? event.type.replace("charge.dispute.", ""),
-              reason: dispute.reason ?? null,
-              description: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
-              metadata: {
-                chargeId,
-                disputeId: dispute.id ?? null,
-                stripeEventType: event.type,
-              },
+              amountCents: disputeLedger.ledger.amountCents,
+              currency: disputeLedger.ledger.currency,
+              status: disputeLedger.ledger.status,
+              reason: disputeLedger.ledger.reason,
+              description: disputeLedger.ledger.description,
+              metadata: disputeLedger.ledger.metadata,
             });
             await prisma.order.update({
               where: { id: order.id },
-              data: {
-                reviewNeeded: true,
-                reviewNote: `Stripe dispute ${event.type}${dispute.reason ? `: ${dispute.reason}` : ""}`,
-              },
+              data: disputeLedger.orderUpdate,
             });
             if (event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
-              if (order.case) {
-                if (order.case.status !== "RESOLVED" && order.case.status !== "CLOSED") {
-                  await prisma.case.update({
-                    where: { id: order.case.id },
-                    data: { status: "UNDER_REVIEW" },
-                  });
-                }
-              } else {
+              const caseAction = disputeCaseAction({
+                eventType: event.type,
+                existingCase: order.case,
+                dispute,
+              });
+              if (caseAction.action === "update") {
+                await prisma.case.update({
+                  where: { id: caseAction.caseId },
+                  data: { status: caseAction.status },
+                });
+              } else if (caseAction.action === "create") {
                 await prisma.case.create({
                   data: {
                     orderId: order.id,
                     buyerId: order.buyerId,
                     sellerId: sellerUserId,
                     reason: "OTHER",
-                    description: `Stripe payment dispute ${dispute.id ?? ""}${dispute.reason ? `: ${dispute.reason}` : ""}`.trim(),
-                    status: "UNDER_REVIEW",
-                    sellerRespondBy: new Date(Date.now() + 48 * 60 * 60 * 1000),
+                    description: caseAction.description,
+                    status: caseAction.status,
+                    sellerRespondBy: caseAction.sellerRespondBy,
                   },
                 });
               }
