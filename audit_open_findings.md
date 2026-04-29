@@ -120,6 +120,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Stripe `charge.refunded` ledger decisions are isolated and tested.** The webhook now uses a pure helper for local refund confirmation, external refund recording, additional external refund preservation, fallback charge-level refund data, ledger metadata, and order review/update decisions.
 - **Stripe dispute webhook decisions are isolated and tested.** The webhook now uses pure helpers for dispute ledger rows, order review notes, active-case promotion, closed-case no-op behavior, and new case deadline/description creation.
 - **Stripe payout-failure webhook decisions are isolated and tested.** The webhook now uses a pure helper for durable `SellerPayoutEvent` upsert payloads and seller notification copy/fallbacks.
+- **Listing edit state is guarded consistently.** The edit page now blocks sold, in-review, archived, and staff-removed listings across save, photo reorder/delete, and alt-text mutation paths using a shared tested helper.
 
 ## Recommended Fix Order
 

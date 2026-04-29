@@ -1,6 +1,7 @@
 // src/app/dashboard/listings/[id]/edit/page.tsx
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import AddPhotosButton from "@/components/AddPhotosButton";
@@ -16,6 +17,7 @@ import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
+import { listingEditBlockReason } from "@/lib/listingEditState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -175,9 +177,8 @@ async function updateListing(
     },
   });
   if (!listing) return { ok: false, error: "Not allowed" };
-  if (listing.status === "HIDDEN" && listing.isPrivate) {
-    return { ok: false, error: "Archived listings cannot be edited." };
-  }
+  const blockReason = listingEditBlockReason(listing);
+  if (blockReason) return { ok: false, error: blockReason };
 
   // Check if substantive content changed (triggers AI re-review for ACTIVE listings)
   const titleChanged = title !== listing.title;
@@ -379,7 +380,7 @@ async function reorderPhotos(listingId: string, photoIds: string[]) {
     where: { id: listingId, seller: { user: { clerkId: userId } } },
   });
   if (!listing) return;
-  if (listing.status === "HIDDEN" && listing.isPrivate) return;
+  if (listingEditBlockReason(listing)) return;
 
   await Promise.all(
     photoIds.map((id, i) =>
@@ -402,10 +403,10 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
-    select: { url: true, listing: { select: { status: true, isPrivate: true, updatedAt: true, sellerId: true } } },
+    select: { url: true, listing: { select: { status: true, isPrivate: true, rejectionReason: true, updatedAt: true, sellerId: true } } },
   });
   if (!ok) return;
-  if (ok.listing.status === "HIDDEN" && ok.listing.isPrivate) return;
+  if (listingEditBlockReason(ok.listing)) return;
 
   await prisma.photo.delete({ where: { id: photoId } });
   await deleteR2ObjectByUrl(ok.url).catch((error) => {
@@ -510,7 +511,7 @@ async function saveAltTextsAction(listingId: string, altTexts: Record<string, st
     where: { id: listingId, seller: { user: { clerkId: userId } } },
   });
   if (!listing) return;
-  if (listing.status === "HIDDEN" && listing.isPrivate) return;
+  if (listingEditBlockReason(listing)) return;
 
   for (const [photoId, text] of Object.entries(altTexts)) {
     const altText = sanitizeText(text.trim()).slice(0, 200) || null;
@@ -546,6 +547,22 @@ export default async function EditListingPage(props: {
   });
   if (!listing) return notFound();
   if (listing.status === "HIDDEN" && listing.isPrivate) return notFound();
+  const editBlockReason = listingEditBlockReason(listing);
+
+  if (editBlockReason) {
+    return (
+      <main className="max-w-4xl mx-auto p-8">
+        <h1 className="text-2xl font-semibold mb-6">Edit listing</h1>
+        <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-medium text-amber-900">This listing cannot be edited right now.</p>
+          <p className="text-sm text-amber-800 mt-1">{editBlockReason}</p>
+        </div>
+        <Link href={`/seller/${listing.sellerId}/shop`} className="text-sm underline">
+          Back to shop
+        </Link>
+      </main>
+    );
+  }
 
   const remaining = Math.max(0, 8 - listing.photos.length);
 
