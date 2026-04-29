@@ -475,7 +475,7 @@ export async function POST(req: Request) {
         });
 
         if (!cart || cart.items.length === 0) {
-          await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+          await releaseCheckoutLock(sessionMeta.checkoutLockKey, sessionId);
           return NextResponse.json({ ok: true });
         }
 
@@ -648,7 +648,7 @@ export async function POST(req: Request) {
           return order;
         });
 
-        await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+        await releaseCheckoutLock(sessionMeta.checkoutLockKey, sessionId);
 
         if (!createdCartOrder) return NextResponse.json({ ok: true });
 
@@ -969,7 +969,7 @@ export async function POST(req: Request) {
           return order;
         });
 
-        await releaseCheckoutLock(sessionMeta.checkoutLockKey);
+        await releaseCheckoutLock(sessionMeta.checkoutLockKey, sessionId);
 
         if (!createdSingleOrder) return NextResponse.json({ ok: true });
 
@@ -1482,7 +1482,7 @@ export async function POST(req: Request) {
         }
       });
 
-      await releaseCheckoutLock(expiredMeta.checkoutLockKey);
+      await releaseCheckoutLock(expiredMeta.checkoutLockKey, expiredSession.id);
 
       return NextResponse.json({ ok: true });
       });

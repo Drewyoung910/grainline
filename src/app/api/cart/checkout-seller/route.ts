@@ -498,12 +498,26 @@ export async function POST(req: Request) {
     });
 
     try {
-      await markCheckoutLockReady(
+      const lockMarkedReady = await markCheckoutLockReady(
         checkoutLockKeyValue,
         payloadHash,
         session.id,
         session.client_secret,
       );
+      if (!lockMarkedReady) {
+        Sentry.captureMessage("Checkout lock ready transition rejected", {
+          level: "warning",
+          tags: { source: "checkout_lock_ready", route: "cart_checkout_seller" },
+          extra: { checkoutLockKey: checkoutLockKeyValue, stripeSessionId: session.id },
+        });
+        await stripe.checkout.sessions.expire(session.id).catch((error) => {
+          Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
+        });
+        return NextResponse.json(
+          { error: "Checkout state changed. Please try again." },
+          { status: 409 },
+        );
+      }
     } catch (lockErr) {
       Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
     }
