@@ -132,6 +132,7 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 - **Listing/photo/AI criticals are verified and hardened.** Photo insert paths now require configured media origins, new listings are created as `PENDING_REVIEW`, AI review defaults fail closed, AI image URLs are filtered at the library boundary, prompt-control text is normalized/redacted before review, and review creation now sends/accepts the `photoUrls` payload so new review photos persist.
 - **Checkout expiration, account deletion, and Clerk webhook drift are hardened.** Non-paid completed sessions and expired sessions now restore reserved stock exactly once through a durable session marker; Stripe session line-item retrieval failures fall back to metadata/cart state; account deletion now requires Clerk deletion before local anonymization; failed Stripe Connect rejection is persisted for manual reconciliation; Clerk webhooks are Svix-id idempotent.
 - **Public health checks are rate-limited, cached, and non-verbose by default.** `/api/health` now rate-limits by IP, caches backend dependency checks for 30 seconds, and returns only `{ ok }` anonymously; detailed DB/Redis/R2 status requires `HEALTH_CHECK_TOKEN`.
+- **Retention-sensitive foreign keys are explicit and non-destructive.** Conversation/message user FKs and listing/seller FKs now restrict hard deletes; case buyers, reserved listing buyers, blog authors/seller profiles, and maker-verification reviewers now null safely with UI/API fallbacks for deleted buyers and former authors.
 
 ## Recommended Fix Order
 

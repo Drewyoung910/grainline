@@ -45,22 +45,25 @@ export async function GET(req: Request) {
         });
         if (updated.count === 0) continue;
 
-        await mapWithConcurrency([
-          () => createNotification({
-            userId: c.buyerId,
+        const notifications: Array<() => Promise<unknown>> = [];
+        if (c.buyerId) {
+          const buyerId = c.buyerId;
+          notifications.push(() => createNotification({
+            userId: buyerId,
             type: "CASE_RESOLVED",
             title: "Case closed",
             body: "This case was closed automatically after the resolution window expired.",
             link: `/dashboard/orders/${c.orderId}`,
-          }),
-          () => createNotification({
-            userId: c.sellerId,
-            type: "CASE_RESOLVED",
-            title: "Case closed",
-            body: "This case was closed automatically after the resolution window expired.",
-            link: `/dashboard/sales/${c.orderId}`,
-          }),
-        ], 2, (send) => send());
+          }));
+        }
+        notifications.push(() => createNotification({
+          userId: c.sellerId,
+          type: "CASE_RESOLVED",
+          title: "Case closed",
+          body: "This case was closed automatically after the resolution window expired.",
+          link: `/dashboard/sales/${c.orderId}`,
+        }));
+        await mapWithConcurrency(notifications, 2, (send) => send());
         stalePendingClosed++;
         closed++;
       } catch (error) {
@@ -90,22 +93,25 @@ export async function GET(req: Request) {
         });
         if (updated.count === 0) continue;
 
-        await mapWithConcurrency([
-          () => createNotification({
-            userId: c.buyerId,
+        const notifications: Array<() => Promise<unknown>> = [];
+        if (c.buyerId) {
+          const buyerId = c.buyerId;
+          notifications.push(() => createNotification({
+            userId: buyerId,
             type: "CASE_MESSAGE",
             title: "Case under review",
             body: "The seller did not respond in time, so Grainline staff will review this case.",
             link: `/dashboard/orders/${c.orderId}`,
-          }),
-          () => createNotification({
-            userId: c.sellerId,
-            type: "CASE_MESSAGE",
-            title: "Case escalated",
-            body: "This case was escalated to Grainline staff because the response window expired.",
-            link: `/dashboard/sales/${c.orderId}`,
-          }),
-        ], 2, (send) => send());
+          }));
+        }
+        notifications.push(() => createNotification({
+          userId: c.sellerId,
+          type: "CASE_MESSAGE",
+          title: "Case escalated",
+          body: "This case was escalated to Grainline staff because the response window expired.",
+          link: `/dashboard/sales/${c.orderId}`,
+        }));
+        await mapWithConcurrency(notifications, 2, (send) => send());
         abandonedEscalated++;
         closed++;
       } catch (error) {

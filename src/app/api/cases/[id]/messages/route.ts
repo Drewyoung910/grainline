@@ -79,13 +79,15 @@ export async function POST(
 
     if (isStaff && !isParty) {
       // Staff message — notify both buyer and seller
-      await createNotification({
-        userId: caseRecord.buyerId,
-        type: "CASE_MESSAGE",
-        title: "Grainline Staff sent a message in your case",
-        body: messageBody.slice(0, 60),
-        link: `/dashboard/orders/${caseRecord.orderId}`,
-      });
+      if (caseRecord.buyerId) {
+        await createNotification({
+          userId: caseRecord.buyerId,
+          type: "CASE_MESSAGE",
+          title: "Grainline Staff sent a message in your case",
+          body: messageBody.slice(0, 60),
+          link: `/dashboard/orders/${caseRecord.orderId}`,
+        });
+      }
       await createNotification({
         userId: caseRecord.sellerId,
         type: "CASE_MESSAGE",
@@ -97,10 +99,12 @@ export async function POST(
       // Send emails to both parties
       try {
         const [buyer, seller] = await Promise.all([
-          prisma.user.findUnique({ where: { id: caseRecord.buyerId }, select: { name: true, email: true } }),
+          caseRecord.buyerId
+            ? prisma.user.findUnique({ where: { id: caseRecord.buyerId }, select: { name: true, email: true } })
+            : Promise.resolve(null),
           prisma.user.findUnique({ where: { id: caseRecord.sellerId }, select: { name: true, email: true } }),
         ]);
-        if (buyer?.email && await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_MESSAGE")) {
+        if (caseRecord.buyerId && buyer?.email && await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_MESSAGE")) {
           await sendCaseMessage({
             recipientName: buyer.name,
             recipientEmail: buyer.email,
@@ -127,31 +131,33 @@ export async function POST(
           ? `/dashboard/sales/${caseRecord.orderId}`
           : `/dashboard/orders/${caseRecord.orderId}`;
 
-      await createNotification({
-        userId: recipientId,
-        type: "CASE_MESSAGE",
-        title: `${senderName} sent a message in your case`,
-        body: messageBody.slice(0, 60),
-        link: caseLink,
-      });
+      if (recipientId) {
+        await createNotification({
+          userId: recipientId,
+          type: "CASE_MESSAGE",
+          title: `${senderName} sent a message in your case`,
+          body: messageBody.slice(0, 60),
+          link: caseLink,
+        });
 
-      try {
-        if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {
-          const recipient = await prisma.user.findUnique({
-            where: { id: recipientId },
-            select: { name: true, email: true },
-          });
-          if (recipient?.email) {
-            await sendCaseMessage({
-              recipientName: recipient.name,
-              recipientEmail: recipient.email,
-              senderName: me.name,
-              caseLink: `${appUrl}${caseLink}`,
-              messageSnippet: messageBody,
+        try {
+          if (await shouldSendEmail(recipientId, "EMAIL_CASE_MESSAGE")) {
+            const recipient = await prisma.user.findUnique({
+              where: { id: recipientId },
+              select: { name: true, email: true },
             });
+            if (recipient?.email) {
+              await sendCaseMessage({
+                recipientName: recipient.name,
+                recipientEmail: recipient.email,
+                senderName: me.name,
+                caseLink: `${appUrl}${caseLink}`,
+                messageSnippet: messageBody,
+              });
+            }
           }
-        }
-      } catch { /* non-fatal */ }
+        } catch { /* non-fatal */ }
+      }
     }
 
     return NextResponse.json(message, { status: 201 });

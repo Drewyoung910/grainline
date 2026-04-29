@@ -160,9 +160,9 @@ export default async function AdminCasesPage({
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-neutral-800">
-                        {c.buyer.name ?? c.buyer.email}
+                        {c.buyer?.name ?? c.buyer?.email ?? "Deleted buyer"}
                       </div>
-                      {c.buyer.name && (
+                      {c.buyer?.name && (
                         <div className="text-xs text-neutral-400">{c.buyer.email}</div>
                       )}
                     </td>

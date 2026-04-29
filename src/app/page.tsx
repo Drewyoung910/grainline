@@ -866,8 +866,8 @@ export default async function HomePage() {
             </div>
             <ul className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               {recentBlogPosts.map((p) => {
-                const authorName = p.sellerProfile?.displayName ?? p.author.name ?? "Staff";
-                const authorAvatar = p.sellerProfile?.avatarImageUrl ?? p.author.imageUrl;
+                const authorName = p.sellerProfile?.displayName ?? p.author?.name ?? "Former author";
+                const authorAvatar = p.sellerProfile?.avatarImageUrl ?? p.author?.imageUrl;
                 return (
                   <li key={p.slug} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">

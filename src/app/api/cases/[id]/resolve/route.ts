@@ -284,16 +284,18 @@ export async function POST(
         ? `Partial refund of $${((refundAmountCents ?? 0) / 100).toFixed(2)}`
         : "Case dismissed";
 
-    await createNotification({
-      userId: caseRecord.buyerId,
-      type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
-      title: refunding ? "Refund issued" : "Your case has been resolved",
-      body: resolutionLabel,
-      link: `/dashboard/orders/${caseRecord.orderId}`,
-    });
+    if (caseRecord.buyerId) {
+      await createNotification({
+        userId: caseRecord.buyerId,
+        type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
+        title: refunding ? "Refund issued" : "Your case has been resolved",
+        body: resolutionLabel,
+        link: `/dashboard/orders/${caseRecord.orderId}`,
+      });
+    }
 
     try {
-      if (await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_RESOLVED")) {
+      if (caseRecord.buyerId && await shouldSendEmail(caseRecord.buyerId, "EMAIL_CASE_RESOLVED")) {
         const buyerUser = await prisma.user.findUnique({
           where: { id: caseRecord.buyerId },
           select: { name: true, email: true },

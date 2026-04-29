@@ -264,7 +264,7 @@ model SellerFaq {
 model Listing {
   id          String        @id @default(cuid())
   sellerId    String
-  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
   title       String        @db.VarChar(150)
   description String
   priceCents  Int
@@ -316,7 +316,7 @@ model Listing {
   // Custom order fields
   isPrivate                 Boolean @default(false)
   reservedForUserId         String?
-  reservedForUser           User?   @relation("ReservedListings", fields: [reservedForUserId], references: [id])
+  reservedForUser           User?   @relation("ReservedListings", fields: [reservedForUserId], references: [id], onDelete: SetNull)
   customOrderConversationId String?
 
   // AI review fields
@@ -407,8 +407,8 @@ model Conversation {
   id        String    @id @default(cuid())
   userAId   String
   userBId   String
-  userA     User      @relation("ConvoA", fields: [userAId], references: [id], onDelete: Cascade)
-  userB     User      @relation("ConvoB", fields: [userBId], references: [id], onDelete: Cascade)
+  userA     User      @relation("ConvoA", fields: [userAId], references: [id], onDelete: Restrict)
+  userB     User      @relation("ConvoB", fields: [userBId], references: [id], onDelete: Restrict)
   messages  Message[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -430,9 +430,9 @@ model Message {
   conversationId  String
   conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId        String
-  sender          User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Cascade)
+  sender          User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Restrict)
   recipientId     String
-  recipient       User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipient       User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Restrict)
   body            String       @db.VarChar(5000)
   kind            String?      @db.VarChar(50)
   isSystemMessage Boolean      @default(false)
@@ -755,8 +755,8 @@ model Case {
   id                   String          @id @default(cuid())
   orderId              String          @unique
   order                Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  buyerId              String
-  buyer                User            @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  buyerId              String?
+  buyer                User?           @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
   sellerId             String
   seller               User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
   reason               CaseReason
@@ -854,7 +854,7 @@ model MakerVerification {
   portfolioUrl             String?            @db.VarChar(2048)
   status                   VerificationStatus @default(PENDING)
   reviewedById             String?
-  reviewedBy               User?              @relation("VerificationReviews", fields: [reviewedById], references: [id])
+  reviewedBy               User?              @relation("VerificationReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewNotes              String?            @db.VarChar(2000)
   appliedAt                DateTime           @default(now())
   reviewedAt               DateTime?
@@ -887,11 +887,11 @@ model BlogPost {
   body               String
   coverImageUrl      String?         @db.VarChar(2048)
   videoUrl           String?         @db.VarChar(2048)
-  authorId           String
-  author             User            @relation("BlogPostsAuthored", fields: [authorId], references: [id])
+  authorId           String?
+  author             User?           @relation("BlogPostsAuthored", fields: [authorId], references: [id], onDelete: SetNull)
   authorType         BlogAuthorType
   sellerProfileId    String?
-  sellerProfile      SellerProfile?  @relation(fields: [sellerProfileId], references: [id])
+  sellerProfile      SellerProfile?  @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
   type               BlogPostType    @default(STANDARD)
   status             BlogPostStatus  @default(DRAFT)
   featuredListingIds String[]        @default([])

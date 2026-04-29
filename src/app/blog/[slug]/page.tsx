@@ -37,7 +37,7 @@ export async function generateMetadata({
       author: { select: { banned: true, deletedAt: true } },
     },
   });
-  if (!post || post.status !== "PUBLISHED" || post.author.banned || post.author.deletedAt) return {};
+  if (!post || post.status !== "PUBLISHED" || post.author?.banned || post.author?.deletedAt) return {};
 
   const description = post.metaDescription ?? post.excerpt ?? "";
   const ogImages = post.coverImageUrl
@@ -109,7 +109,7 @@ export default async function BlogPostPage({
       },
     },
   });
-  if (!post || post.status !== "PUBLISHED" || post.author.banned || post.author.deletedAt) return notFound();
+  if (!post || post.status !== "PUBLISHED" || post.author?.banned || post.author?.deletedAt) return notFound();
 
   // Auth
   const { userId } = await auth();
@@ -120,7 +120,7 @@ export default async function BlogPostPage({
     meId = me?.id ?? null;
     if (meId) {
       const blockedUserIds = await getBlockedUserIdsFor(meId);
-      if (blockedUserIds.has(post.author.id)) return notFound();
+      if (post.author && blockedUserIds.has(post.author.id)) return notFound();
       const savedRow = await prisma.savedBlogPost.findUnique({
         where: { userId_blogPostId: { userId: meId, blogPostId: post.id } },
         select: { id: true },
@@ -190,8 +190,8 @@ export default async function BlogPostPage({
   });
 
   const video = post.videoUrl ? extractVideoId(post.videoUrl) : null;
-  const authorName = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff";
-  const authorAvatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl ?? null;
+  const authorName = post.author?.sellerProfile?.displayName ?? post.author?.name ?? "Former author";
+  const authorAvatar = post.author?.sellerProfile?.avatarImageUrl ?? post.author?.imageUrl ?? null;
   const postUrl = `https://thegrainline.com/blog/${slug}`;
 
   const articleLd = {
@@ -439,8 +439,8 @@ export default async function BlogPostPage({
           <h2 className="text-lg font-semibold mb-4">More from the Workshop</h2>
           <ul className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {related.map((r) => {
-              const rName = r.sellerProfile?.displayName ?? r.author.name ?? "Staff";
-              const rAvatar = r.sellerProfile?.avatarImageUrl ?? r.author.imageUrl;
+              const rName = r.sellerProfile?.displayName ?? r.author?.name ?? "Former author";
+              const rAvatar = r.sellerProfile?.avatarImageUrl ?? r.author?.imageUrl;
               return (
                 <li key={r.slug} className="card-listing">
                   <Link href={`/blog/${r.slug}`} className="block">

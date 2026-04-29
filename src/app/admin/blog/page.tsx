@@ -53,7 +53,7 @@ async function approveComment(commentId: string) {
         }
       } else {
         // Top-level comment — notify the post author
-        if (comment.post.authorId !== comment.authorId) {
+        if (comment.post.authorId && comment.post.authorId !== comment.authorId) {
           await createNotification({
             userId: comment.post.authorId,
             type: "NEW_BLOG_COMMENT",
@@ -191,7 +191,7 @@ export default async function AdminBlogPage() {
                   </div>
                   <div className="font-medium truncate">{p.title}</div>
                   <div className="text-xs text-neutral-500">
-                    by {p.author.name ?? p.author.email}
+                    by {p.author?.name ?? p.author?.email ?? "Former author"}
                     {p.publishedAt && ` · ${new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
                   </div>
                 </div>

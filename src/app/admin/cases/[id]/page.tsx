@@ -146,8 +146,8 @@ export default async function AdminCaseDetailPage({
       <div className="grid grid-cols-3 gap-4">
         <Section title="Buyer">
           <dl className="space-y-3">
-            <Field label="Name" value={caseRecord.buyer.name} />
-            <Field label="Email" value={caseRecord.buyer.email} />
+            <Field label="Name" value={caseRecord.buyer?.name ?? "Deleted buyer"} />
+            <Field label="Email" value={caseRecord.buyer?.email ?? "Unavailable"} />
           </dl>
         </Section>
 
