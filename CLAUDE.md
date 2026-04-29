@@ -5935,6 +5935,26 @@ This pass continues the route/integration coverage backlog by isolating two high
 - Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
 - Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
 
+## Audit Fix Pass — Account Export Download Contract (2026-04-28)
+
+This pass tightens the account-export coverage gap by extracting the route's download formatting contract into a small helper that can be tested without mocking Clerk or Prisma.
+
+### Fixed in this pass
+- **Account export format helper added**: `src/lib/accountExportFormat.ts` owns the dated export filename, JSON download headers, no-store cache policy, and pretty JSON response construction.
+- **Account export route uses the helper**: `/api/account/export` keeps the same behavior but delegates response formatting to the tested helper.
+- **Account export regression coverage added**: tests verify deterministic filenames, `Content-Disposition`, `Content-Type`, `Cache-Control: no-store`, and stable pretty JSON output.
+- **Test baseline expanded**: `npm test` now runs 73 assertions across 23 suites.
+
+### Verification
+- `npm test` ✅ (73 tests)
+- `npx tsc --noEmit --incremental false` ✅
+- `npm run lint` ✅ (passes; existing jsx-ast-utils notices only)
+
+### Still open / next good passes
+- Add deeper mocked route/integration coverage for payment webhook, refund route branching, and account export payload shape.
+- Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
+- Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
+
 ## Audit Fix Pass — Cached Guild Approval and External Refund Accounting (2026-04-28)
 
 This pass closes two live correctness gaps from the later audit rounds without changing public marketplace flows.

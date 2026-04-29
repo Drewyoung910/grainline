@@ -2,21 +2,14 @@ import { NextResponse } from "next/server";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 
 export const runtime = "nodejs";
 
 type ExportableUser = Awaited<ReturnType<typeof ensureUser>>;
 
 function jsonDownload(data: unknown, userId: string) {
-  const body = JSON.stringify(data, null, 2);
-  const date = new Date().toISOString().slice(0, 10);
-  return new Response(body, {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="grainline-account-export-${userId}-${date}.json"`,
-      "Cache-Control": "no-store",
-    },
-  });
+  return accountExportJsonResponse(data, userId);
 }
 
 async function buildExport(user: NonNullable<ExportableUser>) {
