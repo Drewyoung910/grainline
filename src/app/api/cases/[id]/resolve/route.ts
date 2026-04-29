@@ -13,6 +13,7 @@ import {
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
+  refundStockRestoreQuantities,
 } from "@/lib/refundRouteState";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -191,20 +192,17 @@ export async function POST(
       .filter(Boolean)
       .join(" ");
 
-    const stockRestoreOps =
+    const stockRestores =
       resolution === "REFUND_FULL"
-        ? caseRecord.order.items
-            .filter((it) => it.listing.listingType === "IN_STOCK")
-            .map((it) => {
-              return prisma.listing.update({
-                where: { id: it.listingId },
-                data: {
-                  stockQuantity: { increment: it.quantity },
-                  ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
-                },
-              });
-            })
+        ? refundStockRestoreQuantities(caseRecord.order.items)
         : [];
+    const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
+    const stockRestoreOps = stockRestores.map((restore) =>
+      prisma.listing.update({
+        where: { id: restore.listingId },
+        data: { stockQuantity: { increment: restore.quantity } },
+      }),
+    );
 
     let updatedCase;
     try {
@@ -231,6 +229,20 @@ export async function POST(
           },
         }),
         ...stockRestoreOps,
+        ...(stockRestoreIds.length
+          ? [
+              prisma.listing.updateMany({
+                where: {
+                  id: { in: stockRestoreIds },
+                  listingType: "IN_STOCK",
+                  status: "SOLD_OUT",
+                  stockQuantity: { gt: 0 },
+                  isPrivate: false,
+                },
+                data: { status: "ACTIVE" },
+              }),
+            ]
+          : []),
       ]);
     } catch (txErr) {
       if (stripeRefundId) {

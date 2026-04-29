@@ -7,7 +7,9 @@ const {
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
+  refundStockRestoreQuantities,
   sellerRefundConflictResponse,
+  shouldReactivateRefundedListing,
 } = await import("../src/lib/refundRouteState.ts");
 
 const order = {
@@ -60,5 +62,65 @@ describe("refund route state", () => {
       status: 400,
       error: "A refund has already been issued for this order.",
     });
+  });
+
+  it("aggregates only positive in-stock item quantities for refund stock restoration", () => {
+    assert.deepEqual(
+      refundStockRestoreQuantities([
+        { listingId: "listing_1", quantity: 1, listing: { listingType: "IN_STOCK" } },
+        { listingId: "listing_1", quantity: 2, listing: { listingType: "IN_STOCK" } },
+        { listingId: "listing_2", quantity: 1, listing: { listingType: "MADE_TO_ORDER" } },
+        { listingId: "listing_3", quantity: 0, listing: { listingType: "IN_STOCK" } },
+      ]),
+      [{ listingId: "listing_1", quantity: 3 }],
+    );
+  });
+
+  it("reactivates refunded listings only from current visible sold-out stock state", () => {
+    assert.equal(
+      shouldReactivateRefundedListing({
+        status: "SOLD_OUT",
+        listingType: "IN_STOCK",
+        stockQuantity: 1,
+        isPrivate: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldReactivateRefundedListing({
+        status: "HIDDEN",
+        listingType: "IN_STOCK",
+        stockQuantity: 1,
+        isPrivate: false,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldReactivateRefundedListing({
+        status: "SOLD_OUT",
+        listingType: "IN_STOCK",
+        stockQuantity: 1,
+        isPrivate: true,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldReactivateRefundedListing({
+        status: "SOLD_OUT",
+        listingType: "MADE_TO_ORDER",
+        stockQuantity: 1,
+        isPrivate: false,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldReactivateRefundedListing({
+        status: "SOLD_OUT",
+        listingType: "IN_STOCK",
+        stockQuantity: 0,
+        isPrivate: false,
+      }),
+      false,
+    );
   });
 });

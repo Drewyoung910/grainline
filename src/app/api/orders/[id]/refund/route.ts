@@ -17,6 +17,7 @@ import {
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
+  refundStockRestoreQuantities,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
 import { z } from "zod";
@@ -155,20 +156,14 @@ export async function POST(
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
 
-      const stockRestoreOps =
-        type === "FULL"
-          ? myItems
-              .filter((it) => it.listing.listingType === "IN_STOCK")
-              .map((it) => {
-                return prisma.listing.update({
-                  where: { id: it.listingId },
-                  data: {
-                    stockQuantity: { increment: it.quantity },
-                    ...(it.listing.status === "SOLD_OUT" ? { status: "ACTIVE" } : {}),
-                  },
-                });
-              })
-          : [];
+      const stockRestores = type === "FULL" ? refundStockRestoreQuantities(myItems) : [];
+      const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
+      const stockRestoreOps = stockRestores.map((restore) =>
+        prisma.listing.update({
+          where: { id: restore.listingId },
+          data: { stockQuantity: { increment: restore.quantity } },
+        }),
+      );
 
       // Resolve any open case on this order
       const existingCase = await prisma.case.findUnique({
@@ -217,6 +212,20 @@ export async function POST(
             ]
           : []),
         ...stockRestoreOps,
+        ...(stockRestoreIds.length
+          ? [
+              prisma.listing.updateMany({
+                where: {
+                  id: { in: stockRestoreIds },
+                  listingType: "IN_STOCK",
+                  status: "SOLD_OUT",
+                  stockQuantity: { gt: 0 },
+                  isPrivate: false,
+                },
+                data: { status: "ACTIVE" },
+              }),
+            ]
+          : []),
       ]);
     } catch (err) {
       const partialRefundFailure = isStripeRefundPartialFailure(err) ? err : null;

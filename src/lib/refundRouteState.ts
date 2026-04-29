@@ -63,3 +63,40 @@ export function sellerRefundConflictResponse(sellerRefundId: string | null | und
       : "A refund has already been issued for this order.",
   };
 }
+
+type RefundStockRestoreItem = {
+  listingId: string;
+  quantity: number;
+  listing: { listingType: string | null | undefined };
+};
+
+export function refundStockRestoreQuantities(items: RefundStockRestoreItem[]) {
+  const quantitiesByListing = new Map<string, number>();
+
+  for (const item of items) {
+    if (item.listing.listingType !== "IN_STOCK" || item.quantity <= 0) continue;
+    quantitiesByListing.set(
+      item.listingId,
+      (quantitiesByListing.get(item.listingId) ?? 0) + item.quantity,
+    );
+  }
+
+  return [...quantitiesByListing.entries()].map(([listingId, quantity]) => ({
+    listingId,
+    quantity,
+  }));
+}
+
+export function shouldReactivateRefundedListing(listing: {
+  status: string | null | undefined;
+  listingType: string | null | undefined;
+  stockQuantity: number | null | undefined;
+  isPrivate?: boolean | null | undefined;
+}) {
+  return (
+    listing.status === "SOLD_OUT" &&
+    listing.listingType === "IN_STOCK" &&
+    (listing.stockQuantity ?? 0) > 0 &&
+    listing.isPrivate !== true
+  );
+}
