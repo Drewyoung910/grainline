@@ -7,6 +7,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { verifyRate } from "@/lib/shipping-token";
 import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
 import {
   acquireCheckoutLock,
@@ -330,15 +331,14 @@ export async function POST(req: Request) {
     const shippingAmountCents = body.selectedRate.amountCents;
 
     const giftWrapCents = giftWrapping ? giftWrappingPriceCents : 0;
-    const platformFee = Math.round(itemsSubtotalCents * 0.05);
+    const checkoutAmounts = calculateCheckoutAmounts({
+      itemsSubtotalCents,
+      shippingAmountCents,
+      giftWrapCents,
+    });
+    const sellerTransferAmount = checkoutAmounts.sellerTransferAmountCents;
 
-    const preTaxTotal = itemsSubtotalCents + shippingAmountCents + giftWrapCents;
-
-    const sellerTransferAmount = Math.max(1,
-      preTaxTotal - platformFee
-    );
-
-    if (preTaxTotal - platformFee < 100) {
+    if (checkoutAmounts.belowMinimumSellerTransfer) {
       return NextResponse.json(
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },

@@ -8,6 +8,7 @@ import { isFallbackRate } from "@/types/checkout";
 import { verifyRate } from "@/lib/shipping-token";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import {
   acquireCheckoutLock,
   checkoutPayloadHash,
@@ -219,21 +220,19 @@ export async function POST(req: Request) {
       : 0;
 
     const itemsSubtotalCents = unitPriceCents * body.quantity;
-
-    // Platform fee is 5% of items subtotal (excludes shipping, gift wrap, tax)
-    const platformFee = Math.round(itemsSubtotalCents * 0.05);
-
-    const preTaxTotal = itemsSubtotalCents + shippingAmountCents + giftWrapCents;
+    const checkoutAmounts = calculateCheckoutAmounts({
+      itemsSubtotalCents,
+      shippingAmountCents,
+      giftWrapCents,
+    });
 
     // Seller receives items + shipping + gift wrap - platform fee.
     // Platform absorbs Stripe processing fees from the platform fee.
     // Tax is excluded — platform retains tax (marketplace facilitator).
-    const sellerTransferAmount = Math.max(1,
-      preTaxTotal - platformFee
-    );
+    const sellerTransferAmount = checkoutAmounts.sellerTransferAmountCents;
 
     // Block orders where the effective payout is under $1.
-    if (preTaxTotal - platformFee < 100) {
+    if (checkoutAmounts.belowMinimumSellerTransfer) {
       return NextResponse.json(
         { error: "Order total is too low after fees. Minimum effective order is approximately $2." },
         { status: 400 },
