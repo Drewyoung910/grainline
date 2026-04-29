@@ -19,6 +19,7 @@ import {
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import {
+  blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
   disputeCaseAction,
@@ -326,6 +327,34 @@ export async function POST(req: Request) {
         }
 
         try {
+          const latestDispute = await prisma.orderPaymentEvent.findFirst({
+            where: { orderId: input.orderId, eventType: "DISPUTE" },
+            orderBy: { createdAt: "desc" },
+            select: { status: true, stripeObjectId: true },
+          });
+          const disputeGuard = blockedCheckoutDisputeState({ latestDispute, reviewPrefix });
+          if (disputeGuard) {
+            await prisma.order.update({
+              where: { id: input.orderId },
+              data: {
+                reviewNeeded: disputeGuard.reviewNeeded,
+                reviewNote: disputeGuard.reviewNote,
+              },
+            });
+            Sentry.captureMessage("Blocked checkout automatic refund skipped for open Stripe dispute", {
+              level: "warning",
+              tags: { source: "stripe_webhook_blocked_checkout_dispute_guard" },
+              extra: {
+                stripeSessionId: sessionId,
+                orderId: input.orderId,
+                reason: input.reason,
+                disputeId: disputeGuard.disputeId,
+                disputeStatus: disputeGuard.disputeStatus,
+              },
+            });
+            return;
+          }
+
           const refund = await stripe.refunds.create(
             {
               payment_intent: paymentIntentId,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
   disputeCaseAction,
@@ -71,6 +72,34 @@ describe("Stripe webhook state helpers", () => {
     assert.match(invalidCheckoutSellerReason(seller({ chargesEnabled: false })), /disabled/);
     assert.match(invalidCheckoutSellerReason(seller({ stripeAccountId: null })), /disconnected/);
     assert.equal(invalidCheckoutSellerReason(seller()), null);
+  });
+
+  it("blocks automatic invalid-checkout refunds while a Stripe dispute is open", () => {
+    const state = blockedCheckoutDisputeState({
+      latestDispute: { status: "needs_response", stripeObjectId: "dp_123" },
+      reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+    });
+
+    assert.deepEqual(state, {
+      reviewNeeded: true,
+      reviewNote: "Seller account was suspended. Order was held for staff review. Automatic refund was skipped because Stripe dispute dp_123 is still open; staff must reconcile this payment manually.",
+      disputeId: "dp_123",
+      disputeStatus: "needs_response",
+    });
+    assert.equal(
+      blockedCheckoutDisputeState({
+        latestDispute: { status: "won", stripeObjectId: "dp_closed" },
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      null,
+    );
+    assert.equal(
+      blockedCheckoutDisputeState({
+        latestDispute: null,
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      null,
+    );
   });
 
   it("classifies Stripe-confirmed local refunds without changing the order row", () => {

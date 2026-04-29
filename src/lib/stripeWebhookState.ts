@@ -109,6 +109,19 @@ export type PayoutFailureState = {
   };
 };
 
+export type BlockedCheckoutDisputeState = {
+  reviewNeeded: true;
+  reviewNote: string;
+  disputeId: string | null;
+  disputeStatus: string | null;
+};
+
+const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "warning_closed"]);
+
+function isOpenDisputeStatus(status: string | null | undefined) {
+  return !STRIPE_DISPUTE_CLOSED_STATUSES.has((status ?? "").toLowerCase());
+}
+
 export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
   return refunds
     .filter((refund) => refund.status !== "failed")
@@ -139,6 +152,24 @@ export function invalidCheckoutSellerReason(seller: CheckoutSellerState | null |
   if (!seller.chargesEnabled) return "Seller Stripe account was disabled before payment completion.";
   if (!seller.stripeAccountId) return "Seller Stripe account was disconnected before payment completion.";
   return null;
+}
+
+export function blockedCheckoutDisputeState({
+  latestDispute,
+  reviewPrefix,
+}: {
+  latestDispute: { status: string | null; stripeObjectId: string | null } | null | undefined;
+  reviewPrefix: string;
+}): BlockedCheckoutDisputeState | null {
+  if (!latestDispute || !isOpenDisputeStatus(latestDispute.status)) return null;
+  const disputeId = latestDispute.stripeObjectId ?? null;
+  const disputeLabel = disputeId ?? "unknown";
+  return {
+    reviewNeeded: true,
+    reviewNote: `${reviewPrefix} Automatic refund was skipped because Stripe dispute ${disputeLabel} is still open; staff must reconcile this payment manually.`,
+    disputeId,
+    disputeStatus: latestDispute.status ?? null,
+  };
 }
 
 export function chargeRefundLedgerState({
