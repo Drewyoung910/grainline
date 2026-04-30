@@ -255,7 +255,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
 
   return {
     to: buyer.email,
-    subject: "Your order is confirmed! 🪵",
+    subject: "Your order is confirmed!",
     html: baseTemplate("Order Confirmed", body),
   };
 }
@@ -291,7 +291,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
 
   return {
     to: seller.email,
-    subject: "Congrats! You made a sale! 🎉",
+    subject: "Congrats! You made a sale!",
     html: baseTemplate("New Sale!", body),
   };
 }
@@ -324,7 +324,7 @@ export async function sendOrderShipped(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, "Your piece is on its way! 🚚", baseTemplate("Your order has shipped", body));
+  await send(buyer.email, "Your piece is on its way!", baseTemplate("Your order has shipped", body));
 }
 
 export async function sendReadyForPickup(opts: {
@@ -360,7 +360,7 @@ export async function sendOrderDelivered(opts: {
     ${btn("View order & leave a review", orderUrl)}
   `;
 
-  await send(buyer.email, "Your piece has been delivered! 🎉", baseTemplate("Order Delivered", body));
+  await send(buyer.email, "Your piece has been delivered!", baseTemplate("Order Delivered", body));
 }
 
 export async function sendCaseOpened(opts: {
@@ -522,7 +522,7 @@ export async function sendVerificationApproved(opts: {
     ${btn("View your profile", profileUrl)}
   `;
 
-  await send(seller.email, "You are now a Guild Member! ✓", baseTemplate("You're a Guild Member!", body));
+  await send(seller.email, "You are now a Guild Member!", baseTemplate("You're a Guild Member!", body));
 }
 
 export async function sendVerificationRejected(opts: {
@@ -587,7 +587,7 @@ export async function sendWelcomeBuyer(opts: {
     ${btn("Find makers near you", mapUrl)}
   `;
 
-  await send(user.email, "Welcome to Grainline! 🪵", baseTemplate("Welcome to Grainline", body));
+  await send(user.email, "Welcome to Grainline!", baseTemplate("Welcome to Grainline", body));
 }
 
 export async function sendWelcomeSeller(opts: {
@@ -608,7 +608,7 @@ export async function sendWelcomeSeller(opts: {
     ${btn("Complete your profile", profileUrl)}
   `;
 
-  await send(seller.email, "Welcome to Grainline — let's set up your shop!", baseTemplate("Welcome, Maker!", body));
+  await send(seller.email, "Welcome to Grainline - let's set up your shop!", baseTemplate("Welcome, Maker!", body));
 }
 
 export function renderFirstListingCongratsEmail(opts: {
@@ -634,7 +634,7 @@ export function renderFirstListingCongratsEmail(opts: {
 
   return {
     to: seller.email,
-    subject: "Your first piece is live on Grainline! 🎉",
+    subject: "Your first piece is live on Grainline!",
     html: baseTemplate("You're Live!", body),
   };
 }
@@ -661,7 +661,7 @@ export function renderFirstSaleCongratsEmail(opts: {
 
   return {
     to: seller.email,
-    subject: "You made your first sale! 🎉",
+    subject: "You made your first sale!",
     html: baseTemplate("First Sale!", body),
   };
 }

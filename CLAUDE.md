@@ -5943,6 +5943,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Upload verification**: presigned uploads require `UPLOAD_VERIFICATION_SECRET`; presign fails closed when verification tokens cannot be created. Verification checks key ownership, expected size, content type, and TTL.
 - **AI review safety**: OpenAI responses use strict JSON schema; seller data is a user message and policy is a system message; prompt data is bounded and redacted; image URLs are first-party/trusted only; up to the full 8-photo listing limit is reviewed.
 - **Email outbox behavior**: queued email jobs sanitize stored errors, validate preference keys, use hashed long dedup keys, reserve from a UTC daily quota, fail closed when quota Redis fails, and set terminal `nextAttemptAt` to `null`.
+- **Transactional email subjects**: built-in subject lines should stay plain ASCII during sender-domain warmup; keep visual/celebratory copy in bodies, not subjects.
 - **Case resolution copy**: admin case resolution notifications and emails must use `caseResolutionCopy()` so `REFUND_FULL`, `REFUND_PARTIAL`, and `DISMISSED` stay distinct for buyers.
 - **Health check behavior**: anonymous `/api/health` returns only `{ ok }` and is rate-limited/cached. Detailed dependency output requires `HEALTH_CHECK_TOKEN`.
 - **Admin PIN behavior**: production runtime throws when `ADMIN_PIN_COOKIE_SECRET` is missing. Next production build phase is exempt so env injection can happen at runtime; local/dev may use `ADMIN_PIN_COOKIE_SECRET_DEV`.
