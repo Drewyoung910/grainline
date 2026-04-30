@@ -54,6 +54,14 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "iad1";
 
+const STRIPE_DISPUTE_EVENT_TYPES = new Set([
+  "charge.dispute.created",
+  "charge.dispute.updated",
+  "charge.dispute.closed",
+  "charge.dispute.funds_withdrawn",
+  "charge.dispute.funds_reinstated",
+]);
+
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = (await headers()).get("stripe-signature");
@@ -176,6 +184,7 @@ export async function POST(req: Request) {
 
   async function processIdempotentEvent(
     handler: () => Promise<NextResponse>,
+    cleanup?: () => Promise<void>,
   ): Promise<NextResponse> {
     try {
       const response = await handler();
@@ -184,6 +193,17 @@ export async function POST(req: Request) {
     } catch (handlerErr) {
       await markCurrentStripeWebhookEventFailed(handlerErr);
       throw handlerErr;
+    } finally {
+      if (cleanup) {
+        try {
+          await cleanup();
+        } catch (cleanupErr) {
+          Sentry.captureException(cleanupErr, {
+            tags: { source: "stripe_webhook_cleanup" },
+            extra: { stripeEventId: event.id, stripeEventType: event.type },
+          });
+        }
+      }
     }
   }
 
@@ -387,7 +407,6 @@ export async function POST(req: Request) {
 
   try {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-      return processIdempotentEvent(async () => {
       type StripeSession = {
         id: string;
         currency?: string | null;
@@ -402,6 +421,9 @@ export async function POST(req: Request) {
       };
       const session = event.data.object as StripeSession;
       const sessionId: string = session.id;
+      let checkoutLockKey = session.metadata?.checkoutLockKey;
+
+      return processIdempotentEvent(async () => {
 
       // Idempotency
       const already = await prisma.order.findFirst({
@@ -409,6 +431,7 @@ export async function POST(req: Request) {
         select: { id: true },
       });
       if (already) {
+        await releaseCheckoutLock(checkoutLockKey, sessionId);
         await enqueueOrderPostPaymentSideEffects(already.id);
         return NextResponse.json({ ok: true });
       }
@@ -418,6 +441,7 @@ export async function POST(req: Request) {
         expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate", "line_items.data.price.product"],
       });
       const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
+      checkoutLockKey = sessionMeta.checkoutLockKey ?? checkoutLockKey;
 
       // Only process paid sessions — skip async/pending payments
       if (s.payment_status !== "paid") {
@@ -744,7 +768,7 @@ export async function POST(req: Request) {
         });
 
         if (!cart || cart.items.length === 0) {
-          await releaseCheckoutLock(sessionMeta.checkoutLockKey, sessionId);
+          await releaseCheckoutLock(checkoutLockKey, sessionId);
           return NextResponse.json({ ok: true });
         }
 
@@ -920,7 +944,7 @@ export async function POST(req: Request) {
           return order;
         });
 
-        await releaseCheckoutLock(sessionMeta.checkoutLockKey, sessionId);
+        await releaseCheckoutLock(checkoutLockKey, sessionId);
 
         if (!createdCartOrder) return NextResponse.json({ ok: true });
 
@@ -1104,7 +1128,7 @@ export async function POST(req: Request) {
           return order;
         });
 
-        await releaseCheckoutLock(sessionMeta.checkoutLockKey, sessionId);
+        await releaseCheckoutLock(checkoutLockKey, sessionId);
 
         if (!createdSingleOrder) return NextResponse.json({ ok: true });
 
@@ -1125,7 +1149,20 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      Sentry.captureMessage("Stripe checkout completion missing routing metadata", {
+        level: "warning",
+        tags: { source: "stripe_webhook_checkout_metadata" },
+        extra: {
+          stripeSessionId: sessionId,
+          hasBuyerId: Boolean(buyerId),
+          cartId: cartId ?? null,
+          sellerId: sellerIdFromMeta ?? null,
+          listingId: listingId ?? null,
+        },
+      });
       return NextResponse.json({ ok: true });
+      }, async () => {
+        await releaseCheckoutLock(checkoutLockKey, sessionId);
       });
     }
 
@@ -1228,7 +1265,7 @@ export async function POST(req: Request) {
       });
     }
 
-    if (event.type.startsWith("charge.dispute.")) {
+    if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type)) {
       return processIdempotentEvent(async () => {
         const dispute = event.data.object as {
           id?: string;

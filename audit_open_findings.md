@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 Stripe webhook idempotency pass: **131** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 Stripe webhook lock-release pass: **129** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -149,6 +149,8 @@ Latest mechanical open-heading count after the 2026-04-30 Stripe webhook idempot
 - **Dashboard listing action failures are visible.** Dashboard mark-sold/hide/archive actions now return structured action state and use `InlineActionButton` so auth/account-state/stale-state/archive-policy failures show inline instead of silently no-oping.
 - **Stripe selected-variant metadata parse failures are observable.** Buy-now webhook order creation validates `selectedVariants` metadata through `parseSelectedVariantsMetadata()` and logs malformed metadata to Sentry with session/listing context instead of swallowing parse failures.
 - **Reconciliation pass closed stale duplicate raw findings.** Shipping-rate buyer binding, fallback-rate removal, Clerk webhook replay protection, follower fan-out caps/pagination, Unicode profanity confusable folding, CI migration enforcement, DynamicMapCard loading, CSP `report-to`, onboarding completion guards, and stale cart price checks were re-verified and marked fixed in their later raw sections.
+- **Stripe webhook checkout locks now release on handler errors.** Completed-session processing keeps the Stripe metadata lock key and releases it in `finally`, while still releasing before slower refund/email side effects on normal cart/buy-now paths.
+- **Stripe webhook unsupported-shape logging tightened.** Completed sessions that lack buyer/cart/listing routing metadata now create a Sentry warning before acknowledgement, and dispute handling uses an explicit event allowlist instead of `startsWith("charge.dispute.")`.
 
 ## Recommended Fix Order
 
@@ -1831,9 +1833,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 7. **[FIXED 2026-04-30] No event timestamp validation post-`constructEvent`** — The webhook now rejects signed events whose `event.created` timestamp is older than 24 hours, captures a Sentry warning, and records the failure spike before any thin-event retrieve or handler mutation.
 
-8. `event.type.startsWith("charge.dispute.")` overly broad — `webhook/route.ts:1259`. Catches future event types like `charge.dispute.warning_*` without `dispute.charge` populated. **Fix**: explicit allowlist of 5 known dispute event types.
+8. **[FIXED 2026-04-30] `event.type.startsWith("charge.dispute.")` overly broad** — dispute handling now uses an explicit allowlist for `charge.dispute.created`, `updated`, `closed`, `funds_withdrawn`, and `funds_reinstated` instead of processing every future `charge.dispute.*` event shape.
 
-9. Cart fall-through with missing buyerId silently marked processed — `webhook/route.ts:1131`. No Sentry. **Fix**: `Sentry.captureMessage("checkout.session.completed missing buyerId")` before return.
+9. **[FIXED 2026-04-30] Cart fall-through with missing buyerId silently marked processed** — completed checkout sessions that do not match cart or buy-now routing now emit a Sentry warning with session ID, buyer/cart/seller/listing metadata presence, then acknowledge the Stripe event.
 
 10. Clerk webhook `welcomeEmailSentAt` write + `sendWelcomeBuyer` not atomic — `clerk/webhook/route.ts:116-133`. Process killed between → retry sends another welcome email. **Fix**: write `welcomeEmailSentAt` BEFORE send (advisory lock pattern).
 
@@ -2231,9 +2233,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 18. **[NOT REPRODUCED 2026-04-30] `marketplaceRefunds` idempotency suffix collision** — current branch suffixes already differ across platform-only (`platform`) and reverse-transfer (`seller`/`tax`/`tax-only`) refund paths, so a `canReverseTransfer` toggle does not reuse a seller refund as a platform refund. Changing suffixes now would risk duplicate refunds for in-flight retries.
 
-19. **`releaseCheckoutLock` skipped on outer catch** — `webhook/route.ts:478,651,972,1492`. Lock release in success paths only; outer catch skips it → Redis lock persists 32min leaking concurrency. **Fix**: move to `finally`.
+19. **[FIXED 2026-04-30] `releaseCheckoutLock` skipped on outer catch** — completed-session handling now keeps the checkout lock key from Stripe metadata and releases it in a `finally` block, so thrown handler errors after metadata retrieval do not leave the Redis checkout lock until TTL.
 
-20. **`processIdempotentEvent` doesn't release Redis checkout lock on handler error** — Buyer locked out for 32min. **Fix**: include `releaseCheckoutLock(sessionMeta.checkoutLockKey)` in catch path.
+20. **[FIXED 2026-04-30] `processIdempotentEvent` doesn't release Redis checkout lock on handler error** — the completed-session handler now releases the lock on existing-order, empty-cart, cart, buy-now, unpaid/restore, and fall-through paths, with the final release guarded by `finally` for error paths.
 
 ---
 
