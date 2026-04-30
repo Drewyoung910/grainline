@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 accessibility/stale-UI reconciliation pass: **74** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 AI logging/query reconciliation pass: **70** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -168,6 +168,7 @@ Latest mechanical open-heading count after the 2026-04-30 accessibility/stale-UI
 - **Public account-state routes tightened.** `/api/me` now resolves signed-in users through `ensureUserByClerkId()` and returns typed suspended/deleted account responses instead of exposing role/name/avatar metadata; `/api/cart` was re-verified already enforcing the same guard despite being public at middleware for anonymous cart support.
 - **UI/runtime observability pass closed nine small verified bugs.** Stock-notification UI now trusts server subscription state, review-photo uploads report duplicate/limit/empty-url states instead of silently dropping, message stream preflight errors are structured and terminal fallback polling stops on auth/rate-limit failures, CSP parse failures are Sentry-visible, Stripe payout client posts JSON, dead Clerk `legalAcceptedAt` probing was removed, admin email audit logging is statically imported, and the middleware banned-before-admin ordering finding was re-verified already fixed.
 - **Accessibility/stale-UI reconciliation pass closed seven items.** Header home links now have explicit `Grainline home` labels, the skip link uses focus-visible styling, the avatar menu no longer subscribes to Clerk client user state just for a fallback image, and the DismissibleBanner localStorage, theme-color metadata, ImageLightbox safe-area positioning, and window.prompt findings were re-verified already fixed in current code.
+- **AI logging/query reconciliation pass closed four items.** AI review and listing alt-text operational count logs are now development-only `console.debug()` calls, while the follow-count, account-feed TypeScript hack, and listing view/click daily aggregate race findings were re-verified already fixed or stale in current code.
 
 ## Recommended Fix Order
 
@@ -1700,9 +1701,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟢 **LOW (11)**
 
-10. `getFollowerCount` called twice on POST follow — extra round trip.
-11. `listings/[id]/view/route.ts:46-47` race; `listingViewDaily.upsert` FK fails on deleted listing — handled by .catch.
-12. `account/feed/route.ts:69` `not: null as null` TypeScript hack; redundant with `lt` filter.
+10. **[FIXED/VERIFIED 2026-04-30] `getFollowerCount` called twice on POST follow** — current follow POST calls the follower count helper once after the upsert and uses a separate existence read only to suppress duplicate notifications.
+11. **[FIXED/VERIFIED 2026-04-30] `listings/[id]/view/route.ts:46-47` race; `listingViewDaily.upsert` FK fails on deleted listing** — current view and click tracking use one transaction that increments the listing and upserts the daily aggregate from the locked listing seller ID, with missing-listing `P2025` treated as a silent analytics drop.
+12. **[FIXED/VERIFIED 2026-04-30] `account/feed/route.ts:69` `not: null as null` TypeScript hack** — the feed route no longer contains the `not: null as null` predicate; current cursor logic uses explicit timestamp filters and publishedAt non-null checks.
 13. **[FIXED/VERIFIED 2026-04-30] `ImageLightbox.tsx:93` Next button at `right-16`** — current lightbox chevrons use safe-area-aware calc positioning with 44px targets, not the old `right-16` offset.
 14. **[FIXED 2026-04-30] `UserAvatarMenu.tsx:50` avatarSrc fallback chain reads Clerk client API** — the avatar menu now trusts `/api/me`-provided avatar/image props and no longer subscribes to `useUser()` just for a fallback image.
 15. `notify/route.ts:36-38` filter `IN_STOCK` excludes MADE_TO_ORDER from back-in-stock subscribe.
@@ -2520,7 +2521,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 🟢 **LOW (2)**
 
 14. Custom listings dedup uses seller of recipient (not buyer), so buyer can't post duplicate custom requests across sellers; minor edge case.
-15. `console.log` of AI flags + altTexts count leaks attacker payloads to Vercel/Sentry. Move to `console.debug` or strip in prod.
+15. **[FIXED 2026-04-30] `console.log` of AI flags + altTexts count leaks attacker payloads to Vercel/Sentry** — review/alt-text debug counters are now gated to non-production and use `console.debug()`, so production logs no longer retain AI review/alt-text operational counts.
 
 ### Highest-priority architectural fix
 

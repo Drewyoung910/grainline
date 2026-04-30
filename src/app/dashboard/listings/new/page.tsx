@@ -338,7 +338,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
     }
 
     // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text
-    console.log(`[ai-alt-text] AI returned ${aiResult.altTexts?.length ?? 0} alt texts for listing ${created.id}`)
+    if (process.env.NODE_ENV !== "production") {
+      console.debug(`[ai-alt-text] AI returned ${aiResult.altTexts?.length ?? 0} alt texts for listing ${created.id}`)
+    }
     if (aiResult.altTexts?.length) {
       try {
         const photos = await prisma.photo.findMany({
@@ -357,7 +359,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
             updated++
           }
         }
-        console.log(`[ai-alt-text] Backfilled ${updated} alt texts for listing ${created.id}`)
+        if (process.env.NODE_ENV !== "production") {
+          console.debug(`[ai-alt-text] Backfilled ${updated} alt texts for listing ${created.id}`)
+        }
       } catch (e) {
         console.error('[ai-alt-text] Backfill failed:', e instanceof Error ? e.message : e)
       }

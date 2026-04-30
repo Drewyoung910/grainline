@@ -317,7 +317,9 @@ USER_LISTING_DATA_${delimiterId}_END`
     const text = data.choices?.[0]?.message?.content ?? ''
     const clean = text.replace(/```json|```/g, '').trim()
     const result = normalizeAIReviewResult(JSON.parse(clean), imagesToReview.length)
-    console.log(`[ai-review] approved=${result.approved}, flags=${result.flags?.length ?? 0}, altTexts=${result.altTexts?.length ?? 0}`)
+    if (process.env.NODE_ENV !== "production") {
+      console.debug(`[ai-review] approved=${result.approved}, flags=${result.flags?.length ?? 0}, altTexts=${result.altTexts?.length ?? 0}`)
+    }
     return result
   } catch (error) {
     console.error('AI review failed:', error instanceof Error ? error.message : error)
