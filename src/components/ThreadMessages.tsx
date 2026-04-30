@@ -149,7 +149,9 @@ export default function ThreadMessages({
           if (!res.ok) return;
           const data = await res.json();
           apply(Array.isArray(data?.messages) ? data.messages : []);
-        } catch {}
+        } catch (error) {
+          console.warn("[thread-messages] polling failed", error);
+        }
       }, 3000);
     };
 
@@ -170,7 +172,8 @@ export default function ThreadMessages({
         es.close();
         if (pollId) window.clearInterval(pollId);
       };
-    } catch {
+    } catch (error) {
+      console.warn("[thread-messages] event stream setup failed", error);
       startPolling();
       return () => {
         closed = true;
@@ -434,7 +437,6 @@ export default function ThreadMessages({
     </div>
   );
 }
-
 
 
 

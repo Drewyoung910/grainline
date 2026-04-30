@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 case/message state pass: **118** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 form/silent-failure pass: **115** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -157,6 +157,7 @@ Latest mechanical open-heading count after the 2026-04-30 case/message state pas
 - **Transactional email subjects are warmup-safe.** Built-in transactional subject lines in `src/lib/email.ts` no longer contain emoji or non-ASCII symbols; a regex pass confirms subject literals/calls are ASCII-only.
 - **Email text and retry behavior hardened.** `htmlToText()` now preserves table cell boundaries in plain text instead of collapsing order totals into number runs, direct Resend sends retry transient provider/network failures up to three attempts, and the email outbox cron drains at concurrency 2 to reduce provider-rate-limit bursts.
 - **Case and message state tightened.** Buyer-opened cases now write a durable audit entry, early case-open errors include the actual estimated delivery date, message threads with banned/deleted/missing recipients show an unavailable-account banner and block new replies server-side, and touched case/message/email snippets use surrogate-safe truncation.
+- **Listing form JSON and bare catches are observable.** Listing create/edit/custom form JSON now parses through `formJson.ts` with runtime array/object shape checks before use, and the remaining bare `catch {}` sites in the audited client/listing paths now log warnings/errors instead of swallowing failures silently.
 
 ## Recommended Fix Order
 
@@ -1861,13 +1862,13 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟡 **MEDIUM (6)**
 
-1. **15+ `catch {}` blocks swallow errors silently** — `dashboard/listings/{new,custom,[id]/edit}/page.tsx`, `ThreadMessages.tsx:42,162,174`, `MarkdownToolbar.tsx:32`, `UnreadBadge.tsx:20`, `messages/page.tsx:26`. Production silent failures undebuggable. **Fix**: minimum log to console; for server actions, add Sentry breadcrumb.
+1. **[FIXED 2026-04-30] 15+ `catch {}` blocks swallow errors silently** — the audited bare `catch {}` paths now either use runtime JSON parser results or log warnings/errors with context in `dashboard/listings/{new,custom,[id]/edit}/page.tsx`, `ThreadMessages.tsx`, `MarkdownToolbar.tsx`, and `UnreadBadge.tsx`. A direct `rg "catch \\{\\}" src` check now returns no exact bare empty catches.
 
 2. **45 `Sentry.captureException` calls vs 502 `status:` returns** — many catches in `email.ts`, `notifications.ts` log `console.error` but skip Sentry. **Fix**: standardize `logServerError(err, ctx)` helper.
 
 3. **[FIXED 2026-04-30] 6 untyped `JSON.parse(body)` calls in ThreadMessages** — Message body parsing now goes through `src/lib/messageBodies.ts`, which validates file attachments, commission-interest cards, custom-order request/link cards, and SSE message events before rendering; pure tests cover malformed JSON and malformed event rows.
 
-4. **`(JSON.parse(json) as string[])` cast without runtime check** — `dashboard/listings/new/page.tsx:63,74,150`. Malformed input crashes server action. **Fix**: Zod parse + early-return on failure.
+4. **[FIXED 2026-04-30] `(JSON.parse(json) as string[])` cast without runtime check** — listing form JSON fields now parse through `parseJsonArrayField()` and branch on success before filtering strings/tags. Malformed hidden JSON logs a contextual warning and falls back to safe empty values instead of trusting TypeScript casts.
 
 5. **`Notification.metadata Json @default("{}")`** — JSON column for what could be structured columns (targetType, targetId). At scale, queryable structured columns are cheaper. **Fix**: extract `targetType`/`targetId` columns; keep `metadata` for free-form extras.
 
@@ -3437,7 +3438,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 117. **`prisma/seed.ts`, `seed-bulk.ts`** still in repo, excluded from tsconfig. *Fix*: delete or fix imports.
 
-118. **Empty `catch {}` in 16+ places** — `src/app/messages/page.tsx:26,57`, `src/components/ThreadMessages.tsx:41,161,173`, `src/app/dashboard/listings/custom/page.tsx:69,234`. *Fix*: Sentry capture or rethrow.
+118. **[FIXED 2026-04-30] Empty `catch {}` in 16+ places** — exact bare empty catches have been removed from the audited message/listing/client paths. Expected malformed listing form JSON now uses `formJson.ts`; polling, EventSource, unread badge, markdown URL, and AI review fallback failures now leave console context.
 
 119. **[FIXED 2026-04-30] `src/components/admin/AdminEmailForm.tsx:36-41` setTimeout after potential unmount** — the delayed close timer is now stored in a ref and cleared on unmount or before replacement.
 

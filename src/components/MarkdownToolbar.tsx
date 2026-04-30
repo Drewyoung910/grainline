@@ -29,7 +29,9 @@ function normalizeSafeLink(raw: string): string | null {
     if (url.protocol === "http:" || url.protocol === "https:" || url.protocol === "mailto:") {
       return url.toString();
     }
-  } catch {}
+  } catch (error) {
+    console.warn("[markdown-toolbar] invalid link URL", error);
+  }
   return null;
 }
 

@@ -23,6 +23,7 @@ import type { AIReviewResult } from "@/lib/ai-review";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
+import { parseJsonArrayField } from "@/lib/formJson";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -58,8 +59,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
   // Photos
   let imageUrls: string[] = [];
   const json = formData.get("imageUrlsJson");
-  if (typeof json === "string" && json.length) {
-    try { imageUrls = (JSON.parse(json) as string[]).filter(Boolean); } catch {}
+  const imageUrlsResult = parseJsonArrayField(json);
+  if (imageUrlsResult.ok) {
+    imageUrls = imageUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[listing-create] invalid imageUrlsJson:", imageUrlsResult.error);
   }
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
@@ -69,8 +73,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");
-  if (typeof altJson === "string" && altJson.length) {
-    try { imageAltTexts = (JSON.parse(altJson) as string[]).filter((v) => typeof v === "string"); } catch {}
+  const imageAltTextsResult = parseJsonArrayField(altJson);
+  if (imageAltTextsResult.ok) {
+    imageAltTexts = imageAltTextsResult.value.filter((value): value is string => typeof value === "string");
+  } else {
+    console.warn("[listing-create] invalid imageAltTextsJson:", imageAltTextsResult.error);
   }
 
   // Meta description
@@ -90,21 +97,19 @@ async function createListing(_prevState: unknown, formData: FormData) {
   // Tags
   let tags: string[] = [];
   const tagsJson = formData.get("tagsJson");
-  if (typeof tagsJson === "string" && tagsJson.length) {
-    try {
-      const arr = JSON.parse(tagsJson);
-      if (Array.isArray(arr)) {
-        const set = new Set<string>();
-        for (const raw of arr) {
-          if (typeof raw !== "string") continue;
-          const t = normalizeTag(raw);
-          if (!t) continue;
-          if (set.size >= 10) break;
-          set.add(t);
-        }
-        tags = Array.from(set);
-      }
-    } catch {}
+  const tagsResult = parseJsonArrayField(tagsJson);
+  if (tagsResult.ok) {
+    const set = new Set<string>();
+    for (const raw of tagsResult.value) {
+      if (typeof raw !== "string") continue;
+      const t = normalizeTag(raw);
+      if (!t) continue;
+      if (set.size >= 10) break;
+      set.add(t);
+    }
+    tags = Array.from(set);
+  } else {
+    console.warn("[listing-create] invalid tagsJson:", tagsResult.error);
   }
 
   // Packaged dims/weight (entered in inches & pounds; stored as cm & grams)
@@ -357,7 +362,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
         console.error('[ai-alt-text] Backfill failed:', e instanceof Error ? e.message : e)
       }
     }
-  } catch {
+  } catch (error) {
+    console.error("[listing-create] AI review failed:", error);
     await prisma.listing.update({
       where: { id: created.id },
       data: {
@@ -365,7 +371,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
         aiReviewFlags: ["AI review error"],
         aiReviewScore: 0,
       },
-    }).catch(() => {});
+    }).catch((updateError) => {
+      console.error("[listing-create] failed to mark AI review error:", updateError);
+    });
   }
 
   // Only notify followers if the listing went live (not held for review)

@@ -18,6 +18,7 @@ import { Palette } from "@/components/icons";
 import { ListingStatus, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 import { publicListingPath } from "@/lib/publicPaths";
+import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -71,10 +72,11 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   // Photos (optional for custom listings)
   let imageUrls: string[] = [];
   const json = formData.get("imageUrlsJson");
-  if (typeof json === "string" && json.length) {
-    try {
-      imageUrls = (JSON.parse(json) as string[]).filter(Boolean);
-    } catch {}
+  const imageUrlsResult = parseJsonArrayField(json);
+  if (imageUrlsResult.ok) {
+    imageUrls = imageUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[custom-listing] invalid imageUrlsJson:", imageUrlsResult.error);
   }
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
@@ -296,9 +298,12 @@ export default async function CustomListingPage({
     listingTitle?: string | null;
   } | null = null;
   if (requestMsg) {
-    try {
-      requestData = JSON.parse(requestMsg.body);
-    } catch {}
+    const requestResult = parseJsonObjectField(requestMsg.body);
+    if (requestResult.ok) {
+      requestData = requestResult.value;
+    } else {
+      console.warn("[custom-listing] invalid custom request message body:", requestResult.error);
+    }
   }
 
   // Fetch buyer info for display

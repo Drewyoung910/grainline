@@ -17,7 +17,9 @@ export default function UnreadBadge({
       if (!res.ok) return;
       const data = await res.json();
       if (typeof data?.count === "number") setCount(data.count);
-    } catch {}
+    } catch (error) {
+      console.warn("[unread-badge] refresh failed", error);
+    }
   }, [isSignedIn]);
 
   React.useEffect(() => {

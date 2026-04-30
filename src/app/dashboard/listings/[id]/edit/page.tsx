@@ -18,6 +18,7 @@ import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { listingEditBlockReason } from "@/lib/listingEditState";
+import { parseJsonArrayField } from "@/lib/formJson";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -78,21 +79,19 @@ async function updateListing(
   // Tags
   let tags: string[] = [];
   const tagsJson = formData.get("tagsJson");
-  if (typeof tagsJson === "string" && tagsJson.length) {
-    try {
-      const arr = JSON.parse(tagsJson);
-      if (Array.isArray(arr)) {
-        const set = new Set<string>();
-        for (const raw of arr) {
-          if (typeof raw !== "string") continue;
-          const t = normalizeTag(raw);
-          if (!t) continue;
-          if (set.size >= 10) break;
-          set.add(t);
-        }
-        tags = Array.from(set);
-      }
-    } catch {}
+  const tagsResult = parseJsonArrayField(tagsJson);
+  if (tagsResult.ok) {
+    const set = new Set<string>();
+    for (const raw of tagsResult.value) {
+      if (typeof raw !== "string") continue;
+      const t = normalizeTag(raw);
+      if (!t) continue;
+      if (set.size >= 10) break;
+      set.add(t);
+    }
+    tags = Array.from(set);
+  } else {
+    console.warn("[listing-edit] invalid tagsJson:", tagsResult.error);
   }
 
   // Packaged dims / weight
