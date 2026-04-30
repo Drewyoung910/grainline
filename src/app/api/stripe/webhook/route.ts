@@ -1364,6 +1364,15 @@ export async function POST(req: Request) {
               body: `Stripe reported a dispute for order ${notifySellerUserId.orderId}.`,
               link: `/dashboard/sales/${notifySellerUserId.orderId}`,
             });
+            Sentry.captureMessage("Stripe dispute opened", {
+              level: "warning",
+              tags: { source: "stripe_dispute", disputeId: dispute.id, orderId: notifySellerUserId.orderId },
+              extra: {
+                stripeEventId: event.id,
+                stripeChargeId: typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id,
+                sellerUserId: notifySellerUserId.sellerUserId,
+              },
+            });
           }
         }
         return NextResponse.json({ received: true });

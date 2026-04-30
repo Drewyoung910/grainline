@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { processEmailOutboxBatch } from "@/lib/emailOutbox";
 
@@ -17,16 +18,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cronRun = await beginCronRun("email-outbox", fiveMinuteBucket());
-  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+  return withSentryCronMonitor("email-outbox", { value: "*/5 * * * *", maxRuntimeMinutes: 1 }, async () => {
+    const cronRun = await beginCronRun("email-outbox", fiveMinuteBucket());
+    if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-  try {
-    const result = await processEmailOutboxBatch({ take: 50, concurrency: 2 });
-    await completeCronRun(cronRun, result);
-    return NextResponse.json(result);
-  } catch (error) {
-    await failCronRun(cronRun, error);
-    Sentry.captureException(error, { tags: { source: "cron_email_outbox" } });
-    return NextResponse.json({ error: "Email outbox failed" }, { status: 500 });
-  }
+    try {
+      const result = await processEmailOutboxBatch({ take: 50, concurrency: 2 });
+      await completeCronRun(cronRun, result);
+      return NextResponse.json(result);
+    } catch (error) {
+      await failCronRun(cronRun, error);
+      Sentry.captureException(error, { tags: { source: "cron_email_outbox" } });
+      return NextResponse.json({ error: "Email outbox failed" }, { status: 500 });
+    }
+  });
 }

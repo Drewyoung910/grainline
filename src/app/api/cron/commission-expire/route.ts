@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { truncateText } from "@/lib/sanitize";
@@ -26,17 +27,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cronRun = await beginCronRun("commission-expire");
-  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+  return withSentryCronMonitor("commission-expire", { value: "15 7 * * *", maxRuntimeMinutes: 1 }, async () => {
+    const cronRun = await beginCronRun("commission-expire");
+    if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-  try {
-    const now = new Date();
-    let expired = 0;
-    let checked = 0;
-    let batches = 0;
-    let lastBatchFull = false;
-    const checkedIds: string[] = [];
-    const failures: Array<{ requestId: string; code: string }> = [];
+    try {
+      const now = new Date();
+      let expired = 0;
+      let checked = 0;
+      let batches = 0;
+      let lastBatchFull = false;
+      const checkedIds: string[] = [];
+      const failures: Array<{ requestId: string; code: string }> = [];
 
     for (let batch = 0; batch < COMMISSION_EXPIRE_MAX_BATCHES; batch += 1) {
       const expiring = await prisma.commissionRequest.findMany({
@@ -140,4 +142,5 @@ export async function GET(req: Request) {
     Sentry.captureException(error, { tags: { source: "cron_commission_expire" } });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+  });
 }

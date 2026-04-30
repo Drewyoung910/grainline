@@ -18,6 +18,10 @@
       "schedule": "30 5 * * *"
     },
     {
+      "path": "/api/cron/ops-health",
+      "schedule": "20 * * * *"
+    },
+    {
       "path": "/api/cron/case-auto-close",
       "schedule": "0 7 * * *"
     },

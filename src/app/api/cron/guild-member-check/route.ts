@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendGuildMemberRevokedEmail } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const runtime = "nodejs";
@@ -23,18 +24,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cronRun = await beginCronRun("guild-member-check");
-  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+  return withSentryCronMonitor("guild-member-check", { value: "0 8 * * *", maxRuntimeMinutes: 5 }, async () => {
+    const cronRun = await beginCronRun("guild-member-check");
+    if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-  try {
-    const response = await runGuildMemberCheckCron();
-    await completeCronRun(cronRun, response);
-    return NextResponse.json(response);
-  } catch (error) {
-    await failCronRun(cronRun, error);
-    Sentry.captureException(error, { tags: { source: "cron_guild_member_check" } });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
+    try {
+      const response = await runGuildMemberCheckCron();
+      await completeCronRun(cronRun, response);
+      return NextResponse.json(response);
+    } catch (error) {
+      await failCronRun(cronRun, error);
+      Sentry.captureException(error, { tags: { source: "cron_guild_member_check" } });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  });
 }
 
 async function runGuildMemberCheckCron() {

@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 support/legal/runbook pass: **104** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 observability pass: **100** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -161,6 +161,7 @@ Latest mechanical open-heading count after the 2026-04-30 support/legal/runbook 
 - **Request correlation IDs added.** Middleware now accepts or generates a safe `x-request-id`, forwards it to downstream request headers, emits it on middleware responses, and tags Sentry scope with the same value so API, Stripe, Resend, and DB failures can be tied together.
 - **UI/runtime hygiene pass closed five verified issues.** Email money formatting now uses `Intl.NumberFormat` through `money.ts`, rate-limit responses expose structured retry metadata and affected client surfaces parse API errors, inventory shows a wait-time banner for listings under review, user-visible truncation now uses surrogate-safe helpers, and the duplicate MapLibre WebGL finding was re-verified fixed.
 - **Support/legal/runbook pass closed five verified gaps.** Public `/support` and `/legal/data-request` forms now create durable `SupportRequest` rows with 45-day SLA due dates, admin status tracking, and notification-email error evidence; middleware keeps these routes public for suspended/deleted users; `docs/runbook.md` now covers rollback, secret rotation, webhook recovery, restore drills, cron/email-outbox triage, and support/legal queue handling.
+- **Observability pass closed four concrete gaps.** Middleware now sets non-PII Sentry user context from the Clerk user ID, App Router cron routes send explicit Sentry check-ins through `cronMonitor.ts`, `/api/cron/ops-health` polls failed `CronRun` rows/stale email outbox/overdue support requests hourly, and Stripe dispute creation emits an ops-level Sentry warning.
 
 ## Recommended Fix Order
 
@@ -1940,9 +1941,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 11. **No Vercel Analytics / Speed Insights / Web Vitals** — `package.json` has no `@vercel/analytics` or `@vercel/speed-insights`. No way to detect p95 LCP regressions. **Fix**: add `<Analytics />` + `<SpeedInsights />` to root layout.
 
-12. **Cron `CronRun.status=FAILED` no alert poll** — A failing outbox queues emails forever silently. **Fix**: nightly script or Sentry monitor checks `CronRun.where({status:'FAILED', createdAt: gte(24h ago)}).count > 0`.
+12. **[FIXED 2026-04-30] Cron `CronRun.status=FAILED` no alert poll** — `/api/cron/ops-health` now runs hourly, checks failed `CronRun` rows from the last 24 hours plus stale email outbox and overdue support requests, and emits a warning-level Sentry event with safe summaries.
 
-13. **`automaticVercelMonitors: true` but App Router unsupported** — `next.config.ts:111`. All cron jobs are App Router → no monitors created. **Fix**: switch to Sentry Crons SDK explicit `Sentry.withMonitor(slug, fn)` wrappers.
+13. **[FIXED 2026-04-30] `automaticVercelMonitors: true` but App Router unsupported** — `next.config.ts` no longer relies on unsupported automatic Vercel monitor creation; App Router cron routes now send explicit Sentry cron check-ins through `withSentryCronMonitor()`.
 
 14. **[FIXED 2026-04-30] `error.tsx` doesn't capture to Sentry** — The segment error boundary now imports `@sentry/nextjs` and calls `Sentry.captureException(error)` in the same effect that logs to console.
 
@@ -1952,9 +1953,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟢 **LOW (4)**
 
-17. No Sentry user context on logged-in users — `setUser()` returned 0 matches. Authenticated errors anonymized. **Fix**: middleware sets `Sentry.setUser({id: meId})`.
+17. **[FIXED 2026-04-30] No Sentry user context on logged-in users** — middleware now sets Sentry user context to the authenticated Clerk user ID without adding email/IP PII.
 18. No bundle size regression alert — CI runs `next build` but no `bundlesize`/Vercel commit-comment threshold.
-19. `dispute.created` only sends in-app notification — disputes need ops alert (24-hr response window). **Fix**: `Sentry.captureMessage("Stripe dispute opened", {level:'warning', tags:{disputeId, orderId}})`.
+19. **[FIXED 2026-04-30] `dispute.created` only sends in-app notification** — `charge.dispute.created` now also emits a warning-level Sentry ops alert with dispute, order, event, charge, and seller context after seller notification.
 20. **[FIXED 2026-04-30] No backup verification** — `docs/runbook.md` now defines a quarterly non-production Neon restore drill with migration-status checks, read-only smoke checks, RPO/RTO documentation, and cleanup steps.
 
 ---

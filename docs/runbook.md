@@ -95,11 +95,12 @@ Production migration rules:
 
 ## Cron and Email Outbox
 
-1. Check `/api/cron/*` logs in Vercel for failures.
-2. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
-3. Check Sentry for cron route exceptions.
-4. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, and `lastError`.
-5. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
+1. Check the hourly `/api/cron/ops-health` Sentry warning first; it polls failed `CronRun` rows from the last 24 hours, stale email outbox jobs, and overdue support requests.
+2. Check `/api/cron/*` logs in Vercel for route-level failures.
+3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
+4. Check Sentry for cron route exceptions and failed cron check-ins.
+5. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, and `lastError`.
+6. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
 
 ## Support and Legal Requests
 

@@ -152,6 +152,7 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   const { userId } = await auth();
+  Sentry.setUser(userId ? { id: userId } : null);
 
   if (userId && !isSuspendedAccountAllowed(req)) {
     const account = await prisma.user.findUnique({

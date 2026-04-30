@@ -17,6 +17,7 @@ import {
   sendGuildMasterRevokedEmail,
 } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 
 export const runtime = "nodejs";
@@ -31,18 +32,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cronRun = await beginCronRun("guild-metrics");
-  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+  return withSentryCronMonitor("guild-metrics", { value: "0 9 1 * *", maxRuntimeMinutes: 5 }, async () => {
+    const cronRun = await beginCronRun("guild-metrics");
+    if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-  try {
-    const response = await runGuildMetricsCron();
-    await completeCronRun(cronRun, response);
-    return NextResponse.json(response);
-  } catch (error) {
-    await failCronRun(cronRun, error);
-    Sentry.captureException(error, { tags: { source: "cron_guild_metrics" } });
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
+    try {
+      const response = await runGuildMetricsCron();
+      await completeCronRun(cronRun, response);
+      return NextResponse.json(response);
+    } catch (error) {
+      await failCronRun(cronRun, error);
+      Sentry.captureException(error, { tags: { source: "cron_guild_metrics" } });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    }
+  });
 }
 
 async function runGuildMetricsCron() {

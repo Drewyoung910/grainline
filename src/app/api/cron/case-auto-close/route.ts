@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
+import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
 
@@ -29,22 +30,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cronRun = await beginCronRun("case-auto-close");
-  if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
+  return withSentryCronMonitor("case-auto-close", { value: "0 7 * * *", maxRuntimeMinutes: 1 }, async () => {
+    const cronRun = await beginCronRun("case-auto-close");
+    if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-  try {
-    // Auto-close PENDING_CLOSE cases older than 7 days
-    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    let closed = 0;
-    let stalePendingClose = 0;
-    let stalePendingClosed = 0;
-    let abandonedOpen = 0;
-    let abandonedEscalated = 0;
-    let stalePendingCloseBatches = 0;
-    let abandonedOpenBatches = 0;
-    let stalePendingCloseHasMore = false;
-    let abandonedOpenHasMore = false;
-    const failures: Array<{ caseId: string; action: "close" | "escalate"; code: string }> = [];
+    try {
+      // Auto-close PENDING_CLOSE cases older than 7 days
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      let closed = 0;
+      let stalePendingClose = 0;
+      let stalePendingClosed = 0;
+      let abandonedOpen = 0;
+      let abandonedEscalated = 0;
+      let stalePendingCloseBatches = 0;
+      let abandonedOpenBatches = 0;
+      let stalePendingCloseHasMore = false;
+      let abandonedOpenHasMore = false;
+      const failures: Array<{ caseId: string; action: "close" | "escalate"; code: string }> = [];
 
     async function closePendingCase(c: CaseAutoCloseRecord) {
       try {
@@ -192,4 +194,5 @@ export async function GET(req: Request) {
     Sentry.captureException(error, { tags: { source: "cron_case_auto_close" } });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+  });
 }
