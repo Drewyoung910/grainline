@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { publicListingPath } from "@/lib/publicPaths";
 
 type PhotoItem = {
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export default function HeroMosaic({ photos }: Props) {
+  const [paused, setPaused] = useState(false);
   const mid = Math.ceil(photos.length / 2);
   const row1Base = photos.slice(0, mid);
   const row2Base = photos.slice(mid);
@@ -20,6 +22,12 @@ export default function HeroMosaic({ photos }: Props) {
   // Duplicate for seamless CSS loop
   const row1 = [...row1Base, ...row1Base];
   const row2 = [...row2Base, ...row2Base];
+  const row1Class = `absolute top-0 left-0 h-1/2 flex gap-0 w-max ${
+    paused ? "" : "animate-scroll-left motion-reduce:animate-none"
+  }`;
+  const row2Class = `absolute bottom-0 left-0 h-1/2 flex gap-0 w-max ${
+    paused ? "" : "animate-scroll-right motion-reduce:animate-none"
+  }`;
 
   return (
     <div className="absolute inset-0 overflow-hidden">
@@ -31,12 +39,10 @@ export default function HeroMosaic({ photos }: Props) {
       <div className="absolute inset-0 bg-gradient-to-b from-amber-900/20 via-amber-800/10 to-amber-900/20 z-10" />
 
       {/* Row 1 — scrolls left */}
-      <div
-        className="absolute top-0 left-0 h-1/2 flex gap-0 animate-scroll-left motion-reduce:animate-none w-max"
-      >
+      <div className={row1Class}>
         {row1.map((item, i) => (
           <a
-            key={i}
+            key={`${item.listingId}-${item.url}-${i}`}
             href={publicListingPath(item.listingId, item.title)}
             className="flex-none w-64 h-full overflow-hidden block"
             tabIndex={-1}
@@ -46,7 +52,7 @@ export default function HeroMosaic({ photos }: Props) {
             <img
               src={item.url}
               alt=""
-              className="w-full h-full object-cover blur-[4px] scale-105"
+              className="w-full h-full object-cover blur-[4px] scale-105 motion-reduce:blur-none motion-reduce:scale-100"
               loading={i < 5 ? "eager" : "lazy"}
             />
           </a>
@@ -54,12 +60,10 @@ export default function HeroMosaic({ photos }: Props) {
       </div>
 
       {/* Row 2 — scrolls right */}
-      <div
-        className="absolute bottom-0 left-0 h-1/2 flex gap-0 animate-scroll-right motion-reduce:animate-none w-max"
-      >
+      <div className={row2Class}>
         {row2.map((item, i) => (
           <a
-            key={i}
+            key={`${item.listingId}-${item.url}-${i}`}
             href={publicListingPath(item.listingId, item.title)}
             className="flex-none w-64 h-full overflow-hidden block"
             tabIndex={-1}
@@ -69,12 +73,22 @@ export default function HeroMosaic({ photos }: Props) {
             <img
               src={item.url}
               alt=""
-              className="w-full h-full object-cover blur-[4px] scale-105"
+              className="w-full h-full object-cover blur-[4px] scale-105 motion-reduce:blur-none motion-reduce:scale-100"
               loading={i < 5 ? "eager" : "lazy"}
             />
           </a>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setPaused((value) => !value)}
+        aria-label={paused ? "Play hero animation" : "Pause hero animation"}
+        aria-pressed={paused}
+        className="absolute bottom-4 right-4 z-30 inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-black/55 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+      >
+        <span aria-hidden="true">{paused ? ">" : "||"}</span>
+      </button>
     </div>
   );
 }

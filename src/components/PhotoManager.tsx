@@ -193,8 +193,8 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                     onClick={() => moveUp(i)}
                     disabled={i === 0}
                     className="min-h-11 min-w-11 rounded border border-neutral-200 px-2 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Move left"
-                    aria-label={`Move photo ${i + 1} left`}
+                    title="Move earlier"
+                    aria-label={`Move photo ${i + 1} earlier in order`}
                   >
                     ←
                   </button>
@@ -203,8 +203,8 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                     onClick={() => moveDown(i)}
                     disabled={i === photos.length - 1}
                     className="min-h-11 min-w-11 rounded border border-neutral-200 px-2 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Move right"
-                    aria-label={`Move photo ${i + 1} right`}
+                    title="Move later"
+                    aria-label={`Move photo ${i + 1} later in order`}
                   >
                     →
                   </button>

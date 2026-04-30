@@ -492,6 +492,7 @@ function CartPage() {
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
             const lineCents = unitPriceCents * i.quantity;
             const listingIsActive = !i.listing.status || i.listing.status === "ACTIVE";
+            const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
               <li key={i.id} className="flex items-center gap-3 px-4 py-3">
@@ -544,8 +545,11 @@ function CartPage() {
                       </span>
                     )}
 
-                    <label className="text-xs text-neutral-500 shrink-0">Qty</label>
+                    <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
+                      Qty
+                    </label>
                     <select
+                      id={quantitySelectId}
                       className="rounded-md border border-neutral-200 px-2 py-1 text-sm"
                       value={i.quantity}
                       onChange={(e) => setQuantity(i.id, Number(e.target.value))}

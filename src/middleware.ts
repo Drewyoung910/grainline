@@ -120,7 +120,8 @@ export default clerkMiddleware(async (auth, req) => {
   Sentry.setTag("requestId", requestId);
 
   // Geo-blocking — US only. Next 16 no longer exposes request.geo, so use
-  // Vercel's country header when present.
+  // Vercel's country header when present. This header is only trusted behind
+  // Vercel's managed ingress; non-Vercel deployments need their own trusted geo source.
   const country = req.headers.get("x-vercel-ip-country") || undefined;
   if (country && country !== "US") {
     const pathname = req.nextUrl.pathname;

@@ -18,6 +18,7 @@ interface Props {
 
 export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, hasSeller, dropDirection = "down" }: Props) {
   const [open, setOpen] = React.useState(false);
+  const menuId = React.useId();
   const menuRef = React.useRef<HTMLDivElement>(null);
   const { signOut, openUserProfile } = useClerk();
   const pathname = usePathname();
@@ -47,6 +48,17 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  React.useEffect(() => {
+    if (!open) return;
+    function onFocusIn(e: FocusEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [open]);
+
   const avatarSrc = avatarImageUrl ?? imageUrl ?? null;
   const displayName = name ?? "Account";
   const isAdmin = role === "ADMIN" || role === "EMPLOYEE";
@@ -58,6 +70,8 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
         className="rounded-full overflow-hidden h-8 w-8 bg-transparent border-0 p-0 cursor-pointer block"
         aria-label="Account menu"
         aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={open ? menuId : undefined}
       >
         {avatarSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -72,9 +86,14 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       </button>
 
       {open && (
-        <div className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}>
+        <div
+          id={menuId}
+          role="menu"
+          aria-label="Account"
+          className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+        >
           {/* Header — avatar + name */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
+          <div role="presentation" className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
             <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
               {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -92,6 +111,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
           <div className="py-1">
             <Link
               href="/account"
+              role="menuitem"
               className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
               onClick={() => setOpen(false)}
             >
@@ -100,6 +120,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             {hasSeller && (
               <Link
                 href="/dashboard"
+                role="menuitem"
                 className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
                 onClick={() => setOpen(false)}
               >
@@ -108,6 +129,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             )}
             <Link
               href="/account/feed"
+              role="menuitem"
               className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
               onClick={() => setOpen(false)}
             >
@@ -116,16 +138,18 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             {isAdmin && (
               <Link
                 href="/admin"
+                role="menuitem"
                 className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
                 onClick={() => setOpen(false)}
               >
                 Admin
               </Link>
             )}
-            <div className="border-t border-neutral-100 my-1" />
+            <div role="separator" className="border-t border-neutral-100 my-1" />
 
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 openUserProfile({
                   appearance: {
@@ -142,6 +166,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
             <button
               type="button"
+              role="menuitem"
               onClick={async () => {
                 setOpen(false);
                 clearRecentlyViewed();

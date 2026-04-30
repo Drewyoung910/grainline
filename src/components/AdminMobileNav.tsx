@@ -32,7 +32,7 @@ export default function AdminMobileNav(counts: Counts) {
   const pathname = usePathname();
 
   return (
-    <nav className="md:hidden flex overflow-x-auto border-b bg-white px-1 py-1 gap-0.5 shrink-0">
+    <nav aria-label="Admin sections" className="md:hidden flex overflow-x-auto border-b bg-white px-1 py-1 gap-0.5 shrink-0">
       {NAV_ITEMS.map(({ href, label, Icon, badgeKey }) => {
         const active = pathname.startsWith(href);
         const badge = badgeKey ? counts[badgeKey] : 0;
@@ -40,6 +40,7 @@ export default function AdminMobileNav(counts: Counts) {
           <Link
             key={href}
             href={href}
+            aria-current={active ? "page" : undefined}
             className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg min-w-[56px] min-h-[44px] justify-center
               ${active
                 ? "bg-neutral-900 text-white"

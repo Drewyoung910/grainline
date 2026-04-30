@@ -117,6 +117,7 @@ export default function NotificationBell({
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(initialUnreadCount);
   const [loaded, setLoaded] = React.useState(false);
+  const dropdownId = React.useId();
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const fetchNotifications = React.useCallback(async () => {
@@ -270,6 +271,17 @@ export default function NotificationBell({
     return () => document.removeEventListener("mousedown", onClick);
   }, [open]);
 
+  React.useEffect(() => {
+    if (!open) return;
+    const onFocusIn = (e: FocusEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [open]);
+
   const markAllRead = async () => {
     const previousNotifications = notifications;
     const previousUnreadCount = unreadCount;
@@ -317,7 +329,8 @@ export default function NotificationBell({
         className="relative inline-flex items-center text-neutral-800 hover:text-neutral-600"
         aria-label="Notifications"
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
+        aria-controls={open ? dropdownId : undefined}
         title="Notifications"
       >
         <Bell size={20} />
@@ -329,7 +342,12 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div role="menu" className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg bg-white shadow-lg overflow-y-auto max-h-[70vh]">
+        <div
+          id={dropdownId}
+          role="dialog"
+          aria-label="Notifications"
+          className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg bg-white shadow-lg overflow-y-auto max-h-[70vh]"
+        >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
             <span className="text-sm font-semibold">Notifications</span>

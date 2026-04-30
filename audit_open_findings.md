@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 stock notification reconciliation pass: **68** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 accessibility/motion reconciliation pass: **59** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -170,6 +170,7 @@ Latest mechanical open-heading count after the 2026-04-30 stock notification rec
 - **Accessibility/stale-UI reconciliation pass closed seven items.** Header home links now have explicit `Grainline home` labels, the skip link uses focus-visible styling, the avatar menu no longer subscribes to Clerk client user state just for a fallback image, and the DismissibleBanner localStorage, theme-color metadata, ImageLightbox safe-area positioning, and window.prompt findings were re-verified already fixed in current code.
 - **AI logging/query reconciliation pass closed four items.** AI review and listing alt-text operational count logs are now development-only `console.debug()` calls, while the follow-count, account-feed TypeScript hack, and listing view/click daily aggregate race findings were re-verified already fixed or stale in current code.
 - **Stock notification boundary tightened.** Back-in-stock subscription UI and subscription lookup now only run for out-of-stock `IN_STOCK` listings, matching the API route's invariant and avoiding a MADE_TO_ORDER/SOLD_OUT control that the server must reject; the quality-score new-seller-bonus finding was re-verified already fixed by seller-account-age gating.
+- **Accessibility/motion reconciliation pass closed nine items.** Cart quantity labels are now associated, avatar/notification popovers expose correct ARIA state and close on focus leave, hero mosaic animation has a pause control plus stable keys and reduced-motion image transforms, photo reorder labels describe ordering instead of grid direction, admin mobile nav exposes the active page, and the geo-blocking header dependency is documented as Vercel-ingress-only.
 
 ## Recommended Fix Order
 
@@ -1513,7 +1514,7 @@ The section below is the verbatim chronological round-by-round content from the 
 7. `scrollTo({behavior:"smooth"})` iOS<15.4 ignored.
 8. `type="number"` lacks `inputMode="decimal"` on prices, `inputMode="numeric"` on counts (8 files).
 9. **[FIXED 2026-04-30] `autoFocus` on AdminPinGate + SellerRefundPanel triggers iOS zoom** — Removed both autofocus hooks; the refund amount field now uses `inputMode="decimal"` and mobile `text-base` so manual focus does not trigger iOS input zoom.
-10. HeroMosaic `width:200%` + blur+scale on iOS Safari = GPU thrash on older iPhones. Add `prefers-reduced-motion` rule.
+10. **[FIXED 2026-04-30] HeroMosaic `width:200%` + blur+scale on iOS Safari = GPU thrash on older iPhones** — mosaic rows already stop animation for reduced-motion users; this pass also removes blur/scale transforms under `motion-reduce` and adds an explicit pause/play control.
 11. `backdrop-blur-sm` Firefox ESR may render solid white.
 12. `step="0.01"` allows `1e10` exponent input.
 13. **[FIXED/VERIFIED 2026-04-30] `localStorage` in DismissibleBanner** — current code wraps both read and write access in `try/catch`, so private-mode/storage-denied browsers do not crash the banner.
@@ -1710,7 +1711,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 15. **[FIXED 2026-04-30] `notify/route.ts:36-38` filter `IN_STOCK` excludes MADE_TO_ORDER from back-in-stock subscribe** — the API remains intentionally `IN_STOCK`-only, and the listing page now only renders/loads stock notifications for out-of-stock `IN_STOCK` listings so MADE_TO_ORDER/SOLD_OUT pages do not expose a doomed subscribe control.
 16. **[FIXED/VERIFIED 2026-04-30] `quality-score.ts:178-180` newSellerBonus persists if seller deletes + recreates listings** — current scoring gates the zero-review bonus by `SellerProfile.createdAt <= 30 days`, so deleting/recreating listings does not reset or extend the seller-level bonus.
 17. **[FIXED 2026-04-30] `csp-report/route.ts:42-44` catch-all swallows errors silently** — CSP report parsing now captures malformed body failures to Sentry with content-type/body-length context after the existing IP rate limit.
-18. `middleware.ts:93-110` `x-vercel-ip-country` only trustable on Vercel — add comment for future deploys.
+18. **[FIXED 2026-04-30] `middleware.ts:93-110` `x-vercel-ip-country` only trustable on Vercel** — the middleware now documents that the header is only trusted behind Vercel managed ingress and that non-Vercel deployments need their own trusted geo source.
 19. **[FIXED 2026-04-30] `api/me/route.ts:7` doesn't exclude banned users** — `/api/me` now calls `ensureUserByClerkId()` for signed-in requests and returns `accountAccessErrorResponse()` for suspended/deleted accounts before loading seller profile metadata.
 20. **[FIXED 2026-04-30] `csp-report/route.ts:42-44` swallows body parse errors** — duplicate of #17; malformed report bodies now leave Sentry evidence instead of disappearing.
 
@@ -1894,7 +1895,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 10. `email.ts` likely has unused exports (`sendWelcomeSeller`, `sendFirstSaleCongrats` — verify wiring).
 11. **502 hardcoded status codes** across 85 routes. **Fix**: shared HTTP constant module.
 12. **`'usd'` hardcoded in 32 locations**. **Fix**: `DEFAULT_CURRENCY` constant.
-13. **HeroMosaic.tsx:39,62** + 18 sites use `key={i}` on mapped lists. Real listings + reorder = animation flicker. **Fix**: `key={item.listingId + '-' + i}`.
+13. **[FIXED 2026-04-30] `HeroMosaic.tsx:39,62` + 18 sites use `key={i}` on mapped lists** — the hero mosaic now keys duplicated rows by listing ID, image URL, and duplicate index instead of bare array index, eliminating reorder flicker for the animated listing rows.
 14. `useEffect(..., [])` empty deps with closure values in cart/feed/MobileFilterBar — verify exhaustive-deps.
 15. `useInView.ts:23` legitimate `eslint-disable` (observer-once); add explanatory comment.
 16. `Review.ratingX2 Int` denormalized — undocumented for new contributors. **Fix**: schema comment.
@@ -2092,12 +2093,12 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟡 **MEDIUM (7)**
 
-10. Cart quantity select label not associated — `cart/page.tsx:314-326`. Screen reader announces "10 combo box" with no purpose. **Fix**: `id` on select + `htmlFor` on label.
+10. **[FIXED 2026-04-30] Cart quantity select label not associated** — each cart quantity select now gets a stable item-specific `id`, and the visible `Qty` label uses `htmlFor` so screen readers announce the control purpose.
 11. SellerGallery thumbnail single-row landscape may fall under 44px.
-12. NotificationBell dropdown no `role="menu"` / focus trap. Tab escapes.
-13. UserAvatarMenu dropdown same; missing `aria-haspopup` on trigger.
-14. HeroMosaic no user-controllable pause (WCAG 2.2.2 requires for ≥5s auto-update).
-15. PhotoManager reorder arrows aria-label "left/right" confusing in multi-row grid; `disabled:opacity-30` hides state from VoiceOver. **Fix**: "Move earlier/later in order" + `aria-disabled`.
+12. **[FIXED 2026-04-30] NotificationBell dropdown no role / focus handling** — the notification popover now uses dialog semantics, wires `aria-controls`, and closes when keyboard focus leaves the popover so it does not remain orphaned after tab navigation.
+13. **[FIXED 2026-04-30] UserAvatarMenu dropdown missing menu semantics** — the account trigger now exposes `aria-haspopup="menu"`/`aria-controls`, the dropdown has `role="menu"`, menu entries expose `role="menuitem"`, and focus leaving the menu closes it.
+14. **[FIXED 2026-04-30] HeroMosaic no user-controllable pause** — the animated mosaic now has an explicit pause/play button with `aria-pressed`, while `prefers-reduced-motion` users still get no animation.
+15. **[FIXED 2026-04-30] PhotoManager reorder arrows aria-label "left/right" confusing in multi-row grid** — both new-listing `PhotoManager` and edit-page `EditPhotoGrid` now label controls as moving photos earlier/later in order.
 
 🟢 **LOW (5)**
 
@@ -2105,7 +2106,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 17. **[FIXED 2026-04-30] Skip link uses `focus:not-sr-only` not `focus-visible:not-sr-only`** — the root skip link now reveals only on keyboard focus-visible state.
 18. MobileFilterBar 44px tall pill with 12px text + py-1 looks like padding bug.
 19. FavoriteButton overflow on hover scale (verified card has `overflow-hidden`).
-20. AdminMobileNav tab strip lacks `role="tablist"`; nav items missing `aria-current="page"` (zero matches across codebase).
+20. **[FIXED 2026-04-30] AdminMobileNav active section not announced** — the mobile admin navigation now has an `aria-label` and active links expose `aria-current="page"`; it intentionally remains semantic navigation instead of `role="tablist"` because the controls route between pages, not tab panels.
 
 ---
 
