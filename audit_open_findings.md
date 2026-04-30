@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 AI logging/query reconciliation pass: **70** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 stock notification reconciliation pass: **68** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -169,6 +169,7 @@ Latest mechanical open-heading count after the 2026-04-30 AI logging/query recon
 - **UI/runtime observability pass closed nine small verified bugs.** Stock-notification UI now trusts server subscription state, review-photo uploads report duplicate/limit/empty-url states instead of silently dropping, message stream preflight errors are structured and terminal fallback polling stops on auth/rate-limit failures, CSP parse failures are Sentry-visible, Stripe payout client posts JSON, dead Clerk `legalAcceptedAt` probing was removed, admin email audit logging is statically imported, and the middleware banned-before-admin ordering finding was re-verified already fixed.
 - **Accessibility/stale-UI reconciliation pass closed seven items.** Header home links now have explicit `Grainline home` labels, the skip link uses focus-visible styling, the avatar menu no longer subscribes to Clerk client user state just for a fallback image, and the DismissibleBanner localStorage, theme-color metadata, ImageLightbox safe-area positioning, and window.prompt findings were re-verified already fixed in current code.
 - **AI logging/query reconciliation pass closed four items.** AI review and listing alt-text operational count logs are now development-only `console.debug()` calls, while the follow-count, account-feed TypeScript hack, and listing view/click daily aggregate race findings were re-verified already fixed or stale in current code.
+- **Stock notification boundary tightened.** Back-in-stock subscription UI and subscription lookup now only run for out-of-stock `IN_STOCK` listings, matching the API route's invariant and avoiding a MADE_TO_ORDER/SOLD_OUT control that the server must reject; the quality-score new-seller-bonus finding was re-verified already fixed by seller-account-age gating.
 
 ## Recommended Fix Order
 
@@ -1706,8 +1707,8 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 12. **[FIXED/VERIFIED 2026-04-30] `account/feed/route.ts:69` `not: null as null` TypeScript hack** — the feed route no longer contains the `not: null as null` predicate; current cursor logic uses explicit timestamp filters and publishedAt non-null checks.
 13. **[FIXED/VERIFIED 2026-04-30] `ImageLightbox.tsx:93` Next button at `right-16`** — current lightbox chevrons use safe-area-aware calc positioning with 44px targets, not the old `right-16` offset.
 14. **[FIXED 2026-04-30] `UserAvatarMenu.tsx:50` avatarSrc fallback chain reads Clerk client API** — the avatar menu now trusts `/api/me`-provided avatar/image props and no longer subscribes to `useUser()` just for a fallback image.
-15. `notify/route.ts:36-38` filter `IN_STOCK` excludes MADE_TO_ORDER from back-in-stock subscribe.
-16. `quality-score.ts:178-180` newSellerBonus persists if seller deletes + recreates listings (gaming risk).
+15. **[FIXED 2026-04-30] `notify/route.ts:36-38` filter `IN_STOCK` excludes MADE_TO_ORDER from back-in-stock subscribe** — the API remains intentionally `IN_STOCK`-only, and the listing page now only renders/loads stock notifications for out-of-stock `IN_STOCK` listings so MADE_TO_ORDER/SOLD_OUT pages do not expose a doomed subscribe control.
+16. **[FIXED/VERIFIED 2026-04-30] `quality-score.ts:178-180` newSellerBonus persists if seller deletes + recreates listings** — current scoring gates the zero-review bonus by `SellerProfile.createdAt <= 30 days`, so deleting/recreating listings does not reset or extend the seller-level bonus.
 17. **[FIXED 2026-04-30] `csp-report/route.ts:42-44` catch-all swallows errors silently** — CSP report parsing now captures malformed body failures to Sentry with content-type/body-length context after the existing IP rate limit.
 18. `middleware.ts:93-110` `x-vercel-ip-country` only trustable on Vercel — add comment for future deploys.
 19. **[FIXED 2026-04-30] `api/me/route.ts:7` doesn't exclude banned users** — `/api/me` now calls `ensureUserByClerkId()` for signed-in requests and returns `accountAccessErrorResponse()` for suspended/deleted accounts before loading seller profile metadata.

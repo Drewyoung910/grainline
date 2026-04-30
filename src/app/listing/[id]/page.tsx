@@ -171,6 +171,7 @@ export default async function ListingPage({
   const isOutOfStock =
     listing.status === "SOLD_OUT" ||
     (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
+  const canSubscribeForStockNotification = listing.listingType === "IN_STOCK" && isOutOfStock;
 
   const [
     ratingAgg,
@@ -237,7 +238,7 @@ export default async function ListingPage({
           })
           .then((r) => r !== null)
       : Promise.resolve(false),
-    meId && isOutOfStock
+    meId && canSubscribeForStockNotification
       ? prisma.stockNotification.findUnique({
           where: { listingId_userId: { listingId, userId: meId } },
           select: { id: true },
@@ -479,7 +480,7 @@ export default async function ListingPage({
             canBuy={canBuy}
             isActive={isActive}
             isOwnListing={isOwnListing}
-            isOutOfStock={isOutOfStock}
+            isOutOfStock={canSubscribeForStockNotification}
             isNotified={isNotified}
             listingType={listing.listingType}
             stockQuantity={listing.stockQuantity}
