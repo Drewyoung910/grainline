@@ -4,7 +4,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import { clearRecentlyViewed } from "@/lib/recentlyViewed";
 
 interface Props {
@@ -20,7 +20,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const { signOut, openUserProfile } = useClerk();
-  const { user: clerkUser } = useUser();
   const pathname = usePathname();
 
   // Close on navigation
@@ -48,7 +47,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  const avatarSrc = avatarImageUrl ?? imageUrl ?? clerkUser?.imageUrl ?? null;
+  const avatarSrc = avatarImageUrl ?? imageUrl ?? null;
   const displayName = name ?? "Account";
   const isAdmin = role === "ADMIN" || role === "EMPLOYEE";
 

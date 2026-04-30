@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 UI/runtime observability pass: **81** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 accessibility/stale-UI reconciliation pass: **74** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -167,6 +167,7 @@ Latest mechanical open-heading count after the 2026-04-30 UI/runtime observabili
 - **Recently-viewed auth boundary added.** The client now clears the `rv` recently-viewed cookie on explicit sign-out, account deletion, signed-out auth transitions, and signed-in user switches, preventing one shared-device user from inheriting another user's browsing history.
 - **Public account-state routes tightened.** `/api/me` now resolves signed-in users through `ensureUserByClerkId()` and returns typed suspended/deleted account responses instead of exposing role/name/avatar metadata; `/api/cart` was re-verified already enforcing the same guard despite being public at middleware for anonymous cart support.
 - **UI/runtime observability pass closed nine small verified bugs.** Stock-notification UI now trusts server subscription state, review-photo uploads report duplicate/limit/empty-url states instead of silently dropping, message stream preflight errors are structured and terminal fallback polling stops on auth/rate-limit failures, CSP parse failures are Sentry-visible, Stripe payout client posts JSON, dead Clerk `legalAcceptedAt` probing was removed, admin email audit logging is statically imported, and the middleware banned-before-admin ordering finding was re-verified already fixed.
+- **Accessibility/stale-UI reconciliation pass closed seven items.** Header home links now have explicit `Grainline home` labels, the skip link uses focus-visible styling, the avatar menu no longer subscribes to Clerk client user state just for a fallback image, and the DismissibleBanner localStorage, theme-color metadata, ImageLightbox safe-area positioning, and window.prompt findings were re-verified already fixed in current code.
 
 ## Recommended Fix Order
 
@@ -1513,13 +1514,13 @@ The section below is the verbatim chronological round-by-round content from the 
 10. HeroMosaic `width:200%` + blur+scale on iOS Safari = GPU thrash on older iPhones. Add `prefers-reduced-motion` rule.
 11. `backdrop-blur-sm` Firefox ESR may render solid white.
 12. `step="0.01"` allows `1e10` exponent input.
-13. `localStorage` in DismissibleBanner (already wrapped — verify).
+13. **[FIXED/VERIFIED 2026-04-30] `localStorage` in DismissibleBanner** — current code wraps both read and write access in `try/catch`, so private-mode/storage-denied browsers do not crash the banner.
 14. `<select>` State dropdown unstyled across browsers (acceptable).
 15. `scrollbar-color`/`scrollbar-width` Firefox-only — visual inconsistency.
 16. `aspect-ratio` Tailwind classes 0-height on iPad Safari 14 (small user share).
 17. `accent-neutral-900` on radios — Safari <15.4 default blue.
 18. `font-display: swap` not set (Georgia is system, instant).
-19. No `<meta name="theme-color">` per `prefers-color-scheme`.
+19. **[FIXED/VERIFIED 2026-04-30] No `<meta name="theme-color">` per `prefers-color-scheme`** — the root layout exports a Next `viewport` config with `themeColor` and `viewportFit: "cover"`, so mobile browser chrome has an explicit theme color.
 20. Bleeding-edge JS APIs not used (Object.groupBy, URL.canParse, top-level await) — codebase is conservative ✓
 
 ✅ **No use of**: top-level await, Object.groupBy, URL.canParse — safe across modern browsers.
@@ -1702,8 +1703,8 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 10. `getFollowerCount` called twice on POST follow — extra round trip.
 11. `listings/[id]/view/route.ts:46-47` race; `listingViewDaily.upsert` FK fails on deleted listing — handled by .catch.
 12. `account/feed/route.ts:69` `not: null as null` TypeScript hack; redundant with `lt` filter.
-13. `ImageLightbox.tsx:93` Next button at `right-16` (16rem) far from visual right edge on mobile.
-14. `UserAvatarMenu.tsx:50` avatarSrc fallback chain reads Clerk client API — slow.
+13. **[FIXED/VERIFIED 2026-04-30] `ImageLightbox.tsx:93` Next button at `right-16`** — current lightbox chevrons use safe-area-aware calc positioning with 44px targets, not the old `right-16` offset.
+14. **[FIXED 2026-04-30] `UserAvatarMenu.tsx:50` avatarSrc fallback chain reads Clerk client API** — the avatar menu now trusts `/api/me`-provided avatar/image props and no longer subscribes to `useUser()` just for a fallback image.
 15. `notify/route.ts:36-38` filter `IN_STOCK` excludes MADE_TO_ORDER from back-in-stock subscribe.
 16. `quality-score.ts:178-180` newSellerBonus persists if seller deletes + recreates listings (gaming risk).
 17. **[FIXED 2026-04-30] `csp-report/route.ts:42-44` catch-all swallows errors silently** — CSP report parsing now captures malformed body failures to Sentry with content-type/body-length context after the existing IP rate limit.
@@ -2098,8 +2099,8 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟢 **LOW (5)**
 
-16. Header logo Link missing `aria-label="Grainline home"`.
-17. Skip link uses `focus:not-sr-only` not `focus-visible:not-sr-only` (mouse-clicked link triggers it).
+16. **[FIXED 2026-04-30] Header logo Link missing `aria-label="Grainline home"`** — desktop and mobile drawer home-logo links now use the explicit home label.
+17. **[FIXED 2026-04-30] Skip link uses `focus:not-sr-only` not `focus-visible:not-sr-only`** — the root skip link now reveals only on keyboard focus-visible state.
 18. MobileFilterBar 44px tall pill with 12px text + py-1 looks like padding bug.
 19. FavoriteButton overflow on hover scale (verified card has `overflow-hidden`).
 20. AdminMobileNav tab strip lacks `role="tablist"`; nav items missing `aria-current="page"` (zero matches across codebase).
@@ -3341,7 +3342,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 69. **[FIXED 2026-04-30] Auto-select cheapest rate overrides user's premium pick** — shipping quote refresh now preserves the selected service when it still exists in the fresh rate set and only falls back to the cheapest rate when there is no matching selection.
 
-70. **`window.prompt` blocks UI thread** in 6 admin destructive actions (UndoActionButton, BanUserButton, ReviewListingButtons reject). *Fix*: replace with custom modal via `useDialogFocus`.
+70. **[FIXED/VERIFIED 2026-04-30] `window.prompt` blocks UI thread** in admin destructive actions — current code has no `window.prompt` / `prompt()` matches under `src/app` or `src/components`, and the earlier admin prompt-flow note remains closed.
 
 71. **[FIXED 2026-04-30] NotificationBell mark-all-read no rollback on error** — Mark-all-read and single mark-read now snapshot the prior notification list/unread count, require `res.ok`, and restore state on failed POST instead of leaving the client optimistic state out of sync with the server.
 

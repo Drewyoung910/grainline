@@ -131,7 +131,7 @@ export default function Header() {
     <header className="border-b bg-gradient-to-b from-amber-50 to-white relative z-[50]">
       <nav aria-label="Main navigation" className="mx-auto max-w-6xl p-4 flex items-center gap-4">
         {/* Logo */}
-        <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline">
+        <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
           {/* Mobile */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden" />
@@ -292,7 +292,7 @@ export default function Header() {
               <Link
                 href="/"
                 className="flex items-center"
-                aria-label="Grainline"
+                aria-label="Grainline home"
                 onClick={() => setDrawerOpen(false)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
