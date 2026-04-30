@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 recently-viewed auth-boundary pass: **92** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 public account-state route pass: **90** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -165,6 +165,7 @@ Latest mechanical open-heading count after the 2026-04-30 recently-viewed auth-b
 - **Clerk webhook primary-email drift tightened.** Clerk user webhooks now sync only the matched `primary_email_address_id`, log Sentry warnings when the primary email is missing or malformed, and capture Svix verification failures so tampering/replay noise is visible.
 - **Webhook provider config/idempotency tightened.** Clerk welcome email sends now reserve `welcomeEmailSentAt` atomically before direct send side effects; Resend webhook verification now requires both `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY`; the Stripe webhook missing-secret finding was re-verified already fixed with 503/Sentry/failure-spike handling.
 - **Recently-viewed auth boundary added.** The client now clears the `rv` recently-viewed cookie on explicit sign-out, account deletion, signed-out auth transitions, and signed-in user switches, preventing one shared-device user from inheriting another user's browsing history.
+- **Public account-state routes tightened.** `/api/me` now resolves signed-in users through `ensureUserByClerkId()` and returns typed suspended/deleted account responses instead of exposing role/name/avatar metadata; `/api/cart` was re-verified already enforcing the same guard despite being public at middleware for anonymous cart support.
 
 ## Recommended Fix Order
 
@@ -1706,7 +1707,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 16. `quality-score.ts:178-180` newSellerBonus persists if seller deletes + recreates listings (gaming risk).
 17. `csp-report/route.ts:42-44` catch-all swallows errors silently — Sentry blind.
 18. `middleware.ts:93-110` `x-vercel-ip-country` only trustable on Vercel — add comment for future deploys.
-19. `api/me/route.ts:7` doesn't exclude banned users (defense-in-depth gap; mitigated by middleware redirect).
+19. **[FIXED 2026-04-30] `api/me/route.ts:7` doesn't exclude banned users** — `/api/me` now calls `ensureUserByClerkId()` for signed-in requests and returns `accountAccessErrorResponse()` for suspended/deleted accounts before loading seller profile metadata.
 20. `csp-report/route.ts:42-44` swallows body parse errors — diagnostic gap.
 
 ✅ **Verified working in older files**:
@@ -2285,7 +2286,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 11. **[FIXED 2026-04-30] Admin PIN cookie `sameSite: "strict"` breaks Clerk OAuth navigations** — Admin PIN cookies are now set with `sameSite: "lax"` in both configured-PIN and local dev-bypass paths while remaining `httpOnly`, bounded, and secure in production.
 12. `ensureUser` legalAcceptedAt typed as `unknown` — dead code path; remove.
-13. Banned user with active CartItems can still hit `/api/cart` GET — `/api/cart` is in `isPublic`; banned check only fires for non-public. **Fix**: move banned check before isPublic for routes reading user data, OR enforce at route.
+13. **[FIXED/VERIFIED 2026-04-30] Banned user with active CartItems can still hit `/api/cart` GET** — `GET /api/cart` is public at middleware for anonymous-cart compatibility, but the route itself calls `ensureUserByClerkId(userId)` before reading the cart and returns typed `ACCOUNT_SUSPENDED` / `ACCOUNT_DELETED` responses for banned/deleted signed-in users.
 14. **[FIXED 2026-04-30] Recently-viewed cookie cross-user leak on shared device** — `RecentlyViewedAuthBoundary` tracks the last signed-in Clerk user ID in local storage and clears the `rv` cookie when the signed-in user changes, so User B does not inherit User A's recently viewed listings.
 15. Admin email route uses dynamic import inside POST — `admin/email/route.ts:151`. Performance cost. **Fix**: hoist to top.
 16. AdminPin cookie not bound to Clerk session ID — would benefit from session-rotation invalidation but minor.
