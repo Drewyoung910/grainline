@@ -19,7 +19,7 @@ import {
 import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
 
 const DEFAULT_BATCH_SIZE = 50;
-const DEFAULT_CONCURRENCY = 5;
+const DEFAULT_CONCURRENCY = 2;
 const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 
 export type QueuedEmail = {

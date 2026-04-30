@@ -9,6 +9,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { stripBidiControls } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
+import { sendEmailWithRetry } from "@/lib/emailRetry";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -191,21 +192,33 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
       return;
     }
 
-    await resend!.emails.send({
-      from: process.env.EMAIL_FROM!,
-      to: recipient,
-      subject: sanitizedSubject,
-      html: htmlForRecipient,
-      text: htmlToText(htmlForRecipient),
-      ...(unsubscribeUrl
-        ? {
-            headers: {
-              "List-Unsubscribe": `<${unsubscribeUrl}>`,
-              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-            },
-          }
-        : {}),
-    });
+    await sendEmailWithRetry(
+      () =>
+        resend!.emails.send({
+          from: process.env.EMAIL_FROM!,
+          to: recipient,
+          subject: sanitizedSubject,
+          html: htmlForRecipient,
+          text: htmlToText(htmlForRecipient),
+          ...(unsubscribeUrl
+            ? {
+                headers: {
+                  "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                },
+              }
+            : {}),
+        }),
+      {
+        onRetry: (err, attempt, delayMs) => {
+          Sentry.captureException(err, {
+            level: "warning",
+            tags: { source: "email_send_retry" },
+            extra: { to: recipient, subject: sanitizedSubject, attempt, delayMs },
+          });
+        },
+      },
+    );
   } catch (err) {
     console.error("[email] send failed:", err);
     Sentry.captureException(err, { tags: { source: "email_send" }, extra: { to: recipient, subject } });

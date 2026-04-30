@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
   try {
-    const result = await processEmailOutboxBatch({ take: 50, concurrency: 5 });
+    const result = await processEmailOutboxBatch({ take: 50, concurrency: 2 });
     await completeCronRun(cronRun, result);
     return NextResponse.json(result);
   } catch (error) {

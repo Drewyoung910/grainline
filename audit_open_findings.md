@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 email subject pass: **124** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 email retry/text pass: **121** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -155,6 +155,7 @@ Latest mechanical open-heading count after the 2026-04-30 email subject pass: **
 - **Stale auth/notification findings reconciled.** R29 account-access API handling and the notification preference lookup failure item were re-verified against current code and marked fixed/verified instead of patched symptomatically.
 - **Case-resolution buyer copy is resolution-specific.** Admin case resolution now uses `caseResolutionCopy()` for notifications and emails, so full refunds, partial refunds, and dismissed cases have distinct titles/subjects/body copy and dismissed cases no longer read like refunds.
 - **Transactional email subjects are warmup-safe.** Built-in transactional subject lines in `src/lib/email.ts` no longer contain emoji or non-ASCII symbols; a regex pass confirms subject literals/calls are ASCII-only.
+- **Email text and retry behavior hardened.** `htmlToText()` now preserves table cell boundaries in plain text instead of collapsing order totals into number runs, direct Resend sends retry transient provider/network failures up to three attempts, and the email outbox cron drains at concurrency 2 to reduce provider-rate-limit bursts.
 
 ## Recommended Fix Order
 
@@ -1800,7 +1801,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 17. **[FIXED/VERIFIED 2026-04-30] `webhook:46` stripe.events.retrieve silent 500 on Workbench thin events** — Thin-event retrieval failures now capture Sentry context, record a webhook failure-spike bucket, and return a retryable 503 instead of falling into an unclassified handler 500.
 
-18. **`email-outbox:24` Resend rate-limit not exposed** — 100/sec limit; backlog of 50 with concurrency 5 retries rapidly. No backoff. **Fix**: exponential backoff per email + cap concurrency to 2 during backlog drains.
+18. **[FIXED 2026-04-30] `email-outbox:24` Resend rate-limit not exposed** — queued email jobs already had exponential retry/dead-letter state; the remaining burst risk was the cron explicitly draining 50 jobs at concurrency 5. `/api/cron/email-outbox` and `processEmailOutboxBatch()` now use concurrency 2 by default, keeping backlog drains below Resend burst limits while preserving retry state.
 
 19. **`label/route.ts:408` stripe.transfers.createReversal failure swallowed** — Label bought on platform's dime ($10-50). Sentry captures but no automated retry. **Fix**: record `stripeClawbackPending: true` + reconciliation cron.
 
@@ -3251,9 +3252,9 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 35. **[FIXED/VERIFIED 2026-04-30] VERIFICATION_REJECTED notification body lacks `reviewNotes`** — admin verification rejection paths now pass sanitized `reviewNotes` as the notification body when present, with a fallback message when absent.
 
-36. **`htmlToText` plain-text quality is poor** — totals tables collapse into number runs. Spam-filter weight on HTML/text consistency. *Fix*: hand-write text alts for high-volume order/shipping emails.
+36. **[FIXED 2026-04-30] `htmlToText` plain-text quality is poor** — shared text rendering now converts `<td>/<th>` boundaries into readable ` | ` separators and compacts table whitespace, so order item/totals tables no longer collapse into number runs. Regression coverage verifies rendered table text.
 
-37. **No retry on Resend transient failures** — single try/catch. 5-second Resend hiccup loses transactional emails. *Fix*: 3-attempt exponential backoff via `p-retry`.
+37. **[FIXED 2026-04-30] No retry on Resend transient failures** — direct transactional sends now route through `sendEmailWithRetry()`, retrying transient provider/network failures up to three attempts with bounded exponential delay while avoiding retries for permanent 4xx errors. Retries are Sentry-captured with recipient/subject context.
 
 ### Library file bugs
 
