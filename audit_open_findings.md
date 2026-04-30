@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 email retry/text pass: **121** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 case/message state pass: **118** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -156,6 +156,7 @@ Latest mechanical open-heading count after the 2026-04-30 email retry/text pass:
 - **Case-resolution buyer copy is resolution-specific.** Admin case resolution now uses `caseResolutionCopy()` for notifications and emails, so full refunds, partial refunds, and dismissed cases have distinct titles/subjects/body copy and dismissed cases no longer read like refunds.
 - **Transactional email subjects are warmup-safe.** Built-in transactional subject lines in `src/lib/email.ts` no longer contain emoji or non-ASCII symbols; a regex pass confirms subject literals/calls are ASCII-only.
 - **Email text and retry behavior hardened.** `htmlToText()` now preserves table cell boundaries in plain text instead of collapsing order totals into number runs, direct Resend sends retry transient provider/network failures up to three attempts, and the email outbox cron drains at concurrency 2 to reduce provider-rate-limit bursts.
+- **Case and message state tightened.** Buyer-opened cases now write a durable audit entry, early case-open errors include the actual estimated delivery date, message threads with banned/deleted/missing recipients show an unavailable-account banner and block new replies server-side, and touched case/message/email snippets use surrogate-safe truncation.
 
 ## Recommended Fix Order
 
@@ -3368,7 +3369,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 86. **[FIXED 2026-04-30] Followers can't tell why they're not seeing posts from vacation seller** — `/account/following` now selects vacation state and shows an "On vacation" badge with return date when available.
 
-87. **Banned seller's existing conversations stay open** — buyers can still send messages (which seller can't see). No "this maker is no longer available". *Fix*: render banner in thread.
+87. **[FIXED 2026-04-30] Banned seller's existing conversations stay open** — message threads now select recipient account state, hide the composer, show an unavailable-account banner, and re-check the recipient in the `sendMessage` server action before writing messages. This blocks replies to banned/deleted/missing participants while preserving historical messages.
 
 ### Library / minor
 
@@ -3402,9 +3403,9 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 102. **[FIXED/VERIFIED 2026-04-30] `/api/account/feed` may have stale gates** — Listings, blog posts, and broadcasts all filter through followed-seller visibility (`chargesEnabled`, not vacation, user not banned/deleted), and blog posts also require an active author.
 
-103. **Audit log missing for buyer-initiated case open** — `src/app/api/cases/route.ts` POST creates Case + notification + email but no `logAdminAction`. Not strictly admin, but high-value event. *Fix*: log under non-admin "buyer action" type.
+103. **[FIXED 2026-04-30] Audit log missing for buyer-initiated case open** — case creation now writes a `BUYER_OPEN_CASE` audit entry through `logUserAuditAction()` with actor kind, order ID, seller ID, and reason metadata. Audit-log write failures are captured to Sentry and do not break case creation.
 
-104. **Case API blocks before delivery date with poor UX** — error message doesn't show date or "we'll let you know when you can". *Fix*: UI should disable button until eligible; show date.
+104. **[FIXED 2026-04-30] Case API blocks before delivery date with poor UX** — early case-open API errors now include the concrete estimated delivery date using `caseEstimatedDeliveryBlockMessage()`, with regression coverage for the formatted message.
 
 105. **Stock restoration on partial refund** — only FULL restores stock; partial leaves item with buyer + decremented stock. Documented limitation. *Fix*: optional `restoreStock?: { listingId, quantity }[]` array on partial refund.
 

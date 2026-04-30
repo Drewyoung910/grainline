@@ -1,12 +1,16 @@
 // src/app/api/cases/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
 import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { logUserAuditAction } from "@/lib/audit";
+import { caseEstimatedDeliveryBlockMessage } from "@/lib/caseCreateState";
+import { truncateText } from "@/lib/sanitize";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -104,7 +108,7 @@ export async function POST(req: Request) {
       !order.reviewNeeded
     ) {
       return NextResponse.json(
-        { error: "Cannot open a case before the estimated delivery date." },
+        { error: caseEstimatedDeliveryBlockMessage(order.estimatedDeliveryDate) },
         { status: 400 }
       );
     }
@@ -134,11 +138,19 @@ export async function POST(req: Request) {
       include: { messages: true },
     });
 
+    await logUserAuditAction({
+      actorId: me.id,
+      action: "BUYER_OPEN_CASE",
+      targetType: "CASE",
+      targetId: newCase.id,
+      metadata: { orderId, sellerId, reason },
+    });
+
     await createNotification({
       userId: sellerId,
       type: "CASE_OPENED",
       title: `${me.name ?? me.email?.split("@")[0] ?? "A buyer"} opened a case`,
-      body: description.slice(0, 60),
+      body: truncateText(description, 60),
       link: `/dashboard/sales/${orderId}`,
     });
 
@@ -157,7 +169,13 @@ export async function POST(req: Request) {
           });
         }
       }
-    } catch { /* non-fatal */ }
+    } catch (emailError) {
+      Sentry.captureException(emailError, {
+        level: "warning",
+        tags: { source: "case_open_email" },
+        extra: { caseId: newCase.id, orderId, sellerId },
+      });
+    }
 
     return NextResponse.json(newCase, { status: 201 });
   } catch (err) {

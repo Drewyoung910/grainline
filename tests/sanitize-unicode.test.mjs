@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { sanitizeText, sanitizeUserName, stripBidiControls } = await import("../src/lib/sanitize.ts");
+const { sanitizeText, sanitizeUserName, stripBidiControls, truncateText, truncateTextWithEllipsis } = await import("../src/lib/sanitize.ts");
 const { containsProfanity } = await import("../src/lib/profanity.ts");
 
 describe("unicode sanitization", () => {
@@ -21,6 +21,11 @@ describe("unicode sanitization", () => {
 
   it("normalizes and caps user names at the database boundary", () => {
     assert.equal(sanitizeUserName("Ａlice   \u202E Woodworker", 12), "Alice Woodwo");
+  });
+
+  it("does not split surrogate-pair characters while truncating text", () => {
+    assert.equal(truncateText("aa🙂bb", 3), "aa🙂");
+    assert.equal(truncateTextWithEllipsis("aa🙂bb", 3), "aa🙂…");
   });
 
   it("normalizes Cyrillic confusables before profanity matching", () => {

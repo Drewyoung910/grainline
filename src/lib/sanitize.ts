@@ -27,10 +27,19 @@ export function sanitizeText(input: string): string {
 }
 
 export function sanitizeUserName(input: string, maxLength = 100): string {
-  return sanitizeText(input)
-    .replace(/\s+/g, " ")
-    .slice(0, maxLength)
-    .trim();
+  return truncateText(sanitizeText(input).replace(/\s+/g, " "), maxLength).trim();
+}
+
+export function truncateText(input: string, maxLength: number): string {
+  const limit = Math.max(0, Math.floor(maxLength));
+  const chars = Array.from(input);
+  if (chars.length <= limit) return input;
+  return chars.slice(0, limit).join("");
+}
+
+export function truncateTextWithEllipsis(input: string, maxLength: number): string {
+  const truncated = truncateText(input, maxLength);
+  return Array.from(input).length > Math.max(0, Math.floor(maxLength)) ? `${truncated}…` : truncated;
 }
 
 // For longer content (bio, description) — allow basic formatting but strip dangerous content

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { stripBidiControls } from "@/lib/sanitize";
+import { stripBidiControls, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { sendEmailWithRetry } from "@/lib/emailRetry";
@@ -386,7 +386,7 @@ export async function sendCaseOpened(opts: {
   const sellerName = seller.name || "there";
   const buyerName = buyer.name || "A buyer";
   const orderUrl = `${APP_URL}/dashboard/sales/${orderId}`;
-  const snippet = caseDescription.slice(0, 150) + (caseDescription.length > 150 ? "…" : "");
+  const snippet = truncateTextWithEllipsis(caseDescription, 150);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> has opened a case regarding their order.</p>
@@ -408,7 +408,7 @@ export async function sendCaseMessage(opts: {
   const { recipientName, recipientEmail, senderName, caseLink, messageSnippet } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
-  const snippet = messageSnippet.slice(0, 150) + (messageSnippet.length > 150 ? "…" : "");
+  const snippet = truncateTextWithEllipsis(messageSnippet, 150);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent a message in your case.</p>
@@ -456,7 +456,7 @@ export async function sendCustomOrderRequest(opts: {
   const sellerName = seller.displayName || "there";
   const buyer = buyerName || "A buyer";
   const convoUrl = `${APP_URL}/messages/${conversationId}`;
-  const snippet = description.slice(0, 200) + (description.length > 200 ? "…" : "");
+  const snippet = truncateTextWithEllipsis(description, 200);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyer)}</strong> wants a custom piece!</p>
@@ -808,7 +808,7 @@ export async function sendNewMessageEmail(opts: {
   const { recipientEmail, recipientName, senderName, messagePreview, conversationUrl } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
-  const preview = messagePreview.slice(0, 200) + (messagePreview.length > 200 ? "…" : "");
+  const preview = truncateTextWithEllipsis(messagePreview, 200);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent you a message:</p>
@@ -832,7 +832,7 @@ export async function sendNewReviewEmail(opts: {
   const name = sellerName || "there";
   const buyer = buyerName || "A buyer";
   const ratingDisplay = Number.isInteger(rating) ? `${rating}` : rating.toFixed(1);
-  const preview = reviewPreview.slice(0, 200) + (reviewPreview.length > 200 ? "…" : "");
+  const preview = truncateTextWithEllipsis(reviewPreview, 200);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(buyer)}</strong> left a review on <strong>${esc(listingTitle)}</strong>:</p>

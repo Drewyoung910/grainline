@@ -34,8 +34,37 @@ export async function logAdminAction({
     return log.id
   } catch (error) {
     console.error('Audit log failed:', error)
+    Sentry.captureException(error, {
+      tags: { source: 'audit_log', action },
+      extra: { adminId, targetType, targetId },
+    })
     return ''
   }
+}
+
+export async function logUserAuditAction({
+  actorId,
+  action,
+  targetType,
+  targetId,
+  reason,
+  metadata = {},
+}: {
+  actorId: string
+  action: string
+  targetType: string
+  targetId: string
+  reason?: string
+  metadata?: Record<string, unknown>
+}): Promise<string> {
+  return logAdminAction({
+    adminId: actorId,
+    action,
+    targetType,
+    targetId,
+    reason,
+    metadata: { ...metadata, actorKind: 'user' },
+  })
 }
 
 export async function undoAdminAction({

@@ -17,6 +17,8 @@ import BlockReportButton from "@/components/BlockReportButton";
 import { normalizeMessageAttachments } from "@/lib/messageAttachments";
 import { publicListingPath } from "@/lib/publicPaths";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { messagingUnavailableReason } from "@/lib/messageRecipientState";
+import { truncateText } from "@/lib/sanitize";
 
 export default async function ThreadPage({
   params,
@@ -34,8 +36,8 @@ export default async function ThreadPage({
   const convo = await prisma.conversation.findFirst({
     where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     include: {
-      userA: { select: { id: true, name: true, email: true, imageUrl: true } },
-      userB: { select: { id: true, name: true, email: true, imageUrl: true } },
+      userA: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
+      userB: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
       contextListing: {
         select: {
           id: true,
@@ -61,6 +63,7 @@ export default async function ThreadPage({
   });
 
   const other = convo.userAId === me.id ? convo.userB : convo.userA;
+  const otherUnavailableReason = messagingUnavailableReason(other);
 
   // Check if the other participant is a seller accepting custom orders
   const otherSellerProfile = other
@@ -69,7 +72,7 @@ export default async function ThreadPage({
         select: { displayName: true, acceptsCustomOrders: true, avatarImageUrl: true },
       })
     : null;
-  const showCustomOrderButton = !!(otherSellerProfile?.acceptsCustomOrders);
+  const showCustomOrderButton = !!(otherSellerProfile?.acceptsCustomOrders && !otherUnavailableReason);
 
   // Avatar priority: custom seller avatar first, Clerk imageUrl fallback
   const otherAvatarUrl = otherSellerProfile?.avatarImageUrl ?? other?.imageUrl ?? null;
@@ -105,7 +108,7 @@ export default async function ThreadPage({
     const { success: rlOk } = await safeRateLimit(messageRatelimit, me.id);
     if (!rlOk) return { ok: false, error: "You're sending messages too quickly. Please wait a moment." };
 
-    const body = String(formData.get("body") ?? "").trim().slice(0, 2000);
+    const body = truncateText(String(formData.get("body") ?? "").trim(), 2000);
     const atts = normalizeMessageAttachments(String(formData.get("attachments") ?? "[]"), isR2PublicUrl);
 
     // Profanity check (log-only)
@@ -123,6 +126,12 @@ export default async function ThreadPage({
     if (!c) return { ok: false };
 
     const recipientId = c.userAId === me.id ? c.userBId : c.userAId;
+    const recipient = await prisma.user.findUnique({
+      where: { id: recipientId },
+      select: { banned: true, deletedAt: true },
+    });
+    const unavailableReason = messagingUnavailableReason(recipient);
+    if (unavailableReason) return { ok: false, error: unavailableReason };
 
     // Block check — reject if either user has blocked the other
     const blockExists = await prisma.block.findFirst({
@@ -205,7 +214,7 @@ export default async function ThreadPage({
               recipientEmail: recipientUser.email,
               recipientName: recipientUser.name ?? "there",
               senderName: me.name ?? me.email?.split("@")[0] ?? "Someone",
-              messagePreview: body.slice(0, 200),
+              messagePreview: truncateText(body, 200),
               conversationUrl: `https://thegrainline.com/messages/${id}`,
             });
           }
@@ -320,6 +329,12 @@ export default async function ThreadPage({
         </div>
       </header>
 
+      {otherUnavailableReason ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {otherUnavailableReason}
+        </div>
+      ) : null}
+
       {ctx && (
         <Link
           href={publicListingPath(ctx.id, ctx.title)}
@@ -351,10 +366,11 @@ export default async function ThreadPage({
       />
 
       {/* sticky composer */}
-      <ActionForm action={sendMessage}>
-        <MessageComposer />
-      </ActionForm>
+      {otherUnavailableReason ? null : (
+        <ActionForm action={sendMessage}>
+          <MessageComposer />
+        </ActionForm>
+      )}
     </main>
   );
 }
-
