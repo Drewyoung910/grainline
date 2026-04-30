@@ -98,7 +98,7 @@ export default async function SavedPage({
                 user: { select: { imageUrl: true } },
               },
             },
-            photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+            photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           },
         },
       },
@@ -133,6 +133,7 @@ export default async function SavedPage({
                         listingType: l.listingType,
                         stockQuantity: l.stockQuantity ?? null,
                         photoUrl: l.photos[0]?.url ?? null,
+                        photoAltText: l.photos[0]?.altText ?? null,
                         seller: {
                           id: l.seller.id,
                           displayName: l.seller.displayName ?? null,

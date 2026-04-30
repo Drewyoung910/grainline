@@ -64,7 +64,7 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
     take,
     skip,
     include: {
-      photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
+      photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
       seller: { include: { user: true } },
       ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
     },
@@ -426,7 +426,7 @@ export default async function BrowsePage({
       where: publicListingWhere(),
       orderBy: { favorites: { _count: "desc" } },
       take: 4,
-      include: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
+      include: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } } },
     });
 
     return (
@@ -472,7 +472,7 @@ export default async function BrowsePage({
                     <li key={l.id} className="border border-neutral-200 overflow-hidden">
                       <Link href={publicListingPath(l.id, l.title)} className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={l.photos[0]?.url ?? "/favicon.ico"} alt={l.title} loading="lazy" className="h-36 w-full object-cover" />
+                        <img src={l.photos[0]?.url ?? "/favicon.ico"} alt={l.photos[0]?.altText ?? l.title} loading="lazy" className="h-36 w-full object-cover" />
                         <div className="p-2 text-sm font-medium truncate">{l.title}</div>
                       </Link>
                     </li>
@@ -527,7 +527,9 @@ export default async function BrowsePage({
             listingType: l.listingType,
             stockQuantity: l.stockQuantity ?? null,
             photoUrl: l.photos[0]?.url ?? null,
+            photoAltText: l.photos[0]?.altText ?? null,
             secondPhotoUrl: l.photos[1]?.url ?? null,
+            secondPhotoAltText: l.photos[1]?.altText ?? null,
             seller: {
               id: l.sellerId,
               displayName: l.seller.displayName ?? null,

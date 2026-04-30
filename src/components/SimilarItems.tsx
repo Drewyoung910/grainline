@@ -13,7 +13,9 @@ type SimilarListing = {
   listingType: string;
   stockQuantity: number | null;
   photoUrl: string | null;
+  photoAltText: string | null;
   secondPhotoUrl: string | null;
+  secondPhotoAltText: string | null;
   seller: {
     id: string;
     displayName: string | null;
@@ -70,7 +72,9 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
                     listingType: l.listingType,
                     stockQuantity: l.stockQuantity,
                     photoUrl: l.photoUrl,
+                    photoAltText: l.photoAltText,
                     secondPhotoUrl: l.secondPhotoUrl,
+                    secondPhotoAltText: l.secondPhotoAltText,
                     seller: {
                       id: l.seller.id,
                       displayName: l.seller.displayName,

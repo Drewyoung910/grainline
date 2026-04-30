@@ -471,6 +471,7 @@ export default async function SellerPublicPage({
                       listingType: l.listingType,
                       stockQuantity: l.stockQuantity ?? null,
                       photoUrl: l.photos[0]?.url ?? null,
+                      photoAltText: l.photos[0]?.altText ?? null,
                       seller: {
                         id: seller.id,
                         displayName: seller.displayName ?? null,
@@ -691,6 +692,7 @@ export default async function SellerPublicPage({
                       listingType: l.listingType,
                       stockQuantity: l.stockQuantity ?? null,
                       photoUrl: l.photos[0]?.url ?? null,
+                      photoAltText: l.photos[0]?.altText ?? null,
                       seller: {
                         id: seller.id,
                         displayName: seller.displayName ?? null,

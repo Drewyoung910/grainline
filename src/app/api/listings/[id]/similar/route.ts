@@ -14,7 +14,9 @@ type SimilarRow = {
   listingType: string;
   stockQuantity: number | null;
   photoUrl: string | null;
+  photoAltText: string | null;
   secondPhotoUrl: string | null;
+  secondPhotoAltText: string | null;
   sellerDisplayName: string;
   sellerAvatarImageUrl: string | null;
   sellerGuildLevel: string | null;
@@ -56,7 +58,9 @@ export async function GET(
         l."listingType"::text AS "listingType",
         l."stockQuantity",
         (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoUrl",
+        (SELECT p."altText" FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1) AS "photoAltText",
         (SELECT p.url FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1 OFFSET 1) AS "secondPhotoUrl",
+        (SELECT p."altText" FROM "Photo" p WHERE p."listingId" = l.id ORDER BY p."sortOrder" ASC LIMIT 1 OFFSET 1) AS "secondPhotoAltText",
         sp."displayName" AS "sellerDisplayName",
         sp."avatarImageUrl" AS "sellerAvatarImageUrl",
         sp."guildLevel"::text AS "sellerGuildLevel",
@@ -125,7 +129,9 @@ export async function GET(
         listingType: r.listingType,
         stockQuantity: r.stockQuantity,
         photoUrl: r.photoUrl,
+        photoAltText: r.photoAltText,
         secondPhotoUrl: r.secondPhotoUrl,
+        secondPhotoAltText: r.secondPhotoAltText,
         seller: {
           id: r.sellerId,
           displayName: r.sellerDisplayName,

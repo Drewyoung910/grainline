@@ -119,7 +119,7 @@ const featuredListingSelect = {
   id: true,
   title: true,
   priceCents: true,
-  photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+  photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
 } satisfies Prisma.ListingSelect;
 
 type FeaturedListing = Prisma.ListingGetPayload<{ select: typeof featuredListingSelect }>;
@@ -207,7 +207,7 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
       take: 6,
       include: {
-        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
           select: {
             displayName: true,
@@ -232,7 +232,7 @@ export default async function HomePage() {
         orderBy: { createdAt: "desc" },
         take: 6,
         include: {
-          photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
+          photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           seller: {
             select: {
               displayName: true,
@@ -252,7 +252,7 @@ export default async function HomePage() {
       orderBy: { qualityScore: "desc" },
       take: 6,
       include: {
-        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
           select: {
             displayName: true,
@@ -357,7 +357,7 @@ export default async function HomePage() {
   let saved = new Set<string>();
   let savedBlogSlugs = new Set<string>();
   type FromYourMakersItem =
-    | { kind: "listing"; id: string; title: string; priceCents: number; currency: string; photoUrl: string | null; sellerName: string; sellerProfileId: string }
+    | { kind: "listing"; id: string; title: string; priceCents: number; currency: string; photoUrl: string | null; photoAltText: string | null; sellerName: string; sellerProfileId: string }
     | { kind: "blog"; slug: string; title: string; coverImageUrl: string | null; sellerName: string; sellerProfileId: string };
   let fromYourMakers: FromYourMakersItem[] = [];
 
@@ -398,7 +398,7 @@ export default async function HomePage() {
           select: {
             id: true, title: true, priceCents: true, currency: true, createdAt: true, sellerId: true,
             seller: { select: { displayName: true } },
-            photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+            photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           },
         }),
         prisma.blogPost.findMany({
@@ -416,6 +416,7 @@ export default async function HomePage() {
         ...recentListings.map((l): FromYourMakersItem => ({
           kind: "listing", id: l.id, title: l.title, priceCents: l.priceCents, currency: l.currency,
           photoUrl: l.photos[0]?.url ?? null,
+          photoAltText: l.photos[0]?.altText ?? null,
           sellerName: l.seller.displayName ?? "Maker",
           sellerProfileId: l.sellerId,
         })),
@@ -613,7 +614,7 @@ export default async function HomePage() {
                       <div className="aspect-square bg-neutral-100 overflow-hidden">
                         <MediaImage
                           src={item.photoUrl}
-                          alt={item.title}
+                          alt={item.photoAltText ?? item.title}
                           loading="lazy"
                           className="w-full h-full object-cover"
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
@@ -770,7 +771,7 @@ export default async function HomePage() {
                         <div className="aspect-square overflow-hidden rounded-xl">
                           <MediaImage
                             src={fl.photos[0]?.url ?? null}
-                            alt={fl.title}
+                            alt={fl.photos[0]?.altText ?? fl.title}
                             loading="lazy"
                             className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                             fallbackClassName="h-full w-full bg-stone-100"
@@ -818,7 +819,9 @@ export default async function HomePage() {
                           listingType: l.listingType,
                           stockQuantity: l.stockQuantity ?? null,
                           photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
                           secondPhotoUrl: l.photos[1]?.url ?? null,
+                          secondPhotoAltText: l.photos[1]?.altText ?? null,
                           seller: {
                             id: l.sellerId,
                             displayName: l.seller.displayName ?? null,
@@ -866,7 +869,9 @@ export default async function HomePage() {
                           listingType: l.listingType,
                           stockQuantity: l.stockQuantity ?? null,
                           photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
                           secondPhotoUrl: l.photos[1]?.url ?? null,
+                          secondPhotoAltText: l.photos[1]?.altText ?? null,
                           seller: {
                             id: l.sellerId,
                             displayName: l.seller.displayName ?? null,

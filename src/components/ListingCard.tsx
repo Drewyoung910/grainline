@@ -16,7 +16,9 @@ export type ListingCardData = {
   listingType: string;
   stockQuantity?: number | null;
   photoUrl: string | null;
+  photoAltText?: string | null;
   secondPhotoUrl?: string | null;
+  secondPhotoAltText?: string | null;
   seller: {
     id: string;
     displayName: string | null;
@@ -40,6 +42,10 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
   const [hovered, setHovered] = useState(false);
   const img = l.photoUrl ?? "/favicon.ico";
   const displayImg = hovered && l.secondPhotoUrl ? l.secondPhotoUrl : img;
+  const displayAlt =
+    hovered && l.secondPhotoUrl
+      ? (l.secondPhotoAltText || l.title)
+      : (l.photoAltText || l.title);
   const listingHref = href === null ? null : href ?? publicListingPath(l.id, l.title);
   const sellerName = l.seller.displayName ?? "Maker";
   const shop = l.rating;
@@ -57,7 +63,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
         {listingHref ? (
           <Link href={listingHref} className="block">
             <MediaImage
-              alt={l.title}
+              alt={displayAlt}
               src={displayImg}
               fallbackSrc={displayImg === l.secondPhotoUrl ? l.photoUrl : l.secondPhotoUrl}
               loading="lazy"
@@ -67,7 +73,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           </Link>
         ) : (
           <MediaImage
-            alt={l.title}
+            alt={displayAlt}
             src={displayImg}
             fallbackSrc={displayImg === l.secondPhotoUrl ? l.photoUrl : l.secondPhotoUrl}
             loading="lazy"

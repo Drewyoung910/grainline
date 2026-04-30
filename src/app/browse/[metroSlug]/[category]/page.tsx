@@ -141,7 +141,7 @@ export default async function BrowseMetroCategoryPage({
         status: true,
         listingType: true,
         stockQuantity: true,
-        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
           select: {
             id: true,
@@ -255,6 +255,7 @@ export default async function BrowseMetroCategoryPage({
                   listingType: listing.listingType,
                   stockQuantity: listing.stockQuantity ?? null,
                   photoUrl: listing.photos[0]?.url ?? null,
+                  photoAltText: listing.photos[0]?.altText ?? null,
                   seller: {
                     id: listing.seller.id,
                     displayName: listing.seller.displayName ?? null,

@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 Stripe webhook lock-release pass: **129** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 listing-card alt-text pass: **126** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -151,6 +151,8 @@ Latest mechanical open-heading count after the 2026-04-30 Stripe webhook lock-re
 - **Reconciliation pass closed stale duplicate raw findings.** Shipping-rate buyer binding, fallback-rate removal, Clerk webhook replay protection, follower fan-out caps/pagination, Unicode profanity confusable folding, CI migration enforcement, DynamicMapCard loading, CSP `report-to`, onboarding completion guards, and stale cart price checks were re-verified and marked fixed in their later raw sections.
 - **Stripe webhook checkout locks now release on handler errors.** Completed-session processing keeps the Stripe metadata lock key and releases it in `finally`, while still releasing before slower refund/email side effects on normal cart/buy-now paths.
 - **Stripe webhook unsupported-shape logging tightened.** Completed sessions that lack buyer/cart/listing routing metadata now create a Sentry warning before acknowledgement, and dispute handling uses an explicit event allowlist instead of `startsWith("charge.dispute.")`.
+- **Listing card image alt text now uses stored photo alt text.** Browse/home/seller/saved/similar listing card data paths now select and pass `Photo.altText` for primary and hover images, falling back to the listing title only when no photo alt text exists.
+- **Stale auth/notification findings reconciled.** R29 account-access API handling and the notification preference lookup failure item were re-verified against current code and marked fixed/verified instead of patched symptomatically.
 
 ## Recommended Fix Order
 
@@ -1782,7 +1784,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 11. **[FIXED/VERIFIED 2026-04-30] webhook line 1431 retrieve not isolated per-session** — same fix as #3: expired/async-failed line-item retrieval is isolated per session and falls back through metadata/cart restoration instead of cascading one Stripe retrieval failure.
 
-12. **`notifications.ts:86` Prisma read of `notificationPreferences` failure returns null** — Caller sees "no notification" and assumes pref said "no". User who wants notifications gets none during DB blip. **Fix**: distinguish "user said no" (return null) from "DB error" (throw or default-send).
+12. **[FIXED/VERIFIED 2026-04-30] `notifications.ts:86` Prisma read of `notificationPreferences` failure returns null** — `shouldSendEmail()` now catches preference lookup failures, captures them to Sentry with `email_preference_check` context, and falls back according to the preference default so transactional/default-on email is not silently dropped during a transient DB blip.
 
 13. **[FIXED 2026-04-30] `email.ts:182-189` user lookup before send swallowed DB errors** — Email sends now retry the inactive-account lookup once, capture a warning if both attempts fail, and continue sending rather than dropping transactional mail because the suppression-side account lookup had a transient DB failure.
 
@@ -2251,7 +2253,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 3. **[FIXED/VERIFIED 2026-04-30] No self-undo block** — current `undoAdminAction()` calls `adminUndoActorBlockReason()` and rejects same-admin undo attempts before mutating the original audit log.
 
-4. **27 of 41 ensureUser-calling API routes lack `isAccountAccessError` handling** — Routes hitting `ensureSeller()`/`ensureUser()` from a banned user throw `AccountAccessError` → unhandled 500 instead of clean 403. Examples: `cart/checkout/single`, `cart/checkout-seller`, `reviews/route.ts`, `cases/[id]/resolve`, `verification/apply`, `users/[id]/report`, `account/delete`, `cart/route.ts:GET`. Middleware blocks page-level but server actions + direct API hits race. **Fix**: standardize `try { await ensureSeller() } catch (e) { if (isAccountAccessError(e)) return accountAccessErrorResponse() }` wrapper across all routes.
+4. **[FIXED/VERIFIED 2026-04-30] 27 of 41 ensureUser-calling API routes lack `isAccountAccessError` handling** — Current direct API callers of `ensureUser()`/`ensureSeller()` handle `AccountAccessError` via `accountAccessErrorResponse()` or equivalent `isAccountAccessError` branches, including checkout, reviews, cases, verification, report/block, account delete/export, cart, favorites, follow, notifications, upload, seller, and saved-search routes.
 
 🟠 **HIGH (6)**
 
@@ -3357,7 +3359,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 84. **65 raw `<img>` tags vs 0 `next/image`** — no auto width/height (CLS), no AVIF/WebP, no responsive srcset. *Fix*: migrate to `next/image` (large refactor).
 
-85. **`ListingCard` `alt` uses bare `l.title`** — `src/components/ListingCard.tsx:59,69`. Doesn't use new `Photo.altText` field added 2026-04-22. Cards = highest-frequency image surface. *Fix*: pass `altText ?? title`.
+85. **[FIXED 2026-04-30] `ListingCard` `alt` uses bare `l.title`** — `ListingCard` now accepts primary and hover-image alt text and uses `Photo.altText` before falling back to the listing title. Browse, homepage, seller profile/shop, saved listings, metro browse, and similar-items API/card data paths now select/pass photo alt text.
 
 ### Notifications & broadcasts
 
