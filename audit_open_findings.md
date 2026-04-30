@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 form/silent-failure pass: **115** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 request-correlation pass: **114** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -158,6 +158,7 @@ Latest mechanical open-heading count after the 2026-04-30 form/silent-failure pa
 - **Email text and retry behavior hardened.** `htmlToText()` now preserves table cell boundaries in plain text instead of collapsing order totals into number runs, direct Resend sends retry transient provider/network failures up to three attempts, and the email outbox cron drains at concurrency 2 to reduce provider-rate-limit bursts.
 - **Case and message state tightened.** Buyer-opened cases now write a durable audit entry, early case-open errors include the actual estimated delivery date, message threads with banned/deleted/missing recipients show an unavailable-account banner and block new replies server-side, and touched case/message/email snippets use surrogate-safe truncation.
 - **Listing form JSON and bare catches are observable.** Listing create/edit/custom form JSON now parses through `formJson.ts` with runtime array/object shape checks before use, and the remaining bare `catch {}` sites in the audited client/listing paths now log warnings/errors instead of swallowing failures silently.
+- **Request correlation IDs added.** Middleware now accepts or generates a safe `x-request-id`, forwards it to downstream request headers, emits it on middleware responses, and tags Sentry scope with the same value so API, Stripe, Resend, and DB failures can be tied together.
 
 ## Recommended Fix Order
 
@@ -1943,7 +1944,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 14. **[FIXED 2026-04-30] `error.tsx` doesn't capture to Sentry** — The segment error boundary now imports `@sentry/nextjs` and calls `Sentry.captureException(error)` in the same effect that logs to console.
 
-15. **No correlation/request ID propagation** — no middleware sets `x-request-id` header or Sentry tag for tracing across DB/Stripe/Resend logs. **Fix**: middleware injects `crypto.randomUUID()`, exposes via header, sets `Sentry.setTag('requestId', ...)`.
+15. **[FIXED 2026-04-30] No correlation/request ID propagation** — middleware now normalizes an incoming `x-request-id` or generates a UUID, forwards it to downstream request headers via `NextResponse.next({ request: { headers } })`, attaches it to middleware responses, and sets `Sentry.setTag("requestId", requestId)`. Pure tests cover safe ID preservation, unsafe header rejection, and downstream header propagation.
 
 16. **No documented runbook** — find returned 0 RUNBOOK/DR/OPS docs. **Fix**: add `/docs/runbook.md` with secret rotation, deploy rollback, webhook re-registration, DB restore commands.
 

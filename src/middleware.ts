@@ -1,10 +1,12 @@
 // src/middleware.ts
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { normalizeRequestId, requestHeadersWithRequestId, REQUEST_ID_HEADER } from "@/lib/requestId";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -68,12 +70,17 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/api/cron(.*)",
 ]);
 
-function forbiddenFor(req: Request) {
+function withRequestId<T extends NextResponse>(response: T, requestId: string): T {
+  response.headers.set(REQUEST_ID_HEADER, requestId);
+  return response;
+}
+
+function forbiddenFor(req: Request, requestId: string) {
   const url = new URL(req.url);
   if (url.pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return withRequestId(NextResponse.json({ error: "Forbidden" }, { status: 403 }), requestId);
   }
-  return NextResponse.redirect(new URL("/", req.url));
+  return withRequestId(NextResponse.redirect(new URL("/", req.url)), requestId);
 }
 
 function isGeoAllowedApiPath(pathname: string): boolean {
@@ -94,6 +101,10 @@ function isCronPath(pathname: string): boolean {
 }
 
 export default clerkMiddleware(async (auth, req) => {
+  const requestId = normalizeRequestId(req.headers.get(REQUEST_ID_HEADER));
+  const requestHeaders = requestHeadersWithRequestId(req.headers, requestId);
+  Sentry.setTag("requestId", requestId);
+
   // Geo-blocking — US only. Next 16 no longer exposes request.geo, so use
   // Vercel's country header when present.
   const country = req.headers.get("x-vercel-ip-country") || undefined;
@@ -112,12 +123,12 @@ export default clerkMiddleware(async (auth, req) => {
       pathname.startsWith("/robots") ||
       pathname.startsWith("/sitemap");
     if (!isAllowed) {
-      return NextResponse.redirect(new URL("/not-available", req.url));
+      return withRequestId(NextResponse.redirect(new URL("/not-available", req.url)), requestId);
     }
   }
 
   if (isCronPath(req.nextUrl.pathname) && !verifyCronRequest(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return withRequestId(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), requestId);
   }
 
   // Enforce authentication on all non-public routes
@@ -134,7 +145,7 @@ export default clerkMiddleware(async (auth, req) => {
     });
     if (account?.banned || account?.deletedAt) {
       if (req.nextUrl.pathname.startsWith("/api/")) {
-        return NextResponse.json(
+        return withRequestId(NextResponse.json(
           {
             error: account.deletedAt
               ? "This account has been deleted. Contact support@thegrainline.com"
@@ -142,25 +153,25 @@ export default clerkMiddleware(async (auth, req) => {
             code: account.deletedAt ? "ACCOUNT_DELETED" : "ACCOUNT_SUSPENDED",
           },
           { status: 403 },
-        );
+        ), requestId);
       }
-      return NextResponse.redirect(new URL("/banned", req.url));
+      return withRequestId(NextResponse.redirect(new URL("/banned", req.url)), requestId);
     }
   }
 
   // Enforce EMPLOYEE or ADMIN role for admin pages and APIs.
   if (isAdminPage(req) || isAdminApi(req)) {
     if (!userId) {
-      return forbiddenFor(req);
+      return forbiddenFor(req, requestId);
     }
     let user;
     try {
       user = await ensureUserByClerkId(userId);
     } catch {
-      return forbiddenFor(req);
+      return forbiddenFor(req, requestId);
     }
     if (user.role !== "EMPLOYEE" && user.role !== "ADMIN") {
-      return forbiddenFor(req);
+      return forbiddenFor(req, requestId);
     }
 
     // Admin pages withhold server-rendered data in their layout until this
@@ -174,10 +185,12 @@ export default clerkMiddleware(async (auth, req) => {
         userId,
       );
       if (!pinVerified) {
-        return NextResponse.json({ error: "Admin PIN required" }, { status: 403 });
+        return withRequestId(NextResponse.json({ error: "Admin PIN required" }, { status: 403 }), requestId);
       }
     }
   }
+
+  return withRequestId(NextResponse.next({ request: { headers: requestHeaders } }), requestId);
 });
 
 export const runtime = "nodejs";
