@@ -9,6 +9,15 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const CASE_AUTO_CLOSE_BATCH_SIZE = 100;
+const CASE_AUTO_CLOSE_MAX_BATCHES = 5;
+const CASE_AUTO_CLOSE_RECORD_CONCURRENCY = 5;
+
+type CaseAutoCloseRecord = {
+  id: string;
+  buyerId: string | null;
+  sellerId: string;
+  orderId: string;
+};
 
 function cronErrorCode(error: unknown) {
   const err = error as { code?: string; name?: string };
@@ -26,24 +35,24 @@ export async function GET(req: Request) {
   try {
     // Auto-close PENDING_CLOSE cases older than 7 days
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const staleCases = await prisma.case.findMany({
-      where: { status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
-      orderBy: { updatedAt: "asc" },
-      take: CASE_AUTO_CLOSE_BATCH_SIZE,
-      select: { id: true, buyerId: true, sellerId: true, orderId: true },
-    });
-
     let closed = 0;
+    let stalePendingClose = 0;
     let stalePendingClosed = 0;
+    let abandonedOpen = 0;
     let abandonedEscalated = 0;
+    let stalePendingCloseBatches = 0;
+    let abandonedOpenBatches = 0;
+    let stalePendingCloseHasMore = false;
+    let abandonedOpenHasMore = false;
     const failures: Array<{ caseId: string; action: "close" | "escalate"; code: string }> = [];
-    for (const c of staleCases) {
+
+    async function closePendingCase(c: CaseAutoCloseRecord) {
       try {
         const updated = await prisma.case.updateMany({
           where: { id: c.id, status: "PENDING_CLOSE", updatedAt: { lt: cutoff } },
           data: { status: "RESOLVED", resolution: "DISMISSED", resolvedAt: new Date() },
         });
-        if (updated.count === 0) continue;
+        if (updated.count === 0) return;
 
         const notifications: Array<() => Promise<unknown>> = [];
         if (c.buyerId) {
@@ -54,6 +63,7 @@ export async function GET(req: Request) {
             title: "Case closed",
             body: "This case was closed automatically after the resolution window expired.",
             link: `/dashboard/orders/${c.orderId}`,
+            dedupScope: c.id,
           }));
         }
         notifications.push(() => createNotification({
@@ -62,6 +72,7 @@ export async function GET(req: Request) {
           title: "Case closed",
           body: "This case was closed automatically after the resolution window expired.",
           link: `/dashboard/sales/${c.orderId}`,
+          dedupScope: c.id,
         }));
         await mapWithConcurrency(notifications, 2, (send) => send());
         stalePendingClosed++;
@@ -76,22 +87,36 @@ export async function GET(req: Request) {
       }
     }
 
+    const checkedPendingCaseIds = new Set<string>();
+    for (let batch = 0; batch < CASE_AUTO_CLOSE_MAX_BATCHES; batch++) {
+      const staleCases = await prisma.case.findMany({
+        where: {
+          status: "PENDING_CLOSE",
+          updatedAt: { lt: cutoff },
+          ...(checkedPendingCaseIds.size ? { id: { notIn: [...checkedPendingCaseIds] } } : {}),
+        },
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+        take: CASE_AUTO_CLOSE_BATCH_SIZE,
+        select: { id: true, buyerId: true, sellerId: true, orderId: true },
+      });
+      if (staleCases.length === 0) break;
+      stalePendingCloseBatches++;
+      stalePendingClose += staleCases.length;
+      for (const c of staleCases) checkedPendingCaseIds.add(c.id);
+      await mapWithConcurrency(staleCases, CASE_AUTO_CLOSE_RECORD_CONCURRENCY, closePendingCase);
+      if (staleCases.length < CASE_AUTO_CLOSE_BATCH_SIZE) break;
+      if (batch === CASE_AUTO_CLOSE_MAX_BATCHES - 1) stalePendingCloseHasMore = true;
+    }
+
     // Escalate OPEN cases where seller never responded (14+ days past sellerRespondBy)
     const openCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const abandonedOpen = await prisma.case.findMany({
-      where: { status: "OPEN", sellerRespondBy: { lt: openCutoff } },
-      orderBy: { sellerRespondBy: "asc" },
-      take: CASE_AUTO_CLOSE_BATCH_SIZE,
-      select: { id: true, buyerId: true, sellerId: true, orderId: true },
-    });
-
-    for (const c of abandonedOpen) {
+    async function escalateOpenCase(c: CaseAutoCloseRecord) {
       try {
         const updated = await prisma.case.updateMany({
           where: { id: c.id, status: "OPEN", sellerRespondBy: { lt: openCutoff } },
           data: { status: "UNDER_REVIEW" },
         });
-        if (updated.count === 0) continue;
+        if (updated.count === 0) return;
 
         const notifications: Array<() => Promise<unknown>> = [];
         if (c.buyerId) {
@@ -102,6 +127,7 @@ export async function GET(req: Request) {
             title: "Case under review",
             body: "The seller did not respond in time, so Grainline staff will review this case.",
             link: `/dashboard/orders/${c.orderId}`,
+            dedupScope: c.id,
           }));
         }
         notifications.push(() => createNotification({
@@ -110,6 +136,7 @@ export async function GET(req: Request) {
           title: "Case escalated",
           body: "This case was escalated to Grainline staff because the response window expired.",
           link: `/dashboard/sales/${c.orderId}`,
+          dedupScope: c.id,
         }));
         await mapWithConcurrency(notifications, 2, (send) => send());
         abandonedEscalated++;
@@ -124,12 +151,37 @@ export async function GET(req: Request) {
       }
     }
 
+    const checkedOpenCaseIds = new Set<string>();
+    for (let batch = 0; batch < CASE_AUTO_CLOSE_MAX_BATCHES; batch++) {
+      const abandonedOpenCases = await prisma.case.findMany({
+        where: {
+          status: "OPEN",
+          sellerRespondBy: { lt: openCutoff },
+          ...(checkedOpenCaseIds.size ? { id: { notIn: [...checkedOpenCaseIds] } } : {}),
+        },
+        orderBy: [{ sellerRespondBy: "asc" }, { id: "asc" }],
+        take: CASE_AUTO_CLOSE_BATCH_SIZE,
+        select: { id: true, buyerId: true, sellerId: true, orderId: true },
+      });
+      if (abandonedOpenCases.length === 0) break;
+      abandonedOpenBatches++;
+      abandonedOpen += abandonedOpenCases.length;
+      for (const c of abandonedOpenCases) checkedOpenCaseIds.add(c.id);
+      await mapWithConcurrency(abandonedOpenCases, CASE_AUTO_CLOSE_RECORD_CONCURRENCY, escalateOpenCase);
+      if (abandonedOpenCases.length < CASE_AUTO_CLOSE_BATCH_SIZE) break;
+      if (batch === CASE_AUTO_CLOSE_MAX_BATCHES - 1) abandonedOpenHasMore = true;
+    }
+
     const response = {
       closed,
-      stalePendingClose: staleCases.length,
+      stalePendingClose,
       stalePendingClosed,
-      abandonedOpen: abandonedOpen.length,
+      abandonedOpen,
       abandonedEscalated,
+      stalePendingCloseBatches,
+      abandonedOpenBatches,
+      stalePendingCloseHasMore,
+      abandonedOpenHasMore,
       failures,
     };
     await completeCronRun(cronRun, response);

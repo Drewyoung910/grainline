@@ -147,7 +147,7 @@ export default async function NotificationsPage({
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium leading-tight">{n.title}</p>
                   <p className="text-sm text-neutral-600 mt-0.5">{n.body}</p>
-                  <p className="text-xs text-neutral-400 mt-1">
+                  <p className="text-xs text-neutral-500 mt-1">
                     <LocalDate date={n.createdAt} />
                   </p>
                 </div>

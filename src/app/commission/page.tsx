@@ -10,6 +10,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { MapPin } from "@/components/icons";
 import { safeJsonLd } from "@/lib/json-ld";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
+import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 
 export const metadata: Metadata = {
   title: "Custom Woodworking Commissions — Find a Maker | Grainline",
@@ -107,7 +108,7 @@ export default async function CommissionPage({
       SELECT
         cr.id, cr.title, cr.description, cr.category,
         cr."budgetMinCents", cr."budgetMaxCents", cr.timeline,
-        cr."referenceImageUrls", cr."interestedCount", cr."createdAt",
+        cr."referenceImageUrls", COALESCE(ci."interestCount", 0)::int AS "interestedCount", cr."createdAt",
         cr.lat, cr.lng, cr."isNational",
         u.id AS "buyerId", u.name AS "buyerName", u."imageUrl" AS "buyerImageUrl",
         CASE
@@ -123,6 +124,11 @@ export default async function CommissionPage({
         END AS distance_m
       FROM "CommissionRequest" cr
       JOIN "User" u ON u.id = cr."buyerId"
+      LEFT JOIN (
+        SELECT "commissionRequestId", COUNT(*)::int AS "interestCount"
+        FROM "CommissionInterest"
+        GROUP BY "commissionRequestId"
+      ) ci ON ci."commissionRequestId" = cr.id
       WHERE cr.status = 'OPEN'
         AND (cr."expiresAt" IS NULL OR cr."expiresAt" > NOW())
         ${categoryConditionSelect}
@@ -228,6 +234,7 @@ export default async function CommissionPage({
           timeline: true,
           referenceImageUrls: true,
           interestedCount: true,
+          _count: { select: { interests: true } },
           createdAt: true,
           lat: true,
           lng: true,
@@ -237,7 +244,13 @@ export default async function CommissionPage({
       }),
       prisma.commissionRequest.count({ where }),
     ]);
-    requests = found;
+    requests = found.map(({ _count, ...request }) => ({
+      ...request,
+      interestedCount: resolvedInterestedCount({
+        interestedCount: request.interestedCount,
+        _count,
+      }),
+    }));
     total = count;
   }
 
@@ -442,7 +455,7 @@ export default async function CommissionPage({
                       {r.description.slice(0, 200)}{r.description.length > 200 ? "…" : ""}
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-400">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
                       {/* Timeline */}
                       {r.timeline && <span className="text-stone-500">{r.timeline}</span>}
                       {/* Buyer */}

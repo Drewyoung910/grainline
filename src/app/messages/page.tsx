@@ -5,27 +5,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
+import { parseFileMessageBody } from "@/lib/messageBodies";
 import MessageTime from "@/components/MessageTime";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
-
-function parseFilePayload(body: string):
-  | { kind: "file"; url: string; name: string | null; type: string | null }
-  | null {
-  try {
-    const obj = JSON.parse(body);
-    if (obj && obj.kind === "file" && typeof obj.url === "string") {
-      return {
-        kind: "file",
-        url: obj.url,
-        name: obj.name ?? null,
-        type: obj.type ?? null,
-      };
-    }
-  } catch {}
-  return null;
-}
 
 function isImageUrl(s: string) {
   return /^https?:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
@@ -38,7 +22,7 @@ function formatSnippet(body?: string | null, kind?: string | null) {
   const txt = (body ?? "").toString();
   if (!txt) return "No messages yet";
 
-  const f = parseFilePayload(txt.trim());
+  const f = parseFileMessageBody(txt.trim());
   if (f) {
     const isImg = (f.type?.startsWith("image/") ?? false) || isImageUrl(f.url);
     if (isImg) return "Photo";

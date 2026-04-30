@@ -1,6 +1,11 @@
 // src/lib/blog.ts
 import type { BlogPostType } from "@prisma/client";
 
+const FNV_64_OFFSET = 0xcbf29ce484222325n;
+const FNV_64_PRIME = 0x100000001b3n;
+const CJK_READING_CHAR_PATTERN =
+  /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/gu;
+
 export function generateSlug(title: string): string {
   const slug = title
     .normalize("NFKD")
@@ -15,15 +20,25 @@ export function generateSlug(title: string): string {
 
   if (slug) return slug;
 
-  let hash = 2166136261;
+  let hash = FNV_64_OFFSET;
   for (const char of title.trim()) {
-    hash ^= char.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16777619);
+    hash ^= BigInt(char.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * FNV_64_PRIME);
   }
-  return `post-${(hash >>> 0).toString(36)}`;
+  return `post-${hash.toString(36)}`;
 }
 
 export function calculateReadingTime(body: string): number {
+  const cjkChars = body.match(CJK_READING_CHAR_PATTERN)?.length ?? 0;
+  if (cjkChars > 0) {
+    const latinWords = body
+      .replace(CJK_READING_CHAR_PATTERN, " ")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+    return Math.max(1, Math.ceil(latinWords / 200 + cjkChars / 400));
+  }
+
   const words = body.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
 }

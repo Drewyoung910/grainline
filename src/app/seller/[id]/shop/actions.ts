@@ -5,14 +5,16 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { ListingStatus } from "@prisma/client";
-import { renderNewListingFromFollowedMakerEmail } from "@/lib/email";
-import { enqueueEmailOutbox } from "@/lib/emailOutbox";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
-import { mapWithConcurrency } from "@/lib/concurrency";
-import { publicListingPath } from "@/lib/publicPaths";
+import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
+import {
+  STAFF_REMOVAL_REJECTION_REASON,
+  archiveListingBlockReason,
+  hideListingBlockReason,
+  markAvailableBlockReason,
+  publishListingBlockReason,
+  unhideListingBlockReason,
+} from "@/lib/listingActionState";
 
-const STAFF_REMOVAL_REJECTION_REASON = "Removed by Grainline staff.";
-const FOLLOWER_FANOUT_LIMIT = 10000;
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Ensure the calling user owns this listing; returns listing + seller or null
@@ -64,45 +66,12 @@ function queueFollowerFanoutForActiveListing(listing: {
 }) {
   after(async () => {
     try {
-      const followers = await prisma.follow.findMany({
-        where: {
-          sellerProfileId: listing.sellerId,
-          follower: { banned: false, deletedAt: null },
-        },
-        select: { followerId: true, follower: { select: { email: true } } },
-        take: FOLLOWER_FANOUT_LIMIT,
-      });
-      const sellerDisplay = listing.seller.displayName ?? "A maker you follow";
-      const listingPath = publicListingPath(listing.id, listing.title);
-      await mapWithConcurrency(followers, 10, (f) =>
-        createNotification({
-          userId: f.followerId,
-          type: "FOLLOWED_MAKER_NEW_LISTING",
-          title: `New listing from ${sellerDisplay}`,
-          body: listing.title,
-          link: listingPath,
-        }),
-      );
-
-      const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${listingPath}`;
-      const listingPrice = `$${(listing.priceCents / 100).toFixed(2)}`;
       const emailBucket = new Date().toISOString().slice(0, 10);
-      await mapWithConcurrency(followers.filter((f) => f.follower?.email), 5, async (f) => {
-        if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
-          const email = renderNewListingFromFollowedMakerEmail({
-            to: f.follower.email!,
-            makerName: sellerDisplay,
-            listingTitle: listing.title,
-            listingPrice,
-            listingUrl,
-          });
-          await enqueueEmailOutbox({
-            ...email,
-            dedupKey: `followed-listing-active:${listing.id}:${f.followerId}:${emailBucket}`,
-            userId: f.followerId,
-            preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-          });
-        }
+      await fanOutListingToFollowers({
+        sellerProfileId: listing.sellerId,
+        sellerDisplayName: listing.seller.displayName,
+        listing,
+        emailDedupKey: (followerId) => `followed-listing-active:${listing.id}:${followerId}:${emailBucket}`,
       });
     } catch {
       // Non-fatal: listing activation should not roll back if follower fan-out fails.
@@ -126,19 +95,24 @@ async function syncThreshold(sellerId: string) {
 
 export async function hideListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
-  if (!listing) return;
-  await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.HIDDEN } });
+  if (!listing) return { ok: false, error: "Listing not found." };
+  const blockReason = hideListingBlockReason(listing);
+  if (blockReason) return { ok: false, error: blockReason };
+  const result = await prisma.listing.updateMany({
+    where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE },
+    data: { status: ListingStatus.HIDDEN },
+  });
+  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
   revalidateListingSurfaces(listingId, listing.sellerId);
+  return { ok: true };
 }
 
 export async function unhideListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return { error: "Listing not found." };
-  // Seller-initiated reactivation must go through AI/admin review.
-  if (listing.status === "REJECTED") return { error: "Rejected listings must be edited and resubmitted." };
-  // Soft-deleted listings (isPrivate=true + HIDDEN) cannot be unhidden — they're "deleted"
-  if (listing.status === "HIDDEN" && listing.isPrivate) return { error: "Archived listings cannot be unhidden." };
+  const blockReason = unhideListingBlockReason(listing);
+  if (blockReason) return { error: blockReason };
   const result = await publishListingAction(listingId);
   revalidateListingSurfaces(listingId, listing.sellerId);
   return result;
@@ -157,6 +131,8 @@ export async function markSoldAction(listingId: string) {
 export async function deleteListingAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return { ok: false, error: "Listing not found." };
+  const blockReason = archiveListingBlockReason(listing);
+  if (blockReason) return { ok: false, error: blockReason };
   // Soft delete: preserve order history, remove current shopping intent records.
   try {
     await softDeleteListingWithCleanup(listingId);
@@ -181,6 +157,8 @@ export async function deleteListingAction(listingId: string) {
 export async function markAvailableAction(listingId: string) {
   const listing = await getOwnedListing(listingId);
   if (!listing) return { error: "Listing not found." };
+  const blockReason = markAvailableBlockReason(listing);
+  if (blockReason) return { error: blockReason };
   // Seller-initiated reactivation must go through AI/admin review.
   if (listing.status === "REJECTED") return { error: "Rejected listings must be edited and resubmitted." };
   const result = await publishListingAction(listingId);
@@ -191,12 +169,8 @@ export async function markAvailableAction(listingId: string) {
 export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" } | { error: string }> {
   const listing = await getOwnedListing(listingId);
   if (!listing) return { status: "PENDING_REVIEW" };
-  if (listing.status === ListingStatus.HIDDEN && listing.isPrivate) {
-    return { error: "Archived listings cannot be republished." };
-  }
-  if (listing.rejectionReason === STAFF_REMOVAL_REJECTION_REASON) {
-    return { error: "This listing was removed by Grainline staff and cannot be resubmitted." };
-  }
+  const blockReason = publishListingBlockReason(listing);
+  if (blockReason) return { error: blockReason };
 
   const sellerCheck = await prisma.sellerProfile.findUnique({
     where: { id: listing.sellerId },
@@ -223,7 +197,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       where: { listingId: listing.id },
       select: { url: true },
       orderBy: { sortOrder: "asc" },
-      take: 4,
+      take: 8,
     });
 
     const aiResult = await reviewListingWithAI({
@@ -282,7 +256,12 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           updatedAt: listing.updatedAt,
           OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
         },
-        data: { status: "ACTIVE", rejectionReason: null },
+        data: {
+          status: "ACTIVE",
+          aiReviewFlags: aiResult.flags,
+          aiReviewScore: aiResult.confidence,
+          rejectionReason: null,
+        },
       });
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
@@ -302,7 +281,12 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         sellerId: listing.sellerId,
         OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
       },
-      data: { status: "PENDING_REVIEW", rejectionReason: null },
+      data: {
+        status: "PENDING_REVIEW",
+        aiReviewFlags: ["AI review error"],
+        aiReviewScore: 0,
+        rejectionReason: null,
+      },
     });
     revalidateListingSurfaces(listingId, listing.sellerId);
     return { status: "PENDING_REVIEW" as const };

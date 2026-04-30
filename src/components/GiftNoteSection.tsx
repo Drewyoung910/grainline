@@ -36,7 +36,7 @@ export default function GiftNoteSection({
         <div className="space-y-3 pl-6">
           <div>
             <label className="block text-sm mb-1">
-              Gift note <span className="text-neutral-400">(optional)</span>
+              Gift note <span className="text-neutral-500">(optional)</span>
             </label>
             <textarea
               value={giftNote}
@@ -45,7 +45,7 @@ export default function GiftNoteSection({
               rows={3}
               className="w-full border rounded px-3 py-2 text-sm"
             />
-            <p className="text-xs text-neutral-400 text-right">{giftNote.length}/200</p>
+            <p className="text-xs text-neutral-500 text-right">{giftNote.length}/200</p>
           </div>
 
           {offersGiftWrapping && (

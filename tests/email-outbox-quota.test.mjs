@@ -82,7 +82,7 @@ describe("email outbox daily quota", () => {
     );
   });
 
-  it("fails open when the quota counter is unavailable and reports the error", async () => {
+  it("fails closed when the quota counter is unavailable and reports the error", async () => {
     const seen = [];
     const quota = await reserveEmailOutboxDailySendAllowance({
       requested: 4,
@@ -94,7 +94,8 @@ describe("email outbox daily quota", () => {
       onCounterError: (error) => seen.push(String(error)),
     });
 
-    assert.equal(quota.allowed, 4);
+    assert.equal(quota.allowed, 0);
+    assert.equal(quota.counterAvailable, false);
     assert.equal(seen.length, 1);
     assert.match(seen[0], /redis down/);
   });

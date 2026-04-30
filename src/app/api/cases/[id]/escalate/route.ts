@@ -10,6 +10,8 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { isEscalatableCaseStatus } from "@/lib/caseActionState";
+import { unavailableCaseMessageRecipientReason } from "@/lib/caseMessagingState";
 
 export const runtime = "nodejs";
 
@@ -54,11 +56,19 @@ export async function POST(
       // Single case escalation
       const caseRecord = await prisma.case.findUnique({
         where: { id },
-        select: { id: true, status: true, escalateUnlocksAt: true, buyerId: true, sellerId: true },
+        select: {
+          id: true,
+          status: true,
+          escalateUnlocksAt: true,
+          buyerId: true,
+          sellerId: true,
+          buyer: { select: { id: true, banned: true, deletedAt: true } },
+          seller: { select: { id: true, banned: true, deletedAt: true } },
+        },
       });
       if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
 
-      if (caseRecord.status !== "OPEN" && caseRecord.status !== "IN_DISCUSSION") {
+      if (!isEscalatableCaseStatus(caseRecord.status)) {
         return NextResponse.json(
           { error: "Only OPEN or IN_DISCUSSION cases can be escalated." },
           { status: 400 }
@@ -70,8 +80,16 @@ export async function POST(
         const isParty = me!.id === caseRecord.buyerId || me!.id === caseRecord.sellerId;
         if (!isParty) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
-        // Escalation only available after 48 hours of discussion
-        if (!caseRecord.escalateUnlocksAt || caseRecord.escalateUnlocksAt > now) {
+        const counterpartyUnavailable = unavailableCaseMessageRecipientReason({
+          senderId: me!.id,
+          buyer: caseRecord.buyer,
+          seller: caseRecord.seller,
+          isStaff: false,
+        }) != null;
+
+        // Escalation is available after 48 hours, or immediately if the other
+        // party cannot participate because their account is unavailable.
+        if (!counterpartyUnavailable && (!caseRecord.escalateUnlocksAt || caseRecord.escalateUnlocksAt > now)) {
           return NextResponse.json(
             { error: "Escalation not yet available. You can escalate after 48 hours of discussion." },
             { status: 400 }
@@ -79,11 +97,17 @@ export async function POST(
         }
       }
 
-      await prisma.case.update({
-        where: { id },
+      const result = await prisma.case.updateMany({
+        where: { id, status: { in: ["OPEN", "IN_DISCUSSION"] } },
         data: { status: "UNDER_REVIEW" },
       });
-      escalated = 1;
+      if (result.count === 0) {
+        return NextResponse.json(
+          { error: "Case status changed before escalation could be saved. Refresh and try again." },
+          { status: 409 },
+        );
+      }
+      escalated = result.count;
     }
 
     return NextResponse.json({ ok: true, escalated });

@@ -46,10 +46,13 @@ export async function PATCH(
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   if (action === 'approve') {
-    await prisma.listing.update({
-      where: { id },
+    const approved = await prisma.listing.updateMany({
+      where: { id, status: 'PENDING_REVIEW' },
       data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
     })
+    if (approved.count === 0) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
+    }
     await logAdminAction({
       adminId: admin.id,
       action: 'APPROVE_LISTING',
@@ -66,10 +69,13 @@ export async function PATCH(
     }).catch(() => {})
   } else if (action === 'reject') {
     if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
-    await prisma.listing.update({
-      where: { id },
+    const rejected = await prisma.listing.updateMany({
+      where: { id, status: 'PENDING_REVIEW' },
       data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: reason }
     })
+    if (rejected.count === 0) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
+    }
     await logAdminAction({
       adminId: admin.id,
       action: 'REJECT_LISTING',

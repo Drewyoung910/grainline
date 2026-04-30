@@ -201,7 +201,7 @@ export default async function AdminCaseDetailPage({
       {/* Message thread */}
       <Section title="Case Thread">
         {caseRecord.messages.length === 0 ? (
-          <p className="text-sm text-neutral-400">No messages yet.</p>
+          <p className="text-sm text-neutral-500">No messages yet.</p>
         ) : (
           <ul className="divide-y divide-neutral-100 -my-1">
             {caseRecord.messages.map((msg) => {

@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
+import { listingEditBlockReason } from "@/lib/listingEditState";
+import { sanitizeRichText, sanitizeText } from "@/lib/sanitize";
+import { isR2PublicUrl } from "@/lib/urlValidation";
 
 export async function updateListingAction(listingId: string, formData: FormData) {
   const { userId } = await auth();
@@ -12,13 +15,13 @@ export async function updateListingAction(listingId: string, formData: FormData)
 
   const { me } = await ensureSeller();
 
-  const title = (formData.get("title") as string)?.trim();
-  const description = ((formData.get("description") as string) || "").trim();
+  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
+  const description = sanitizeRichText(String(formData.get("description") ?? "").trim()).slice(0, 5000);
   const priceStr = (formData.get("price") as string) || "0";
-  const imageUrl = (formData.get("imageUrl") as string)?.trim();
+  const imageUrl = String(formData.get("imageUrl") ?? "").trim();
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
-  if (!title || !imageUrl || !Number.isFinite(priceCents) || priceCents <= 0) {
+  if (!title || !imageUrl || !isR2PublicUrl(imageUrl) || !Number.isFinite(priceCents) || priceCents <= 0) {
     throw new Error("Please fill title, price and image.");
   }
 
@@ -28,6 +31,8 @@ export async function updateListingAction(listingId: string, formData: FormData)
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
   });
   if (!listing) redirect("/dashboard");
+  const blockReason = listingEditBlockReason(listing);
+  if (blockReason) throw new Error(blockReason);
 
   await prisma.$transaction(async (tx) => {
     await tx.listing.update({

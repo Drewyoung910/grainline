@@ -13,9 +13,17 @@ export type BanCommissionRequestSnapshot = {
   status: CommissionStatus;
 };
 
+export type BanOpenOrderSnapshot = {
+  id: string;
+  buyerId: string | null;
+  previousReviewNeeded: boolean;
+  previousReviewNote: string | null;
+};
+
 export type BanAuditMetadata = {
   previousSellerProfile: BanSellerProfileSnapshot | null;
   previousCommissionRequests: BanCommissionRequestSnapshot[];
+  flaggedOpenOrders: BanOpenOrderSnapshot[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -45,12 +53,32 @@ function readCommissionRequestSnapshots(value: unknown): BanCommissionRequestSna
   });
 }
 
+function readOpenOrderSnapshots(value: unknown): BanOpenOrderSnapshot[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    if (typeof item.id !== "string") return [];
+    if (item.buyerId !== null && typeof item.buyerId !== "string") return [];
+    if (typeof item.previousReviewNeeded !== "boolean") return [];
+    if (item.previousReviewNote !== null && typeof item.previousReviewNote !== "string") return [];
+    return [{
+      id: item.id,
+      buyerId: item.buyerId,
+      previousReviewNeeded: item.previousReviewNeeded,
+      previousReviewNote: item.previousReviewNote,
+    }];
+  });
+}
+
 export function buildBanAuditMetadata({
   sellerProfile,
   commissionRequests,
+  openOrders = [],
 }: {
   sellerProfile: BanSellerProfileSnapshot | null;
   commissionRequests: BanCommissionRequestSnapshot[];
+  openOrders?: BanOpenOrderSnapshot[];
 }): BanAuditMetadata {
   return {
     previousSellerProfile: sellerProfile
@@ -64,16 +92,23 @@ export function buildBanAuditMetadata({
       id: request.id,
       status: request.status,
     })),
+    flaggedOpenOrders: openOrders.map((order) => ({
+      id: order.id,
+      buyerId: order.buyerId,
+      previousReviewNeeded: order.previousReviewNeeded,
+      previousReviewNote: order.previousReviewNote,
+    })),
   };
 }
 
 export function readBanAuditMetadata(metadata: unknown): BanAuditMetadata {
   if (!isRecord(metadata)) {
-    return { previousSellerProfile: null, previousCommissionRequests: [] };
+    return { previousSellerProfile: null, previousCommissionRequests: [], flaggedOpenOrders: [] };
   }
 
   return {
     previousSellerProfile: readSellerProfileSnapshot(metadata.previousSellerProfile),
     previousCommissionRequests: readCommissionRequestSnapshots(metadata.previousCommissionRequests),
+    flaggedOpenOrders: readOpenOrderSnapshots(metadata.flaggedOpenOrders),
   };
 }

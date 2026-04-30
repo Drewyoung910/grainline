@@ -15,6 +15,14 @@ describe("ban audit metadata", () => {
         { id: "commission_1", status: "OPEN" },
         { id: "commission_2", status: "IN_PROGRESS" },
       ],
+      openOrders: [
+        {
+          id: "order_1",
+          buyerId: "buyer_1",
+          previousReviewNeeded: false,
+          previousReviewNote: null,
+        },
+      ],
     });
 
     assert.deepEqual(metadata, {
@@ -26,6 +34,14 @@ describe("ban audit metadata", () => {
       previousCommissionRequests: [
         { id: "commission_1", status: "OPEN" },
         { id: "commission_2", status: "IN_PROGRESS" },
+      ],
+      flaggedOpenOrders: [
+        {
+          id: "order_1",
+          buyerId: "buyer_1",
+          previousReviewNeeded: false,
+          previousReviewNote: null,
+        },
       ],
     });
   });
@@ -42,6 +58,15 @@ describe("ban audit metadata", () => {
         { id: "commission_2", status: "NOT_A_STATUS" },
         { id: 123, status: "CLOSED" },
       ],
+      flaggedOpenOrders: [
+        {
+          id: "order_1",
+          buyerId: null,
+          previousReviewNeeded: true,
+          previousReviewNote: "Already flagged",
+        },
+        { id: "order_2", buyerId: 123, previousReviewNeeded: false, previousReviewNote: null },
+      ],
     });
 
     assert.deepEqual(metadata, {
@@ -51,6 +76,14 @@ describe("ban audit metadata", () => {
         vacationMode: true,
       },
       previousCommissionRequests: [{ id: "commission_1", status: "OPEN" }],
+      flaggedOpenOrders: [
+        {
+          id: "order_1",
+          buyerId: null,
+          previousReviewNeeded: true,
+          previousReviewNote: "Already flagged",
+        },
+      ],
     });
   });
 
@@ -58,10 +91,12 @@ describe("ban audit metadata", () => {
     assert.deepEqual(readBanAuditMetadata(null), {
       previousSellerProfile: null,
       previousCommissionRequests: [],
+      flaggedOpenOrders: [],
     });
     assert.deepEqual(readBanAuditMetadata({ previousSellerProfile: { id: "seller_123" } }), {
       previousSellerProfile: null,
       previousCommissionRequests: [],
+      flaggedOpenOrders: [],
     });
   });
 });

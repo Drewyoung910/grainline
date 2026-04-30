@@ -3,13 +3,11 @@
 
 import * as React from "react";
 import { useR2Upload } from "@/hooks/useR2Upload";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 import { emitToast } from "@/components/Toast";
+import { createClientId } from "@/lib/clientId";
 
 type Att = { id: string; name: string; url?: string; uploading: boolean };
-
-function clientId() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 export default function ReviewPhotosPicker({
   initial = [],
@@ -22,7 +20,7 @@ export default function ReviewPhotosPicker({
 }) {
   const [atts, setAtts] = React.useState<Att[]>(
     initial.slice(0, max).map((u) => ({
-      id: clientId(),
+      id: createClientId("review-photo"),
       name: u.split("/").pop() || "photo",
       url: u,
       uploading: false,
@@ -54,7 +52,7 @@ export default function ReviewPhotosPicker({
       return;
     }
 
-    const tempIds = chosen.map(() => clientId());
+    const tempIds = chosen.map(() => createClientId("review-photo"));
     setAtts((prev) => [
       ...prev,
       ...chosen.map((f, i) => ({
@@ -66,7 +64,7 @@ export default function ReviewPhotosPicker({
 
     try {
       const res = await ut.startUpload(chosen);
-      const got = (res ?? []).map((x) => x.ufsUrl);
+      const got = uploadedFileUrls(res);
 
       setAtts((prev) =>
         prev.map((a) => {

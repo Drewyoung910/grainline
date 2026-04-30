@@ -3169,7 +3169,9 @@ Follow-up audit pass against the remaining 300+ item backlog. This pass first re
 - If you're adding a new component or feature to a file, do NOT delete or restructure existing code in that file
 - Run `npx tsc --noEmit` after every file change, not just at the end
 - When replacing a component (e.g., UserButton → UserDropdown), verify ALL functionality of the old component is preserved in the new one
-- After completing a fix pass: update `CLAUDE.md`, run verification, commit, push, and deploy unless explicitly told not to.
+- After every audit/fix pass: update `audit_open_findings.md` with status and a short fix note for each closed item, update `CLAUDE.md` when architecture/helpers/env/schema behavior changed, run verification, then make a scoped commit before continuing to the next pass.
+- Keep commits batch-sized and coherent. Do not let hundreds of unrelated edited files accumulate uncommitted; stage only files that belong to the pass being committed.
+- `audit_open_findings.md` remains the per-finding source of truth. `CLAUDE.md` should summarize architectural behavior, reusable helpers, migrations, env vars, and workflow rules only.
 
 **TypeScript: zero `tsc --noEmit` errors** (maintained as of 2026-04-01)
 
@@ -5913,6 +5915,52 @@ This pass closed a documentation/code mismatch around CI build enforcement and e
 - Add route/integration coverage for payment, webhook, refund, account-state, and account export paths.
 - Decide whether direct transactional mail needs outbox retry semantics or whether provider-level retries plus Sentry capture are sufficient.
 - Product/legal decisions: partial-refund inventory semantics, deleted-seller public content policy, and remaining retention schedule.
+
+## Audit Reconciliation Pass (2026-04-28 → 2026-04-30)
+
+This section summarizes architecture-level changes from the reconciliation/audit-fix run. `audit_open_findings.md` remains the source of truth for individual findings, statuses, and per-finding fix notes.
+
+### New or expanded helpers
+- **Account/admin/session helpers**: `accountAccessError.ts`, `clerkUserLifecycle.ts`, `clerkSessionSecurity.ts`, `adminEmailRecipient.ts`, and `adminPin.ts` centralize account-state errors, Clerk lifecycle/session invalidation behavior, admin email recipient checks, and signed admin PIN cookies. Production admin PIN cookies require `ADMIN_PIN_COOKIE_SECRET`.
+- **Cart/checkout helpers**: `anonymousCart.ts`, `cartEvents.ts`, `checkoutAmounts.ts`, `checkoutSessionExpiry.ts`, `checkoutStockRestore.ts`, `checkoutSuccessState.ts`, `shippingQuoteState.ts`, `stockMutationState.ts`, and `transactionRetry.ts` keep cart merge/count behavior, checkout retry/rollback behavior, amount math, stock restoration, and retryable transaction rules testable outside route handlers.
+- **Stripe/webhook helpers**: `stripeWebhookState.ts`, `stripeWebhookEventState.ts`, `webhookFailureSpike.ts`, and `webhookFailureSpikeState.ts` own idempotent webhook state, failure-spike detection, and retry semantics. Completed checkout email side effects enqueue through `EmailOutbox` with stable dedup keys.
+- **Email/notification helpers**: `emailText.ts`, `emailOutboxQuota.ts`, `emailOutboxState.ts`, `emailOutboxSanitize.ts`, `followerListingNotifications.ts`, `notificationDeliveryPreferences.ts`, `notificationEmailPreferences.ts`, `notificationLinks.ts`, `notificationPayload.ts`, and `notificationPreferenceKeys.ts` split rendering, quota, retry, dedup, preference, safe-link, and bounded-payload concerns from route code.
+- **Listing/media/content helpers**: `aiReviewSafety.ts`, `blogInput.ts`, `blogVideo.ts`, `listingActionState.ts`, `listingPhotoReview.ts`, `listingSoftDelete.ts`, `messageBodies.ts`, `responseText.ts`, `uploadKey.ts`, `uploadVerificationToken.ts`, `uploadedFileUrl.ts`, and `clientId.ts` centralize AI-review safety, media input validation, listing/archive state checks, message body parsing, upload ownership/verification, uploaded-file response parsing, and client temporary IDs.
+- **Pure regression tests**: each new state/helper module should have a small Node test where practical. Prefer this pattern before adding route-level mocks.
+
+### Behavior changes future agents must preserve
+- **Audit workflow**: every audit/fix pass must update `audit_open_findings.md`, update this file when architecture/env/schema changed, run verification, and land a scoped commit before starting the next batch.
+- **Public URL behavior**: listing/seller stale slug variants redirect permanently to canonical `id--slug` paths after access checks. Metadata paths call `notFound()` for missing/non-public records instead of returning `{}` soft defaults.
+- **Anonymous cart behavior**: signed-out add-to-cart uses browser storage and `cartEvents.ts`; signed-in cart APIs remain server-authoritative. Header/cart count must account for both flows.
+- **Cart price-version behavior**: `Listing.priceVersion` and `CartItem.priceVersion` detect stale cart snapshots. Checkout routes refresh changed items and return `PRICE_CHANGED` instead of silently charging old prices.
+- **Upload verification**: presigned uploads require `UPLOAD_VERIFICATION_SECRET`; presign fails closed when verification tokens cannot be created. Verification checks key ownership, expected size, content type, and TTL.
+- **AI review safety**: OpenAI responses use strict JSON schema; seller data is a user message and policy is a system message; prompt data is bounded and redacted; image URLs are first-party/trusted only; up to the full 8-photo listing limit is reviewed.
+- **Email outbox behavior**: queued email jobs sanitize stored errors, validate preference keys, use hashed long dedup keys, reserve from a UTC daily quota, fail closed when quota Redis fails, and set terminal `nextAttemptAt` to `null`.
+- **Health check behavior**: anonymous `/api/health` returns only `{ ok }` and is rate-limited/cached. Detailed dependency output requires `HEALTH_CHECK_TOKEN`.
+- **Admin PIN behavior**: production runtime throws when `ADMIN_PIN_COOKIE_SECRET` is missing. Next production build phase is exempt so env injection can happen at runtime; local/dev may use `ADMIN_PIN_COOKIE_SECRET_DEV`.
+- **Notification and text payloads**: notification title/body/link values are bounded and strip bidi controls before persistence; email suppression normalizes addresses with NFC before lowercasing.
+- **Service worker/offline behavior**: stale manifest/icon caching was tightened; keep public asset cache changes compatible with `/offline`.
+
+### Schema and migration additions
+- **`20260429153000_seller_stripe_reconciliation_flag`**: adds `SellerProfile.manualStripeReconciliationNeeded` and `manualStripeReconciliationNote` for manual Stripe account reconciliation.
+- **`20260429154000_clerk_webhook_events`**: adds `ClerkWebhookEvent` keyed by Svix ID for Clerk webhook replay protection and retry state.
+- **`20260429165000_explicit_retention_foreign_keys`**: changes retention-sensitive relations away from destructive cascades; conversations/messages/listings are restricted, while nullable retention references use `SET NULL`.
+- **`20260429173000_add_listing_price_versions`**: adds `Listing.priceVersion` and `CartItem.priceVersion` for stale price/version detection.
+- **`20260430140000_nullable_email_outbox_next_attempt`**: makes `EmailOutbox.nextAttemptAt` nullable so terminal jobs do not need sentinel timestamps.
+- **`20260430162000_add_listing_description_trgm_index`**: adds active-public listing description trigram search index.
+
+### Deleted routes/files
+- **Deleted**: `src/app/api/whoami/route.ts`. Do not re-add dev identity/session endpoints in production route space.
+
+### Production environment variables
+- **Required**: `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `CLERK_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`, `SENTRY_DSN`, and `NEXT_PUBLIC_SENTRY_DSN`.
+- **Operational but not strictly required for normal traffic**: `HEALTH_CHECK_TOKEN` for verbose health output, `EMAIL_OUTBOX_DAILY_LIMIT` to override the default 3,000/day queued-email quota.
+- **Local/dev only**: `ADMIN_PIN_COOKIE_SECRET_DEV` can make local admin PIN cookies stable. Never rely on it in production.
+
+### Remaining architectural risks
+- The codebase has strong payment/account-state defenses, but the domain model is still spread through a flat `src/lib` namespace. Future refactors should move toward domain folders before adding many more helpers.
+- Payment/refund/webhook behavior has many pure helper tests but still needs route-level integration coverage.
+- Multi-seller checkout remains the most complex product surface. Keep new checkout work conservative and heavily tested.
 
 ## Audit Fix Pass — Account-State and Cron Retry Coverage (2026-04-28)
 

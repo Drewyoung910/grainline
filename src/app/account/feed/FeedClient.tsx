@@ -12,6 +12,7 @@ export default function FeedClient() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const loadMore = useCallback(async () => {
@@ -23,6 +24,7 @@ export default function FeedClient() {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to load feed");
       const data = await res.json();
+      if (!cursor) setEmptyMessage(typeof data.message === "string" ? data.message : null);
       setItems((prev) => [...prev, ...data.items]);
       setCursor(data.nextCursor);
       setHasMore(data.hasMore);
@@ -73,8 +75,8 @@ export default function FeedClient() {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <p className="text-neutral-500 mb-4">Your feed is empty.</p>
-        <p className="text-sm text-neutral-400 mb-6">
-          Follow some makers to see their latest listings and posts here.
+        <p className="text-sm text-neutral-500 mb-6">
+          {emptyMessage ?? "Follow some makers to see their latest listings and posts here."}
         </p>
         <Link
           href="/browse"
@@ -125,11 +127,11 @@ export default function FeedClient() {
       <div ref={sentinelRef} className="h-4" />
 
       {loading && !initialLoading && (
-        <div className="py-8 text-center text-sm text-neutral-400">Loading more...</div>
+        <div className="py-8 text-center text-sm text-neutral-500">Loading more...</div>
       )}
 
       {!hasMore && items.length > 0 && (
-        <div className="py-8 text-center text-sm text-neutral-400">You&apos;re all caught up!</div>
+        <div className="py-8 text-center text-sm text-neutral-500">You&apos;re all caught up!</div>
       )}
     </div>
   );

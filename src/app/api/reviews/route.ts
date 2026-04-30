@@ -13,6 +13,7 @@ import { containsProfanity } from "@/lib/profanity";
 import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { z } from "zod";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
@@ -72,11 +73,24 @@ export async function POST(req: NextRequest) {
   // Prevent reviewing own listing
   const listingForOwnerCheck = await prisma.listing.findUnique({
     where: { id: listingId },
-    select: { seller: { select: { userId: true } } },
+    select: {
+      seller: {
+        select: {
+          userId: true,
+          user: { select: { banned: true, deletedAt: true } },
+        },
+      },
+    },
   });
   if (listingForOwnerCheck?.seller?.userId === me.id) {
     logSecurityEvent("spam_attempt", { userId: me.id, route: "/api/reviews", reason: "self-review attempt" });
     return NextResponse.json({ error: "Cannot review your own listing" }, { status: 403 });
+  }
+  if (listingForOwnerCheck?.seller?.user.banned || listingForOwnerCheck?.seller?.user.deletedAt) {
+    return NextResponse.json(
+      { error: "Reviews are unavailable for this maker." },
+      { status: 403 },
+    );
   }
 
   // Ensure no duplicate review
@@ -97,7 +111,7 @@ export async function POST(req: NextRequest) {
         createdAt: { gte: since },
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
         sellerRefundId: null,
-        paymentEvents: { none: { eventType: "REFUND" } },
+        paymentEvents: { none: blockingRefundLedgerWhere() },
       },
     },
     select: { id: true },
@@ -153,6 +167,7 @@ export async function POST(req: NextRequest) {
       title: `${reviewerName} left you a ${stars}-star review`,
       body: listing.title,
       link: publicSellerPath(listing.seller.id, listing.seller.displayName),
+      dedupScope: created.id,
     });
 
     try {

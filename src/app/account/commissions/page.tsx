@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CATEGORY_LABELS } from "@/lib/categories";
+import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import type { CommissionStatus } from "@prisma/client";
 
 export const metadata: Metadata = { title: "My Commission Requests", robots: { index: false, follow: false } };
@@ -32,7 +33,7 @@ export default async function MyCommissionsPage() {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) redirect("/sign-in");
 
-  const requests = await prisma.commissionRequest.findMany({
+  const requestRows = await prisma.commissionRequest.findMany({
     where: { buyerId: me.id },
     orderBy: { createdAt: "desc" },
     take: 30,
@@ -45,6 +46,7 @@ export default async function MyCommissionsPage() {
       budgetMaxCents: true,
       status: true,
       interestedCount: true,
+      _count: { select: { interests: true } },
       createdAt: true,
       interests: {
         take: 3,
@@ -63,6 +65,13 @@ export default async function MyCommissionsPage() {
       },
     },
   });
+  const requests = requestRows.map(({ _count, ...request }) => ({
+    ...request,
+    interestedCount: resolvedInterestedCount({
+      interestedCount: request.interestedCount,
+      _count,
+    }),
+  }));
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 pb-16 pt-8">
@@ -106,7 +115,7 @@ export default async function MyCommissionsPage() {
                 {r.description.slice(0, 150)}{r.description.length > 150 ? "…" : ""}
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-400">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-500">
                 {r.category && <span>{CATEGORY_LABELS[r.category]}</span>}
                 {(r.budgetMinCents || r.budgetMaxCents) && (
                   <span>

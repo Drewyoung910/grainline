@@ -56,7 +56,7 @@ export default async function FlaggedOrdersPage({
       </p>
 
       {total === 0 ? (
-        <div className="rounded-xl border border-neutral-200 bg-white px-6 py-16 text-center text-neutral-400">
+        <div className="rounded-xl border border-neutral-200 bg-white px-6 py-16 text-center text-neutral-500">
           No flagged orders
         </div>
       ) : (
@@ -103,12 +103,12 @@ export default async function FlaggedOrdersPage({
                       <td className="px-4 py-3">
                         <div className="font-medium text-neutral-800">{buyer}</div>
                         {order.buyerEmail && order.buyer?.name && (
-                          <div className="text-xs text-neutral-400">{order.buyerEmail}</div>
+                          <div className="text-xs text-neutral-500">{order.buyerEmail}</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-neutral-700">
                         <div className="font-medium">{sellers.length > 0 ? sellers.join(", ") : "—"}</div>
-                        <div className="mt-0.5 max-w-xs text-xs text-neutral-400">
+                        <div className="mt-0.5 max-w-xs text-xs text-neutral-500">
                           {itemSummary}
                           {remainingItems > 0 ? `, +${remainingItems} more` : ""}
                         </div>

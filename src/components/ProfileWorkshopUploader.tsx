@@ -3,6 +3,7 @@
 import { useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 export default function ProfileWorkshopUploader({
   initialUrl,
@@ -21,7 +22,7 @@ export default function ProfileWorkshopUploader({
           className="w-full h-40 object-cover rounded-lg border"
         />
       ) : (
-        <div className="w-full h-40 rounded-lg border bg-neutral-100 flex items-center justify-center text-neutral-400 text-sm">
+        <div className="w-full h-40 rounded-lg border bg-neutral-100 flex items-center justify-center text-neutral-500 text-sm">
           No workshop image yet
         </div>
       )}
@@ -37,7 +38,7 @@ export default function ProfileWorkshopUploader({
           button: ({ ready }) => (ready ? "Upload workshop photo" : "Preparing…"),
         }}
         onClientUploadComplete={(files) => {
-          const newUrl = (files[0] as { ufsUrl?: string; url?: string })?.ufsUrl ?? (files[0] as { ufsUrl?: string; url?: string })?.url ?? null;
+          const newUrl = uploadedFileUrl(files[0]) || null;
           if (newUrl) setUrl(newUrl);
         }}
         onUploadError={(e) => emitToast(e.message, "error")}

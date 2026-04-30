@@ -82,6 +82,7 @@ export async function POST(req: Request) {
         title: `${favName} hearted your listing`,
         body: listing!.title,
         link: publicListingPath(listingId, listing!.title),
+        dedupScope: me.id,
       });
     }
   } catch (e) {

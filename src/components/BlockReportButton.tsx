@@ -25,9 +25,16 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
   const [reportReason, setReportReason] = useState("SPAM");
   const [reportDetails, setReportDetails] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
+  const [error, setError] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
+  async function readApiError(res: Response, fallback: string) {
+    const data = await res.json().catch(() => null) as { error?: string } | null;
+    return data?.error || fallback;
+  }
+
   function handleOpen() {
+    setError(null);
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setOpenUpward(rect.bottom > window.innerHeight - 200);
@@ -50,22 +57,36 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
 
   async function handleBlock() {
     setStatus("loading");
+    setError(null);
     const method = blocked ? "DELETE" : "POST";
-    const res = await fetch(`/api/users/${targetUserId}/block`, { method });
-    if (res.ok) setBlocked(!blocked);
-    setStatus("idle");
-    setOpen(false);
+    try {
+      const res = await fetch(`/api/users/${targetUserId}/block`, { method });
+      if (!res.ok) throw new Error(await readApiError(res, "Could not update block settings."));
+      setBlocked(!blocked);
+      setStatus("idle");
+      setOpen(false);
+    } catch (e) {
+      setStatus("idle");
+      setError(e instanceof Error ? e.message : "Could not update block settings.");
+    }
   }
 
   async function handleReport() {
     setStatus("loading");
-    const res = await fetch(`/api/users/${targetUserId}/report`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: reportReason, details: reportDetails || undefined, ...(targetType ? { targetType } : {}), ...(targetId ? { targetId } : {}) }),
-    });
-    setStatus(res.ok ? "done" : "idle");
-    if (res.ok) setTimeout(() => { setOpen(false); setView("menu"); setStatus("idle"); }, 1500);
+    setError(null);
+    try {
+      const res = await fetch(`/api/users/${targetUserId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reportReason, details: reportDetails || undefined, ...(targetType ? { targetType } : {}), ...(targetId ? { targetId } : {}) }),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, "Could not submit report."));
+      setStatus("done");
+      setTimeout(() => { setOpen(false); setView("menu"); setStatus("idle"); }, 1500);
+    } catch (e) {
+      setStatus("idle");
+      setError(e instanceof Error ? e.message : "Could not submit report.");
+    }
   }
 
   const reportLabel =
@@ -80,7 +101,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
       <button
         ref={triggerRef}
         onClick={open ? () => { setOpen(false); setView("menu"); } : handleOpen}
-        className="text-xs text-neutral-400 hover:text-neutral-600 px-2 py-1 rounded"
+        className="text-xs text-neutral-500 hover:text-neutral-600 px-2 py-1 rounded"
         aria-label="More options"
         aria-expanded={open}
         aria-haspopup="menu"
@@ -107,6 +128,9 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
                 >
                   {reportLabel}
                 </button>
+                {error && (
+                  <p className="px-4 py-2 text-xs text-red-600" role="alert">{error}</p>
+                )}
               </>
             ) : status === "done" ? (
               <div className="px-4 py-3 text-sm text-green-600">Report submitted ✓</div>
@@ -129,6 +153,9 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
                   onChange={(e) => setReportDetails(e.target.value)}
                   className="w-full border border-neutral-200 rounded px-2 py-1 text-xs resize-none"
                 />
+                {error && (
+                  <p className="text-xs text-red-600" role="alert">{error}</p>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={handleReport}

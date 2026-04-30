@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
-import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -74,10 +74,10 @@ export default async function SalesPage({
         },
         buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
         paymentEvents: {
-          where: { eventType: "REFUND" },
+          where: blockingRefundLedgerWhere(),
           orderBy: { createdAt: "desc" },
           take: 1,
-          select: { eventType: true, amountCents: true },
+          select: { eventType: true, amountCents: true, status: true },
         },
       },
       orderBy: { createdAt: "desc" },

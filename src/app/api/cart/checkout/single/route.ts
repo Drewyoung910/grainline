@@ -9,6 +9,7 @@ import { verifyRate } from "@/lib/shipping-token";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
+import { stripeStatementDescriptorSuffix } from "@/lib/stripeStatementDescriptor";
 import {
   acquireCheckoutLock,
   checkoutPayloadHash,
@@ -17,12 +18,13 @@ import {
   releaseCheckoutLock,
   singleCheckoutLockKey,
 } from "@/lib/checkoutSessionLock";
+import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
-  quantity: z.number().int().min(1).max(10).default(1),
+  quantity: z.number().int().min(1).max(99).default(1),
   shippingAddress: z.object({
     name: z.string().min(1).max(100),
     line1: z.string().min(1).max(200),
@@ -261,10 +263,12 @@ export async function POST(req: Request) {
       if (
         existingCheckoutLock.payloadHash === payloadHash &&
         existingCheckoutLock.state === "ready" &&
-        existingCheckoutLock.clientSecret
+        existingCheckoutLock.clientSecret &&
+        existingCheckoutLock.sessionId
       ) {
         return NextResponse.json({
           clientSecret: existingCheckoutLock.clientSecret,
+          sessionId: existingCheckoutLock.sessionId,
           reused: true,
         });
       }
@@ -280,10 +284,12 @@ export async function POST(req: Request) {
       if (
         racedCheckoutLock?.payloadHash === payloadHash &&
         racedCheckoutLock.state === "ready" &&
-        racedCheckoutLock.clientSecret
+        racedCheckoutLock.clientSecret &&
+        racedCheckoutLock.sessionId
       ) {
         return NextResponse.json({
           clientSecret: racedCheckoutLock.clientSecret,
+          sessionId: racedCheckoutLock.sessionId,
           reused: true,
         });
       }
@@ -358,11 +364,43 @@ export async function POST(req: Request) {
     const buyerEmail = me.email ?? undefined;
 
     // Statement descriptor: shows seller name on buyer's card statement
-    const descriptorSuffix = (sp.displayName ?? "")
-      .slice(0, 22)
-      .toUpperCase()
-      .replace(/[^A-Z0-9 ]/g, "")
-      .trim();
+    const descriptorSuffix = stripeStatementDescriptorSuffix(sp.displayName);
+    const selectedVariantsMetadata = (() => {
+      if (selectedVariantsSnapshot.length === 0) return "";
+      const json = JSON.stringify(selectedVariantsSnapshot);
+      return json.length <= 500 ? json : JSON.stringify(
+        selectedVariantsSnapshot.map((v) => ({
+          groupName: v.groupName.slice(0, 20),
+          optionLabel: v.optionLabel.slice(0, 20),
+          priceAdjustCents: v.priceAdjustCents,
+        }))
+      ).slice(0, 500);
+    })();
+    const checkoutMetadata: Record<string, string> = {
+      listingId: body.listingId,
+      sellerId: listing.sellerId,
+      quantity: String(body.quantity),
+      priceCents: String(unitPriceCents),
+      priceVersion: String(listing.priceVersion),
+      buyerId: me.id,
+      taxRetainedAtCreation: "true",
+      selectedRateObjectId: body.selectedRate.objectId,
+      quotedToName: body.shippingAddress.name,
+      quotedToLine1: body.shippingAddress.line1,
+      quotedToLine2: body.shippingAddress.line2 ?? "",
+      quotedToCity: body.shippingAddress.city,
+      quotedToState: body.shippingAddress.state,
+      quotedToPostalCode: body.shippingAddress.postalCode,
+      quotedToCountry: "US",
+      quotedToPhone: body.shippingAddress.phone ?? "",
+      quotedShippingAmountCents: String(shippingAmountCents),
+      giftNote: body.giftNote ?? "",
+      giftWrapping: body.giftWrapping ? "true" : "false",
+      giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
+      selectedVariants: selectedVariantsMetadata,
+      checkoutLockKey: checkoutLockKeyValue,
+      reservedStock: `${body.listingId}:${body.quantity}`,
+    };
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
@@ -414,43 +452,11 @@ export async function POST(req: Request) {
           // Do not also set application_fee_amount with this manual transfer model.
           amount: sellerTransferAmount,
         },
-        ...(descriptorSuffix.length > 0 && { statement_descriptor_suffix: descriptorSuffix }),
+        statement_descriptor_suffix: descriptorSuffix,
         // NOTE: on_behalf_of intentionally omitted —
         // deferred until Terms update
       },
-      metadata: {
-        listingId: body.listingId,
-        quantity: String(body.quantity),
-        priceCents: String(unitPriceCents),
-        buyerId: me.id,
-        taxRetainedAtCreation: "true",
-        selectedRateObjectId: body.selectedRate.objectId,
-        quotedToName: body.shippingAddress.name,
-        quotedToLine1: body.shippingAddress.line1,
-        quotedToLine2: body.shippingAddress.line2 ?? "",
-        quotedToCity: body.shippingAddress.city,
-        quotedToState: body.shippingAddress.state,
-        quotedToPostalCode: body.shippingAddress.postalCode,
-        quotedToCountry: "US",
-        quotedToPhone: body.shippingAddress.phone ?? "",
-        quotedShippingAmountCents: String(shippingAmountCents),
-        giftNote: body.giftNote ?? "",
-        giftWrapping: body.giftWrapping ? "true" : "false",
-        giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
-        selectedVariants: (() => {
-          if (selectedVariantsSnapshot.length === 0) return "";
-          const json = JSON.stringify(selectedVariantsSnapshot);
-          return json.length <= 500 ? json : JSON.stringify(
-            selectedVariantsSnapshot.map((v) => ({
-              groupName: v.groupName.slice(0, 20),
-              optionLabel: v.optionLabel.slice(0, 20),
-              priceAdjustCents: v.priceAdjustCents,
-            }))
-          ).slice(0, 500);
-        })(),
-        checkoutLockKey: checkoutLockKeyValue,
-        reservedStock: `${body.listingId}:${body.quantity}`,
-      },
+      metadata: checkoutMetadata,
     });
 
     try {
@@ -466,9 +472,20 @@ export async function POST(req: Request) {
           tags: { source: "checkout_lock_ready", route: "single_checkout" },
           extra: { checkoutLockKey: checkoutLockKeyValue, stripeSessionId: session.id },
         });
-        await stripe.checkout.sessions.expire(session.id).catch((error) => {
+        let staleSessionExpired = false;
+        await stripe.checkout.sessions.expire(session.id).then(() => {
+          staleSessionExpired = true;
+        }).catch((error) => {
           Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
         });
+        if (staleSessionExpired) {
+          await restoreUnorderedCheckoutStockOnce({
+            sessionId: session.id,
+            metadata: checkoutMetadata,
+          }).catch((error) => {
+            Sentry.captureException(error, { tags: { source: "checkout_lock_restore_stale" } });
+          });
+        }
         return NextResponse.json(
           { error: "Checkout state changed. Please try again." },
           { status: 409 },
@@ -478,7 +495,7 @@ export async function POST(req: Request) {
       Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
     }
 
-    return NextResponse.json({ clientSecret: session.client_secret });
+    return NextResponse.json({ clientSecret: session.client_secret, sessionId: session.id });
   } catch (err: unknown) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;

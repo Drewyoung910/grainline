@@ -3,13 +3,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { Resend } from "resend";
-import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
-import { stripBidiControls } from "@/lib/sanitize";
+import { normalizeUserText, stripBidiControls } from "@/lib/sanitize";
+import { sendRenderedEmail } from "@/lib/email";
+import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
 
 const Schema = z.object({
@@ -25,18 +24,6 @@ function safeSubject(subject: string) {
   return stripBidiControls(subject.normalize("NFKC"))
     .replace(/[\r\n]+/g, " ")
     .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
-    .trim();
-}
-
-function htmlToText(html: string) {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|h1|h2|h3)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -67,10 +54,14 @@ export async function POST(request: Request) {
   if (body.userId) {
     const recipient = await prisma.user.findUnique({
       where: { id: body.userId },
-      select: { email: true, name: true },
+      select: { email: true, name: true, banned: true, deletedAt: true },
     });
     if (!recipient?.email) {
       return NextResponse.json({ error: "User not found or no email" }, { status: 404 });
+    }
+    const inactiveReason = inactiveAdminEmailRecipientReason(recipient);
+    if (inactiveReason) {
+      return NextResponse.json({ error: inactiveReason }, { status: 409 });
     }
     recipientEmail = recipient.email;
   } else if (body.email) {
@@ -87,12 +78,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Recipient email is suppressed after a bounce or complaint" }, { status: 409 });
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    console.warn("[admin email] RESEND_API_KEY not set — skipping send");
-    return NextResponse.json({ ok: true, skipped: true });
+  const recipientAccount = await prisma.user.findUnique({
+    where: { email: normalizedRecipientEmail },
+    select: { banned: true, deletedAt: true },
+  });
+  const inactiveReason = inactiveAdminEmailRecipientReason(recipientAccount);
+  if (inactiveReason) {
+    return NextResponse.json({ error: inactiveReason }, { status: 409 });
   }
 
-  const escapedBody = body.body
+  const sanitizedBody = normalizeUserText(body.body);
+  const escapedBody = sanitizedBody
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -113,24 +109,14 @@ export async function POST(request: Request) {
   `;
 
   const sanitizedSubject = safeSubject(body.subject);
-  const unsubscribeUrl = buildUnsubscribeUrl(normalizedRecipientEmail);
+  const emailConfigured = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 
   try {
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM ?? "Grainline <hello@thegrainline.com>",
+    await sendRenderedEmail({
       to: normalizedRecipientEmail,
       subject: sanitizedSubject,
       html: htmlBody,
-      text: htmlToText(htmlBody),
-      ...(unsubscribeUrl
-        ? {
-            headers: {
-              "List-Unsubscribe": `<${unsubscribeUrl}>`,
-              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-            },
-          }
-        : {}),
-    });
+    }, { throwOnFailure: true });
   } catch (err) {
     console.error("[admin email] send failed:", err);
     return NextResponse.json({ error: "Email send failed" }, { status: 500 });
@@ -141,7 +127,7 @@ export async function POST(request: Request) {
       userId: body.userId,
       type: "ACCOUNT_WARNING",
       title: sanitizedSubject,
-      body: htmlToText(escapedBody).slice(0, 500) || "Message from the Grainline team.",
+      body: sanitizedBody.replace(/\s+/g, " ").trim().slice(0, 500) || "Message from the Grainline team.",
       link: "/account",
     }).catch(() => {});
   }
@@ -159,5 +145,5 @@ export async function POST(request: Request) {
     });
   } catch { /* non-fatal */ }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, skipped: !emailConfigured });
 }

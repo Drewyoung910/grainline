@@ -59,7 +59,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
         <div>
           <label className="block text-sm font-medium mb-1">
             Message to your followers
-            <span className="ml-2 text-neutral-400 font-normal">({followerCount} follower{followerCount !== 1 ? "s" : ""})</span>
+            <span className="ml-2 text-neutral-500 font-normal">({followerCount} follower{followerCount !== 1 ? "s" : ""})</span>
           </label>
           <textarea
             value={message}
@@ -69,7 +69,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
             placeholder="Share a shop update, new project, or announcement…"
             className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
-          <p className="text-xs text-neutral-400 text-right mt-0.5">{message.length}/500</p>
+          <p className="text-xs text-neutral-500 text-right mt-0.5">{message.length}/500</p>
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-neutral-600">Send to:</span>
@@ -106,7 +106,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
 
       {/* History */}
       {loadingHistory ? (
-        <p className="text-sm text-neutral-400">Loading history…</p>
+        <p className="text-sm text-neutral-500">Loading history…</p>
       ) : broadcasts && broadcasts.length > 0 ? (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-neutral-700">Past updates</h3>
@@ -114,7 +114,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
             {broadcasts.map((b) => (
               <li key={b.id} className="rounded-lg border p-3 bg-stone-50 text-sm">
                 <p className="text-neutral-800">{b.message}</p>
-                <p className="text-xs text-neutral-400 mt-1">
+                <p className="text-xs text-neutral-500 mt-1">
                   {new Date(b.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   {" · "}
                   {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
@@ -124,7 +124,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
           </ul>
         </div>
       ) : broadcasts && broadcasts.length === 0 ? (
-        <p className="text-sm text-neutral-400">No updates sent yet.</p>
+        <p className="text-sm text-neutral-500">No updates sent yet.</p>
       ) : null}
     </div>
   );

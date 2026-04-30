@@ -6,12 +6,16 @@ const {
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
   disputeCaseAction,
+  invalidCheckoutBuyerReason,
   invalidCheckoutSellerReason,
+  isLikelyThinStripeEventObject,
+  isStaleStripeEvent,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
   payoutFailureState,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
+  retrievedStripeEventMatchesSignedEnvelope,
 } = await import("../src/lib/stripeWebhookState.ts");
 
 function seller(overrides = {}) {
@@ -26,16 +30,50 @@ function seller(overrides = {}) {
 }
 
 describe("Stripe webhook state helpers", () => {
-  it("selects the newest non-failed refund from Stripe charge data", () => {
+  it("detects Stripe thin event data objects conservatively", () => {
+    assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session" }), true);
+    assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", livemode: true }), true);
+    assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", amount_total: 1000 }), false);
+    assert.equal(
+      isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", amount_total: 1000, metadata: {} }),
+      false,
+    );
+    assert.equal(isLikelyThinStripeEventObject({ object: "checkout.session" }), false);
+  });
+
+  it("requires retrieved thin events to match the signed envelope", () => {
+    const signed = { id: "evt_1", type: "checkout.session.completed", created: 100, api_version: "2026-04-30" };
+    assert.equal(retrievedStripeEventMatchesSignedEnvelope(signed, { ...signed, data: { object: {} } }), true);
+    assert.equal(
+      retrievedStripeEventMatchesSignedEnvelope(signed, { ...signed, type: "charge.refunded" }),
+      false,
+    );
+    assert.equal(
+      retrievedStripeEventMatchesSignedEnvelope(signed, { ...signed, api_version: "2025-01-01" }),
+      false,
+    );
+  });
+
+  it("detects stale Stripe webhook events from the signed event timestamp", () => {
+    const now = 1_000_000;
+    assert.equal(isStaleStripeEvent(now - 24 * 60 * 60, now), false);
+    assert.equal(isStaleStripeEvent(now - 24 * 60 * 60 - 1, now), true);
+    assert.equal(isStaleStripeEvent(undefined, now), true);
+  });
+
+  it("selects the newest succeeded refund from Stripe charge data", () => {
     assert.deepEqual(
       latestSuccessfulRefund([
         { id: "re_old", status: "succeeded", created: 10 },
         { id: "re_failed", status: "failed", created: 30 },
-        { id: "re_new", status: "pending", created: 20 },
+        { id: "re_pending", status: "pending", created: 40 },
+        { id: "re_canceled", status: "canceled", created: 50 },
+        { id: "re_new", status: "succeeded", created: 20 },
       ]),
-      { id: "re_new", status: "pending", created: 20 },
+      { id: "re_new", status: "succeeded", created: 20 },
     );
     assert.equal(latestSuccessfulRefund([{ id: "re_failed", status: "failed", created: 30 }]), null);
+    assert.equal(latestSuccessfulRefund([{ id: "re_pending", status: "pending", created: 30 }]), null);
   });
 
   it("parses positive integer metadata with a fallback", () => {
@@ -72,6 +110,16 @@ describe("Stripe webhook state helpers", () => {
     assert.match(invalidCheckoutSellerReason(seller({ chargesEnabled: false })), /disabled/);
     assert.match(invalidCheckoutSellerReason(seller({ stripeAccountId: null })), /disconnected/);
     assert.equal(invalidCheckoutSellerReason(seller()), null);
+  });
+
+  it("explains why a completed checkout buyer is no longer eligible", () => {
+    assert.match(invalidCheckoutBuyerReason(null), /could not be verified/);
+    assert.match(invalidCheckoutBuyerReason({ id: "buyer_1", banned: true, deletedAt: null }), /suspended/);
+    assert.match(
+      invalidCheckoutBuyerReason({ id: "buyer_1", banned: false, deletedAt: new Date("2026-04-30") }),
+      /deleted/,
+    );
+    assert.equal(invalidCheckoutBuyerReason({ id: "buyer_1", banned: false, deletedAt: null }), null);
   });
 
   it("blocks automatic invalid-checkout refunds while a Stripe dispute is open", () => {
@@ -164,13 +212,14 @@ describe("Stripe webhook state helpers", () => {
       chargeId: "ch_1",
       amountRefundedCents: 900,
       latestRefund: null,
+      fallbackRefundId: "external:evt_refunded",
       order: { currency: "usd", sellerRefundId: null, sellerRefundAmountCents: null },
     });
 
-    assert.equal(state.ledger.stripeObjectId, "external:ch_1");
+    assert.equal(state.ledger.stripeObjectId, "external:evt_refunded");
     assert.equal(state.ledger.amountCents, 900);
     assert.equal(state.ledger.status, "refunded");
-    assert.equal(state.orderUpdate?.sellerRefundId, "external:ch_1");
+    assert.equal(state.orderUpdate?.sellerRefundId, "external:evt_refunded");
   });
 
   it("builds dispute ledger rows and order review updates", () => {

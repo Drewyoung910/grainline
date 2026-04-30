@@ -268,6 +268,7 @@ model Listing {
   title       String        @db.VarChar(150)
   description String
   priceCents  Int
+  priceVersion Int        @default(1)
   currency    String        @default("usd") @db.VarChar(3)
   status      ListingStatus @default(ACTIVE)
   videoUrl    String?       @db.VarChar(2048)
@@ -679,6 +680,7 @@ model CartItem {
   listing                  Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   quantity                 Int      @default(1)
   priceCents               Int
+  priceVersion             Int      @default(1)
   selectedVariantOptionIds String[] @default([])
   variantKey               String   @default("") @db.VarChar(255) // sorted option IDs, for unique constraint
   createdAt                DateTime @default(now())
@@ -1018,7 +1020,7 @@ model EmailOutbox {
   dedupKey       String    @unique @db.VarChar(128)
   status         String    @default("PENDING") @db.VarChar(20)
   attempts       Int       @default(0)
-  nextAttemptAt  DateTime  @default(now())
+  nextAttemptAt  DateTime? @default(now())
   sentAt         DateTime?
   lastError      String?   @db.VarChar(1000)
   createdAt      DateTime  @default(now())

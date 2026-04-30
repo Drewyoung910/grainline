@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function BannedPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 bg-stone-50">
+    <main className="min-h-[100svh] flex items-center justify-center px-4 bg-stone-50">
       <div className="text-center max-w-md">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

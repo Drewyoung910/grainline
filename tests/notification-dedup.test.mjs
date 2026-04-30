@@ -73,4 +73,31 @@ describe("notification dedup keys", () => {
       }),
     );
   });
+
+  it("can scope same-link notifications to their source actor or action", () => {
+    const firstFollower = notificationDedupKey({
+      userId: "seller_123",
+      type: "NEW_FOLLOWER",
+      link: "/dashboard/analytics",
+      dedupScope: "follower_1",
+      date,
+    });
+    const retriedFirstFollower = notificationDedupKey({
+      userId: "seller_123",
+      type: "NEW_FOLLOWER",
+      link: "/dashboard/analytics",
+      dedupScope: "follower_1",
+      date,
+    });
+    const secondFollower = notificationDedupKey({
+      userId: "seller_123",
+      type: "NEW_FOLLOWER",
+      link: "/dashboard/analytics",
+      dedupScope: "follower_2",
+      date,
+    });
+
+    assert.equal(firstFollower, retriedFirstFollower);
+    assert.notEqual(firstFollower, secondFollower);
+  });
 });

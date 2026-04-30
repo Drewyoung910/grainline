@@ -10,6 +10,15 @@ describe("unicode sanitization", () => {
     assert.equal(sanitizeText("Maker\u2066 Name"), "Maker Name");
   });
 
+  it("strips nested or malformed HTML from plain text", () => {
+    assert.equal(sanitizeText("<<script>alert(1)</script>Chair"), "alert(1)Chair");
+    assert.equal(sanitizeText("hello <b onclick=alert(1)>world</b>"), "hello world");
+  });
+
+  it("removes dangerous protocol text from plain text", () => {
+    assert.equal(sanitizeText("javascript:alert(1) data:text/html"), "alert(1) text/html");
+  });
+
   it("normalizes and caps user names at the database boundary", () => {
     assert.equal(sanitizeUserName("Ａlice   \u202E Woodworker", 12), "Alice Woodwo");
   });

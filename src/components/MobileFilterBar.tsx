@@ -211,7 +211,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
             placeholder="Min"
             className="w-full rounded border px-2 py-1.5 min-h-[44px]"
           />
-          <span className="text-neutral-400 shrink-0">–</span>
+          <span className="text-neutral-500 shrink-0">–</span>
           <input
             name="max"
             type="number"
@@ -413,7 +413,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
               }`}
             >
               Most relevant
-              {currentSort === "relevant" && <span className="text-neutral-400 text-base">✓</span>}
+              {currentSort === "relevant" && <span className="text-neutral-500 text-base">✓</span>}
             </Link>
           )}
           {[
@@ -431,7 +431,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
               }`}
             >
               {label}
-              {currentSort === value && <span className="text-neutral-400 text-base">✓</span>}
+              {currentSort === value && <span className="text-neutral-500 text-base">✓</span>}
             </Link>
           ))}
         </div>

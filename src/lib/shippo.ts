@@ -1,5 +1,6 @@
 // src/lib/shippo.ts
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
+import { readResponseTextWithTimeout } from "@/lib/responseText";
 
 const SHIPPO_API_KEY = process.env.SHIPPO_API_KEY!;
 const SHIPPO_BASE = "https://api.goshippo.com";
@@ -34,7 +35,7 @@ export async function shippoRequest<T = unknown>(
   };
   const res = await fetchWithTimeout(`${SHIPPO_BASE}${path}`, { ...init, headers }, 15_000);
   if (!res.ok) {
-    const text = await res.text();
+    const text = await readResponseTextWithTimeout(res);
     throw new Error(`Shippo ${res.status} ${res.statusText}: ${text}`);
   }
   return (await res.json()) as T;
@@ -87,7 +88,7 @@ export async function shippoRatesMultiPiece(opts: {
   }, 20_000);
 
   if (!res.ok) {
-    const t = await res.text();
+    const t = await readResponseTextWithTimeout(res);
     throw new Error(`Shippo create shipment failed: ${res.status} ${t}`);
   }
 
@@ -104,4 +105,3 @@ export async function shippoRatesMultiPiece(opts: {
 
   return { shipmentId: shipmentObj.object_id, rates };
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 
 type QuoteRate = {
@@ -50,16 +50,24 @@ export default function ShippingRateSelector({
   const [rates, setRates] = useState<SelectedShippingRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("Unable to get shipping rates. Check the address or try again before continuing.");
+  const [warningMessage, setWarningMessage] = useState("");
+  const selectedRateRef = useRef<SelectedShippingRate | null>(selectedRate);
 
   const quoteBodyStr = JSON.stringify(quoteBodyExtra ?? null);
+
+  useEffect(() => {
+    selectedRateRef.current = selectedRate;
+  }, [selectedRate]);
 
   useEffect(() => {
     const ac = new AbortController();
     async function fetchRates() {
       setLoading(true);
       setError(false);
+      setErrorMessage("Unable to get shipping rates. Check the address or try again before continuing.");
+      setWarningMessage("");
       setRates([]);
-      onSelect(null);
       try {
         const res = await fetch("/api/shipping/quote", {
           method: "POST",
@@ -73,21 +81,33 @@ export default function ShippingRateSelector({
             toState: address.state,
             toCity: address.city,
             toCountry: "US",
+            toName: address.name,
+            toLine1: address.line1,
+            toLine2: address.line2,
           }),
         });
         if (!res.ok) throw new Error("Quote failed");
         const data = await res.json();
         const quoteRates: QuoteRate[] = data.rates ?? [];
         if (quoteRates.length === 0) {
+          if (typeof data.error === "string") setErrorMessage(data.error);
+          onSelect(null);
           setError(true);
           return;
         }
+        if (typeof data.warning === "string") setWarningMessage(data.warning);
         const mapped = quoteRates.map(toSelectedRate);
         setRates(mapped);
+        const previousSelection = selectedRateRef.current;
+        const matchingFreshRate = previousSelection
+          ? mapped.find((rate) => rate.objectId === previousSelection.objectId)
+          : null;
         const cheapest = mapped.reduce((min, r) => (r.amountCents < min.amountCents ? r : min), mapped[0]);
-        onSelect(cheapest);
+        onSelect(matchingFreshRate ?? cheapest);
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
+        if ((e as Error).message) setErrorMessage((e as Error).message);
+        onSelect(null);
         setError(true);
       } finally {
         if (!ac.signal.aborted) setLoading(false);
@@ -96,7 +116,7 @@ export default function ShippingRateSelector({
     fetchRates();
     return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerId, address.postalCode, address.state, address.city, quoteBodyStr]);
+  }, [sellerId, address.postalCode, address.state, address.city, address.line1, address.line2, address.name, quoteBodyStr]);
 
   if (loading) {
     return (
@@ -120,7 +140,7 @@ export default function ShippingRateSelector({
       <div className="space-y-2">
         <p className="text-sm font-medium text-neutral-500">Shipping from {sellerDisplayName}</p>
         <div className="p-3 rounded-md border border-neutral-200 text-sm text-neutral-500">
-          Unable to get shipping rates. Check the address or try again before continuing.
+          {errorMessage}
         </div>
       </div>
     );
@@ -129,6 +149,11 @@ export default function ShippingRateSelector({
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-neutral-500">Shipping from {sellerDisplayName}</p>
+      {warningMessage && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {warningMessage}
+        </div>
+      )}
       {rates.map((rate) => {
         const isSelected = selectedRate?.objectId === rate.objectId;
         return (
@@ -151,7 +176,7 @@ export default function ShippingRateSelector({
               <span className="text-sm text-neutral-700">
                 {rate.displayName}
                 {rate.estDays != null && (
-                  <span className="text-xs text-neutral-400 ml-1">
+                  <span className="text-xs text-neutral-500 ml-1">
                     {rate.estDays === 1 ? "1 business day" : `${rate.estDays} business days`}
                   </span>
                 )}

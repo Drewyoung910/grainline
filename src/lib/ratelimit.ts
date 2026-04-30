@@ -88,6 +88,13 @@ export const savedSearchRatelimit = new Ratelimit({
   prefix: "rl:saved-search",
 });
 
+export const accountFeedRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "10 m"),
+  analytics: true,
+  prefix: "rl:account-feed",
+});
+
 export const reviewVoteRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(60, "60 m"),
@@ -147,6 +154,13 @@ export const commissionCreateRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, "24 h"),
   analytics: true,
   prefix: "rl:commission_create",
+});
+
+export const commissionReferenceImageIpRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "24 h"),
+  analytics: true,
+  prefix: "rl:commission_ref_image_ip",
 });
 
 // Profile view dedup — deduplicate by IP+listingId combo

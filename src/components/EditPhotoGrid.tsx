@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useTransition } from "react";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type Photo = {
   id: string;
@@ -25,15 +26,20 @@ export default function EditPhotoGrid({
     Object.fromEntries(initialPhotos.map((p) => [p.id, p.altText ?? ""]))
   );
   const [saving, startSaving] = useTransition();
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; kind: "success" | "error" } | null>(null);
   const [altModalIdx, setAltModalIdx] = useState<number | null>(null);
+  const altDialogRef = useRef<HTMLDivElement>(null);
 
   // Drag state
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
+  const altModalOpen = altModalIdx !== null && !!photos[altModalIdx];
 
-  function showToast(msg: string) {
-    setToast(msg);
+  useDialogFocus(altModalOpen, altDialogRef, () => setAltModalIdx(null));
+  useBodyScrollLock(altModalOpen);
+
+  function showToast(message: string, kind: "success" | "error" = "success") {
+    setToast({ message, kind });
     setTimeout(() => setToast(null), 1800);
   }
 
@@ -58,50 +64,71 @@ export default function EditPhotoGrid({
     dragOverItem.current = null;
     if (from === null || to === null || from === to) return;
 
+    const previousPhotos = photos;
     const newPhotos = [...photos];
     const [dragged] = newPhotos.splice(from, 1);
     newPhotos.splice(to, 0, dragged);
     setPhotos(newPhotos);
 
-    startSaving(async () => {
-      await onReorder(newPhotos.map((p) => p.id));
-      showToast("Reordered");
+    startSaving(() => {
+      void onReorder(newPhotos.map((p) => p.id))
+        .then(() => showToast("Reordered"))
+        .catch(() => {
+          setPhotos(previousPhotos);
+          showToast("Couldn't reorder photos.", "error");
+        });
     });
   }
 
   function movePhoto(from: number, to: number) {
+    const previousPhotos = photos;
     const newPhotos = [...photos];
     const [moved] = newPhotos.splice(from, 1);
     newPhotos.splice(to, 0, moved);
     setPhotos(newPhotos);
 
-    startSaving(async () => {
-      await onReorder(newPhotos.map((p) => p.id));
-      showToast("Reordered");
+    startSaving(() => {
+      void onReorder(newPhotos.map((p) => p.id))
+        .then(() => showToast("Reordered"))
+        .catch(() => {
+          setPhotos(previousPhotos);
+          showToast("Couldn't reorder photos.", "error");
+        });
     });
   }
 
   function handleDelete(idx: number) {
     const photo = photos[idx];
+    if (!photo) return;
+    const previousPhotos = photos;
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
-    startSaving(async () => {
-      await onDelete(photo.id);
-      showToast("Removed");
+    startSaving(() => {
+      void onDelete(photo.id)
+        .then(() => showToast("Removed"))
+        .catch(() => {
+          setPhotos(previousPhotos);
+          showToast("Couldn't remove photo.", "error");
+        });
     });
   }
 
   function saveAltTexts() {
-    startSaving(async () => {
-      await onSaveAltTexts(altTexts);
-      showToast("Alt texts saved");
+    startSaving(() => {
+      void onSaveAltTexts(altTexts)
+        .then(() => showToast("Alt texts saved"))
+        .catch(() => showToast("Couldn't save alt texts.", "error"));
     });
   }
 
   return (
     <div className="space-y-4">
       {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-md bg-green-600 text-white px-3 py-2 shadow text-sm">
-          {toast}
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-md px-3 py-2 text-sm text-white shadow ${
+            toast.kind === "error" ? "bg-red-600" : "bg-green-600"
+          }`}
+        >
+          {toast.message}
         </div>
       )}
 
@@ -109,7 +136,7 @@ export default function EditPhotoGrid({
         <p className="text-sm text-neutral-500">No photos yet.</p>
       ) : (
         <>
-          <p className="text-xs text-neutral-400">Drag photos to reorder. First photo is the cover.</p>
+          <p className="text-xs text-neutral-500">Drag photos to reorder. First photo is the cover.</p>
           <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {photos.map((p, idx) => (
               <li
@@ -219,10 +246,15 @@ export default function EditPhotoGrid({
           onClick={() => setAltModalIdx(null)}
         >
           <div
+            ref={altDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-photo-alt-dialog-title"
+            tabIndex={-1}
             className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold text-neutral-800">
+            <h3 id="edit-photo-alt-dialog-title" className="text-sm font-semibold text-neutral-800">
               Alt text — Photo {altModalIdx + 1}
             </h3>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -242,9 +274,9 @@ export default function EditPhotoGrid({
               placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
               maxLength={200}
               rows={3}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-400"
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-500"
             />
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-neutral-500">
               Improves visibility in Google Image Search. If left blank, AI will generate alt text automatically and you can see it on the edit page.
             </p>
             <button

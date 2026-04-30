@@ -30,6 +30,24 @@ type Props = {
   isSignedIn: boolean;
 };
 
+function sessionIdFromClientSecret(secret: string) {
+  return secret.includes("_secret_") ? secret.split("_secret_")[0] : "";
+}
+
+async function rollbackCheckoutSessions(sessionIds: string[]) {
+  const uniqueSessionIds = [...new Set(sessionIds.filter(Boolean))];
+  if (uniqueSessionIds.length === 0) return;
+  try {
+    await fetch("/api/cart/checkout/rollback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionIds: uniqueSessionIds }),
+    });
+  } catch {
+    // Best effort; the Stripe expiration webhook is still a fallback.
+  }
+}
+
 export default function BuyNowCheckoutModal({
   listingId,
   listingTitle,
@@ -54,6 +72,7 @@ export default function BuyNowCheckoutModal({
     useState<SelectedShippingRate | null>(null);
   const [clientSecret, setClientSecret] =
     useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [giftNote, setGiftNote] = useState("");
   const [giftWrapping, setGiftWrapping] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
@@ -68,7 +87,9 @@ export default function BuyNowCheckoutModal({
   // failures even when the address did not change.
   useEffect(() => {
     if (!isOpen) {
+      if (sessionId) void rollbackCheckoutSessions([sessionId]);
       setClientSecret(null);
+      setSessionId(null);
       setSelectedRate(null);
       setCreatingSession(false);
       setError(null);
@@ -99,7 +120,13 @@ export default function BuyNowCheckoutModal({
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to create payment session");
       }
-      setClientSecret(data.clientSecret);
+      const nextClientSecret = typeof data.clientSecret === "string" ? data.clientSecret : "";
+      const nextSessionId = data.sessionId || sessionIdFromClientSecret(nextClientSecret);
+      if (!nextClientSecret || !nextSessionId) {
+        throw new Error("Failed to create payment session");
+      }
+      setClientSecret(nextClientSecret);
+      setSessionId(nextSessionId);
       setStep("payment");
     } catch (e) {
       setError((e as Error).message);
@@ -109,6 +136,8 @@ export default function BuyNowCheckoutModal({
   }
 
   if (!isOpen) return null;
+
+  const giftWrapAmountCents = giftWrapping ? (giftWrappingPriceCents ?? 0) : 0;
 
   return (
     <div
@@ -149,7 +178,7 @@ export default function BuyNowCheckoutModal({
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600 ml-3 flex-shrink-0"
+            className="text-neutral-500 hover:text-neutral-600 ml-3 flex-shrink-0"
             aria-label="Close"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -176,7 +205,7 @@ export default function BuyNowCheckoutModal({
                 className={
                   step === s.key
                     ? "text-neutral-900 font-medium"
-                    : "text-neutral-400"
+                    : "text-neutral-500"
                 }
               >
                 {s.label}
@@ -201,6 +230,7 @@ export default function BuyNowCheckoutModal({
                 setShippingAddress(address);
                 setSelectedRate(null);
                 setClientSecret(null);
+                setSessionId(null);
                 setStep("shipping");
               }}
             />
@@ -220,6 +250,8 @@ export default function BuyNowCheckoutModal({
                 <button
                   onClick={() => {
                     setSelectedRate(null);
+                    setClientSecret(null);
+                    setSessionId(null);
                     setStep("address");
                   }}
                   className="text-xs text-neutral-500 hover:text-neutral-700 whitespace-nowrap flex-shrink-0"
@@ -271,13 +303,19 @@ export default function BuyNowCheckoutModal({
                         `$${(selectedRate.amountCents / 100).toFixed(2)}`
                       )
                     ) : (
-                      <span className="text-neutral-400 text-xs italic">
+                      <span className="text-neutral-500 text-xs italic">
                         Calculating...
                       </span>
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs text-neutral-400">
+                {giftWrapAmountCents > 0 && (
+                  <div className="flex justify-between text-neutral-600">
+                    <span>Gift wrapping</span>
+                    <span>${(giftWrapAmountCents / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xs text-neutral-500">
                   <span>Tax</span>
                   <span>Calculated at payment</span>
                 </div>
@@ -287,7 +325,7 @@ export default function BuyNowCheckoutModal({
                     <span>
                       $
                       {(
-                        (priceCents * quantity + selectedRate.amountCents) /
+                        (priceCents * quantity + selectedRate.amountCents + giftWrapAmountCents) /
                         100
                       ).toFixed(2)}
                       +
@@ -310,6 +348,7 @@ export default function BuyNowCheckoutModal({
                 onClick={() => {
                   setSelectedRate(null);
                   setClientSecret(null);
+                  setSessionId(null);
                   setStep("address");
                 }}
                 className="w-full text-sm text-neutral-500 hover:text-neutral-700"
@@ -320,17 +359,13 @@ export default function BuyNowCheckoutModal({
           )}
 
           {/* Step 3: Payment */}
-          {step === "payment" && clientSecret && (
+          {step === "payment" && clientSecret && sessionId && (
             <EmbeddedCheckoutPanel
               clientSecret={clientSecret}
               sellerName={sellerName}
               currentIndex={1}
               totalCount={1}
               onComplete={() => {
-                // Extract session ID from clientSecret.
-                // Format: cs_test_SESSIONID_secret_TOKEN
-                // The part before "_secret_" is the session ID.
-                const sessionId = clientSecret.split("_secret_")[0];
                 router.push(
                   `/checkout/success?session_id=${sessionId}`,
                 );

@@ -45,9 +45,9 @@ export default function FavoriteButton({
         if (!res.ok) {
           // revert on error
           setSaved(!next);
-          const msg = await res.text();
-          console.error("Favorite failed:", msg);
-          toast("Couldn’t update favorites. Please try again.", "error");
+          const data = await res.json().catch(() => null) as { error?: string } | null;
+          console.error("Favorite failed:", data?.error ?? res.statusText);
+          toast(data?.error ?? "Couldn’t update favorites. Please try again.", "error");
         }
       } catch (err) {
         setSaved(!next);
@@ -97,5 +97,4 @@ export default function FavoriteButton({
     </button>
   );
 }
-
 

@@ -114,6 +114,7 @@ export async function POST(
       title: `${followerName} started following you`,
       body: "They can now see your new listings and posts in their feed",
       link: "/dashboard/analytics",
+      dedupScope: me.id,
     });
   }
 

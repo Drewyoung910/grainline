@@ -8,11 +8,20 @@ export function normalizeUserText(input: string): string {
   return stripBidiControls(input.normalize("NFKC"));
 }
 
+function stripHtmlTags(input: string): string {
+  let output = input;
+  for (let i = 0; i < 10; i++) {
+    const next = output.replace(/<[^>]*>/g, "");
+    if (next === output) break;
+    output = next;
+  }
+  return output.replace(/[<>]/g, "");
+}
+
 // Strip HTML tags and dangerous characters from user input
 export function sanitizeText(input: string): string {
-  return normalizeUserText(input)
-    .replace(/<[^>]*>/g, '') // strip HTML tags
-    .replace(/javascript:/gi, '') // strip JS protocol
+  return stripHtmlTags(normalizeUserText(input))
+    .replace(/\b(?:javascript|data|vbscript)\s*:/gi, '') // strip dangerous protocols
     .replace(/on\w+\s*=/gi, '') // strip event handlers
     .trim()
 }
@@ -29,7 +38,7 @@ export function sanitizeRichText(input: string): string {
   return normalizeUserText(input)
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // strip script tags
     .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') // strip iframes
-    .replace(/javascript:/gi, '')
+    .replace(/\b(?:javascript|data|vbscript)\s*:/gi, '')
     .replace(/on\w+\s*=/gi, '')
     .trim()
 }

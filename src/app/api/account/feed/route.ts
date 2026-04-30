@@ -11,6 +11,7 @@ import {
   parseAccountFeedCursor,
   type AccountFeedKind,
 } from "@/lib/accountFeedCursor";
+import { accountFeedRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -44,6 +45,9 @@ export async function GET(req: NextRequest) {
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
 
+  const rate = await safeRateLimitOpen(accountFeedRatelimit, me.id);
+  if (!rate.success) return rateLimitResponse(rate.reset, "Too many feed requests.");
+
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor");
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
@@ -63,6 +67,11 @@ export async function GET(req: NextRequest) {
   const sellerIds = blockedSellerIds.length > 0
     ? rawSellerIds.filter((id) => !blockedSellerIdSet.has(id))
     : rawSellerIds;
+  const followedSellerVisibility = {
+    chargesEnabled: true,
+    vacationMode: false,
+    user: { banned: false, deletedAt: null },
+  };
 
   if (sellerIds.length === 0) {
     const message =
@@ -72,13 +81,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ items: [], nextCursor: null, hasMore: false, message });
   }
 
+  const visibleSellers = await prisma.sellerProfile.findMany({
+    where: { id: { in: sellerIds }, ...followedSellerVisibility },
+    select: { id: true },
+    take: MAX_FOLLOWED_SELLERS_FOR_FEED,
+  });
+  const visibleSellerIds = visibleSellers.map((seller) => seller.id);
+
+  if (visibleSellerIds.length === 0) {
+    return NextResponse.json({
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+      message: "The makers you follow are not currently selling. Check back when they reopen their shops.",
+    });
+  }
+
   // First page: 90-day cutoff. Subsequent pages: use cursor (fetch items older than cursor).
   const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const followedSellerVisibility = {
-    chargesEnabled: true,
-    vacationMode: false,
-    user: { banned: false, deletedAt: null },
-  };
   const timestampCursorWhere = (kind: AccountFeedKind, dateField: "createdAt" | "publishedAt" | "sentAt") => {
     if (!parsedCursor) return { [dateField]: { gte: cutoff } };
     if (parsedCursor.legacy) return { [dateField]: { lt: parsedCursor.date } };
@@ -96,7 +116,7 @@ export async function GET(req: NextRequest) {
   const [listings, blogPosts, broadcasts] = await Promise.all([
     prisma.listing.findMany({
       where: {
-        sellerId: { in: sellerIds },
+        sellerId: { in: visibleSellerIds },
         status: "ACTIVE",
         isPrivate: false,
         ...timestampCursorWhere("listing", "createdAt"),
@@ -117,7 +137,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.blogPost.findMany({
       where: {
-        sellerProfileId: { in: sellerIds },
+        sellerProfileId: { in: visibleSellerIds },
         status: "PUBLISHED",
         publishedAt: { not: null },
         ...timestampCursorWhere("blog", "publishedAt"),
@@ -139,7 +159,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.sellerBroadcast.findMany({
       where: {
-        sellerProfileId: { in: sellerIds },
+        sellerProfileId: { in: visibleSellerIds },
         ...timestampCursorWhere("broadcast", "sentAt"),
         sellerProfile: followedSellerVisibility,
       },

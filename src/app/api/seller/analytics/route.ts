@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateSellerMetrics, meetsGuildMasterRequirements } from "@/lib/metrics";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 
 export const runtime = "nodejs";
 
@@ -234,7 +235,7 @@ export async function GET(req: Request) {
             order: {
               paidAt: { not: null },
               sellerRefundId: null,
-              paymentEvents: { none: { eventType: "REFUND" } },
+              paymentEvents: { none: blockingRefundLedgerWhere() },
               createdAt: { gte: startDate, lte: endDate },
             },
           },

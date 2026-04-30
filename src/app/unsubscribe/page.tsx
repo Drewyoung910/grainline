@@ -28,7 +28,7 @@ export default async function UnsubscribePage() {
       >
         Sign in to manage preferences
       </Link>
-      <p className="text-xs text-neutral-400">
+      <p className="text-xs text-neutral-500">
         Transactional emails (order confirmations, shipping updates, refunds) cannot be disabled.
       </p>
     </main>

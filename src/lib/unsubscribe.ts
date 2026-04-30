@@ -1,6 +1,6 @@
 import { EmailSuppressionReason } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { VALID_EMAIL_PREFERENCE_KEYS } from "@/lib/notifications";
+import { VALID_EMAIL_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
 import { normalizeUnsubscribeEmail } from "@/lib/unsubscribeToken";
 
 export {

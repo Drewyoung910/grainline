@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { logAdminAction } from "@/lib/audit";
 import {
   ADMIN_PIN_COOKIE_NAME,
   ADMIN_PIN_MAX_AGE_SECONDS,
@@ -29,6 +31,32 @@ const pinIpRatelimit = new Ratelimit({
   prefix: "rl:admin-pin:ip",
 });
 
+async function logAdminPinAttempt({
+  adminId,
+  action,
+  ip,
+  clerkUserId,
+  metadata = {},
+}: {
+  adminId: string;
+  action: "ADMIN_PIN_VERIFY_OK" | "ADMIN_PIN_VERIFY_FAIL" | "ADMIN_PIN_RATE_LIMIT";
+  ip: string;
+  clerkUserId: string;
+  metadata?: Record<string, unknown>;
+}) {
+  await logAdminAction({
+    adminId,
+    action,
+    targetType: "USER",
+    targetId: adminId,
+    metadata: {
+      ip,
+      clerkUserId,
+      ...metadata,
+    },
+  });
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({}, { status: 401 });
@@ -36,7 +64,7 @@ export async function POST(req: Request) {
   // Verify user is allowed into the admin surface.
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { role: true },
+    select: { id: true, role: true },
   });
   if (user?.role !== "ADMIN" && user?.role !== "EMPLOYEE") {
     return NextResponse.json({}, { status: 403 });
@@ -51,6 +79,31 @@ export async function POST(req: Request) {
     safeRateLimit(pinIpRatelimit, ip),
   ]);
   if (!userLimit.success || !ipLimit.success) {
+    await logAdminPinAttempt({
+      adminId: user.id,
+      action: "ADMIN_PIN_RATE_LIMIT",
+      ip,
+      clerkUserId: userId,
+      metadata: {
+        userLimitSuccess: userLimit.success,
+        ipLimitSuccess: ipLimit.success,
+        userLimitReset: userLimit.reset,
+        ipLimitReset: ipLimit.reset,
+      },
+    });
+    Sentry.captureMessage("ADMIN_PIN_BRUTEFORCE", {
+      level: "warning",
+      tags: { source: "admin_pin", reason: "rate_limit" },
+      user: { id: userId },
+      extra: {
+        adminId: user.id,
+        ip,
+        userLimitSuccess: userLimit.success,
+        ipLimitSuccess: ipLimit.success,
+        userLimitReset: userLimit.reset,
+        ipLimitReset: ipLimit.reset,
+      },
+    });
     return rateLimitResponse(
       Math.max(userLimit.reset, ipLimit.reset),
       "Too many admin PIN attempts.",
@@ -74,11 +127,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
     }
 
+    await logAdminPinAttempt({
+      adminId: user.id,
+      action: "ADMIN_PIN_VERIFY_OK",
+      ip,
+      clerkUserId: userId,
+      metadata: { devBypass: true },
+    });
+
     const devRes = NextResponse.json({ ok: true });
     devRes.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: false,
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: ADMIN_PIN_MAX_AGE_SECONDS,
       path: "/",
     });
@@ -90,6 +151,12 @@ export async function POST(req: Request) {
   const adminPinDigest = createHash("sha256").update(adminPin).digest();
   const match = timingSafeEqual(pinDigest, adminPinDigest);
   if (!match) {
+    await logAdminPinAttempt({
+      adminId: user.id,
+      action: "ADMIN_PIN_VERIFY_FAIL",
+      ip,
+      clerkUserId: userId,
+    });
     return NextResponse.json({}, { status: 401 });
   }
 
@@ -99,11 +166,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin PIN cookie could not be signed" }, { status: 503 });
   }
 
+  await logAdminPinAttempt({
+    adminId: user.id,
+    action: "ADMIN_PIN_VERIFY_OK",
+    ip,
+    clerkUserId: userId,
+  });
+
   const res = NextResponse.json({ ok: true });
   res.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
     maxAge: ADMIN_PIN_MAX_AGE_SECONDS,
     path: "/",
   });

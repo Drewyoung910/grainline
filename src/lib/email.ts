@@ -7,6 +7,7 @@ import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { stripBidiControls } from "@/lib/sanitize";
+import { htmlToText } from "@/lib/emailText";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -40,24 +41,6 @@ function safeSubject(s: string) {
 function safeImgUrl(url: string | undefined | null): string | null {
   if (!url || !isR2PublicUrl(url)) return null;
   return url.replace(/"/g, "%22");
-}
-
-function htmlToText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 function fmtCents(cents: number) {
@@ -156,6 +139,28 @@ type RenderedEmail = {
   html: string;
 };
 
+async function findInactiveEmailAccount(recipient: string, subject: string) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await prisma.user.findUnique({
+        where: { email: recipient },
+        select: { banned: true, deletedAt: true },
+      });
+    } catch (err) {
+      if (attempt === 2) {
+        console.error("[email] inactive-account lookup failed; sending anyway:", err);
+        Sentry.captureException(err, {
+          level: "warning",
+          tags: { source: "email_inactive_account_lookup" },
+          extra: { to: recipient, subject },
+        });
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 async function send(to: string, subject: string, html: string, opts: { throwOnFailure?: boolean } = {}) {
   const sanitizedSubject = safeSubject(subject);
   const recipient = normalizeEmailAddress(to);
@@ -179,10 +184,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
       console.warn("[email] suppressed recipient skipped", { to: recipient, subject: sanitizedSubject });
       return;
     }
-    const account = await prisma.user.findUnique({
-      where: { email: recipient },
-      select: { banned: true, deletedAt: true },
-    });
+    const account = await findInactiveEmailAccount(recipient, sanitizedSubject);
     if (account?.banned || account?.deletedAt) {
       console.warn("[email] inactive recipient skipped", { to: recipient, subject: sanitizedSubject });
       return;
@@ -216,7 +218,7 @@ export async function sendRenderedEmail(email: RenderedEmail, opts: { throwOnFai
 
 // ─── Transactional emails ────────────────────────────────────────────────────
 
-export async function sendOrderConfirmedBuyer(opts: {
+export function renderOrderConfirmedBuyerEmail(opts: {
   order: {
     id: string;
     itemsSubtotalCents: number;
@@ -250,10 +252,18 @@ export async function sendOrderConfirmedBuyer(opts: {
     ${btn("View your order", orderUrl)}
   `;
 
-  await send(buyer.email, "Your order is confirmed! 🪵", baseTemplate("Order Confirmed", body));
+  return {
+    to: buyer.email,
+    subject: "Your order is confirmed! 🪵",
+    html: baseTemplate("Order Confirmed", body),
+  };
 }
 
-export async function sendOrderConfirmedSeller(opts: {
+export async function sendOrderConfirmedBuyer(opts: Parameters<typeof renderOrderConfirmedBuyerEmail>[0]) {
+  await sendRenderedEmail(renderOrderConfirmedBuyerEmail(opts));
+}
+
+export function renderOrderConfirmedSellerEmail(opts: {
   order: {
     id: string;
     itemsSubtotalCents: number;
@@ -278,7 +288,15 @@ export async function sendOrderConfirmedSeller(opts: {
     ${btn("View order details", orderUrl)}
   `;
 
-  await send(seller.email, "Congrats! You made a sale! 🎉", baseTemplate("New Sale!", body));
+  return {
+    to: seller.email,
+    subject: "Congrats! You made a sale! 🎉",
+    html: baseTemplate("New Sale!", body),
+  };
+}
+
+export async function sendOrderConfirmedSeller(opts: Parameters<typeof renderOrderConfirmedSellerEmail>[0]) {
+  await sendRenderedEmail(renderOrderConfirmedSellerEmail(opts));
 }
 
 export async function sendOrderShipped(opts: {
@@ -597,10 +615,10 @@ export async function sendWelcomeSeller(opts: {
   await send(seller.email, "Welcome to Grainline — let's set up your shop!", baseTemplate("Welcome, Maker!", body));
 }
 
-export async function sendFirstListingCongrats(opts: {
+export function renderFirstListingCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
   listing: { id: string; title: string; priceCents: number };
-}) {
+}): RenderedEmail {
   const { seller, listing } = opts;
   const name = seller.displayName || "there";
   const listingUrl = `${APP_URL}${publicListingPath(listing.id, listing.title)}`;
@@ -618,10 +636,18 @@ export async function sendFirstListingCongrats(opts: {
     ${btn("View your listing", listingUrl)}
   `;
 
-  await send(seller.email, "Your first piece is live on Grainline! 🎉", baseTemplate("You're Live!", body));
+  return {
+    to: seller.email,
+    subject: "Your first piece is live on Grainline! 🎉",
+    html: baseTemplate("You're Live!", body),
+  };
 }
 
-export async function sendFirstSaleCongrats(opts: {
+export async function sendFirstListingCongrats(opts: Parameters<typeof renderFirstListingCongratsEmail>[0]) {
+  await sendRenderedEmail(renderFirstListingCongratsEmail(opts));
+}
+
+export function renderFirstSaleCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
   order: { id: string; itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number };
 }) {
@@ -637,7 +663,15 @@ export async function sendFirstSaleCongrats(opts: {
     ${btn("View order details", orderUrl)}
   `;
 
-  await send(seller.email, "You made your first sale! 🎉", baseTemplate("First Sale!", body));
+  return {
+    to: seller.email,
+    subject: "You made your first sale! 🎉",
+    html: baseTemplate("First Sale!", body),
+  };
+}
+
+export async function sendFirstSaleCongrats(opts: Parameters<typeof renderFirstSaleCongratsEmail>[0]) {
+  await sendRenderedEmail(renderFirstSaleCongratsEmail(opts));
 }
 
 // ─── Guild verification emails ────────────────────────────────────────────────

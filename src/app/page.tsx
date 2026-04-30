@@ -17,6 +17,7 @@ import ListingCard from "@/components/ListingCard";
 import MediaImage from "@/components/MediaImage";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
@@ -114,6 +115,57 @@ const getFeaturedMaker = unstable_cache(async (): Promise<FeaturedMaker | null> 
   });
 }, ["home-featured-maker"], { revalidate: 3600, tags: ["home-featured-maker"] });
 
+const featuredListingSelect = {
+  id: true,
+  title: true,
+  priceCents: true,
+  photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+} satisfies Prisma.ListingSelect;
+
+type FeaturedListing = Prisma.ListingGetPayload<{ select: typeof featuredListingSelect }>;
+
+async function getFeaturedMakerBlock(): Promise<{
+  featuredMaker: FeaturedMaker | null;
+  featuredListings: FeaturedListing[];
+}> {
+  const featuredMaker = await getFeaturedMaker();
+  if (!featuredMaker) return { featuredMaker: null, featuredListings: [] };
+
+  let featuredListings: FeaturedListing[] = [];
+  if (featuredMaker.featuredListingIds.length > 0) {
+    featuredListings = await prisma.listing.findMany({
+      where: {
+        id: { in: featuredMaker.featuredListingIds },
+        sellerId: featuredMaker.id,
+        status: "ACTIVE",
+        isPrivate: false,
+        photos: { some: {} },
+      },
+      select: featuredListingSelect,
+      take: 3,
+    });
+  }
+
+  if (featuredListings.length < 3) {
+    const existingIds = featuredListings.map((listing) => listing.id);
+    const more = await prisma.listing.findMany({
+      where: {
+        sellerId: featuredMaker.id,
+        status: "ACTIVE",
+        isPrivate: false,
+        photos: { some: {} },
+        ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      select: featuredListingSelect,
+      take: 3 - featuredListings.length,
+    });
+    featuredListings = [...featuredListings, ...more];
+  }
+
+  return { featuredMaker, featuredListings };
+}
+
 const CATEGORIES = [
   { key: "FURNITURE", label: "Furniture",     Icon: Armchair  },
   { key: "KITCHEN",   label: "Kitchen",       Icon: Utensils  },
@@ -134,7 +186,16 @@ export default async function HomePage() {
   }
   const { blockedUserIds, blockedSellerIds } = await getBlockedIdsFor(meDbId);
 
-  const [fresh, topSaved, mapRows, trendingTagsRaw, statsResults, recentBlogPosts, mosaicListings] = await Promise.all([
+  const [
+    fresh,
+    topSaved,
+    mapRows,
+    trendingTagsRaw,
+    statsResults,
+    recentBlogPosts,
+    mosaicListings,
+    featuredMakerBlock,
+  ] = await Promise.all([
     // New Arrivals: prefer last 30 days, fall back to newest if fewer than 6
     prisma.listing.findMany({
       where: {
@@ -228,7 +289,7 @@ export default async function HomePage() {
         where: {
           paidAt: { not: null },
           sellerRefundId: null,
-          paymentEvents: { none: { eventType: "REFUND" } },
+          paymentEvents: { none: blockingRefundLedgerWhere() },
           fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
         },
       }),
@@ -262,10 +323,12 @@ export default async function HomePage() {
         },
       },
     }),
+    getFeaturedMakerBlock(),
   ]);
 
   const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;
   const trendingTags = trendingTagsRaw;
+  const { featuredMaker, featuredListings } = featuredMakerBlock;
 
   const mosaicPhotos: { url: string; listingId: string; title: string }[] = mosaicListings
     .filter(l => l.photos.length > 0)
@@ -283,32 +346,6 @@ export default async function HomePage() {
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
-  const featuredMaker = await getFeaturedMaker();
-
-  // Resolve featured listings: prefer curated, fall back to most recently updated (up to 3)
-  type FeaturedListing = { id: string; title: string; priceCents: number; photos: { url: string }[] };
-  let featuredListings: FeaturedListing[] = [];
-  if (featuredMaker) {
-    const listingSelect = { id: true, title: true, priceCents: true, photos: { take: 1, orderBy: { sortOrder: "asc" as const }, select: { url: true } } };
-    if (featuredMaker.featuredListingIds.length > 0) {
-      const curated = await prisma.listing.findMany({
-        where: { id: { in: featuredMaker.featuredListingIds }, sellerId: featuredMaker.id, status: "ACTIVE", isPrivate: false, photos: { some: {} } },
-        select: listingSelect,
-        take: 3,
-      });
-      featuredListings = curated;
-    }
-    if (featuredListings.length < 3) {
-      const existingIds = featuredListings.map((l) => l.id);
-      const more = await prisma.listing.findMany({
-        where: { sellerId: featuredMaker.id, status: "ACTIVE", isPrivate: false, photos: { some: {} }, ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}) },
-        orderBy: { updatedAt: "desc" },
-        select: listingSelect,
-        take: 3 - featuredListings.length,
-      });
-      featuredListings = [...featuredListings, ...more];
-    }
-  }
   const featuredMakerFallbackImage = featuredMaker
     ? featuredListings[0]?.photos[0]?.url ??
       featuredMaker.workshopImageUrl ??
@@ -506,7 +543,7 @@ export default async function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-400"}`}>
+        <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce ${mosaicPhotos.length >= 12 ? "text-white/60" : "text-neutral-500"}`}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M6 9l6 6 6-6" />
           </svg>
@@ -587,7 +624,7 @@ export default async function HomePage() {
                         <p className="text-xs text-neutral-500">
                           {(item.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: item.currency })}
                         </p>
-                        <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
+                        <p className="text-xs text-neutral-500 truncate">{item.sellerName}</p>
                       </div>
                     </Link>
                   </ClickTracker>
@@ -606,7 +643,7 @@ export default async function HomePage() {
                       <div className="p-2">
                         <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
                         <p className="text-xs text-amber-600">Blog post</p>
-                        <p className="text-xs text-neutral-400 truncate">{item.sellerName}</p>
+                        <p className="text-xs text-neutral-500 truncate">{item.sellerName}</p>
                       </div>
                     </Link>
                   </li>
@@ -704,7 +741,7 @@ export default async function HomePage() {
                       <div className="flex items-center gap-1.5 text-xs text-neutral-600">
                         <StarsInline value={featuredRating.avg} />
                         <span>{(Math.round(featuredRating.avg * 10) / 10).toFixed(1)}</span>
-                        <span className="text-neutral-400">({featuredRating.count} reviews)</span>
+                        <span className="text-neutral-500">({featuredRating.count} reviews)</span>
                       </div>
                     )}
 
@@ -897,7 +934,7 @@ export default async function HomePage() {
                           )}
                           <span className="text-xs text-stone-500">{authorName}</span>
                           {p.publishedAt && (
-                            <span className="text-xs text-stone-400 ml-auto">
+                            <span className="text-xs text-stone-500 ml-auto">
                               {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </span>
                           )}

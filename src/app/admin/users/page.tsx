@@ -136,7 +136,7 @@ export default async function AdminUsersPage({
                   <div className="font-medium">{u.name ?? "—"}</div>
                   <div className="text-neutral-500 text-xs">{u.email}</div>
                   {u.sellerProfile && (
-                    <div className="text-xs text-neutral-400">Shop: {u.sellerProfile.displayName}</div>
+                    <div className="text-xs text-neutral-500">Shop: {u.sellerProfile.displayName}</div>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -158,7 +158,7 @@ export default async function AdminUsersPage({
                     <div>
                       <span className="text-xs text-red-700 font-medium">Banned</span>
                       {u.bannedAt && (
-                        <div className="text-xs text-neutral-400">
+                        <div className="text-xs text-neutral-500">
                           {new Date(u.bannedAt).toLocaleDateString("en-US")}
                         </div>
                       )}

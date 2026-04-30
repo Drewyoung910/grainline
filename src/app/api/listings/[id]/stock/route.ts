@@ -11,13 +11,21 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { listingMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { chunkArray, mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
+import {
+  LOW_STOCK_DEDUP_WINDOW_MS,
+  lowStockNotificationLink,
+  stockAlertBody,
+} from "@/lib/stockMutationState";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
   quantity: z.number().int().min(0),
+  expectedQuantity: z.number().int().min(0).optional().nullable(),
 });
 
 export const runtime = "nodejs";
+const BACK_IN_STOCK_CLAIM_BATCH_SIZE = 5000;
+const BACK_IN_STOCK_USER_LOOKUP_BATCH_SIZE = 500;
 
 async function syncListingsThreshold(sellerProfileId: string) {
   const [activeCount, sp] = await Promise.all([
@@ -63,45 +71,74 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
     const quantity = Math.max(0, Math.floor(stockParsed.quantity));
+    const expectedQuantity = stockParsed.expectedQuantity == null
+      ? null
+      : Math.max(0, Math.floor(stockParsed.expectedQuantity));
 
     // Ownership check
     const listing = await prisma.listing.findFirst({
       where: { id, seller: { userId: me.id } },
-      select: { id: true, listingType: true, status: true, isPrivate: true, seller: { select: { id: true, userId: true } } },
+      select: {
+        id: true,
+        listingType: true,
+        status: true,
+        stockQuantity: true,
+        isPrivate: true,
+        seller: { select: { id: true, userId: true } },
+      },
     });
     if (!listing) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (listing.listingType !== "IN_STOCK") {
       return NextResponse.json({ error: "Only IN_STOCK listings have quantity" }, { status: 400 });
     }
 
-    // NOTE: restocking always promotes SOLD_OUT → ACTIVE. If listing was
+    const applyDelta = expectedQuantity != null;
+    const stockDelta = applyDelta ? quantity - expectedQuantity : 0;
+
+    // NOTE: restocking always promotes SOLD_OUT -> ACTIVE. If listing was
     // previously HIDDEN before going SOLD_OUT, seller must re-hide manually.
     // Tracking pre-SOLD_OUT status would require a schema change.
-    const newStatus =
-      quantity <= 0
-        ? "SOLD_OUT"
-        : listing.status === "SOLD_OUT" && !listing.isPrivate
-        ? "ACTIVE"
-        : listing.status;
-
-    const updated = await prisma.listing.update({
-      where: { id },
-      data: { stockQuantity: quantity, status: newStatus },
-      select: { id: true, title: true, stockQuantity: true, status: true },
-    });
+    const updatedRows = await prisma.$queryRaw<Array<{
+      id: string;
+      title: string;
+      stockQuantity: number | null;
+      status: string;
+    }>>`
+      UPDATE "Listing"
+      SET
+        "stockQuantity" = CASE
+          WHEN ${applyDelta} THEN GREATEST(0, COALESCE("stockQuantity", 0) + ${stockDelta})
+          ELSE ${quantity}
+        END,
+        status = CASE
+          WHEN (
+            CASE
+              WHEN ${applyDelta} THEN GREATEST(0, COALESCE("stockQuantity", 0) + ${stockDelta})
+              ELSE ${quantity}
+            END
+          ) <= 0 THEN 'SOLD_OUT'::"ListingStatus"
+          WHEN status = 'SOLD_OUT'::"ListingStatus" AND NOT "isPrivate" THEN 'ACTIVE'::"ListingStatus"
+          ELSE status
+        END,
+        "updatedAt" = NOW()
+      WHERE id = ${id}
+      RETURNING id, title, "stockQuantity", status::text AS status
+    `;
+    const updated = updatedRows[0];
+    if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
     await syncListingsThreshold(listing.seller.id);
 
     // If stock is low (1–2), notify the seller
     if (updated.stockQuantity !== null && updated.stockQuantity > 0 && updated.stockQuantity <= 2) {
+      const lowStockLink = lowStockNotificationLink(id);
       const recentLowStock = await prisma.notification.findFirst({
         where: {
           userId: listing.seller.userId,
           type: "LOW_STOCK",
-          link: "/dashboard/inventory",
-          title: `${updated.title} is running low`,
-          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+          link: lowStockLink,
+          createdAt: { gte: new Date(Date.now() - LOW_STOCK_DEDUP_WINDOW_MS) },
         },
         select: { id: true },
       });
@@ -110,52 +147,75 @@ export async function PATCH(
         type: "LOW_STOCK",
         title: `${updated.title} is running low`,
         body: `Only ${updated.stockQuantity} left in stock — consider restocking soon`,
-        link: `/dashboard/inventory`,
+        link: lowStockLink,
       });
     }
 
-    // If transitioning from SOLD_OUT → ACTIVE, notify subscribers
-    if (listing.status === "SOLD_OUT" && newStatus === "ACTIVE") {
+    // If transitioning from SOLD_OUT -> ACTIVE, notify subscribers
+    if (listing.status === "SOLD_OUT" && updated.status === "ACTIVE") {
       after(async () => {
         try {
-          const claimedSubscribers = await prisma.$queryRaw<{ userId: string }[]>`
-            DELETE FROM "StockNotification"
-            WHERE "listingId" = ${id}
-            RETURNING "userId"
-          `;
-          if (claimedSubscribers.length === 0) return;
+          while (true) {
+            const claimedSubscribers = await prisma.$queryRaw<{ userId: string; stockQuantity: number | null }[]>`
+              WITH available_listing AS (
+                SELECT id, "stockQuantity"
+                FROM "Listing"
+                WHERE id = ${id}
+                  AND status = 'ACTIVE'::"ListingStatus"
+                  AND COALESCE("stockQuantity", 0) > 0
+              ),
+              next_subscribers AS (
+                SELECT sn.id
+                FROM "StockNotification" sn
+                INNER JOIN available_listing al ON al.id = sn."listingId"
+                ORDER BY sn."createdAt" ASC, sn.id ASC
+                LIMIT ${BACK_IN_STOCK_CLAIM_BATCH_SIZE}
+              )
+              DELETE FROM "StockNotification" sn
+              USING next_subscribers ns, available_listing al
+              WHERE sn.id = ns.id
+              RETURNING sn."userId", al."stockQuantity"
+            `;
+            if (claimedSubscribers.length === 0) return;
+            const stockQuantity = claimedSubscribers[0]?.stockQuantity ?? updated.stockQuantity;
 
-          for (const userIdChunk of chunkArray(claimedSubscribers.map((sub) => sub.userId), 500)) {
-            const activeSubscribers = await prisma.user.findMany({
-              where: {
-                id: { in: userIdChunk },
-                banned: false,
-                deletedAt: null,
-              },
-              select: { id: true, name: true, email: true },
-            });
-            await mapWithConcurrency(activeSubscribers, 5, async (sub) => {
-              await createNotification({
-                userId: sub.id,
-                type: "BACK_IN_STOCK",
-                title: `${updated.title} is back in stock!`,
-                body: "The piece you saved is available again",
-                link: publicListingPath(id, updated.title),
+            for (const userIdChunk of chunkArray(
+              claimedSubscribers.map((sub) => sub.userId),
+              BACK_IN_STOCK_USER_LOOKUP_BATCH_SIZE,
+            )) {
+              const activeSubscribers = await prisma.user.findMany({
+                where: {
+                  id: { in: userIdChunk },
+                  banned: false,
+                  deletedAt: null,
+                },
+                select: { id: true, name: true, email: true },
               });
-              if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
-                const email = renderBackInStockEmail({
-                  buyer: { name: sub.name, email: sub.email },
-                  listingTitle: updated.title,
-                  listingId: id,
-                });
-                await enqueueEmailOutbox({
-                  ...email,
-                  dedupKey: `back-in-stock:${id}:${sub.id}`,
+              await mapWithConcurrency(activeSubscribers, 5, async (sub) => {
+                await createNotification({
                   userId: sub.id,
-                  preferenceKey: "EMAIL_BACK_IN_STOCK",
+                  type: "BACK_IN_STOCK",
+                  title: `${updated.title} is back in stock!`,
+                  body: stockAlertBody(stockQuantity),
+                  link: publicListingPath(id, updated.title),
                 });
-              }
-            });
+                if (sub.email && await shouldSendEmail(sub.id, "EMAIL_BACK_IN_STOCK")) {
+                  const email = renderBackInStockEmail({
+                    buyer: { name: sub.name, email: sub.email },
+                    listingTitle: updated.title,
+                    listingId: id,
+                  });
+                  await enqueueEmailOutbox({
+                    ...email,
+                    dedupKey: `back-in-stock:${id}:${sub.id}`,
+                    userId: sub.id,
+                    preferenceKey: "EMAIL_BACK_IN_STOCK",
+                  });
+                }
+              });
+            }
+
+            if (claimedSubscribers.length < BACK_IN_STOCK_CLAIM_BATCH_SIZE) return;
           }
         } catch { /* non-fatal */ }
       });

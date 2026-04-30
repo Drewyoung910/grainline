@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function OfflinePage() {
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
+    <main className="min-h-[100svh] flex items-center justify-center px-4">
       <div className="text-center max-w-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

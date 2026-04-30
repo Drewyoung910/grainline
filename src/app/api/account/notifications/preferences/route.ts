@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { VALID_PREFERENCE_KEYS } from "@/lib/notifications";
+import { VALID_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
 import { z } from "zod";
 
 const PreferencesSchema = z.object({
@@ -37,13 +37,16 @@ export async function POST(request: NextRequest) {
   }
   const { type, enabled } = body;
 
-  const prefs = (me.notificationPreferences as Record<string, boolean>) ?? {};
-  prefs[type] = enabled;
-
-  await prisma.user.update({
-    where: { id: me.id },
-    data: { notificationPreferences: prefs },
-  });
+  await prisma.$executeRaw`
+    UPDATE "User"
+    SET "notificationPreferences" = jsonb_set(
+      COALESCE("notificationPreferences", '{}'::jsonb),
+      ARRAY[${type}]::text[],
+      to_jsonb(${enabled}::boolean),
+      true
+    )
+    WHERE "id" = ${me.id}
+  `;
 
   return NextResponse.json({ ok: true });
 }

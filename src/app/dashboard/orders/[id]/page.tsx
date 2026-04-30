@@ -12,7 +12,7 @@ import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
-import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
@@ -112,10 +112,10 @@ export default async function BuyerOrderDetailPage({
         },
       },
       paymentEvents: {
-        where: { eventType: "REFUND" },
+        where: blockingRefundLedgerWhere(),
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { eventType: true, amountCents: true },
+        select: { eventType: true, amountCents: true, status: true },
       },
     },
   });

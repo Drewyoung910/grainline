@@ -16,7 +16,7 @@ export type UploadVerificationToken = {
 };
 
 function uploadVerificationSecret() {
-  return process.env.UPLOAD_VERIFICATION_SECRET ?? process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? "";
+  return process.env.UPLOAD_VERIFICATION_SECRET ?? "";
 }
 
 function canonicalUploadVerificationInput({

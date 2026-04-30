@@ -54,7 +54,7 @@ export default function AccessibilityPage() {
         </ul>
         <p>We aim to respond to accessibility feedback within 5 business days.</p>
 
-        <p className="text-xs text-neutral-400 pt-6">Last updated: April 2026</p>
+        <p className="text-xs text-neutral-500 pt-6">Last updated: April 2026</p>
       </section>
     </main>
   );

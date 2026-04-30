@@ -18,6 +18,7 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { isMetroSlug } from "@/lib/geo-metro";
 import { safeJsonLd } from "@/lib/json-ld";
 import { commissionIsExpired, openCommissionWhere } from "@/lib/commissionExpiry";
+import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { publicSellerPath } from "@/lib/publicPaths";
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
@@ -64,7 +65,7 @@ export async function generateMetadata({
       where: { slug: param },
       select: { name: true, state: true },
     });
-    if (!metro) return {};
+    if (!metro) notFound();
     const title = `Custom Woodworking Commissions in ${metro.name}, ${metro.state} | Grainline`;
     const description = `Browse open custom woodworking commission requests in ${metro.name}, ${metro.state}. Connect with local buyers looking for handmade furniture, decor, and more.`;
     return {
@@ -85,12 +86,13 @@ export async function generateMetadata({
       budgetMinCents: true,
       budgetMaxCents: true,
       interestedCount: true,
+      _count: { select: { interests: true } },
       status: true,
       expiresAt: true,
       buyer: { select: { banned: true, deletedAt: true, sellerProfile: { select: { city: true, state: true } } } },
     },
   });
-  if (!req || req.buyer.banned || req.buyer.deletedAt || commissionIsExpired(req)) return {};
+  if (!req || req.buyer.banned || req.buyer.deletedAt || commissionIsExpired(req)) notFound();
 
   const location = req.isNational
     ? "Ships Anywhere"
@@ -108,7 +110,8 @@ export async function generateMetadata({
       budgetParts.push(`Budget up to $${(req.budgetMaxCents! / 100).toFixed(0)}`);
     }
   }
-  const interested = req.interestedCount > 0 ? `${req.interestedCount} maker${req.interestedCount !== 1 ? "s" : ""} interested.` : "";
+  const interestedCount = resolvedInterestedCount(req);
+  const interested = interestedCount > 0 ? `${interestedCount} maker${interestedCount !== 1 ? "s" : ""} interested.` : "";
   const description = [req.description.slice(0, 120), ...budgetParts, interested]
     .filter(Boolean)
     .join(" ")
@@ -145,7 +148,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
     ? openCommissionWhere({ metroId: metro.id })
     : openCommissionWhere({ cityMetroId: metro.id });
 
-  const commissions = await prisma.commissionRequest.findMany({
+  const rawCommissions = await prisma.commissionRequest.findMany({
     where: commissionWhere,
     orderBy: { createdAt: "desc" },
     take: 20,
@@ -158,11 +161,19 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
       budgetMaxCents: true,
       timeline: true,
       interestedCount: true,
+      _count: { select: { interests: true } },
       createdAt: true,
       referenceImageUrls: true,
       buyer: { select: { name: true, imageUrl: true } },
     },
   });
+  const commissions = rawCommissions.map(({ _count, ...commission }) => ({
+    ...commission,
+    interestedCount: resolvedInterestedCount({
+      interestedCount: commission.interestedCount,
+      _count,
+    }),
+  }));
 
   const count = commissions.length;
   const cityName = `${metro.name}, ${metro.state}`;
@@ -215,7 +226,7 @@ async function MetroCommissionsPage({ metroSlug }: { metroSlug: string }) {
         <span className="mx-2">›</span>
         <Link href="/commission" className="hover:underline">Commission Room</Link>
         <span className="mx-2">›</span>
-        <span className="text-neutral-400">{metro.state}</span>
+        <span className="text-neutral-500">{metro.state}</span>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
@@ -344,6 +355,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
+      _count: { select: { interests: true } },
       isNational: true,
       expiresAt: true,
       createdAt: true,
@@ -389,6 +401,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
   });
 
   if (!request || request.buyer.banned || request.buyer.deletedAt || commissionIsExpired(request)) return notFound();
+  const interestedCount = resolvedInterestedCount(request);
 
   const { userId } = await auth();
   let meId: string | null = null;
@@ -433,7 +446,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
   const offerData: Record<string, unknown> = {
     "@type": "AggregateOffer",
     "priceCurrency": "USD",
-    "offerCount": request.interestedCount,
+    "offerCount": interestedCount,
   };
   if (request.budgetMinCents) offerData.lowPrice = (request.budgetMinCents / 100).toFixed(2);
   if (request.budgetMaxCents) offerData.highPrice = (request.budgetMaxCents / 100).toFixed(2);
@@ -491,7 +504,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
         )}
         {request.timeline && <span>Timeline: {request.timeline}</span>}
         <span>Posted {timeAgo(request.createdAt)}</span>
-        <span>{request.interestedCount} maker{request.interestedCount !== 1 ? "s" : ""} interested</span>
+        <span>{interestedCount} maker{interestedCount !== 1 ? "s" : ""} interested</span>
       </div>
 
       <section className="mb-6">
@@ -557,7 +570,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
               );
             })}
           </div>
-          {request.interestedCount > request.interests.length && (
+          {interestedCount > request.interests.length && (
             <p className="mt-3 text-xs text-neutral-500">
               Showing the first {request.interests.length} active maker{request.interests.length !== 1 ? "s" : ""}.
             </p>

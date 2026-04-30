@@ -1,5 +1,5 @@
 // src/app/seller/[id]/shop/page.tsx
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
@@ -13,7 +13,7 @@ import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
+import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 
 const PAGE_SIZE = 20;
 
@@ -119,6 +119,21 @@ export default async function SellerShopPage({
     return notFound();
   }
 
+  const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
+  const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])
+    ? statusRaw
+    : "";
+
+  if (id !== routeSegmentWithSlug(seller.id, seller.displayName, "maker")) {
+    const canonicalParams = new URLSearchParams();
+    if (category) canonicalParams.set("category", category);
+    if (sort !== "newest") canonicalParams.set("sort", sort);
+    if (page > 1) canonicalParams.set("page", String(page));
+    if (statusFilter) canonicalParams.set("status", statusFilter);
+    const canonicalQuery = canonicalParams.toString();
+    permanentRedirect(`${sellerShopHref}${canonicalQuery ? `?${canonicalQuery}` : ""}`);
+  }
+
   // Follow data
   const [followerCount, isFollowing] = await Promise.all([
     prisma.follow.count({ where: { sellerProfileId: sellerId } }),
@@ -129,12 +144,6 @@ export default async function SellerShopPage({
         }).then((r) => r !== null)
       : Promise.resolve(false),
   ]);
-
-  // Validate status filter (owner only)
-  const validStatuses = STATUS_TABS.map((t) => t.value).filter(Boolean);
-  const statusFilter = isOwner && validStatuses.includes(statusRaw as typeof validStatuses[number])
-    ? statusRaw
-    : "";
 
   // Distinct categories — for owner show all statuses (optionally filtered by status), for buyers show ACTIVE only
   const categoryGroupWhere = isOwner

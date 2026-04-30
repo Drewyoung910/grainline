@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
+import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { z } from "zod";
 
@@ -35,6 +36,7 @@ export async function GET(
       referenceImageUrls: true,
       status: true,
       interestedCount: true,
+      _count: { select: { interests: true } },
       expiresAt: true,
       createdAt: true,
       buyerId: true,
@@ -69,8 +71,13 @@ export async function GET(
   if (request.buyer.banned || request.buyer.deletedAt) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (commissionIsExpired(request)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const { _count, ...requestBody } = request;
   return NextResponse.json({
-    ...request,
+    ...requestBody,
+    interestedCount: resolvedInterestedCount({
+      interestedCount: request.interestedCount,
+      _count,
+    }),
     buyer: { name: request.buyer.name, imageUrl: request.buyer.imageUrl },
   });
 }
@@ -152,6 +159,7 @@ export async function PATCH(
               ? `The request "${request.title}" has been fulfilled. Thanks for your interest!`
               : `The request "${request.title}" has been closed by the buyer.`,
             link: isFulfilled ? `/commission/${id}` : `/commission`,
+            dedupScope: id,
           }),
       );
     } catch { /* non-fatal */ }

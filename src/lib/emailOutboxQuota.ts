@@ -38,6 +38,7 @@ export type EmailOutboxDailyAllowance = {
   allowed: number;
   limit: number;
   resetAt: Date;
+  counterAvailable: boolean;
 };
 
 export function configuredEmailOutboxDailySendLimit(value = process.env.EMAIL_OUTBOX_DAILY_LIMIT) {
@@ -73,7 +74,7 @@ export async function reserveEmailOutboxDailySendAllowance({
 }): Promise<EmailOutboxDailyAllowance> {
   const resetAt = nextUtcMidnight(now);
   const normalizedRequested = Math.max(0, Math.floor(requested));
-  if (normalizedRequested === 0) return { allowed: 0, limit, resetAt };
+  if (normalizedRequested === 0) return { allowed: 0, limit, resetAt, counterAvailable: true };
 
   try {
     const reserved = await counter({
@@ -83,9 +84,9 @@ export async function reserveEmailOutboxDailySendAllowance({
       ttlSeconds: emailOutboxDailyQuotaTtlSeconds(now, resetAt),
     });
     const allowed = Math.max(0, Math.min(normalizedRequested, Math.floor(Number(reserved) || 0)));
-    return { allowed, limit, resetAt };
+    return { allowed, limit, resetAt, counterAvailable: true };
   } catch (error) {
     onCounterError?.(error);
-    return { allowed: normalizedRequested, limit, resetAt };
+    return { allowed: 0, limit, resetAt, counterAvailable: false };
   }
 }

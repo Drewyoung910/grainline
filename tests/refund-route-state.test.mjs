@@ -3,12 +3,15 @@ import { describe, it } from "node:test";
 
 const {
   isOpenStripeDisputeStatus,
+  isBlockingRefundLedgerEvent,
   latestRefundLedgerEvent,
+  orderHasPurchasedLabel,
   orderHasRefundLedger,
   orderRefundTotalCents,
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
+  refundLockAcquisitionConflictResponse,
   refundStockRestoreQuantities,
   sellerRefundConflictResponse,
   shouldReactivateRefundedListing,
@@ -17,14 +20,15 @@ const {
 const order = {
   itemsSubtotalCents: 10_000,
   shippingAmountCents: 500,
+  giftWrappingPriceCents: 300,
   taxAmountCents: 825,
 };
 
 describe("refund route state", () => {
   it("calculates full refund amounts from the order total", () => {
-    assert.equal(orderRefundTotalCents(order), 11_325);
-    assert.equal(refundAmountForResolution("FULL", order, null), 11_325);
-    assert.equal(refundAmountForResolution("REFUND_FULL", order, 100), 11_325);
+    assert.equal(orderRefundTotalCents(order), 11_625);
+    assert.equal(refundAmountForResolution("FULL", order, null), 11_625);
+    assert.equal(refundAmountForResolution("REFUND_FULL", order, 100), 11_625);
   });
 
   it("uses the requested amount for partial refunds", () => {
@@ -41,8 +45,8 @@ describe("refund route state", () => {
   });
 
   it("caps partial refunds at the order total", () => {
-    assert.equal(partialRefundExceedsOrderTotal("PARTIAL", 11_326, order), true);
-    assert.equal(partialRefundExceedsOrderTotal("REFUND_PARTIAL", 11_325, order), false);
+    assert.equal(partialRefundExceedsOrderTotal("PARTIAL", 11_626, order), true);
+    assert.equal(partialRefundExceedsOrderTotal("REFUND_PARTIAL", 11_625, order), false);
     assert.equal(partialRefundExceedsOrderTotal("FULL", 99_999, order), false);
   });
 
@@ -66,6 +70,41 @@ describe("refund route state", () => {
     });
   });
 
+  it("classifies failed refund lock acquisition from fresh order state", () => {
+    assert.deepEqual(
+      refundLockAcquisitionConflictResponse({ sellerRefundId: "pending", paymentEvents: [] }),
+      {
+        status: 409,
+        error: "A refund is already being processed for this order.",
+      },
+    );
+    assert.deepEqual(
+      refundLockAcquisitionConflictResponse({
+        sellerRefundId: null,
+        paymentEvents: [{ eventType: "REFUND", status: "succeeded" }],
+      }),
+      {
+        status: 400,
+        error: "A refund has already been issued for this order.",
+      },
+    );
+    assert.deepEqual(
+      refundLockAcquisitionConflictResponse({
+        sellerRefundId: null,
+        labelStatus: "PURCHASED",
+        paymentEvents: [],
+      }),
+      {
+        status: 409,
+        error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+      },
+    );
+    assert.deepEqual(refundLockAcquisitionConflictResponse(null), {
+      status: 409,
+      error: "Refund state changed while processing. Refresh and try again.",
+    });
+  });
+
   it("detects local and external refund ledgers for route guards", () => {
     assert.equal(orderHasRefundLedger({ sellerRefundId: null, paymentEvents: [] }), false);
     assert.equal(orderHasRefundLedger({ sellerRefundId: "re_123", paymentEvents: [] }), true);
@@ -79,20 +118,53 @@ describe("refund route state", () => {
     assert.equal(
       orderHasRefundLedger({
         sellerRefundId: null,
+        paymentEvents: [
+          { eventType: "REFUND", status: "failed" },
+          { eventType: "REFUND", status: "canceled" },
+        ],
+      }),
+      false,
+    );
+    assert.equal(
+      orderHasRefundLedger({
+        sellerRefundId: null,
+        paymentEvents: [{ eventType: "REFUND", status: "succeeded" }],
+      }),
+      true,
+    );
+    assert.equal(
+      orderHasRefundLedger({
+        sellerRefundId: null,
         paymentEvents: [{ eventType: "DISPUTE" }],
       }),
       false,
     );
   });
 
+  it("blocks seller refunds after a shipping label has been purchased", () => {
+    assert.equal(orderHasPurchasedLabel({ labelStatus: null }), false);
+    assert.equal(orderHasPurchasedLabel({ labelStatus: "PURCHASED" }), true);
+    assert.equal(orderHasPurchasedLabel({ labelStatus: "VOIDED" }), false);
+  });
+
+  it("treats only failed and canceled refund ledger events as non-blocking", () => {
+    assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: "failed" }), false);
+    assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: "canceled" }), false);
+    assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: "cancelled" }), false);
+    assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: "pending" }), true);
+    assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: null }), true);
+    assert.equal(isBlockingRefundLedgerEvent({ eventType: "DISPUTE", status: "open" }), false);
+  });
+
   it("selects the first refund ledger event from already-sorted payment events", () => {
     const events = [
       { eventType: "DISPUTE", amountCents: 2_000 },
-      { eventType: "REFUND", amountCents: 1_500, stripeObjectId: "re_new" },
-      { eventType: "REFUND", amountCents: 1_000, stripeObjectId: "re_old" },
+      { eventType: "REFUND", amountCents: 1_500, stripeObjectId: "re_failed", status: "failed" },
+      { eventType: "REFUND", amountCents: 1_000, stripeObjectId: "re_old", status: "succeeded" },
     ];
-    assert.deepEqual(latestRefundLedgerEvent(events), events[1]);
+    assert.deepEqual(latestRefundLedgerEvent(events), events[2]);
     assert.equal(latestRefundLedgerEvent([{ eventType: "DISPUTE" }]), null);
+    assert.equal(latestRefundLedgerEvent([{ eventType: "REFUND", status: "canceled" }]), null);
     assert.equal(latestRefundLedgerEvent(null), null);
   });
 

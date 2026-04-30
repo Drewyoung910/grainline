@@ -1,6 +1,7 @@
 // src/app/sitemap.ts
 import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
+import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
@@ -9,6 +10,13 @@ import { openCommissionWhere } from "@/lib/commissionExpiry";
 const BASE_URL = "https://thegrainline.com";
 const SITEMAP_ENTRY_LIMIT = 50_000;
 const SITEMAP_CHUNK_SIZE = 5_000;
+const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
+const BLOG_TYPE_SITEMAP_FILTERS = [
+  BlogPostType.GIFT_GUIDE,
+  BlogPostType.MAKER_SPOTLIGHT,
+  BlogPostType.BEHIND_THE_BUILD,
+  BlogPostType.WOOD_EDUCATION,
+] as const;
 
 export async function generateSitemaps() {
   const listingCount = await prisma.listing.count({ where: publicListingWhere() });
@@ -35,13 +43,13 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   }
 
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${BASE_URL}/`, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
-    { url: `${BASE_URL}/browse`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
-    { url: `${BASE_URL}/commission`, lastModified: new Date(), changeFrequency: "daily", priority: 0.7 },
-    { url: `${BASE_URL}/about`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
-    { url: `${BASE_URL}/terms`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.3 },
-    { url: `${BASE_URL}/privacy`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.3 },
-    { url: `${BASE_URL}/map`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
+    { url: `${BASE_URL}/`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "daily", priority: 1.0 },
+    { url: `${BASE_URL}/browse`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "daily", priority: 0.9 },
+    { url: `${BASE_URL}/commission`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "daily", priority: 0.7 },
+    { url: `${BASE_URL}/about`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${BASE_URL}/terms`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE_URL}/privacy`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },
   ];
 
   const [sellers, blogPosts, openCommissions] = await Promise.all([
@@ -58,7 +66,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     }),
     prisma.blogPost.findMany({
       where: { status: "PUBLISHED", author: { banned: false, deletedAt: null } },
-      select: { slug: true, publishedAt: true, updatedAt: true },
+      select: { slug: true, publishedAt: true, updatedAt: true, type: true },
       orderBy: { publishedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,
     }),
@@ -179,8 +187,23 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   }));
 
   const blogIndexRoute: MetadataRoute.Sitemap = [
-    { url: `${BASE_URL}/blog`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
+    {
+      url: `${BASE_URL}/blog`,
+      lastModified: blogPosts[0]?.updatedAt ?? STATIC_ROUTE_LAST_MODIFIED,
+      changeFrequency: "daily",
+      priority: 0.8,
+    },
   ];
+  const blogTypeRoutes: MetadataRoute.Sitemap = BLOG_TYPE_SITEMAP_FILTERS.flatMap((type) => {
+    const latestForType = blogPosts.find((post) => post.type === type);
+    if (!latestForType) return [];
+    return [{
+      url: `${BASE_URL}/blog?type=${encodeURIComponent(type)}`,
+      lastModified: latestForType.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    }];
+  });
 
   const commissionRoutes: MetadataRoute.Sitemap = openCommissions.map((c) => ({
     url: `${BASE_URL}/commission/${c.id}`,
@@ -229,6 +252,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
   return [
     ...staticRoutes,
     ...blogIndexRoute,
+    ...blogTypeRoutes,
     ...sellerRoutes,
     ...blogRoutes,
     ...commissionRoutes,

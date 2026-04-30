@@ -20,7 +20,7 @@ export function calculateCheckoutAmounts({
     platformFeeCents,
     preTaxTotalCents,
     sellerTransferBeforeMinimumCents,
-    sellerTransferAmountCents: Math.max(1, sellerTransferBeforeMinimumCents),
+    sellerTransferAmountCents: sellerTransferBeforeMinimumCents,
     belowMinimumSellerTransfer: sellerTransferBeforeMinimumCents < MIN_SELLER_TRANSFER_CENTS,
   };
 }

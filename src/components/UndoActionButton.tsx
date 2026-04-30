@@ -17,7 +17,7 @@ export function UndoActionButton({
 
   if (!canUndo || done) {
     return (
-      <span className="text-xs text-neutral-400">
+      <span className="text-xs text-neutral-500">
         {done ? "Undone" : "Expired"}
       </span>
     );

@@ -56,7 +56,7 @@ export default function NotifyMeButton({
         <button
           onClick={toggle}
           disabled={loading}
-          className="text-xs text-neutral-400 underline hover:text-neutral-600"
+          className="text-xs text-neutral-500 underline hover:text-neutral-600"
         >
           Unsubscribe
         </button>

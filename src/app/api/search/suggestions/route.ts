@@ -51,6 +51,8 @@ export async function GET(req: NextRequest) {
         chargesEnabled: true,
         vacationMode: false,
         user: { banned: false, deletedAt: null },
+        listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } },
+        ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
       },
       select: { displayName: true },
       take: 2,

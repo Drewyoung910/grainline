@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function AdminEmailForm({
   userId,
@@ -17,6 +17,13 @@ export function AdminEmailForm({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   async function handleSend() {
     if (!subject.trim() || !body.trim()) return;
@@ -37,7 +44,11 @@ export function AdminEmailForm({
     if (res.ok) {
       setSubject("");
       setBody("");
-      setTimeout(() => setOpen(false), 1500);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = setTimeout(() => {
+        setOpen(false);
+        closeTimerRef.current = null;
+      }, 1500);
     }
   }
 
@@ -58,7 +69,7 @@ export function AdminEmailForm({
     <div className="mt-2 border border-neutral-200 rounded-lg p-3 space-y-2 bg-neutral-50">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-neutral-700">{label}</span>
-        <button onClick={() => setOpen(false)} className="text-xs text-neutral-400 hover:text-neutral-600">✕</button>
+        <button onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:text-neutral-600">✕</button>
       </div>
       {!userId && (
         <input

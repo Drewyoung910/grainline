@@ -43,11 +43,11 @@ export default async function AdminReviewsPage() {
                   <span className="text-xs text-neutral-500">
                     by {r.reviewer.name ?? r.reviewer.email ?? "Unknown"}
                   </span>
-                  <span className="text-xs text-neutral-400">on</span>
+                  <span className="text-xs text-neutral-500">on</span>
                   <Link href={publicListingPath(r.listing.id, r.listing.title)} className="text-xs text-neutral-600 hover:underline">
                     {r.listing.title}
                   </Link>
-                  <span className="text-xs text-neutral-400">
+                  <span className="text-xs text-neutral-500">
                     {new Date(r.createdAt).toLocaleDateString("en-US")}
                   </span>
                 </div>

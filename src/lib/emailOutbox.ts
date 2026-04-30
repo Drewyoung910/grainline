@@ -9,13 +9,14 @@ import { redis } from "@/lib/ratelimit";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
   emailOutboxProcessingStaleCutoff,
-  emailOutboxRetryDelayMs,
-  isTerminalEmailOutboxAttempt,
+  emailOutboxDedupKey,
+  emailOutboxFailureState,
 } from "@/lib/emailOutboxState";
 import {
   EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT,
   reserveEmailOutboxDailySendAllowance,
 } from "@/lib/emailOutboxQuota";
+import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 5;
@@ -51,6 +52,15 @@ async function reserveDailySendAllowance(requested: number, now: Date) {
 export async function enqueueEmailOutbox(email: QueuedEmail) {
   const recipient = normalizeEmailAddress(email.to);
   if (!recipient) return null;
+  if (email.preferenceKey && !isValidEmailPreferenceKey(email.preferenceKey)) {
+    Sentry.captureMessage("Skipping email outbox enqueue with invalid preference key", {
+      level: "warning",
+      tags: { source: "email_outbox", reason: "invalid_preference_key" },
+      extra: { preferenceKey: email.preferenceKey, userId: email.userId },
+    });
+    return null;
+  }
+  const dedupKey = emailOutboxDedupKey(email.dedupKey);
 
   try {
     return await prisma.emailOutbox.create({
@@ -60,12 +70,12 @@ export async function enqueueEmailOutbox(email: QueuedEmail) {
         preferenceKey: email.preferenceKey,
         subject: email.subject.slice(0, 300),
         html: email.html,
-        dedupKey: email.dedupKey.slice(0, 128),
+        dedupKey,
       },
     });
   } catch (error) {
     if (isUniqueError(error)) {
-      return prisma.emailOutbox.findUnique({ where: { dedupKey: email.dedupKey.slice(0, 128) } });
+      return prisma.emailOutbox.findUnique({ where: { dedupKey } });
     }
     throw error;
   }
@@ -120,6 +130,7 @@ export async function processEmailOutboxBatch({
       data: {
         status: "PROCESSING",
         attempts: { increment: 1 },
+        nextAttemptAt: null,
         lastError: null,
       },
     });
@@ -128,14 +139,33 @@ export async function processEmailOutboxBatch({
       return;
     }
 
-    const attempts = job.attempts + 1;
+    const claimedJob = await prisma.emailOutbox.findUnique({
+      where: { id: job.id },
+      select: { attempts: true },
+    });
+    const attempts = claimedJob?.attempts ?? job.attempts + 1;
     try {
+      if (job.userId && job.preferenceKey && !isValidEmailPreferenceKey(job.preferenceKey)) {
+        await prisma.emailOutbox.update({
+          where: { id: job.id },
+          data: {
+            status: "SKIPPED",
+            sentAt: new Date(),
+            nextAttemptAt: null,
+            lastError: `Invalid email preference key: ${job.preferenceKey}`,
+          },
+        });
+        skipped += 1;
+        return;
+      }
+
       if (job.userId && job.preferenceKey && !(await shouldSendEmail(job.userId, job.preferenceKey))) {
         await prisma.emailOutbox.update({
           where: { id: job.id },
           data: {
             status: "SKIPPED",
             sentAt: new Date(),
+            nextAttemptAt: null,
             lastError: "Email preference disabled before send",
           },
         });
@@ -150,14 +180,23 @@ export async function processEmailOutboxBatch({
           data: {
             status: "PENDING",
             nextAttemptAt: quota.resetAt,
-            lastError: `Daily email outbox send cap reached (${quota.limit}/day)`,
+            lastError: quota.counterAvailable
+              ? `Daily email outbox send cap reached (${quota.limit}/day)`
+              : "Daily email outbox send cap unavailable",
           },
         });
         capped += 1;
-        Sentry.captureMessage("Email outbox daily send cap reached", {
+        Sentry.captureMessage(quota.counterAvailable
+          ? "Email outbox daily send cap reached"
+          : "Email outbox daily send cap unavailable", {
           level: "warning",
           tags: { source: "email_outbox_daily_quota" },
-          extra: { emailOutboxId: job.id, limit: quota.limit, resetAt: quota.resetAt.toISOString() },
+          extra: {
+            emailOutboxId: job.id,
+            limit: quota.limit,
+            resetAt: quota.resetAt.toISOString(),
+            counterAvailable: quota.counterAvailable,
+          },
         });
         return;
       }
@@ -168,24 +207,22 @@ export async function processEmailOutboxBatch({
       );
       await prisma.emailOutbox.update({
         where: { id: job.id },
-        data: { status: "SENT", sentAt: new Date(), lastError: null },
+        data: { status: "SENT", sentAt: new Date(), nextAttemptAt: null, lastError: null },
       });
       sent += 1;
     } catch (error) {
-      const terminal = isTerminalEmailOutboxAttempt(attempts);
+      const failureState = emailOutboxFailureState(attempts);
       failed += 1;
       await prisma.emailOutbox.update({
         where: { id: job.id },
         data: {
-          status: terminal ? "DEAD" : "FAILED",
-          nextAttemptAt: terminal
-            ? new Date("9999-12-31T00:00:00.000Z")
-            : new Date(Date.now() + emailOutboxRetryDelayMs(attempts)),
+          status: failureState.status,
+          nextAttemptAt: failureState.nextAttemptAt,
           lastError: sanitizeEmailOutboxError(error),
         },
       });
       Sentry.captureException(error, {
-        tags: { source: "email_outbox", status: terminal ? "dead" : "retry" },
+        tags: { source: "email_outbox", status: failureState.terminal ? "dead" : "retry" },
         extra: { emailOutboxId: job.id, attempts },
       });
     }

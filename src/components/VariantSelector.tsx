@@ -17,13 +17,23 @@ export default function VariantSelector({
   groups,
   basePriceCents,
   onSelectionChange,
+  initialSelectedOptionIds = [],
 }: {
   groups: VariantGroupForSelector[];
   basePriceCents: number;
   onSelectionChange: (selectedOptionIds: string[], totalPriceCents: number) => void;
+  initialSelectedOptionIds?: string[];
 }) {
-  // Map of groupId → selected optionId
-  const [selected, setSelected] = useState<Record<string, string>>({});
+  // Map of groupId -> selected optionId
+  const [selected, setSelected] = useState<Record<string, string>>(() => {
+    const initialIds = new Set(initialSelectedOptionIds);
+    const next: Record<string, string> = {};
+    for (const group of groups) {
+      const option = group.options.find((opt) => initialIds.has(opt.id) && opt.inStock);
+      if (option) next[group.id] = option.id;
+    }
+    return next;
+  });
 
   const selectOption = useCallback(
     (groupId: string, optionId: string) => {

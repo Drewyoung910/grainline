@@ -7,6 +7,10 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
 import { caseMessageRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  unavailableCaseMessageRecipientReason,
+  unavailableCaseRecipientMessage,
+} from "@/lib/caseMessagingState";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -42,7 +46,13 @@ export async function POST(
     const messageBody = parsed.body.trim();
     if (!messageBody) return NextResponse.json({ error: "body is required." }, { status: 400 });
 
-    const caseRecord = await prisma.case.findUnique({ where: { id } });
+    const caseRecord = await prisma.case.findUnique({
+      where: { id },
+      include: {
+        buyer: { select: { id: true, banned: true, deletedAt: true } },
+        seller: { select: { id: true, banned: true, deletedAt: true } },
+      },
+    });
     if (!caseRecord) return NextResponse.json({ error: "Case not found." }, { status: 404 });
 
     const isParty = me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
@@ -51,6 +61,19 @@ export async function POST(
 
     if (caseRecord.status === "RESOLVED" || caseRecord.status === "CLOSED") {
       return NextResponse.json({ error: "This case is closed." }, { status: 400 });
+    }
+
+    const unavailableRecipientReason = unavailableCaseMessageRecipientReason({
+      senderId: me.id,
+      buyer: caseRecord.buyer,
+      seller: caseRecord.seller,
+      isStaff,
+    });
+    if (unavailableRecipientReason) {
+      return NextResponse.json(
+        { error: unavailableCaseRecipientMessage(unavailableRecipientReason) },
+        { status: 409 },
+      );
     }
 
     const now = new Date();

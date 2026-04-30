@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function NotAvailablePage() {
   return (
-    <main className='min-h-screen flex items-center justify-center px-4 bg-stone-50'>
+    <main className='min-h-[100svh] flex items-center justify-center px-4 bg-stone-50'>
       <div className='text-center max-w-md'>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -24,7 +24,7 @@ export default function NotAvailablePage() {
           We are a local handmade woodworking marketplace focused on connecting
           buyers and makers in North America.
         </p>
-        <p className='text-neutral-400 text-xs'>
+        <p className='text-neutral-500 text-xs'>
           Are you a US or Canadian maker or buyer? Make sure you are not using a VPN.
         </p>
       </div>

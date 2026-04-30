@@ -124,9 +124,10 @@ export async function generateMetadata({
   const q = sp.q?.trim() ?? "";
   const categoryRaw = sp.category?.toUpperCase() ?? "";
   const categoryFilter = CATEGORY_VALUES.includes(categoryRaw) ? categoryRaw : null;
-  const page = parseInt(sp.page ?? "1", 10);
+  const pageRaw = Number.parseInt(sp.page ?? "1", 10);
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
   const hasTags = Array.isArray(sp.tag) ? sp.tag.length > 0 : Boolean(sp.tag);
-  const hasNonCanonicalFilters = Boolean(
+  const hasIndexBlockingFilters = Boolean(
     q ||
     sp.min ||
     sp.max ||
@@ -138,13 +139,14 @@ export async function generateMetadata({
     sp.lng ||
     sp.radius ||
     (sp.view && sp.view !== "grid") ||
-    hasTags ||
-    page > 1,
+    hasTags,
   );
-  const canonical = categoryFilter
-    ? `https://thegrainline.com/browse?category=${categoryFilter.toLowerCase()}`
-    : "https://thegrainline.com/browse";
-  const robots = hasNonCanonicalFilters ? { index: false, follow: true } : undefined;
+  const canonicalParams = new URLSearchParams();
+  if (categoryFilter) canonicalParams.set("category", categoryFilter.toLowerCase());
+  if (!hasIndexBlockingFilters && page > 1) canonicalParams.set("page", String(page));
+  const canonicalQuery = canonicalParams.toString();
+  const canonical = `https://thegrainline.com/browse${canonicalQuery ? `?${canonicalQuery}` : ""}`;
+  const robots = hasIndexBlockingFilters ? { index: false, follow: true } : undefined;
 
   if (q) {
     const title = `${q} — Handmade Woodworking | Grainline`;
@@ -153,12 +155,14 @@ export async function generateMetadata({
   }
   if (categoryFilter) {
     const label = CATEGORY_LABELS[categoryFilter] ?? categoryFilter;
-    const title = `Handmade ${label} | Grainline`;
+    const pageSuffix = !hasIndexBlockingFilters && page > 1 ? ` - Page ${page}` : "";
+    const title = `Handmade ${label}${pageSuffix} | Grainline`;
     const description = `Shop handmade ${label.toLowerCase()} from local woodworking artisans`;
     return { title, description, robots, openGraph: { title, description, url: canonical }, alternates: { canonical } };
   }
+  const pageSuffix = !hasIndexBlockingFilters && page > 1 ? ` - Page ${page}` : "";
   return {
-    title: "Browse Handmade Woodworking",
+    title: `Browse Handmade Woodworking${pageSuffix}`,
     description: "Browse thousands of unique handmade woodworking pieces from local artisans",
     openGraph: {
       title: "Browse Handmade Woodworking",
@@ -426,7 +430,7 @@ export default async function BrowsePage({
     });
 
     return (
-      <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
+      <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-[100svh]">
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
@@ -493,7 +497,7 @@ export default async function BrowsePage({
       {clampedPage > 1 ? (
         <Link href={makePageHref(clampedPage - 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">← Prev</Link>
       ) : (
-        <span className="rounded border px-3 py-1 text-neutral-400">← Prev</span>
+        <span className="rounded border px-3 py-1 text-neutral-500">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -503,7 +507,7 @@ export default async function BrowsePage({
       {clampedPage < totalPages ? (
         <Link href={makePageHref(clampedPage + 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">Next →</Link>
       ) : (
-        <span className="rounded border px-3 py-1 text-neutral-400">Next →</span>
+        <span className="rounded border px-3 py-1 text-neutral-500">Next →</span>
       )}
     </nav>
   );
@@ -580,7 +584,7 @@ export default async function BrowsePage({
             <div className="flex items-center gap-1.5 text-xs text-neutral-600 mt-1">
               <StarsInline value={shop.avg} />
               <span>{(Math.round(shop.avg * 10) / 10).toFixed(1)}</span>
-              <span className="text-neutral-400">({shop.count})</span>
+              <span className="text-neutral-500">({shop.count})</span>
             </div>
           )}
 
@@ -619,7 +623,7 @@ export default async function BrowsePage({
   ].filter(Boolean).length;
 
   return (
-    <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-screen">
+    <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-[100svh]">
     <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">

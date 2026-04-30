@@ -84,7 +84,7 @@ export default function VariantEditor({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium text-neutral-700">Variants</h3>
-          <p className="text-xs text-neutral-400 mt-0.5">
+          <p className="text-xs text-neutral-500 mt-0.5">
             Add options like size, wood type, or finish. Up to {MAX_GROUPS} groups.
           </p>
         </div>
@@ -143,7 +143,7 @@ export default function VariantEditor({
                   className="flex-1 border border-neutral-200 rounded-md px-3 py-1.5 text-sm"
                 />
                 <div className="relative w-28">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-400">$</span>
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-500">$</span>
                   <input
                     type="number"
                     step="0.01"
@@ -170,7 +170,7 @@ export default function VariantEditor({
                   type="button"
                   onClick={() => removeOption(gi, oi)}
                   disabled={group.options.length <= 1}
-                  className="rounded p-1 text-neutral-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="rounded p-1 text-neutral-500 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   title="Remove option"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

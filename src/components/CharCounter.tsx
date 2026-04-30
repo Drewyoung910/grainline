@@ -33,7 +33,7 @@ export default function CharCounter({
         onChange={(e) => setCount(e.target.value.length)}
         className={className ?? "w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"}
       />
-      <p className="text-xs text-neutral-400 text-right mt-0.5">
+      <p className="text-xs text-neutral-500 text-right mt-0.5">
         {count} / {maxLength}
       </p>
     </div>
@@ -69,7 +69,7 @@ export function InputCharCounter({
         onChange={(e) => setCount(e.target.value.length)}
         className={className ?? "w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"}
       />
-      <p className="text-xs text-neutral-400 text-right mt-0.5">
+      <p className="text-xs text-neutral-500 text-right mt-0.5">
         {count} / {maxLength}
       </p>
     </div>

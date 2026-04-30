@@ -141,14 +141,14 @@ export default async function AdminReportsPage() {
               <div className="space-y-1">
                 <div className="text-sm">
                   <span className="font-medium">{r.reporter.name ?? r.reporter.email ?? "Unknown"}</span>
-                  <span className="text-neutral-400"> reported </span>
+                  <span className="text-neutral-500"> reported </span>
                   <Link href={`/admin/users?q=${encodeURIComponent(r.reported.email ?? r.reported.name ?? "")}`} className="font-medium hover:underline">{r.reported.name ?? r.reported.email ?? "Unknown"}</Link>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-red-50 text-red-700 border border-red-200 rounded-full px-2 py-0.5">
                     {r.reason}
                   </span>
-                  <span className="text-xs text-neutral-400">
+                  <span className="text-xs text-neutral-500">
                     {new Date(r.createdAt).toLocaleDateString("en-US")}
                   </span>
                 </div>

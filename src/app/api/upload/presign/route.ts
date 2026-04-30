@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
+import { randomBytes } from "crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
@@ -11,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { createUploadVerificationToken } from "@/lib/uploadVerificationToken";
+import { uploadKeyUserSegment } from "@/lib/uploadKey";
 
 const ALLOWED_TYPES = [
   "video/mp4", "video/quicktime",
@@ -129,7 +131,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many files" }, { status: 400 });
   }
 
-  const key = `${endpoint}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const key = `${endpoint}/${uploadKeyUserSegment(userId)}/${Date.now()}-${randomBytes(12).toString("hex")}.${ext}`;
 
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET,

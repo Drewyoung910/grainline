@@ -2,19 +2,27 @@ import { prisma } from "@/lib/db";
 
 export async function getBlockedUserIdsFor(meId: string | null): Promise<Set<string>> {
   if (!meId) return new Set();
-  const blocks = await prisma.block.findMany({
-    where: {
-      OR: [{ blockerId: meId }, { blockedId: meId }],
-      blocker: { deletedAt: null },
-      blocked: { deletedAt: null },
-    },
-    select: { blockerId: true, blockedId: true },
-  });
+  const [blockedByMe, blockingMe] = await Promise.all([
+    prisma.block.findMany({
+      where: {
+        blockerId: meId,
+        blocker: { deletedAt: null },
+        blocked: { deletedAt: null },
+      },
+      select: { blockedId: true },
+    }),
+    prisma.block.findMany({
+      where: {
+        blockedId: meId,
+        blocker: { deletedAt: null },
+        blocked: { deletedAt: null },
+      },
+      select: { blockerId: true },
+    }),
+  ]);
   const ids = new Set<string>();
-  for (const b of blocks) {
-    if (b.blockerId !== meId) ids.add(b.blockerId);
-    if (b.blockedId !== meId) ids.add(b.blockedId);
-  }
+  for (const block of blockedByMe) ids.add(block.blockedId);
+  for (const block of blockingMe) ids.add(block.blockerId);
   return ids;
 }
 

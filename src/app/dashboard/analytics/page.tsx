@@ -235,7 +235,7 @@ function LineChartSection({
       <div className="card-section p-4 relative" ref={containerRef}>
         {!hasData && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-            <p className="text-sm text-neutral-400">No data for this period</p>
+            <p className="text-sm text-neutral-500">No data for this period</p>
           </div>
         )}
 
@@ -537,12 +537,12 @@ export default function AnalyticsPage() {
               <div className="card-section p-5">
                 <p className="text-2xl font-bold">{fmt(data.overview.totalRevenueCents)}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Sales</p>
-                <p className="text-[10px] text-neutral-400">before fees, excluding refunded orders</p>
+                <p className="text-[10px] text-neutral-500">before fees, excluding refunded orders</p>
               </div>
               <div className="card-section p-5">
                 <p className="text-2xl font-bold">{data.overview.totalOrders.toLocaleString("en-US")}</p>
                 <p className="text-xs text-neutral-500 mt-0.5">Paid Orders</p>
-                <p className="text-[10px] text-neutral-400">excluding refunded orders</p>
+                <p className="text-[10px] text-neutral-500">excluding refunded orders</p>
               </div>
               <div className="card-section p-5">
                 <p className="text-2xl font-bold">{fmt(data.overview.avgOrderValueCents)}</p>
@@ -571,8 +571,8 @@ export default function AnalyticsPage() {
             <div className="card-section p-3">
               <p className="text-xl font-bold">{data.engagement.totalViews.toLocaleString("en-US")}</p>
               <p className="text-xs font-medium text-neutral-700 mt-0.5">Listing Views</p>
-              <p className="text-[10px] text-neutral-400">times your listing page was opened</p>
-              <p className="text-[10px] text-neutral-400">each visitor counted once per day · updates daily</p>
+              <p className="text-[10px] text-neutral-500">times your listing page was opened</p>
+              <p className="text-[10px] text-neutral-500">each visitor counted once per day · updates daily</p>
             </div>
             {[
               {
@@ -629,7 +629,7 @@ export default function AnalyticsPage() {
               <div key={stat.label} className="card-section p-3">
                 <p className="text-xl font-bold">{stat.value}</p>
                 <p className="text-xs font-medium text-neutral-700 mt-0.5">{stat.label}</p>
-                <p className="text-[10px] text-neutral-400">{stat.note}</p>
+                <p className="text-[10px] text-neutral-500">{stat.note}</p>
               </div>
             ))}
           </div>
@@ -696,7 +696,7 @@ export default function AnalyticsPage() {
                       {fmtExact(l.totalRevenueCents)} total · {l.unitsSold} unit
                       {l.unitsSold !== 1 ? "s" : ""}
                     </p>
-                    <p className="text-xs text-neutral-400 mt-0.5">
+                    <p className="text-xs text-neutral-500 mt-0.5">
                       <Eye size={11} className="inline align-middle" /> {l.viewCount.toLocaleString("en-US")} · clicks {l.clickCount.toLocaleString("en-US")} · <Heart size={11} className="inline align-middle" />{" "}
                       {l.favoritesCount} · <Bell size={11} className="inline align-middle" /> {l.stockNotificationCount}
                       {l.revenuePerActiveDayCents > 0 && (
@@ -712,7 +712,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-semibold">{fmt(l.totalRevenueCents)}</p>
-                    <p className="text-xs text-neutral-400">gross sales</p>
+                    <p className="text-xs text-neutral-500">gross sales</p>
                   </div>
                 </li>
               ))}
@@ -772,7 +772,7 @@ export default function AnalyticsPage() {
               ))}
             </div>
             {data.guildMetrics.lastCalculatedAt && (
-              <p className="text-xs text-neutral-400 mt-1">
+              <p className="text-xs text-neutral-500 mt-1">
                 Last updated: {new Date(data.guildMetrics.lastCalculatedAt).toLocaleString("en-US")}
               </p>
             )}
@@ -818,7 +818,7 @@ export default function AnalyticsPage() {
                 <span className="text-neutral-600">{r.label}</span>
                 <span className="font-medium">
                   {r.avgRating.toFixed(1)} ★
-                  <span className="text-xs text-neutral-400 font-normal ml-1">
+                  <span className="text-xs text-neutral-500 font-normal ml-1">
                     ({r.reviewCount} review{r.reviewCount !== 1 ? "s" : ""})
                   </span>
                 </span>

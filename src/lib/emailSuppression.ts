@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 
 export function normalizeEmailAddress(email: string | null | undefined): string | null {
-  const normalized = email?.trim().toLowerCase();
+  const normalized = email?.trim().normalize("NFC").toLowerCase();
   if (!normalized || !normalized.includes("@")) return null;
   return normalized;
 }

@@ -6,6 +6,8 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendWelcomeBuyer, sendWelcomeSeller } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
+import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
+import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { sanitizeUserName } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 
@@ -159,11 +161,32 @@ export async function POST(req: Request) {
 
   const existingLocalUser = await prisma.user.findUnique({
     where: { clerkId: id },
-    select: { banned: true, deletedAt: true },
+    select: { id: true, email: true, banned: true, deletedAt: true },
   });
   if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
     await markClerkWebhookProcessed(svixId);
     return NextResponse.json({ ok: true });
+  }
+
+  if (
+    shouldRevokeSessionsForClerkEmailChange({
+      eventType: event.type,
+      clerkUserId: id,
+      previousEmail: existingLocalUser?.email,
+      nextEmail: email,
+    })
+  ) {
+    const result = await revokeClerkUserSessions(id);
+    Sentry.captureMessage("Clerk email change revoked active sessions", {
+      level: "info",
+      tags: { source: "clerk_email_change_session_revoke" },
+      extra: {
+        svixId,
+        clerkId: id,
+        userId: existingLocalUser?.id,
+        revokedSessionCount: result.revokedSessionCount,
+      },
+    });
   }
 
   const user = await ensureUserByClerkId(id, {

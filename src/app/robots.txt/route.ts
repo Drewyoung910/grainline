@@ -9,6 +9,11 @@ Disallow: /dashboard
 Disallow: /admin
 Disallow: /cart
 Disallow: /checkout
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /banned
+Disallow: /not-available
+Disallow: /offline
 Disallow: /api
 
 User-agent: GPTBot
@@ -24,6 +29,24 @@ User-agent: CCBot
 Disallow: /
 
 User-agent: Google-Extended
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Meta-ExternalAgent
 Disallow: /
 
 User-agent: SemrushBot

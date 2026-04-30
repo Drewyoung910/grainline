@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
+import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function DELETE(
   _request: Request,
@@ -17,6 +18,9 @@ export async function DELETE(
   if (!admin || admin.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
+  if (!success) return rateLimitResponse(reset, "Too many admin actions. Try again shortly.");
 
   const { id } = await params;
   const listing = await prisma.listing.findUnique({

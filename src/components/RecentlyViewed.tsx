@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
+import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { useToast } from "@/components/Toast";
 import { publicListingPath } from "@/lib/publicPaths";
 
@@ -35,7 +35,6 @@ export default function RecentlyViewed() {
       .then((data) => {
         const nextListings = (data.listings ?? []).slice(0, 6);
         setListings(nextListings);
-        setRecentlyViewed(nextListings.map((listing: RecentListing) => listing.id));
       })
       .catch((error) => {
         toast(error instanceof Error ? error.message : "Could not load recently viewed listings.", "error");
@@ -87,7 +86,7 @@ export default function RecentlyViewed() {
                       currency: l.currency,
                     })}
                   </div>
-                  <div className="text-xs text-neutral-400 truncate">{l.sellerDisplayName}</div>
+                  <div className="text-xs text-neutral-500 truncate">{l.sellerDisplayName}</div>
                 </div>
               </Link>
             </li>

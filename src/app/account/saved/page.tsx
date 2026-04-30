@@ -49,10 +49,19 @@ export default async function SavedPage({
       },
     },
   };
+  const savedPostWhere: Prisma.SavedBlogPostWhereInput = {
+    userId: me.id,
+    blogPost: {
+      status: "PUBLISHED",
+      publishedAt: { not: null },
+      author: { banned: false, deletedAt: null },
+      ...(blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {}),
+    },
+  };
 
   const [listingTotal, postTotal] = await Promise.all([
     prisma.favorite.count({ where: savedListingWhere }),
-    prisma.savedBlogPost.count({ where: { userId: me.id } }),
+    prisma.savedBlogPost.count({ where: savedPostWhere }),
   ]);
 
   function tabHref(t: string) {
@@ -152,12 +161,7 @@ export default async function SavedPage({
   // Posts tab
   const totalPages = Math.ceil(postTotal / PAGE_SIZE);
   const savedPosts = await prisma.savedBlogPost.findMany({
-    where: {
-      userId: me.id,
-      ...(blockedSellerIds.length > 0
-        ? { blogPost: { sellerProfileId: { notIn: blockedSellerIds } } }
-        : {}),
-    },
+    where: savedPostWhere,
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
@@ -218,7 +222,7 @@ export default async function SavedPage({
                           {BLOG_TYPE_LABELS[p.type]}
                         </span>
                         {p.readingTimeMinutes && (
-                          <span className="text-xs text-neutral-400">{p.readingTimeMinutes} min</span>
+                          <span className="text-xs text-neutral-500">{p.readingTimeMinutes} min</span>
                         )}
                       </div>
                       <h3 className="font-semibold text-neutral-900 line-clamp-2">{p.title}</h3>
@@ -232,7 +236,7 @@ export default async function SavedPage({
                         )}
                         <span className="text-xs text-neutral-500">{name}</span>
                         {p.publishedAt && (
-                          <span className="text-xs text-neutral-400 ml-auto">
+                          <span className="text-xs text-neutral-500 ml-auto">
                             {new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                           </span>
                         )}

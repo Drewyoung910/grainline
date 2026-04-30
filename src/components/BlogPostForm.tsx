@@ -5,6 +5,7 @@ import { BLOG_TYPE_LABELS, generateSlug } from "@/lib/blog";
 import MarkdownToolbar from "./MarkdownToolbar";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 import type { BlogPostType } from "@prisma/client";
 
 const STAFF_TYPES: BlogPostType[] = ["STANDARD", "MAKER_SPOTLIGHT", "BEHIND_THE_BUILD", "GIFT_GUIDE", "WOOD_EDUCATION"];
@@ -57,7 +58,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           placeholder="Enter post title"
         />
-        <p className="text-xs text-neutral-400">Slug preview: <code className="bg-neutral-100 px-1 rounded">/blog/{slugPreview}</code></p>
+        <p className="text-xs text-neutral-500">Slug preview: <code className="bg-neutral-100 px-1 rounded">/blog/{slugPreview}</code></p>
       </div>
 
       {/* Type */}
@@ -100,7 +101,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
             }}
             content={{ button: ({ ready }) => ready ? "Upload cover image" : "Preparing…" }}
             onClientUploadComplete={(files) => {
-              const url = (files[0] as { ufsUrl?: string })?.ufsUrl ?? "";
+              const url = uploadedFileUrl(files[0]);
               if (url) setCoverImageUrl(url);
             }}
             onUploadError={(err) => emitToast(err?.message || "Cover upload failed.", "error")}
@@ -110,7 +111,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
 
       {/* Video URL */}
       <div className="space-y-1">
-        <label className="block text-sm font-medium">Video URL <span className="text-neutral-400 font-normal">(optional)</span></label>
+        <label className="block text-sm font-medium">Video URL <span className="text-neutral-500 font-normal">(optional)</span></label>
         <input
           name="videoUrl"
           type="url"
@@ -130,7 +131,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           name="body"
           placeholder="Write your post..."
         />
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-neutral-500">
           Use the toolbar to format text. Bold, headings, and lists appear as you type.{" "}
           <a href="https://www.markdownguide.org/cheat-sheet/" target="_blank" rel="noopener noreferrer" className="underline">
             Markdown syntax ↗
@@ -141,7 +142,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
 
       {/* Excerpt */}
       <div className="space-y-1">
-        <label className="block text-sm font-medium">Excerpt <span className="text-neutral-400 font-normal">(max 200 chars)</span></label>
+        <label className="block text-sm font-medium">Excerpt <span className="text-neutral-500 font-normal">(max 200 chars)</span></label>
         <textarea
           name="excerpt"
           rows={3}
@@ -151,12 +152,12 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           placeholder="Short summary shown in blog listings"
           className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
         />
-        <p className="text-xs text-neutral-400">{excerpt.length}/200</p>
+        <p className="text-xs text-neutral-500">{excerpt.length}/200</p>
       </div>
 
       {/* Meta description */}
       <div className="space-y-1">
-        <label className="block text-sm font-medium">Meta description <span className="text-neutral-400 font-normal">(max 160 chars)</span></label>
+        <label className="block text-sm font-medium">Meta description <span className="text-neutral-500 font-normal">(max 160 chars)</span></label>
         <input
           name="metaDescription"
           type="text"
@@ -166,12 +167,12 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           placeholder="SEO description (defaults to excerpt if blank)"
           className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
         />
-        <p className="text-xs text-neutral-400">{metaDescription.length}/160</p>
+        <p className="text-xs text-neutral-500">{metaDescription.length}/160</p>
       </div>
 
       {/* Tags */}
       <div className="space-y-1">
-        <label className="block text-sm font-medium">Tags <span className="text-neutral-400 font-normal">(comma-separated)</span></label>
+        <label className="block text-sm font-medium">Tags <span className="text-neutral-500 font-normal">(comma-separated)</span></label>
         <input
           name="tags"
           type="text"

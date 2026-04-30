@@ -24,8 +24,14 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
   const [saved, setSaved] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const savingRef = React.useRef(false);
+  const expectedQuantityRef = React.useRef(listing.stockQuantity ?? 0);
 
   const thumb = listing.photos[0]?.url;
+
+  React.useEffect(() => {
+    expectedQuantityRef.current = listing.stockQuantity ?? 0;
+    setQty(String(listing.stockQuantity ?? 0));
+  }, [listing.stockQuantity]);
 
   async function handleSave() {
     if (savingRef.current) return;
@@ -42,11 +48,16 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
       const res = await fetch(`/api/listings/${listing.id}/stock`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ quantity }),
+        body: JSON.stringify({ quantity, expectedQuantity: expectedQuantityRef.current }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error || "Save failed");
+      }
+      const data = (await res.json().catch(() => null)) as { stockQuantity?: number | null } | null;
+      if (typeof data?.stockQuantity === "number") {
+        expectedQuantityRef.current = data.stockQuantity;
+        setQty(String(data.stockQuantity));
       }
       setSaved(true);
       router.refresh();
@@ -106,7 +117,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
             </span>
           )}
         </div>
-        <div className="text-[11px] text-neutral-400 mt-0.5">
+        <div className="text-[11px] text-neutral-500 mt-0.5">
           <Eye size={11} className="inline align-middle" /> {listing.viewCount} · clicks {listing.clickCount} · <Heart size={11} className="inline align-middle" /> {listing._count.favorites} · <Bell size={11} className="inline align-middle" /> {listing._count.stockNotifications}
         </div>
       </div>
@@ -121,7 +132,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
           value={qty}
           disabled={saving}
           onChange={(e) => { setQty(e.target.value); setSaved(false); setError(null); }}
-          className="w-20 rounded border px-2 py-1 text-sm text-right disabled:bg-neutral-50 disabled:text-neutral-400"
+          className="w-20 rounded border px-2 py-1 text-sm text-right disabled:bg-neutral-50 disabled:text-neutral-500"
           aria-label="Stock quantity"
         />
         <button

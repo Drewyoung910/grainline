@@ -34,6 +34,8 @@ export default async function FollowingPage() {
           avatarImageUrl: true,
           city: true,
           state: true,
+          vacationMode: true,
+          vacationReturnDate: true,
           userId: true,
           guildLevel: true,
           user: { select: { imageUrl: true } },
@@ -86,7 +88,7 @@ export default async function FollowingPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={avatar} alt={s.displayName ?? ""} className="h-14 w-14 rounded-full object-cover" />
                   ) : (
-                    <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-400 text-xl font-bold">
+                    <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-500 text-xl font-bold">
                       {(s.displayName ?? "?")[0]?.toUpperCase()}
                     </div>
                   )}
@@ -96,7 +98,17 @@ export default async function FollowingPage() {
                     {s.displayName ?? "Maker"}
                   </Link>
                   {s.tagline && <p className="text-sm text-neutral-500 truncate">{s.tagline}</p>}
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-400 flex-wrap">
+                  {s.vacationMode && (
+                    <div className="mt-1">
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                        On vacation
+                        {s.vacationReturnDate
+                          ? ` until ${s.vacationReturnDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                          : ""}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500 flex-wrap">
                     {location && <span>{location}</span>}
                     {location && <span>·</span>}
                     <span>{s._count.followers} follower{s._count.followers !== 1 ? "s" : ""}</span>
@@ -122,7 +134,7 @@ export default async function FollowingPage() {
                       </div>
                     </Link>
                   ) : (
-                    <p className="text-xs text-neutral-400 mt-2">No active listings</p>
+                    <p className="text-xs text-neutral-500 mt-2">No active listings</p>
                   )}
                 </div>
                 <div className="flex-none">

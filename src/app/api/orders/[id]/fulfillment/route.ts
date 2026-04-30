@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { CaseStatus, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 
@@ -49,9 +49,9 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
     include: {
       case: { select: { status: true } },
       paymentEvents: {
-        where: { eventType: "REFUND" },
+        where: blockingRefundLedgerWhere(),
         take: 1,
-        select: { eventType: true },
+        select: { eventType: true, status: true },
       },
       items: { include: { listing: { select: { sellerId: true } } } },
     },
@@ -183,7 +183,7 @@ export async function POST(
       where: {
         id,
         sellerRefundId: null,
-        paymentEvents: { none: { eventType: "REFUND" } },
+        paymentEvents: { none: blockingRefundLedgerWhere() },
         ...(allowed ? { fulfillmentStatus: { in: allowed } } : {}),
         ...(action !== "update_notes"
           ? {

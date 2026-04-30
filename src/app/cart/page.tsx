@@ -10,6 +10,15 @@ import ShippingAddressForm from "@/components/ShippingAddressForm";
 import ShippingRateSelector from "@/components/ShippingRateSelector";
 import EmbeddedCheckoutPanel from "@/components/EmbeddedCheckoutPanel";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
+import {
+  clearAnonymousCart,
+  readAnonymousCartItems,
+  updateAnonymousCartItem,
+  writeAnonymousCartItems,
+  type AnonymousCartItem,
+} from "@/lib/anonymousCart";
+import { notifyCartUpdated } from "@/lib/cartEvents";
+import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
 
 export default function CartPageWrapper() {
@@ -24,13 +33,20 @@ type CartItem = {
   id: string;
   quantity: number;
   priceCents: number;
+  priceVersion?: number;
   livePriceCents?: number;
+  livePriceVersion?: number;
   priceChanged?: boolean;
+  variantUnavailable?: boolean;
+  stockExceeded?: boolean;
   variantLabels?: string[];
   listing: {
     id: string;
     title: string;
     sellerId: string;
+    currency?: string;
+    listingType?: string;
+    maxQuantity?: number;
     status?: string;
     sellerName?: string;
     sellerVacationMode?: boolean;
@@ -59,6 +75,7 @@ type ClientSecretEntry = {
   sellerId: string;
   sellerName: string;
   secret: string;
+  sessionId: string;
 };
 
 const CART_ADDRESS_KEY = "grainline_cart_shipping_address";
@@ -81,11 +98,122 @@ function writeSessionJson(key: string, value: unknown) {
   } catch { /* non-fatal */ }
 }
 
-function clearCheckoutStorage() {
+function clearCheckoutStorage({ includeAddress = false }: { includeAddress?: boolean } = {}) {
   try {
     sessionStorage.removeItem(CART_CHECKOUTS_KEY);
     sessionStorage.removeItem(CART_RATES_KEY);
+    if (includeAddress) sessionStorage.removeItem(CART_ADDRESS_KEY);
   } catch { /* non-fatal */ }
+}
+
+function sessionIdFromClientSecret(secret: string) {
+  return secret.includes("_secret_") ? secret.split("_secret_")[0] : "";
+}
+
+function normalizeClientSecrets(entries: ClientSecretEntry[]) {
+  return entries.flatMap((entry) => {
+    const sessionId = entry.sessionId || sessionIdFromClientSecret(entry.secret);
+    if (!entry.sellerId || !entry.sellerName || !entry.secret || !sessionId) return [];
+    return [{ ...entry, sessionId }];
+  });
+}
+
+function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
+  return items.map((item) => ({
+    id: item.lineKey,
+    quantity: item.quantity,
+    priceCents: item.snapshot.priceCents,
+    livePriceCents: item.snapshot.priceCents,
+    livePriceVersion: 1,
+    priceVersion: 1,
+    priceChanged: false,
+    variantUnavailable: false,
+    stockExceeded: false,
+    variantLabels: item.snapshot.variantLabels ?? [],
+    listing: {
+      id: item.listingId,
+      title: item.snapshot.title,
+      sellerId: item.snapshot.sellerId,
+      currency: item.snapshot.currency ?? "usd",
+      listingType: item.snapshot.listingType ?? undefined,
+      maxQuantity: item.snapshot.listingType === "MADE_TO_ORDER"
+        ? 1
+        : Math.max(1, item.snapshot.maxQuantity ?? 99),
+      status: "ACTIVE",
+      sellerName: item.snapshot.sellerName,
+      sellerVacationMode: false,
+      sellerUnavailable: false,
+      photos: item.snapshot.imageUrl ? [{ url: item.snapshot.imageUrl }] : [],
+      offersGiftWrapping: !!item.snapshot.offersGiftWrapping,
+      giftWrappingPriceCents: item.snapshot.giftWrappingPriceCents ?? null,
+    },
+  }));
+}
+
+async function mergeAnonymousCartIntoAccount(items: AnonymousCartItem[]): Promise<{
+  mergedCount: number;
+  rejectedCount: number;
+  retryableFailure: boolean;
+  errors: string[];
+}> {
+  let mergedCount = 0;
+  let rejectedCount = 0;
+  let retryableFailure = false;
+  const errors: string[] = [];
+  const retryableItems: AnonymousCartItem[] = [];
+
+  for (const item of items) {
+    try {
+      const res = await fetch("/api/cart/add", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          listingId: item.listingId,
+          quantity: item.quantity,
+          selectedVariantOptionIds: item.selectedVariantOptionIds,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401) {
+          retryableFailure = true;
+          retryableItems.push(item);
+          errors.push("Sign in again to restore your saved cart.");
+          continue;
+        }
+        rejectedCount += 1;
+        errors.push(data?.error || `${item.snapshot.title} could not be added to your cart.`);
+        continue;
+      }
+      mergedCount += 1;
+    } catch {
+      retryableFailure = true;
+      retryableItems.push(item);
+      errors.push("Saved cart items could not be restored right now.");
+    }
+  }
+
+  if (retryableFailure) {
+    writeAnonymousCartItems(retryableItems);
+  } else {
+    clearAnonymousCart();
+  }
+
+  return { mergedCount, rejectedCount, retryableFailure, errors: [...new Set(errors)].slice(0, 3) };
+}
+
+async function rollbackCheckoutSessions(sessionIds: string[]) {
+  const uniqueSessionIds = [...new Set(sessionIds.filter(Boolean))];
+  if (uniqueSessionIds.length === 0) return;
+  try {
+    await fetch("/api/cart/checkout/rollback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionIds: uniqueSessionIds }),
+    });
+  } catch {
+    // Best effort; the Stripe expiration webhook is still a fallback.
+  }
 }
 
 function CartPage() {
@@ -111,18 +239,23 @@ function CartPage() {
   const [clientSecrets, setClientSecrets] = React.useState<ClientSecretEntry[]>([]);
   const [currentPaymentIndex, setCurrentPaymentIndex] = React.useState(0);
   const [creatingSession, setCreatingSession] = React.useState(false);
+  const [rollingBackCheckout, setRollingBackCheckout] = React.useState(false);
 
   // Mount-time URL restoration
   React.useEffect(() => {
     const storedAddress = readSessionJson<ShippingAddress | null>(CART_ADDRESS_KEY, null);
     const storedSecrets = readSessionJson<ClientSecretEntry[]>(CART_CHECKOUTS_KEY, []);
+    const normalizedStoredSecrets = normalizeClientSecrets(storedSecrets);
     const storedRatesRaw = readSessionJson<Record<string, SelectedShippingRate>>(CART_RATES_KEY, {});
     const validStoredRates = Object.fromEntries(
       Object.entries(storedRatesRaw).filter(([, rate]) => rate.expiresAt > Date.now() + 5000),
     );
 
     if (storedAddress) setShippingAddress(storedAddress);
-    if (storedSecrets.length > 0) setClientSecrets(storedSecrets);
+    if (normalizedStoredSecrets.length > 0) {
+      setClientSecrets(normalizedStoredSecrets);
+      writeSessionJson(CART_CHECKOUTS_KEY, normalizedStoredSecrets);
+    }
     if (Object.keys(validStoredRates).length > 0) setSelectedRates(validStoredRates);
 
     const urlStep = searchParams.get("step");
@@ -137,7 +270,7 @@ function CartPage() {
       }
     } else if (urlStep === "payment") {
       if (storedAddress) {
-        if (storedSecrets.length > 0) {
+        if (normalizedStoredSecrets.length > 0) {
           setStep("payment");
           return;
         }
@@ -169,16 +302,43 @@ function CartPage() {
     setError(null);
     setNeedsSignIn(false);
     try {
+      const anonymousItems = readAnonymousCartItems();
       const res = await fetch("/api/cart", { cache: "no-store" });
       if (res.status === 401) {
         setNeedsSignIn(true);
-        setItems([]);
+        setItems(cartItemsFromAnonymous(anonymousItems));
         return;
       }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to load cart");
+      }
+
+      if (anonymousItems.length > 0) {
+        const mergeResult = await mergeAnonymousCartIntoAccount(anonymousItems);
+        if (mergeResult.retryableFailure) {
+          setError(mergeResult.errors[0] ?? "Saved cart items could not be restored right now.");
+        } else if (mergeResult.rejectedCount > 0) {
+          setError(mergeResult.errors.join(" "));
+        }
+        if (mergeResult.mergedCount > 0 || mergeResult.rejectedCount > 0) {
+          notifyCartUpdated();
+        }
+
+        const refreshed = await fetch("/api/cart", { cache: "no-store" });
+        if (!refreshed.ok) {
+          const data = await refreshed.json().catch(() => ({}));
+          throw new Error(data?.error || "Failed to load cart");
+        }
+        const refreshedData = await refreshed.json();
+        setItems(refreshedData.items || []);
+        return;
+      }
+
       const data = await res.json();
       setItems(data.items || []);
-    } catch {
-      setError("Failed to load cart");
+    } catch (e) {
+      setError((e as Error).message || "Failed to load cart");
     } finally {
       setLoading(false);
     }
@@ -190,6 +350,21 @@ function CartPage() {
 
   async function setQuantity(cartItemId: string, quantity: number) {
     setError(null);
+    if (needsSignIn) {
+      const result = updateAnonymousCartItem(cartItemId, quantity);
+      if (!result.ok) {
+        setError("Could not update your saved cart in this browser.");
+        return;
+      }
+      setItems(cartItemsFromAnonymous(result.items));
+      notifyCartUpdated();
+      clearCheckoutStorage();
+      setSelectedRates({});
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
+      return;
+    }
+
     try {
       const res = await fetch("/api/cart/update", {
         method: "POST",
@@ -199,8 +374,33 @@ function CartPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to update cart");
       await load();
-      window.dispatchEvent(new Event("cart:updated"));
+      notifyCartUpdated();
       // Reset checkout state on cart change
+      clearCheckoutStorage();
+      setSelectedRates({});
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function refreshChangedPrices() {
+    const changedItems = items.filter((item) => item.priceChanged && !item.variantUnavailable);
+    if (changedItems.length === 0) return;
+    setError(null);
+    try {
+      for (const item of changedItems) {
+        const res = await fetch("/api/cart/update", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ cartItemId: item.id, quantity: item.quantity }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Failed to refresh cart prices");
+      }
+      await load();
+      notifyCartUpdated();
       clearCheckoutStorage();
       setSelectedRates({});
       setClientSecrets([]);
@@ -212,14 +412,19 @@ function CartPage() {
 
   if (loading) return <main className="p-8">Loading…</main>;
 
-  if (needsSignIn) {
+  if (needsSignIn && items.length === 0) {
     return (
       <main className="mx-auto max-w-2xl p-8 space-y-4">
         <h1 className="text-2xl font-semibold">Your cart</h1>
-        <p>Please sign in to view your cart.</p>
-        <Link href="/sign-in?redirect_url=/cart" className="inline-block rounded border px-3 py-1.5 text-sm">
-          Sign in
-        </Link>
+        <p>Your cart is empty.</p>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/browse" className="inline-block rounded border px-3 py-1.5 text-sm">
+            Continue shopping
+          </Link>
+          <Link href={signInPathForRedirect("/cart")} className="inline-block rounded border px-3 py-1.5 text-sm">
+            Sign in
+          </Link>
+        </div>
       </main>
     );
   }
@@ -255,6 +460,17 @@ function CartPage() {
   );
 
   const grandTotal = groups.reduce((s, g) => s + g.subtotalCents, 0);
+  const hasUnavailable = items.some(
+    (i) =>
+      (i.listing.status && i.listing.status !== "ACTIVE") ||
+      i.listing.sellerVacationMode ||
+      i.listing.sellerUnavailable
+  );
+  const hasPriceChanged = items.some((i) => i.priceChanged && !i.variantUnavailable);
+  const hasVariantUnavailable = items.some((i) => i.variantUnavailable);
+  const hasStockExceeded = items.some((i) => i.stockExceeded);
+  const hasMixedCurrencies = new Set(items.map((i) => (i.listing.currency || "usd").toLowerCase())).size > 1;
+  const hasBlockingCartChange = hasUnavailable || hasPriceChanged || hasVariantUnavailable || hasStockExceeded || hasMixedCurrencies;
 
   // Render seller item list (used in review and shipping steps)
   function renderSellerSections() {
@@ -275,6 +491,7 @@ function CartPage() {
             const img = i.listing.photos?.[0]?.url;
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
             const lineCents = unitPriceCents * i.quantity;
+            const listingIsActive = !i.listing.status || i.listing.status === "ACTIVE";
 
             return (
               <li key={i.id} className="flex items-center gap-3 px-4 py-3">
@@ -286,14 +503,20 @@ function CartPage() {
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                    {i.listing.title}
-                  </Link>
+                  {listingIsActive ? (
+                    <Link href={publicListingPath(i.listing.id, i.listing.title)} className="block truncate text-sm font-medium hover:underline">
+                      {i.listing.title}
+                    </Link>
+                  ) : (
+                    <span className="block truncate text-sm font-medium text-neutral-700">
+                      {i.listing.title}
+                    </span>
+                  )}
                   {(i.variantLabels ?? []).length > 0 && (
                     <p className="text-xs text-neutral-500 mt-0.5">{(i.variantLabels ?? []).join(" · ")}</p>
                   )}
 
-                  {(i.listing.status && i.listing.status !== "ACTIVE") && (
+                  {!listingIsActive && (
                     <div className="text-xs text-red-600 mt-0.5">This item is no longer available</div>
                   )}
                   {i.listing.sellerVacationMode && (
@@ -302,10 +525,20 @@ function CartPage() {
                   {i.listing.sellerUnavailable && !i.listing.sellerVacationMode && (
                     <div className="text-xs text-red-600 mt-0.5">This maker is not currently accepting orders</div>
                   )}
+                  {i.variantUnavailable && (
+                    <div className="text-xs text-red-600 mt-0.5">Selected options are no longer available</div>
+                  )}
+                  {i.stockExceeded && !i.variantUnavailable && (
+                    <div className="text-xs text-red-600 mt-0.5">
+                      {i.listing.maxQuantity && i.listing.maxQuantity > 0
+                        ? `Only ${i.listing.maxQuantity} currently available`
+                        : "This item is currently out of stock"}
+                    </div>
+                  )}
 
                   <div className="mt-1 flex items-center gap-2 flex-wrap text-sm text-neutral-700">
                     <span className="shrink-0">${(unitPriceCents / 100).toFixed(2)} each</span>
-                    {i.priceChanged && (
+                    {i.priceChanged && !i.variantUnavailable && (
                       <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
                         Updated from ${(i.priceCents / 100).toFixed(2)}
                       </span>
@@ -317,7 +550,7 @@ function CartPage() {
                       value={i.quantity}
                       onChange={(e) => setQuantity(i.id, Number(e.target.value))}
                     >
-                      {Array.from({ length: 10 }).map((_, idx) => {
+                      {Array.from({ length: Math.max(1, i.quantity, i.listing.maxQuantity ?? 99) }).map((_, idx) => {
                         const n = idx + 1;
                         return (
                           <option key={n} value={n}>{n}</option>
@@ -327,7 +560,7 @@ function CartPage() {
 
                     <button
                       type="button"
-                      className="text-xs text-red-600 underline shrink-0"
+                      className="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-medium text-red-600 underline underline-offset-2 hover:bg-red-50"
                       onClick={() => setQuantity(i.id, 0)}
                     >
                       Remove
@@ -367,23 +600,33 @@ function CartPage() {
     const rate = selectedRates[g.sellerId];
     return sum + (rate ? rate.amountCents : 0);
   }, 0);
+  const totalGiftWrappingCents = groups.reduce((sum, g) => {
+    if (!giftBySeller[g.sellerId]?.giftWrapping) return sum;
+    return sum + (g.items[0]?.listing.giftWrappingPriceCents ?? 0);
+  }, 0);
 
   const allRatesSelected = groups.every((g) => selectedRates[g.sellerId]);
 
   // Create checkout sessions for all sellers
   async function handleProceedToPayment() {
     if (!shippingAddress) return;
+    if (hasBlockingCartChange) {
+      setError("Review the changes in your cart before checking out.");
+      setStep("review");
+      router.replace("/cart", { scroll: false });
+      return;
+    }
     setCreatingSession(true);
     setError(null);
 
     const secrets: ClientSecretEntry[] = [];
+    const openedSessionIds: string[] = [];
     try {
       for (const g of groups) {
         const rate = selectedRates[g.sellerId];
         if (!rate) throw new Error(`No shipping rate selected for ${g.sellerName}`);
 
         const gift = giftBySeller[g.sellerId];
-        const giftWrappingPriceCents = g.items[0]?.listing.giftWrappingPriceCents ?? 0;
 
         const res = await fetch("/api/cart/checkout-seller", {
           method: "POST",
@@ -394,15 +637,32 @@ function CartPage() {
             selectedRate: rate,
             giftNote: gift?.giftNote ?? "",
             giftWrapping: gift?.giftWrapping ?? false,
-            giftWrappingPriceCents: gift?.giftWrapping ? (giftWrappingPriceCents ?? 0) : 0,
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || `Checkout failed for ${g.sellerName}`);
+        if (!res.ok) {
+          if (data?.code === "PRICE_CHANGED") {
+            await load();
+            clearCheckoutStorage();
+            setSelectedRates({});
+            setClientSecrets([]);
+            setCurrentPaymentIndex(0);
+            setStep("review");
+            router.replace("/cart", { scroll: false });
+          }
+          throw new Error(data?.error || `Checkout failed for ${g.sellerName}`);
+        }
+        const clientSecret = typeof data.clientSecret === "string" ? data.clientSecret : "";
+        const sessionId = data.sessionId || sessionIdFromClientSecret(clientSecret);
+        if (!clientSecret || !sessionId) {
+          throw new Error(`Checkout failed for ${g.sellerName}`);
+        }
+        openedSessionIds.push(sessionId);
         secrets.push({
           sellerId: g.sellerId,
           sellerName: g.sellerName,
-          secret: data.clientSecret,
+          secret: clientSecret,
+          sessionId,
         });
       }
 
@@ -412,10 +672,29 @@ function CartPage() {
       setStep("payment");
       router.replace("/cart?step=payment", { scroll: false });
     } catch (e) {
+      if (openedSessionIds.length > 0) {
+        await rollbackCheckoutSessions(openedSessionIds);
+        clearCheckoutStorage();
+        setClientSecrets([]);
+        setCurrentPaymentIndex(0);
+      }
       setError((e as Error).message);
     } finally {
       setCreatingSession(false);
     }
+  }
+
+  async function handleReturnToShippingFromPayment() {
+    if (rollingBackCheckout) return;
+    setRollingBackCheckout(true);
+    setError(null);
+    await rollbackCheckoutSessions(clientSecrets.map((entry) => entry.sessionId));
+    clearCheckoutStorage();
+    setClientSecrets([]);
+    setCurrentPaymentIndex(0);
+    setStep("shipping");
+    router.replace("/cart?step=shipping", { scroll: false });
+    setRollingBackCheckout(false);
   }
 
   return (
@@ -435,7 +714,7 @@ function CartPage() {
             <span className={
               step === s.key
                 ? "text-neutral-900 font-medium"
-                : "text-neutral-400"
+                : "text-neutral-500"
             }>
               {s.label}
             </span>
@@ -451,12 +730,6 @@ function CartPage() {
 
       {/* Step 1: Review */}
       {step === "review" && (() => {
-        const hasUnavailable = items.some(
-          (i) =>
-            (i.listing.status && i.listing.status !== "ACTIVE") ||
-            i.listing.sellerVacationMode ||
-            i.listing.sellerUnavailable
-        );
         return (
           <>
             {renderSellerSections()}
@@ -471,17 +744,59 @@ function CartPage() {
                 Some items in your cart are no longer available. Please remove them before continuing.
               </div>
             )}
+            {hasVariantUnavailable && (
+              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                Some selected options are no longer available. Please remove those items before continuing.
+              </div>
+            )}
+            {hasStockExceeded && (
+              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                Some quantities exceed current stock. Adjust those quantities before continuing.
+              </div>
+            )}
+            {hasPriceChanged && (
+              <div className="flex flex-col gap-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+                <span>Some prices changed since the items were added to your cart.</span>
+                <button
+                  type="button"
+                  onClick={refreshChangedPrices}
+                  className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  Accept updated prices
+                </button>
+              </div>
+            )}
+            {hasMixedCurrencies && (
+              <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                Items with different currencies cannot be checked out together. Please check out one currency at a time.
+              </div>
+            )}
 
-            <button
-              onClick={() => {
-                setStep("address");
-                router.replace("/cart?step=address", { scroll: false });
-              }}
-              disabled={items.length === 0 || hasUnavailable}
-              className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
-            >
-              Continue to shipping →
-            </button>
+            {needsSignIn && (
+              <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Sign in to keep these items and checkout.
+              </div>
+            )}
+
+            {needsSignIn ? (
+              <Link
+                href={signInPathForRedirect("/cart")}
+                className="inline-flex w-full items-center justify-center rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+              >
+                Sign in to checkout →
+              </Link>
+            ) : (
+              <button
+                onClick={() => {
+                  setStep("address");
+                  router.replace("/cart?step=address", { scroll: false });
+                }}
+                disabled={items.length === 0 || hasBlockingCartChange}
+                className="w-full sm:w-auto rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 mt-6"
+              >
+                Continue to shipping →
+              </button>
+            )}
           </>
         );
       })()}
@@ -572,10 +887,7 @@ function CartPage() {
                   <div className="flex justify-between text-sm text-neutral-600">
                     <span>Gift wrapping</span>
                     <span>
-                      ${(groups.reduce((sum, g) => {
-                        if (!giftBySeller[g.sellerId]?.giftWrapping) return sum;
-                        return sum + (g.items[0]?.listing.giftWrappingPriceCents ?? 0);
-                      }, 0) / 100).toFixed(2)}
+                      ${(totalGiftWrappingCents / 100).toFixed(2)}
                     </span>
                   </div>
                 )}
@@ -589,22 +901,22 @@ function CartPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Tax</span>
-                  <span className="text-neutral-400">Calculated at checkout</span>
+                  <span className="text-neutral-500">Calculated at checkout</span>
                 </div>
                 <hr className="border-neutral-100" />
                 <div className="flex justify-between text-base">
                   <span className="text-neutral-900">Estimated total</span>
                   <span className="font-semibold">
                     {allRatesSelected
-                      ? `$${((grandTotal + totalShippingCents) / 100).toFixed(2)}`
-                      : `$${(grandTotal / 100).toFixed(2)}+`}
+                      ? `$${((grandTotal + totalShippingCents + totalGiftWrappingCents) / 100).toFixed(2)}`
+                      : `$${((grandTotal + totalGiftWrappingCents) / 100).toFixed(2)}+`}
                   </span>
                 </div>
               </div>
 
               <button
                 onClick={handleProceedToPayment}
-                disabled={!allRatesSelected || creatingSession}
+                disabled={!allRatesSelected || creatingSession || hasBlockingCartChange}
                 className="w-full rounded-md bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
               >
                 {creatingSession ? "Preparing checkout..." : "Continue to payment →"}
@@ -652,10 +964,8 @@ function CartPage() {
                   setCurrentPaymentIndex((prev) => prev + 1);
                 } else {
                   // All payments complete — clean up and redirect
-                  sessionStorage.removeItem(CART_CHECKOUTS_KEY);
-                  sessionStorage.removeItem(CART_RATES_KEY);
-                  sessionStorage.removeItem(CART_ADDRESS_KEY);
-                  const sessionIds = clientSecrets.map((entry) => entry.secret.split("_secret_")[0]);
+                  clearCheckoutStorage({ includeAddress: true });
+                  const sessionIds = clientSecrets.map((entry) => entry.sessionId);
                   const params = new URLSearchParams({
                     session_id: sessionIds[sessionIds.length - 1],
                     session_ids: sessionIds.join(","),
@@ -671,13 +981,11 @@ function CartPage() {
           )}
 
           <button
-            onClick={() => {
-              setStep("shipping");
-              router.replace("/cart?step=shipping", { scroll: false });
-            }}
+            onClick={handleReturnToShippingFromPayment}
+            disabled={rollingBackCheckout}
             className="text-sm text-neutral-500 hover:text-neutral-700"
           >
-            ← Back to shipping
+            {rollingBackCheckout ? "Returning..." : "← Back to shipping"}
           </button>
         </>
       )}

@@ -98,7 +98,7 @@ export default function ListingTypeFields({
               />
             </label>
           </div>
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-500">
             How long you need to prepare the item before shipping.
           </p>
         </div>
@@ -132,7 +132,7 @@ export default function ListingTypeFields({
               />
             </label>
           </div>
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-neutral-500">
             Quantity available and how quickly you ship in-stock items.
           </p>
         </div>

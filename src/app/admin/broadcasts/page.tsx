@@ -128,11 +128,11 @@ export default async function AdminBroadcastsPage({
                     >
                       {b.sellerProfile?.displayName ?? "Unknown maker"}
                     </Link>
-                    <span className="text-xs text-neutral-400">
+                    <span className="text-xs text-neutral-500">
                       {b.sellerProfile?.user?.email}
                     </span>
                     <span className="text-xs text-neutral-300">·</span>
-                    <span className="text-xs text-neutral-400">
+                    <span className="text-xs text-neutral-500">
                       {new Date(b.sentAt).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -142,7 +142,7 @@ export default async function AdminBroadcastsPage({
                       })}
                     </span>
                     <span className="text-xs text-neutral-300">·</span>
-                    <span className="text-xs text-neutral-400">
+                    <span className="text-xs text-neutral-500">
                       {b.recipientCount} recipient{b.recipientCount !== 1 ? "s" : ""}
                     </span>
                   </div>

@@ -3,21 +3,288 @@ import { stripe } from "@/lib/stripe";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import {
-  type Prisma,
+  Prisma,
   EmailSuppressionReason,
 } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
-import { redactAccountDeletionAuditMetadata } from "@/lib/accountDeletionAuditRedaction";
+import {
+  markAccountDeletionAuditMetadata,
+  redactAccountDeletionAuditMetadata,
+  redactAccountDeletionText,
+} from "@/lib/accountDeletionAuditRedaction";
+import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 
 const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
+const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 
 export type AccountDeletionBlocker = {
   code: "buyer_orders" | "seller_orders" | "open_cases" | "active_commissions";
   count: number;
   message: string;
 };
+
+type AuditLogRedactionCandidate = {
+  metadata: Prisma.JsonValue;
+  directAccountReference: boolean;
+};
+
+type NotificationRedactionCandidate = {
+  title: string;
+  body: string;
+};
+
+function mergeAuditLogRedactionCandidate(
+  candidates: Map<string, AuditLogRedactionCandidate>,
+  id: string,
+  metadata: Prisma.JsonValue,
+  directAccountReference: boolean,
+) {
+  const existing = candidates.get(id);
+  candidates.set(id, {
+    metadata: existing?.metadata ?? metadata,
+    directAccountReference: Boolean(existing?.directAccountReference || directAccountReference),
+  });
+}
+
+function normalizedSensitiveValues(values: Iterable<string | null | undefined>) {
+  const seen = new Set<string>();
+  return [...values]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+async function collectAuditLogsBySensitiveMetadata(
+  tx: Prisma.TransactionClient,
+  candidates: Map<string, AuditLogRedactionCandidate>,
+  sensitiveValues: string[],
+) {
+  for (const value of sensitiveValues) {
+    const normalized = value.toLowerCase();
+    let cursor: string | null = null;
+
+    for (;;) {
+      const query: Prisma.Sql = cursor
+        ? Prisma.sql`
+          SELECT id, metadata
+          FROM "AdminAuditLog"
+          WHERE id > ${cursor}
+            AND position(${normalized} in lower(metadata::text)) > 0
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `
+        : Prisma.sql`
+          SELECT id, metadata
+          FROM "AdminAuditLog"
+          WHERE position(${normalized} in lower(metadata::text)) > 0
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `;
+      const matches: { id: string; metadata: Prisma.JsonValue }[] = await tx.$queryRaw(query);
+      matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, false));
+
+      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+      cursor = matches[matches.length - 1]?.id ?? null;
+      if (!cursor) break;
+    }
+  }
+}
+
+async function collectAuditLogsByAccountReference(
+  tx: Prisma.TransactionClient,
+  candidates: Map<string, AuditLogRedactionCandidate>,
+  adminId: string,
+  targetIds: string[],
+) {
+  let cursor: string | undefined;
+  const where: Prisma.AdminAuditLogWhereInput = {
+    OR: [
+      { adminId },
+      ...(targetIds.length > 0 ? [{ targetId: { in: targetIds } }] : []),
+    ],
+  };
+
+  for (;;) {
+    const matches = await tx.adminAuditLog.findMany({
+      where,
+      select: { id: true, metadata: true },
+      orderBy: { id: "asc" },
+      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, true));
+
+    if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = matches[matches.length - 1]?.id;
+    if (!cursor) break;
+  }
+}
+
+async function redactAdminAuditLogsForAccountDeletion({
+  tx,
+  adminId,
+  targetIds,
+  sensitiveValues,
+}: {
+  tx: Prisma.TransactionClient;
+  adminId: string;
+  targetIds: string[];
+  sensitiveValues: string[];
+}) {
+  const candidates = new Map<string, AuditLogRedactionCandidate>();
+  await collectAuditLogsBySensitiveMetadata(tx, candidates, sensitiveValues);
+  await collectAuditLogsByAccountReference(tx, candidates, adminId, targetIds);
+
+  for (const [id, candidate] of candidates) {
+    const redacted = redactAccountDeletionAuditMetadata(
+      candidate.metadata as Parameters<typeof redactAccountDeletionAuditMetadata>[0],
+      sensitiveValues,
+    );
+    const marked = candidate.directAccountReference
+      ? markAccountDeletionAuditMetadata(redacted.metadata)
+      : { metadata: redacted.metadata, changed: false };
+
+    if (!redacted.changed && !marked.changed) continue;
+    await tx.adminAuditLog.update({
+      where: { id },
+      data: { metadata: marked.metadata as Prisma.InputJsonValue },
+    });
+  }
+}
+
+async function collectNotificationsBySensitiveText(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const notifications = new Map<string, NotificationRedactionCandidate>();
+
+  for (const value of sensitiveValues.filter((item) => item.length >= 3)) {
+    const normalized = value.toLowerCase();
+    let cursor: string | null = null;
+
+    for (;;) {
+      const query: Prisma.Sql = cursor
+        ? Prisma.sql`
+          SELECT id, title, body
+          FROM "Notification"
+          WHERE id > ${cursor}
+            AND "userId" <> ${deletedUserId}
+            AND (
+              position(${normalized} in lower(title)) > 0 OR
+              position(${normalized} in lower(body)) > 0
+            )
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `
+        : Prisma.sql`
+          SELECT id, title, body
+          FROM "Notification"
+          WHERE "userId" <> ${deletedUserId}
+            AND (
+              position(${normalized} in lower(title)) > 0 OR
+              position(${normalized} in lower(body)) > 0
+            )
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `;
+      const matches: { id: string; title: string; body: string }[] = await tx.$queryRaw(query);
+      matches.forEach((notification) => {
+        if (!notifications.has(notification.id)) {
+          notifications.set(notification.id, {
+            title: notification.title,
+            body: notification.body,
+          });
+        }
+      });
+
+      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+      cursor = matches[matches.length - 1]?.id ?? null;
+      if (!cursor) break;
+    }
+  }
+
+  return notifications;
+}
+
+async function redactNotificationsAboutDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const notifications = await collectNotificationsBySensitiveText(tx, deletedUserId, sensitiveValues);
+
+  for (const [id, notification] of notifications) {
+    const title = redactAccountDeletionText(notification.title, sensitiveValues);
+    const body = redactAccountDeletionText(notification.body, sensitiveValues);
+    if (!title.changed && !body.changed) continue;
+
+    await tx.notification.update({
+      where: { id },
+      data: {
+        title: title.text,
+        body: body.text,
+      },
+    });
+  }
+}
+
+async function archiveBlogPostsForDeletedAccount(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  sellerProfileId: string | null,
+) {
+  let cursor: string | undefined;
+  const where: Prisma.BlogPostWhereInput = {
+    OR: [
+      { authorId: userId },
+      ...(sellerProfileId ? [{ sellerProfileId }] : []),
+    ],
+  };
+
+  for (;;) {
+    const posts = await tx.blogPost.findMany({
+      where,
+      select: { id: true },
+      orderBy: { id: "asc" },
+      take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+
+    for (const post of posts) {
+      await tx.blogPost.update({
+        where: { id: post.id },
+        data: {
+          slug: `deleted-${post.id}`,
+          title: "Deleted blog post",
+          excerpt: null,
+          body: "[Post removed]",
+          coverImageUrl: null,
+          videoUrl: null,
+          authorId: null,
+          sellerProfileId: null,
+          status: "ARCHIVED",
+          featuredListingIds: [],
+          tags: [],
+          metaDescription: null,
+          publishedAt: null,
+        },
+      });
+    }
+
+    if (posts.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+    cursor = posts[posts.length - 1]?.id;
+    if (!cursor) break;
+  }
+}
 
 export async function getAccountDeletionBlockers(userId: string): Promise<AccountDeletionBlocker[]> {
   const seller = await prisma.sellerProfile.findUnique({
@@ -31,7 +298,7 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
         buyerId: userId,
         fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
         sellerRefundId: null,
-        paymentEvents: { none: { eventType: "REFUND" } },
+        paymentEvents: { none: blockingRefundLedgerWhere() },
       },
     }),
     seller
@@ -39,7 +306,7 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
           where: {
             fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
             sellerRefundId: null,
-            paymentEvents: { none: { eventType: "REFUND" } },
+            paymentEvents: { none: blockingRefundLedgerWhere() },
             items: { some: { listing: { sellerId: seller.id } } },
           },
         })
@@ -121,9 +388,21 @@ function messageAttachmentUrl(body: string): string | null {
   return null;
 }
 
+function markdownImageUrls(markdown: string) {
+  const urls = new Set<string>();
+  const imagePattern = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = imagePattern.exec(markdown)) !== null) {
+    urls.add(match[1]);
+  }
+
+  return [...urls];
+}
+
 async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]> {
   const urls = new Set<string>();
-  const [sellerProfile, reviewPhotos, commissionRequests, messages] = await Promise.all([
+  const [sellerProfile, reviewPhotos, commissionRequests, messages, blogPosts] = await Promise.all([
     prisma.sellerProfile.findUnique({
       where: { userId },
       select: {
@@ -151,6 +430,10 @@ async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]
       where: { OR: [{ senderId: userId }, { recipientId: userId }] },
       select: { body: true },
     }),
+    prisma.blogPost.findMany({
+      where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
+      select: { coverImageUrl: true, videoUrl: true, body: true },
+    }),
   ]);
 
   if (sellerProfile) {
@@ -173,6 +456,11 @@ async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]
   messages.forEach((message) => {
     const url = messageAttachmentUrl(message.body);
     if (url) urls.add(url);
+  });
+  blogPosts.forEach((post) => {
+    if (post.coverImageUrl) urls.add(post.coverImageUrl);
+    if (post.videoUrl) urls.add(post.videoUrl);
+    markdownImageUrls(post.body).forEach((url) => urls.add(url));
   });
 
   return [...urls];
@@ -208,7 +496,7 @@ export async function anonymizeUserAccount(userId: string) {
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { id: userId },
-      include: { sellerProfile: { select: { id: true } } },
+      include: { sellerProfile: { select: { id: true, displayName: true } } },
     });
 
     if (!user) return { ok: true, alreadyDeleted: true };
@@ -218,13 +506,14 @@ export async function anonymizeUserAccount(userId: string) {
     const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
     const deletedClerkId = `deleted:${user.id}:${now.getTime()}`;
     const auditTargetIds = [user.id, user.sellerProfile?.id].filter(Boolean) as string[];
-    const auditSensitiveValues = [
+    const accountSensitiveValues = normalizedSensitiveValues([
       user.id,
       user.clerkId,
       user.email,
-      user.email.toLowerCase(),
+      user.name,
       user.sellerProfile?.id,
-    ].filter(Boolean) as string[];
+      user.sellerProfile?.displayName,
+    ]);
 
     await tx.cart.deleteMany({ where: { userId: user.id } });
     await tx.favorite.deleteMany({ where: { userId: user.id } });
@@ -234,6 +523,7 @@ export async function anonymizeUserAccount(userId: string) {
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await redactNotificationsAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.conversation.deleteMany({
       where: { OR: [{ userAId: user.id }, { userBId: user.id }] },
     });
@@ -244,6 +534,10 @@ export async function anonymizeUserAccount(userId: string) {
     await tx.caseMessage.updateMany({
       where: { authorId: user.id },
       data: { body: "[Message deleted]" },
+    });
+    await tx.blogComment.updateMany({
+      where: { authorId: user.id },
+      data: { body: "[Comment deleted]", approved: false },
     });
     await tx.case.updateMany({
       where: { buyerId: user.id },
@@ -293,36 +587,11 @@ export async function anonymizeUserAccount(userId: string) {
         details: { accountDeleted: true },
       },
     });
-    const auditLogsByMetadata = new Map<string, Prisma.JsonValue>();
-    for (const value of auditSensitiveValues) {
-      const matches = await tx.$queryRaw<{ id: string; metadata: Prisma.JsonValue }[]>`
-        SELECT id, metadata
-        FROM "AdminAuditLog"
-        WHERE position(${value.toLowerCase()} in lower(metadata::text)) > 0
-        LIMIT 1000
-      `;
-      matches.forEach((log) => auditLogsByMetadata.set(log.id, log.metadata));
-    }
-    for (const [id, metadata] of auditLogsByMetadata) {
-      const redacted = redactAccountDeletionAuditMetadata(
-        metadata as Parameters<typeof redactAccountDeletionAuditMetadata>[0],
-        auditSensitiveValues,
-      );
-      if (!redacted.changed) continue;
-      await tx.adminAuditLog.update({
-        where: { id },
-        data: { metadata: redacted.metadata as Prisma.InputJsonValue },
-      });
-    }
-
-    await tx.adminAuditLog.updateMany({
-      where: {
-        OR: [
-          { adminId: user.id },
-          ...(auditTargetIds.length > 0 ? [{ targetId: { in: auditTargetIds } }] : []),
-        ],
-      },
-      data: { metadata: { redactedForAccountDeletion: true } },
+    await redactAdminAuditLogsForAccountDeletion({
+      tx,
+      adminId: user.id,
+      targetIds: auditTargetIds,
+      sensitiveValues: accountSensitiveValues,
     });
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
@@ -432,6 +701,7 @@ export async function anonymizeUserAccount(userId: string) {
       await tx.follow.deleteMany({ where: { followerId: user.id } });
     }
 
+    await archiveBlogPostsForDeletedAccount(tx, user.id, user.sellerProfile?.id ?? null);
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id },
       data: {

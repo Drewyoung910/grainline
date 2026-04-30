@@ -188,7 +188,7 @@ export default async function MakersMetroPage({
       <nav className="mb-5 text-sm text-neutral-500">
         <Link href="/" className="hover:underline">Home</Link>
         <span className="mx-2">›</span>
-        <span className="text-neutral-400">{metro.state}</span>
+        <span className="text-neutral-500">{metro.state}</span>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{metro.name}</span>
       </nav>
@@ -243,7 +243,7 @@ export default async function MakersMetroPage({
                         <GuildBadge level={seller.guildLevel as GuildLevelValue} size={22} />
                       </div>
                       {seller.city && seller.state && (
-                        <p className="text-xs text-neutral-400">{seller.city}, {seller.state}</p>
+                        <p className="text-xs text-neutral-500">{seller.city}, {seller.state}</p>
                       )}
                     </div>
                   </div>
@@ -251,7 +251,7 @@ export default async function MakersMetroPage({
                     <p className="text-xs text-neutral-600 line-clamp-2 mb-3">{seller.tagline}</p>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-400">
+                    <span className="text-xs text-neutral-500">
                       {activeCount} active piece{activeCount !== 1 ? "s" : ""}
                     </span>
                     <Link

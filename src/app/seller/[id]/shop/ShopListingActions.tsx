@@ -63,8 +63,8 @@ export default function ShopListingActions({ listingId, status, isPrivate = fals
           disabled={isPending}
           onClick={() =>
             startTransition(async () => {
-              await hideListingAction(listingId);
-              showToast("Hidden.");
+              const result = await hideListingAction(listingId);
+              showToast(result.ok ? "Hidden." : (result.error ?? "Could not hide this listing."));
             })
           }
           className="text-[11px] rounded border border-neutral-300 text-neutral-600 px-2 py-0.5 hover:bg-neutral-50 disabled:opacity-50"

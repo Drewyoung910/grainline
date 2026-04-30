@@ -1,4 +1,4 @@
-import type { ErrorEvent, EventHint } from "@sentry/core";
+import type { Breadcrumb, BreadcrumbHint, ErrorEvent, EventHint } from "@sentry/core";
 
 const NOISY_PATTERNS = [
   /ResizeObserver loop/i,
@@ -80,4 +80,8 @@ export function beforeSend(event: ErrorEvent, hint?: EventHint): ErrorEvent | nu
   if (event.tags) event.tags = scrubValue(event.tags) as ErrorEvent["tags"];
 
   return event;
+}
+
+export function beforeBreadcrumb(breadcrumb: Breadcrumb, _hint?: BreadcrumbHint): Breadcrumb | null {
+  return scrubValue(breadcrumb) as Breadcrumb;
 }

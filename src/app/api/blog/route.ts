@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const type = searchParams.get("type");
   const tag = searchParams.get("tag");
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
+  const parsedPage = parseInt(searchParams.get("page") ?? "1", 10);
+  const page = Math.min(1000, Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1));
   const pageSize = 12;
 
   const where: Prisma.BlogPostWhereInput = { status: "PUBLISHED" };

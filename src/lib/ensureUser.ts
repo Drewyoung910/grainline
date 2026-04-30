@@ -3,8 +3,18 @@ import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { sanitizeUserName } from "@/lib/sanitize";
 import { AccountAccessError, isAccountAccessError } from "@/lib/accountAccessError";
+import * as Sentry from "@sentry/nextjs";
 
 export { AccountAccessError, isAccountAccessError };
+
+function isUniqueViolationOn(error: unknown, field: string) {
+  const err = error as { code?: string; meta?: { target?: string[] | string } };
+  if (err.code !== "P2002") return false;
+  const target = err.meta?.target;
+  return Array.isArray(target)
+    ? target.includes(field)
+    : typeof target === "string" && target.includes(field);
+}
 
 /**
  * Upserts a User row given a Clerk userId.
@@ -76,7 +86,11 @@ export async function ensureUserByClerkId(
       });
     } catch (e) {
       // P2002 = unique constraint violation (another row already has this email)
-      if ((e as { code?: string }).code === "P2002" && updateData.email) {
+      if (isUniqueViolationOn(e, "email") && updateData.email) {
+        Sentry.captureException(e, {
+          tags: { source: "ensure_user_email_conflict" },
+          extra: { clerkId, droppedField: "email" },
+        });
         const { email: _dropped, ...dataWithoutEmail } = updateData;
         if (Object.keys(dataWithoutEmail).length === 0) return existing;
         return prisma.user.update({
@@ -92,18 +106,37 @@ export async function ensureUserByClerkId(
   const email = (opts?.email ?? `${clerkId}@placeholder.invalid`).trim();
   const name = opts?.name ? sanitizeUserName(opts.name) || null : null;
   const imageUrl = (opts?.imageUrl ?? null) as string | null;
+  const createData = {
+    clerkId,
+    email,
+    name,
+    imageUrl,
+    ...(opts?.termsAcceptedAt ? { termsAcceptedAt: opts.termsAcceptedAt } : {}),
+    ...(opts?.termsVersion ? { termsVersion: opts.termsVersion } : {}),
+    ...(opts?.ageAttestedAt ? { ageAttestedAt: opts.ageAttestedAt } : {}),
+  };
 
-  return prisma.user.create({
-    data: {
-      clerkId,
-      email,
-      name,
-      imageUrl,
-      ...(opts?.termsAcceptedAt ? { termsAcceptedAt: opts.termsAcceptedAt } : {}),
-      ...(opts?.termsVersion ? { termsVersion: opts.termsVersion } : {}),
-      ...(opts?.ageAttestedAt ? { ageAttestedAt: opts.ageAttestedAt } : {}),
-    },
-  });
+  try {
+    return await prisma.user.create({ data: createData });
+  } catch (e) {
+    if (isUniqueViolationOn(e, "clerkId")) {
+      const raced = await prisma.user.findUnique({ where: { clerkId } });
+      if (raced) return ensureUserByClerkId(clerkId, opts);
+    }
+    if (isUniqueViolationOn(e, "email") && opts?.email) {
+      Sentry.captureException(e, {
+        tags: { source: "ensure_user_create_email_conflict" },
+        extra: { clerkId, droppedField: "email" },
+      });
+      return prisma.user.create({
+        data: {
+          ...createData,
+          email: `${clerkId}@placeholder.invalid`,
+        },
+      });
+    }
+    throw e;
+  }
 }
 
 function dateFromMetadata(value: unknown): Date | null {

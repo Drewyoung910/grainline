@@ -1,16 +1,36 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export function ResolveReportButton({ reportId }: { reportId: string }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   async function handleResolve() {
+    if (loading) return;
     setLoading(true);
-    await fetch(`/api/admin/reports/${reportId}/resolve`, { method: "POST" });
-    setLoading(false);
-    router.refresh();
+    try {
+      const res = await fetch(`/api/admin/reports/${reportId}/resolve`, { method: "POST" });
+      if (!res.ok) {
+        let message = "Couldn't resolve report.";
+        try {
+          const data = (await res.json()) as { error?: string };
+          if (data.error) message = data.error;
+        } catch {
+          // keep generic message
+        }
+        toast(message, "error");
+        return;
+      }
+      toast("Report resolved.", "success");
+      router.refresh();
+    } catch {
+      toast("Network error. Please try again.", "error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

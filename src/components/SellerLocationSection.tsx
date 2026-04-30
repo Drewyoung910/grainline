@@ -57,7 +57,7 @@ export default function SellerLocationSection({
         />
         <label
           htmlFor="publicMapOptIn"
-          className={`text-sm ${hasRadius ? "text-neutral-400 cursor-not-allowed" : ""}`}
+          className={`text-sm ${hasRadius ? "text-neutral-500 cursor-not-allowed" : ""}`}
         >
           Show me on the public makers map
           {hasRadius && (

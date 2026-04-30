@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { useToast } from "@/components/Toast";
+import { addAnonymousCartItem, type AnonymousCartSnapshot } from "@/lib/anonymousCart";
+import { notifyCartUpdated } from "@/lib/cartEvents";
 import { publicListingPath } from "@/lib/publicPaths";
+import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 
 export default function AddToCartButton({
   listingId,
@@ -12,6 +15,7 @@ export default function AddToCartButton({
   redirectToCart = false,
   selectedVariantOptionIds = [],
   variantRequired = false,
+  anonymousSnapshot,
 }: {
   listingId: string;
   listingTitle: string;
@@ -20,15 +24,41 @@ export default function AddToCartButton({
   redirectToCart?: boolean;
   selectedVariantOptionIds?: string[];
   variantRequired?: boolean;
+  anonymousSnapshot?: AnonymousCartSnapshot;
 }) {
   const [loading, setLoading] = React.useState(false);
   const { toast } = useToast();
+  const listingPath = publicListingPath(listingId, listingTitle);
 
   async function add() {
     if (variantRequired && selectedVariantOptionIds.length === 0) {
       toast("Please select all variant options first.", "error");
       return;
     }
+    if (!signedIn) {
+      if (!anonymousSnapshot) {
+        window.location.href = signInPathForRedirect(listingPath);
+        return;
+      }
+      const result = addAnonymousCartItem({
+        listingId,
+        quantity: 1,
+        selectedVariantOptionIds,
+        snapshot: anonymousSnapshot,
+      });
+      if (!result.ok) {
+        window.location.href = signInPathForRedirect(listingPath);
+        return;
+      }
+      notifyCartUpdated();
+      if (redirectToCart) {
+        window.location.href = "/cart";
+      } else {
+        toast("Added to cart!", "success");
+      }
+      return;
+    }
+
     try {
       setLoading(true);
       const res = await fetch("/api/cart/add", {
@@ -48,7 +78,7 @@ export default function AddToCartButton({
         data = { raw: text };
       }
       if (!res.ok) throw new Error(data?.error || "Failed to add to cart");
-      window.dispatchEvent(new Event("cart:updated"));
+      notifyCartUpdated();
       if (redirectToCart) {
         window.location.href = "/cart";
       } else {
@@ -59,17 +89,6 @@ export default function AddToCartButton({
     } finally {
       setLoading(false);
     }
-  }
-
-  if (!signedIn) {
-    return (
-      <a
-        href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listingId, listingTitle))}`}
-        className={className || "rounded border px-3 py-1.5 text-sm"}
-      >
-        Sign in to add
-      </a>
-    );
   }
 
   return (
@@ -83,5 +102,3 @@ export default function AddToCartButton({
     </button>
   );
 }
-
-

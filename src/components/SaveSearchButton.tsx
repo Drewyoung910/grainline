@@ -2,6 +2,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/Toast";
+import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 
 export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
@@ -10,7 +11,7 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
 
   async function save() {
     if (!signedIn) {
-      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`;
+      window.location.href = signInPathForRedirect(window.location.pathname + window.location.search);
       return;
     }
     setState("saving");

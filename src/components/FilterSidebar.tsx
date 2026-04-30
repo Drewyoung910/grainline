@@ -153,7 +153,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             placeholder="Min"
             className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
-          <span className="text-neutral-400 shrink-0">–</span>
+          <span className="text-neutral-500 shrink-0">–</span>
           <input
             name="max"
             type="number"

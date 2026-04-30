@@ -5,6 +5,7 @@ process.env.CLOUDFLARE_R2_PUBLIC_URL = "https://media.example.com/grain";
 
 const {
   filterAIReviewImageUrls,
+  normalizeDuplicateListingTitle,
   redactPromptInjection,
   sanitizeAIAltText,
 } = await import("../src/lib/aiReviewSafety.ts");
@@ -36,10 +37,26 @@ describe("AI review safety helpers", () => {
     );
   });
 
+  it("caps AI review images at the listing photo limit", () => {
+    const urls = Array.from({ length: 9 }, (_, i) => `https://media.example.com/grain/listings/${i}.jpg`);
+    assert.equal(filterAIReviewImageUrls(urls, () => true).length, 8);
+  });
+
   it("sanitizes generated alt text before persistence", () => {
     assert.equal(
       sanitizeAIAltText("<img src=x onerror=alert(1)> walnut bowl\u202E data:text/html"),
       "walnut bowl text/html",
+    );
+  });
+
+  it("normalizes duplicate listing titles across punctuation, emoji, and spacing", () => {
+    assert.equal(
+      normalizeDuplicateListingTitle("Walnut  Bowl!!! 🪵"),
+      normalizeDuplicateListingTitle("walnut-bowl"),
+    );
+    assert.equal(
+      normalizeDuplicateListingTitle("Café Table"),
+      normalizeDuplicateListingTitle("cafe\u0301 table"),
     );
   });
 });

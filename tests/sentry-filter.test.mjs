@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { beforeSend } = await import("../src/lib/sentryFilter.ts");
+const { beforeBreadcrumb, beforeSend } = await import("../src/lib/sentryFilter.ts");
 
 describe("Sentry beforeSend filtering", () => {
   it("drops common browser and network noise before upload", () => {
@@ -67,6 +67,27 @@ describe("Sentry beforeSend filtering", () => {
     assert.deepEqual(event.tags, {
       path: "/dashboard",
       session: "[redacted]",
+    });
+  });
+
+  it("redacts URLs and sensitive breadcrumb data before upload", () => {
+    const breadcrumb = beforeBreadcrumb({
+      category: "fetch",
+      message: "POST /api/account/export?token=secret",
+      data: {
+        url: "https://thegrainline.com/checkout/success?session_id=cs_test_123&safe=1",
+        requestHeaders: { cookie: "session=abc", "x-trace-id": "trace-123" },
+      },
+    });
+
+    assert.equal(breadcrumb.message, "POST /api/account/export?token=[redacted]");
+    assert.equal(
+      breadcrumb.data.url,
+      "https://thegrainline.com/checkout/success?session_id=[redacted]&safe=1",
+    );
+    assert.deepEqual(breadcrumb.data.requestHeaders, {
+      cookie: "[redacted]",
+      "x-trace-id": "trace-123",
     });
   });
 });

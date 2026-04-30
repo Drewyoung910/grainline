@@ -250,7 +250,7 @@ export default async function AdminOrderDetailPage({
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 Seller refund
-                <span className="ml-1 text-xs text-neutral-400 font-normal">
+                <span className="ml-1 text-xs text-neutral-500 font-normal">
                   ({order.sellerRefundId})
                 </span>
               </span>
@@ -264,11 +264,11 @@ export default async function AdminOrderDetailPage({
               <span>
                 Case refund
                 {order.case.resolution && (
-                  <span className="ml-1 text-xs text-neutral-400 font-normal">
+                  <span className="ml-1 text-xs text-neutral-500 font-normal">
                     ({order.case.resolution.replaceAll("_", " ").toLowerCase()})
                   </span>
                 )}
-                <span className="ml-1 text-xs text-neutral-400 font-normal">
+                <span className="ml-1 text-xs text-neutral-500 font-normal">
                   ({order.case.stripeRefundId})
                 </span>
               </span>
@@ -279,7 +279,7 @@ export default async function AdminOrderDetailPage({
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 External Stripe refund
-                <span className="ml-1 text-xs text-neutral-400 font-normal">
+                <span className="ml-1 text-xs text-neutral-500 font-normal">
                   ({externalRefund.stripeObjectId ?? "refund event"})
                 </span>
               </span>
@@ -334,7 +334,7 @@ export default async function AdminOrderDetailPage({
       <Section title="Quoted vs. Actual Shipping">
         <div className="grid grid-cols-2 gap-6">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
               Quoted (before checkout)
             </h3>
             <dl className="space-y-3">
@@ -379,7 +379,7 @@ export default async function AdminOrderDetailPage({
             </dl>
           </div>
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3">
               Actual (from Stripe)
             </h3>
             <dl className="space-y-3">
@@ -430,7 +430,7 @@ export default async function AdminOrderDetailPage({
             {order.reviewNote}
           </pre>
         ) : (
-          <p className="text-sm text-neutral-400">No notes yet.</p>
+          <p className="text-sm text-neutral-500">No notes yet.</p>
         )}
       </Section>
 

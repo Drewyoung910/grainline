@@ -5,30 +5,46 @@ import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import { mapWithConcurrency } from "@/lib/concurrency";
+import { createNotification } from "@/lib/notifications";
 import {
-  sendOrderConfirmedBuyer,
-  sendOrderConfirmedSeller,
-  sendFirstSaleCongrats,
+  renderOrderConfirmedBuyerEmail,
+  renderOrderConfirmedSellerEmail,
+  renderFirstSaleCongratsEmail,
 } from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
+import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
+import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import {
   beginStripeWebhookEvent,
   markStripeWebhookEventFailed,
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
 import {
+  lockCheckoutSessionMutation,
+  restorableStockItemsFromLineItems,
+  restoreReservedStockItems,
+  restoreUnorderedCheckoutStockOnce,
+  type CheckoutStockRestoreLineItem,
+} from "@/lib/checkoutStockRestore";
+import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
   disputeCaseAction,
+  invalidCheckoutBuyerReason,
   invalidCheckoutSellerReason,
+  isLikelyThinStripeEventObject,
+  isStaleStripeEvent,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
   payoutFailureState,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
+  retrievedStripeEventMatchesSignedEnvelope,
 } from "@/lib/stripeWebhookState";
 import type { FulfillmentStatus, Prisma } from "@prisma/client";
 
@@ -39,27 +55,105 @@ export const preferredRegion = "iad1";
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const signature = (await headers()).get("stripe-signature") as string;
-  const secret = process.env.STRIPE_WEBHOOK_SECRET!;
+  const signature = (await headers()).get("stripe-signature");
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
   let event: Stripe.Event;
+
+  if (!secret) {
+    Sentry.captureMessage("Stripe webhook secret is not configured", {
+      level: "fatal",
+      tags: { source: "stripe_webhook_config" },
+    });
+    await recordWebhookFailureSpike({ webhook: "stripe", kind: "config", status: 503 });
+    return NextResponse.json({ error: "Webhook temporarily unavailable" }, { status: 503 });
+  }
+  if (!signature) {
+    Sentry.captureMessage("Stripe webhook signature header missing", {
+      level: "warning",
+      tags: { source: "stripe_webhook_signature" },
+    });
+    await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: 400 });
+    return NextResponse.json({ error: "Missing Stripe signature" }, { status: 400 });
+  }
 
   try {
     event = stripe.webhooks.constructEvent(body, signature, secret);
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", (err as { message?: string })?.message);
     Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
+    Sentry.captureMessage("Stripe webhook signature verification failed", {
+      level: "warning",
+      tags: { source: "stripe_webhook_signature" },
+    });
+    await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: 400 });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  if (isStaleStripeEvent(event.created)) {
+    Sentry.captureMessage("Stripe webhook event is too old", {
+      level: "warning",
+      tags: { source: "stripe_webhook_stale_event" },
+      extra: { stripeEventId: event.id, stripeEventType: event.type, stripeEventCreated: event.created },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe",
+      kind: "stale_event",
+      status: 400,
+      extra: { stripeEventId: event.id, stripeEventType: event.type },
+    });
+    return NextResponse.json({ error: "Stale Stripe event" }, { status: 400 });
+  }
+
   // Handle Stripe Workbench Snapshot thin events:
-  // thin events only carry { id, object } (≤3 keys) in data.object — retrieve full payload if needed
+  // thin events only carry { id, object } (≤3 keys) in data.object. Keep the
+  // signed envelope and copy in only the retrieved data.object after matching.
   const rawDataObj = event.data.object as unknown as Record<string, unknown>;
-  if (typeof rawDataObj.id === "string" && Object.keys(rawDataObj).length <= 3) {
+  if (isLikelyThinStripeEventObject(rawDataObj)) {
     try {
-      event = await stripe.events.retrieve(event.id);
+      const retrievedEvent = await stripe.events.retrieve(event.id);
+      if (!retrievedStripeEventMatchesSignedEnvelope(event, retrievedEvent)) {
+        Sentry.captureMessage("Stripe thin event retrieve mismatch", {
+          level: "warning",
+          tags: { source: "stripe_webhook_thin_event_mismatch" },
+          extra: {
+            signedEventId: event.id,
+            signedEventType: event.type,
+            signedEventCreated: event.created,
+            signedApiVersion: event.api_version,
+            retrievedEventId: retrievedEvent.id,
+            retrievedEventType: retrievedEvent.type,
+            retrievedEventCreated: retrievedEvent.created,
+            retrievedApiVersion: retrievedEvent.api_version,
+          },
+        });
+        await recordWebhookFailureSpike({
+          webhook: "stripe",
+          kind: "thin_event_mismatch",
+          status: 400,
+          extra: { stripeEventId: event.id, stripeEventType: event.type },
+        });
+        return NextResponse.json({ error: "Retrieved event mismatch" }, { status: 400 });
+      }
+      event = {
+        ...event,
+        data: {
+          ...event.data,
+          object: retrievedEvent.data.object,
+        },
+      } as Stripe.Event;
     } catch (retrieveErr) {
       console.error("Webhook: failed to retrieve full event:", retrieveErr);
-      return NextResponse.json({ error: "Failed to retrieve event" }, { status: 500 });
+      Sentry.captureException(retrieveErr, {
+        tags: { source: "stripe_webhook_thin_event_retrieve" },
+        extra: { stripeEventId: event.id, stripeEventType: event.type },
+      });
+      await recordWebhookFailureSpike({
+        webhook: "stripe",
+        kind: "thin_event_retrieve",
+        status: 503,
+        extra: { stripeEventId: event.id, stripeEventType: event.type },
+      });
+      return NextResponse.json({ error: "Failed to retrieve event" }, { status: 503 });
     }
   }
 
@@ -85,6 +179,12 @@ export async function POST(req: Request) {
     }
   }
 
+  type OrderPaymentEventClient = {
+    orderPaymentEvent: {
+      upsert: (args: Prisma.OrderPaymentEventUpsertArgs) => Promise<unknown>;
+    };
+  };
+
   async function recordOrderPaymentEvent(data: {
     orderId: string;
     stripeEventId: string;
@@ -97,8 +197,8 @@ export async function POST(req: Request) {
     reason?: string | null;
     description?: string | null;
     metadata?: Prisma.InputJsonObject;
-  }) {
-    await prisma.orderPaymentEvent.upsert({
+  }, db: OrderPaymentEventClient = prisma) {
+    await db.orderPaymentEvent.upsert({
       where: { stripeEventId: data.stripeEventId },
       update: {},
       create: {
@@ -117,147 +217,165 @@ export async function POST(req: Request) {
     });
   }
 
-  async function lockCheckoutSessionMutation(tx: Prisma.TransactionClient, sessionId: string) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${sessionId}))`;
-  }
-
-  type CheckoutLineItem = {
-    quantity?: number | null;
-    price?: {
-      unit_amount?: number | null;
-      product?: { metadata?: Record<string, string> } | string | null;
-    } | null;
-  };
-
-  type RestorableStockItem = { listingId: string; quantity: number };
-
-  function isPrismaUniqueViolation(error: unknown) {
-    return Boolean(
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: string }).code === "P2002",
-    );
-  }
-
-  function mergeRestorableStockItems(items: RestorableStockItem[]) {
-    const merged = new Map<string, number>();
-    for (const item of items) {
-      if (!item.listingId || item.quantity <= 0) continue;
-      merged.set(item.listingId, (merged.get(item.listingId) ?? 0) + item.quantity);
-    }
-    return [...merged.entries()].map(([listingId, quantity]) => ({ listingId, quantity }));
-  }
-
-  function restorableStockItemsFromLineItems(lineItems: CheckoutLineItem[]) {
-    return mergeRestorableStockItems(
-      lineItems.flatMap((lineItem) => {
-        const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
-        const listingId = product?.metadata?.listingId;
-        const quantity = parsePositiveInt(lineItem.quantity, 0);
-        return listingId && quantity > 0 ? [{ listingId, quantity }] : [];
-      }),
-    );
-  }
-
-  function restorableStockItemsFromMetadata(metadata: Record<string, string | undefined>) {
-    const items: RestorableStockItem[] = [];
-    const singleListingId = metadata.listingId;
-    const singleQuantity = parsePositiveInt(metadata.quantity, 0);
-    if (singleListingId && singleQuantity > 0) {
-      items.push({ listingId: singleListingId, quantity: singleQuantity });
-    }
-
-    for (const token of (metadata.reservedStock ?? "").split(",")) {
-      const [listingId, quantityValue] = token.split(":");
-      const quantity = parsePositiveInt(quantityValue, 0);
-      if (listingId && quantity > 0) items.push({ listingId, quantity });
-    }
-
-    return mergeRestorableStockItems(items);
-  }
-
-  async function restoreReservedStockItems(tx: Prisma.TransactionClient, items: RestorableStockItem[]) {
-    for (const item of mergeRestorableStockItems(items)) {
-      await tx.$executeRaw`
-        UPDATE "Listing"
-        SET "stockQuantity" = "stockQuantity" + ${item.quantity}
-        WHERE id = ${item.listingId}
-          AND "listingType" = 'IN_STOCK'
-      `;
-      await tx.listing.updateMany({
-        where: { id: item.listingId, status: "SOLD_OUT", stockQuantity: { gt: 0 } },
-        data: { status: "ACTIVE" },
-      });
-    }
-  }
-
-  async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {
-    try {
-      await tx.stripeWebhookEvent.create({
-        data: {
-          id: `checkout-stock-restore:${sessionId}`,
-          type: "checkout.session.stock_restored",
-          processingStartedAt: new Date(),
-          processedAt: new Date(),
-        },
-      });
-      return true;
-    } catch (error) {
-      if (isPrismaUniqueViolation(error)) return false;
-      throw error;
-    }
-  }
-
-  async function restoreUnorderedCheckoutStockOnce(input: {
-    sessionId: string;
-    metadata: Record<string, string | undefined>;
-    lineItems?: CheckoutLineItem[];
-  }) {
-    await prisma.$transaction(async (tx) => {
-      await lockCheckoutSessionMutation(tx, input.sessionId);
-
-      const orderExists = await tx.order.findFirst({
-        where: { stripeSessionId: input.sessionId },
-        select: { id: true },
-      });
-      if (orderExists) return;
-
-      let items = restorableStockItemsFromLineItems(input.lineItems ?? []);
-      if (items.length === 0) {
-        items = restorableStockItemsFromMetadata(input.metadata);
-      }
-
-      if (items.length === 0 && input.metadata.cartId && input.metadata.sellerId) {
-        const cartItems = await tx.cartItem.findMany({
-          where: { cartId: input.metadata.cartId, listing: { sellerId: input.metadata.sellerId } },
-          select: { listingId: true, quantity: true },
-        });
-        items = mergeRestorableStockItems(cartItems);
-      }
-
-      if (items.length === 0) {
-        Sentry.captureMessage("Checkout stock restoration skipped because no reserved items were recoverable", {
-          level: "warning",
-          tags: { source: "checkout_stock_restore" },
-          extra: {
-            stripeSessionId: input.sessionId,
-            cartId: input.metadata.cartId,
-            sellerId: input.metadata.sellerId,
-            listingId: input.metadata.listingId,
+  async function enqueueOrderPostPaymentSideEffects(orderId: string) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        buyerId: true,
+        itemsSubtotalCents: true,
+        shippingAmountCents: true,
+        taxAmountCents: true,
+        estimatedDeliveryDate: true,
+        processingDeadline: true,
+        shipToLine1: true,
+        shipToCity: true,
+        shipToState: true,
+        shipToPostalCode: true,
+        buyer: { select: { name: true, email: true } },
+        items: {
+          select: {
+            quantity: true,
+            priceCents: true,
+            listingId: true,
+            listing: {
+              select: {
+                title: true,
+                listingType: true,
+                seller: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    displayName: true,
+                    user: { select: { email: true } },
+                  },
+                },
+              },
+            },
           },
-        });
-        return;
-      }
-
-      const claimed = await claimCheckoutStockRestore(tx, input.sessionId);
-      if (!claimed) return;
-
-      await restoreReservedStockItems(tx, items);
+        },
+      },
     });
+    if (!order) return;
 
-    await releaseCheckoutLock(input.metadata.checkoutLockKey, input.sessionId);
+    const seller = order.items[0]?.listing.seller;
+    const sellerUserId = seller?.userId;
+    const sellerName = seller?.displayName ?? "Maker";
+    const firstItemTitle = order.items[0]?.listing.title ?? "an item";
+    const buyerDisplayName = order.buyer?.name ?? "A buyer";
+
+    await Promise.all([
+      order.buyerId
+        ? createNotification({
+            userId: order.buyerId,
+            type: "NEW_ORDER",
+            title: "Order confirmed!",
+            body: `Your order from ${sellerName} is being prepared`,
+            link: `/dashboard/orders/${order.id}`,
+          })
+        : Promise.resolve(),
+      sellerUserId
+        ? createNotification({
+            userId: sellerUserId,
+            type: "NEW_ORDER",
+            title: "New sale! Congrats!",
+            body: `${buyerDisplayName} purchased ${firstItemTitle}`,
+            link: `/dashboard/sales/${order.id}`,
+          })
+        : Promise.resolve(),
+    ]);
+
+    if (sellerUserId) {
+      const inStockItemTitles = new Map<string, string>();
+      for (const item of order.items) {
+        if (item.listing.listingType === "IN_STOCK") {
+          inStockItemTitles.set(item.listingId, item.listing.title);
+        }
+      }
+      const lowStockListings = inStockItemTitles.size
+        ? await prisma.listing.findMany({
+            where: {
+              id: { in: [...inStockItemTitles.keys()] },
+              stockQuantity: { gt: 0, lte: 2 },
+            },
+            select: { id: true, stockQuantity: true },
+          })
+        : [];
+      for (const lowStockListing of lowStockListings) {
+        await createNotification({
+          userId: sellerUserId,
+          type: "LOW_STOCK",
+          title: `${inStockItemTitles.get(lowStockListing.id) ?? "A listing"} is running low`,
+          body: `Only ${lowStockListing.stockQuantity ?? 0} left in stock`,
+          link: `/dashboard/inventory`,
+        });
+      }
+    }
+
+    const emailItems = order.items.map((item) => ({
+      title: item.listing.title,
+      quantity: item.quantity,
+      priceCents: item.priceCents,
+    }));
+    const orderSummary = {
+      id: order.id,
+      itemsSubtotalCents: order.itemsSubtotalCents,
+      shippingAmountCents: order.shippingAmountCents,
+      taxAmountCents: order.taxAmountCents,
+      estimatedDeliveryDate: order.estimatedDeliveryDate,
+      processingDeadline: order.processingDeadline,
+      shipToLine1: order.shipToLine1,
+      shipToCity: order.shipToCity,
+      shipToState: order.shipToState,
+      shipToPostalCode: order.shipToPostalCode,
+    };
+
+    if (order.buyer?.email) {
+      await enqueueEmailOutbox({
+        ...renderOrderConfirmedBuyerEmail({
+          order: orderSummary,
+          buyer: { name: order.buyer.name, email: order.buyer.email },
+          seller: { displayName: sellerName },
+          items: emailItems,
+        }),
+        userId: order.buyerId ?? undefined,
+        dedupKey: `order-confirmed-buyer:${order.id}`,
+      });
+    }
+
+    if (sellerUserId && seller?.user?.email) {
+      const sellerOrderCount = await prisma.order.count({
+        where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
+      });
+      await enqueueEmailOutbox({
+        ...renderOrderConfirmedSellerEmail({
+          order: orderSummary,
+          buyer: { name: buyerDisplayName },
+          seller: { displayName: sellerName, email: seller.user.email },
+          items: emailItems,
+        }),
+        userId: sellerUserId,
+        preferenceKey: "EMAIL_NEW_ORDER",
+        dedupKey: `order-confirmed-seller:${order.id}`,
+      });
+      if (sellerOrderCount === 1) {
+        await enqueueEmailOutbox({
+          ...renderFirstSaleCongratsEmail({
+            seller: { displayName: sellerName, email: seller.user.email },
+            order: orderSummary,
+          }),
+          userId: sellerUserId,
+          dedupKey: `first-sale:${sellerUserId}:${order.id}`,
+        });
+      }
+    }
   }
+
+  async function lockChargeMutation(tx: Prisma.TransactionClient, chargeId: string) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${chargeId}))`;
+  }
+
+  type CheckoutLineItem = CheckoutStockRestoreLineItem;
 
   try {
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
@@ -282,7 +400,10 @@ export async function POST(req: Request) {
         where: { stripeSessionId: sessionId },
         select: { id: true },
       });
-      if (already) return NextResponse.json({ ok: true });
+      if (already) {
+        await enqueueOrderPostPaymentSideEffects(already.id);
+        return NextResponse.json({ ok: true });
+      }
 
       // Retrieve with expansions (line_items needed to derive quantities at payment time)
       const s = await stripe.checkout.sessions.retrieve(sessionId, {
@@ -338,6 +459,14 @@ export async function POST(req: Request) {
           : charge?.transfer?.id) ?? null;
 
       const buyerId: string | undefined = sessionMeta.buyerId;
+      const buyerAccount = buyerId
+        ? await prisma.user.findUnique({
+            where: { id: buyerId },
+            select: { id: true, banned: true, deletedAt: true },
+          })
+        : null;
+      const invalidBuyerReason = buyerId ? invalidCheckoutBuyerReason(buyerAccount) : null;
+      const orderBuyerId = invalidBuyerReason ? null : buyerId;
 
       // Quoted snapshot from metadata (typed on-site)
       const quotedShipToPostalCode = sessionMeta.quotedShipToPostalCode || sessionMeta.quotedToPostalCode || "";
@@ -401,12 +530,6 @@ export async function POST(req: Request) {
         return { processingDeadline, estimatedDeliveryDate };
       }
 
-      async function restoreReservedStockFromLineItems(lineItems: CheckoutLineItem[]) {
-        await prisma.$transaction(async (tx) => {
-          await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(lineItems));
-        });
-      }
-
       async function refundBlockedCheckout(input: {
         orderId: string;
         reason: string;
@@ -440,6 +563,36 @@ export async function POST(req: Request) {
         }
 
         try {
+          const currentOrder = await prisma.order.findUnique({
+            where: { id: input.orderId },
+            select: {
+              sellerRefundId: true,
+              paymentEvents: {
+                where: blockingRefundLedgerWhere(),
+                take: 1,
+                select: { eventType: true, status: true },
+              },
+            },
+          });
+          if (!currentOrder) {
+            Sentry.captureMessage("Blocked checkout order missing before automatic refund", {
+              level: "warning",
+              tags: { source: "stripe_webhook_blocked_checkout_missing_order" },
+              extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason },
+            });
+            return;
+          }
+          if (orderHasRefundLedger(currentOrder)) {
+            await prisma.order.update({
+              where: { id: input.orderId },
+              data: {
+                reviewNeeded: true,
+                reviewNote: `${reviewPrefix} Automatic refund was skipped because a refund is already recorded for this order.`,
+              },
+            });
+            return;
+          }
+
           const latestDispute = await prisma.orderPaymentEvent.findFirst({
             where: { orderId: input.orderId, eventType: "DISPUTE" },
             orderBy: { createdAt: "desc" },
@@ -477,25 +630,26 @@ export async function POST(req: Request) {
             { idempotencyKey: `blocked-checkout-refund:${sessionId}` },
           );
 
-          await restoreReservedStockFromLineItems(input.lineItems);
-
-          await prisma.order.update({
-            where: { id: input.orderId },
-            data: {
-              sellerRefundId: refund.id,
-              sellerRefundAmountCents: refund.amount ?? s.amount_total ?? null,
-              sellerRefundLockedAt: null,
-              reviewNeeded: true,
-              reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
-            },
+          await prisma.$transaction(async (tx) => {
+            await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
+            await tx.order.update({
+              where: { id: input.orderId },
+              data: {
+                sellerRefundId: refund.id,
+                sellerRefundAmountCents: refund.amount ?? s.amount_total ?? null,
+                sellerRefundLockedAt: null,
+                reviewNeeded: true,
+                reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
+              },
+            });
           });
 
-          if (buyerId) {
+          if (orderBuyerId) {
             await createNotification({
-              userId: buyerId,
+              userId: orderBuyerId,
               type: "NEW_ORDER",
               title: "Payment refunded",
-              body: "This payment was refunded because the maker is not currently available to accept orders.",
+              body: "This payment was refunded because the checkout was no longer eligible to complete.",
               link: `/dashboard/orders/${input.orderId}`,
             }).catch(() => {});
           }
@@ -597,7 +751,10 @@ export async function POST(req: Request) {
             });
           }
         }
-        const cartInvalidReason = [...invalidCartSellers.values()].map((value) => value.reason).join(" ");
+        const cartInvalidReason = [
+          invalidBuyerReason,
+          ...[...invalidCartSellers.values()].map((value) => value.reason),
+        ].filter(Boolean).join(" ");
         const cartInvalidSellerUserIds = [...invalidCartSellers.values()]
           .map((value) => value.sellerUserId)
           .filter(Boolean);
@@ -624,7 +781,7 @@ export async function POST(req: Request) {
 
           const order = await tx.order.create({
             data: {
-              buyerId,
+              buyerId: orderBuyerId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -664,8 +821,8 @@ export async function POST(req: Request) {
               quotedToCountry: quotedShipToCountry || null,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
-              reviewNeeded: reviewNeeded || invalidCartSellers.size > 0,
-              reviewNote: invalidCartSellers.size > 0
+              reviewNeeded: reviewNeeded || !!cartInvalidReason,
+              reviewNote: cartInvalidReason
                 ? cartInvalidReason
                 : reviewNeeded
                   ? "Address and/or quoted amount changed at Checkout."
@@ -759,7 +916,7 @@ export async function POST(req: Request) {
 
         if (!createdCartOrder) return NextResponse.json({ ok: true });
 
-        if (invalidCartSellers.size > 0) {
+        if (cartInvalidReason) {
           await refundBlockedCheckout({
             orderId: createdCartOrder.id,
             reason: cartInvalidReason,
@@ -769,155 +926,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        // Notify buyer + seller after cart checkout
-        try {
-          const createdOrder = await prisma.order.findFirst({
-            where: { stripeSessionId: sessionId },
-            select: {
-              id: true,
-              buyerId: true,
-              itemsSubtotalCents: true,
-              shippingAmountCents: true,
-              taxAmountCents: true,
-              estimatedDeliveryDate: true,
-              processingDeadline: true,
-              shipToLine1: true,
-              shipToCity: true,
-              shipToState: true,
-              shipToPostalCode: true,
-              buyer: { select: { name: true, email: true } },
-              items: {
-                select: {
-                  quantity: true,
-                  priceCents: true,
-                  listing: {
-                    select: {
-                      title: true,
-                      seller: {
-                        select: {
-                          id: true,
-                          userId: true,
-                          displayName: true,
-                          user: { select: { email: true } },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          });
-          if (createdOrder) {
-            const seller = createdOrder.items[0]?.listing.seller;
-            const sellerUserId = seller?.userId;
-            const sellerName = seller?.displayName ?? "Maker";
-            const firstItemTitle = createdOrder.items[0]?.listing.title ?? "an item";
-            const buyerDisplayName = createdOrder.buyer?.name ?? buyerEmail ?? "A buyer";
-
-            await Promise.all([
-              createdOrder.buyerId
-                ? createNotification({
-                    userId: createdOrder.buyerId,
-                    type: "NEW_ORDER",
-                    title: "Order confirmed!",
-                    body: `Your order from ${sellerName} is being prepared`,
-                    link: `/dashboard/orders/${createdOrder.id}`,
-                  })
-                : Promise.resolve(),
-              sellerUserId
-                ? createNotification({
-                    userId: sellerUserId,
-                    type: "NEW_ORDER",
-                    title: "New sale! Congrats!",
-                    body: `${buyerDisplayName} purchased ${firstItemTitle}`,
-                    link: `/dashboard/sales/${createdOrder.id}`,
-                  })
-                : Promise.resolve(),
-            ]);
-
-            // Low-stock alerts for IN_STOCK items that dipped to ≤ 2.
-            // Re-read current stock from DB in one batch (post-decrement).
-            if (sellerUserId) {
-              const inStockItemTitles = new Map<string, string>();
-              for (const it of cart.items) {
-                if (it.listing.listingType === "IN_STOCK") {
-                  inStockItemTitles.set(it.listingId, it.listing.title);
-                }
-              }
-              const lowStockListings = inStockItemTitles.size
-                ? await prisma.listing.findMany({
-                    where: {
-                      id: { in: [...inStockItemTitles.keys()] },
-                      stockQuantity: { gt: 0, lte: 2 },
-                    },
-                    select: { id: true, stockQuantity: true },
-                  })
-                : [];
-              for (const lowStockListing of lowStockListings) {
-                await createNotification({
-                  userId: sellerUserId,
-                  type: "LOW_STOCK",
-                  title: `${inStockItemTitles.get(lowStockListing.id) ?? "A listing"} is running low`,
-                  body: `Only ${lowStockListing.stockQuantity ?? 0} left in stock`,
-                  link: `/dashboard/inventory`,
-                });
-              }
-            }
-
-            const emailItems = createdOrder.items.map((it) => ({
-              title: it.listing.title,
-              quantity: it.quantity,
-              priceCents: it.priceCents,
-            }));
-            const orderSummary = {
-              id: createdOrder.id,
-              itemsSubtotalCents: createdOrder.itemsSubtotalCents,
-              shippingAmountCents: createdOrder.shippingAmountCents,
-              taxAmountCents: createdOrder.taxAmountCents,
-              estimatedDeliveryDate: createdOrder.estimatedDeliveryDate,
-              processingDeadline: createdOrder.processingDeadline,
-              shipToLine1: createdOrder.shipToLine1,
-              shipToCity: createdOrder.shipToCity,
-              shipToState: createdOrder.shipToState,
-              shipToPostalCode: createdOrder.shipToPostalCode,
-            };
-
-            if (createdOrder.buyer?.email) {
-              try {
-                await sendOrderConfirmedBuyer({
-                  order: orderSummary,
-                  buyer: { name: createdOrder.buyer.name, email: createdOrder.buyer.email },
-                  seller: { displayName: sellerName },
-                  items: emailItems,
-                });
-              } catch { /* non-fatal */ }
-            }
-
-            if (sellerUserId && seller?.user?.email) {
-              try {
-                const sellerOrderCount = await prisma.order.count({
-                  where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
-                });
-                if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
-                  await sendOrderConfirmedSeller({
-                    order: orderSummary,
-                    buyer: { name: buyerDisplayName },
-                    seller: { displayName: sellerName, email: seller.user.email },
-                    items: emailItems,
-                  });
-                }
-                if (sellerOrderCount === 1) {
-                  await sendFirstSaleCongrats({
-                    seller: { displayName: sellerName, email: seller.user.email },
-                    order: orderSummary,
-                  });
-                }
-              } catch { /* non-fatal */ }
-            }
-          }
-        } catch {
-          // never break webhook flow
-        }
+        await enqueueOrderPostPaymentSideEffects(createdCartOrder.id);
 
         return NextResponse.json({ ok: true });
       }
@@ -955,9 +964,10 @@ export async function POST(req: Request) {
             },
           },
         });
-        const singleInvalidReason = invalidCheckoutSellerReason(listingData?.seller);
+        const singleSellerInvalidReason = invalidCheckoutSellerReason(listingData?.seller);
+        const singleInvalidReason = [invalidBuyerReason, singleSellerInvalidReason].filter(Boolean).join(" ");
         const singleInvalidSellerUserIds =
-          singleInvalidReason && listingData?.seller?.userId ? [listingData.seller.userId] : [];
+          singleSellerInvalidReason && listingData?.seller?.userId ? [listingData.seller.userId] : [];
         const price = priceCentsFromMeta ?? listingData?.priceCents ?? 0;
         const isInStock = listingData?.listingType === "IN_STOCK";
         const effectiveProcessingDays = isInStock
@@ -978,7 +988,7 @@ export async function POST(req: Request) {
 
           const order = await tx.order.create({
             data: {
-              buyerId,
+              buyerId: orderBuyerId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -1092,145 +1102,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        // Notify buyer + seller after single-listing checkout
-        try {
-          const singleOrder = await prisma.order.findFirst({
-            where: { stripeSessionId: sessionId },
-            select: {
-              id: true,
-              buyerId: true,
-              itemsSubtotalCents: true,
-              shippingAmountCents: true,
-              taxAmountCents: true,
-              estimatedDeliveryDate: true,
-              processingDeadline: true,
-              shipToLine1: true,
-              shipToCity: true,
-              shipToState: true,
-              shipToPostalCode: true,
-              buyer: { select: { name: true, email: true } },
-              items: {
-                select: {
-                  quantity: true,
-                  priceCents: true,
-                  listing: {
-                    select: {
-                      title: true,
-                      seller: {
-                        select: {
-                          id: true,
-                          userId: true,
-                          displayName: true,
-                          user: { select: { email: true } },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          });
-          if (singleOrder) {
-            const seller = singleOrder.items[0]?.listing.seller;
-            const sellerUserId = seller?.userId;
-            const sellerName = seller?.displayName ?? "Maker";
-            const itemTitle = singleOrder.items[0]?.listing.title ?? "an item";
-            const buyerDisplayName = singleOrder.buyer?.name ?? buyerEmail ?? "A buyer";
-
-            await Promise.all([
-              singleOrder.buyerId
-                ? createNotification({
-                    userId: singleOrder.buyerId,
-                    type: "NEW_ORDER",
-                    title: "Order confirmed!",
-                    body: `Your order from ${sellerName} is being prepared`,
-                    link: `/dashboard/orders/${singleOrder.id}`,
-                  })
-                : Promise.resolve(),
-              sellerUserId
-                ? createNotification({
-                    userId: sellerUserId,
-                    type: "NEW_ORDER",
-                    title: "New sale! Congrats!",
-                    body: `${buyerDisplayName} purchased ${itemTitle}`,
-                    link: `/dashboard/sales/${singleOrder.id}`,
-                  })
-                : Promise.resolve(),
-            ]);
-
-            // Low-stock alert if IN_STOCK item dipped to ≤ 2 after purchase.
-            // Re-read current stock from DB (post-decrement) for accurate count.
-            if (isInStock && sellerUserId) {
-              const currentSingleListing = await prisma.listing.findUnique({
-                where: { id: listingId },
-                select: { stockQuantity: true },
-              });
-              const currentSingleQty = currentSingleListing?.stockQuantity ?? 0;
-              if (currentSingleQty > 0 && currentSingleQty <= 2) {
-                await createNotification({
-                  userId: sellerUserId,
-                  type: "LOW_STOCK",
-                  title: `${itemTitle} is running low`,
-                  body: `Only ${currentSingleQty} left in stock`,
-                  link: `/dashboard/inventory`,
-                });
-              }
-            }
-
-            const emailItems = singleOrder.items.map((it) => ({
-              title: it.listing.title,
-              quantity: it.quantity,
-              priceCents: it.priceCents,
-            }));
-            const orderSummary = {
-              id: singleOrder.id,
-              itemsSubtotalCents: singleOrder.itemsSubtotalCents,
-              shippingAmountCents: singleOrder.shippingAmountCents,
-              taxAmountCents: singleOrder.taxAmountCents,
-              estimatedDeliveryDate: singleOrder.estimatedDeliveryDate,
-              processingDeadline: singleOrder.processingDeadline,
-              shipToLine1: singleOrder.shipToLine1,
-              shipToCity: singleOrder.shipToCity,
-              shipToState: singleOrder.shipToState,
-              shipToPostalCode: singleOrder.shipToPostalCode,
-            };
-
-            if (singleOrder.buyer?.email) {
-              try {
-                await sendOrderConfirmedBuyer({
-                  order: orderSummary,
-                  buyer: { name: singleOrder.buyer.name, email: singleOrder.buyer.email },
-                  seller: { displayName: sellerName },
-                  items: emailItems,
-                });
-              } catch { /* non-fatal */ }
-            }
-
-            if (sellerUserId && seller?.user?.email) {
-              try {
-                const sellerOrderCount = await prisma.order.count({
-                  where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
-                });
-                if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
-                  await sendOrderConfirmedSeller({
-                    order: orderSummary,
-                    buyer: { name: buyerDisplayName },
-                    seller: { displayName: sellerName, email: seller.user.email },
-                    items: emailItems,
-                  });
-                }
-                if (sellerOrderCount === 1) {
-                  await sendFirstSaleCongrats({
-                    seller: { displayName: sellerName, email: seller.user.email },
-                    order: orderSummary,
-                  });
-                }
-              } catch { /* non-fatal */ }
-            }
-          }
-        } catch {
-          // never break webhook flow
-        }
+        await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id);
 
         return NextResponse.json({ ok: true });
       }
@@ -1294,41 +1166,45 @@ export async function POST(req: Request) {
           refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null; created?: number | null; reason?: string | null }> };
         };
         if (charge.id) {
-          const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
-          const existingOrder = await prisma.order.findFirst({
-            where: { stripeChargeId: charge.id },
-            select: { id: true, currency: true, sellerRefundId: true, sellerRefundAmountCents: true },
-          });
-          if (existingOrder) {
-            const refundLedger = chargeRefundLedgerState({
-              chargeId: charge.id,
-              chargeCurrency: charge.currency,
-              amountRefundedCents: charge.amount_refunded,
-              latestRefund,
-              order: existingOrder,
+          await prisma.$transaction(async (tx) => {
+            await lockChargeMutation(tx, charge.id!);
+            const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
+            const existingOrder = await tx.order.findFirst({
+              where: { stripeChargeId: charge.id },
+              select: { id: true, currency: true, sellerRefundId: true, sellerRefundAmountCents: true },
             });
-
-            await recordOrderPaymentEvent({
-              orderId: existingOrder.id,
-              stripeEventId: event.id,
-              stripeObjectId: refundLedger.ledger.stripeObjectId,
-              stripeObjectType: "refund",
-              eventType: "REFUND",
-              amountCents: refundLedger.ledger.amountCents,
-              currency: refundLedger.ledger.currency,
-              status: refundLedger.ledger.status,
-              reason: refundLedger.ledger.reason,
-              description: refundLedger.ledger.description,
-              metadata: refundLedger.ledger.metadata,
-            });
-
-            if (refundLedger.orderUpdate) {
-              await prisma.order.update({
-                where: { id: existingOrder.id },
-                data: refundLedger.orderUpdate,
+            if (existingOrder) {
+              const refundLedger = chargeRefundLedgerState({
+                chargeId: charge.id!,
+                chargeCurrency: charge.currency,
+                amountRefundedCents: charge.amount_refunded,
+                latestRefund,
+                fallbackRefundId: `external:${event.id}`,
+                order: existingOrder,
               });
+
+              await recordOrderPaymentEvent({
+                orderId: existingOrder.id,
+                stripeEventId: event.id,
+                stripeObjectId: refundLedger.ledger.stripeObjectId,
+                stripeObjectType: "refund",
+                eventType: "REFUND",
+                amountCents: refundLedger.ledger.amountCents,
+                currency: refundLedger.ledger.currency,
+                status: refundLedger.ledger.status,
+                reason: refundLedger.ledger.reason,
+                description: refundLedger.ledger.description,
+                metadata: refundLedger.ledger.metadata,
+              }, tx);
+
+              if (refundLedger.orderUpdate) {
+                await tx.order.update({
+                  where: { id: existingOrder.id },
+                  data: refundLedger.orderUpdate,
+                });
+              }
             }
-          }
+          });
         }
         return NextResponse.json({ received: true });
       });
@@ -1346,28 +1222,30 @@ export async function POST(req: Request) {
         };
         const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
         if (chargeId) {
-          const order = await prisma.order.findFirst({
-            where: { stripeChargeId: chargeId },
-            select: {
-              id: true,
-              currency: true,
-              buyerId: true,
-              case: { select: { id: true, status: true } },
-              items: {
-                take: 1,
-                select: {
-                  listing: {
-                    select: {
-                      seller: {
-                        select: { userId: true },
+          const notifySellerUserId = await prisma.$transaction(async (tx) => {
+            await lockChargeMutation(tx, chargeId);
+            const order = await tx.order.findFirst({
+              where: { stripeChargeId: chargeId },
+              select: {
+                id: true,
+                currency: true,
+                buyerId: true,
+                case: { select: { id: true, status: true } },
+                items: {
+                  take: 1,
+                  select: {
+                    listing: {
+                      select: {
+                        seller: {
+                          select: { userId: true },
+                        },
                       },
                     },
                   },
                 },
               },
-            },
-          });
-          if (order) {
+            });
+            if (!order) return null;
             const sellerUserId = order.items[0]?.listing.seller.userId;
             const disputeLedger = chargeDisputeLedgerState({
               chargeId,
@@ -1387,8 +1265,8 @@ export async function POST(req: Request) {
               reason: disputeLedger.ledger.reason,
               description: disputeLedger.ledger.description,
               metadata: disputeLedger.ledger.metadata,
-            });
-            await prisma.order.update({
+            }, tx);
+            await tx.order.update({
               where: { id: order.id },
               data: disputeLedger.orderUpdate,
             });
@@ -1399,12 +1277,12 @@ export async function POST(req: Request) {
                 dispute,
               });
               if (caseAction.action === "update") {
-                await prisma.case.update({
+                await tx.case.update({
                   where: { id: caseAction.caseId },
                   data: { status: caseAction.status },
                 });
               } else if (caseAction.action === "create") {
-                await prisma.case.create({
+                await tx.case.create({
                   data: {
                     orderId: order.id,
                     buyerId: order.buyerId,
@@ -1417,15 +1295,18 @@ export async function POST(req: Request) {
                 });
               }
             }
-            if (event.type === "charge.dispute.created" && sellerUserId) {
-              await createNotification({
-                userId: sellerUserId,
-                type: "PAYMENT_DISPUTE",
-                title: "Payment dispute opened",
-                body: `Stripe reported a dispute for order ${order.id}.`,
-                link: `/dashboard/sales/${order.id}`,
-              });
-            }
+            return event.type === "charge.dispute.created" && sellerUserId
+              ? { sellerUserId, orderId: order.id }
+              : null;
+          });
+          if (notifySellerUserId) {
+            await createNotification({
+              userId: notifySellerUserId.sellerUserId,
+              type: "PAYMENT_DISPUTE",
+              title: "Payment dispute opened",
+              body: `Stripe reported a dispute for order ${notifySellerUserId.orderId}.`,
+              link: `/dashboard/sales/${notifySellerUserId.orderId}`,
+            });
           }
         }
         return NextResponse.json({ received: true });
@@ -1467,6 +1348,11 @@ export async function POST(req: Request) {
       return processIdempotentEvent(async () => {
         const deauthAccount = event.data.object as { id: string };
         if (deauthAccount.id) {
+          const affectedSellers = await prisma.sellerProfile.findMany({
+            where: { stripeAccountId: deauthAccount.id },
+            select: { id: true },
+          });
+          const affectedSellerIds = affectedSellers.map((seller) => seller.id);
           await prisma.sellerProfile.updateMany({
             where: { stripeAccountId: deauthAccount.id },
             data: {
@@ -1474,6 +1360,26 @@ export async function POST(req: Request) {
               stripeAccountId: null,
             },
           });
+          if (affectedSellerIds.length > 0) {
+            await prisma.order.updateMany({
+              where: {
+                reviewNeeded: false,
+                fulfillmentStatus: { in: ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] },
+                items: { some: { listing: { sellerId: { in: affectedSellerIds } } } },
+              },
+              data: {
+                reviewNeeded: true,
+                reviewNote: "Seller Stripe account was deauthorized after payment. Staff must review payout and fulfillment state before further action.",
+              },
+            });
+          }
+          await mapWithConcurrency(affectedSellers, 3, (seller) =>
+            expireOpenCheckoutSessionsForSeller({
+              sellerId: seller.id,
+              stripeAccountId: deauthAccount.id,
+              source: "stripe_deauthorized",
+            }),
+          );
         }
         return NextResponse.json({ received: true });
       });
@@ -1538,6 +1444,12 @@ export async function POST(req: Request) {
     }
     console.error("Stripe webhook handler error:", err);
     Sentry.captureException(err, { tags: { source: "stripe_webhook" } });
+    await recordWebhookFailureSpike({
+      webhook: "stripe",
+      kind: "handler",
+      status: 500,
+      extra: { stripeEventId: event.id, stripeEventType: event.type },
+    });
     return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }

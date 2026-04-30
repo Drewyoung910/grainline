@@ -39,16 +39,19 @@ async function waitForSharedThrottle() {
   try {
     for (let attempt = 0; attempt < 8; attempt++) {
       const locked = await redis.set("reverse-geocode:nominatim:lock", "1", { nx: true, px: 1100 });
-      if (locked) return;
+      if (locked) return true;
       await sleep(200);
     }
-  } catch {
-    await waitForLocalThrottle();
+  } catch (error) {
+    console.error("[reverse-geocode] shared throttle unavailable; skipping external geocode:", error);
+    return false;
   }
+  await waitForLocalThrottle();
+  return true;
 }
 
-async function throttledFetch(url: string): Promise<Response> {
-  await waitForSharedThrottle();
+async function throttledFetch(url: string): Promise<Response | null> {
+  if (!(await waitForSharedThrottle())) return null;
   return fetchWithTimeout(url, {
     headers: { "User-Agent": "Grainline/1.0 (thegrainline.com)" },
   }, 8_000);
@@ -57,9 +60,20 @@ async function throttledFetch(url: string): Promise<Response> {
 export type GeoResult = { city: string; state: string; stateCode: string };
 
 export async function reverseGeocode(lat: number, lng: number): Promise<GeoResult | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return null;
+  }
+
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lng),
+      format: "json",
+      addressdetails: "1",
+    });
+    const url = `https://nominatim.openstreetmap.org/reverse?${params.toString()}`;
     const res = await throttledFetch(url);
+    if (!res) return null;
     if (!res.ok) return null;
 
     const data = await res.json();

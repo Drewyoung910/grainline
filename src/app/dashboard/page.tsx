@@ -9,6 +9,7 @@ import { ListingStatus } from "@prisma/client";
 import ConfirmButton from "@/components/ConfirmButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart, Eye, Heart } from "@/components/icons";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
+import { archiveListingBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
@@ -89,6 +90,7 @@ async function deleteListing(listingId: string) {
     include: { seller: true },
   });
   if (!listing || listing.seller.userId !== me.id) return;
+  if (archiveListingBlockReason(listing)) return;
 
   // Archive: preserve order history, remove current shopping intent records.
   try {
@@ -344,7 +346,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <p className="mt-4 text-sm text-stone-400">
+        <p className="mt-4 text-sm text-stone-500">
           <Link href="/browse" className="hover:text-stone-600 hover:underline">← Back to browsing</Link>
         </p>
       </header>
@@ -473,7 +475,7 @@ export default async function DashboardPage() {
                       ) : l.status}
                     </div>
 
-                    <div className="text-xs text-neutral-400 flex items-center gap-1 flex-wrap">
+                    <div className="text-xs text-neutral-500 flex items-center gap-1 flex-wrap">
                       <Eye size={11} className="inline align-middle" /> {l.viewCount} · clicks {l.clickCount} · <Heart size={11} className="inline align-middle" /> {l._count.favorites} · <Bell size={11} className="inline align-middle" /> {l._count.stockNotifications}
                     </div>
 
@@ -616,7 +618,6 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
 
 
 

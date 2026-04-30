@@ -174,16 +174,16 @@ export default function SellerRefundPanel({
             <span className="text-sm text-neutral-600">$</span>
             <input
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0.01"
               max={(effectiveMax / 100).toFixed(2)}
               value={partialAmount}
               onChange={(e) => { setPartialAmount(e.target.value); setError(null); }}
               placeholder="0.00"
-              className="w-28 rounded border px-2 py-1 text-sm"
-              autoFocus
+              className="w-28 rounded border px-2 py-1 text-base sm:text-sm"
             />
-            <span className="text-xs text-neutral-400">
+            <span className="text-xs text-neutral-500">
               max {fmtMoney(effectiveMax, currency)}
             </span>
           </div>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
+import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const DEFAULT_OFF = [
+const DEFAULT_OFF: NotificationPreferenceKey[] = [
   "SELLER_BROADCAST",
   "NEW_FAVORITE",
   "NEW_BLOG_COMMENT",
@@ -20,7 +21,7 @@ const DEFAULT_OFF = [
   "EMAIL_NEW_FOLLOWER",
 ];
 
-const DEFAULT_OFF_EMAIL = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
+const DEFAULT_OFF_EMAIL: NotificationPreferenceKey[] = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
 
 export default async function AccountSettingsPage() {
   const me = await ensureUserForPage("/account/settings");
@@ -36,34 +37,34 @@ export default async function AccountSettingsPage() {
   const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
   const hasSeller = !!user?.sellerProfile;
 
-  function isEnabled(type: string) {
+  function isEnabled(type: NotificationPreferenceKey) {
     if (DEFAULT_OFF.includes(type)) return prefs[type] === true;
     return prefs[type] !== false;
   }
 
-  function getEmailPrefInitial(key: string): boolean {
+  function getEmailPrefInitial(key: NotificationPreferenceKey): boolean {
     if (key in prefs) return prefs[key] as boolean;
     return !DEFAULT_OFF_EMAIL.includes(key);
   }
 
-  function Row({ type, label, description }: { type: string; label: string; description: string }) {
+  function Row({ type, label, description }: { type: NotificationPreferenceKey; label: string; description: string }) {
     return (
       <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
         <div>
           <p className="text-sm font-medium text-neutral-800">{label}</p>
-          <p className="text-xs text-neutral-400 mt-0.5">{description}</p>
+          <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
         <NotificationToggle type={type} enabled={isEnabled(type)} />
       </div>
     );
   }
 
-  function EmailRow({ type, label, description }: { type: string; label: string; description: string }) {
+  function EmailRow({ type, label, description }: { type: NotificationPreferenceKey; label: string; description: string }) {
     return (
       <div className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0">
         <div>
           <p className="text-sm font-medium text-neutral-800">{label}</p>
-          <p className="text-xs text-neutral-400 mt-0.5">{description}</p>
+          <p className="text-xs text-neutral-500 mt-0.5">{description}</p>
         </div>
         <NotificationToggle type={type} enabled={getEmailPrefInitial(type)} />
       </div>
@@ -92,7 +93,7 @@ export default async function AccountSettingsPage() {
         {/* In-App: From Makers You Follow */}
         <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-0.5">From Makers You Follow</h3>
-          <p className="text-xs text-neutral-400 mb-3">In-app</p>
+          <p className="text-xs text-neutral-500 mb-3">In-app</p>
           <Row
             type="FOLLOWED_MAKER_NEW_LISTING"
             label="New listings"
@@ -113,7 +114,7 @@ export default async function AccountSettingsPage() {
         {/* In-App: Orders & Cases */}
         <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-0.5">Orders &amp; Cases</h3>
-          <p className="text-xs text-neutral-400 mb-3">In-app</p>
+          <p className="text-xs text-neutral-500 mb-3">In-app</p>
           <Row
             type="NEW_ORDER"
             label="Order confirmed"
@@ -154,12 +155,17 @@ export default async function AccountSettingsPage() {
             label="Commission interest"
             description="When a maker expresses interest in your commission request"
           />
+          <Row
+            type="BACK_IN_STOCK"
+            label="Back in stock"
+            description="When a piece you asked about is available again"
+          />
         </section>
 
         {/* Email: buyer-facing */}
         <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-0.5">Messages &amp; Orders</h3>
-          <p className="text-xs text-neutral-400 mb-3">Email · Order confirmations and shipping updates are always sent</p>
+          <p className="text-xs text-neutral-500 mb-3">Email · Order confirmations and shipping updates are always sent</p>
           <EmailRow
             type="EMAIL_NEW_MESSAGE"
             label="New messages"
@@ -180,12 +186,17 @@ export default async function AccountSettingsPage() {
             label="Refunds"
             description="Email when a refund is issued for one of your orders"
           />
+          <EmailRow
+            type="EMAIL_BACK_IN_STOCK"
+            label="Back in stock"
+            description="Email when a piece you asked about is available again"
+          />
         </section>
 
         {/* Email: From Makers You Follow */}
         <section className="card-section p-5 mb-4">
           <h3 className="text-base font-semibold mb-0.5">From Makers You Follow</h3>
-          <p className="text-xs text-neutral-400 mb-3">Email</p>
+          <p className="text-xs text-neutral-500 mb-3">Email</p>
           <EmailRow
             type="EMAIL_FOLLOWED_MAKER_NEW_LISTING"
             label="New listings from followed makers"
@@ -200,11 +211,24 @@ export default async function AccountSettingsPage() {
       </div>
 
       {hasSeller && (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-neutral-500">
           Seller-specific notifications are managed in{" "}
           <Link href="/dashboard/seller" className="underline hover:text-neutral-600">Shop Settings</Link>.
         </p>
       )}
+
+      <section className="card-section p-5">
+        <h2 className="text-lg font-semibold font-display">Account data</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Download a JSON copy of your Grainline account, orders, messages, listings, reviews, and saved activity.
+        </p>
+        <a
+          href="/api/account/export"
+          className="mt-4 inline-flex min-h-11 items-center rounded-md border border-neutral-200 px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+        >
+          Download account data
+        </a>
+      </section>
 
       <section className="card-section border-red-200 bg-red-50/40 p-5">
         <h2 className="text-lg font-semibold font-display text-red-950">Delete account</h2>
@@ -218,7 +242,7 @@ export default async function AccountSettingsPage() {
         </div>
       </section>
 
-      <p className="text-xs text-neutral-400">
+      <p className="text-xs text-neutral-500">
         Changes take effect immediately. Security and account notices cannot be disabled.
       </p>
     </main>

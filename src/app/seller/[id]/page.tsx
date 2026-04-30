@@ -1,5 +1,5 @@
 // src/app/seller/[id]/page.tsx
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
@@ -19,7 +19,7 @@ import ListingCard from "@/components/ListingCard";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { extractRouteId, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
+import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 
 export async function generateMetadata({
   params,
@@ -131,6 +131,10 @@ export default async function SellerPublicPage({
     return notFound();
   }
 
+  if (id !== routeSegmentWithSlug(seller.id, seller.displayName, "maker")) {
+    permanentRedirect(publicSellerPath(seller.id, seller.displayName));
+  }
+
   // Follow data
   const [followerCount, isFollowing] = await Promise.all([
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
@@ -216,14 +220,15 @@ export default async function SellerPublicPage({
   }
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
+  const hasStructuredAddress = Boolean(cityState);
   const businessLd: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": "LocalBusiness",
+    "@type": hasStructuredAddress ? "LocalBusiness" : "Organization",
     name: seller.displayName ?? "Maker",
     description: seller.bio ?? undefined,
     url: `https://thegrainline.com${publicSellerPath(seller.id, seller.displayName)}`,
     knowsAbout: "Handmade Woodworking",
-    ...(cityState
+    ...(hasStructuredAddress
       ? {
           address: {
             "@type": "PostalAddress",
@@ -232,7 +237,7 @@ export default async function SellerPublicPage({
           },
         }
       : {}),
-    ...(lat != null && lng != null
+    ...(hasStructuredAddress && lat != null && lng != null
       ? { geo: { "@type": "GeoCoordinates", latitude: lat, longitude: lng } }
       : {}),
   };
@@ -375,7 +380,7 @@ export default async function SellerPublicPage({
               <span className="font-medium text-neutral-700">
                 {(Math.round(shopRating.avg * 10) / 10).toFixed(1)}
               </span>
-              <span className="text-neutral-400">({shopRating.count})</span>
+              <span className="text-neutral-500">({shopRating.count})</span>
             </span>
           )}
           {seller.acceptsCustomOrders && (
@@ -636,7 +641,7 @@ export default async function SellerPublicPage({
                       <div className="font-medium text-sm line-clamp-2 mt-1">{p.title}</div>
                       {p.excerpt && <p className="text-xs text-neutral-500 line-clamp-2">{p.excerpt}</p>}
                       {p.publishedAt && (
-                        <div className="text-xs text-neutral-400">
+                        <div className="text-xs text-neutral-500">
                           <LocalDate date={p.publishedAt} />
                         </div>
                       )}

@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText } from "@/lib/sanitize";
@@ -91,9 +92,18 @@ export async function POST(req: NextRequest) {
         ...(sellersOnly ? { sellerProfile: { isNot: null } } : {}),
       },
     },
-    select: { followerId: true },
+    select: {
+      followerId: true,
+      follower: { select: { notificationPreferences: true } },
+    },
     take: 10000,
   });
+  const notificationFollowers = followers.filter((f) =>
+    isInAppNotificationEnabled(
+      (f.follower.notificationPreferences as Record<string, boolean> | null) ?? null,
+      "SELLER_BROADCAST",
+    ),
+  );
 
   // Create broadcast record
   const broadcast = await prisma.sellerBroadcast.create({
@@ -101,7 +111,7 @@ export async function POST(req: NextRequest) {
       sellerProfileId: seller.id,
       message,
       imageUrl,
-      recipientCount: followers.length,
+      recipientCount: notificationFollowers.length,
     },
   });
 
@@ -109,19 +119,30 @@ export async function POST(req: NextRequest) {
   after(async () => {
     try {
       const sellerName = seller.displayName ?? "A maker you follow";
-      await mapWithConcurrency(followers, 10, (f) =>
+      const results = await mapWithConcurrency(notificationFollowers, 10, (f) =>
         createNotification({
           userId: f.followerId,
           type: "SELLER_BROADCAST",
           title: `Update from ${sellerName}`,
           body: message.slice(0, 100) + (message.length > 100 ? "…" : ""),
           link: `/account/feed`,
+          dedupScope: broadcast.id,
         }),
       );
+      const deliveredCount = results.reduce(
+        (count, result) => count + (result.status === "fulfilled" && result.value ? 1 : 0),
+        0,
+      );
+      if (deliveredCount !== notificationFollowers.length) {
+        await prisma.sellerBroadcast.update({
+          where: { id: broadcast.id },
+          data: { recipientCount: deliveredCount },
+        });
+      }
     } catch { /* non-fatal */ }
   });
 
-  return NextResponse.json({ broadcastId: broadcast.id, recipientCount: followers.length });
+  return NextResponse.json({ broadcastId: broadcast.id, recipientCount: notificationFollowers.length });
 }
 
 export async function GET(req: NextRequest) {

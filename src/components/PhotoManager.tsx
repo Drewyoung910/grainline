@@ -1,9 +1,11 @@
 // src/components/PhotoManager.tsx
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 type ManagedPhoto = {
   url: string;
@@ -13,10 +15,21 @@ type ManagedPhoto = {
 export default function PhotoManager({ max = 8 }: { max?: number }) {
   const [photos, setPhotos] = useState<ManagedPhoto[]>([]);
   const [altModalIdx, setAltModalIdx] = useState<number | null>(null);
+  const [dragEnabled, setDragEnabled] = useState(false);
+  const altDialogRef = useRef<HTMLDivElement>(null);
 
   // Drag state
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
+  const altModalOpen = altModalIdx !== null && !!photos[altModalIdx];
+
+  useDialogFocus(altModalOpen, altDialogRef, () => setAltModalIdx(null));
+  useBodyScrollLock(altModalOpen);
+
+  useEffect(() => {
+    const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+    setDragEnabled(!coarsePointer && "ondragstart" in document);
+  }, []);
 
   function handleDragStart(e: React.DragEvent, idx: number) {
     dragItem.current = idx;
@@ -100,8 +113,8 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
             button: ({ ready }) => (ready ? "Add photos" : "Preparing\u2026"),
           }}
           onClientUploadComplete={(files) => {
-            const newPhotos: ManagedPhoto[] = files.map((f) => ({
-              url: (f as { ufsUrl?: string }).ufsUrl ?? "",
+            const newPhotos: ManagedPhoto[] = uploadedFileUrls(files).map((url) => ({
+              url,
               altText: "",
             }));
             setPhotos((prev) =>
@@ -112,8 +125,8 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
         />
       )}
 
-      <p className="text-xs text-neutral-400">
-        Upload up to {max} photos (8MB each). First photo is the cover. Drag to reorder.
+      <p className="text-xs text-neutral-500">
+        Upload up to {max} photos (8MB each). First photo is the cover.
       </p>
 
       {/* Hidden inputs for form submission */}
@@ -133,15 +146,17 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
           {photos.map((photo, i) => (
             <li
               key={`${photo.url}-${i}`}
-              draggable
-              onDragStart={(e) => handleDragStart(e, i)}
-              onDragOver={(e) => handleDragOver(e, i)}
-              onDrop={(e) => handleDrop(e)}
-              onDragEnd={() => {
+              draggable={dragEnabled}
+              onDragStart={dragEnabled ? (e) => handleDragStart(e, i) : undefined}
+              onDragOver={dragEnabled ? (e) => handleDragOver(e, i) : undefined}
+              onDrop={dragEnabled ? (e) => handleDrop(e) : undefined}
+              onDragEnd={dragEnabled ? () => {
                 dragItem.current = null;
                 dragOverItem.current = null;
-              }}
-              className="rounded-lg border border-neutral-200 overflow-hidden bg-white select-none cursor-grab active:cursor-grabbing"
+              } : undefined}
+              className={`rounded-lg border border-neutral-200 overflow-hidden bg-white select-none ${
+                dragEnabled ? "cursor-grab active:cursor-grabbing" : ""
+              }`}
             >
               <div className="relative" draggable={false}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -228,10 +243,15 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
           onClick={() => setAltModalIdx(null)}
         >
           <div
+            ref={altDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="photo-alt-dialog-title"
+            tabIndex={-1}
             className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-5 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold text-neutral-800">
+            <h3 id="photo-alt-dialog-title" className="text-sm font-semibold text-neutral-800">
               Alt text — Photo {altModalIdx + 1}
             </h3>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -246,9 +266,9 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
               maxLength={200}
               rows={3}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-400"
+              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-500"
             />
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-neutral-500">
               Improves visibility in Google Image Search. If left blank, AI will generate alt text automatically.
             </p>
             <button

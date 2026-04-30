@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useToast } from "@/components/Toast";
 import BuyNowCheckoutModal from "./BuyNowCheckoutModal";
+import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 
 type Props = {
   listingId: string;
@@ -17,6 +18,7 @@ type Props = {
   giftWrappingPriceCents?: number | null;
   selectedVariantOptionIds?: string[];
   variantRequired?: boolean;
+  autoOpen?: boolean;
   className?: string;
   children?: React.ReactNode;
 };
@@ -33,12 +35,21 @@ export default function BuyNowButton({
   giftWrappingPriceCents = null,
   selectedVariantOptionIds = [],
   variantRequired = false,
+  autoOpen = false,
   className = "",
   children,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const openedFromRedirect = useRef(false);
   const { isSignedIn, isLoaded } = useUser();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
+    if (variantRequired && selectedVariantOptionIds.length === 0) return;
+    openedFromRedirect.current = true;
+    setIsOpen(true);
+  }, [autoOpen, isLoaded, isSignedIn, selectedVariantOptionIds.length, variantRequired]);
 
   return (
     <>
@@ -51,9 +62,7 @@ export default function BuyNowButton({
             return;
           }
           if (!isSignedIn) {
-            window.location.href = `/sign-in?redirect_url=${encodeURIComponent(
-              window.location.pathname,
-            )}`;
+            window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
             return;
           }
           setIsOpen(true);

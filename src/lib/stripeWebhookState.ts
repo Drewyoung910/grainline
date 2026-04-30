@@ -6,6 +6,18 @@ export type StripeRefundLike = {
   reason?: string | null;
 };
 
+export const STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 24 * 60 * 60;
+
+export function isStaleStripeEvent(
+  created: number | null | undefined,
+  nowSeconds = Math.floor(Date.now() / 1000),
+  maxAgeSeconds = STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS,
+) {
+  return typeof created !== "number" ||
+    !Number.isFinite(created) ||
+    created < nowSeconds - maxAgeSeconds;
+}
+
 export type CheckoutSellerState = {
   id: string;
   userId: string;
@@ -13,6 +25,12 @@ export type CheckoutSellerState = {
   stripeAccountId: string | null;
   user: { id: string; banned: boolean; deletedAt: Date | null } | null;
 };
+
+export type CheckoutBuyerState = {
+  id: string;
+  banned: boolean;
+  deletedAt: Date | null;
+} | null;
 
 export type ChargeRefundOrderState = {
   currency: string;
@@ -116,7 +134,16 @@ export type BlockedCheckoutDisputeState = {
   disputeStatus: string | null;
 };
 
+export type StripeEventEnvelope = {
+  id?: string;
+  type?: string;
+  created?: number;
+  api_version?: string | null;
+  data?: { object?: unknown };
+};
+
 const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "warning_closed"]);
+const THIN_STRIPE_EVENT_OBJECT_KEYS = new Set(["id", "object", "livemode"]);
 
 function isOpenDisputeStatus(status: string | null | undefined) {
   return !STRIPE_DISPUTE_CLOSED_STATUSES.has((status ?? "").toLowerCase());
@@ -124,7 +151,7 @@ function isOpenDisputeStatus(status: string | null | undefined) {
 
 export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
   return refunds
-    .filter((refund) => refund.status !== "failed")
+    .filter((refund) => (refund.status ?? "").toLowerCase() === "succeeded")
     .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))[0] ?? null;
 }
 
@@ -145,12 +172,43 @@ export function normalizeShippoRateObjectId(value: string | null | undefined): s
   return normalized === "pickup" || normalized === "fallback" ? null : value;
 }
 
+export function isLikelyThinStripeEventObject(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const object = value as Record<string, unknown>;
+  const keys = Object.keys(object);
+  return (
+    typeof object.id === "string" &&
+    typeof object.object === "string" &&
+    keys.length <= THIN_STRIPE_EVENT_OBJECT_KEYS.size &&
+    keys.every((key) => THIN_STRIPE_EVENT_OBJECT_KEYS.has(key))
+  );
+}
+
+export function retrievedStripeEventMatchesSignedEnvelope(
+  signedEvent: StripeEventEnvelope,
+  retrievedEvent: StripeEventEnvelope,
+): boolean {
+  return (
+    signedEvent.id === retrievedEvent.id &&
+    signedEvent.type === retrievedEvent.type &&
+    signedEvent.created === retrievedEvent.created &&
+    signedEvent.api_version === retrievedEvent.api_version
+  );
+}
+
 export function invalidCheckoutSellerReason(seller: CheckoutSellerState | null | undefined): string | null {
   if (!seller) return "Seller account could not be verified at payment completion.";
   if (seller.user?.banned) return "Seller account was suspended before payment completion.";
   if (seller.user?.deletedAt) return "Seller account was deleted before payment completion.";
   if (!seller.chargesEnabled) return "Seller Stripe account was disabled before payment completion.";
   if (!seller.stripeAccountId) return "Seller Stripe account was disconnected before payment completion.";
+  return null;
+}
+
+export function invalidCheckoutBuyerReason(buyer: CheckoutBuyerState | undefined): string | null {
+  if (!buyer) return "Buyer account could not be verified at payment completion.";
+  if (buyer.banned) return "Buyer account was suspended before payment completion.";
+  if (buyer.deletedAt) return "Buyer account was deleted before payment completion.";
   return null;
 }
 
@@ -177,15 +235,17 @@ export function chargeRefundLedgerState({
   chargeCurrency,
   amountRefundedCents,
   latestRefund,
+  fallbackRefundId,
   order,
 }: {
   chargeId: string;
   chargeCurrency?: string | null;
   amountRefundedCents?: number | null;
   latestRefund: StripeRefundLike | null | undefined;
+  fallbackRefundId?: string | null;
   order: ChargeRefundOrderState;
 }): ChargeRefundLedgerState {
-  const latestRefundId = latestRefund?.id ?? `external:${chargeId}`;
+  const latestRefundId = latestRefund?.id ?? fallbackRefundId ?? `external:${chargeId}`;
   const totalRefundedCents = amountRefundedCents ?? latestRefund?.amount ?? 0;
   const hasLocalRefundAudit =
     !!order.sellerRefundId &&

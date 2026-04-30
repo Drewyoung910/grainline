@@ -299,7 +299,7 @@ export default async function AccountPage() {
             <Link href="/account/commissions" className="text-sm underline hover:text-neutral-900">
               View my commission requests →
             </Link>
-            <span className="text-sm text-neutral-400">or</span>
+            <span className="text-sm text-neutral-500">or</span>
             <Link href="/commission" className="text-sm underline hover:text-neutral-900">
               Browse the Commission Room →
             </Link>

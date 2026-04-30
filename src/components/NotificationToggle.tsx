@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
+import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 
 export function NotificationToggle({
   type,
   enabled: initialEnabled,
 }: {
-  type: string;
+  type: NotificationPreferenceKey;
   enabled: boolean;
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);

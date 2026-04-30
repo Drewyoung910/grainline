@@ -4,10 +4,17 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
-import { commissionCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  commissionCreateRatelimit,
+  commissionReferenceImageIpRatelimit,
+  getIP,
+  rateLimitResponse,
+  safeRateLimit,
+} from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
+import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
 import { z } from "zod";
 
@@ -37,7 +44,7 @@ export async function GET(req: NextRequest) {
     ...(categoryValid ? { category: category as Category } : {}),
   });
 
-  const [requests, total] = await Promise.all([
+  const [requestRows, total] = await Promise.all([
     prisma.commissionRequest.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -54,6 +61,7 @@ export async function GET(req: NextRequest) {
         referenceImageUrls: true,
         status: true,
         interestedCount: true,
+        _count: { select: { interests: true } },
         expiresAt: true,
         createdAt: true,
         buyer: { select: { name: true, imageUrl: true } },
@@ -61,6 +69,13 @@ export async function GET(req: NextRequest) {
     }),
     prisma.commissionRequest.count({ where }),
   ]);
+  const requests = requestRows.map(({ _count, ...request }) => ({
+    ...request,
+    interestedCount: resolvedInterestedCount({
+      interestedCount: request.interestedCount,
+      _count,
+    }),
+  }));
 
   return NextResponse.json({ requests, total, page, totalPages: Math.ceil(total / pageSize) });
 }
@@ -89,6 +104,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
   const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = parsed;
+  if ((referenceImageUrls?.length ?? 0) > 0) {
+    const { success: imageIpOk, reset: imageIpReset } = await safeRateLimit(
+      commissionReferenceImageIpRatelimit,
+      getIP(req),
+    );
+    if (!imageIpOk) {
+      return rateLimitResponse(imageIpReset, "Too many commission requests with reference images from this network.");
+    }
+  }
 
   // Profanity check (log-only — does not block submission)
   {

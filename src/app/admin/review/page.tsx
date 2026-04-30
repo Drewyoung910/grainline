@@ -104,7 +104,7 @@ export default async function AdminReviewPage() {
                       </div>
                     )}
                     {listing.aiReviewScore !== null && (
-                      <div className="text-xs text-neutral-400 mt-1">
+                      <div className="text-xs text-neutral-500 mt-1">
                         AI confidence: {Math.round((listing.aiReviewScore ?? 0) * 100)}%
                       </div>
                     )}

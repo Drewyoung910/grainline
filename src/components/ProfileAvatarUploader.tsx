@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 export default function ProfileAvatarUploader({
   initialUrl,
@@ -58,10 +59,7 @@ export default function ProfileAvatarUploader({
             button: ({ ready }) => (ready ? "Upload avatar" : "Preparing…"),
           }}
           onClientUploadComplete={(files) => {
-            const newUrl =
-              (files[0] as { ufsUrl?: string; url?: string })?.ufsUrl ??
-              (files[0] as { ufsUrl?: string; url?: string })?.url ??
-              null;
+            const newUrl = uploadedFileUrl(files[0]) || null;
             if (newUrl) setUrl(newUrl);
           }}
           onUploadError={(e) => emitToast(e.message, "error")}

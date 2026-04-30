@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 export default function NewCommissionPage() {
   const router = useRouter();
@@ -85,7 +86,7 @@ export default function NewCommissionPage() {
             className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
             required
           />
-          <p className="text-xs text-neutral-400 mt-1">{title.length}/100</p>
+          <p className="text-xs text-neutral-500 mt-1">{title.length}/100</p>
         </div>
 
         {/* Description */}
@@ -103,7 +104,7 @@ export default function NewCommissionPage() {
             className="w-full border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 resize-y"
             required
           />
-          <p className="text-xs text-neutral-400 mt-1">{description.length}/1000</p>
+          <p className="text-xs text-neutral-500 mt-1">{description.length}/1000</p>
         </div>
 
         {/* Category */}
@@ -127,7 +128,7 @@ export default function NewCommissionPage() {
           <label className="block text-sm font-medium text-neutral-700 mb-1">Budget range (optional)</label>
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">$</span>
               <input
                 type="number"
                 autoComplete="off"
@@ -138,9 +139,9 @@ export default function NewCommissionPage() {
                 className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />
             </div>
-            <span className="text-neutral-400 text-sm">to</span>
+            <span className="text-neutral-500 text-sm">to</span>
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">$</span>
               <input
                 type="number"
                 autoComplete="off"
@@ -172,7 +173,7 @@ export default function NewCommissionPage() {
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Reference images (optional, up to 3)
           </label>
-          <p className="text-xs text-neutral-400 mb-2">
+          <p className="text-xs text-neutral-500 mb-2">
             Share photos of styles, finishes, or designs you like.
             Only upload images you own or have permission to share.
             Reference images are visible to makers who view your request.
@@ -187,9 +188,7 @@ export default function NewCommissionPage() {
               }}
               content={{ button: ({ ready }) => (ready ? "Upload photos" : "Preparing…") }}
               onClientUploadComplete={(files) => {
-                const newUrls = files
-                  .map((f) => (f as { ufsUrl?: string }).ufsUrl ?? "")
-                  .filter(Boolean);
+                const newUrls = uploadedFileUrls(files);
                 setReferenceImageUrls((prev) => [...prev, ...newUrls].slice(0, 3));
               }}
               onUploadError={(e) => emitToast(e.message || "Upload failed", "error")}
@@ -244,7 +243,7 @@ export default function NewCommissionPage() {
               <span className="text-sm">Local makers only</span>
             </label>
           </div>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-xs text-neutral-500 mt-1">
             Local shows your request to makers within ~50 miles of your location (requires location set in your account)
           </p>
         </div>

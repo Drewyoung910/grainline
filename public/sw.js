@@ -1,10 +1,12 @@
-const CACHE_NAME = "grainline-offline-v1";
+const CACHE_NAME = "grainline-offline-v2";
 const OFFLINE_URL = "/offline";
+const PRECACHE_URLS = [OFFLINE_URL, "/manifest.json", "/favicon.png", "/icon-192.png", "/icon-512.png"];
+const STATIC_ASSET_PATHS = new Set(PRECACHE_URLS.filter((url) => url !== OFFLINE_URL));
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll([OFFLINE_URL, "/manifest.json", "/favicon.png", "/icon-192.png", "/icon-512.png"]),
+      cache.addAll(PRECACHE_URLS),
     ),
   );
 });
@@ -32,9 +34,18 @@ self.addEventListener("fetch", (event) => {
   }
 
   const url = new URL(request.url);
-  if (url.origin === self.location.origin && ["/manifest.json", "/favicon.png", "/icon-192.png", "/icon-512.png"].includes(url.pathname)) {
+  if (url.origin === self.location.origin && STATIC_ASSET_PATHS.has(url.pathname)) {
     event.respondWith(
-      caches.match(request).then((cached) => cached ?? fetch(request)),
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        try {
+          const fresh = await fetch(new Request(request, { cache: "reload" }));
+          if (fresh.ok) await cache.put(request, fresh.clone());
+          return fresh;
+        } catch {
+          return (await cache.match(request)) || Response.error();
+        }
+      })(),
     );
   }
 });

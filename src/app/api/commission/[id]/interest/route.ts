@@ -40,11 +40,12 @@ export async function POST(
   });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
   if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
-  if (!me.sellerProfile) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
-  if (!me.sellerProfile.chargesEnabled) {
+  const sellerProfile = me.sellerProfile;
+  if (!sellerProfile) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
+  if (!sellerProfile.chargesEnabled) {
     return NextResponse.json({ error: "Connect Stripe before expressing interest." }, { status: 403 });
   }
-  if (me.sellerProfile.vacationMode) {
+  if (sellerProfile.vacationMode) {
     return NextResponse.json({ error: "Turn off vacation mode before expressing interest." }, { status: 403 });
   }
 
@@ -93,7 +94,7 @@ export async function POST(
     where: {
       commissionRequestId_sellerProfileId: {
         commissionRequestId: id,
-        sellerProfileId: me.sellerProfile.id,
+        sellerProfileId: sellerProfile.id,
       },
     },
   });
@@ -124,24 +125,44 @@ export async function POST(
   }
   if (!convo) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
 
-  // Create interest record + increment counter + link conversation
-  await prisma.$transaction([
-    prisma.commissionInterest.create({
-      data: {
-        commissionRequestId: id,
-        sellerProfileId: me.sellerProfile.id,
-        conversationId: convo.id,
-      },
-    }),
-    prisma.commissionRequest.update({
-      where: { id },
-      data: { interestedCount: { increment: 1 } },
-    }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.commissionInterest.create({
+        data: {
+          commissionRequestId: id,
+          sellerProfileId: sellerProfile.id,
+          conversationId: convo.id,
+        },
+      });
+      const interestedCount = await tx.commissionInterest.count({
+        where: { commissionRequestId: id },
+      });
+      await tx.commissionRequest.update({
+        where: { id },
+        data: { interestedCount },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const racedExisting = await prisma.commissionInterest.findUnique({
+        where: {
+          commissionRequestId_sellerProfileId: {
+            commissionRequestId: id,
+            sellerProfileId: sellerProfile.id,
+          },
+        },
+        select: { conversationId: true },
+      });
+      if (racedExisting) {
+        return NextResponse.json({ conversationId: racedExisting.conversationId, alreadyInterested: true });
+      }
+    }
+    throw e;
+  }
 
   // Send a structured system message to the buyer
-  const sellerDisplayName = me.sellerProfile.displayName ?? me.name ?? "A maker";
-  const sellerName = me.sellerProfile.displayName ?? me.name ?? "A maker";
+  const sellerDisplayName = sellerProfile.displayName ?? me.name ?? "A maker";
+  const sellerName = sellerProfile.displayName ?? me.name ?? "A maker";
   after(async () => {
     try {
       await Promise.all([
@@ -168,6 +189,7 @@ export async function POST(
           title: `${sellerName} is interested in your commission`,
           body: `"${commissionRequest.title}" — view the conversation`,
           link: `/messages/${convo.id}`,
+          dedupScope: id,
         }),
       ]);
     } catch { /* non-fatal */ }

@@ -68,5 +68,5 @@ export async function GET(req: NextRequest) {
     sellerAvatarImageUrl: r.seller.avatarImageUrl ?? r.seller.user?.imageUrl ?? null,
   }));
 
-  return NextResponse.json({ listings });
+  return NextResponse.json({ listings, ids: ordered.map((r) => r.id) });
 }

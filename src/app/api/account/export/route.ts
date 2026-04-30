@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
+import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 
 export const runtime = "nodejs";
 
@@ -58,7 +59,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     savedSearches,
     follows,
     savedBlogPosts,
-    commissionRequests,
+    commissionRequestRows,
     commissionInterests,
     notifications,
   ] = await Promise.all([
@@ -319,6 +320,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         referenceImageUrls: true,
         status: true,
         interestedCount: true,
+        _count: { select: { interests: true } },
         expiresAt: true,
         isNational: true,
         lat: true,
@@ -341,6 +343,13 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       select: { id: true, type: true, title: true, body: true, link: true, read: true, createdAt: true },
     }),
   ]);
+  const commissionRequests = commissionRequestRows.map(({ _count, ...request }) => ({
+    ...request,
+    interestedCount: resolvedInterestedCount({
+      interestedCount: request.interestedCount,
+      _count,
+    }),
+  }));
 
   return buildAccountExportPayload(user, {
     sellerProfile,

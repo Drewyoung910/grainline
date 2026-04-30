@@ -148,7 +148,7 @@ export default async function ReviewsSection({
           <div className="flex items-center gap-2 text-sm text-neutral-700">
             <Stars value={avgQuarter} />
             <span>{(Math.round((avg ?? 0) * 10) / 10).toFixed(1)}</span>
-            <span className="text-neutral-400">({agg._count._all})</span>
+            <span className="text-neutral-500">({agg._count._all})</span>
           </div>
         )}
       </div>

@@ -14,21 +14,27 @@ export default function BlogCommentForm({
 }) {
   const [body, setBody] = React.useState("");
   const [status, setStatus] = React.useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = React.useState("Something went wrong. Please try again.");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!body.trim()) return;
     setStatus("loading");
+    setErrorMessage("Something went wrong. Please try again.");
     try {
       const res = await fetch(`/api/blog/${slug}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: body.trim(), ...(parentId ? { parentId } : {}) }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(data?.error || "Something went wrong. Please try again.");
+      }
       setStatus("success");
       setBody("");
-    } catch {
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Something went wrong. Please try again.");
       setStatus("error");
     }
   }
@@ -58,7 +64,7 @@ export default function BlogCommentForm({
         className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300 resize-none"
       />
       {status === "error" && (
-        <p className="text-sm text-red-600">Something went wrong. Please try again.</p>
+        <p className="text-sm text-red-600">{errorMessage}</p>
       )}
       <div className="flex items-center gap-2">
         <button

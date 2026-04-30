@@ -28,8 +28,11 @@ export async function POST(request: NextRequest) {
       Sentry.captureEvent({
         message: `CSP violation: ${directive}`,
         level: "warning",
+        fingerprint: ["csp-violation", directive],
         extra: report,
         tags: {
+          source: "csp_report",
+          event_kind: "security_policy",
           csp_violation: directive,
           blocked_uri: report["blocked-uri"],
         },

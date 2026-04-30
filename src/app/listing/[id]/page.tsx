@@ -1,7 +1,7 @@
 // src/app/listing/[id]/page.tsx
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import FavoriteButton from "@/components/FavoriteButton";
 import DynamicMapCard from "@/components/DynamicMapCard";
@@ -22,7 +22,7 @@ import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
 import { canViewListingDetail, isPublicListing } from "@/lib/listingVisibility";
-import { extractRouteId, publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -59,12 +59,9 @@ export async function generateMetadata(
       },
     },
   });
-  if (!listing) return {};
+  if (!listing) notFound();
   if (!isPublicListing(listing)) {
-    return {
-      title: listing.title,
-      robots: { index: false, follow: false },
-    };
+    notFound();
   }
   const sellerName = listing.seller.displayName ?? "Maker";
   const title = `${listing.title} by ${sellerName}`;
@@ -166,7 +163,24 @@ export default async function ListingPage({
     return notFound();
   }
 
-  const [ratingAgg, sellerRatingAgg, moreFromSeller, topReviews] = await Promise.all([
+  if (!isPreview && !editingMine && id !== routeSegmentWithSlug(listing.id, listing.title, "listing")) {
+    permanentRedirect(publicListingPath(listing.id, listing.title));
+  }
+
+  const isOutOfStock =
+    listing.status === "SOLD_OUT" ||
+    (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
+
+  const [
+    ratingAgg,
+    sellerRatingAgg,
+    moreFromSeller,
+    topReviews,
+    favoriteRow,
+    sellerFollowerCount,
+    isFollowingSeller,
+    stockNotificationRow,
+  ] = await Promise.all([
     prisma.review.aggregate({
       where: { listingId },
       _avg: { ratingX2: true },
@@ -202,31 +216,12 @@ export default async function ListingPage({
         reviewer: { select: { name: true } },
       },
     }),
-  ]);
-
-  const avgStarsRaw = ratingAgg._avg.ratingX2 ? ratingAgg._avg.ratingX2 / 2 : null;
-  const countReviews = ratingAgg._count._all || 0;
-  const stars = avgStarsRaw != null ? quarterRoundStars(avgStarsRaw) : null;
-
-  const sellerAvgRaw = sellerRatingAgg._avg.ratingX2
-    ? sellerRatingAgg._avg.ratingX2 / 2
-    : null;
-  const sellerReviewCount = sellerRatingAgg._count._all || 0;
-  const sellerStars = sellerAvgRaw != null ? quarterRoundStars(sellerAvgRaw) : null;
-
-  let isFavorited = false;
-  if (meId) {
-    isFavorited = !!(await prisma.favorite.findFirst({
-      where: { userId: meId, listingId },
-      select: { userId: true },
-    }));
-  }
-
-  const isOutOfStock =
-    listing.status === "SOLD_OUT" ||
-    (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
-
-  const [sellerFollowerCount, isFollowingSeller] = await Promise.all([
+    meId
+      ? prisma.favorite.findFirst({
+          where: { userId: meId, listingId },
+          select: { userId: true },
+        })
+      : Promise.resolve(null),
     prisma.follow.count({ where: { sellerProfileId: listing.sellerId } }),
     meId
       ? prisma.follow
@@ -241,15 +236,26 @@ export default async function ListingPage({
           })
           .then((r) => r !== null)
       : Promise.resolve(false),
+    meId && isOutOfStock
+      ? prisma.stockNotification.findUnique({
+          where: { listingId_userId: { listingId, userId: meId } },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
   ]);
 
-  let isNotified = false;
-  if (meId && isOutOfStock) {
-    isNotified = !!(await prisma.stockNotification.findUnique({
-      where: { listingId_userId: { listingId, userId: meId } },
-      select: { id: true },
-    }));
-  }
+  const avgStarsRaw = ratingAgg._avg.ratingX2 ? ratingAgg._avg.ratingX2 / 2 : null;
+  const countReviews = ratingAgg._count._all || 0;
+  const stars = avgStarsRaw != null ? quarterRoundStars(avgStarsRaw) : null;
+
+  const sellerAvgRaw = sellerRatingAgg._avg.ratingX2
+    ? sellerRatingAgg._avg.ratingX2 / 2
+    : null;
+  const sellerReviewCount = sellerRatingAgg._count._all || 0;
+  const sellerStars = sellerAvgRaw != null ? quarterRoundStars(sellerAvgRaw) : null;
+
+  const isFavorited = favoriteRow !== null;
+  const isNotified = stockNotificationRow !== null;
 
   const sellerName =
     listing.seller.displayName ?? listing.seller.user?.email ?? "Maker";
@@ -315,6 +321,7 @@ export default async function ListingPage({
       "@type": "Offer",
       priceCurrency: (listing.currency || "usd").toUpperCase(),
       price: (listing.priceCents / 100).toFixed(2),
+      priceValidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       availability: isOutOfStock
         ? "https://schema.org/OutOfStock"
         : listing.listingType === "MADE_TO_ORDER"
@@ -353,15 +360,16 @@ export default async function ListingPage({
     }));
   }
 
+  const categoryParam = listing.category ? listing.category.toLowerCase() : null;
   const breadcrumbItems: { "@type": string; position: number; name: string; item: string }[] = [
     { "@type": "ListItem", position: 1, name: "Home", item: "https://thegrainline.com" },
   ];
-  if (listing.category) {
+  if (listing.category && categoryParam) {
     breadcrumbItems.push({
       "@type": "ListItem",
       position: 2,
       name: CATEGORY_LABELS[listing.category] ?? listing.category,
-      item: `https://thegrainline.com/browse?category=${listing.category}`,
+      item: `https://thegrainline.com/browse?category=${categoryParam}`,
     });
     breadcrumbItems.push({
       "@type": "ListItem",
@@ -384,7 +392,7 @@ export default async function ListingPage({
   };
 
   return (
-    <div className="bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-screen">
+    <div className="bg-gradient-to-b from-amber-100/60 via-amber-50/30 to-white min-h-[100svh]">
     {isPreview && (
       <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-sm text-amber-800 text-center">
         Preview mode — this is how your listing appears to buyers. It is not yet published.
@@ -642,7 +650,7 @@ export default async function ListingPage({
                 <dt className="text-neutral-500 font-medium">Category</dt>
                 <dd>
                   <Link
-                    href={`/browse?category=${listing.category}`}
+                    href={`/browse?category=${categoryParam ?? listing.category}`}
                     className="text-neutral-800 hover:underline"
                   >
                     {CATEGORY_LABELS[listing.category] ?? listing.category}
@@ -727,7 +735,7 @@ export default async function ListingPage({
               <details className="border-b border-neutral-100 last:border-0">
                 <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
                   Returns & Exchanges
-                  <span className="text-neutral-400 text-xs">▾</span>
+                  <span className="text-neutral-500 text-xs">▾</span>
                 </summary>
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.returnPolicy}</p>
               </details>
@@ -736,7 +744,7 @@ export default async function ListingPage({
               <details className="border-b border-neutral-100 last:border-0">
                 <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
                   Shipping
-                  <span className="text-neutral-400 text-xs">▾</span>
+                  <span className="text-neutral-500 text-xs">▾</span>
                 </summary>
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.shippingPolicy}</p>
               </details>
@@ -745,7 +753,7 @@ export default async function ListingPage({
               <details className="border-b border-neutral-100 last:border-0">
                 <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
                   Custom Orders
-                  <span className="text-neutral-400 text-xs">▾</span>
+                  <span className="text-neutral-500 text-xs">▾</span>
                 </summary>
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.customOrderPolicy}</p>
               </details>

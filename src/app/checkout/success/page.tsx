@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
 import { ensureUserForPage } from "@/lib/pageAuth";
+import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
 import type { Metadata } from "next";
 
@@ -28,16 +29,10 @@ export default async function CheckoutSuccessPage({
   const sp = await searchParams;
   const sessionId = sp?.session_id;
   if (!sessionId) redirect("/cart");
-  const sessionIds = Array.from(
-    new Set(
-      [
-        ...(sp.session_ids ?? "").split(","),
-        sessionId,
-      ]
-        .map((id) => id.trim())
-        .filter((id) => /^cs_/.test(id)),
-    ),
-  ).slice(0, 10);
+  const { sessionIds, truncatedCount } = checkoutSuccessSessionIds({
+    sessionId,
+    sessionIds: sp.session_ids,
+  });
 
   const me = await ensureUserForPage(`/checkout/success?session_id=${encodeURIComponent(sessionId)}`);
 
@@ -72,13 +67,15 @@ export default async function CheckoutSuccessPage({
     });
 
     if (orders.length > 0) {
-      const currency = orders[0]?.currency || "usd";
+      const currencies = [...new Set(orders.map((order) => order.currency || "usd"))];
+      const currency = currencies[0] ?? "usd";
       const totalChargedCents = orders.reduce((sum, order) => {
         const itemsSubtotalCents =
           order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
-        return sum + itemsSubtotalCents + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0);
+        return sum + itemsSubtotalCents + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0) + (order.giftWrappingPriceCents || 0);
       }, 0);
       const pendingCount = Math.max(0, sessionIds.length - orders.length);
+      const hasMixedCurrencies = currencies.length > 1;
 
       return (
         <main className="mx-auto max-w-3xl p-8 space-y-6">
@@ -94,6 +91,11 @@ export default async function CheckoutSuccessPage({
               {pendingCount} {pendingCount === 1 ? "order is" : "orders are"} still being processed and will appear in your orders momentarily.
             </div>
           )}
+          {truncatedCount > 0 && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              {truncatedCount} additional checkout {truncatedCount === 1 ? "session was" : "sessions were"} omitted from this receipt view. Check your orders for the full list.
+            </div>
+          )}
 
           <section className="card-section">
             <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
@@ -103,7 +105,9 @@ export default async function CheckoutSuccessPage({
                   Buyer: {orders[0]?.buyer?.name ?? orders[0]?.buyer?.email ?? "Guest"}
                 </div>
               </div>
-              <div className="text-sm font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
+              <div className="text-sm font-semibold">
+                {hasMixedCurrencies ? `${orders.length} receipts` : fmtMoney(totalChargedCents, currency)}
+              </div>
             </div>
 
             <div className="divide-y divide-neutral-100">
@@ -113,7 +117,8 @@ export default async function CheckoutSuccessPage({
                   order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
                 const shippingAmountCents = order.shippingAmountCents || 0;
                 const taxAmountCents = order.taxAmountCents || 0;
-                const orderTotalCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents;
+                const giftWrappingPriceCents = order.giftWrappingPriceCents || 0;
+                const orderTotalCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents + giftWrappingPriceCents;
 
                 return (
                   <div key={order.id}>
@@ -164,6 +169,12 @@ export default async function CheckoutSuccessPage({
                         <div className="text-neutral-600">Tax</div>
                         <div className="font-medium">{fmtMoney(taxAmountCents, orderCurrency)}</div>
                       </div>
+                      {giftWrappingPriceCents > 0 && (
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="text-neutral-600">Gift wrapping</div>
+                          <div className="font-medium">{fmtMoney(giftWrappingPriceCents, orderCurrency)}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -507,7 +518,8 @@ export default async function CheckoutSuccessPage({
     order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shippingAmountCents = order.shippingAmountCents || 0;
   const taxAmountCents = order.taxAmountCents || 0;
-  const totalChargedCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents;
+  const giftWrappingPriceCents = order.giftWrappingPriceCents || 0;
+  const totalChargedCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents + giftWrappingPriceCents;
 
   return (
     <main className="mx-auto max-w-3xl p-8 space-y-6">
@@ -568,6 +580,12 @@ export default async function CheckoutSuccessPage({
             <div className="text-neutral-600">Tax</div>
             <div className="font-medium">{fmtMoney(taxAmountCents, currency)}</div>
           </div>
+          {giftWrappingPriceCents > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <div className="text-neutral-600">Gift wrapping</div>
+              <div className="font-medium">{fmtMoney(giftWrappingPriceCents, currency)}</div>
+            </div>
+          )}
           <hr className="my-1" />
           <div className="flex items-center justify-between text-base">
             <div className="text-neutral-800">Total charged</div>

@@ -3,6 +3,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { Wrench } from "@/components/icons";
 
 export default function Error({
@@ -13,12 +14,34 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
+    const existing = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const created = !existing;
+    const previousContent = existing?.getAttribute("content") ?? null;
+    const meta = existing ?? document.createElement("meta");
+    meta.name = "robots";
+    meta.content = "noindex,nofollow";
+    if (!existing) document.head.appendChild(meta);
+    return () => {
+      if (created) {
+        meta.remove();
+        return;
+      }
+      if (previousContent === null) {
+        meta.removeAttribute("content");
+        return;
+      }
+      meta.content = previousContent;
+    };
+  }, []);
+
+  useEffect(() => {
     console.error(error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (
     <main className="flex min-h-[60vh] flex-col items-center justify-center px-8 text-center space-y-6">
-      <div className="text-neutral-400"><Wrench size={48} /></div>
+      <div className="text-neutral-500"><Wrench size={48} /></div>
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">
           Something splintered.

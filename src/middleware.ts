@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { prisma } from "@/lib/db";
+import { verifyCronRequest } from "@/lib/cronAuth";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -19,6 +20,7 @@ const isPublic = createRouteMatcher([
   "/terms",               // Terms of Service — public legal page
   "/privacy",             // Privacy Policy — public legal page
   "/not-available",       // geo-block landing page — no auth needed
+  "/monitoring",          // Sentry client-event tunnel — no Clerk session
   "/about",               // About page — public
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
@@ -26,7 +28,6 @@ const isPublic = createRouteMatcher([
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
   "/api/resend/webhook",   // Resend webhook — called by Resend servers, no Clerk session
   "/api/email/unsubscribe", // One-click email unsubscribe — called by mail providers, no Clerk session
-  "/api/whoami",
   "/api/me",
   "/api/reviews(.*)",     // GET/PATCH/POST/DELETE reviews (public read)
   "/api/blog(.*)",        // blog API — public GET; POST auth handled in route
@@ -38,9 +39,9 @@ const isPublic = createRouteMatcher([
   "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
   "/api/csp-report",           // CSP violation reports — no auth needed
   "/api/newsletter",           // newsletter signup — no auth needed
-  "/api/listings/(.*)/view",   // listing view tracking — fire-and-forget analytics
-  "/api/listings/(.*)/click",  // listing click tracking — fire-and-forget analytics
-  "/api/listings/(.*)/similar",       // similar listings — public
+  "/api/listings/([^/]+)/view",   // listing view tracking — fire-and-forget analytics
+  "/api/listings/([^/]+)/click",  // listing click tracking — fire-and-forget analytics
+  "/api/listings/([^/]+)/similar",       // similar listings — public
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
   "/api/health",                      // health check — public (UptimeRobot monitoring)
   "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
@@ -58,6 +59,7 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/accessibility",
   "/unsubscribe",
   "/not-available",
+  "/monitoring",
   "/api/clerk/webhook",
   "/api/stripe/webhook",
   "/api/resend/webhook",
@@ -79,12 +81,16 @@ function isGeoAllowedApiPath(pathname: string): boolean {
     pathname === "/api/health" ||
     pathname === "/api/health/deep" ||
     pathname === "/api/csp-report" ||
-    pathname.startsWith("/api/cron") ||
+    pathname.startsWith("/api/cron/") ||
     pathname === "/api/clerk/webhook" ||
     pathname === "/api/stripe/webhook" ||
     pathname === "/api/resend/webhook" ||
     pathname === "/api/email/unsubscribe"
   );
+}
+
+function isCronPath(pathname: string): boolean {
+  return pathname === "/api/cron" || pathname.startsWith("/api/cron/");
 }
 
 export default clerkMiddleware(async (auth, req) => {
@@ -96,6 +102,7 @@ export default clerkMiddleware(async (auth, req) => {
     // Allow not-available page, static assets, and API routes needed for the page
     const isAllowed =
       pathname.startsWith("/not-available") ||
+      pathname.startsWith("/monitoring") ||
       isGeoAllowedApiPath(pathname) ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/favicon") ||
@@ -107,6 +114,10 @@ export default clerkMiddleware(async (auth, req) => {
     if (!isAllowed) {
       return NextResponse.redirect(new URL("/not-available", req.url));
     }
+  }
+
+  if (isCronPath(req.nextUrl.pathname) && !verifyCronRequest(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Enforce authentication on all non-public routes

@@ -10,10 +10,9 @@ import SearchBar from "@/components/SearchBar";
 import NotificationBell from "@/components/NotificationBell";
 import UserAvatarMenu from "@/components/UserAvatarMenu";
 import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User } from "@/components/icons";
+import { anonymousCartCount } from "@/lib/anonymousCart";
+import { subscribeCartUpdated } from "@/lib/cartEvents";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
-
-// Set to false to hide Commission Room from nav
-const COMMISSION_ROOM_ENABLED = true;
 
 export default function Header() {
   const pathname = usePathname();
@@ -69,6 +68,10 @@ export default function Header() {
     }
   }, []);
 
+  const loadAnonymousCartCount = React.useCallback(() => {
+    setCartCount(anonymousCartCount());
+  }, []);
+
   const loadNotifCount = React.useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
@@ -89,7 +92,7 @@ export default function Header() {
         setName(null);
         setImageUrl(null);
         setAvatarImageUrl(null);
-        setCartCount(0);
+        loadAnonymousCartCount();
         setUnreadNotifCount(0);
         setIsLoggedIn(false);
         return;
@@ -109,15 +112,19 @@ export default function Header() {
       setHasSeller(false);
       setIsLoggedIn(false);
     }
-  }, [loadCartCount, loadNotifCount]);
+  }, [loadAnonymousCartCount, loadCartCount, loadNotifCount]);
 
   React.useEffect(() => {
     loadAll();
-    const onUpdated = () => { if (isLoggedIn) loadCartCount(); };
-    window.addEventListener("cart:updated", onUpdated);
-    return () => window.removeEventListener("cart:updated", onUpdated);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, searchParams]);
+  }, [loadAll]);
+
+  React.useEffect(() => {
+    const onUpdated = () => {
+      if (isLoggedIn) loadCartCount();
+      else loadAnonymousCartCount();
+    };
+    return subscribeCartUpdated(onUpdated);
+  }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
     <header className="border-b bg-gradient-to-b from-amber-50 to-white relative z-[50]">
@@ -145,11 +152,9 @@ export default function Header() {
           <Link href="/blog" className="text-neutral-800">
             Blog
           </Link>
-          {COMMISSION_ROOM_ENABLED && (
-            <Link href="/commission" className="text-neutral-800">
-              Commission Room
-            </Link>
-          )}
+          <Link href="/commission" className="text-neutral-800">
+            Commission Room
+          </Link>
 
           <Show when="signed-in">
             <NotificationBell initialUnreadCount={0} />
@@ -318,15 +323,13 @@ export default function Header() {
               >
                 Blog
               </Link>
-              {COMMISSION_ROOM_ENABLED && (
-                <Link
-                  href="/commission"
-                  className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
-                  onClick={() => setDrawerOpen(false)}
-                >
-                  Commission Room
-                </Link>
-              )}
+              <Link
+                href="/commission"
+                className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"
+                onClick={() => setDrawerOpen(false)}
+              >
+                Commission Room
+              </Link>
 
               <Show when="signed-in">
                 {/* My Account */}

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 const TIMELINE_OPTIONS = [
   { value: "no_rush", label: "No rush (2+ months)" },
@@ -33,6 +34,10 @@ export default function CustomOrderRequestForm({
   const [success, setSuccess] = React.useState(false);
   const [conversationId, setConversationId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+
+  useDialogFocus(open, dialogRef, handleClose);
+  useBodyScrollLock(open);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -95,13 +100,20 @@ export default function CustomOrderRequestForm({
             if (e.target === e.currentTarget) handleClose();
           }}
         >
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden">
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="custom-order-dialog-title"
+            tabIndex={-1}
+            className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden"
+          >
             <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
-              <h2 className="text-lg font-semibold">Request a Custom Piece</h2>
+              <h2 id="custom-order-dialog-title" className="text-lg font-semibold">Request a Custom Piece</h2>
               <button
                 type="button"
                 onClick={handleClose}
-                className="text-2xl leading-none text-neutral-400 hover:text-neutral-900"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center text-2xl leading-none text-neutral-500 hover:text-neutral-900"
                 aria-label="Close"
               >
                 ×

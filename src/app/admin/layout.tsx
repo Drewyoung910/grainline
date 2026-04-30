@@ -39,7 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-neutral-100">
+    <div className="flex flex-col md:flex-row min-h-[100svh] bg-neutral-100">
       {/* ── Mobile tab strip (< md) ── */}
       <AdminMobileNav
         openCaseCount={openCaseCount}
@@ -51,7 +51,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* ── Desktop sidebar (md+) ── */}
       <aside className="hidden md:block w-52 shrink-0 border-r border-neutral-200 bg-white px-3 py-8">
         <div className="px-2 mb-5">
-          <span className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
+          <span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
             Admin
           </span>
         </div>
@@ -67,7 +67,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             href="/admin/orders"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <Package size={16} className="shrink-0 text-neutral-400" />
+            <Package size={16} className="shrink-0 text-neutral-500" />
             All Orders
           </Link>
           <Link
@@ -75,7 +75,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="shrink-0 text-neutral-400" />
+              <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
               Cases
             </div>
             {openCaseCount > 0 && (
@@ -89,7 +89,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             <div className="flex items-center gap-2">
-              <Shield size={16} className="shrink-0 text-neutral-400" />
+              <Shield size={16} className="shrink-0 text-neutral-500" />
               Verification
             </div>
             {pendingVerificationCount > 0 && (
@@ -103,7 +103,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             <div className="flex items-center gap-2">
-              <Edit size={16} className="shrink-0 text-neutral-400" />
+              <Edit size={16} className="shrink-0 text-neutral-500" />
               Blog
             </div>
             {pendingCommentCount > 0 && (
@@ -116,7 +116,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             href="/admin/broadcasts"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <Rss size={16} className="shrink-0 text-neutral-400" />
+            <Rss size={16} className="shrink-0 text-neutral-500" />
             Broadcasts
           </Link>
           <Link
@@ -124,7 +124,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             <div className="flex items-center gap-2">
-              <Eye size={16} className="shrink-0 text-neutral-400" />
+              <Eye size={16} className="shrink-0 text-neutral-500" />
               Review Queue
             </div>
             {pendingReviewCount > 0 && (
@@ -137,28 +137,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             href="/admin/reviews"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <Star size={16} className="shrink-0 text-neutral-400" />
+            <Star size={16} className="shrink-0 text-neutral-500" />
             Reviews
           </Link>
           <Link
             href="/admin/reports"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <AlertTriangle size={16} className="shrink-0 text-neutral-400" />
+            <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
             Reports
           </Link>
           <Link
             href="/admin/users"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <User size={16} className="shrink-0 text-neutral-400" />
+            <User size={16} className="shrink-0 text-neutral-500" />
             Users
           </Link>
           <Link
             href="/admin/audit"
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
-            <Shield size={16} className="shrink-0 text-neutral-400" />
+            <Shield size={16} className="shrink-0 text-neutral-500" />
             Audit Log
           </Link>
         </nav>

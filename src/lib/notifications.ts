@@ -2,44 +2,25 @@ import { prisma } from "@/lib/db";
 import { NotificationType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { notificationDedupKey } from "@/lib/notificationDedup";
+import {
+  NOTIFICATION_BODY_MAX_LENGTH,
+  NOTIFICATION_LINK_MAX_LENGTH,
+  NOTIFICATION_TITLE_MAX_LENGTH,
+  limitNotificationText,
+} from "@/lib/notificationPayload";
+import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
+import {
+  VALID_EMAIL_PREFERENCE_KEYS,
+  VALID_IN_APP_PREFERENCE_KEYS,
+  VALID_PREFERENCE_KEYS,
+} from "@/lib/notificationPreferenceKeys";
+import { emailPreferenceDefaultEnabled } from "@/lib/notificationEmailPreferences";
 
-const DEFAULT_OFF_EMAIL_KEYS = ["EMAIL_SELLER_BROADCAST", "EMAIL_NEW_FOLLOWER"];
-
-/** All valid notification preference keys. Shared between the preferences API
- *  route and anywhere else that needs to validate preference keys.
- *  Add new keys here when adding new notification types. */
-export const VALID_IN_APP_PREFERENCE_KEYS = [
-  // In-app notification types
-  "NEW_MESSAGE", "NEW_ORDER", "ORDER_SHIPPED", "ORDER_DELIVERED",
-  "CASE_OPENED", "CASE_MESSAGE", "CASE_RESOLVED", "REFUND_ISSUED",
-  "CUSTOM_ORDER_REQUEST", "CUSTOM_ORDER_LINK",
-  "VERIFICATION_APPROVED", "VERIFICATION_REJECTED",
-  "BACK_IN_STOCK", "NEW_REVIEW", "LOW_STOCK", "NEW_FAVORITE",
-  "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY",
-  "NEW_FOLLOWER", "FOLLOWED_MAKER_NEW_LISTING", "FOLLOWED_MAKER_NEW_BLOG",
-  "SELLER_BROADCAST", "COMMISSION_INTEREST",
-  "LISTING_APPROVED", "LISTING_REJECTED", "ACCOUNT_WARNING",
-  "LISTING_FLAGGED_BY_USER", "PAYMENT_DISPUTE", "PAYOUT_FAILED",
-] as const;
-
-export const VALID_EMAIL_PREFERENCE_KEYS = [
-  // Email preference keys
-  "EMAIL_NEW_MESSAGE", "EMAIL_NEW_ORDER", "EMAIL_ORDER_SHIPPED", "EMAIL_ORDER_DELIVERED",
-  "EMAIL_CASE_OPENED", "EMAIL_CASE_MESSAGE", "EMAIL_CASE_RESOLVED", "EMAIL_REFUND_ISSUED",
-  "EMAIL_CUSTOM_ORDER", "EMAIL_CUSTOM_ORDER_LINK",
-  "EMAIL_VERIFICATION_APPROVED", "EMAIL_VERIFICATION_REJECTED",
-  "EMAIL_BACK_IN_STOCK", "EMAIL_NEW_REVIEW", "EMAIL_LOW_STOCK", "EMAIL_NEW_FAVORITE",
-  "EMAIL_NEW_BLOG_COMMENT", "EMAIL_BLOG_COMMENT_REPLY",
-  "EMAIL_NEW_FOLLOWER", "EMAIL_FOLLOWED_MAKER_NEW_LISTING", "EMAIL_FOLLOWED_MAKER_NEW_BLOG",
-  "EMAIL_SELLER_BROADCAST", "EMAIL_COMMISSION_INTEREST",
-  "EMAIL_LISTING_APPROVED", "EMAIL_LISTING_REJECTED", "EMAIL_ACCOUNT_WARNING",
-  "EMAIL_LISTING_FLAGGED_BY_USER", "EMAIL_PAYMENT_DISPUTE", "EMAIL_PAYOUT_FAILED",
-] as const;
-
-export const VALID_PREFERENCE_KEYS = [
-  ...VALID_IN_APP_PREFERENCE_KEYS,
-  ...VALID_EMAIL_PREFERENCE_KEYS,
-] as const;
+export {
+  VALID_EMAIL_PREFERENCE_KEYS,
+  VALID_IN_APP_PREFERENCE_KEYS,
+  VALID_PREFERENCE_KEYS,
+} from "@/lib/notificationPreferenceKeys";
 
 function isNotificationDedupError(error: unknown) {
   const err = error as { code?: string; meta?: { target?: string[] | string } };
@@ -56,15 +37,20 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
       where: { id: userId },
       select: { notificationPreferences: true, banned: true, deletedAt: true },
     });
-    if (user?.banned || user?.deletedAt) return false; // don't email suspended/deleted users
+    if (!user || user.banned || user.deletedAt) return false; // don't email suspended/deleted users
     const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
-    if (DEFAULT_OFF_EMAIL_KEYS.includes(prefKey)) {
+    if (!emailPreferenceDefaultEnabled(prefKey)) {
       return prefs[prefKey] === true;
     }
     return prefs[prefKey] !== false;
   } catch (e) {
     console.error("Failed to check email preference:", e);
-    return false;
+    const fallbackEnabled = emailPreferenceDefaultEnabled(prefKey);
+    Sentry.captureException(e, {
+      tags: { source: "email_preference_check" },
+      extra: { userId, prefKey, fallbackEnabled },
+    });
+    return fallbackEnabled;
   }
 }
 
@@ -74,12 +60,14 @@ export async function createNotification({
   title,
   body,
   link,
+  dedupScope,
 }: {
   userId: string;
   type: NotificationType;
   title: string;
   body: string;
   link?: string;
+  dedupScope?: string;
 }) {
   try {
     // Check notification preferences — if explicitly disabled, skip
@@ -90,13 +78,25 @@ export async function createNotification({
     if (!user || user.banned || user.deletedAt) return null;
 
     const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
-    if (prefs[type] === false) return null;
+    if (!isInAppNotificationEnabled(prefs, type)) return null;
 
-    const dedupKey = notificationDedupKey({ userId, type, link });
+    const notificationTitle = limitNotificationText(title, NOTIFICATION_TITLE_MAX_LENGTH);
+    const notificationBody = limitNotificationText(body, NOTIFICATION_BODY_MAX_LENGTH);
+    const notificationLink = link
+      ? limitNotificationText(link, NOTIFICATION_LINK_MAX_LENGTH)
+      : undefined;
+    const dedupKey = notificationDedupKey({ userId, type, link: notificationLink, dedupScope });
 
     try {
       return await prisma.notification.create({
-        data: { userId, type, title, body, link, dedupKey },
+        data: {
+          userId,
+          type,
+          title: notificationTitle,
+          body: notificationBody,
+          link: notificationLink,
+          dedupKey,
+        },
       });
     } catch (error) {
       if (isNotificationDedupError(error)) {

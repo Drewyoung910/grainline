@@ -64,10 +64,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[9999] space-y-2 pointer-events-none">
+      <div
+        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-[9999] space-y-2 pointer-events-none"
+        aria-live="polite"
+        aria-atomic="false"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
+            role={t.type === "error" ? "alert" : "status"}
             className={`pointer-events-auto rounded-md px-4 py-2.5 text-sm font-medium shadow-lg animate-slide-up ${
               t.type === "error"
                 ? "bg-red-600 text-white"

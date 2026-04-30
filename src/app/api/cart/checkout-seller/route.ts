@@ -9,6 +9,7 @@ import { safeRateLimit, checkoutRatelimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import { resolveListingVariantSelection, type SelectedVariantSnapshot } from "@/lib/listingVariants";
+import { stripeStatementDescriptorSuffix } from "@/lib/stripeStatementDescriptor";
 import {
   acquireCheckoutLock,
   cartCheckoutLockKey,
@@ -17,6 +18,7 @@ import {
   markCheckoutLockReady,
   releaseCheckoutLock,
 } from "@/lib/checkoutSessionLock";
+import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -120,6 +122,15 @@ export async function POST(req: Request) {
     }
 
     const currency = (sellerItems[0].listing.currency || "usd").toLowerCase();
+    const mixedCurrencyItem = sellerItems.find(
+      (item) => (item.listing.currency || "usd").toLowerCase() !== currency,
+    );
+    if (mixedCurrencyItem) {
+      return NextResponse.json(
+        { error: "Items with different currencies cannot be checked out together." },
+        { status: 400 },
+      );
+    }
     const destination = sellerItems[0].listing.seller.stripeAccountId || null;
     const sellerChargesEnabled = sellerItems[0].listing.seller.chargesEnabled ?? false;
 
@@ -232,7 +243,14 @@ export async function POST(req: Request) {
       }
 
       const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
-      if (unitPriceCents !== item.priceCents) {
+      if (unitPriceCents !== item.priceCents || item.priceVersion !== item.listing.priceVersion) {
+        await prisma.cartItem.update({
+          where: { id: item.id },
+          data: {
+            priceCents: unitPriceCents,
+            priceVersion: item.listing.priceVersion,
+          },
+        });
         return NextResponse.json(
           {
             error: "Price changed since this item was added to your cart. Review your cart before checking out.",
@@ -241,6 +259,8 @@ export async function POST(req: Request) {
             listingId: item.listingId,
             oldPriceCents: item.priceCents,
             newPriceCents: unitPriceCents,
+            oldPriceVersion: item.priceVersion,
+            newPriceVersion: item.listing.priceVersion,
           },
           { status: 409 },
         );
@@ -372,10 +392,12 @@ export async function POST(req: Request) {
       if (
         existingCheckoutLock.payloadHash === payloadHash &&
         existingCheckoutLock.state === "ready" &&
-        existingCheckoutLock.clientSecret
+        existingCheckoutLock.clientSecret &&
+        existingCheckoutLock.sessionId
       ) {
         return NextResponse.json({
           clientSecret: existingCheckoutLock.clientSecret,
+          sessionId: existingCheckoutLock.sessionId,
           reused: true,
         });
       }
@@ -391,10 +413,12 @@ export async function POST(req: Request) {
       if (
         racedCheckoutLock?.payloadHash === payloadHash &&
         racedCheckoutLock.state === "ready" &&
-        racedCheckoutLock.clientSecret
+        racedCheckoutLock.clientSecret &&
+        racedCheckoutLock.sessionId
       ) {
         return NextResponse.json({
           clientSecret: racedCheckoutLock.clientSecret,
+          sessionId: racedCheckoutLock.sessionId,
           reused: true,
         });
       }
@@ -437,11 +461,31 @@ export async function POST(req: Request) {
 
     const return_url = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 
-    const csDescriptor = (sellerItems[0].listing.seller.displayName ?? "")
-      .slice(0, 22).toUpperCase().replace(/[^A-Z0-9 ]/g, "").trim();
+    const csDescriptor = stripeStatementDescriptorSuffix(sellerItems[0].listing.seller.displayName);
     const reservedStockMetadata = reservedItems
       .map((item) => `${item.listingId}:${item.quantity}`)
       .join(",");
+    const checkoutMetadata: Record<string, string> = {
+      cartId: cart.id,
+      buyerId: me.id,
+      sellerId,
+      taxRetainedAtCreation: "true",
+      selectedRateObjectId: body.selectedRate.objectId,
+      quotedToName: body.shippingAddress.name,
+      quotedToLine1: body.shippingAddress.line1,
+      quotedToLine2: body.shippingAddress.line2 ?? "",
+      quotedToCity: body.shippingAddress.city,
+      quotedToState: body.shippingAddress.state,
+      quotedToPostalCode: body.shippingAddress.postalCode,
+      quotedToCountry: "US",
+      quotedToPhone: body.shippingAddress.phone ?? "",
+      quotedShippingAmountCents: String(shippingAmountCents),
+      giftNote: giftNote ?? "",
+      giftWrapping: giftWrapping ? "true" : "false",
+      giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
+      checkoutLockKey: checkoutLockKeyValue,
+      ...(reservedStockMetadata.length <= 500 ? { reservedStock: reservedStockMetadata } : {}),
+    };
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
@@ -476,29 +520,9 @@ export async function POST(req: Request) {
           // Do not also set application_fee_amount with this manual transfer model.
           amount: sellerTransferAmount,
         },
-        ...(csDescriptor.length > 0 && { statement_descriptor_suffix: csDescriptor }),
+        statement_descriptor_suffix: csDescriptor,
       },
-      metadata: {
-        cartId: cart.id,
-        buyerId: me.id,
-        sellerId,
-        taxRetainedAtCreation: "true",
-        selectedRateObjectId: body.selectedRate.objectId,
-        quotedToName: body.shippingAddress.name,
-        quotedToLine1: body.shippingAddress.line1,
-        quotedToLine2: body.shippingAddress.line2 ?? "",
-        quotedToCity: body.shippingAddress.city,
-        quotedToState: body.shippingAddress.state,
-        quotedToPostalCode: body.shippingAddress.postalCode,
-        quotedToCountry: "US",
-        quotedToPhone: body.shippingAddress.phone ?? "",
-        quotedShippingAmountCents: String(shippingAmountCents),
-        giftNote: giftNote ?? "",
-        giftWrapping: giftWrapping ? "true" : "false",
-        giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
-        checkoutLockKey: checkoutLockKeyValue,
-        ...(reservedStockMetadata.length <= 500 && { reservedStock: reservedStockMetadata }),
-      },
+      metadata: checkoutMetadata,
     });
 
     try {
@@ -514,9 +538,20 @@ export async function POST(req: Request) {
           tags: { source: "checkout_lock_ready", route: "cart_checkout_seller" },
           extra: { checkoutLockKey: checkoutLockKeyValue, stripeSessionId: session.id },
         });
-        await stripe.checkout.sessions.expire(session.id).catch((error) => {
+        let staleSessionExpired = false;
+        await stripe.checkout.sessions.expire(session.id).then(() => {
+          staleSessionExpired = true;
+        }).catch((error) => {
           Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
         });
+        if (staleSessionExpired) {
+          await restoreUnorderedCheckoutStockOnce({
+            sessionId: session.id,
+            metadata: checkoutMetadata,
+          }).catch((error) => {
+            Sentry.captureException(error, { tags: { source: "checkout_lock_restore_stale" } });
+          });
+        }
         return NextResponse.json(
           { error: "Checkout state changed. Please try again." },
           { status: 409 },
@@ -526,7 +561,7 @@ export async function POST(req: Request) {
       Sentry.captureException(lockErr, { tags: { source: "checkout_lock_ready" } });
     }
 
-    return NextResponse.json({ clientSecret: session.client_secret });
+    return NextResponse.json({ clientSecret: session.client_secret, sessionId: session.id });
   } catch (err: unknown) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;

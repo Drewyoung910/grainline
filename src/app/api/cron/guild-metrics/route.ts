@@ -194,9 +194,13 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
       where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
       data: {
         guildLevel: "GUILD_MEMBER",
+        isVerifiedMaker: true,
         consecutiveMetricFailures: 0,
         metricWarningSentAt: null,
         lastMetricCheckAt: now,
+        guildMasterApprovedAt: null,
+        guildMasterAppliedAt: null,
+        guildMasterReviewNotes: null,
       },
     });
     if (updated.count === 0) return false;

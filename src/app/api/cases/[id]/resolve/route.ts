@@ -10,10 +10,12 @@ import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/mar
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
+  blockingRefundLedgerWhere,
   orderHasRefundLedger,
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
+  refundLockAcquisitionConflictResponse,
   refundStockRestoreQuantities,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
@@ -78,9 +80,9 @@ export async function POST(
               },
             },
             paymentEvents: {
-              where: { eventType: "REFUND" },
+              where: blockingRefundLedgerWhere(),
               take: 1,
-              select: { eventType: true },
+              select: { eventType: true, status: true },
             },
           },
         },
@@ -133,13 +135,25 @@ export async function POST(
       }
 
       const lockResult = await prisma.order.updateMany({
-        where: { id: caseRecord.orderId, sellerRefundId: null, paymentEvents: { none: { eventType: "REFUND" } } },
+        where: { id: caseRecord.orderId, sellerRefundId: null, paymentEvents: { none: blockingRefundLedgerWhere() } },
         data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
       });
       if (lockResult.count === 0) {
+        const freshOrder = await prisma.order.findUnique({
+          where: { id: caseRecord.orderId },
+          select: {
+            sellerRefundId: true,
+            paymentEvents: {
+              where: blockingRefundLedgerWhere(),
+              take: 1,
+              select: { eventType: true, status: true },
+            },
+          },
+        });
+        const conflict = refundLockAcquisitionConflictResponse(freshOrder);
         return NextResponse.json(
-          { error: "A refund has already been issued for this order." },
-          { status: 400 },
+          { error: conflict.error },
+          { status: conflict.status },
         );
       }
 
@@ -150,6 +164,7 @@ export async function POST(
           amountCents: refundAmountForOrder!,
           itemsSubtotalCents: caseRecord.order.itemsSubtotalCents,
           shippingAmountCents: caseRecord.order.shippingAmountCents,
+          giftWrappingPriceCents: caseRecord.order.giftWrappingPriceCents,
           taxAmountCents: caseRecord.order.taxAmountCents,
           canReverseTransfer: Boolean(caseRecord.seller.sellerProfile?.stripeAccountId),
           idempotencyKeyBase: `case-resolve:${id}:${resolution}:${refundAmountForOrder ?? 0}`,
@@ -178,12 +193,22 @@ export async function POST(
               reviewNeeded: true,
               reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} succeeded before a later refund step failed. Manual reconciliation required.`,
             },
-          }).catch(() => {});
+          }).catch((dbError) => {
+            Sentry.captureException(dbError, {
+              tags: { source: "case_refund_orphan_record_failed" },
+              extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, stripeRefundIds },
+            });
+          });
         } else {
           await prisma.order.updateMany({
             where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
             data: { sellerRefundId: null, sellerRefundLockedAt: null },
-          }).catch(() => {});
+          }).catch((dbError) => {
+            Sentry.captureException(dbError, {
+              tags: { source: "case_refund_lock_release_failed" },
+              extra: { caseId: id, orderId: caseRecord.orderId },
+            });
+          });
         }
         throw stripeErr;
       }

@@ -5,15 +5,18 @@ type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL" | 
 type OrderRefundTotals = {
   itemsSubtotalCents: number | null;
   shippingAmountCents: number | null;
+  giftWrappingPriceCents: number | null;
   taxAmountCents: number | null;
 };
 
 export const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "warning_closed"]);
+export const NON_BLOCKING_REFUND_LEDGER_STATUSES = ["failed", "canceled", "cancelled"] as const;
 
 export function orderRefundTotalCents(order: OrderRefundTotals) {
   return (
     (order.itemsSubtotalCents ?? 0) +
     (order.shippingAmountCents ?? 0) +
+    (order.giftWrappingPriceCents ?? 0) +
     (order.taxAmountCents ?? 0)
   );
 }
@@ -53,6 +56,26 @@ export function isOpenStripeDisputeStatus(status: string | null | undefined) {
   return !STRIPE_DISPUTE_CLOSED_STATUSES.has((status ?? "").toLowerCase());
 }
 
+export function isBlockingRefundLedgerEvent(event: {
+  eventType?: string | null | undefined;
+  status?: string | null | undefined;
+}) {
+  if (event.eventType !== "REFUND") return false;
+  return !NON_BLOCKING_REFUND_LEDGER_STATUSES.includes(
+    (event.status ?? "").toLowerCase() as (typeof NON_BLOCKING_REFUND_LEDGER_STATUSES)[number],
+  );
+}
+
+export function blockingRefundLedgerWhere() {
+  return {
+    eventType: "REFUND",
+    OR: [
+      { status: null },
+      { status: { notIn: [...NON_BLOCKING_REFUND_LEDGER_STATUSES] } },
+    ],
+  };
+}
+
 export function sellerRefundConflictResponse(sellerRefundId: string | null | undefined) {
   if (!sellerRefundId) return null;
   const pending = sellerRefundId === REFUND_LOCK_SENTINEL;
@@ -66,16 +89,49 @@ export function sellerRefundConflictResponse(sellerRefundId: string | null | und
 
 export function orderHasRefundLedger(order: {
   sellerRefundId?: string | null | undefined;
-  paymentEvents?: Array<{ eventType?: string | null | undefined }> | null | undefined;
+  paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
 }) {
   return Boolean(order.sellerRefundId) ||
-    Boolean(order.paymentEvents?.some((event) => event.eventType === "REFUND"));
+    Boolean(order.paymentEvents?.some(isBlockingRefundLedgerEvent));
+}
+
+export function orderHasPurchasedLabel(order: { labelStatus?: string | null | undefined }) {
+  return order.labelStatus === "PURCHASED";
+}
+
+export function refundLockAcquisitionConflictResponse(order: {
+  sellerRefundId?: string | null | undefined;
+  labelStatus?: string | null | undefined;
+  paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
+} | null | undefined) {
+  const refundConflict = sellerRefundConflictResponse(order?.sellerRefundId);
+  if (refundConflict) return refundConflict;
+
+  if (order && orderHasRefundLedger(order)) {
+    return {
+      status: 400,
+      error: "A refund has already been issued for this order.",
+    };
+  }
+
+  if (order && orderHasPurchasedLabel(order)) {
+    return {
+      status: 409,
+      error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
+    };
+  }
+
+  return {
+    status: 409,
+    error: "Refund state changed while processing. Refresh and try again.",
+  };
 }
 
 export function latestRefundLedgerEvent<T extends {
   eventType?: string | null | undefined;
+  status?: string | null | undefined;
 }>(paymentEvents: T[] | null | undefined): T | null {
-  return paymentEvents?.find((event) => event.eventType === "REFUND") ?? null;
+  return paymentEvents?.find(isBlockingRefundLedgerEvent) ?? null;
 }
 
 type RefundStockRestoreItem = {

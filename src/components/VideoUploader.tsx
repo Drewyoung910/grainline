@@ -3,6 +3,7 @@
 import { useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 export default function VideoUploader({ name = "videoUrl" }: { name?: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -15,7 +16,7 @@ export default function VideoUploader({ name = "videoUrl" }: { name?: string }) 
         onUploadProgress={() => setBusy(true)}
         onClientUploadComplete={(files) => {
           setBusy(false);
-          const u = files?.[0]?.ufsUrl ?? null;
+          const u = uploadedFileUrl(files?.[0]) || null;
           setUrl(u);
         }}
         onUploadError={(e) => {

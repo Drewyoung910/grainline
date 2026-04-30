@@ -4,6 +4,7 @@
 import { useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 export default function ImageUploadField({
   name,
@@ -39,8 +40,7 @@ export default function ImageUploadField({
         endpoint="listingImage"
         onClientUploadComplete={(res) => {
           const file = res?.[0];
-          // v7 returns ufsUrl; some setups still expose url — handle both
-          setUrl((file as { ufsUrl?: string })?.ufsUrl ?? "");
+          setUrl(uploadedFileUrl(file));
         }}
         onUploadError={(e) => emitToast(e.message, "error")}
       />

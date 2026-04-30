@@ -14,7 +14,7 @@ import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
-import { latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -104,10 +104,10 @@ export default async function SellerOrderDetailPage({
         },
       },
       paymentEvents: {
-        where: { eventType: "REFUND" },
+        where: blockingRefundLedgerWhere(),
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { eventType: true, amountCents: true, stripeObjectId: true },
+        select: { eventType: true, amountCents: true, stripeObjectId: true, status: true },
       },
     },
   });

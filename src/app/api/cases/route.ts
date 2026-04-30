@@ -6,7 +6,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseOpened } from "@/lib/email";
 import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -47,14 +47,22 @@ export async function POST(req: Request) {
       include: {
         case: { select: { id: true } },
         paymentEvents: {
-          where: { eventType: "REFUND" },
+          where: blockingRefundLedgerWhere(),
           take: 1,
-          select: { eventType: true },
+          select: { eventType: true, status: true },
         },
         items: {
           take: 1,
           include: {
-            listing: { select: { seller: { select: { userId: true } } } },
+            listing: {
+              select: {
+                seller: {
+                  select: {
+                    user: { select: { id: true, banned: true, deletedAt: true } },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -78,8 +86,10 @@ export async function POST(req: Request) {
     }
 
     // Block case if order hasn't been shipped yet
+    const sellerUser = order.items[0]?.listing.seller.user;
+    const sellerUnavailable = Boolean(sellerUser?.banned || sellerUser?.deletedAt);
     const fulfillmentStatus = order.fulfillmentStatus ?? "PENDING";
-    if (fulfillmentStatus === "PENDING") {
+    if (fulfillmentStatus === "PENDING" && !sellerUnavailable && !order.reviewNeeded) {
       return NextResponse.json(
         { error: "Please wait until your order has shipped before opening a case." },
         { status: 400 }
@@ -87,14 +97,19 @@ export async function POST(req: Request) {
     }
 
     // Block case if estimated delivery date is still in the future
-    if (order.estimatedDeliveryDate && order.estimatedDeliveryDate > new Date()) {
+    if (
+      order.estimatedDeliveryDate &&
+      order.estimatedDeliveryDate > new Date() &&
+      !sellerUnavailable &&
+      !order.reviewNeeded
+    ) {
       return NextResponse.json(
         { error: "Cannot open a case before the estimated delivery date." },
         { status: 400 }
       );
     }
 
-    const sellerId = order.items[0]?.listing.seller.userId;
+    const sellerId = sellerUser?.id;
     if (!sellerId) {
       return NextResponse.json(
         { error: "Could not determine seller for this order." },

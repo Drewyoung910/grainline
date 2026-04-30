@@ -6,6 +6,12 @@ import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCooki
 
 const CLICKED_LISTING_IDS_COOKIE = "clicked_listing_ids";
 
+function todayUtcBucket() {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  return today;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -42,18 +48,21 @@ export async function POST(
     return res;
   }
 
-  const listing = await prisma.listing.findUnique({ where: { id }, select: { sellerId: true } });
-  await prisma.listing.updateMany({ where: { id }, data: { clickCount: { increment: 1 } } });
-
-  if (listing) {
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    prisma.listingViewDaily.upsert({
+  await prisma.$transaction(async (tx) => {
+    const listing = await tx.listing.update({
+      where: { id },
+      data: { clickCount: { increment: 1 } },
+      select: { sellerId: true },
+    });
+    const today = todayUtcBucket();
+    await tx.listingViewDaily.upsert({
       where: { listingId_date: { listingId: id, date: today } },
       create: { listingId: id, sellerProfileId: listing.sellerId, date: today, views: 0, clicks: 1 },
       update: { clicks: { increment: 1 } },
-    }).catch(() => {});
-  }
+    });
+  }).catch((error) => {
+    if ((error as { code?: string }).code !== "P2025") throw error;
+  });
 
   const res = NextResponse.json({ ok: true });
   setTrackingCookie(res.cookies, CLICKED_LISTING_IDS_COOKIE, tracking.aggregateIds, id);

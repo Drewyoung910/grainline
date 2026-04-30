@@ -11,6 +11,7 @@ import {
 } from "@/lib/ratelimit";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { sanitizeText } from "@/lib/sanitize";
+import { listingPhotoReviewImageUrls } from "@/lib/listingPhotoReview";
 import { ListingStatus } from "@prisma/client";
 import { z } from "zod";
 
@@ -69,13 +70,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ added: 0 });
   }
 
-  // Enforce max 8 photos total
-  const remaining = Math.max(0, 8 - listing.photos.length);
-  const toAdd = clean.slice(0, remaining);
-  if (toAdd.length === 0) {
-    return NextResponse.json({ added: 0, warning: "Listing already has the maximum number of photos." });
-  }
-  if (toAdd.length > 0 && listing.status === ListingStatus.ACTIVE) {
+  if (listing.status === ListingStatus.ACTIVE) {
     const { success: aiSuccess, reset: aiReset } = await safeRateLimit(
       listingPhotoAiRatelimit,
       me.id,
@@ -83,15 +78,45 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!aiSuccess) return rateLimitResponse(aiReset, "Too many photo review requests.");
   }
 
-  // Determine next sortOrder start
-  const startOrder = listing.photos.length;
-  await prisma.photo.createMany({
-    data: toAdd.map((url, i) => ({
-      listingId,
-      url,
-      sortOrder: startOrder + i,
-    })),
+  const addResult = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Listing" WHERE id = ${listingId} FOR UPDATE`;
+    const currentListing = await tx.listing.findFirst({
+      where: {
+        id: listingId,
+        seller: {
+          userId: me.id,
+          user: { banned: false, deletedAt: null },
+        },
+      },
+      select: { status: true, isPrivate: true },
+    });
+    if (!currentListing) return { urls: [], error: "not-found" as const };
+    if (currentListing.status === ListingStatus.HIDDEN && currentListing.isPrivate) {
+      return { urls: [], error: "archived" as const };
+    }
+
+    const photoCount = await tx.photo.count({ where: { listingId } });
+    const urls = clean.slice(0, Math.max(0, 8 - photoCount));
+    if (urls.length === 0) return { urls, error: "full" as const };
+
+    await tx.photo.createMany({
+      data: urls.map((url, i) => ({
+        listingId,
+        url,
+        sortOrder: photoCount + i,
+      })),
+    });
+    return { urls, error: null };
   });
+
+  if (addResult.error === "not-found") return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (addResult.error === "archived") {
+    return NextResponse.json({ error: "Archived listings cannot be edited." }, { status: 400 });
+  }
+  if (addResult.urls.length === 0) {
+    return NextResponse.json({ added: 0, warning: "Listing already has the maximum number of photos." });
+  }
+  const toAdd = addResult.urls;
 
   let generateAltTextForNewPhotos = false;
 
@@ -148,7 +173,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         tags: listing.tags,
         sellerName: seller?.displayName ?? "Unknown",
         listingCount: seller?._count.listings ?? 0,
-        imageUrls: toAdd.slice(0, 4),
+        imageUrls: listingPhotoReviewImageUrls(toAdd, listing.photos.map((p) => p.url)),
       }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
 
       if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {

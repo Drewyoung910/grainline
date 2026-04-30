@@ -13,12 +13,15 @@ import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
+  blockingRefundLedgerWhere,
   isOpenStripeDisputeStatus,
+  orderHasPurchasedLabel,
+  orderHasRefundLedger,
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
   refundAmountForResolution,
+  refundLockAcquisitionConflictResponse,
   refundStockRestoreQuantities,
-  orderHasRefundLedger,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
 import { z } from "zod";
@@ -86,9 +89,9 @@ export async function POST(
           },
         },
         paymentEvents: {
-          where: { eventType: "REFUND" },
+          where: blockingRefundLedgerWhere(),
           take: 1,
-          select: { eventType: true },
+          select: { eventType: true, status: true },
         },
       },
     });
@@ -121,6 +124,12 @@ export async function POST(
     if (orderHasRefundLedger(order)) {
       return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
     }
+    if (orderHasPurchasedLabel(order)) {
+      return NextResponse.json(
+        { error: "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first." },
+        { status: 409 },
+      );
+    }
 
     if (!order.stripePaymentIntentId) {
       return NextResponse.json(
@@ -142,11 +151,29 @@ export async function POST(
 
     // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
     const lockResult = await prisma.order.updateMany({
-      where: { id: orderId, sellerRefundId: null, paymentEvents: { none: { eventType: "REFUND" } } },
+      where: {
+        id: orderId,
+        sellerRefundId: null,
+        OR: [{ labelStatus: null }, { labelStatus: { not: "PURCHASED" } }],
+        paymentEvents: { none: blockingRefundLedgerWhere() },
+      },
       data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
     });
     if (lockResult.count === 0) {
-      return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
+      const freshOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          sellerRefundId: true,
+          labelStatus: true,
+          paymentEvents: {
+            where: blockingRefundLedgerWhere(),
+            take: 1,
+            select: { eventType: true, status: true },
+          },
+        },
+      });
+      const conflict = refundLockAcquisitionConflictResponse(freshOrder);
+      return NextResponse.json({ error: conflict.error }, { status: conflict.status });
     }
 
     let refundId: string | null = null;
@@ -158,6 +185,7 @@ export async function POST(
         amountCents: refundAmountCents,
         itemsSubtotalCents: order.itemsSubtotalCents,
         shippingAmountCents: order.shippingAmountCents,
+        giftWrappingPriceCents: order.giftWrappingPriceCents,
         taxAmountCents: order.taxAmountCents,
         canReverseTransfer: Boolean(seller.stripeAccountId),
         idempotencyKeyBase: `seller-refund:${orderId}:${type}:${refundAmountCents}`,
@@ -256,12 +284,22 @@ export async function POST(
             reviewNeeded: true,
             reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} succeeded, but follow-up DB work failed. Manual reconciliation required.`,
           },
-        }).catch(() => {});
+        }).catch((dbError) => {
+          Sentry.captureException(dbError, {
+            tags: { source: "seller_refund_orphan_record_failed" },
+            extra: { orderId, refundId, refundIds, refundAmountCents },
+          });
+        });
       } else {
         await prisma.order.updateMany({
           where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: { sellerRefundId: null, sellerRefundLockedAt: null },
-        }).catch(() => {});
+        }).catch((dbError) => {
+          Sentry.captureException(dbError, {
+            tags: { source: "seller_refund_lock_release_failed" },
+            extra: { orderId, refundAmountCents },
+          });
+        });
       }
       throw err;
     }

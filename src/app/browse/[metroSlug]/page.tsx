@@ -172,6 +172,7 @@ export default async function BrowseMetroPage({
       },
     }),
   ]);
+  if (listingCount === 0) return notFound();
 
   // Category counts for filter tabs
   const categoryCounts = await prisma.listing.groupBy({
@@ -241,7 +242,7 @@ export default async function BrowseMetroPage({
         <span className="mx-2">›</span>
         <Link href="/browse" className="hover:underline">Browse</Link>
         <span className="mx-2">›</span>
-        <span className="text-neutral-400">{metro.state}</span>
+        <span className="text-neutral-500">{metro.state}</span>
         <span className="mx-2">›</span>
         <span className="text-neutral-800">{metro.name}</span>
       </nav>

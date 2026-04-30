@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 const {
   EMAIL_OUTBOX_MAX_ATTEMPTS,
   EMAIL_OUTBOX_PROCESSING_STALE_MS,
+  emailOutboxDedupKey,
+  emailOutboxFailureState,
   emailOutboxProcessingStaleCutoff,
   emailOutboxRetryDelayMs,
   isEmailOutboxProcessingStale,
@@ -42,5 +44,27 @@ describe("email outbox state helpers", () => {
     assert.equal(isTerminalEmailOutboxAttempt(EMAIL_OUTBOX_MAX_ATTEMPTS - 1), false);
     assert.equal(isTerminalEmailOutboxAttempt(EMAIL_OUTBOX_MAX_ATTEMPTS), true);
     assert.equal(isTerminalEmailOutboxAttempt(EMAIL_OUTBOX_MAX_ATTEMPTS + 1), true);
+  });
+
+  it("keeps short dedup keys stable and hashes long keys instead of truncating", () => {
+    const shortKey = "order:123";
+    const longKeyA = `${"x".repeat(128)}:A`;
+    const longKeyB = `${"x".repeat(128)}:B`;
+
+    assert.equal(emailOutboxDedupKey(shortKey), shortKey);
+    assert.match(emailOutboxDedupKey(longKeyA), /^sha256:[a-f0-9]{64}$/);
+    assert.notEqual(emailOutboxDedupKey(longKeyA), emailOutboxDedupKey(longKeyB));
+  });
+
+  it("uses null next-attempt timestamps for terminal jobs", () => {
+    const retryState = emailOutboxFailureState(2, now);
+    assert.equal(retryState.terminal, false);
+    assert.equal(retryState.status, "FAILED");
+    assert.equal(retryState.nextAttemptAt?.toISOString(), new Date(now.getTime() + 120_000).toISOString());
+
+    const terminalState = emailOutboxFailureState(EMAIL_OUTBOX_MAX_ATTEMPTS, now);
+    assert.equal(terminalState.terminal, true);
+    assert.equal(terminalState.status, "DEAD");
+    assert.equal(terminalState.nextAttemptAt, null);
   });
 });

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 export default function ImagesUploader({
   max = 8,
@@ -28,7 +29,7 @@ export default function ImagesUploader({
           button: ({ ready }) => (ready ? "Add photos" : "Preparing…"),
         }}
         onClientUploadComplete={(files) => {
-          const newUrls = files.map((f) => (f as { ufsUrl?: string }).ufsUrl ?? "");
+          const newUrls = uploadedFileUrls(files);
           setUrls((prev) => [...prev, ...newUrls].slice(0, max));
         }}
         onUploadError={(e) => emitToast(e.message, "error")}
@@ -55,5 +56,4 @@ export default function ImagesUploader({
     </div>
   );
 }
-
 

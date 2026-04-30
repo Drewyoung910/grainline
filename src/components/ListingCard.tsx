@@ -106,7 +106,7 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
           )}
 
           {/* Location · Seller — separate row, no nested Links */}
-          <div className="flex items-center gap-1 text-xs text-stone-400 flex-wrap">
+          <div className="flex items-center gap-1 text-xs text-stone-500 flex-wrap">
             {(city || state) && (
               <>
                 <span className="truncate">{[city, state].filter(Boolean).join(", ")}</span>
@@ -163,7 +163,7 @@ function ListingCardTitlePrice({
           <span className="flex items-center gap-0.5 text-xs text-stone-500">
             <span className="text-amber-500">★</span>
             <span className="font-medium text-neutral-700">{(Math.round(rating.avg * 10) / 10).toFixed(1)}</span>
-            <span className="text-stone-400">({rating.count})</span>
+            <span className="text-stone-500">({rating.count})</span>
           </span>
         )}
       </div>

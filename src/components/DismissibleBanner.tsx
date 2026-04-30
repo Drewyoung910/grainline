@@ -41,7 +41,7 @@ export default function DismissibleBanner({
       {children}
       <button
         onClick={handleDismiss}
-        className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600 text-lg leading-none"
+        className="absolute top-2 right-2 text-neutral-500 hover:text-neutral-600 text-lg leading-none"
         aria-label="Dismiss"
       >
         ×

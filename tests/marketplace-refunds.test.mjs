@@ -14,6 +14,7 @@ function baseOpts(overrides = {}) {
     amountCents: 11_325,
     itemsSubtotalCents: 10_000,
     shippingAmountCents: 500,
+    giftWrappingPriceCents: 0,
     taxAmountCents: 825,
     canReverseTransfer: true,
     idempotencyKeyBase: "refund:order_1",
@@ -55,6 +56,27 @@ describe("marketplace refunds", () => {
         requestOptions: { idempotencyKey: "refund:order_1:tax" },
       },
     ]);
+  });
+
+  it("includes gift wrapping in the seller-reversible portion of full refunds", async () => {
+    const calls = [];
+    const result = await createMarketplaceRefundWithCreator(
+      baseOpts({ amountCents: 11_825, giftWrappingPriceCents: 500 }),
+      async (params, requestOptions) => {
+        calls.push({ params, requestOptions });
+        return { id: calls.length === 1 ? "re_seller" : "re_tax" };
+      },
+    );
+
+    assert.deepEqual(result, {
+      primaryRefundId: "re_seller",
+      refundIds: ["re_seller", "re_tax"],
+      sellerPortionCents: 11_000,
+      taxAmountCents: 825,
+      usedPlatformOnly: false,
+      usedSplitTaxRefund: true,
+    });
+    assert.deepEqual(calls.map((call) => call.params.amount), [11_000, 825]);
   });
 
   it("uses a platform-only refund when the seller transfer cannot be reversed", async () => {

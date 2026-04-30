@@ -6,13 +6,12 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { renderNewListingFromFollowedMakerEmail, sendFirstListingCongrats } from "@/lib/email";
+import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
-import { mapWithConcurrency } from "@/lib/concurrency";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
+import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import PhotoManager from "@/components/PhotoManager";
 import ActionForm from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
@@ -247,16 +246,25 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // Non-draft: run all side effects unchanged
   try {
-    const listingCount = await prisma.listing.count({ where: { sellerId: seller.id } });
-    if (listingCount === 1) {
+    const firstListing = await prisma.listing.findFirst({
+      where: { sellerId: seller.id },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true },
+    });
+    if (firstListing?.id === created.id) {
       const sellerWithUser = await prisma.sellerProfile.findUnique({
         where: { id: seller.id },
         select: { displayName: true, user: { select: { email: true } } },
       });
       if (sellerWithUser?.user?.email) {
-        await sendFirstListingCongrats({
+        const email = renderFirstListingCongratsEmail({
           seller: { displayName: sellerWithUser.displayName, email: sellerWithUser.user.email },
           listing: { id: created.id, title: created.title, priceCents: created.priceCents },
+        });
+        await enqueueEmailOutbox({
+          ...email,
+          dedupKey: `first-listing-congrats:${seller.id}`,
+          userId: seller.userId,
         });
       }
     }
@@ -285,7 +293,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       tags: created.tags,
       sellerName: sellerInfo?.displayName ?? 'Unknown',
       listingCount,
-      imageUrls: imageUrls.slice(0, 4),
+      imageUrls,
     }).catch((): AIReviewResult => ({
       approved: false,
       flags: ['AI review error'],
@@ -369,43 +377,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
     // Notify followers after the response so listing creation stays responsive.
     after(async () => {
       try {
-        const followers = await prisma.follow.findMany({
-          where: {
-            sellerProfileId: seller.id,
-            follower: { banned: false, deletedAt: null },
-          },
-          select: { followerId: true, follower: { select: { email: true, name: true } } },
-          take: 10000,
-        });
-        const sellerDisplay = seller.displayName ?? "A maker you follow";
-        await mapWithConcurrency(followers, 10, (f) =>
-          createNotification({
-            userId: f.followerId,
-            type: "FOLLOWED_MAKER_NEW_LISTING",
-            title: `New listing from ${sellerDisplay}`,
-            body: created.title,
-            link: publicListingPath(created.id, created.title),
-          }),
-        );
-        const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${publicListingPath(created.id, created.title)}`;
-        const listingPrice = `$${(created.priceCents / 100).toFixed(2)}`;
-        const emailRecipients = followers.filter((f) => f.follower?.email);
-        await mapWithConcurrency(emailRecipients, 5, async (f) => {
-          if (await shouldSendEmail(f.followerId, "EMAIL_FOLLOWED_MAKER_NEW_LISTING")) {
-            const email = renderNewListingFromFollowedMakerEmail({
-              to: f.follower.email!,
-              makerName: sellerDisplay,
-              listingTitle: created.title,
-              listingPrice,
-              listingUrl,
-            });
-            await enqueueEmailOutbox({
-              ...email,
-              dedupKey: `followed-listing:${created.id}:${f.followerId}`,
-              userId: f.followerId,
-              preferenceKey: "EMAIL_FOLLOWED_MAKER_NEW_LISTING",
-            });
-          }
+        await fanOutListingToFollowers({
+          sellerProfileId: seller.id,
+          sellerDisplayName: seller.displayName,
+          listing: { id: created.id, title: created.title, priceCents: created.priceCents },
+          emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
       } catch { /* non-fatal */ }
     });
@@ -454,7 +430,7 @@ export default async function NewListingPage({
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Description <span className="text-neutral-400 font-normal">(optional)</span>
+            Description <span className="text-neutral-500 font-normal">(optional)</span>
           </label>
           <CharCounter
             name="description"
@@ -467,7 +443,7 @@ export default async function NewListingPage({
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Meta description
-            <span className="text-neutral-400 ml-1 font-normal">
+            <span className="text-neutral-500 ml-1 font-normal">
               — helps your listing rank in search results
             </span>
           </label>
@@ -486,13 +462,13 @@ export default async function NewListingPage({
             placeholder="e.g. walnut, maple, brass hardware"
             className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
-          <p className="text-xs text-neutral-400 mt-1">Comma-separated. Helps buyers find your piece.</p>
+          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Product dimensions (inches)
-            <span className="text-neutral-400 ml-1 font-normal">optional</span>
+            <span className="text-neutral-500 ml-1 font-normal">optional</span>
           </label>
           <div className="grid grid-cols-3 gap-3">
             <input name="productLengthIn" type="number" step="0.1" min="0"
@@ -502,7 +478,7 @@ export default async function NewListingPage({
             <input name="productHeightIn" type="number" step="0.1" min="0"
               placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
           </div>
-          <p className="text-xs text-neutral-400 mt-1">The actual product size, not the shipping package.</p>
+          <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div>

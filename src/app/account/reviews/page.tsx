@@ -62,7 +62,7 @@ export default async function MyReviewsPage() {
                   <span className="text-amber-500 text-sm">
                     {"★".repeat(Math.round(r.ratingX2 / 2))}{"☆".repeat(5 - Math.round(r.ratingX2 / 2))}
                   </span>
-                  <span className="text-xs text-neutral-400">
+                  <span className="text-xs text-neutral-500">
                     {new Date(r.createdAt).toLocaleDateString("en-US")}
                   </span>
                   <span className="text-xs text-neutral-300">·</span>

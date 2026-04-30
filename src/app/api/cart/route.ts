@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
+import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
 
 export const runtime = "nodejs";
 
@@ -81,17 +82,33 @@ export async function GET() {
       const livePriceCents = variantResolution.ok
         ? ci.listing.priceCents + variantResolution.variantAdjustCents
         : ci.listing.priceCents;
+      const variantUnavailable = !variantResolution.ok;
+      const maxQuantity = ci.listing.listingType === "MADE_TO_ORDER"
+        ? 1
+        : Math.min(99, Math.max(0, ci.listing.stockQuantity ?? 0));
+      const stockExceeded = cartItemExceedsLiveStock({
+        listingType: ci.listing.listingType,
+        quantity: ci.quantity,
+        stockQuantity: ci.listing.stockQuantity,
+      });
       return {
         id: ci.id,
         quantity: ci.quantity,
         priceCents: ci.priceCents,
+        priceVersion: ci.priceVersion,
         livePriceCents,
-        priceChanged: livePriceCents !== ci.priceCents,
+        livePriceVersion: ci.listing.priceVersion,
+        priceChanged: variantUnavailable || livePriceCents !== ci.priceCents || ci.listing.priceVersion !== ci.priceVersion,
+        variantUnavailable,
+        stockExceeded,
         variantLabels,
         listing: {
           id: ci.listing.id,
           title: ci.listing.title,
           sellerId: ci.listing.sellerId,
+          currency: ci.listing.currency || "usd",
+          listingType: ci.listing.listingType,
+          maxQuantity,
           status: ci.listing.status,
           sellerName:
             seller?.displayName ??

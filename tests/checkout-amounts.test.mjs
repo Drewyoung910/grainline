@@ -59,4 +59,21 @@ describe("checkout amount calculation", () => {
       },
     );
   });
+
+  it("does not clamp invalid negative transfer math to a one-cent payout", () => {
+    assert.deepEqual(
+      calculateCheckoutAmounts({
+        itemsSubtotalCents: 100,
+        shippingAmountCents: -150,
+        giftWrapCents: 0,
+      }),
+      {
+        platformFeeCents: 5,
+        preTaxTotalCents: -50,
+        sellerTransferBeforeMinimumCents: -55,
+        sellerTransferAmountCents: -55,
+        belowMinimumSellerTransfer: true,
+      },
+    );
+  });
 });

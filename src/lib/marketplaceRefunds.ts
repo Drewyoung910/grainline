@@ -13,6 +13,7 @@ type MarketplaceRefundOptions = {
   amountCents: number;
   itemsSubtotalCents: number;
   shippingAmountCents: number;
+  giftWrappingPriceCents: number | null;
   taxAmountCents: number;
   canReverseTransfer: boolean;
   idempotencyKeyBase: string;
@@ -46,7 +47,10 @@ export async function createMarketplaceRefundWithCreator(
   }
 
   const refundIds: string[] = [];
-  const sellerPortionCents = Math.max(0, opts.itemsSubtotalCents + opts.shippingAmountCents);
+  const sellerPortionCents = Math.max(
+    0,
+    opts.itemsSubtotalCents + opts.shippingAmountCents + (opts.giftWrappingPriceCents ?? 0),
+  );
   const taxAmountCents = Math.max(0, opts.taxAmountCents);
   const isFullRefund = opts.resolution === "FULL" || opts.resolution === "REFUND_FULL";
 

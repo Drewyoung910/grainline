@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
 import { labelPurchaseRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -100,9 +100,9 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
     include: {
       case: { select: { status: true } },
       paymentEvents: {
-        where: { eventType: "REFUND" },
+        where: blockingRefundLedgerWhere(),
         take: 1,
-        select: { eventType: true },
+        select: { eventType: true, status: true },
       },
       items: {
         include: {
@@ -165,6 +165,9 @@ export async function POST(
     // Block label purchase if order has been refunded or has an open case
     if (orderHasRefundLedger(order)) {
       return NextResponse.json({ error: "Cannot purchase label — order has been refunded." }, { status: 400 });
+    }
+    if (order.sellerRefundLockedAt) {
+      return NextResponse.json({ error: "Cannot purchase label while a refund is being processed." }, { status: 409 });
     }
     if (order.fulfillmentMethod === "PICKUP") {
       return NextResponse.json({ error: "Cannot purchase a shipping label for a pickup order." }, { status: 400 });
@@ -319,6 +322,7 @@ export async function POST(
       WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
         AND "fulfillmentStatus" = 'PENDING'::"FulfillmentStatus"
         AND "sellerRefundId" IS NULL
+        AND "sellerRefundLockedAt" IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM "OrderPaymentEvent" ope
           WHERE ope."orderId" = "Order".id

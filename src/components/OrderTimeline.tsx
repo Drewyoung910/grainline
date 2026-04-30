@@ -203,7 +203,7 @@ export default function OrderTimeline(props: Props) {
                       ? "text-neutral-900"
                       : step.current
                       ? "text-amber-700"
-                      : "text-neutral-400"
+                      : "text-neutral-500"
                   }`}
                 >
                   {step.label}

@@ -4,6 +4,8 @@ import * as React from "react";
 import { SubmitButton } from "@/components/ActionForm";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
+import { createClientId } from "@/lib/clientId";
 
 type Attachment = {
   id: string;
@@ -14,10 +16,6 @@ type Attachment = {
 };
 
 const ENDPOINT = "messageAny" as const;
-
-function clientId() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 export default function MessageComposer({
   placeholder = "Write a message…",
@@ -46,10 +44,7 @@ export default function MessageComposer({
     return () => document.removeEventListener("actionform:ok", onOk);
   }, []);
 
-  const extractUrl = (x: unknown): string | null => {
-    const obj = x as { serverData?: { url?: string }; ufsUrl?: string; url?: string };
-    return obj?.serverData?.url ?? obj?.ufsUrl ?? obj?.url ?? null;
-  };
+  const extractUrl = (x: unknown): string | null => uploadedFileUrl(x) || null;
 
   function removeAttachment(id: string) {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
@@ -120,7 +115,7 @@ export default function MessageComposer({
               ),
             }}
             onUploadBegin={(fileName) => {
-              const id = clientId();
+                const id = createClientId("message-attachment");
               pendingIdsRef.current.push(id);
               setAttachments((prev) => [
                 ...prev,
@@ -212,8 +207,6 @@ export default function MessageComposer({
     </div>
   );
 }
-
-
 
 
 

@@ -18,6 +18,7 @@ import {
   Edit,
   User,
 } from "@/components/icons";
+import { safeNotificationPath } from "@/lib/notificationLinks";
 
 type NotificationItem = {
   id: string;
@@ -269,24 +270,42 @@ export default function NotificationBell({
   }, [open]);
 
   const markAllRead = async () => {
-    await fetch("/api/notifications/read-all", { method: "POST" });
+    const previousNotifications = notifications;
+    const previousUnreadCount = unreadCount;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-    broadcastNotificationSync({ type: "all-read" });
+    try {
+      const res = await fetch("/api/notifications/read-all", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to mark notifications read");
+      broadcastNotificationSync({ type: "all-read" });
+    } catch {
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
+    }
   };
 
   const markRead = async (n: NotificationItem) => {
+    const path = safeNotificationPath(n.link);
     if (!n.read) {
-      await fetch(`/api/notifications/${n.id}/read`, { method: "POST" });
+      const previousNotifications = notifications;
+      const previousUnreadCount = unreadCount;
       setNotifications((prev) =>
         prev.map((x) => (x.id === n.id ? { ...x, read: true } : x))
       );
       setUnreadCount((c) => Math.max(0, c - 1));
-      broadcastNotificationSync({ type: "read", id: n.id });
+      try {
+        const res = await fetch(`/api/notifications/${n.id}/read`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to mark notification read");
+        broadcastNotificationSync({ type: "read", id: n.id });
+      } catch {
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+        return;
+      }
     }
-    if (n.link) {
+    if (path) {
       setOpen(false);
-      router.push(n.link);
+      router.push(path);
     }
   };
 
@@ -324,9 +343,9 @@ export default function NotificationBell({
           {/* List */}
           <ul className="divide-y divide-neutral-100">
             {!loaded ? (
-              <li className="px-4 py-6 text-center text-sm text-neutral-400">Loading…</li>
+              <li className="px-4 py-6 text-center text-sm text-neutral-500">Loading…</li>
             ) : notifications.length === 0 ? (
-              <li className="px-4 py-6 text-center text-sm text-neutral-400">
+              <li className="px-4 py-6 text-center text-sm text-neutral-500">
                 No notifications yet
               </li>
             ) : (
@@ -346,7 +365,7 @@ export default function NotificationBell({
                         <p className="text-xs text-neutral-500 mt-0.5 truncate">
                           {n.body.slice(0, 60)}
                         </p>
-                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                        <p className="text-[11px] text-neutral-500 mt-0.5">
                           {timeAgo(n.createdAt)}
                         </p>
                       </div>

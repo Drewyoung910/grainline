@@ -3,7 +3,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
-import { beforeSend } from "@/lib/sentryFilter";
+import { beforeBreadcrumb, beforeSend } from "@/lib/sentryFilter";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN ?? "",
@@ -18,6 +18,7 @@ Sentry.init({
   sendDefaultPii: false,
 
   beforeSend,
+  beforeBreadcrumb,
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

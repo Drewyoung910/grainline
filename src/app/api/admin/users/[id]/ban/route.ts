@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { banUser, unbanUser } from '@/lib/ban'
+import { BanUserPolicyError, banUser, unbanUser } from '@/lib/ban'
 import { z } from 'zod'
 
 const BanSchema = z.object({
@@ -37,7 +37,14 @@ export async function POST(
   if (id === admin.id) return NextResponse.json({ error: 'Cannot ban yourself' }, { status: 400 })
   const target = await prisma.user.findUnique({ where: { id }, select: { role: true } })
   if (target?.role === 'ADMIN') return NextResponse.json({ error: 'Cannot ban admin accounts' }, { status: 400 })
-  await banUser({ userId: id, adminId: admin.id, reason })
+  try {
+    await banUser({ userId: id, adminId: admin.id, reason })
+  } catch (error) {
+    if (error instanceof BanUserPolicyError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    throw error
+  }
   return NextResponse.json({ ok: true })
 }
 
@@ -60,6 +67,13 @@ export async function DELETE(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
   const { reason } = unbanBody
-  await unbanUser({ userId: id, adminId: admin.id, reason })
-  return NextResponse.json({ ok: true })
+  try {
+    const result = await unbanUser({ userId: id, adminId: admin.id, reason })
+    return NextResponse.json({ ok: true, warning: result.sellerRestoreWarning ?? undefined })
+  } catch (error) {
+    if (error instanceof BanUserPolicyError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    throw error
+  }
 }

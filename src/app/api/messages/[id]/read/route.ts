@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST(
   _req: Request,
@@ -20,6 +21,9 @@ export async function POST(
     }
     throw err;
   }
+
+  const { success, reset } = await safeRateLimit(markReadRatelimit, `message:${me.id}`);
+  if (!success) return rateLimitResponse(reset, "Too many read updates. Try again shortly.");
 
   // Ensure I’m a participant
   const convo = await prisma.conversation.findFirst({

@@ -6,6 +6,11 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { shippoRequest } from "@/lib/shippo";
 import { signRate } from "@/lib/shipping-token";
+import {
+  filterShippoRatesForCheckout,
+  safeFallbackShippingCents,
+  type ShippoQuoteRate,
+} from "@/lib/shippingQuoteState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -23,6 +28,9 @@ const ShippingQuoteSchema = z.object({
   toState: z.string().max(50).optional().nullable(),
   toCity: z.string().max(100).optional().nullable(),
   toCountry: z.string().max(2).optional().nullable(),
+  toName: z.string().max(100).optional().nullable(),
+  toLine1: z.string().max(200).optional().nullable(),
+  toLine2: z.string().max(200).optional().nullable(),
 });
 
 export const runtime = "nodejs";
@@ -63,6 +71,56 @@ function fallbackRate({
     token,
     expiresAt,
   };
+}
+
+function pickupRate({
+  contextId,
+  buyerId,
+  buyerPostal,
+}: {
+  contextId: string;
+  buyerId: string;
+  buyerPostal: string;
+}) {
+  const label = "Local Pickup (Free)";
+  const { token, expiresAt } = signRate({
+    objectId: "pickup",
+    amountCents: 0,
+    displayName: label,
+    carrier: "pickup",
+    estDays: null,
+    contextId,
+    buyerId,
+    buyerPostal,
+  });
+
+  return {
+    label,
+    amountCents: 0,
+    carrier: "pickup",
+    service: "pickup",
+    estDays: null,
+    taxBehavior: "exclusive" as const,
+    objectId: "pickup",
+    token,
+    expiresAt,
+  };
+}
+
+function pickupOnlyResponse({
+  contextId,
+  buyerId,
+  buyerPostal,
+}: {
+  contextId: string;
+  buyerId: string;
+  buyerPostal: string;
+}) {
+  return NextResponse.json({
+    rates: [pickupRate({ contextId, buyerId, buyerPostal })],
+    pickupOnly: true,
+    warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
+  });
 }
 
 /**
@@ -128,6 +186,9 @@ export async function POST(req: Request) {
     // below uses this exact value, and it must match what the
     // checkout route receives in body.shippingAddress.postalCode.
     const shipTo = {
+      name: body.toName || undefined,
+      line1: body.toLine1 || undefined,
+      line2: body.toLine2 || undefined,
       postal: body.toPostal,
       state: body.toState || "NY",
       city: body.toCity || "New York",
@@ -289,20 +350,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Bad mode" }, { status: 400 });
     }
 
-    // Need a valid ship-from + nonzero package
-    if (
-      !shipFrom?.line1 ||
-      !shipFrom.city ||
-      !shipFrom.state ||
-      !shipFrom.postal ||
-      !shipFrom.country
-    ) {
-      return NextResponse.json({ rates: [] });
-    }
-    if (!totalWeightGrams || !lengthCm || !widthCm || !heightCm) {
-      return NextResponse.json({ rates: [] });
-    }
-
     // contextId ties the HMAC signature to either the seller (cart)
     // or the specific listing (buy-now). This prevents a cheap rate
     // signed for one seller/listing from being replayed against another.
@@ -310,9 +357,29 @@ export async function POST(req: Request) {
     const contextId: string =
       mode === "single" ? (body.listingId ?? "") : (sellerId ?? "");
 
-    type ShippoRate = { currency?: string; provider?: string; carrier?: string; servicelevel?: { name?: string }; service?: string; estimated_days?: number | null; amount?: number; object_id?: string };
-    type ShippoShipment = { rates?: ShippoRate[] };
-    let rates: ShippoRate[] = [];
+    // Need a valid ship-from + nonzero package for shippable rates. Pickup-only
+    // sellers can still produce a signed pickup option, but it must be explicit.
+    if (
+      !shipFrom?.line1 ||
+      !shipFrom.city ||
+      !shipFrom.state ||
+      !shipFrom.postal ||
+      !shipFrom.country
+    ) {
+      if (sellerAllowsPickup) {
+        return pickupOnlyResponse({ contextId, buyerId: me.id, buyerPostal: shipTo.postal });
+      }
+      return NextResponse.json({ rates: [] });
+    }
+    if (!totalWeightGrams || !lengthCm || !widthCm || !heightCm) {
+      if (sellerAllowsPickup) {
+        return pickupOnlyResponse({ contextId, buyerId: me.id, buyerPostal: shipTo.postal });
+      }
+      return NextResponse.json({ rates: [] });
+    }
+
+    type ShippoShipment = { rates?: ShippoQuoteRate[] };
+    let rates: ShippoQuoteRate[] = [];
 
     try {
       // Build Shippo shipment + fetch rates (async=false embeds rates)
@@ -329,8 +396,9 @@ export async function POST(req: Request) {
             country: shipFrom.country,
           },
           address_to: {
-            // For better quotes, pass real buyer destination when available.
-            street1: "Placeholder",
+            name: shipTo.name,
+            street1: shipTo.line1,
+            street2: shipTo.line2,
             city: shipTo.city,
             state: shipTo.state,
             zip: shipTo.postal,
@@ -352,14 +420,20 @@ export async function POST(req: Request) {
       rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
     } catch (err) {
       console.error("Shippo quote failed; returning signed fallback rate:", err);
-      const siteConfig = await prisma.siteConfig.findUnique({
-        where: { id: 1 },
-        select: { fallbackShippingCents: true },
-      });
+      let fallbackShippingCents: number | null | undefined;
+      try {
+        const siteConfig = await prisma.siteConfig.findUnique({
+          where: { id: 1 },
+          select: { fallbackShippingCents: true },
+        });
+        fallbackShippingCents = siteConfig?.fallbackShippingCents;
+      } catch (siteConfigError) {
+        console.error("Site config fallback shipping lookup failed:", siteConfigError);
+      }
       return NextResponse.json({
         rates: [
           fallbackRate({
-            amountCents: siteConfig?.fallbackShippingCents ?? 1500,
+            amountCents: safeFallbackShippingCents(fallbackShippingCents),
             contextId,
             buyerId: me.id,
             buyerPostal: shipTo.postal,
@@ -368,17 +442,25 @@ export async function POST(req: Request) {
       });
     }
 
-    // Filter by seller's preferred carriers (if set) before signing
-    const preferredLower = sellerPreferredCarriers.map((c) => c.toLowerCase());
+    // Filter by seller's preferred carriers (if set) before signing.
+    // Do not replace carrier-filtered results with a platform fallback; that
+    // silently bypasses the seller's configured carrier policy.
+    const filtered = filterShippoRatesForCheckout({
+      rates,
+      currency,
+      preferredCarriers: sellerPreferredCarriers,
+    });
+    if (filtered.blockedByCarrierPreference) {
+      if (sellerAllowsPickup) {
+        return pickupOnlyResponse({ contextId, buyerId: me.id, buyerPostal: shipTo.postal });
+      }
+      return NextResponse.json({
+        rates: [],
+        error: "No shipping rates matched this maker's carrier preferences.",
+      });
+    }
 
-    const out = rates
-      .filter((r) => String(r.currency || "").toLowerCase() === currency)
-      .filter((r) => {
-        if (preferredLower.length === 0) return true; // no preference = show all
-        const carrier = (r.provider || r.carrier || "").toLowerCase();
-        // Exact match on carrier name (not substring — prevents "UPS" matching "UPSERT")
-        return preferredLower.some((pc) => carrier === pc || carrier.startsWith(pc + " "));
-      })
+    const out = filtered.rates
       .slice(0, 12)
       .map((r) => {
         const label = `${r.provider || r.carrier} ${r.servicelevel?.name || r.service} (${
@@ -415,13 +497,19 @@ export async function POST(req: Request) {
       });
 
     if (out.length === 0 && !sellerAllowsPickup) {
-      const siteConfig = await prisma.siteConfig.findUnique({
-        where: { id: 1 },
-        select: { fallbackShippingCents: true },
-      });
+      let fallbackShippingCents: number | null | undefined;
+      try {
+        const siteConfig = await prisma.siteConfig.findUnique({
+          where: { id: 1 },
+          select: { fallbackShippingCents: true },
+        });
+        fallbackShippingCents = siteConfig?.fallbackShippingCents;
+      } catch (siteConfigError) {
+        console.error("Site config fallback shipping lookup failed:", siteConfigError);
+      }
       out.push(
         fallbackRate({
-          amountCents: siteConfig?.fallbackShippingCents ?? 1500,
+          amountCents: safeFallbackShippingCents(fallbackShippingCents),
           contextId,
           buyerId: me.id,
           buyerPostal: shipTo.postal,
@@ -429,33 +517,22 @@ export async function POST(req: Request) {
       );
     }
 
+    const pickupOnly = out.length === 0 && sellerAllowsPickup;
+
     // Local pickup option — injected as a synthetic rate if seller allows it
     if (sellerAllowsPickup) {
-      const pickupLabel = "Local Pickup (Free)";
-      const { token: pickupToken, expiresAt: pickupExpiresAt } = signRate({
-        objectId: "pickup",
-        amountCents: 0,
-        displayName: pickupLabel,
-        carrier: "pickup",
-        estDays: null,
-        contextId,
-        buyerId: me.id,
-        buyerPostal: shipTo.postal,
-      });
-      out.unshift({
-        label: pickupLabel,
-        amountCents: 0,
-        carrier: "pickup",
-        service: "pickup",
-        estDays: null,
-        taxBehavior: "exclusive" as const,
-        objectId: "pickup",
-        token: pickupToken,
-        expiresAt: pickupExpiresAt,
-      });
+      out.unshift(pickupRate({ contextId, buyerId: me.id, buyerPostal: shipTo.postal }));
     }
 
-    return NextResponse.json({ rates: out });
+    return NextResponse.json({
+      rates: out,
+      ...(pickupOnly
+        ? {
+            pickupOnly: true,
+            warning: "This maker only has local pickup available for this address. Choose it only if you can pick up the order in person; no shipping label will be created.",
+          }
+        : {}),
+    });
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;

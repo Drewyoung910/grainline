@@ -75,7 +75,11 @@ export default function OnboardingWizard({
 
   async function handleStep1Submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    await saveStep1Form(e.currentTarget);
+  }
+
+  async function saveStep1Form(form: HTMLFormElement) {
+    const formData = new FormData(form);
     setLoading(true);
     setActionError(null);
     try {
@@ -96,9 +100,22 @@ export default function OnboardingWizard({
     }
   }
 
+  async function handleStep1Skip(e: React.MouseEvent<HTMLButtonElement>) {
+    const form = e.currentTarget.form;
+    if (!form) {
+      await advance(2);
+      return;
+    }
+    await saveStep1Form(form);
+  }
+
   async function handleStep2Submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    await saveStep2Form(e.currentTarget);
+  }
+
+  async function saveStep2Form(form: HTMLFormElement) {
+    const formData = new FormData(form);
     setLoading(true);
     setActionError(null);
     try {
@@ -114,6 +131,15 @@ export default function OnboardingWizard({
     }
   }
 
+  async function handleStep2Skip(e: React.MouseEvent<HTMLButtonElement>) {
+    const form = e.currentTarget.form;
+    if (!form) {
+      await advance(3);
+      return;
+    }
+    await saveStep2Form(form);
+  }
+
   async function handleConnectStripe() {
     setConnectingStripe(true);
     setActionError(null);
@@ -125,16 +151,13 @@ export default function OnboardingWizard({
       });
       const data = await res.json();
       if (data.url) {
-        // Advance step before redirecting so they return to step 4
-        const result = await advanceStep(4);
-        if (!result.ok) {
-          setActionError(result.error);
-          setConnectingStripe(false);
-          return;
-        }
         window.location.href = data.url;
+        return;
       }
+      setActionError(typeof data.error === "string" ? data.error : "We couldn't start Stripe setup. Please try again.");
+      setConnectingStripe(false);
     } catch {
+      setActionError("We couldn't start Stripe setup. Please try again.");
       setConnectingStripe(false);
     }
   }
@@ -161,7 +184,7 @@ export default function OnboardingWizard({
     "flex-1 border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50";
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-start py-12 px-4">
+    <div className="min-h-[100svh] bg-stone-50 flex flex-col items-center justify-start py-12 px-4">
       <div className="w-full max-w-xl">
         {/* Action errors */}
         {actionError && (
@@ -233,7 +256,7 @@ export default function OnboardingWizard({
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="tagline">
                   Tagline{" "}
-                  <span className="text-neutral-400 font-normal">(optional)</span>
+                  <span className="text-neutral-500 font-normal">(optional)</span>
                 </label>
                 <input
                   id="tagline"
@@ -250,7 +273,7 @@ export default function OnboardingWizard({
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="bio">
                   Bio{" "}
-                  <span className="text-neutral-400 font-normal">(optional)</span>
+                  <span className="text-neutral-500 font-normal">(optional)</span>
                 </label>
                 <textarea
                   id="bio"
@@ -267,7 +290,7 @@ export default function OnboardingWizard({
               <div>
                 <p className="block text-sm font-medium mb-2">
                   Profile Photo{" "}
-                  <span className="text-neutral-400 font-normal">(optional)</span>
+                  <span className="text-neutral-500 font-normal">(optional)</span>
                 </p>
                 <ProfileAvatarUploader initialUrl={avatarImageUrl} storageKey="grainline:onboarding:avatarImageUrl" />
               </div>
@@ -275,7 +298,7 @@ export default function OnboardingWizard({
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => advance(2)}
+                  onClick={handleStep1Skip}
                   disabled={loading}
                   className={btnSecondary}
                 >
@@ -308,7 +331,7 @@ export default function OnboardingWizard({
                 <div>
                   <label className="block text-sm font-medium mb-1" htmlFor="city">
                     City{" "}
-                    <span className="text-neutral-400 font-normal">(optional)</span>
+                    <span className="text-neutral-500 font-normal">(optional)</span>
                   </label>
                   <input
                     id="city"
@@ -323,7 +346,7 @@ export default function OnboardingWizard({
                 <div>
                   <label className="block text-sm font-medium mb-1" htmlFor="state">
                     State{" "}
-                    <span className="text-neutral-400 font-normal">(optional)</span>
+                    <span className="text-neutral-500 font-normal">(optional)</span>
                   </label>
                   <input
                     id="state"
@@ -340,7 +363,7 @@ export default function OnboardingWizard({
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="yearsInBusiness">
                   Years in Business{" "}
-                  <span className="text-neutral-400 font-normal">(optional)</span>
+                  <span className="text-neutral-500 font-normal">(optional)</span>
                 </label>
                 <input
                   id="yearsInBusiness"
@@ -358,7 +381,7 @@ export default function OnboardingWizard({
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="returnPolicy">
                   Return Policy{" "}
-                  <span className="text-neutral-400 font-normal">(optional)</span>
+                  <span className="text-neutral-500 font-normal">(optional)</span>
                 </label>
                 <textarea
                   id="returnPolicy"
@@ -374,7 +397,7 @@ export default function OnboardingWizard({
               <div>
                 <label className="block text-sm font-medium mb-1" htmlFor="shippingPolicy">
                   Shipping Policy{" "}
-                  <span className="text-neutral-400 font-normal">(optional)</span>
+                  <span className="text-neutral-500 font-normal">(optional)</span>
                 </label>
                 <textarea
                   id="shippingPolicy"
@@ -403,7 +426,7 @@ export default function OnboardingWizard({
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => advance(3)}
+                  onClick={handleStep2Skip}
                   disabled={loading}
                   className={btnSecondary}
                 >
@@ -606,6 +629,12 @@ export default function OnboardingWizard({
                 <span className="text-sm">First listing created</span>
               </div>
             </div>
+
+            {!chargesEnabled && (
+              <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
+              </div>
+            )}
 
             <button
               onClick={handleComplete}

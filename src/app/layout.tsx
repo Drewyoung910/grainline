@@ -94,7 +94,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en">
-      <body className="min-h-screen bg-[#F7F5F0] text-neutral-900">
+      <body className="min-h-[100svh] bg-[#F7F5F0] text-neutral-900">
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:bg-neutral-900 focus:text-white focus:px-4 focus:py-2 focus:rounded-md focus:text-sm">
           Skip to content
         </a>
@@ -105,7 +105,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div id="main-content">
           {children}
           </div>
-          <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-400">
+          <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-500">
             <div className="flex justify-center mb-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto opacity-40" />
@@ -113,7 +113,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {/* Browse by City — dynamic, only shown when metros have content */}
             {footerMetros.length > 0 && (
               <div className="mb-4">
-                <p className="text-[11px] text-stone-400 uppercase tracking-wide mb-2">Browse by city</p>
+                <p className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">Browse by city</p>
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
                   {footerMetros.map((m) => (
                     <Link key={m.slug} href={`/browse/${m.slug}`} className="hover:text-stone-600 hover:underline">
@@ -138,6 +138,5 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-
 
 

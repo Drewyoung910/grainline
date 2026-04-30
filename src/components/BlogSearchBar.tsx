@@ -109,7 +109,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
       <form onSubmit={handleSubmit}>
         <div className="flex items-stretch rounded-full border border-neutral-200 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-neutral-300">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none"
             width={16} height={16} viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth={2} strokeLinecap="round"
           >
@@ -128,14 +128,14 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
             }}
             onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
             placeholder="Search posts, topics, makers..."
-            className="flex-1 pl-10 pr-2 py-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
+            className="flex-1 pl-10 pr-2 py-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-500 focus:outline-none"
             autoComplete="off"
           />
           {value && (
             <button
               type="button"
               onClick={() => { setValue(""); setSuggestions([]); setOpen(false); navigate(""); }}
-              className="shrink-0 text-neutral-400 hover:text-neutral-700 text-lg leading-none px-2"
+              className="shrink-0 text-neutral-500 hover:text-neutral-700 text-lg leading-none px-2"
               aria-label="Clear search"
             >
               ×
@@ -159,7 +159,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-white shadow-lg">
             {showPopular && (
               <>
-                <li className="px-4 py-2 text-xs text-neutral-400 font-medium uppercase tracking-wide">
+                <li className="px-4 py-2 text-xs text-neutral-500 font-medium uppercase tracking-wide">
                   Popular topics
                 </li>
                 {popularTags.map((tag) => (
@@ -173,7 +173,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                       }}
                       className="w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 flex items-center gap-2"
                     >
-                      <Search size={12} className="text-neutral-400" />
+                      <Search size={12} className="text-neutral-500" />
                       {tag}
                     </button>
                   </li>
@@ -187,7 +187,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-neutral-50"
                   onMouseDown={(e) => { e.preventDefault(); pick(s); }}
                 >
-                  <span className="text-xs text-neutral-400 w-12 shrink-0">
+                  <span className="text-xs text-neutral-500 w-12 shrink-0">
                     {s.type === "post" ? "Post" : s.type === "tag" ? "Topic" : "Maker"}
                   </span>
                   <span className="text-neutral-800 truncate">

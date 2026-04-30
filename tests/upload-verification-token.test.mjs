@@ -103,4 +103,23 @@ describe("upload verification tokens", () => {
       "Uploaded file type did not match the signed upload.",
     );
   });
+
+  it("does not fall back to the R2 access key as the verification secret", () => {
+    const uploadSecret = process.env.UPLOAD_VERIFICATION_SECRET;
+    const r2Secret = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    delete process.env.UPLOAD_VERIFICATION_SECRET;
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "r2-secret-should-not-sign";
+    try {
+      assert.equal(createUploadVerificationToken(fields, now), null);
+      assert.equal(
+        verifyUploadVerificationToken({ ...fields, expiresAt: now + 60_000 }, "0".repeat(64), now),
+        false,
+      );
+    } finally {
+      if (uploadSecret === undefined) delete process.env.UPLOAD_VERIFICATION_SECRET;
+      else process.env.UPLOAD_VERIFICATION_SECRET = uploadSecret;
+      if (r2Secret === undefined) delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+      else process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = r2Secret;
+    }
+  });
 });

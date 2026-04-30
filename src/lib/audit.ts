@@ -1,8 +1,10 @@
 import { ListingStatus } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 import { prisma } from './db'
 import { stripe } from './stripe'
 import { adminUndoActorBlockReason } from './adminAuditUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
+import { unbanClerkUser } from './clerkUserLifecycle'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -87,6 +89,12 @@ export async function undoAdminAction({
       }
     }
   }
+  const clerkUnbanTarget = log.action === 'BAN_USER'
+    ? await prisma.user.findUnique({
+        where: { id: log.targetId },
+        select: { clerkId: true },
+      })
+    : null
 
   await prisma.$transaction(async (tx) => {
     // Atomic lock: only one undo can succeed, and the flag rolls back if the
@@ -164,4 +172,34 @@ export async function undoAdminAction({
       },
     })
   })
+
+  if (log.action === 'BAN_USER' && clerkUnbanTarget?.clerkId) {
+    try {
+      await unbanClerkUser(clerkUnbanTarget.clerkId)
+      await logAdminAction({
+        adminId,
+        action: 'UNDO_BAN_USER_CLERK_SYNC',
+        targetType: log.targetType,
+        targetId: log.targetId,
+        metadata: { originalActionId: logId, clerkUserId: clerkUnbanTarget.clerkId },
+      })
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: 'undo_ban_user_clerk_sync' },
+        extra: { logId, adminId, targetId: log.targetId, clerkUserId: clerkUnbanTarget.clerkId },
+      })
+      await logAdminAction({
+        adminId,
+        action: 'UNDO_BAN_USER_CLERK_SYNC_FAILED',
+        targetType: log.targetType,
+        targetId: log.targetId,
+        metadata: {
+          originalActionId: logId,
+          clerkUserId: clerkUnbanTarget.clerkId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
+      throw new Error('Database undo succeeded, but Clerk could not be unbanned. Retry the undo or contact support.')
+    }
+  }
 }

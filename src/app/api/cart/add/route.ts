@@ -109,28 +109,19 @@ export async function POST(req: Request) {
     if (nextQuantity > 99) {
       return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
     }
-    if (listing.listingType === "IN_STOCK") {
-      const available = listing.stockQuantity ?? 0;
-      if (available <= 0) {
-        return NextResponse.json({ error: "This item is currently out of stock." }, { status: 400 });
-      }
-      if (nextQuantity > available) {
-        return NextResponse.json({ error: `Only ${available} available.` }, { status: 400 });
-      }
-    }
-
     const item = await prisma.cartItem.upsert({
       where: {
         cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
       },
       update: listing.listingType === "MADE_TO_ORDER"
-        ? { quantity: 1 } // MTO: always 1, don't accumulate
-        : { quantity: { increment: quantity } },
+        ? { quantity: 1, priceCents: totalPriceCents, priceVersion: listing.priceVersion } // MTO: always 1, don't accumulate
+        : { quantity: { increment: quantity }, priceCents: totalPriceCents, priceVersion: listing.priceVersion },
       create: {
         cartId: cart.id,
         listingId,
         quantity,
         priceCents: totalPriceCents,
+        priceVersion: listing.priceVersion,
         selectedVariantOptionIds,
         variantKey,
       },

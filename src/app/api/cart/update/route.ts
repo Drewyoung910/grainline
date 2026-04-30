@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -45,15 +46,21 @@ export async function POST(req: Request) {
       : await prisma.cartItem.findFirst({ where: { cartId: cart.id, listingId: listingId! } });
     if (!item) return NextResponse.json({ error: "Item not in cart" }, { status: 404 });
 
+    let livePriceCents = item.priceCents;
+    let livePriceVersion = item.priceVersion;
+
     if (quantity > 0) {
       const listing = await prisma.listing.findUnique({
         where: { id: item.listingId },
         select: {
           listingType: true,
+          priceCents: true,
+          priceVersion: true,
           stockQuantity: true,
           status: true,
           isPrivate: true,
           reservedForUserId: true,
+          variantGroups: { include: { options: true } },
           seller: {
             select: {
               chargesEnabled: true,
@@ -83,21 +90,25 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
-      if (listing?.listingType === "IN_STOCK") {
-        const available = listing.stockQuantity ?? 0;
-        if (available <= 0) {
-          return NextResponse.json({ error: "This item is currently out of stock." }, { status: 400 });
-        }
-        if (quantity > available) {
-          return NextResponse.json({ error: `Only ${available} available.` }, { status: 400 });
-        }
+      const variantResolution = resolveListingVariantSelection(listing.variantGroups, item.selectedVariantOptionIds ?? []);
+      if (!variantResolution.ok) {
+        return NextResponse.json({ error: variantResolution.error }, { status: 400 });
       }
+      livePriceCents = listing.priceCents + variantResolution.variantAdjustCents;
+      livePriceVersion = listing.priceVersion;
     }
 
     if (quantity === 0) {
       await prisma.cartItem.delete({ where: { id: item.id } });
     } else {
-      await prisma.cartItem.update({ where: { id: item.id }, data: { quantity } });
+      await prisma.cartItem.update({
+        where: { id: item.id },
+        data: {
+          quantity,
+          priceCents: livePriceCents,
+          priceVersion: livePriceVersion,
+        },
+      });
     }
 
     return NextResponse.json({ ok: true });

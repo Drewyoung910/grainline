@@ -85,7 +85,7 @@ export default function SellerGallery({
         >
           <button
             onClick={() => setLightboxOpen(false)}
-            className="absolute top-4 right-4 text-white text-2xl font-light hover:text-neutral-300 z-10"
+            className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-2xl font-light text-white hover:text-neutral-300"
             aria-label="Close"
           >
             ✕
@@ -94,12 +94,12 @@ export default function SellerGallery({
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i - 1 + allImages.length) % allImages.length); }}
-                className="absolute left-4 text-white text-3xl hover:text-neutral-300 z-10 px-2"
+                className="absolute left-[calc(1rem+env(safe-area-inset-left))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-3xl text-white hover:text-neutral-300"
                 aria-label="Previous"
               >‹</button>
               <button
                 onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i + 1) % allImages.length); }}
-                className="absolute right-16 text-white text-3xl hover:text-neutral-300 z-10 px-2"
+                className="absolute right-[calc(1rem+env(safe-area-inset-right))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-3xl text-white hover:text-neutral-300"
                 aria-label="Next"
               >›</button>
             </>

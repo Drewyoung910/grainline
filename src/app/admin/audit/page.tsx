@@ -136,16 +136,16 @@ export default async function AdminAuditPage({
                       {log.action.replace(/_/g, " ")}
                     </span>
                     {log.undone && (
-                      <div className="text-xs text-neutral-400 mt-0.5">Undone</div>
+                      <div className="text-xs text-neutral-500 mt-0.5">Undone</div>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-medium">{log.admin.name ?? "—"}</div>
-                    <div className="text-xs text-neutral-400">{log.admin.email}</div>
+                    <div className="text-xs text-neutral-500">{log.admin.email}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs text-neutral-500">{log.targetType}</div>
-                    <div className="text-xs font-mono text-neutral-400 truncate max-w-[120px]">
+                    <div className="text-xs font-mono text-neutral-500 truncate max-w-[120px]">
                       {log.targetId}
                     </div>
                   </td>
@@ -159,7 +159,7 @@ export default async function AdminAuditPage({
                     {undoable ? (
                       <UndoActionButton logId={log.id} canUndo={canUndo} />
                     ) : (
-                      <span className="text-xs text-neutral-400">Not undoable</span>
+                      <span className="text-xs text-neutral-500">Not undoable</span>
                     )}
                   </td>
                 </tr>

@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import UploadButton from "@/components/R2UploadButton";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 export default function GalleryUploader({
   initialUrls = [],
@@ -54,16 +55,14 @@ export default function GalleryUploader({
           }}
           content={{ button: ({ ready }) => (ready ? "Upload photos" : "Preparing…") }}
           onClientUploadComplete={(files) => {
-            const newUrls = files
-              .map((f) => (f as { ufsUrl?: string }).ufsUrl ?? "")
-              .filter(Boolean);
+            const newUrls = uploadedFileUrls(files);
             setUrls((prev) => [...prev, ...newUrls].slice(0, maxImages));
           }}
           onUploadError={() => {}}
         />
       )}
 
-      <p className="text-xs text-neutral-400">
+      <p className="text-xs text-neutral-500">
         {urls.length}/{maxImages} photos uploaded
       </p>
     </div>

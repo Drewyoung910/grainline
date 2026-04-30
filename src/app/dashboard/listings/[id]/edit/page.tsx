@@ -198,6 +198,7 @@ async function updateListing(
     processingTimeMinDays !== listing.processingTimeMinDays ||
     processingTimeMaxDays !== listing.processingTimeMaxDays;
   const priceRatio = listing.priceCents > 0 ? Math.abs(priceCents - listing.priceCents) / listing.priceCents : 0;
+  const priceValueChanged = priceCents !== listing.priceCents;
   const priceChanged = priceRatio > 0.5; // >50% price change
   const previousVariantGroups = normalizeVariantGroupsForCompare(listing.variantGroups);
   const nextVariantGroups = normalizeVariantGroupsForCompare(
@@ -234,6 +235,7 @@ async function updateListing(
       title,
       description,
       priceCents,
+      ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
       tags,
       metaDescription,
       materials,
@@ -303,7 +305,7 @@ async function updateListing(
         where: { listingId },
         select: { url: true },
         orderBy: { sortOrder: "asc" },
-        take: 4,
+        take: 8,
       });
       const { reviewListingWithAI } = await import("@/lib/ai-review");
       const aiResult = await reviewListingWithAI({
@@ -435,7 +437,7 @@ async function deletePhotoAction(listingId: string, photoId: string) {
         where: { listingId },
         select: { url: true },
         orderBy: { sortOrder: "asc" },
-        take: 4,
+        take: 8,
       });
       if (currentPhotos.length === 0) {
         await prisma.listing.updateMany({
@@ -651,7 +653,7 @@ export default async function EditListingPage(props: {
             <input name="packagedWeightGrams" type="number" step="1" placeholder="Weight (g)"
                    defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-xs text-neutral-500 mt-1">
             These should be the finished, ready-to-ship package size/weight per unit.
             If left blank, your seller default package will be used.
           </p>
@@ -665,7 +667,7 @@ export default async function EditListingPage(props: {
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Meta description
-            <span className="text-neutral-400 ml-1 font-normal">
+            <span className="text-neutral-500 ml-1 font-normal">
               — helps your listing rank in search results
             </span>
           </label>
@@ -686,13 +688,13 @@ export default async function EditListingPage(props: {
             placeholder="e.g. walnut, maple, brass hardware"
             className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
           />
-          <p className="text-xs text-neutral-400 mt-1">Comma-separated. Helps buyers find your piece.</p>
+          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">
             Product dimensions (inches)
-            <span className="text-neutral-400 ml-1 font-normal">optional</span>
+            <span className="text-neutral-500 ml-1 font-normal">optional</span>
           </label>
           <div className="grid grid-cols-3 gap-3">
             <input name="productLengthIn" type="number" step="0.1" min="0"
@@ -705,7 +707,7 @@ export default async function EditListingPage(props: {
               defaultValue={listing.productHeightIn ?? ""}
               placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
-          <p className="text-xs text-neutral-400 mt-1">The actual product size, not the shipping package.</p>
+          <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <SubmitButton>Save changes</SubmitButton>

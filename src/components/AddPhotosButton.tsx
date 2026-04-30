@@ -4,6 +4,13 @@
 import { useRouter } from "next/navigation";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
+
+type AddPhotosResponse = {
+  added?: number;
+  warning?: string;
+  error?: string;
+};
 
 export default function AddPhotosButton({
   listingId,
@@ -39,13 +46,38 @@ export default function AddPhotosButton({
         },
       }}
       onClientUploadComplete={async (files) => {
-       const urls = files.map((f) => (f as { ufsUrl?: string }).ufsUrl ?? "");
+        const urls = uploadedFileUrls(files);
+        if (urls.length === 0) {
+          emitToast("Upload finished, but no usable photo URLs were returned.", "error");
+          return;
+        }
 
-        await fetch(`/api/listings/${listingId}/photos`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ urls }),
-        });
+        let res: Response;
+        try {
+          res = await fetch(`/api/listings/${listingId}/photos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls }),
+          });
+        } catch {
+          emitToast("Photos uploaded, but they could not be attached to the listing.", "error");
+          return;
+        }
+
+        const body = await res.json().catch(() => ({} as AddPhotosResponse)) as AddPhotosResponse;
+        if (!res.ok) {
+          emitToast(body.error ?? "Photos uploaded, but they could not be attached to the listing.", "error");
+          return;
+        }
+
+        if (body.warning) {
+          emitToast(body.warning, "info");
+        } else if ((body.added ?? urls.length) > 0) {
+          const added = body.added ?? urls.length;
+          emitToast(`${added} photo${added === 1 ? "" : "s"} added.`, "success");
+        } else {
+          emitToast("No new photos were added.", "info");
+        }
 
         router.refresh();
       }}

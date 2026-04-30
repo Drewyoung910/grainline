@@ -3,6 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { Palette, Logs } from "@/components/icons";
+import {
+  parseCommissionInterestMessageBody,
+  parseCustomOrderLinkMessageBody,
+  parseCustomOrderRequestMessageBody,
+  parseFileMessageBody,
+  parseThreadMessagesEvent,
+} from "@/lib/messageBodies";
 import { publicListingPath } from "@/lib/publicPaths";
 
 type Msg = {
@@ -25,23 +32,6 @@ type OtherUser = {
 const isImageUrl = (s: string) =>
   /^https?:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
 const isPdfUrl = (s: string) => /^https?:\/\/.+\.pdf$/i.test(s.trim());
-
-function parseFilePayload(
-  body: string
-): { kind: "file"; url: string; name: string | null; type: string | null } | null {
-  try {
-    const obj = JSON.parse(body);
-    if (obj && obj.kind === "file" && typeof obj.url === "string") {
-      return {
-        kind: "file",
-        url: obj.url,
-        name: obj.name ?? null,
-        type: obj.type ?? null,
-      };
-    }
-  } catch {}
-  return null;
-}
 
 function PdfChip({ url, name }: { url: string; name?: string | null }) {
   return (
@@ -168,10 +158,8 @@ export default function ThreadMessages({
       if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
       const es = new EventSource(u.toString());
       es.onmessage = (ev) => {
-        try {
-          const payload = JSON.parse(ev.data);
-          if (payload?.type === "messages") apply(payload.messages as Msg[]);
-        } catch {}
+        const messages = parseThreadMessagesEvent(ev.data);
+        if (messages) apply(messages);
       };
       es.onerror = () => {
         es.close();
@@ -221,15 +209,7 @@ export default function ThreadMessages({
 
           // ── Commission interest card ────────────────────────────────────
           if (m.kind === "commission_interest_card") {
-            let card: {
-              commissionId?: string;
-              commissionTitle?: string;
-              sellerName?: string;
-              budgetMinCents?: number | null;
-              budgetMaxCents?: number | null;
-              timeline?: string | null;
-            } = {};
-            try { card = JSON.parse(body); } catch {}
+            const card = parseCommissionInterestMessageBody(body);
             return (
               <li key={m.id} className="max-w-[90%]">
                 <div className="border-l-4 border-teal-400 bg-neutral-50 p-4 space-y-2">
@@ -262,7 +242,7 @@ export default function ThreadMessages({
                     </Link>
                   )}
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-400">
+                <div className="mt-1 text-[11px] text-neutral-500">
                   {new Date(m.createdAt).toLocaleString("en-US")}
                 </div>
               </li>
@@ -271,14 +251,7 @@ export default function ThreadMessages({
 
           // ── Custom order request card ───────────────────────────────────
           if (m.kind === "custom_order_request") {
-            let req: {
-              description?: string;
-              dimensions?: string | null;
-              budget?: number | null;
-              timelineLabel?: string | null;
-              listingTitle?: string | null;
-            } = {};
-            try { req = JSON.parse(body); } catch {}
+            const req = parseCustomOrderRequestMessageBody(body);
             const isSeller = !mine;
             return (
               <li key={m.id} className="max-w-[90%]">
@@ -325,13 +298,7 @@ export default function ThreadMessages({
 
           // ── Custom order link card ──────────────────────────────────────
           if (m.kind === "custom_order_link") {
-            let link: {
-              listingId?: string;
-              title?: string;
-              priceCents?: number;
-              currency?: string;
-            } = {};
-            try { link = JSON.parse(body); } catch {}
+            const link = parseCustomOrderLinkMessageBody(body);
             return (
               <li key={m.id} className={`max-w-[90%] ${mine ? "ml-auto" : ""}`}>
                 <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-2 shadow-sm">
@@ -362,7 +329,7 @@ export default function ThreadMessages({
           }
 
           // ── Standard message rendering ──────────────────────────────────
-          const file = parseFilePayload(body);
+          const file = parseFileMessageBody(body);
 
           const isImage = file
             ? (file.type?.startsWith("image/") ?? false) || isImageUrl(file.url)
@@ -467,7 +434,6 @@ export default function ThreadMessages({
     </div>
   );
 }
-
 
 
 

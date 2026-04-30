@@ -28,6 +28,9 @@ export default function VacationModeForm({
       : ""
   );
   const [message, setMessage] = useState(initialMessage ?? "");
+  const todayInputValue = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
 
   function handleToggleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const checked = e.target.checked;
@@ -141,11 +144,12 @@ export default function VacationModeForm({
         <div className="space-y-4 pt-1">
           <div>
             <label className="block text-sm font-medium mb-1">
-              Return date <span className="text-neutral-400 font-normal">(optional)</span>
+              Return date <span className="text-neutral-500 font-normal">(optional)</span>
             </label>
             <input
               type="date"
               value={returnDate}
+              min={todayInputValue}
               onChange={(e) => setReturnDate(e.target.value)}
               className="border border-neutral-300 px-3 py-2 text-sm"
             />
@@ -155,7 +159,7 @@ export default function VacationModeForm({
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">
-              Vacation message <span className="text-neutral-400 font-normal">(optional)</span>
+              Vacation message <span className="text-neutral-500 font-normal">(optional)</span>
             </label>
             <textarea
               value={message}
@@ -165,7 +169,7 @@ export default function VacationModeForm({
               placeholder="Let buyers know when you'll be back or why you're away. This is shown on your profile page."
               className="w-full border border-neutral-300 px-3 py-2 text-sm resize-none"
             />
-            <p className="text-xs text-neutral-400 text-right">{message.length}/200</p>
+            <p className="text-xs text-neutral-500 text-right">{message.length}/200</p>
           </div>
         </div>
       )}

@@ -78,7 +78,7 @@ export default function OpenCaseForm({ orderId }: { orderId: string }) {
       <div className="space-y-1">
         <label className="text-xs font-medium text-neutral-700">
           Description{" "}
-          <span className="text-neutral-400">(min 20 characters)</span>
+          <span className="text-neutral-500">(min 20 characters)</span>
         </label>
         <textarea
           value={description}

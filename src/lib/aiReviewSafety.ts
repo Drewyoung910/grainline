@@ -44,7 +44,11 @@ export function filterAIReviewImageUrls(
   urls: string[] | undefined,
   isAllowedUrl: (url: string) => boolean,
 ): string[] {
-  return (urls ?? []).filter((url) => isAllowedUrl(url)).slice(0, 4);
+  return (urls ?? []).filter((url) => isAllowedUrl(url)).slice(0, 8);
+}
+
+export function normalizeDuplicateListingTitle(title: string) {
+  return title.normalize("NFKC").toLowerCase().replace(/[^\p{Letter}\p{Number}]+/gu, "").trim();
 }
 
 export function sanitizeAIAltText(value: string): string {

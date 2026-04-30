@@ -5,6 +5,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import UploadButton from "@/components/R2UploadButton";
 import { useToast } from "@/components/Toast";
+import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
 
 type Existing = {
   id: string;
@@ -160,10 +161,7 @@ export default function ReviewComposer(props: {
         endpoint="messageImage"
         onClientUploadComplete={(res) => {
           const first = res?.[0];
-          const url =
-            (first as { ufsUrl?: string })?.ufsUrl ??
-            (first as { url?: string })?.url ??
-            "";
+          const url = uploadedFileUrl(first);
           if (url) setPhotoUrls((prev) => (prev.includes(url) ? prev : [...prev, url]).slice(0, 6));
         }}
         onUploadError={(e: Error) => toast(e?.message || "Upload failed", "error")}

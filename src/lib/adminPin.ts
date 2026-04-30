@@ -3,7 +3,7 @@ export const ADMIN_PIN_MAX_AGE_SECONDS = 60 * 60 * 4;
 
 const encoder = new TextEncoder();
 const DEV_ADMIN_PIN_COOKIE_SECRET =
-  process.env.ADMIN_PIN_COOKIE_SECRET_DEV || (process.env.NODE_ENV !== "production" ? crypto.randomUUID() : "");
+  process.env.ADMIN_PIN_COOKIE_SECRET_DEV || "grainline-local-dev-admin-pin-cookie-secret";
 const ADMIN_PIN_COOKIE_SECRET_ERROR = "ADMIN_PIN_COOKIE_SECRET is required in production";
 
 export function assertAdminPinCookieSecretConfigured(env: NodeJS.ProcessEnv = process.env) {
@@ -16,7 +16,8 @@ export function assertAdminPinCookieSecretConfigured(env: NodeJS.ProcessEnv = pr
 assertAdminPinCookieSecretConfigured();
 
 function getCookieSecret() {
-  return process.env.ADMIN_PIN_COOKIE_SECRET || DEV_ADMIN_PIN_COOKIE_SECRET;
+  if (process.env.ADMIN_PIN_COOKIE_SECRET) return process.env.ADMIN_PIN_COOKIE_SECRET;
+  return process.env.NODE_ENV !== "production" ? DEV_ADMIN_PIN_COOKIE_SECRET : "";
 }
 
 function base64Url(bytes: ArrayBuffer) {

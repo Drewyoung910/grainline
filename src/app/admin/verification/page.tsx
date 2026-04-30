@@ -808,7 +808,7 @@ export default async function AdminVerificationPage() {
                       />
                       <label htmlFor={`override-${v.id}`} className="cursor-pointer select-none">
                         Override $250 sales requirement{" "}
-                        <span className="text-neutral-400">(for trusted early sellers you know personally)</span>
+                        <span className="text-neutral-500">(for trusted early sellers you know personally)</span>
                       </label>
                     </div>
                     <SubmitButton className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-60 self-start">

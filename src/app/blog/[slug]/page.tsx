@@ -17,8 +17,11 @@ import MediaImage from "@/components/MediaImage";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
+
+const MAX_RENDERED_MARKDOWN_CHARS = 200_000;
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { extractBlogVideoEmbed } from "@/lib/blogVideo";
 
 export async function generateMetadata({
   params,
@@ -54,15 +57,6 @@ export async function generateMetadata({
     twitter: { card: "summary_large_image", title: post.title, description, images: ogImages.map((i) => i.url) },
     alternates: { canonical: `https://thegrainline.com/blog/${slug}` },
   };
-}
-
-function extractVideoId(url: string): { type: "youtube" | "vimeo"; id: string } | null {
-  // Supports: youtube.com/watch?v=, youtu.be/, youtube.com/shorts/, youtube.com/embed/, youtube.com/v/
-  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-  if (yt) return { type: "youtube", id: yt[1] };
-  const vm = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  if (vm) return { type: "vimeo", id: vm[1] };
-  return null;
 }
 
 export default async function BlogPostPage({
@@ -130,7 +124,7 @@ export default async function BlogPostPage({
   }
 
   // Render markdown body
-  const rawHtml = marked.parse(post.body) as string;
+  const rawHtml = marked.parse(post.body.slice(0, MAX_RENDERED_MARKDOWN_CHARS)) as string;
   const htmlBody = sanitizeHtml(rawHtml, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -189,7 +183,7 @@ export default async function BlogPostPage({
     },
   });
 
-  const video = post.videoUrl ? extractVideoId(post.videoUrl) : null;
+  const video = post.videoUrl ? extractBlogVideoEmbed(post.videoUrl) : null;
   const authorName = post.author?.sellerProfile?.displayName ?? post.author?.name ?? "Former author";
   const authorAvatar = post.author?.sellerProfile?.avatarImageUrl ?? post.author?.imageUrl ?? null;
   const postUrl = `https://thegrainline.com/blog/${slug}`;
@@ -357,7 +351,7 @@ export default async function BlogPostPage({
                     <div className="text-xs text-neutral-500">
                       {(l.priceCents / 100).toLocaleString("en-US", { style: "currency", currency: l.currency })}
                     </div>
-                    <div className="text-xs text-neutral-400">{l.seller.displayName}</div>
+                    <div className="text-xs text-neutral-500">{l.seller.displayName}</div>
                   </div>
                 </Link>
               </li>
@@ -394,7 +388,7 @@ export default async function BlogPostPage({
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{c.author.name ?? "User"}</span>
-                      <span className="text-xs text-neutral-400">
+                      <span className="text-xs text-neutral-500">
                         {new Date(c.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                       </span>
                       {meId && meId !== c.author.id && (
@@ -468,7 +462,7 @@ export default async function BlogPostPage({
                         ) : (
                           <div className="h-4 w-4 rounded-full bg-neutral-200" />
                         )}
-                        <span className="text-xs text-neutral-400">{rName}</span>
+                        <span className="text-xs text-neutral-500">{rName}</span>
                       </div>
                     </div>
                   </Link>

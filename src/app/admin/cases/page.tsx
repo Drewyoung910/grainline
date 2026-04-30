@@ -129,7 +129,7 @@ export default async function AdminCasesPage({
       </div>
 
       {total === 0 ? (
-        <div className="rounded-xl border border-neutral-200 bg-white px-6 py-16 text-center text-neutral-400">
+        <div className="rounded-xl border border-neutral-200 bg-white px-6 py-16 text-center text-neutral-500">
           No cases{statusFilter ? ` with status ${statusFilter}` : ""}.
         </div>
       ) : (
@@ -163,7 +163,7 @@ export default async function AdminCasesPage({
                         {c.buyer?.name ?? c.buyer?.email ?? "Deleted buyer"}
                       </div>
                       {c.buyer?.name && (
-                        <div className="text-xs text-neutral-400">{c.buyer.email}</div>
+                        <div className="text-xs text-neutral-500">{c.buyer.email}</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-neutral-700">

@@ -1,12 +1,35 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import VariantSelector, { type VariantGroupForSelector } from "./VariantSelector";
 import BuyNowButton from "./BuyNowButton";
 import AddToCartButton from "./AddToCartButton";
 import NotifyMeButton from "./NotifyMeButton";
 import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
+import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
+import { useToast } from "@/components/Toast";
+
+function selectedOptionIdsFromIntent(groups: VariantGroupForSelector[], rawValue: string | null) {
+  if (!rawValue) return [];
+  const requested = new Set(rawValue.split(",").map((id) => id.trim()).filter(Boolean));
+  const selected: string[] = [];
+  for (const group of groups) {
+    const option = group.options.find((opt) => requested.has(opt.id) && opt.inStock);
+    if (option) selected.push(option.id);
+  }
+  return selected;
+}
+
+function priceForSelectedOptions(groups: VariantGroupForSelector[], basePriceCents: number, selectedOptionIds: string[]) {
+  const selected = new Set(selectedOptionIds);
+  const adjustment = groups.reduce((sum, group) => {
+    const option = group.options.find((opt) => selected.has(opt.id));
+    return sum + (option?.priceAdjustCents ?? 0);
+  }, 0);
+  return basePriceCents + adjustment;
+}
 
 export default function ListingPurchasePanel({
   basePriceCents,
@@ -51,11 +74,38 @@ export default function ListingPurchasePanel({
   ratingDisplay: string | null;
   ratingCount: number;
 }) {
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
   const hasVariants = variantGroups.length > 0;
-  const [totalPriceCents, setTotalPriceCents] = useState(basePriceCents);
-  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
+  const intentSelectedOptionIds = useMemo(
+    () => selectedOptionIdsFromIntent(variantGroups, searchParams.get("variant_options")),
+    [searchParams, variantGroups],
+  );
+  const initialPriceCents = useMemo(
+    () => priceForSelectedOptions(variantGroups, basePriceCents, intentSelectedOptionIds),
+    [basePriceCents, intentSelectedOptionIds, variantGroups],
+  );
+  const [totalPriceCents, setTotalPriceCents] = useState(initialPriceCents);
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
+  const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
+  const selectedVariantLabels = useMemo(() => {
+    const selected = new Set(selectedOptionIds);
+    return variantGroups.flatMap((group) => {
+      const option = group.options.find((opt) => selected.has(opt.id));
+      return option ? [`${group.name}: ${option.label}`] : [];
+    });
+  }, [selectedOptionIds, variantGroups]);
   const listingPath = publicListingPath(listingId, listingTitle);
+  const buyNowRedirectPath = useMemo(() => {
+    const url = new URL(listingPath, "https://thegrainline.com");
+    url.searchParams.set("buy_now", "1");
+    if (selectedOptionIds.length > 0) {
+      url.searchParams.set("variant_options", selectedOptionIds.join(","));
+    }
+    return `${url.pathname}${url.search}`;
+  }, [listingPath, selectedOptionIds]);
+  const shouldAutoOpenBuyNow = userId != null && searchParams.get("buy_now") === "1" && variantSelectionComplete;
 
   const handleSelectionChange = useCallback(
     (ids: string[], price: number) => {
@@ -72,7 +122,7 @@ export default function ListingPurchasePanel({
         <div className="text-3xl font-semibold">
           ${(totalPriceCents / 100).toFixed(2)}
           {hasVariants && totalPriceCents !== basePriceCents && (
-            <span className="text-base font-normal text-neutral-400 ml-2 line-through">
+            <span className="text-base font-normal text-neutral-500 ml-2 line-through">
               ${(basePriceCents / 100).toFixed(2)}
             </span>
           )}
@@ -80,7 +130,7 @@ export default function ListingPurchasePanel({
         {ratingDisplay && ratingCount > 0 && (
           <a href="#reviews" className="flex items-center gap-1.5 group">
             <span className="text-sm text-neutral-700 group-hover:underline">
-              {ratingDisplay} <span className="text-neutral-400">({ratingCount})</span>
+              {ratingDisplay} <span className="text-neutral-500">({ratingCount})</span>
             </span>
           </a>
         )}
@@ -92,6 +142,7 @@ export default function ListingPurchasePanel({
           groups={variantGroups}
           basePriceCents={basePriceCents}
           onSelectionChange={handleSelectionChange}
+          initialSelectedOptionIds={intentSelectedOptionIds}
         />
       )}
 
@@ -141,17 +192,25 @@ export default function ListingPurchasePanel({
               giftWrappingPriceCents={giftWrappingPriceCents}
               selectedVariantOptionIds={selectedOptionIds}
               variantRequired={variantRequired}
+              autoOpen={shouldAutoOpenBuyNow}
               className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] hover:bg-neutral-700 transition-colors"
             >
               Buy now
             </BuyNowButton>
           ) : (
-            <a
-              href={`/sign-in?redirect_url=${encodeURIComponent(listingPath)}`}
+            <button
+              type="button"
+              onClick={() => {
+                if (!variantSelectionComplete) {
+                  toast("Please select all variant options first.", "error");
+                  return;
+                }
+                window.location.href = signUpPathForRedirect(buyNowRedirectPath);
+              }}
               className="w-full rounded-md bg-neutral-900 px-4 py-3 text-white text-sm font-medium min-h-[48px] text-center flex items-center justify-center hover:bg-neutral-700 transition-colors"
             >
-              Sign in to buy
-            </a>
+              Sign up to buy
+            </button>
           )}
           <AddToCartButton
             listingId={listingId}
@@ -159,6 +218,19 @@ export default function ListingPurchasePanel({
             signedIn={!!userId}
             selectedVariantOptionIds={selectedOptionIds}
             variantRequired={variantRequired}
+            anonymousSnapshot={{
+              title: listingTitle,
+              sellerId,
+              sellerName,
+              priceCents: totalPriceCents,
+              imageUrl: listingImageUrl ?? null,
+              variantLabels: selectedVariantLabels,
+              listingType,
+              currency: "usd",
+              maxQuantity: listingType === "MADE_TO_ORDER" ? 1 : stockQuantity,
+              offersGiftWrapping,
+              giftWrappingPriceCents,
+            }}
             className="w-full rounded-md border border-neutral-300 px-4 py-3 text-sm font-medium min-h-[48px] hover:bg-neutral-50 transition-colors"
           />
         </div>
@@ -167,7 +239,7 @@ export default function ListingPurchasePanel({
       {/* Gift wrapping */}
       {offersGiftWrapping && canBuy && (
         <p className="text-xs text-neutral-500 flex items-center gap-1">
-          <Gift size={13} className="text-neutral-400" /> Gift wrapping available
+          <Gift size={13} className="text-neutral-500" /> Gift wrapping available
           {giftWrappingPriceCents
             ? ` · $${(giftWrappingPriceCents / 100).toFixed(2)}`
             : ""}

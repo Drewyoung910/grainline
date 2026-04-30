@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { caseResolutionMessage, isResolvableCaseStatus } from "@/lib/caseActionState";
 
 export const runtime = "nodejs";
 
@@ -44,33 +45,69 @@ export async function POST(
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
-    const ACTIVE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE"];
-    if (!ACTIVE_STATUSES.includes(caseRecord.status)) {
+    if (!isResolvableCaseStatus(caseRecord.status)) {
       return NextResponse.json({ error: "Case is not in an active state." }, { status: 400 });
     }
 
-    const buyerResolved = isBuyer ? true : caseRecord.buyerMarkedResolved;
-    const sellerResolved = isSeller ? true : caseRecord.sellerMarkedResolved;
-    const bothResolved = buyerResolved && sellerResolved;
-
     const now = new Date();
-    const updated = await prisma.case.update({
-      where: { id },
-      data: {
-        buyerMarkedResolved: buyerResolved,
-        sellerMarkedResolved: sellerResolved,
-        status: bothResolved ? "RESOLVED" : "PENDING_CLOSE",
-        ...(bothResolved
-          ? { resolution: "DISMISSED", resolvedAt: now, resolvedById: me.id }
-          : {}),
-        updatedAt: now,
-      },
-      select: { id: true, status: true, buyerMarkedResolved: true, sellerMarkedResolved: true },
-    });
+    const updatedRows = await prisma.$queryRaw<Array<{
+      id: string;
+      status: string;
+      buyerMarkedResolved: boolean;
+      sellerMarkedResolved: boolean;
+    }>>`
+      UPDATE "Case"
+      SET
+        "buyerMarkedResolved" = CASE WHEN "buyerId" = ${me.id} THEN true ELSE "buyerMarkedResolved" END,
+        "sellerMarkedResolved" = CASE WHEN "sellerId" = ${me.id} THEN true ELSE "sellerMarkedResolved" END,
+        "status" = CASE
+          WHEN
+            (CASE WHEN "buyerId" = ${me.id} THEN true ELSE "buyerMarkedResolved" END)
+            AND
+            (CASE WHEN "sellerId" = ${me.id} THEN true ELSE "sellerMarkedResolved" END)
+          THEN 'RESOLVED'::"CaseStatus"
+          ELSE 'PENDING_CLOSE'::"CaseStatus"
+        END,
+        "resolution" = CASE
+          WHEN
+            (CASE WHEN "buyerId" = ${me.id} THEN true ELSE "buyerMarkedResolved" END)
+            AND
+            (CASE WHEN "sellerId" = ${me.id} THEN true ELSE "sellerMarkedResolved" END)
+          THEN 'DISMISSED'::"CaseResolution"
+          ELSE "resolution"
+        END,
+        "resolvedAt" = CASE
+          WHEN
+            (CASE WHEN "buyerId" = ${me.id} THEN true ELSE "buyerMarkedResolved" END)
+            AND
+            (CASE WHEN "sellerId" = ${me.id} THEN true ELSE "sellerMarkedResolved" END)
+          THEN COALESCE("resolvedAt", ${now})
+          ELSE "resolvedAt"
+        END,
+        "resolvedById" = CASE
+          WHEN
+            (CASE WHEN "buyerId" = ${me.id} THEN true ELSE "buyerMarkedResolved" END)
+            AND
+            (CASE WHEN "sellerId" = ${me.id} THEN true ELSE "sellerMarkedResolved" END)
+          THEN COALESCE("resolvedById", ${me.id})
+          ELSE "resolvedById"
+        END,
+        "updatedAt" = ${now}
+      WHERE
+        id = ${id}
+        AND ("buyerId" = ${me.id} OR "sellerId" = ${me.id})
+        AND "status" IN ('OPEN'::"CaseStatus", 'IN_DISCUSSION'::"CaseStatus", 'PENDING_CLOSE'::"CaseStatus")
+      RETURNING id, status::text AS status, "buyerMarkedResolved", "sellerMarkedResolved"
+    `;
+    const updated = updatedRows[0];
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Case status changed before this resolution could be saved. Refresh and try again." },
+        { status: 409 },
+      );
+    }
 
-    const message = bothResolved
-      ? "Case resolved by mutual agreement."
-      : "Waiting for other party to confirm resolution.";
+    const message = caseResolutionMessage(updated.status);
 
     return NextResponse.json({ ok: true, ...updated, message });
   } catch (err) {

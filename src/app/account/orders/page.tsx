@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
-import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -22,7 +22,8 @@ export default async function AccountOrdersPage({
   const me = await ensureUserForPage("/account/orders");
 
   const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const parsedPage = parseInt(pageParam ?? "1", 10);
+  const page = Math.min(10_000, Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1));
 
   const [totalOrders, orders] = await Promise.all([
     prisma.order.count({ where: { buyerId: me.id } }),
@@ -43,10 +44,10 @@ export default async function AccountOrdersPage({
         labelTrackingNumber: true,
         labelCarrier: true,
         paymentEvents: {
-          where: { eventType: "REFUND" },
+          where: blockingRefundLedgerWhere(),
           orderBy: { createdAt: "desc" },
           take: 1,
-          select: { eventType: true, amountCents: true },
+          select: { eventType: true, amountCents: true, status: true },
         },
         items: {
           select: {

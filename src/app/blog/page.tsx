@@ -10,11 +10,16 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
+import { safeJsonLd } from "@/lib/json-ld";
+
+const BLOG_TITLE = "Stories from the Workshop";
+const BLOG_DESCRIPTION = "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.";
+const BLOG_URL = "https://thegrainline.com/blog";
 
 export const metadata: Metadata = {
-  title: "Stories from the Workshop",
-  description: "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.",
-  alternates: { canonical: "https://thegrainline.com/blog" },
+  title: BLOG_TITLE,
+  description: BLOG_DESCRIPTION,
+  alternates: { canonical: BLOG_URL },
 };
 
 const TYPE_TABS: Array<{ label: string; value: string }> = [
@@ -197,9 +202,28 @@ export default async function BlogIndexPage({
   }
 
   const isSearching = q || tagsFilter.length > 0 || authorFilter;
+  const blogLd = {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    name: BLOG_TITLE,
+    description: BLOG_DESCRIPTION,
+    url: BLOG_URL,
+    blogPost: allPosts.slice(0, 12).map((post) => ({
+      "@type": "BlogPosting",
+      headline: post.title,
+      url: `${BLOG_URL}/${post.slug}`,
+      image: post.coverImageUrl ?? undefined,
+      datePublished: post.publishedAt?.toISOString(),
+      author: {
+        "@type": "Person",
+        name: post.sellerProfile?.displayName ?? post.author.sellerProfile?.displayName ?? post.author.name ?? "Grainline",
+      },
+    })),
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(blogLd) }} />
       {/* Hero */}
       <section className="py-12 sm:py-16 text-center bg-gradient-to-b from-amber-50 to-white -mx-4 sm:-mx-6 px-4 sm:px-6 mb-8">
         <h1 className="text-4xl sm:text-5xl font-bold font-display text-neutral-900 mb-3">
@@ -300,7 +324,7 @@ export default async function BlogIndexPage({
           </p>
           {q && tagCloud.length > 0 && (
             <>
-              <p className="text-sm text-neutral-400 mb-4">Try browsing by topic →</p>
+              <p className="text-sm text-neutral-500 mb-4">Try browsing by topic →</p>
               <div className="flex flex-wrap justify-center gap-2">
                 {tagCloud.slice(0, 10).map((t) => (
                   <Link
@@ -371,7 +395,7 @@ export default async function BlogIndexPage({
                       );
                     })()}
                     {featured.publishedAt && (
-                      <span className="text-xs text-neutral-400 ml-auto">
+                      <span className="text-xs text-neutral-500 ml-auto">
                         {new Date(featured.publishedAt).toLocaleDateString("en-US", {
                           month: "short", day: "numeric", year: "numeric",
                         })}
@@ -413,7 +437,7 @@ export default async function BlogIndexPage({
                             {BLOG_TYPE_LABELS[post.type]}
                           </span>
                           {post.readingTimeMinutes && (
-                            <span className="text-xs text-neutral-400">{post.readingTimeMinutes} min</span>
+                            <span className="text-xs text-neutral-500">{post.readingTimeMinutes} min</span>
                           )}
                         </div>
                         <h3 className="font-semibold text-neutral-900 line-clamp-2">{post.title}</h3>
@@ -427,7 +451,7 @@ export default async function BlogIndexPage({
                           )}
                           <span className="text-xs text-neutral-500">{name}</span>
                           {post.publishedAt && (
-                            <span className="text-xs text-neutral-400 ml-auto">
+                            <span className="text-xs text-neutral-500 ml-auto">
                               {new Date(post.publishedAt).toLocaleDateString("en-US", {
                                 month: "short", day: "numeric",
                               })}
