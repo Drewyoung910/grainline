@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 webhook config/idempotency pass: **95** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 recently-viewed auth-boundary pass: **92** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -164,6 +164,7 @@ Latest mechanical open-heading count after the 2026-04-30 webhook config/idempot
 - **Observability pass closed four concrete gaps.** Middleware now sets non-PII Sentry user context from the Clerk user ID, App Router cron routes send explicit Sentry check-ins through `cronMonitor.ts`, `/api/cron/ops-health` polls failed `CronRun` rows/stale email outbox/overdue support requests hourly, and Stripe dispute creation emits an ops-level Sentry warning.
 - **Clerk webhook primary-email drift tightened.** Clerk user webhooks now sync only the matched `primary_email_address_id`, log Sentry warnings when the primary email is missing or malformed, and capture Svix verification failures so tampering/replay noise is visible.
 - **Webhook provider config/idempotency tightened.** Clerk welcome email sends now reserve `welcomeEmailSentAt` atomically before direct send side effects; Resend webhook verification now requires both `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY`; the Stripe webhook missing-secret finding was re-verified already fixed with 503/Sentry/failure-spike handling.
+- **Recently-viewed auth boundary added.** The client now clears the `rv` recently-viewed cookie on explicit sign-out, account deletion, signed-out auth transitions, and signed-in user switches, preventing one shared-device user from inheriting another user's browsing history.
 
 ## Recommended Fix Order
 
@@ -2052,7 +2053,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 14. EmailSuppression no Gmail alias normalization — `accountDeletion.ts:249`. `Foo+tag@gmail.com` only that lowercase form. Future re-registration with `foo@gmail.com` bypasses.
 15. Export endpoint no audit log — required for CCPA proof of fulfillment within 45 days.
-16. RecentlyViewed cookie not cleared on deletion — shared device leak.
+16. **[FIXED 2026-04-30] RecentlyViewed cookie not cleared on deletion** — `AccountDeletionButton` now clears the `rv` cookie before Clerk sign-out, and `RecentlyViewedAuthBoundary` also clears the cookie on signed-out auth transitions so deleted-account browsing history does not persist on shared devices.
 17. User.role not reset — admin/employee role persists on deleted-stub.
 18. MakerVerification timestamps + `reviewedById` retained — cross-reference data point.
 19. Listings retain `slug` and `metaDescription` cleared but `title` stays.
@@ -2285,7 +2286,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 11. **[FIXED 2026-04-30] Admin PIN cookie `sameSite: "strict"` breaks Clerk OAuth navigations** — Admin PIN cookies are now set with `sameSite: "lax"` in both configured-PIN and local dev-bypass paths while remaining `httpOnly`, bounded, and secure in production.
 12. `ensureUser` legalAcceptedAt typed as `unknown` — dead code path; remove.
 13. Banned user with active CartItems can still hit `/api/cart` GET — `/api/cart` is in `isPublic`; banned check only fires for non-public. **Fix**: move banned check before isPublic for routes reading user data, OR enforce at route.
-14. Recently-viewed cookie cross-user leak on shared device — minor; document as accepted risk.
+14. **[FIXED 2026-04-30] Recently-viewed cookie cross-user leak on shared device** — `RecentlyViewedAuthBoundary` tracks the last signed-in Clerk user ID in local storage and clears the `rv` cookie when the signed-in user changes, so User B does not inherit User A's recently viewed listings.
 15. Admin email route uses dynamic import inside POST — `admin/email/route.ts:151`. Performance cost. **Fix**: hoist to top.
 16. AdminPin cookie not bound to Clerk session ID — would benefit from session-rotation invalidation but minor.
 17. **[FIXED/VERIFIED 2026-04-30] Clerk webhook has no DB-backed replay protection** — `ClerkWebhookEvent` exists in Prisma, `/api/clerk/webhook` reserves each `svix-id` before side effects, retries stale/failed reservations after five minutes, records `lastError`, and marks processed only after handler success.
@@ -2982,7 +2983,7 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 14. **[FIXED 2026-04-30] No verifiable consumer request flow for users who lost auth** — `/legal/data-request` is public, suspended-account-allowed, stores a `SupportRequest(kind=DATA_REQUEST)` with a 45-day `slaDueAt`, returns a request ID, emails `legal@thegrainline.com`, and surfaces the record in `/admin/support`.
 
 🟢 **LOW (5)**
-15. **Recently-viewed cookie persists across logout/login on shared devices** — User A's history visible to User B. **Fix**: clear `rv` cookie on signOut (Clerk afterSignOutUrl callback or middleware).
+15. **[FIXED 2026-04-30] Recently-viewed cookie persists across logout/login on shared devices** — Sign-out buttons now call `clearRecentlyViewed()` before `signOut()`, and the top-level auth boundary clears stale `rv` state after redirects or direct auth transitions.
 16. **`notificationPreferences: {}` reset loses opt-out signals** on account-delete. Acceptable but document.
 17. **Block records deleted both directions on anonymize** — original blocker's intent lost if user re-creates similar account. **Fix**: keep records where `blockedId = deletedId`.
 18. **Privacy 4.4 promises 30-day business-transfer notice + deletion opt-out** — no code path. **Fix**: add `SiteConfig.businessTransferNoticeAt DateTime?` + banner. Not blocking until acquisition real.

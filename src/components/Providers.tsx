@@ -2,6 +2,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { ToastProvider } from "@/components/Toast";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import RecentlyViewedAuthBoundary from "@/components/RecentlyViewedAuthBoundary";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <ToastProvider>
         <ServiceWorkerRegister />
+        <RecentlyViewedAuthBoundary />
         {children}
       </ToastProvider>
     </ClerkProvider>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useToast } from "@/components/Toast";
+import { clearRecentlyViewed } from "@/lib/recentlyViewed";
 
 type Blocker = {
   code: string;
@@ -41,6 +42,7 @@ export function AccountDeletionButton() {
       }
 
       toast(data.warning ?? "Account deleted.", data.warning ? "info" : "success");
+      clearRecentlyViewed();
       await signOut({ redirectUrl: "/" });
     } catch {
       toast("Network error. Please try again.", "error");

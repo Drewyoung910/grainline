@@ -1,5 +1,6 @@
 // src/lib/recentlyViewed.ts
 const COOKIE_KEY = "rv";
+export const RECENTLY_VIEWED_USER_STORAGE_KEY = "grainline:recently-viewed:user";
 const MAX_ITEMS = 10;
 const EXPIRY_DAYS = 30;
 
@@ -37,4 +38,29 @@ export function setRecentlyViewed(listingIds: string[]): void {
   const expires = new Date();
   expires.setDate(expires.getDate() + EXPIRY_DAYS);
   document.cookie = `${COOKIE_KEY}=${encodeURIComponent(JSON.stringify(next))}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`;
+}
+
+export function clearRecentlyViewed(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${COOKIE_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+}
+
+export function recentlyViewedAuthTransition({
+  previousUserId,
+  currentUserId,
+}: {
+  previousUserId: string | null;
+  currentUserId: string | null;
+}) {
+  if (currentUserId) {
+    return {
+      shouldClear: Boolean(previousUserId && previousUserId !== currentUserId),
+      nextUserId: currentUserId,
+    };
+  }
+
+  return {
+    shouldClear: Boolean(previousUserId),
+    nextUserId: null,
+  };
 }
