@@ -1,6 +1,7 @@
 // src/app/commission/page.tsx
 import { prisma } from "@/lib/db";
 import Link from "next/link";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { Category } from "@prisma/client";
@@ -452,7 +453,7 @@ export default async function CommissionPage({
                     )}
 
                     <p className="text-sm text-stone-500 line-clamp-2 mb-2">
-                      {r.description.slice(0, 200)}{r.description.length > 200 ? "…" : ""}
+                      {truncateTextWithEllipsis(r.description, 200)}
                     </p>
 
                     <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">

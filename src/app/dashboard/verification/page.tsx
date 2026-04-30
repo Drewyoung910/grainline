@@ -4,6 +4,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
+import { truncateText } from "@/lib/sanitize";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -164,7 +165,7 @@ export default async function VerificationPage() {
   async function applyForGuildMember(formData: FormData) {
     "use server";
     const { seller: s } = await ensureSeller();
-    const craftDescription = String(formData.get("craftDescription") ?? "").trim().slice(0, 500);
+    const craftDescription = truncateText(String(formData.get("craftDescription") ?? "").trim(), 500);
     const yearsExperience = parseInt(String(formData.get("yearsExperience") ?? "0"), 10);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
     const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
@@ -220,7 +221,7 @@ export default async function VerificationPage() {
   async function applyForGuildMaster(formData: FormData) {
     "use server";
     const { seller: s } = await ensureSeller();
-    const craftBusiness = String(formData.get("craftBusiness") ?? "").trim().slice(0, 500);
+    const craftBusiness = truncateText(String(formData.get("craftBusiness") ?? "").trim(), 500);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
     const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
     const confirmStandards = formData.get("confirmStandards") === "on";

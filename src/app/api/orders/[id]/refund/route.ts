@@ -328,6 +328,7 @@ export async function POST(
         await sendRefundIssued({
           buyer: { name: buyerUser.name, email: buyerUser.email },
           refundAmountCents,
+          currency: order.currency,
           orderId,
         });
       }

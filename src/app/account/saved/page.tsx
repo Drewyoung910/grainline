@@ -12,6 +12,7 @@ import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { ListingStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import { truncateText } from "@/lib/sanitize";
 
 export const metadata: Metadata = {
   title: "Saved",
@@ -227,7 +228,7 @@ export default async function SavedPage({
                         )}
                       </div>
                       <h3 className="font-semibold text-neutral-900 line-clamp-2">{p.title}</h3>
-                      {p.excerpt && <p className="text-sm text-neutral-500 line-clamp-2">{p.excerpt.slice(0, 100)}</p>}
+                      {p.excerpt && <p className="text-sm text-neutral-500 line-clamp-2">{truncateText(p.excerpt, 100)}</p>}
                       <div className="flex items-center gap-1.5 pt-1">
                         {avatar ? (
                           // eslint-disable-next-line @next/next/no-img-element

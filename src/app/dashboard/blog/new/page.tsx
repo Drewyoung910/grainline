@@ -9,7 +9,7 @@ import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
-import { sanitizeText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import type { Metadata } from "next";
 
@@ -52,10 +52,10 @@ export default async function NewBlogPostPage() {
     const { success: rlOk } = await safeRateLimit(blogCreateRatelimit, author.id);
     if (!rlOk) return { ok: false, error: "You can publish up to 3 blog posts per day." };
 
-    const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 200);
+    const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 200);
     const body = String(formData.get("body") ?? "").trim();
-    const excerpt = String(formData.get("excerpt") ?? "").trim().slice(0, 200) || null;
-    const metaDescription = String(formData.get("metaDescription") ?? "").trim().slice(0, 160) || null;
+    const excerpt = truncateText(String(formData.get("excerpt") ?? "").trim(), 200) || null;
+    const metaDescription = truncateText(String(formData.get("metaDescription") ?? "").trim(), 160) || null;
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {

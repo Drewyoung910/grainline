@@ -5,7 +5,7 @@ import { z } from "zod";
 import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { createNotification } from "@/lib/notifications";
-import { normalizeUserText, stripBidiControls } from "@/lib/sanitize";
+import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
 import { sendRenderedEmail } from "@/lib/email";
 import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
 
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
       userId: body.userId,
       type: "ACCOUNT_WARNING",
       title: sanitizedSubject,
-      body: sanitizedBody.replace(/\s+/g, " ").trim().slice(0, 500) || "Message from the Grainline team.",
+      body: truncateText(sanitizedBody.replace(/\s+/g, " ").trim(), 500) || "Message from the Grainline team.",
       link: "/account",
     }).catch(() => {});
   }

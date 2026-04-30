@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { listingEditBlockReason } from "@/lib/listingEditState";
-import { sanitizeRichText, sanitizeText } from "@/lib/sanitize";
+import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 
 export async function updateListingAction(listingId: string, formData: FormData) {
@@ -15,8 +15,8 @@ export async function updateListingAction(listingId: string, formData: FormData)
 
   const { me } = await ensureSeller();
 
-  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
-  const description = sanitizeRichText(String(formData.get("description") ?? "").trim()).slice(0, 5000);
+  const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
+  const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
   const priceStr = (formData.get("price") as string) || "0";
   const imageUrl = String(formData.get("imageUrl") ?? "").trim();
   const priceCents = Math.round(parseFloat(priceStr) * 100);

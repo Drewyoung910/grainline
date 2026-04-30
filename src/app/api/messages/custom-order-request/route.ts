@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { truncateText } from "@/lib/sanitize";
 import { z } from "zod";
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -149,7 +150,7 @@ export async function POST(req: Request) {
   const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
 
   const messageBody = JSON.stringify({
-    description: description.trim().slice(0, 500),
+    description: truncateText(description.trim(), 500),
     dimensions: dimensions?.trim() || null,
     budget: budgetNum,
     timeline: timelineStr,
@@ -177,7 +178,7 @@ export async function POST(req: Request) {
     userId: sellerUserId,
     type: "CUSTOM_ORDER_REQUEST",
     title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} wants a custom piece!`,
-    body: String(description).trim().slice(0, 60),
+    body: truncateText(String(description).trim(), 60),
     link: `/messages/${convo.id}`,
   });
 

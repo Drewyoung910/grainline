@@ -2,6 +2,7 @@
 // src/app/dashboard/seller/VacationModeForm.tsx
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { truncateText } from "@/lib/sanitize";
 
 interface Props {
   sellerId: string;
@@ -163,7 +164,7 @@ export default function VacationModeForm({
             </label>
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value.slice(0, 200))}
+              onChange={(e) => setMessage(truncateText(e.target.value, 200))}
               rows={3}
               maxLength={200}
               placeholder="Let buyers know when you'll be back or why you're away. This is shown on your profile page."

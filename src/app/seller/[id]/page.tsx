@@ -20,6 +20,7 @@ import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
+import { truncateText } from "@/lib/sanitize";
 
 export async function generateMetadata({
   params,
@@ -48,7 +49,7 @@ export async function generateMetadata({
   const name = seller.displayName ?? "Maker";
   const title = `${name} — Handmade Woodworking on Grainline`;
   const description =
-    seller.bio?.slice(0, 160) ||
+    (seller.bio ? truncateText(seller.bio, 160) : null) ||
     seller.tagline ||
     `Shop handmade woodworking pieces by ${name} on Grainline`;
 

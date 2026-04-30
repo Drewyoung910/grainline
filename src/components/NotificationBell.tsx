@@ -19,6 +19,7 @@ import {
   User,
 } from "@/components/icons";
 import { safeNotificationPath } from "@/lib/notificationLinks";
+import { truncateText } from "@/lib/sanitize";
 
 type NotificationItem = {
   id: string;
@@ -363,7 +364,7 @@ export default function NotificationBell({
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium leading-tight">{n.title}</p>
                         <p className="text-xs text-neutral-500 mt-0.5 truncate">
-                          {n.body.slice(0, 60)}
+                          {truncateText(n.body, 60)}
                         </p>
                         <p className="text-[11px] text-neutral-500 mt-0.5">
                           {timeAgo(n.createdAt)}

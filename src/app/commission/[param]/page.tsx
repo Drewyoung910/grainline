@@ -6,6 +6,7 @@
 
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { truncateText } from "@/lib/sanitize";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
@@ -112,16 +113,14 @@ export async function generateMetadata({
   }
   const interestedCount = resolvedInterestedCount(req);
   const interested = interestedCount > 0 ? `${interestedCount} maker${interestedCount !== 1 ? "s" : ""} interested.` : "";
-  const description = [req.description.slice(0, 120), ...budgetParts, interested]
+  const description = [truncateText(req.description, 120), ...budgetParts, interested]
     .filter(Boolean)
     .join(" ")
-    .slice(0, 160);
-
   return {
     title,
-    description,
+    description: truncateText(description, 160),
     alternates: { canonical: `https://thegrainline.com/commission/${param}` },
-    openGraph: { title, description, url: `https://thegrainline.com/commission/${param}` },
+    openGraph: { title, description: truncateText(description, 160), url: `https://thegrainline.com/commission/${param}` },
   };
 }
 
@@ -436,7 +435,7 @@ async function CommissionDetailPage({ id }: { id: string }) {
     "@context": "https://schema.org",
     "@type": "Service",
     "name": `${request.title} — Custom Woodworking Commission`,
-    "description": request.description.slice(0, 160),
+    "description": truncateText(request.description, 160),
     "url": `https://thegrainline.com/commission/${request.id}`,
     "provider": { "@type": "Organization", "name": "Grainline", "url": "https://thegrainline.com" },
     "areaServed": { "@type": "Place", "name": locationName },

@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
-import { sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkEmailAddress {
@@ -101,7 +101,7 @@ async function markClerkWebhookFailed(svixId: string, err: unknown) {
     where: { svixId, processedAt: null },
     data: {
       processingStartedAt: null,
-      lastError: errorMessage(err).slice(0, 2000),
+      lastError: truncateText(errorMessage(err), 2000),
     },
   });
 }
@@ -199,7 +199,7 @@ export async function POST(req: Request) {
     dateFromMetadata(unsafe_metadata?.termsAcceptedAt) ?? dateFromMetadata(legal_accepted_at);
   const ageAttestedAt = dateFromMetadata(unsafe_metadata?.ageAttestedAt);
   const termsVersion =
-    typeof unsafe_metadata?.termsVersion === "string" ? unsafe_metadata.termsVersion.slice(0, 50) : undefined;
+    typeof unsafe_metadata?.termsVersion === "string" ? truncateText(unsafe_metadata.termsVersion, 50) : undefined;
 
   if (termsAcceptedAt || ageAttestedAt || termsVersion) {
     await prisma.user.update({

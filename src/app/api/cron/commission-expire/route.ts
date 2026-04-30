@@ -6,6 +6,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { createNotification } from "@/lib/notifications";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { truncateText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -82,7 +83,7 @@ export async function GET(req: Request) {
           if (updated.count === 0) return;
           expired += 1;
 
-          const title = request.title.slice(0, 80);
+          const title = truncateText(request.title, 80);
           const sellerUserIds = Array.from(
             new Set(request.interests.map((i) => i.sellerProfile.userId).filter(Boolean)),
           );

@@ -10,7 +10,7 @@ import {
   safeRateLimit,
 } from "@/lib/ratelimit";
 import { isR2PublicUrl } from "@/lib/urlValidation";
-import { sanitizeText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { listingPhotoReviewImageUrls } from "@/lib/listingPhotoReview";
 import { ListingStatus } from "@prisma/client";
 import { z } from "zod";
@@ -215,7 +215,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       for (const p of newPhotos) {
         const alt = await generateAltText(p.url);
         if (alt) {
-          const altText = sanitizeText(alt).slice(0, 200);
+          const altText = truncateText(sanitizeText(alt), 200);
           if (altText) {
             await prisma.photo.update({ where: { id: p.id }, data: { altText } });
           }

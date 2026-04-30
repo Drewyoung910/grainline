@@ -5,6 +5,7 @@ import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecy
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { blockingRefundLedgerWhere } from './refundRouteState'
+import { truncateText } from './sanitize'
 import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
@@ -64,7 +65,7 @@ async function logClerkSyncResult({
 function appendBanReviewNote(existing: string | null) {
   if (!existing) return BANNED_SELLER_REVIEW_NOTE
   if (existing.includes(BANNED_SELLER_REVIEW_NOTE)) return existing
-  return `${existing}\n\n${BANNED_SELLER_REVIEW_NOTE}`.slice(0, 5000)
+  return truncateText(`${existing}\n\n${BANNED_SELLER_REVIEW_NOTE}`, 5000)
 }
 
 async function notifyBuyersOfBannedSellerOrders(

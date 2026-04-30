@@ -16,7 +16,7 @@ import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
 import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
-import { sanitizeText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -227,7 +227,7 @@ async function rejectGuildMember(formData: FormData) {
   "use server";
   const me = await requireAdmin();
   const verificationId = String(formData.get("verificationId") ?? "");
-  const reviewNotes = sanitizeText(String(formData.get("reviewNotes") ?? "")).slice(0, 2000) || null;
+  const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
 
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },
@@ -450,7 +450,7 @@ async function rejectGuildMaster(formData: FormData) {
   "use server";
   const me = await requireAdmin();
   const verificationId = String(formData.get("verificationId") ?? "");
-  const reviewNotes = sanitizeText(String(formData.get("reviewNotes") ?? "")).slice(0, 2000) || null;
+  const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
 
   const verification = await prisma.makerVerification.findUnique({
     where: { id: verificationId },

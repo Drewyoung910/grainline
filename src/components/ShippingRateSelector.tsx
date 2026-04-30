@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { readApiErrorMessage } from "@/lib/apiError";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 
 type QuoteRate = {
@@ -86,7 +87,12 @@ export default function ShippingRateSelector({
             toLine2: address.line2,
           }),
         });
-        if (!res.ok) throw new Error("Quote failed");
+        if (!res.ok) {
+          throw new Error(await readApiErrorMessage(
+            res,
+            "Unable to get shipping rates. Check the address or try again before continuing.",
+          ));
+        }
         const data = await res.json();
         const quoteRates: QuoteRate[] = data.rates ?? [];
         if (quoteRates.length === 0) {

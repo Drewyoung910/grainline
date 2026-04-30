@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, BlogPostStatus } from "@prisma/client";
 import { searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { truncateText } from "@/lib/sanitize";
 
 const POST_SELECT = {
   id: true,
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
   if (!rl.success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const url = new URL(req.url);
-  const q = (url.searchParams.get("bq")?.trim() ?? "").slice(0, 200);
+  const q = truncateText(url.searchParams.get("bq")?.trim() ?? "", 200);
   const type = url.searchParams.get("type")?.trim() ?? "";
   const tagsParam = url.searchParams.get("tags") ?? "";
   const tags = tagsParam ? tagsParam.split(",").map((t) => t.trim()).filter(Boolean) : [];

@@ -9,7 +9,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import PhotoManager from "@/components/PhotoManager";
@@ -51,8 +51,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
     redirect("/dashboard/listings/new?error=stripe");
   }
 
-  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
-  const description = sanitizeRichText(String(formData.get("description") ?? "").trim()).slice(0, 5000);
+  const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
+  const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
@@ -81,7 +81,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
 
   // Meta description
-  const metaDescription = sanitizeText(String(formData.get("metaDescription") ?? "").trim()).slice(0, 160) || null;
+  const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
   const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
@@ -154,9 +154,9 @@ async function createListing(_prevState: unknown, formData: FormData) {
       const parsed = JSON.parse(variantsJson);
       if (Array.isArray(parsed)) {
         variantGroups = parsed.slice(0, 3).map((g: Record<string, unknown>) => ({
-          name: sanitizeText(String(g.name ?? "")).slice(0, 50),
+          name: truncateText(sanitizeText(String(g.name ?? "")), 50),
           options: (Array.isArray(g.options) ? g.options : []).slice(0, 10).map((o: Record<string, unknown>) => ({
-            label: sanitizeText(String(o.label ?? "")).slice(0, 50),
+            label: truncateText(sanitizeText(String(o.label ?? "")), 50),
             priceAdjustCents: Math.round(Number(o.priceAdjustCents) || 0),
             inStock: Boolean(o.inStock ?? true),
           })),
@@ -205,7 +205,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
       photos: { create: imageUrls.map((url, i) => ({
         url,
         sortOrder: i,
-        altText: imageAltTexts[i] ? sanitizeText(imageAltTexts[i].trim()).slice(0, 200) || null : null,
+        altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
       })) },
       variantGroups: variantGroups.length > 0 ? {
         create: variantGroups.map((g, gi) => ({
@@ -349,10 +349,10 @@ async function createListing(_prevState: unknown, formData: FormData) {
         let updated = 0
         for (let i = 0; i < Math.min(photos.length, aiResult.altTexts.length); i++) {
           if (aiResult.altTexts[i] && !photos[i].altText) {
-            const { sanitizeText: sanitizeAlt } = await import("@/lib/sanitize");
+            const { sanitizeText: sanitizeAlt, truncateText: truncateAlt } = await import("@/lib/sanitize");
             await prisma.photo.update({
               where: { id: photos[i].id },
-              data: { altText: sanitizeAlt(aiResult.altTexts[i]).slice(0, 200) },
+              data: { altText: truncateAlt(sanitizeAlt(aiResult.altTexts[i]), 200) },
             })
             updated++
           }

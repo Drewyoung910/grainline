@@ -9,6 +9,7 @@ import {
   sanitizeAIAltText,
 } from "./aiReviewSafety";
 import { isR2PublicUrl } from "./urlValidation";
+import { truncateText } from "./sanitize";
 
 let missingOpenAIKeyReported = false;
 
@@ -63,7 +64,7 @@ const AI_REVIEW_RESPONSE_FORMAT = {
 function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIReviewResult {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   const flags = Array.isArray(value.flags)
-    ? value.flags.filter((flag): flag is string => typeof flag === "string").map((flag) => flag.slice(0, 80)).slice(0, 20)
+    ? value.flags.filter((flag): flag is string => typeof flag === "string").map((flag) => truncateText(flag, 80)).slice(0, 20)
     : ["invalid-ai-response"];
   const rawConfidence = typeof value.confidence === "number" && Number.isFinite(value.confidence)
     ? value.confidence
@@ -84,7 +85,7 @@ function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIRevi
     flags,
     confidence: Math.max(0, Math.min(1, rawConfidence)),
     reason: typeof value.reason === "string" && value.reason.trim()
-      ? value.reason.replace(/\s+/g, " ").trim().slice(0, 500)
+      ? truncateText(value.reason.replace(/\s+/g, " ").trim(), 500)
       : "AI review returned an invalid response",
     altTexts,
   };

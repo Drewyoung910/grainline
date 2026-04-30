@@ -23,6 +23,7 @@ import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
 import { canViewListingDetail, isPublicListing } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
+import { truncateText } from "@/lib/sanitize";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -65,7 +66,7 @@ export async function generateMetadata(
   }
   const sellerName = listing.seller.displayName ?? "Maker";
   const title = `${listing.title} by ${sellerName}`;
-  const desc = listing.metaDescription || (listing.description ?? "").slice(0, 160);
+  const desc = listing.metaDescription || truncateText(listing.description ?? "", 160);
   const img = listing.photos[0]?.url;
   const price = (listing.priceCents / 100).toFixed(2);
   const currency = (listing.currency || "usd").toUpperCase();
@@ -356,7 +357,7 @@ export default async function ListingPage({
         ratingValue: (r.ratingX2 / 2).toFixed(1),
         bestRating: "5",
       },
-      ...(r.comment ? { reviewBody: r.comment.slice(0, 200) } : {}),
+      ...(r.comment ? { reviewBody: truncateText(r.comment, 200) } : {}),
     }));
   }
 

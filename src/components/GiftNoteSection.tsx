@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { truncateText } from "@/lib/sanitize";
 
 export default function GiftNoteSection({
   offersGiftWrapping,
@@ -40,7 +41,7 @@ export default function GiftNoteSection({
             </label>
             <textarea
               value={giftNote}
-              onChange={(e) => onChange(e.target.value.slice(0, 200), giftWrapping)}
+              onChange={(e) => onChange(truncateText(e.target.value, 200), giftWrapping)}
               placeholder="Add a personal message..."
               rows={3}
               className="w-full border rounded px-3 py-2 text-sm"

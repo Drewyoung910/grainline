@@ -434,10 +434,11 @@ export function getIP(request: Request): string {
  * Pass the `reset` field from Ratelimit.limit() — it is a Unix timestamp in milliseconds.
  */
 export function rateLimitResponse(reset: number, customMessage?: string): Response {
-  const diffMs = reset - Date.now();
+  const diffMs = Math.max(0, reset - Date.now());
   const diffMins = Math.ceil(diffMs / 60000);
   const diffHours = Math.ceil(diffMs / 3600000);
   const resetDate = new Date(reset);
+  const retryAfterSeconds = Math.max(1, Math.ceil(diffMs / 1000));
 
   let timeStr = "";
   if (diffMins < 2) timeStr = "a moment";
@@ -446,11 +447,16 @@ export function rateLimitResponse(reset: number, customMessage?: string): Respon
   else timeStr = `tomorrow at ${resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 
   return NextResponse.json(
-    { error: `${customMessage ?? "Too many requests."} Try again in ${timeStr}.` },
+    {
+      error: `${customMessage ?? "Too many requests."} Try again in ${timeStr}.`,
+      code: "RATE_LIMITED",
+      retryAfterSeconds,
+      retryAt: resetDate.toISOString(),
+    },
     {
       status: 429,
       headers: {
-        "Retry-After": String(Math.ceil(diffMs / 1000)),
+        "Retry-After": String(retryAfterSeconds),
         "X-RateLimit-Reset": String(reset),
       },
     }

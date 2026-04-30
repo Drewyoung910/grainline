@@ -19,6 +19,7 @@ import {
   singleCheckoutLockKey,
 } from "@/lib/checkoutSessionLock";
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import { truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -368,13 +369,15 @@ export async function POST(req: Request) {
     const selectedVariantsMetadata = (() => {
       if (selectedVariantsSnapshot.length === 0) return "";
       const json = JSON.stringify(selectedVariantsSnapshot);
-      return json.length <= 500 ? json : JSON.stringify(
+      if (json.length <= 500) return json;
+      const compactJson = JSON.stringify(
         selectedVariantsSnapshot.map((v) => ({
-          groupName: v.groupName.slice(0, 20),
-          optionLabel: v.optionLabel.slice(0, 20),
+          groupName: truncateText(v.groupName, 20),
+          optionLabel: truncateText(v.optionLabel, 20),
           priceAdjustCents: v.priceAdjustCents,
         }))
-      ).slice(0, 500);
+      );
+      return truncateText(compactJson, 500);
     })();
     const checkoutMetadata: Record<string, string> = {
       listingId: body.listingId,

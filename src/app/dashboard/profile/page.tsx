@@ -14,7 +14,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
-import { sanitizeText, sanitizeRichText, sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 
@@ -86,11 +86,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   if (!displayName) return { ok: false, error: "Display name is required." };
 
   const taglineRaw = toNull(formData.get("tagline"));
-  const tagline = taglineRaw ? sanitizeText(taglineRaw).slice(0, 140) : null;
+  const tagline = taglineRaw ? truncateText(sanitizeText(taglineRaw), 140) : null;
   const bioRaw = toNull(formData.get("bio"));
   const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
   const storyTitleRaw = toNull(formData.get("storyTitle"));
-  const storyTitle = storyTitleRaw ? sanitizeText(storyTitleRaw).slice(0, 200) : null;
+  const storyTitle = storyTitleRaw ? truncateText(sanitizeText(storyTitleRaw), 200) : null;
   const storyBodyRaw = toNull(formData.get("storyBody"));
   const storyBody = storyBodyRaw ? sanitizeRichText(storyBodyRaw) : null;
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
@@ -179,8 +179,8 @@ async function addFaq(formData: FormData) {
   if (!userId) return;
   const { seller } = await ensureSeller();
 
-  const question = sanitizeText(String(formData.get("question") ?? "")).slice(0, 200).trim();
-  const answer = sanitizeRichText(String(formData.get("answer") ?? "")).slice(0, 2000).trim();
+  const question = truncateText(sanitizeText(String(formData.get("question") ?? "")), 200).trim();
+  const answer = truncateText(sanitizeRichText(String(formData.get("answer") ?? "")), 2000).trim();
   if (!question || !answer) return;
 
   const last = await prisma.sellerFaq.findFirst({

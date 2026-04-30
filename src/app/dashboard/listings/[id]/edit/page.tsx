@@ -13,7 +13,7 @@ import TagsInput from "@/components/TagsInput";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
-import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
@@ -71,8 +71,8 @@ async function updateListing(
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "Not signed in" };
 
-  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
-  const description = sanitizeRichText(String(formData.get("description") ?? "").trim()).slice(0, 5000);
+  const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
+  const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
@@ -119,7 +119,7 @@ async function updateListing(
   const processingTimeMaxDays = listingType === "MADE_TO_ORDER" ? toInt(formData.get("processingTimeMaxDays")) : null;
 
   // Meta description
-  const metaDescription = sanitizeText(String(formData.get("metaDescription") ?? "").trim()).slice(0, 160) || null;
+  const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
 
   // Materials (comma-separated string → array)
   const materialsRaw = sanitizeText(String(formData.get("materials") ?? "").trim());
@@ -143,9 +143,9 @@ async function updateListing(
       const parsed = JSON.parse(variantsJson);
       if (Array.isArray(parsed)) {
         variantGroups = parsed.slice(0, 3).map((g: Record<string, unknown>) => ({
-          name: sanitizeText(String(g.name ?? "")).slice(0, 50),
+          name: truncateText(sanitizeText(String(g.name ?? "")), 50),
           options: (Array.isArray(g.options) ? g.options : []).slice(0, 10).map((o: Record<string, unknown>) => ({
-            label: sanitizeText(String(o.label ?? "")).slice(0, 50),
+            label: truncateText(sanitizeText(String(o.label ?? "")), 50),
             priceAdjustCents: Math.round(Number(o.priceAdjustCents) || 0),
             inStock: Boolean(o.inStock ?? true),
           })),
@@ -514,7 +514,7 @@ async function saveAltTextsAction(listingId: string, altTexts: Record<string, st
   if (listingEditBlockReason(listing)) return;
 
   for (const [photoId, text] of Object.entries(altTexts)) {
-    const altText = sanitizeText(text.trim()).slice(0, 200) || null;
+    const altText = truncateText(sanitizeText(text.trim()), 200) || null;
     await prisma.photo.updateMany({
       where: { id: photoId, listingId },
       data: { altText },

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { createNotification } from "@/lib/notifications";
 import { logAdminAction } from "@/lib/audit";
+import { truncateText } from "@/lib/sanitize";
 
 async function approveComment(commentId: string) {
   "use server";
@@ -47,7 +48,7 @@ async function approveComment(commentId: string) {
             userId: parent.authorId,
             type: "BLOG_COMMENT_REPLY",
             title: `${commenterName} replied to your comment`,
-            body: comment.body.slice(0, 60),
+            body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}`,
           });
         }
@@ -58,7 +59,7 @@ async function approveComment(commentId: string) {
             userId: comment.post.authorId,
             type: "NEW_BLOG_COMMENT",
             title: `${commenterName} commented on your post`,
-            body: comment.body.slice(0, 60),
+            body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}`,
           });
         }

@@ -28,16 +28,22 @@ const CYRILLIC_CONFUSABLES: Record<string, string> = {
   ј: "j",
 };
 
+function truncateText(input: string, maxLength: number): string {
+  const limit = Math.max(0, Math.floor(maxLength));
+  const chars = Array.from(input);
+  return chars.length <= limit ? input : chars.slice(0, limit).join("");
+}
+
 export function redactPromptInjection(value: string): string {
-  return value
+  const redacted = value
     .normalize("NFKC")
     .replace(ZERO_WIDTH_CHARS, "")
     .replace(/[АаВЕеІіКкМНОоРрСсТтУуХхЈј]/g, (char) => CYRILLIC_CONFUSABLES[char] ?? char)
     .replace(/\b(ignore|disregard|forget|override|bypass|skip)\b/gi, "[redacted-command]")
     .replace(/\b(system|assistant|developer|user)\s*:/gi, "[redacted-role]:")
     .replace(/\b(approved|confidence|flags)\s*[:=]/gi, "[redacted-field]=")
-    .replace(/```/g, "`\u200b``")
-    .slice(0, 4000);
+    .replace(/```/g, "`\u200b``");
+  return truncateText(redacted, 4000);
 }
 
 export function filterAIReviewImageUrls(
@@ -52,7 +58,7 @@ export function normalizeDuplicateListingTitle(title: string) {
 }
 
 export function sanitizeAIAltText(value: string): string {
-  return value
+  const sanitized = value
     .normalize("NFKC")
     .replace(BIDI_CONTROL_CHARS, "")
     .replace(ZERO_WIDTH_CHARS, "")
@@ -62,6 +68,6 @@ export function sanitizeAIAltText(value: string): string {
     .replace(/on\w+\s*=/gi, "")
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200);
+    .trim();
+  return truncateText(sanitized, 200);
 }

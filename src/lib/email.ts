@@ -10,6 +10,7 @@ import { stripBidiControls, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { sendEmailWithRetry } from "@/lib/emailRetry";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -45,8 +46,8 @@ function safeImgUrl(url: string | undefined | null): string | null {
   return url.replace(/"/g, "%22");
 }
 
-function fmtCents(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+function fmtCents(cents: number, currency: string | null | undefined = DEFAULT_CURRENCY) {
+  return formatCurrencyCents(cents, currency);
 }
 
 function fmtDate(d: Date | string | null | undefined): string {
@@ -101,14 +102,14 @@ function baseTemplate(title: string, body: string): string {
 </body></html>`;
 }
 
-function itemTable(items: { title: string; quantity: number; priceCents: number }[]): string {
+function itemTable(items: { title: string; quantity: number; priceCents: number }[], currency?: string | null): string {
   const rows = items
     .map(
       (it) =>
         `<tr>
         <td style="padding:8px 0;border-bottom:1px solid #E2E0DC;font-size:13px;">${esc(it.title)}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #E2E0DC;font-size:13px;text-align:center;">×${it.quantity}</td>
-        <td style="padding:8px 0;border-bottom:1px solid #E2E0DC;font-size:13px;text-align:right;">${fmtCents(it.priceCents * it.quantity)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #E2E0DC;font-size:13px;text-align:right;">${fmtCents(it.priceCents * it.quantity, currency)}</td>
       </tr>`
     )
     .join("");
@@ -122,15 +123,15 @@ function itemTable(items: { title: string; quantity: number; priceCents: number 
   </table>`;
 }
 
-function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number }): string {
+function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number; currency?: string | null }): string {
   const total = order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.itemsSubtotalCents)}</td></tr>
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents)}</td></tr>
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents)}</td></tr>
+    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
+    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>
+    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>
     <tr>
       <td style="font-size:15px;font-weight:700;color:#1C1C1A;padding:10px 0 3px;border-top:1px solid #E2E0DC;">Total</td>
-      <td style="font-size:15px;font-weight:700;color:#1C1C1A;text-align:right;padding:10px 0 3px;border-top:1px solid #E2E0DC;">${fmtCents(total)}</td>
+      <td style="font-size:15px;font-weight:700;color:#1C1C1A;text-align:right;padding:10px 0 3px;border-top:1px solid #E2E0DC;">${fmtCents(total, order.currency)}</td>
     </tr>
   </table>`;
 }
@@ -238,6 +239,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     itemsSubtotalCents: number;
     shippingAmountCents: number;
     taxAmountCents: number;
+    currency?: string | null;
     estimatedDeliveryDate?: Date | null;
     shipToLine1?: string | null;
     shipToCity?: string | null;
@@ -259,7 +261,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order from <strong>${esc(sellerName)}</strong> is being prepared.</p>
-    ${itemTable(items)}
+    ${itemTable(items, order.currency)}
     ${totalsTable(order)}
     ${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
     ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
@@ -283,6 +285,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
     itemsSubtotalCents: number;
     shippingAmountCents: number;
     taxAmountCents: number;
+    currency?: string | null;
     processingDeadline?: Date | null;
   };
   buyer: { name?: string | null };
@@ -296,7 +299,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> just purchased from your shop!</p>
-    ${itemTable(items)}
+    ${itemTable(items, order.currency)}
     ${totalsTable(order)}
     ${order.processingDeadline ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0 16px;"><strong>Ship by:</strong> ${fmtDate(order.processingDeadline)}</p>` : ""}
     ${btn("View order details", orderUrl)}
@@ -472,9 +475,10 @@ export async function sendCustomOrderReady(opts: {
   sellerName?: string | null;
   listingTitle: string;
   priceCents: number;
+  currency?: string | null;
   listingId: string;
 }) {
-  const { buyer, sellerName, listingTitle, priceCents, listingId } = opts;
+  const { buyer, sellerName, listingTitle, priceCents, currency, listingId } = opts;
   const name = buyer.name || "there";
   const seller = sellerName || "Your maker";
   const listingUrl = `${APP_URL}${publicListingPath(listingId, listingTitle)}`;
@@ -482,7 +486,7 @@ export async function sendCustomOrderReady(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(seller)}</strong> has created your custom piece!</p>
     <p style="font-size:16px;font-weight:700;margin:0 0 4px;">${esc(listingTitle)}</p>
-    <p style="font-size:18px;font-weight:700;color:#1C1C1A;margin:0 0 20px;">${fmtCents(priceCents)}</p>
+    <p style="font-size:18px;font-weight:700;color:#1C1C1A;margin:0 0 20px;">${fmtCents(priceCents, currency)}</p>
     ${btn("Purchase your piece", listingUrl)}
   `;
 
@@ -563,15 +567,16 @@ export async function sendVerificationRejected(opts: {
 export async function sendRefundIssued(opts: {
   buyer: { name?: string | null; email: string };
   refundAmountCents: number;
+  currency?: string | null;
   orderId: string;
 }) {
-  const { buyer, refundAmountCents, orderId } = opts;
+  const { buyer, refundAmountCents, currency, orderId } = opts;
   const name = buyer.name || "there";
   const orderUrl = `${APP_URL}/dashboard/orders/${orderId}`;
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, a refund has been issued for your order.</p>
-    <p style="font-size:28px;font-weight:700;color:#1C1C1A;margin:0 0 8px;">${fmtCents(refundAmountCents)}</p>
+    <p style="font-size:28px;font-weight:700;color:#1C1C1A;margin:0 0 8px;">${fmtCents(refundAmountCents, currency)}</p>
     <p style="font-size:13px;color:#6B6A66;margin:0 0 20px;">Refunds typically appear within 5–10 business days depending on your bank.</p>
     ${btn("View order", orderUrl)}
   `;
@@ -626,7 +631,7 @@ export async function sendWelcomeSeller(opts: {
 
 export function renderFirstListingCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
-  listing: { id: string; title: string; priceCents: number };
+  listing: { id: string; title: string; priceCents: number; currency?: string | null };
 }): RenderedEmail {
   const { seller, listing } = opts;
   const name = seller.displayName || "there";
@@ -635,7 +640,7 @@ export function renderFirstListingCongratsEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your first piece is live on Grainline!</p>
     <p style="font-size:16px;font-weight:700;margin:0 0 4px;">${esc(listing.title)}</p>
-    <p style="font-size:16px;color:#1C1C1A;margin:0 0 20px;">${fmtCents(listing.priceCents)}</p>
+    <p style="font-size:16px;color:#1C1C1A;margin:0 0 20px;">${fmtCents(listing.priceCents, listing.currency)}</p>
     <p style="font-size:14px;font-weight:600;margin:0 0 8px;">Tips for your first sale:</p>
     <ul style="font-size:14px;line-height:1.8;color:#6B6A66;margin:0 0 20px;padding-left:20px;">
       <li>Add more photos — listings with 4+ photos get more views</li>
@@ -658,7 +663,7 @@ export async function sendFirstListingCongrats(opts: Parameters<typeof renderFir
 
 export function renderFirstSaleCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
-  order: { id: string; itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number };
+  order: { id: string; itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number; currency?: string | null };
 }) {
   const { seller, order } = opts;
   const name = seller.displayName || "there";
@@ -668,7 +673,7 @@ export function renderFirstSaleCongratsEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, you made your first sale! 🎉</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 8px;">This is just the beginning. Every great shop starts with one happy customer.</p>
-    <p style="font-size:26px;font-weight:700;color:#1C1C1A;margin:16px 0 20px;">${fmtCents(total)}</p>
+    <p style="font-size:26px;font-weight:700;color:#1C1C1A;margin:16px 0 20px;">${fmtCents(total, order.currency)}</p>
     ${btn("View order details", orderUrl)}
   `;
 

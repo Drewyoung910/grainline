@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
+import { truncateText } from "@/lib/sanitize";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    const craftDescription = verParsed.craftDescription.trim().slice(0, 500);
+    const craftDescription = truncateText(verParsed.craftDescription.trim(), 500);
     const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
     const portfolioUrl = normalizeHttpsUrl(verParsed.portfolioUrl);
     if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {

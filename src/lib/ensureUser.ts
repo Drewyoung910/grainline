@@ -1,7 +1,7 @@
 // src/lib/ensureUser.ts
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { AccountAccessError, isAccountAccessError } from "@/lib/accountAccessError";
 import * as Sentry from "@sentry/nextjs";
 
@@ -180,7 +180,7 @@ export async function ensureUser() {
     dateFromMetadata(unsafeMetadata.termsAcceptedAt) ?? dateFromMetadata(legalAcceptedAt);
   const ageAttestedAt = dateFromMetadata(unsafeMetadata.ageAttestedAt);
   const termsVersion =
-    typeof unsafeMetadata.termsVersion === "string" ? unsafeMetadata.termsVersion.slice(0, 50) : undefined;
+    typeof unsafeMetadata.termsVersion === "string" ? truncateText(unsafeMetadata.termsVersion, 50) : undefined;
 
   // Here we DO pass real fields so your DB stays accurate
   const result = await ensureUserByClerkId(u.id, {

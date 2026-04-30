@@ -4,6 +4,7 @@ import { Resend, type WebhookEventPayload } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { normalizeEmailAddress, suppressEmail } from "@/lib/emailSuppression";
+import { truncateText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,7 +91,7 @@ async function markWebhookFailed(svixId: string, err: unknown) {
   await prisma.resendWebhookEvent.update({
     where: { svixId },
     data: {
-      lastError: errorMessage(err).slice(0, 2000),
+      lastError: truncateText(errorMessage(err), 2000),
     },
   });
 }

@@ -15,6 +15,7 @@ import ClickTracker from "@/components/ClickTracker";
 import HeroMosaic from "@/components/HeroMosaic";
 import ListingCard from "@/components/ListingCard";
 import MediaImage from "@/components/MediaImage";
+import { truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedIdsFor } from "@/lib/blocks";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
@@ -748,7 +749,7 @@ export default async function HomePage() {
 
                     {featuredMaker.bio && (
                       <p className="text-sm text-neutral-600 line-clamp-2">
-                        {featuredMaker.bio.slice(0, 120)}{featuredMaker.bio.length > 120 ? "…" : ""}
+                        {truncateTextWithEllipsis(featuredMaker.bio, 120)}
                       </p>
                     )}
 
@@ -928,7 +929,7 @@ export default async function HomePage() {
                       <div className="p-4 space-y-2 bg-white">
                         <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>
                         {p.excerpt && (
-                          <p className="text-xs text-stone-500 line-clamp-2">{p.excerpt.slice(0, 100)}</p>
+                          <p className="text-xs text-stone-500 line-clamp-2">{truncateText(p.excerpt, 100)}</p>
                         )}
                         <div className="flex items-center gap-1.5">
                           {authorAvatar ? (

@@ -11,6 +11,7 @@ import {
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
+import { truncateText } from "@/lib/sanitize";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -107,7 +108,7 @@ export async function POST(
           userId: caseRecord.buyerId,
           type: "CASE_MESSAGE",
           title: "Grainline Staff sent a message in your case",
-          body: messageBody.slice(0, 60),
+          body: truncateText(messageBody, 60),
           link: `/dashboard/orders/${caseRecord.orderId}`,
         });
       }
@@ -115,7 +116,7 @@ export async function POST(
         userId: caseRecord.sellerId,
         type: "CASE_MESSAGE",
         title: "Grainline Staff sent a message in your case",
-        body: messageBody.slice(0, 60),
+        body: truncateText(messageBody, 60),
         link: `/dashboard/sales/${caseRecord.orderId}`,
       });
 
@@ -159,7 +160,7 @@ export async function POST(
           userId: recipientId,
           type: "CASE_MESSAGE",
           title: `${senderName} sent a message in your case`,
-          body: messageBody.slice(0, 60),
+          body: truncateText(messageBody, 60),
           link: caseLink,
         });
 

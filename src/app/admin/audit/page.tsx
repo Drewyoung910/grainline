@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { UndoActionButton } from "@/components/UndoActionButton";
 import { isUndoableAdminAction } from "@/lib/audit";
+import { truncateText } from "@/lib/sanitize";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Audit Log — Admin" };
@@ -39,7 +40,7 @@ export default async function AdminAuditPage({
   const { page: pageStr, action: actionParam } = await searchParams;
   const page = Math.max(1, parseInt(pageStr ?? "1", 10));
   const perPage = 30;
-  const actionFilter = actionParam?.trim().slice(0, 80) ?? "";
+  const actionFilter = actionParam ? truncateText(actionParam.trim(), 80) : "";
   const where = actionFilter ? { action: actionFilter } : {};
 
   const pageHref = (nextPage: number) => {

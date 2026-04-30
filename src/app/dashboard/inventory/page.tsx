@@ -26,6 +26,7 @@ export default async function InventoryPage() {
 
   const active = listings.filter((l) => l.status !== "SOLD_OUT" && l.status !== "SOLD");
   const outOfStock = listings.filter((l) => l.status === "SOLD_OUT");
+  const pendingReviewCount = listings.filter((l) => l.status === "PENDING_REVIEW").length;
 
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-8">
@@ -35,6 +36,15 @@ export default async function InventoryPage() {
           Manage stock quantities for your In Stock listings.
         </p>
       </header>
+
+      {pendingReviewCount > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="font-medium">
+            {pendingReviewCount === 1 ? "1 listing is under review." : `${pendingReviewCount} listings are under review.`}
+          </span>{" "}
+          Most reviews finish within 1-2 business days. Your saved stock changes are kept, and we&apos;ll notify you when a listing goes live or needs edits.
+        </div>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-neutral-800">

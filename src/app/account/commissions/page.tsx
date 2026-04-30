@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
 import type { Metadata } from "next";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
@@ -112,7 +113,7 @@ export default async function MyCommissionsPage() {
               </div>
 
               <p className="text-sm text-neutral-500 line-clamp-2 mb-3">
-                {r.description.slice(0, 150)}{r.description.length > 150 ? "…" : ""}
+                {truncateTextWithEllipsis(r.description, 150)}
               </p>
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-500">

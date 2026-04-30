@@ -19,6 +19,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { truncateText } from "@/lib/sanitize";
 
 const PAGE_SIZE = 24;
 
@@ -190,7 +191,7 @@ export default async function BrowsePage({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const q = (sp.q ?? "").slice(0, 200);
+  const q = truncateText(sp.q ?? "", 200);
   const page = sp.page ?? "1";
   const min = sp.min ?? "";
   const max = sp.max ?? "";

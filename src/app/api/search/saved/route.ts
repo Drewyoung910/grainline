@@ -8,6 +8,7 @@ import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { normalizeTags } from "@/lib/tags";
+import { truncateText } from "@/lib/sanitize";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
     ? (categoryRaw as Category)
     : null;
 
-  const normalizedQuery = q?.trim().replace(/\s+/g, " ").slice(0, 200) || null;
+  const normalizedQuery = q ? truncateText(q.trim().replace(/\s+/g, " "), 200) || null : null;
   const listingType = type === "IN_STOCK" || type === "MADE_TO_ORDER" ? (type as ListingType) : null;
   const normalizedTags = normalizeTags(tags ?? [], 20);
   const normalizedMin = typeof minPrice === "number" && Number.isFinite(minPrice) ? minPrice : null;

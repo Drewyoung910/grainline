@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { truncateText } from "@/lib/sanitize";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   const rl = await safeRateLimitOpen(searchRatelimit, ip);
   if (!rl.success) return NextResponse.json({ suggestions: [] });
 
-  const q = (req.nextUrl.searchParams.get("bq")?.trim() ?? "").slice(0, 200);
+  const q = truncateText(req.nextUrl.searchParams.get("bq")?.trim() ?? "", 200);
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
 
   const [postRows, tagRows, authorRows] = await Promise.all([

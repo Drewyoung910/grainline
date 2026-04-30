@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
+import { truncateText } from "@/lib/sanitize";
 
 export async function beginStripeWebhookEvent(id: string, type: string): Promise<boolean> {
   const now = new Date();
@@ -46,7 +47,7 @@ export async function markStripeWebhookEventFailed(id: string, error: unknown): 
     where: { id, processedAt: null },
     data: {
       processingStartedAt: null,
-      lastError: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      lastError: truncateText(error instanceof Error ? error.message : String(error), 500),
     },
   });
 }

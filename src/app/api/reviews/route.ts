@@ -8,7 +8,7 @@ import { sendNewReviewEmail } from "@/lib/email";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
-import { sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
         listingId,
         reviewerId: me.id,
         ratingX2,
-        comment: sanitizeRichText((comment ?? "").slice(0, 2000)),
+        comment: truncateText(sanitizeRichText(comment ?? ""), 2000),
         verified: true,
       },
     });
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
             buyerName: me.name ?? "A buyer",
             listingTitle: listing.title,
             rating: ratingX2 / 2,
-            reviewPreview: (comment ?? "").slice(0, 200),
+            reviewPreview: truncateText(comment ?? "", 200),
             reviewUrl: `https://thegrainline.com${publicListingPath(listingId, listing.title)}#reviews`,
           });
         }

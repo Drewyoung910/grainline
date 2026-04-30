@@ -11,6 +11,7 @@ import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
 import { safeJsonLd } from "@/lib/json-ld";
+import { truncateTextWithEllipsis } from "@/lib/sanitize";
 
 const BLOG_TITLE = "Stories from the Workshop";
 const BLOG_DESCRIPTION = "Maker spotlights, build guides, wood education, and gift guides from the Grainline community.";
@@ -414,9 +415,7 @@ export default async function BlogIndexPage({
               {rest.map((post) => {
                 const avatar = post.author.sellerProfile?.avatarImageUrl ?? post.author.imageUrl;
                 const name = post.author.sellerProfile?.displayName ?? post.author.name ?? "Staff";
-                const excerpt = post.excerpt
-                  ? post.excerpt.slice(0, 120) + (post.excerpt.length > 120 ? "…" : "")
-                  : null;
+                const excerpt = post.excerpt ? truncateTextWithEllipsis(post.excerpt, 120) : null;
                 return (
                   <li key={post.id} className="relative card-listing">
                     <div className="absolute top-2 right-2 z-10">

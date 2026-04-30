@@ -7,7 +7,7 @@ import { createNotification } from "@/lib/notifications";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { sanitizeText } from "@/lib/sanitize";
+import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { z } from "zod";
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const message = sanitizeText(broadcastParsed.message.trim().slice(0, 500));
+  const message = truncateText(sanitizeText(broadcastParsed.message.trim()), 500);
   const imageUrl = broadcastParsed.imageUrl?.trim() || null;
   const sellersOnly = broadcastParsed.sellersOnly === true;
 
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
           userId: f.followerId,
           type: "SELLER_BROADCAST",
           title: `Update from ${sellerName}`,
-          body: message.slice(0, 100) + (message.length > 100 ? "…" : ""),
+          body: truncateTextWithEllipsis(message, 100),
           link: `/account/feed`,
           dedupScope: broadcast.id,
         }),

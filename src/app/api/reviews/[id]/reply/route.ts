@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-import { sanitizeRichText } from "@/lib/sanitize";
+import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -28,7 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  const rawBody = replyParsed.text.trim().slice(0, 2000);
+  const rawBody = truncateText(replyParsed.text.trim(), 2000);
   const body = sanitizeRichText(rawBody);
   if (!body) return NextResponse.json({ error: "Empty reply" }, { status: 400 });
 

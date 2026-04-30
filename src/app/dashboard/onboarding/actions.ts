@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { sanitizeRichText, sanitizeText, sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeRichText, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -46,9 +46,9 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
   try {
     const seller = await getSeller();
     const displayName = sanitizeUserName(String(formData.get("displayName") || ""));
-    const bioRaw = String(formData.get("bio") || "").trim().slice(0, 500);
+    const bioRaw = truncateText(String(formData.get("bio") || "").trim(), 500);
     const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
-    const taglineRaw = String(formData.get("tagline") || "").trim().slice(0, 100);
+    const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
     const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
     const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
     if (avatarImageUrl && !isR2PublicUrl(avatarImageUrl)) {
@@ -78,10 +78,10 @@ export async function saveStep2(formData: FormData): Promise<ActionResult> {
     const yearsRaw = formData.get("yearsInBusiness");
     const yearsNum = yearsRaw ? parseInt(String(yearsRaw), 10) : NaN;
     const yearsInBusiness = !Number.isNaN(yearsNum) ? Math.max(0, Math.min(100, yearsNum)) : null;
-    const city = String(formData.get("city") || "").trim().slice(0, 100) || null;
-    const state = String(formData.get("state") || "").trim().slice(0, 100) || null;
-    const returnPolicyRaw = String(formData.get("returnPolicy") || "").trim().slice(0, 2000);
-    const shippingPolicyRaw = String(formData.get("shippingPolicy") || "").trim().slice(0, 2000);
+    const city = truncateText(String(formData.get("city") || "").trim(), 100) || null;
+    const state = truncateText(String(formData.get("state") || "").trim(), 100) || null;
+    const returnPolicyRaw = truncateText(String(formData.get("returnPolicy") || "").trim(), 2000);
+    const shippingPolicyRaw = truncateText(String(formData.get("shippingPolicy") || "").trim(), 2000);
     const returnPolicy = returnPolicyRaw ? sanitizeRichText(returnPolicyRaw) : null;
     const shippingPolicy = shippingPolicyRaw ? sanitizeRichText(shippingPolicyRaw) : null;
     const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";

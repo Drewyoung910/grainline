@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { readApiErrorMessage } from "@/lib/apiError";
 
 export default function NewsletterSignup({ heading, subheading }: { heading?: string; subheading?: string }) {
   const [email, setEmail] = React.useState("");
@@ -22,11 +23,13 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        throw new Error(await readApiErrorMessage(res, "Something went wrong. Please try again."));
+      }
       setStatus("success");
-    } catch {
+    } catch (err) {
       setStatus("error");
-      setError("Something went wrong. Please try again.");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     }
   }
 

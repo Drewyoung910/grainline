@@ -1,5 +1,11 @@
 import type { SelectedVariantSnapshot } from "@/lib/listingVariants";
 
+function truncateText(input: string, maxLength: number): string {
+  const limit = Math.max(0, Math.floor(maxLength));
+  const chars = Array.from(input);
+  return chars.length <= limit ? input : chars.slice(0, limit).join("");
+}
+
 export type SelectedVariantsMetadataResult =
   | { ok: true; selectedVariants: SelectedVariantSnapshot[] | undefined }
   | { ok: false; error: "invalid_json" | "not_array" | "invalid_shape"; metadataLength: number };
@@ -35,8 +41,8 @@ export function parseSelectedVariantsMetadata(raw: string | undefined): Selected
       return { ok: false, error: "invalid_shape", metadataLength: raw.length };
     }
     selectedVariants.push({
-      groupName: candidate.groupName.slice(0, 50),
-      optionLabel: candidate.optionLabel.slice(0, 50),
+      groupName: truncateText(candidate.groupName, 50),
+      optionLabel: truncateText(candidate.optionLabel, 50),
       priceAdjustCents: Math.round(candidate.priceAdjustCents),
     });
   }

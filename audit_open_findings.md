@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 request-correlation pass: **114** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 UI/runtime hygiene pass: **109** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -159,6 +159,7 @@ Latest mechanical open-heading count after the 2026-04-30 request-correlation pa
 - **Case and message state tightened.** Buyer-opened cases now write a durable audit entry, early case-open errors include the actual estimated delivery date, message threads with banned/deleted/missing recipients show an unavailable-account banner and block new replies server-side, and touched case/message/email snippets use surrogate-safe truncation.
 - **Listing form JSON and bare catches are observable.** Listing create/edit/custom form JSON now parses through `formJson.ts` with runtime array/object shape checks before use, and the remaining bare `catch {}` sites in the audited client/listing paths now log warnings/errors instead of swallowing failures silently.
 - **Request correlation IDs added.** Middleware now accepts or generates a safe `x-request-id`, forwards it to downstream request headers, emits it on middleware responses, and tags Sentry scope with the same value so API, Stripe, Resend, and DB failures can be tied together.
+- **UI/runtime hygiene pass closed five verified issues.** Email money formatting now uses `Intl.NumberFormat` through `money.ts`, rate-limit responses expose structured retry metadata and affected client surfaces parse API errors, inventory shows a wait-time banner for listings under review, user-visible truncation now uses surrogate-safe helpers, and the duplicate MapLibre WebGL finding was re-verified fixed.
 
 ## Recommended Fix Order
 
@@ -1495,7 +1496,7 @@ The section below is the verbatim chronological round-by-round content from the 
 
 5. **Stripe Embedded Checkout iframe in mobile Safari ITP** — `ui_mode: "embedded"`. iOS Safari strict ITP can block third-party cookie in iframe → Apple Pay flow may fail. CSP frame-src includes checkout.stripe.com (good). **Test on real device**.
 
-6. **Maplibre WebGL on Brave Strict** — `MakersMapSection.tsx`. Brave's "Block fingerprinting: Strict" disables WebGL → map blank. **Fix**: add `!gl` fallback to OSM static tile or "Enable WebGL" message.
+6. **[FIXED/VERIFIED 2026-04-30] Maplibre WebGL on Brave Strict** — all MapLibre surfaces now call `maplibreSupported()` before constructing the map, catch constructor failures, and render `MapFallback` with WebGL-disabled copy and OSM/profile links instead of a blank map. `MakersMapSection` lazy-loads `AllSellersMap`, which uses the same fallback path.
 
 🟢 **LOW (14 — abbreviated)**
 
@@ -1635,7 +1636,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 15. **[FIXED 2026-04-30] Follower fan-out capped at `take: 10000`** — new-listing and republish follower fan-out now share `fanOutListingToFollowers()`, which paginates follows in stable 1,000-row pages instead of truncating at 10,000.
 16. **[FIXED 2026-04-30] Concurrent first-listing congrats race** — first-listing congrats now only enqueues when the created listing is the seller's earliest listing by `(createdAt, id)`, and the existing EmailOutbox unique `dedupKey` (`first-listing-congrats:<sellerId>`) suppresses duplicate sends across concurrent requests.
 17. **[FIXED 2026-04-30] Resubmit doesn't clear `aiReviewFlags` from previous reject** — `publishListingAction` now replaces AI review flags and score on every terminal resubmission path: active, held for review, and AI-error fallback.
-18. **PENDING_REVIEW UI lacks wait-time banner** — Seller may assume broken.
+18. **[FIXED 2026-04-30] PENDING_REVIEW UI lacks wait-time banner** — inventory now shows a seller-facing amber banner when any in-stock listing is under review, includes a 1-2 business day expectation, and explains that saved stock changes are kept and notifications will be sent when review finishes.
 
 ### Persona 5: Multi-seller cart, mixed shipping — 5 findings
 
@@ -1647,7 +1648,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 ### Persona 6: Fraud detection / legit user blocked — 4 findings
 
-24. **Rate-limit 429 lacks UX guidance** — `lib/ratelimit.ts` returns "Try again in N minutes" but UI shows generic toast.
+24. **[FIXED 2026-04-30] Rate-limit 429 lacks UX guidance** — `rateLimitResponse()` now includes `code: "RATE_LIMITED"`, `retryAfterSeconds`, `retryAt`, and `Retry-After`, while `readApiErrorMessage()` preserves server-provided retry copy or derives it from the header. Shipping quote and newsletter UI now parse API errors instead of replacing 429s with generic failure copy.
 25. **No 3D Secure failure recovery** — Stripe blocks card → buyer returns to cart → `selectedRate` HMAC token expired (30min TTL) → must restart shipping selection.
 26. **No platform-side account lockout** — Clerk handles auth, but no platform fraud signals. No "5 failed checkouts → flag" logic.
 27. **No support ticket / contact form** — locked-out user has zero in-app recovery.
@@ -2450,7 +2451,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 
 8. **[FIXED 2026-04-30] `statement_descriptor_suffix` strips Unicode silently to empty** — checkout routes now use shared `stripeStatementDescriptorSuffix()`, which folds accented Latin names, strips unsupported characters, caps to Stripe's 22-character suffix limit, and falls back to `GRAINLINE` for non-Latin/empty seller names so the descriptor is never silently omitted.
 
-9. **Surrogate-pair truncation on `.slice(0, N)` of emoji titles** — multiple sites. `"🪵abc...".slice(0, 22)` cuts inside surrogate pair → lone high surrogate renders as `?`. **Fix**: `.slice(0, N).replace(/[\uD800-\uDBFF]$/, "")` or `Array.from(s).slice(0, N).join("")` for grapheme-aware truncation.
+9. **[FIXED 2026-04-30] Surrogate-pair truncation on `.slice(0, N)` of emoji titles** — user-visible truncation now goes through `truncateText()` / `truncateTextWithEllipsis()` across listing/blog/profile/commission/review/message/notification/admin snippets, AI-generated alt text, webhook metadata/error snippets, and client text-area caps. The remaining `.slice(0, 100)` match is an array cap, not string truncation.
 
 10. **[FIXED 2026-04-30] Reading-time miscount on CJK** — `calculateReadingTime()` now counts CJK/Hangul/Kana characters at 400 chars/min instead of treating a no-space article as one word, while preserving the existing English word-count behavior. Regression tests cover both cases.
 
@@ -2458,7 +2459,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 
 🟢 **LOW (4)**
 
-12. **`fmtCents` hardcodes `$` + `en-US`** — `src/lib/email.ts:59-61`. Only `usd` today; future CAD/EUR yields wrong glyph + decimal placement. **Fix**: `Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents/100)`.
+12. **[FIXED 2026-04-30] `fmtCents` hardcodes `$` + `en-US`** — email rendering now uses `formatCurrencyCents()` from `src/lib/money.ts`, normalizes ISO currency codes, passes order/listing currency through order/custom/refund/congrats email renderers, and has regression coverage for USD/EUR formatting.
 
 13. Notification title raw user name in concatenation — auto-resolves once #2 is fixed.
 

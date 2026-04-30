@@ -7,7 +7,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderReady } from "@/lib/email";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
-import { sanitizeRichText, sanitizeText } from "@/lib/sanitize";
+import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import ActionForm from "@/components/ActionForm";
 import ImagesUploader from "@/components/ImagesUploader";
 import ListingTypeFields from "@/components/ListingTypeFields";
@@ -60,8 +60,8 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     return { ok: false, error: "Reserved user must be the conversation participant." };
   }
 
-  const title = sanitizeText(String(formData.get("title") ?? "").trim()).slice(0, 150);
-  const description = sanitizeRichText(String(formData.get("description") ?? "").trim()).slice(0, 5000);
+  const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
+  const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
   const priceStr = String(formData.get("price") ?? "0");
   const priceCents = Math.round(parseFloat(priceStr) * 100);
 
@@ -240,6 +240,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
           sellerName: seller.displayName,
           listingTitle: created.title,
           priceCents: created.priceCents,
+          currency: created.currency,
           listingId: created.id,
         });
       }

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import * as Sentry from "@sentry/nextjs";
 import { cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
+import { truncateText } from "@/lib/sanitize";
 
 export type CronRunHandle =
   | { acquired: true; runId: string; jobName: string; bucket: string }
@@ -70,7 +71,7 @@ export async function failCronRun(
       status: "FAILED",
       completedAt: new Date(),
       result: {
-        error: error instanceof Error ? error.message.slice(0, 500) : "Unknown error",
+        error: error instanceof Error ? truncateText(error.message, 500) : "Unknown error",
       },
     },
   }).catch((updateError) => {
