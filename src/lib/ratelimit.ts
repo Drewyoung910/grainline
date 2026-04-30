@@ -307,6 +307,20 @@ export const newsletterRatelimit = new Ratelimit({
   prefix: "rl:newsletter",
 });
 
+export const supportRequestRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "60 m"),
+  analytics: true,
+  prefix: "rl:support-request",
+});
+
+export const dataRequestRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "24 h"),
+  analytics: true,
+  prefix: "rl:data-request",
+});
+
 // One-click unsubscribe — public endpoint, token-protected but still rate-limited
 export const unsubscribeRatelimit = new Ratelimit({
   redis,
@@ -407,7 +421,8 @@ export async function safeRateLimit(
 /**
  * Fail OPEN — if Redis is down, allow the request.
  * Use ONLY for: view tracking, click tracking, search suggestions,
- * profile view dedup — non-critical read-path routes
+ * profile view dedup, public support/data request forms where outage should
+ * not remove the user's escalation path.
  */
 export async function safeRateLimitOpen(
   limiter: Ratelimit,

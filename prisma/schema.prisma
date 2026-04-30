@@ -1031,6 +1031,38 @@ model EmailOutbox {
   @@index([recipientEmail, createdAt])
 }
 
+enum SupportRequestKind {
+  SUPPORT
+  DATA_REQUEST
+}
+
+enum SupportRequestStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+model SupportRequest {
+  id             String               @id @default(cuid())
+  kind           SupportRequestKind
+  status         SupportRequestStatus @default(OPEN)
+  name           String?              @db.VarChar(100)
+  email          String               @db.VarChar(254)
+  topic          String               @db.VarChar(80)
+  orderId        String?              @db.VarChar(80)
+  message        String               @db.VarChar(4000)
+  slaDueAt       DateTime
+  emailSentAt    DateTime?
+  emailLastError String?              @db.VarChar(1000)
+  closedAt       DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([kind, status, slaDueAt])
+  @@index([email, createdAt])
+  @@index([status, createdAt])
+}
+
 model StripeWebhookEvent {
   id                  String    @id @db.VarChar(255)
   type                String    @db.VarChar(100)

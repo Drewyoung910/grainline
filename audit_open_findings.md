@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 UI/runtime hygiene pass: **109** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 support/legal/runbook pass: **104** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -160,6 +160,7 @@ Latest mechanical open-heading count after the 2026-04-30 UI/runtime hygiene pas
 - **Listing form JSON and bare catches are observable.** Listing create/edit/custom form JSON now parses through `formJson.ts` with runtime array/object shape checks before use, and the remaining bare `catch {}` sites in the audited client/listing paths now log warnings/errors instead of swallowing failures silently.
 - **Request correlation IDs added.** Middleware now accepts or generates a safe `x-request-id`, forwards it to downstream request headers, emits it on middleware responses, and tags Sentry scope with the same value so API, Stripe, Resend, and DB failures can be tied together.
 - **UI/runtime hygiene pass closed five verified issues.** Email money formatting now uses `Intl.NumberFormat` through `money.ts`, rate-limit responses expose structured retry metadata and affected client surfaces parse API errors, inventory shows a wait-time banner for listings under review, user-visible truncation now uses surrogate-safe helpers, and the duplicate MapLibre WebGL finding was re-verified fixed.
+- **Support/legal/runbook pass closed five verified gaps.** Public `/support` and `/legal/data-request` forms now create durable `SupportRequest` rows with 45-day SLA due dates, admin status tracking, and notification-email error evidence; middleware keeps these routes public for suspended/deleted users; `docs/runbook.md` now covers rollback, secret rotation, webhook recovery, restore drills, cron/email-outbox triage, and support/legal queue handling.
 
 ## Recommended Fix Order
 
@@ -1622,7 +1623,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 7. **[FIXED 2026-04-30] Buyer can't open case on banned seller's PENDING order** — Case creation now bypasses the pending/future-date gate when the seller is banned/deleted or the order is already under staff review, so buyers have an in-app escalation path.
 8. **[FIXED 2026-04-30] Case messages don't check banned** — Party-to-party case messages now check the recipient account state and return a 409 with escalation copy when the other party is suspended, deleted, or missing. The case escalation route now lets a party escalate immediately when the counterparty account is unavailable, instead of forcing a dead-end 48-hour wait.
 9. **[FIXED 2026-04-30] Buyer can still leave review on banned seller** — Review creation now checks the listing seller's account state before duplicate/order gates and rejects new public reviews for suspended or deleted makers.
-10. **No support escalation path** — no `/support` route, no contact form. Stuck buyer has no recourse besides un-monitored `support@thegrainline.com` email.
+10. **[FIXED 2026-04-30] No support escalation path** — public `/support` now submits through `/api/support`, stores a durable `SupportRequest` row, emails support, returns a reference ID, and exposes the request in `/admin/support`.
 
 ### Persona 3: Power buyer / heavy feed — 4 findings
 
@@ -1651,7 +1652,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 24. **[FIXED 2026-04-30] Rate-limit 429 lacks UX guidance** — `rateLimitResponse()` now includes `code: "RATE_LIMITED"`, `retryAfterSeconds`, `retryAt`, and `Retry-After`, while `readApiErrorMessage()` preserves server-provided retry copy or derives it from the header. Shipping quote and newsletter UI now parse API errors instead of replacing 429s with generic failure copy.
 25. **No 3D Secure failure recovery** — Stripe blocks card → buyer returns to cart → `selectedRate` HMAC token expired (30min TTL) → must restart shipping selection.
 26. **No platform-side account lockout** — Clerk handles auth, but no platform fraud signals. No "5 failed checkouts → flag" logic.
-27. **No support ticket / contact form** — locked-out user has zero in-app recovery.
+27. **[FIXED 2026-04-30] No support ticket / contact form** — `/support` and `/legal/data-request` are public and suspended-account-allowed in middleware, and the banned page now links to both recovery paths.
 
 ### Top priority
 
@@ -1947,14 +1948,14 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 15. **[FIXED 2026-04-30] No correlation/request ID propagation** — middleware now normalizes an incoming `x-request-id` or generates a UUID, forwards it to downstream request headers via `NextResponse.next({ request: { headers } })`, attaches it to middleware responses, and sets `Sentry.setTag("requestId", requestId)`. Pure tests cover safe ID preservation, unsafe header rejection, and downstream header propagation.
 
-16. **No documented runbook** — find returned 0 RUNBOOK/DR/OPS docs. **Fix**: add `/docs/runbook.md` with secret rotation, deploy rollback, webhook re-registration, DB restore commands.
+16. **[FIXED 2026-04-30] No documented runbook** — `docs/runbook.md` now covers incident triage, deploy rollback, secret rotation, Stripe/Clerk/Resend webhook recovery, database restore drills, cron/email-outbox triage, and support/legal queue handling.
 
 🟢 **LOW (4)**
 
 17. No Sentry user context on logged-in users — `setUser()` returned 0 matches. Authenticated errors anonymized. **Fix**: middleware sets `Sentry.setUser({id: meId})`.
 18. No bundle size regression alert — CI runs `next build` but no `bundlesize`/Vercel commit-comment threshold.
 19. `dispute.created` only sends in-app notification — disputes need ops alert (24-hr response window). **Fix**: `Sentry.captureMessage("Stripe dispute opened", {level:'warning', tags:{disputeId, orderId}})`.
-20. No backup verification — Neon offers PITR but no documented quarterly restore drill. RTO/RPO undefined.
+20. **[FIXED 2026-04-30] No backup verification** — `docs/runbook.md` now defines a quarterly non-production Neon restore drill with migration-status checks, read-only smoke checks, RPO/RTO documentation, and cleanup steps.
 
 ---
 
@@ -2975,7 +2976,7 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 11. **UserReport rows not touched** for deleted reporters/reported. **Fix**: anonymize reporter name in admin UI OR delete reports by deleted reporter.
 12. **[FIXED/VERIFIED 2026-04-30] Conversation rows persist with no scrub** — account deletion deletes conversations involving the user and collects sent/received message attachment URLs for R2 cleanup.
 13. **Resend webhook lookups by email broken after anonymization** (`emailSuppression.ts:50`) — re-signup with same email cross-binds incorrectly. **Fix**: migrate `EmailSuppression` to be source of truth; deprecate `NewsletterSubscriber.active=false` redundancy.
-14. **No verifiable consumer request flow for users who lost auth** (forgot password, banned). **Fix**: add `/legal/data-request` form → emails legal@thegrainline.com → 45-day SLA tracking.
+14. **[FIXED 2026-04-30] No verifiable consumer request flow for users who lost auth** — `/legal/data-request` is public, suspended-account-allowed, stores a `SupportRequest(kind=DATA_REQUEST)` with a 45-day `slaDueAt`, returns a request ID, emails `legal@thegrainline.com`, and surfaces the record in `/admin/support`.
 
 🟢 **LOW (5)**
 15. **Recently-viewed cookie persists across logout/login on shared devices** — User A's history visible to User B. **Fix**: clear `rv` cookie on signOut (Clerk afterSignOutUrl callback or middleware).

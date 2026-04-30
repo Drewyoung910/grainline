@@ -21,9 +21,11 @@ const isPublic = createRouteMatcher([
   "/map(.*)",             // all-sellers map — public
   "/terms",               // Terms of Service — public legal page
   "/privacy",             // Privacy Policy — public legal page
+  "/legal/data-request",   // Privacy/account data request — public legal page
   "/not-available",       // geo-block landing page — no auth needed
   "/monitoring",          // Sentry client-event tunnel — no Clerk session
   "/about",               // About page — public
+  "/support",             // Support request form — no auth needed
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
@@ -41,6 +43,8 @@ const isPublic = createRouteMatcher([
   "/commission/((?!new)[^/]+)", // Commission request detail — public (excludes /new)
   "/api/csp-report",           // CSP violation reports — no auth needed
   "/api/newsletter",           // newsletter signup — no auth needed
+  "/api/support",              // support request form — no auth needed
+  "/api/legal/data-request",   // data/privacy request form — no auth needed
   "/api/listings/([^/]+)/view",   // listing view tracking — fire-and-forget analytics
   "/api/listings/([^/]+)/click",  // listing click tracking — fire-and-forget analytics
   "/api/listings/([^/]+)/similar",       // similar listings — public
@@ -58,14 +62,18 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/sign-up(.*)",
   "/terms",
   "/privacy",
+  "/legal/data-request",
   "/accessibility",
   "/unsubscribe",
+  "/support",
   "/not-available",
   "/monitoring",
   "/api/clerk/webhook",
   "/api/stripe/webhook",
   "/api/resend/webhook",
   "/api/email/unsubscribe",
+  "/api/support",
+  "/api/legal/data-request",
   "/api/health",
   "/api/cron(.*)",
 ]);
@@ -92,8 +100,14 @@ function isGeoAllowedApiPath(pathname: string): boolean {
     pathname === "/api/clerk/webhook" ||
     pathname === "/api/stripe/webhook" ||
     pathname === "/api/resend/webhook" ||
-    pathname === "/api/email/unsubscribe"
+    pathname === "/api/email/unsubscribe" ||
+    pathname === "/api/support" ||
+    pathname === "/api/legal/data-request"
   );
+}
+
+function isGeoAllowedPagePath(pathname: string): boolean {
+  return pathname === "/support" || pathname === "/legal/data-request";
 }
 
 function isCronPath(pathname: string): boolean {
@@ -114,6 +128,7 @@ export default clerkMiddleware(async (auth, req) => {
     const isAllowed =
       pathname.startsWith("/not-available") ||
       pathname.startsWith("/monitoring") ||
+      isGeoAllowedPagePath(pathname) ||
       isGeoAllowedApiPath(pathname) ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/favicon") ||

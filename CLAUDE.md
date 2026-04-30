@@ -5927,12 +5927,14 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Stripe metadata helper**: `stripeWebhookMetadata.ts` validates buy-now selected-variant metadata before `OrderItem.selectedVariants` writes. Malformed metadata should be logged with session/listing context and dropped, not silently swallowed or blindly persisted.
 - **Email/notification helpers**: `caseCreateState.ts`, `caseResolutionCopy.ts`, `emailRetry.ts`, `emailText.ts`, `emailOutboxQuota.ts`, `emailOutboxState.ts`, `emailOutboxSanitize.ts`, `followerListingNotifications.ts`, `messageRecipientState.ts`, `notificationDeliveryPreferences.ts`, `notificationEmailPreferences.ts`, `notificationLinks.ts`, `notificationPayload.ts`, and `notificationPreferenceKeys.ts` split case-open copy, case-resolution copy, transient send retry, rendering, quota, retry, message recipient availability, dedup, preference, safe-link, and bounded-payload concerns from route code.
 - **UI/runtime helpers**: `apiError.ts` and `money.ts` centralize API error extraction/retry guidance and ISO-currency-aware cent formatting. Client components that care about 429/retry copy should use `readApiErrorMessage()` instead of replacing API responses with generic text; email/order copy should use `formatCurrencyCents()` instead of hand-built `$${amount}` strings.
+- **Support/legal helpers**: `supportRequest.ts` centralizes public support/data-request normalization, HTML rendering, recipient routing, storage-kind mapping, and 45-day SLA calculation. `SupportRequestForm.tsx` is the shared client form for `/support` and `/legal/data-request`.
 - **Listing/media/content helpers**: `aiReviewSafety.ts`, `blogInput.ts`, `blogVideo.ts`, `formJson.ts`, `listingActionState.ts`, `listingPhotoReview.ts`, `listingSoftDelete.ts`, `messageBodies.ts`, `responseText.ts`, `uploadKey.ts`, `uploadVerificationToken.ts`, `uploadedFileUrl.ts`, and `clientId.ts` centralize AI-review safety, media input validation, listing form JSON parsing, listing/archive state checks, message body parsing, upload ownership/verification, uploaded-file response parsing, and client temporary IDs.
 - **Small UI action helper**: `InlineActionButton.tsx` is the compact client wrapper for server actions inside dense dashboard action rows when failures need inline feedback instead of silent no-ops.
 - **Pure regression tests**: each new state/helper module should have a small Node test where practical. Prefer this pattern before adding route-level mocks.
 
 ### Behavior changes future agents must preserve
 - **Audit workflow**: every audit/fix pass must update `audit_open_findings.md`, update this file when architecture/env/schema changed, run verification, and land a scoped commit before starting the next batch.
+- **Operations runbook**: `docs/runbook.md` is the operational reference for incident triage, rollback, secret rotation, webhook recovery, database restore drills, cron/email-outbox triage, and support/legal queue handling.
 - **Public URL behavior**: listing/seller stale slug variants redirect permanently to canonical `id--slug` paths after access checks. Metadata paths call `notFound()` for missing/non-public records instead of returning `{}` soft defaults.
 - **Anonymous cart behavior**: signed-out add-to-cart uses browser storage and `cartEvents.ts`; signed-in cart APIs remain server-authoritative. Header/cart count must account for both flows.
 - **Cart price-version behavior**: `Listing.priceVersion` and `CartItem.priceVersion` detect stale cart snapshots. Checkout routes refresh changed items and return `PRICE_CHANGED` instead of silently charging old prices.
@@ -5949,6 +5951,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Form JSON/error observability**: listing form hidden JSON fields must parse through `formJson.ts` and branch on the returned shape before use. Do not reintroduce bare `catch {}` in client/listing paths; expected non-fatal failures should leave contextual console or Sentry evidence.
 - **Request correlation behavior**: middleware owns `x-request-id`. It should preserve safe incoming IDs, generate one otherwise, forward it to downstream route headers, emit it on middleware responses, and tag Sentry with `requestId`.
 - **Rate-limit UX behavior**: `rateLimitResponse()` returns structured `RATE_LIMITED` payloads with `retryAfterSeconds`, `retryAt`, `Retry-After`, and human retry copy. UI fetch code should surface that message through `readApiErrorMessage()` on non-OK responses.
+- **Support/legal request behavior**: `/support` and `/legal/data-request` are intentionally public, geo-allowed, and suspended-account-allowed. They create durable `SupportRequest` rows before attempting notification email, return a request ID, and leave `emailLastError` evidence if support/legal email delivery fails. Admins process those records at `/admin/support`.
 - **Unicode truncation behavior**: user-visible string caps should use `truncateText()` or `truncateTextWithEllipsis()` from `sanitize.ts`; avoid direct `.slice(0, n)` on titles, descriptions, notification bodies, metadata snippets, or admin notes because it can split surrogate pairs.
 - **Money formatting behavior**: transactional email rendering passes order/listing currency into `formatCurrencyCents()`. Do not reintroduce `"$" + cents.toFixed(2)` formatting in email, receipt, or notification copy.
 - **Pending-review seller messaging**: inventory surfaces show a wait-time banner when listings are held in `PENDING_REVIEW`; keep review-held states explicit so sellers do not interpret AI/admin review as broken stock saves.
@@ -5966,6 +5969,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **`20260429173000_add_listing_price_versions`**: adds `Listing.priceVersion` and `CartItem.priceVersion` for stale price/version detection.
 - **`20260430140000_nullable_email_outbox_next_attempt`**: makes `EmailOutbox.nextAttemptAt` nullable so terminal jobs do not need sentinel timestamps.
 - **`20260430162000_add_listing_description_trgm_index`**: adds active-public listing description trigram search index.
+- **`20260430183000_support_requests`**: adds `SupportRequest`, `SupportRequestKind`, and `SupportRequestStatus` for public support/legal intake, admin queue status, notification-email failure evidence, and 45-day SLA tracking.
 
 ### Deleted routes/files
 - **Deleted**: `src/app/api/whoami/route.ts`. Do not re-add dev identity/session endpoints in production route space.
@@ -5973,6 +5977,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 ### Production environment variables
 - **Required**: `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `CLERK_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`, `SENTRY_DSN`, and `NEXT_PUBLIC_SENTRY_DSN`.
 - **Operational but not strictly required for normal traffic**: `HEALTH_CHECK_TOKEN` for verbose health output, `EMAIL_OUTBOX_DAILY_LIMIT` to override the default 3,000/day queued-email quota.
+- **Support/legal intake**: no new env vars; notification email uses existing `RESEND_API_KEY` and `EMAIL_FROM`.
 - **Local/dev only**: `ADMIN_PIN_COOKIE_SECRET_DEV` can make local admin PIN cookies stable. Never rely on it in production.
 
 ### Remaining architectural risks

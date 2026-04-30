@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
-import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star } from "@/components/icons";
+import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star, File } from "@/components/icons";
 import AdminMobileNav from "@/components/AdminMobileNav";
 import AdminPinGate from "@/components/AdminPinGate";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
@@ -29,13 +29,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <AdminPinGate />;
   }
 
-  const [openCaseCount, pendingVerificationCount, pendingCommentCount, pendingReviewCount] = await Promise.all([
+  const [openCaseCount, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
     prisma.case.count({
       where: { status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] } },
     }),
     prisma.makerVerification.count({ where: { status: "PENDING" } }),
     prisma.blogComment.count({ where: { approved: false } }),
     prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
+    prisma.supportRequest.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
   ]);
 
   return (
@@ -46,6 +47,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         pendingVerificationCount={pendingVerificationCount}
         pendingCommentCount={pendingCommentCount}
         pendingReviewCount={pendingReviewCount}
+        openSupportRequestCount={openSupportRequestCount}
       />
 
       {/* ── Desktop sidebar (md+) ── */}
@@ -146,6 +148,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           >
             <AlertTriangle size={16} className="shrink-0 text-neutral-500" />
             Reports
+          </Link>
+          <Link
+            href="/admin/support"
+            className="flex items-center justify-between rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
+          >
+            <div className="flex items-center gap-2">
+              <File size={16} className="shrink-0 text-neutral-500" />
+              Support
+            </div>
+            {openSupportRequestCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                {openSupportRequestCount}
+              </span>
+            )}
           </Link>
           <Link
             href="/admin/users"
