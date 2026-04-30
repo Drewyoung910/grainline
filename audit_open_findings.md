@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 dashboard/Stripe metadata reconciliation pass: **132** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 Stripe webhook idempotency pass: **131** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -2207,7 +2207,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 8. **[FIXED/VERIFIED 2026-04-30] Webhook advisory lock missing on `charge.refunded` + disputes** — Both `charge.refunded` and `charge.dispute.*` now run their order read/write work inside `prisma.$transaction()` and call `lockChargeMutation(tx, chargeId)` before mutating order state.
 
-9. **Webhook idempotency vs Workbench thin-event retrieve race** — `webhook/route.ts:46`: `event = await stripe.events.retrieve(event.id)` happens BEFORE `beginStripeWebhookEvent`. If retrieval fails (rate limit, transient 5xx), no idempotency row inserted. On Workbench replay, `event.id` may differ → duplicate processing. **Fix**: pin idempotency to outer signed `event.id` only.
+9. **[FIXED 2026-04-30] Webhook idempotency vs Workbench thin-event retrieve race** — Stripe webhook events now reserve the signed outer `event.id` immediately after signature/staleness validation and before any Workbench thin-event retrieval. Retrieve failures and envelope mismatches mark that same idempotency row failed for retry/reconciliation instead of leaving no row.
 
 10. **[FIXED/VERIFIED 2026-04-30] `latestSuccessfulRefund` filters by `status !== "failed"` but not `pending`/`canceled`** — `latestSuccessfulRefund()` now filters to `status === "succeeded"` only; tests cover failed and pending refunds returning `null` and canceled refunds losing to the newest succeeded refund.
 

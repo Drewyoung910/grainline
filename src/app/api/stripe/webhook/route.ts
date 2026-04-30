@@ -105,6 +105,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Stale Stripe event" }, { status: 400 });
   }
 
+  const shouldProcess = await beginStripeWebhookEvent(event.id, event.type);
+  if (!shouldProcess) return NextResponse.json({ ok: true });
+
+  async function markCurrentStripeWebhookEventFailed(handlerErr: unknown) {
+    try {
+      await markStripeWebhookEventFailed(event.id, handlerErr);
+    } catch (markErr) {
+      Sentry.captureException(markErr, {
+        tags: { source: "stripe_webhook_mark_failed" },
+        extra: { stripeEventId: event.id, stripeEventType: event.type },
+      });
+    }
+  }
+
   // Handle Stripe Workbench Snapshot thin events:
   // thin events only carry { id, object } (≤3 keys) in data.object. Keep the
   // signed envelope and copy in only the retrieved data.object after matching.
@@ -133,6 +147,7 @@ export async function POST(req: Request) {
           status: 400,
           extra: { stripeEventId: event.id, stripeEventType: event.type },
         });
+        await markCurrentStripeWebhookEventFailed(new Error("Retrieved thin event did not match signed envelope"));
         return NextResponse.json({ error: "Retrieved event mismatch" }, { status: 400 });
       }
       event = {
@@ -154,6 +169,7 @@ export async function POST(req: Request) {
         status: 503,
         extra: { stripeEventId: event.id, stripeEventType: event.type },
       });
+      await markCurrentStripeWebhookEventFailed(retrieveErr);
       return NextResponse.json({ error: "Failed to retrieve event" }, { status: 503 });
     }
   }
@@ -161,21 +177,12 @@ export async function POST(req: Request) {
   async function processIdempotentEvent(
     handler: () => Promise<NextResponse>,
   ): Promise<NextResponse> {
-    const shouldProcess = await beginStripeWebhookEvent(event.id, event.type);
-    if (!shouldProcess) return NextResponse.json({ ok: true });
     try {
       const response = await handler();
       await markStripeWebhookEventProcessed(event.id);
       return response;
     } catch (handlerErr) {
-      try {
-        await markStripeWebhookEventFailed(event.id, handlerErr);
-      } catch (markErr) {
-        Sentry.captureException(markErr, {
-          tags: { source: "stripe_webhook_mark_failed" },
-          extra: { stripeEventId: event.id, stripeEventType: event.type },
-        });
-      }
+      await markCurrentStripeWebhookEventFailed(handlerErr);
       throw handlerErr;
     }
   }
@@ -1435,6 +1442,7 @@ export async function POST(req: Request) {
       });
     }
 
+    await markStripeWebhookEventProcessed(event.id);
     return NextResponse.json({ received: true });
   } catch (err) {
     // Only stripeSessionId P2002s are duplicate webhook deliveries. Other unique
