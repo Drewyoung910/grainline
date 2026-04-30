@@ -6,8 +6,9 @@ export async function POST(request: NextRequest) {
   const { success } = await safeRateLimitOpen(cspReportRatelimit, getIP(request));
   if (!success) return new NextResponse(null, { status: 204 });
 
+  const rawBody = await request.text();
   try {
-    const body = await request.json();
+    const body = JSON.parse(rawBody);
     const report = body["csp-report"] || body;
 
     Sentry.addBreadcrumb({
@@ -42,8 +43,14 @@ export async function POST(request: NextRequest) {
     if (process.env.NODE_ENV === "development") {
       console.warn("[CSP Violation]", JSON.stringify(report, null, 2));
     }
-  } catch {
-    // Ignore parse errors — some browsers send differently formatted reports
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { source: "csp_report_parse" },
+      extra: {
+        contentType: request.headers.get("content-type"),
+        bodyLength: rawBody.length,
+      },
+    });
   }
 
   return new NextResponse(null, { status: 204 });

@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/sanitize";
 import { sendRenderedEmail } from "@/lib/email";
 import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
+import { logAdminAction } from "@/lib/audit";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
 
@@ -134,7 +135,6 @@ export async function POST(request: Request) {
 
   // Audit log
   try {
-    const { logAdminAction } = await import("@/lib/audit");
     await logAdminAction({
       adminId: admin.id,
       action: "SEND_EMAIL",

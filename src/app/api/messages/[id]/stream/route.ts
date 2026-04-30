@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,17 +13,17 @@ export async function GET(
 ) {
   const { id } = await params;
   const { userId } = await auth();
-  if (!userId) return new Response("unauthorized", { status: 401 });
+  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { success } = await safeRateLimit(messageStreamRatelimit, userId);
-  if (!success) return new Response("Too many requests", { status: 429 });
+  if (!success) return Response.json({ error: "Too many requests" }, { status: 429 });
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     me = await ensureUserByClerkId(userId);
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return new Response(err.message, { status: err.status });
+      return Response.json({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
@@ -31,7 +32,7 @@ export async function GET(
     where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     select: { id: true },
   });
-  if (!allowed) return new Response("forbidden", { status: 403 });
+  if (!allowed) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
   let since = Number(url.searchParams.get("since") || 0);
@@ -47,6 +48,7 @@ export async function GET(
       let closed = false;
       let pollDelayMs = 3000;
       let timeout: ReturnType<typeof setTimeout> | null = null;
+      let reportedPollError = false;
 
       const poll = async () => {
         if (closed) return;
@@ -68,8 +70,14 @@ export async function GET(
             ping();
             pollDelayMs = Math.min(pollDelayMs + 1000, 10000);
           }
-        } catch {
-          // swallow and keep connection alive
+        } catch (err) {
+          if (!reportedPollError) {
+            reportedPollError = true;
+            Sentry.captureException(err, {
+              tags: { source: "message_stream_poll" },
+              extra: { conversationId: id },
+            });
+          }
           ping();
           pollDelayMs = Math.min(pollDelayMs * 2, 15000);
         }

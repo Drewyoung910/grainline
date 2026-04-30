@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useToast } from "@/components/Toast";
 import { publicListingPath } from "@/lib/publicPaths";
+import { stockNotificationSubscribedFromResponse } from "@/lib/stockNotificationState";
 
 export default function NotifyMeButton({
   listingId,
@@ -28,8 +29,10 @@ export default function NotifyMeButton({
       const method = subscribed ? "DELETE" : "POST";
       const res = await fetch(`/api/listings/${listingId}/notify`, { method });
       if (res.ok) {
-        setSubscribed(!subscribed);
-        toast(subscribed ? "Stock alert removed." : "We’ll notify you when this is back in stock.", "success");
+        const data = await res.json().catch(() => null);
+        const nextSubscribed = stockNotificationSubscribedFromResponse(data, !subscribed);
+        setSubscribed(nextSubscribed);
+        toast(nextSubscribed ? "We’ll notify you when this is back in stock." : "Stock alert removed.", "success");
         return;
       }
       let message = "Couldn’t update stock alert.";

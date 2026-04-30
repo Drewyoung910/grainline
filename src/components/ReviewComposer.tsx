@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import UploadButton from "@/components/R2UploadButton";
 import { useToast } from "@/components/Toast";
 import { uploadedFileUrl } from "@/lib/uploadedFileUrl";
+import { appendReviewPhotoUrl, MAX_REVIEW_PHOTOS, normalizeReviewPhotoUrls } from "@/lib/reviewPhotoState";
 
 type Existing = {
   id: string;
@@ -43,6 +44,10 @@ export default function ReviewComposer(props: {
   const [photoUrls, setPhotoUrls] = React.useState<string[]>(
     existing?.photos?.map((p) => p.url) ?? []
   );
+  const photoUrlsRef = React.useRef(photoUrls);
+  React.useEffect(() => {
+    photoUrlsRef.current = photoUrls;
+  }, [photoUrls]);
 
   // If user cannot create AND not editing, just show the info box.
   if (creating && (!canReview || hasReview)) {
@@ -63,12 +68,12 @@ export default function ReviewComposer(props: {
     const payload = editing ? {
       ratingX2,
       comment: comment.trim(),
-      photos: photoUrls.slice(0, 6), // existing PATCH contract
+      photos: normalizeReviewPhotoUrls(photoUrls), // existing PATCH contract
     } : {
       listingId,
       ratingX2,
       comment: comment.trim(),
-      photoUrls: photoUrls.slice(0, 6), // existing POST contract
+      photoUrls: normalizeReviewPhotoUrls(photoUrls), // existing POST contract
     };
 
     const res = await fetch(
@@ -162,7 +167,16 @@ export default function ReviewComposer(props: {
         onClientUploadComplete={(res) => {
           const first = res?.[0];
           const url = uploadedFileUrl(first);
-          if (url) setPhotoUrls((prev) => (prev.includes(url) ? prev : [...prev, url]).slice(0, 6));
+          const result = appendReviewPhotoUrl(photoUrlsRef.current, url);
+          photoUrlsRef.current = result.urls;
+          setPhotoUrls(result.urls);
+          if (result.status === "limit") {
+            toast(`Reviews can include up to ${MAX_REVIEW_PHOTOS} photos.`, "error");
+          } else if (result.status === "duplicate") {
+            toast("That photo is already attached.", "error");
+          } else if (result.status === "empty") {
+            toast("Upload finished, but no image URL was returned.", "error");
+          }
         }}
         onUploadError={(e: Error) => toast(e?.message || "Upload failed", "error")}
         appearance={{

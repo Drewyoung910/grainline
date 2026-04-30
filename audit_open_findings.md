@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 public account-state route pass: **90** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 UI/runtime observability pass: **81** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -166,6 +166,7 @@ Latest mechanical open-heading count after the 2026-04-30 public account-state r
 - **Webhook provider config/idempotency tightened.** Clerk welcome email sends now reserve `welcomeEmailSentAt` atomically before direct send side effects; Resend webhook verification now requires both `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY`; the Stripe webhook missing-secret finding was re-verified already fixed with 503/Sentry/failure-spike handling.
 - **Recently-viewed auth boundary added.** The client now clears the `rv` recently-viewed cookie on explicit sign-out, account deletion, signed-out auth transitions, and signed-in user switches, preventing one shared-device user from inheriting another user's browsing history.
 - **Public account-state routes tightened.** `/api/me` now resolves signed-in users through `ensureUserByClerkId()` and returns typed suspended/deleted account responses instead of exposing role/name/avatar metadata; `/api/cart` was re-verified already enforcing the same guard despite being public at middleware for anonymous cart support.
+- **UI/runtime observability pass closed nine small verified bugs.** Stock-notification UI now trusts server subscription state, review-photo uploads report duplicate/limit/empty-url states instead of silently dropping, message stream preflight errors are structured and terminal fallback polling stops on auth/rate-limit failures, CSP parse failures are Sentry-visible, Stripe payout client posts JSON, dead Clerk `legalAcceptedAt` probing was removed, admin email audit logging is statically imported, and the middleware banned-before-admin ordering finding was re-verified already fixed.
 
 ## Recommended Fix Order
 
@@ -1429,10 +1430,10 @@ The section below is the verbatim chronological round-by-round content from the 
 9. **[FIXED 2026-04-30]** `BlogCommentForm.tsx:28` strips out profanity/rate limit/banned messages — now parses structured errors and renders the specific server message.
 10. **[FIXED 2026-04-30]** `BlockReportButton.tsx:55,67` no error feedback — block/report failures now keep the menu open and show structured API/network errors inline.
 11. [FIXED 2026-04-30] `CommissionInterestButton.tsx:21-32` only handles 401/200; 400/403/429/404/500 all silent. The button now parses structured error JSON, shows inline `role="alert"` feedback for non-OK responses, and catches network/parse failures so the UI does not fail silently or trip an error boundary.
-12. `NotifyMeButton.tsx:31` inverts local state instead of trusting server — multi-tab inconsistency.
-13. `seller/payouts/page.tsx:27` posts no body to `connect/create` — brittle if route ever enforces JSON.
-14. `messages/[id]/stream` returns `text/plain` errors — `EventSource.onerror` can't read status; 401 falls to polling 401 = infinite silent failure.
-15. `ReviewComposer.tsx:66` slices to 6 photos at edit but doesn't validate against original count — adding photos beyond cap silently drops.
+12. **[FIXED 2026-04-30] `NotifyMeButton.tsx:31` inverts local state instead of trusting server** — stock notification responses now flow through `stockNotificationSubscribedFromResponse()` and the client stores the returned `subscribed` boolean instead of blindly flipping old local state.
+13. **[FIXED 2026-04-30] `seller/payouts/page.tsx:27` posts no body to `connect/create`** — payout client POSTs now send `Content-Type: application/json` plus `{}` so the route contract stays compatible if optional JSON validation tightens.
+14. **[FIXED 2026-04-30] `messages/[id]/stream` returns `text/plain` errors** — pre-stream auth/permission/rate-limit failures now return structured JSON; fallback polling stops and shows explicit terminal state on 401/403/429 instead of silently looping.
+15. **[FIXED 2026-04-30] `ReviewComposer.tsx:66` slices to 6 photos at edit but doesn't validate against original count** — review photo state now normalizes/dedupes through `reviewPhotoState.ts` and surfaces limit, duplicate, and empty upload URL feedback instead of silently dropping uploads beyond the cap.
 16. `FilterSidebar`/`SaveSearchButton.tsx:48` URL params dollars vs saved-search payload cents boundary non-obvious.
 
 ### Top priority
@@ -1705,10 +1706,10 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 14. `UserAvatarMenu.tsx:50` avatarSrc fallback chain reads Clerk client API — slow.
 15. `notify/route.ts:36-38` filter `IN_STOCK` excludes MADE_TO_ORDER from back-in-stock subscribe.
 16. `quality-score.ts:178-180` newSellerBonus persists if seller deletes + recreates listings (gaming risk).
-17. `csp-report/route.ts:42-44` catch-all swallows errors silently — Sentry blind.
+17. **[FIXED 2026-04-30] `csp-report/route.ts:42-44` catch-all swallows errors silently** — CSP report parsing now captures malformed body failures to Sentry with content-type/body-length context after the existing IP rate limit.
 18. `middleware.ts:93-110` `x-vercel-ip-country` only trustable on Vercel — add comment for future deploys.
 19. **[FIXED 2026-04-30] `api/me/route.ts:7` doesn't exclude banned users** — `/api/me` now calls `ensureUserByClerkId()` for signed-in requests and returns `accountAccessErrorResponse()` for suspended/deleted accounts before loading seller profile metadata.
-20. `csp-report/route.ts:42-44` swallows body parse errors — diagnostic gap.
+20. **[FIXED 2026-04-30] `csp-report/route.ts:42-44` swallows body parse errors** — duplicate of #17; malformed report bodies now leave Sentry evidence instead of disappearing.
 
 ✅ **Verified working in older files**:
 - `firstResponseAt`, `qualityScore`, `featuredUntil`, `processingDeadline` — all read/written correctly
@@ -2285,16 +2286,16 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 🟡 **MEDIUM (7)**
 
 11. **[FIXED 2026-04-30] Admin PIN cookie `sameSite: "strict"` breaks Clerk OAuth navigations** — Admin PIN cookies are now set with `sameSite: "lax"` in both configured-PIN and local dev-bypass paths while remaining `httpOnly`, bounded, and secure in production.
-12. `ensureUser` legalAcceptedAt typed as `unknown` — dead code path; remove.
+12. **[FIXED 2026-04-30] `ensureUser` legalAcceptedAt typed as `unknown`** — removed the dead Clerk top-level `legalAcceptedAt` probe; terms acceptance now reads the supported `unsafeMetadata.termsAcceptedAt` path only.
 13. **[FIXED/VERIFIED 2026-04-30] Banned user with active CartItems can still hit `/api/cart` GET** — `GET /api/cart` is public at middleware for anonymous-cart compatibility, but the route itself calls `ensureUserByClerkId(userId)` before reading the cart and returns typed `ACCOUNT_SUSPENDED` / `ACCOUNT_DELETED` responses for banned/deleted signed-in users.
 14. **[FIXED 2026-04-30] Recently-viewed cookie cross-user leak on shared device** — `RecentlyViewedAuthBoundary` tracks the last signed-in Clerk user ID in local storage and clears the `rv` cookie when the signed-in user changes, so User B does not inherit User A's recently viewed listings.
-15. Admin email route uses dynamic import inside POST — `admin/email/route.ts:151`. Performance cost. **Fix**: hoist to top.
+15. **[FIXED 2026-04-30] Admin email route uses dynamic import inside POST** — `logAdminAction` is now a static module import, avoiding per-request dynamic import overhead in the admin email route.
 16. AdminPin cookie not bound to Clerk session ID — would benefit from session-rotation invalidation but minor.
 17. **[FIXED/VERIFIED 2026-04-30] Clerk webhook has no DB-backed replay protection** — `ClerkWebhookEvent` exists in Prisma, `/api/clerk/webhook` reserves each `svix-id` before side effects, retries stale/failed reservations after five minutes, records `lastError`, and marks processed only after handler success.
 
 🟢 **LOW (3)**
 
-18. Banned check fires AFTER admin role check in middleware — should fire FIRST for all non-public routes.
+18. **[FIXED/VERIFIED 2026-04-30] Banned check fires AFTER admin role check in middleware** — current middleware runs the signed-in suspended/deleted account check before admin role and PIN enforcement, so banned admins are blocked before privileged admin handling.
 19. Stripe `payment_status !== "paid"` invariant — verified safe at webhook line 422.
 20. `verifyAdminPinCookieValue` cookie payload is bound to userId via `${userId}.${expiresAtRaw}` — verified safe.
 

@@ -10,6 +10,7 @@ import {
   parseFileMessageBody,
   parseThreadMessagesEvent,
 } from "@/lib/messageBodies";
+import { isTerminalMessageStreamStatus, messageStreamStatusMessage } from "@/lib/messageStreamState";
 import { publicListingPath } from "@/lib/publicPaths";
 
 type Msg = {
@@ -72,6 +73,7 @@ export default function ThreadMessages({
   height?: number | string;
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
+  const [streamError, setStreamError] = React.useState<string | null>(null);
   const boxRef = React.useRef<HTMLDivElement | null>(null);
   const lastTsRef = React.useRef<number>(
     initial?.length ? new Date(initial[initial.length - 1].createdAt).getTime() : 0
@@ -127,6 +129,7 @@ export default function ThreadMessages({
   React.useEffect(() => {
     let closed = false;
     let pollId: number | null = null;
+    setStreamError(null);
 
     const apply = (fresh: Msg[]) => {
       if (!fresh.length) return;
@@ -146,7 +149,14 @@ export default function ThreadMessages({
           const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
           if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
           const res = await fetch(u.toString(), { cache: "no-store" });
-          if (!res.ok) return;
+          if (!res.ok) {
+            if (isTerminalMessageStreamStatus(res.status)) {
+              setStreamError(messageStreamStatusMessage(res.status));
+              if (pollId) window.clearInterval(pollId);
+              pollId = null;
+            }
+            return;
+          }
           const data = await res.json();
           apply(Array.isArray(data?.messages) ? data.messages : []);
         } catch (error) {
@@ -165,6 +175,7 @@ export default function ThreadMessages({
       };
       es.onerror = () => {
         es.close();
+        setStreamError(messageStreamStatusMessage(0));
         startPolling();
       };
       return () => {
@@ -205,6 +216,11 @@ export default function ThreadMessages({
       className="md:rounded-xl md:border md:bg-white md:p-4 overflow-y-auto pb-8"
       style={{ height: boxHeight }}
     >
+      {streamError && (
+        <div role="status" className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {streamError}
+        </div>
+      )}
       <ul className="space-y-3 pb-4">
         {msgs.map((m) => {
           const mine = m.senderId === meId;
@@ -437,7 +453,3 @@ export default function ThreadMessages({
     </div>
   );
 }
-
-
-
-

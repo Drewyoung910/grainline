@@ -175,9 +175,7 @@ export async function ensureUser() {
   const imageUrl = u.imageUrl ?? null;
 
   const unsafeMetadata = (u.unsafeMetadata ?? {}) as Record<string, unknown>;
-  const legalAcceptedAt = (u as unknown as { legalAcceptedAt?: number | string | null }).legalAcceptedAt;
-  const termsAcceptedAt =
-    dateFromMetadata(unsafeMetadata.termsAcceptedAt) ?? dateFromMetadata(legalAcceptedAt);
+  const termsAcceptedAt = dateFromMetadata(unsafeMetadata.termsAcceptedAt);
   const ageAttestedAt = dateFromMetadata(unsafeMetadata.ageAttestedAt);
   const termsVersion =
     typeof unsafeMetadata.termsVersion === "string" ? truncateText(unsafeMetadata.termsVersion, 50) : undefined;

@@ -2,7 +2,11 @@
 import * as React from "react";
 
 async function postJSON(url: string) {
-  const res = await fetch(url, { method: "POST" });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || `Request failed: ${res.status}`);
   return data;
