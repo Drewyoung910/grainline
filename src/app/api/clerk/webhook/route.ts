@@ -6,21 +6,17 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendWelcomeBuyer, sendWelcomeSeller } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
+import { resolveClerkWebhookPrimaryEmail, type ClerkWebhookEmailAddress } from "@/lib/clerkWebhookEmail";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 
-interface ClerkEmailAddress {
-  id?: string | null;
-  email_address: string;
-}
-
 interface ClerkUserEvent {
   id: string;
   first_name: string | null;
   last_name: string | null;
-  email_addresses: ClerkEmailAddress[];
+  email_addresses: ClerkWebhookEmailAddress[];
   primary_email_address_id?: string | null;
   image_url: string | null;
   unsafe_metadata?: Record<string, unknown>;
@@ -131,7 +127,11 @@ export async function POST(req: Request) {
       "svix-timestamp": svixTimestamp,
       "svix-signature": svixSignature,
     }) as { type: string; data: ClerkUserEvent };
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { source: "clerk_webhook_verify" },
+      extra: { svixId, svixTimestamp },
+    });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -141,103 +141,130 @@ export async function POST(req: Request) {
   }
 
   try {
-  if (event.type === "user.deleted") {
-    await anonymizeUserAccountByClerkId(event.data.id);
-    await markClerkWebhookProcessed(svixId);
-    return NextResponse.json({ ok: true });
-  }
+    if (event.type === "user.deleted") {
+      await anonymizeUserAccountByClerkId(event.data.id);
+      await markClerkWebhookProcessed(svixId);
+      return NextResponse.json({ ok: true });
+    }
 
-  if (event.type !== "user.created" && event.type !== "user.updated") {
-    await markClerkWebhookProcessed(svixId);
-    return NextResponse.json({ ok: true });
-  }
+    if (event.type !== "user.created" && event.type !== "user.updated") {
+      await markClerkWebhookProcessed(svixId);
+      return NextResponse.json({ ok: true });
+    }
 
-  const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url, unsafe_metadata, legal_accepted_at } = event.data;
+    const {
+      id,
+      first_name,
+      last_name,
+      email_addresses,
+      primary_email_address_id,
+      image_url,
+      unsafe_metadata,
+      legal_accepted_at,
+    } = event.data;
 
-  const name = sanitizeUserName([first_name, last_name].filter(Boolean).join(" ")) || null;
-  const email =
-    email_addresses?.find((e) => e.id === primary_email_address_id)?.email_address ??
-    email_addresses?.[0]?.email_address;
-
-  const existingLocalUser = await prisma.user.findUnique({
-    where: { clerkId: id },
-    select: { id: true, email: true, banned: true, deletedAt: true },
-  });
-  if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
-    await markClerkWebhookProcessed(svixId);
-    return NextResponse.json({ ok: true });
-  }
-
-  if (
-    shouldRevokeSessionsForClerkEmailChange({
-      eventType: event.type,
-      clerkUserId: id,
-      previousEmail: existingLocalUser?.email,
-      nextEmail: email,
-    })
-  ) {
-    const result = await revokeClerkUserSessions(id);
-    Sentry.captureMessage("Clerk email change revoked active sessions", {
-      level: "info",
-      tags: { source: "clerk_email_change_session_revoke" },
-      extra: {
-        svixId,
-        clerkId: id,
-        userId: existingLocalUser?.id,
-        revokedSessionCount: result.revokedSessionCount,
-      },
+    const name = sanitizeUserName([first_name, last_name].filter(Boolean).join(" ")) || null;
+    const emailResolution = resolveClerkWebhookPrimaryEmail({
+      emailAddresses: email_addresses,
+      primaryEmailAddressId: primary_email_address_id,
     });
-  }
-
-  const user = await ensureUserByClerkId(id, {
-    ...(email ? { email } : {}),
-    name,
-    imageUrl: image_url ?? null,
-  });
-
-  const termsAcceptedAt =
-    dateFromMetadata(unsafe_metadata?.termsAcceptedAt) ?? dateFromMetadata(legal_accepted_at);
-  const ageAttestedAt = dateFromMetadata(unsafe_metadata?.ageAttestedAt);
-  const termsVersion =
-    typeof unsafe_metadata?.termsVersion === "string" ? truncateText(unsafe_metadata.termsVersion, 50) : undefined;
-
-  if (termsAcceptedAt || ageAttestedAt || termsVersion) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        ...(termsAcceptedAt ? { termsAcceptedAt } : {}),
-        ...(ageAttestedAt ? { ageAttestedAt } : {}),
-        ...(termsVersion ? { termsVersion } : {}),
-      },
-    });
-  }
-
-  if (event.type === "user.created" && email && !user.welcomeEmailSentAt) {
-    try {
-      await sendWelcomeBuyer({ user: { name, email } });
-      const sellerProfile = await prisma.sellerProfile.findUnique({
-        where: { userId: user.id },
-        select: { displayName: true },
-      });
-      if (sellerProfile) {
-        await sendWelcomeSeller({
-          seller: { displayName: sellerProfile.displayName, email },
-        });
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { welcomeEmailSentAt: new Date() },
-      });
-    } catch (error) {
-      Sentry.captureException(error, {
-        tags: { source: "clerk_webhook_welcome_email" },
-        extra: { svixId, clerkId: id, userId: user.id },
+    const email = emailResolution.email;
+    if (emailResolution.reason !== "resolved") {
+      Sentry.captureMessage("Clerk webhook primary email unavailable", {
+        level: "warning",
+        tags: {
+          source: "clerk_webhook_primary_email",
+          reason: emailResolution.reason,
+          eventType: event.type,
+        },
+        extra: {
+          svixId,
+          clerkId: id,
+          primaryEmailAddressId: primary_email_address_id ?? null,
+          emailAddressCount: email_addresses?.length ?? 0,
+        },
       });
     }
-  }
 
-  await markClerkWebhookProcessed(svixId);
-  return NextResponse.json({ ok: true });
+    const existingLocalUser = await prisma.user.findUnique({
+      where: { clerkId: id },
+      select: { id: true, email: true, banned: true, deletedAt: true },
+    });
+    if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
+      await markClerkWebhookProcessed(svixId);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (
+      shouldRevokeSessionsForClerkEmailChange({
+        eventType: event.type,
+        clerkUserId: id,
+        previousEmail: existingLocalUser?.email,
+        nextEmail: email,
+      })
+    ) {
+      const result = await revokeClerkUserSessions(id);
+      Sentry.captureMessage("Clerk email change revoked active sessions", {
+        level: "info",
+        tags: { source: "clerk_email_change_session_revoke" },
+        extra: {
+          svixId,
+          clerkId: id,
+          userId: existingLocalUser?.id,
+          revokedSessionCount: result.revokedSessionCount,
+        },
+      });
+    }
+
+    const user = await ensureUserByClerkId(id, {
+      ...(email ? { email } : {}),
+      name,
+      imageUrl: image_url ?? null,
+    });
+
+    const termsAcceptedAt =
+      dateFromMetadata(unsafe_metadata?.termsAcceptedAt) ?? dateFromMetadata(legal_accepted_at);
+    const ageAttestedAt = dateFromMetadata(unsafe_metadata?.ageAttestedAt);
+    const termsVersion =
+      typeof unsafe_metadata?.termsVersion === "string" ? truncateText(unsafe_metadata.termsVersion, 50) : undefined;
+
+    if (termsAcceptedAt || ageAttestedAt || termsVersion) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(termsAcceptedAt ? { termsAcceptedAt } : {}),
+          ...(ageAttestedAt ? { ageAttestedAt } : {}),
+          ...(termsVersion ? { termsVersion } : {}),
+        },
+      });
+    }
+
+    if (event.type === "user.created" && email && !user.welcomeEmailSentAt) {
+      try {
+        await sendWelcomeBuyer({ user: { name, email } });
+        const sellerProfile = await prisma.sellerProfile.findUnique({
+          where: { userId: user.id },
+          select: { displayName: true },
+        });
+        if (sellerProfile) {
+          await sendWelcomeSeller({
+            seller: { displayName: sellerProfile.displayName, email },
+          });
+        }
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { welcomeEmailSentAt: new Date() },
+        });
+      } catch (error) {
+        Sentry.captureException(error, {
+          tags: { source: "clerk_webhook_welcome_email" },
+          extra: { svixId, clerkId: id, userId: user.id },
+        });
+      }
+    }
+
+    await markClerkWebhookProcessed(svixId);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     await markClerkWebhookFailed(svixId, error).catch((markError) => {
       Sentry.captureException(markError, {

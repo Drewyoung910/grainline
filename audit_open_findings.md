@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 observability pass: **100** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 Clerk webhook pass: **98** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -162,6 +162,7 @@ Latest mechanical open-heading count after the 2026-04-30 observability pass: **
 - **UI/runtime hygiene pass closed five verified issues.** Email money formatting now uses `Intl.NumberFormat` through `money.ts`, rate-limit responses expose structured retry metadata and affected client surfaces parse API errors, inventory shows a wait-time banner for listings under review, user-visible truncation now uses surrogate-safe helpers, and the duplicate MapLibre WebGL finding was re-verified fixed.
 - **Support/legal/runbook pass closed five verified gaps.** Public `/support` and `/legal/data-request` forms now create durable `SupportRequest` rows with 45-day SLA due dates, admin status tracking, and notification-email error evidence; middleware keeps these routes public for suspended/deleted users; `docs/runbook.md` now covers rollback, secret rotation, webhook recovery, restore drills, cron/email-outbox triage, and support/legal queue handling.
 - **Observability pass closed four concrete gaps.** Middleware now sets non-PII Sentry user context from the Clerk user ID, App Router cron routes send explicit Sentry check-ins through `cronMonitor.ts`, `/api/cron/ops-health` polls failed `CronRun` rows/stale email outbox/overdue support requests hourly, and Stripe dispute creation emits an ops-level Sentry warning.
+- **Clerk webhook primary-email drift tightened.** Clerk user webhooks now sync only the matched `primary_email_address_id`, log Sentry warnings when the primary email is missing or malformed, and capture Svix verification failures so tampering/replay noise is visible.
 
 ## Recommended Fix Order
 
@@ -1850,12 +1851,12 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 10. Clerk webhook `welcomeEmailSentAt` write + `sendWelcomeBuyer` not atomic — `clerk/webhook/route.ts:116-133`. Process killed between → retry sends another welcome email. **Fix**: write `welcomeEmailSentAt` BEFORE send (advisory lock pattern).
 
-11. Clerk webhook `email_addresses?.[0]?.email_address` fallback when primary not found — `clerk/webhook/route.ts:82-83`. Multi-email accounts can drift Clerk → DB email. **Fix**: if primary not found in array, log Sentry and skip email update.
+11. **[FIXED 2026-04-30] Clerk webhook `email_addresses?.[0]?.email_address` fallback when primary not found** — `clerk/webhook/route.ts` now resolves only the matched `primary_email_address_id` through `resolveClerkWebhookPrimaryEmail()`. If Clerk omits the primary ID, omits the matching address, or sends an empty primary email, the webhook logs a Sentry warning and skips the email update instead of falling back to another account email.
 
 🟢 **LOW (3)**
 
 12. Stripe `STRIPE_WEBHOOK_SECRET!` non-null assertion — if env unset, `constructEvent` throws "Webhook secret not configured" → 400 Invalid signature instead of 503. Better mirror Resend's 503 pattern.
-13. Clerk webhook svix verify failure not Sentry-captured — replays/tampering distinction lost.
+13. **[FIXED 2026-04-30] Clerk webhook svix verify failure not Sentry-captured** — invalid Clerk webhook signatures now capture a Sentry exception tagged `clerk_webhook_verify` with Svix ID/timestamp context before returning 400, preserving evidence for replay/tampering investigations.
 14. Resend webhook placeholder API key `"re_webhook_verify_only"` falls through if `RESEND_API_KEY` unset. Hides config errors. **Fix**: require both env vars or fail loud.
 
 ---

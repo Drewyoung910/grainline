@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const { shouldRevokeSessionsForClerkEmailChange } = await import("../src/lib/clerkSessionSecurity.ts");
+const { resolveClerkWebhookPrimaryEmail } = await import("../src/lib/clerkWebhookEmail.ts");
 
 describe("Clerk user lifecycle session security", () => {
   it("revokes sessions for real primary email changes on user.updated", () => {
@@ -46,6 +47,49 @@ describe("Clerk user lifecycle session security", () => {
         nextEmail: "person@example.com",
       }),
       false,
+    );
+  });
+});
+
+describe("Clerk webhook email resolution", () => {
+  it("uses only the Clerk primary email address", () => {
+    assert.deepEqual(
+      resolveClerkWebhookPrimaryEmail({
+        primaryEmailAddressId: "email_primary",
+        emailAddresses: [
+          { id: "email_old", email_address: "old@example.com" },
+          { id: "email_primary", email_address: " primary@example.com " },
+        ],
+      }),
+      { reason: "resolved", email: "primary@example.com" },
+    );
+  });
+
+  it("does not fall back to another email when the primary id is absent", () => {
+    assert.deepEqual(
+      resolveClerkWebhookPrimaryEmail({
+        primaryEmailAddressId: "email_missing",
+        emailAddresses: [{ id: "email_other", email_address: "other@example.com" }],
+      }),
+      { reason: "primary_email_not_found", email: null },
+    );
+  });
+
+  it("requires a primary email id and non-empty primary address", () => {
+    assert.deepEqual(
+      resolveClerkWebhookPrimaryEmail({
+        primaryEmailAddressId: null,
+        emailAddresses: [{ id: "email_one", email_address: "one@example.com" }],
+      }),
+      { reason: "missing_primary_email_id", email: null },
+    );
+
+    assert.deepEqual(
+      resolveClerkWebhookPrimaryEmail({
+        primaryEmailAddressId: "email_empty",
+        emailAddresses: [{ id: "email_empty", email_address: " " }],
+      }),
+      { reason: "primary_email_empty", email: null },
     );
   });
 });
