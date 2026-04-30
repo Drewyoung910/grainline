@@ -6,10 +6,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
-import ConfirmButton from "@/components/ConfirmButton";
+import InlineActionButton from "@/components/InlineActionButton";
 import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart, Eye, Heart } from "@/components/icons";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
-import { archiveListingBlockReason } from "@/lib/listingActionState";
+import { archiveListingBlockReason, hideListingBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
@@ -18,33 +18,56 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
+type DashboardActionState = { ok: boolean; error?: string };
+
 // Server action: set status (Active / Hidden / Sold)
-async function setStatus(listingId: string, nextStatus: ListingStatus) {
+async function setStatus(
+  listingId: string,
+  nextStatus: ListingStatus,
+  _prevState?: unknown,
+  _formData?: FormData,
+): Promise<DashboardActionState> {
   "use server";
   const { userId } = await auth();
-  if (!userId) return;
+  if (!userId) return { ok: false, error: "Sign in to update listings." };
 
   // ensure ownership
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (!me) return;
-  if (me.banned || me.deletedAt) return;
+  if (!me) return { ok: false, error: "Account not found." };
+  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
     include: { seller: true },
   });
-  if (!listing || listing.seller.userId !== me.id) return;
-  if (listing.status === "HIDDEN" && listing.isPrivate) return;
+  if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
+  if (listing.status === "HIDDEN" && listing.isPrivate) {
+    return { ok: false, error: "Archived listings cannot be changed here." };
+  }
 
   // Seller-initiated reactivation must go through publishListingAction so AI/admin
   // moderation cannot be bypassed by forged server-action posts.
-  if (nextStatus === "ACTIVE") return;
-  if (listing.status === "REJECTED" && nextStatus === "HIDDEN") return;
+  if (nextStatus === ListingStatus.ACTIVE) {
+    return { ok: false, error: "Use Resubmit to make listings active." };
+  }
+  if (nextStatus === ListingStatus.HIDDEN) {
+    const blockReason = hideListingBlockReason(listing);
+    if (blockReason) return { ok: false, error: blockReason };
+  } else if (nextStatus === ListingStatus.SOLD) {
+    if (listing.status !== ListingStatus.ACTIVE && listing.status !== ListingStatus.SOLD_OUT) {
+      return { ok: false, error: "Only active or sold-out listings can be marked sold." };
+    }
+  } else {
+    return { ok: false, error: "That status change is not available here." };
+  }
 
-  await prisma.listing.update({
-    where: { id: listingId },
+  const updated = await prisma.listing.updateMany({
+    where: { id: listingId, sellerId: listing.sellerId, status: listing.status },
     data: { status: nextStatus },
   });
+  if (updated.count === 0) {
+    return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
+  }
 
   // Update listingsBelowThresholdSince for Guild Member revocation tracking
   const activeCount = await prisma.listing.count({
@@ -73,31 +96,38 @@ async function setStatus(listingId: string, nextStatus: ListingStatus) {
   revalidatePath(`/listing/${listingId}`);
   revalidatePath(`/seller/${listing.sellerId}`);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
+
+  return { ok: true };
 }
 
 // Server action: delete listing
-async function deleteListing(listingId: string) {
+async function deleteListing(
+  listingId: string,
+  _prevState?: unknown,
+  _formData?: FormData,
+): Promise<DashboardActionState> {
   "use server";
   const { userId } = await auth();
-  if (!userId) return;
+  if (!userId) return { ok: false, error: "Sign in to archive listings." };
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
-  if (!me) return;
-  if (me.banned || me.deletedAt) return;
+  if (!me) return { ok: false, error: "Account not found." };
+  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
     include: { seller: true },
   });
-  if (!listing || listing.seller.userId !== me.id) return;
-  if (archiveListingBlockReason(listing)) return;
+  if (!listing || listing.seller.userId !== me.id) return { ok: false, error: "Listing not found." };
+  const blockReason = archiveListingBlockReason(listing);
+  if (blockReason) return { ok: false, error: blockReason };
 
   // Archive: preserve order history, remove current shopping intent records.
   try {
     await softDeleteListingWithCleanup(listingId);
   } catch (err) {
     console.error("Archive listing failed:", err);
-    return;
+    return { ok: false, error: "Could not archive this listing. Please try again." };
   }
 
   // Deleting a listing may drop active count below 5
@@ -117,6 +147,8 @@ async function deleteListing(listingId: string) {
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+
+  return { ok: true };
 }
 
 async function deleteSavedSearch(searchId: string) {
@@ -509,34 +541,35 @@ export default async function DashboardPage() {
                         <>
                           {/* Mark sold only for ACTIVE and SOLD_OUT — not DRAFT or HIDDEN */}
                           {(l.status === "ACTIVE" || l.status === "SOLD_OUT") && (
-                            <form action={setStatus.bind(null, l.id, ListingStatus.SOLD)}>
-                              <button className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50">
-                                Mark sold
-                              </button>
-                            </form>
+                            <InlineActionButton
+                              action={setStatus.bind(null, l.id, ListingStatus.SOLD)}
+                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50 disabled:opacity-50"
+                            >
+                              Mark sold
+                            </InlineActionButton>
                           )}
 
                           {l.status === "HIDDEN" ? (
                             <ResubmitButton listingId={l.id} label="Unhide" />
-                          ) : l.status !== "DRAFT" ? (
-                            <form action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}>
-                              <button className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50">
-                                Hide
-                              </button>
-                            </form>
+                          ) : l.status === "ACTIVE" ? (
+                            <InlineActionButton
+                              action={setStatus.bind(null, l.id, ListingStatus.HIDDEN)}
+                              className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50 disabled:opacity-50"
+                            >
+                              Hide
+                            </InlineActionButton>
                           ) : null}
                         </>
                       )}
 
-                      <form action={deleteListing.bind(null, l.id)}>
-                        <ConfirmButton
-                          confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
-                          disabled={isArchived}
-                          className="text-xs rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300"
-                        >
-                          {isArchived ? "Archived" : "Archive"}
-                        </ConfirmButton>
-                      </form>
+                      <InlineActionButton
+                        action={deleteListing.bind(null, l.id)}
+                        confirm="Archive this listing? It will be removed from public pages and current carts, but retained for order history."
+                        disabled={isArchived}
+                        className="text-xs rounded border px-2 py-1 hover:bg-red-50 text-red-600 border-red-300 disabled:opacity-50"
+                      >
+                        {isArchived ? "Archived" : "Archive"}
+                      </InlineActionButton>
                     </div>
                   </div>
                 </li>
@@ -618,8 +651,5 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
-
-
 
 

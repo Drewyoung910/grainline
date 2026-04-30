@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 blog-render cap pass: **149** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 dashboard/Stripe metadata reconciliation pass: **132** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -146,6 +146,9 @@ Latest mechanical open-heading count after the 2026-04-30 blog-render cap pass: 
 - **Banned/deauthorized seller checkout sessions are expired consistently.** `banUser()` now reuses the Stripe deauthorization checkout-session expiry helper, expires open seller-owned sessions after the local ban transaction, and records checked/expired/failed counts in admin audit logs. The webhook still fail-safes completed blocked checkouts through seller-state validation and automatic/manual refund review.
 - **Refund lock race responses now read fresh state.** Seller refunds and admin case-resolution refunds keep the atomic `sellerRefundId = null` lock, then re-read current order state when the lock loses a race so pending refunds return 409, completed/external refunds return 400, and label-purchase races keep the label-specific 409 response.
 - **Blocked-checkout auto-refund reconciliation is more atomic.** Before issuing an automatic refund for an invalid completed checkout, the webhook now re-checks local/external refund state and skips duplicate refunds. After Stripe accepts the refund, reserved-stock restoration and the order refund marker are written in one DB transaction.
+- **Dashboard listing action failures are visible.** Dashboard mark-sold/hide/archive actions now return structured action state and use `InlineActionButton` so auth/account-state/stale-state/archive-policy failures show inline instead of silently no-oping.
+- **Stripe selected-variant metadata parse failures are observable.** Buy-now webhook order creation validates `selectedVariants` metadata through `parseSelectedVariantsMetadata()` and logs malformed metadata to Sentry with session/listing context instead of swallowing parse failures.
+- **Reconciliation pass closed stale duplicate raw findings.** Shipping-rate buyer binding, fallback-rate removal, Clerk webhook replay protection, follower fan-out caps/pagination, Unicode profanity confusable folding, CI migration enforcement, DynamicMapCard loading, CSP `report-to`, onboarding completion guards, and stale cart price checks were re-verified and marked fixed in their later raw sections.
 
 ## Recommended Fix Order
 
@@ -2212,9 +2215,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟡 **MEDIUM (6)**
 
-12. **Buyer ID validation on shipping token** — `shipping-token.ts:47`. `buyerId` IS in canonicalInput ✓ but `verifyRate` doesn't enforce match against current authed user — relies on `me.id` differing breaking signature. SAFE today but worth a comment.
+12. **[FIXED/VERIFIED 2026-04-30] Buyer ID validation on shipping token** — `buyerId` is part of the canonical HMAC input, quote routes sign with `me.id`, both checkout routes verify with the current authenticated `me.id`, and `tests/shipping-token.test.mjs` rejects cross-buyer replay.
 
-13. **`expiresAt: 0` fallback rate fail-fast** — `types/checkout.ts:21`. `FALLBACK_RATE` constant has expiresAt=0 → triggers expired error. Effectively unusable from client (always requires server-signed token). Inconsistent with CLAUDE.md claim "Fallback rate doesn't bypass verification" — actually it bypasses by always failing.
+13. **[FIXED/VERIFIED 2026-04-30] `expiresAt: 0` fallback rate fail-fast** — stale finding. The old client-side `FALLBACK_RATE` constant was removed; fallback/pickup rates now come from `/api/shipping/quote`, are signed, and are verified like every other selected rate.
 
 14. **[FIXED 2026-04-30] `refundBlockedCheckout` doesn't check already-refunded order** — before calling Stripe, `refundBlockedCheckout()` now reloads the order's `sellerRefundId` plus durable refund ledger rows and skips the automatic refund when a local or external refund is already recorded.
 
@@ -2270,7 +2273,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 14. Recently-viewed cookie cross-user leak on shared device — minor; document as accepted risk.
 15. Admin email route uses dynamic import inside POST — `admin/email/route.ts:151`. Performance cost. **Fix**: hoist to top.
 16. AdminPin cookie not bound to Clerk session ID — would benefit from session-rotation invalidation but minor.
-17. **Clerk webhook has no DB-backed replay protection** — `clerk webhook` reads svix-id but no idempotency table (Stripe has `beginStripeWebhookEvent`). Duplicate `user.created` could create duplicate User rows. **Fix**: add `ClerkWebhookEvent` model + dedup.
+17. **[FIXED/VERIFIED 2026-04-30] Clerk webhook has no DB-backed replay protection** — `ClerkWebhookEvent` exists in Prisma, `/api/clerk/webhook` reserves each `svix-id` before side effects, retries stale/failed reservations after five minutes, records `lastError`, and marks processed only after handler success.
 
 🟢 **LOW (3)**
 
@@ -2324,7 +2327,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟢 **LOW (4)**
 
-17. **Duplicate priceCents check is dead code** — `edit/page.tsx:99-105`. Lines 99 and 102 both check `priceCents <= 0`. Harmless but signals copy/paste error.
+17. **[FIXED 2026-04-30] Duplicate priceCents check is dead code** — the redundant second `priceCents <= 0` branch was removed. Same edit pass also fixed the adjacent `materials !== listing.materials` reference comparison so unchanged materials arrays no longer force unnecessary AI re-review.
 
 18. **[FIXED 2026-04-30] AI sees only first 4 photos via `imageUrls.slice(0, 4)`** — AI review image filtering now allows up to 8 trusted listing photos, and listing create/custom/edit/resubmit review callers now pass or fetch up to the full 8-photo listing limit instead of truncating at four.
 
@@ -2382,15 +2385,15 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 
 2. **[FIXED/VERIFIED 2026-04-30] No rate limiter on `DELETE /api/admin/listings/[id]`** — The admin listing destructive route imports `adminActionRatelimit`, `rateLimitResponse`, and `safeRateLimit`, and rate-limits by `admin.id` before removal/rejection work.
 
-3. **Unbounded follower fan-out — listing publish path** — `src/app/dashboard/listings/new/page.tsx:375-394`. `prisma.follow.findMany({ where: { sellerProfileId, ... } })` has no `take:` cap. Maker with 50K followers loads all rows into memory + email loop. **Fix**: cap with `take: 10000` initially, paginate via cursor for larger sellers.
+3. **[FIXED/VERIFIED 2026-04-30] Unbounded follower fan-out — listing publish path** — listing publish fan-out now runs through `fanOutListingToFollowers()`, which pages followers by cursor in 1,000-row batches, uses bounded notification/email concurrency, and enqueues follower emails through `EmailOutbox`.
 
-4. **Unbounded follower fan-out — blog publish (new + edit)** — `dashboard/blog/new/page.tsx:147` + `[id]/edit/page.tsx:156`. Same pattern as #3, no `take:`. **Fix**: same cap.
+4. **[FIXED/VERIFIED 2026-04-30] Unbounded follower fan-out — blog publish (new + edit)** — both blog publish paths now cap follower loads with `take: 10000` and use `mapWithConcurrency()` instead of unbounded `Promise.all` fan-out.
 
-5. **Unbounded follower fan-out — seller broadcast** — `src/app/api/seller/broadcast/route.ts:85-95`. `recipientCount: followers.length` written to DB; no `take:`. 100K-follower maker hits all rows in one query + 100K notification creates. `mapWithConcurrency` still iterates every row. **Fix**: cap + chunked pages.
+5. **[FIXED/VERIFIED 2026-04-30] Unbounded follower fan-out — seller broadcast** — seller broadcast follower loads are capped with `take: 10000`, preference-filtered before `recipientCount`, and delivered with `mapWithConcurrency()`.
 
 🟡 **MEDIUM (4)**
 
-6. **`JSON.parse` on Stripe metadata silently loses data** — `src/app/api/stripe/webhook/route.ts:919`. IIFE `try { JSON.parse(sv) } catch { /* skip */ }` swallows malformed `selectedVariants` silently → `selectedVariants: undefined` written to OrderItem. Buyer's paid variant choice lost with no log. **Fix**: `Sentry.captureMessage("variant parse failed", { extra: { sv } })` in catch.
+6. **[FIXED 2026-04-30] `JSON.parse` on Stripe metadata silently loses data** — selected-variant metadata parsing now uses `parseSelectedVariantsMetadata()`, validates the JSON array shape before writing `OrderItem.selectedVariants`, and emits a warning Sentry message with session/listing context on malformed metadata. Pure tests cover valid, missing, invalid JSON, non-array, and invalid-shape inputs.
 
 7. **[FIXED 2026-04-30] `parseInt` no max page cap** — Account orders now clamps parsed page numbers to `1..10000` before computing Prisma `skip`, preventing arbitrarily deep scans from query-string input.
 
@@ -2403,7 +2406,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 10. **[FIXED/VERIFIED 2026-04-30] `Math.random()` in R2 key path** — Upload presign keys now use `randomBytes(12).toString("hex")` with the user-scoped key segment and timestamp; no `Math.random()` remains in the R2 key path.
 11. **[FIXED 2026-04-30] `Math.random()` for client message IDs** — `MessageComposer` and `ReviewPhotosPicker` now use shared `createClientId()`, preferring `crypto.randomUUID()`, falling back to `crypto.getRandomValues()`, and only then a monotonic timestamp/counter fallback; no `Math.random()` remains in those client ID paths.
 12. **[FIXED 2026-04-30] Markdown body rendered without size cap** — Blog detail rendering now slices post markdown to `MAX_RENDERED_MARKDOWN_CHARS = 200_000` before `marked.parse()` and sanitize-html, preventing oversized stored bodies from blocking render.
-13. **`setStatus` server action returns void silently on auth failure** — `dashboard/page.tsx:21-46`. UI gives no feedback for unauthorized/banned/missing listing. **Fix**: convert to `{ ok, error }` shape.
+13. **[FIXED 2026-04-30] `setStatus` server action returns void silently on auth failure** — dashboard mark-sold/hide/archive actions now return `{ ok, error }`, use `InlineActionButton` for inline error feedback, and guard stale status changes with `updateMany` before revalidating.
 14. **Stripe `transfers.createReversal` no retry queue** — `api/orders/[id]/label/route.ts:402-415`. Catches + Sentry-captures; comments say "manual". Acceptable but deserves a `LabelClawbackJob` table for reliability. Already documented as known.
 15. **[FIXED 2026-04-30] `commission-expire` cron no `take:` cap** — Current code uses bounded 200-row pages with a five-batch per-run cap instead of loading every expired commission at once, and returns `hasMore` when additional expired rows remain.
 
@@ -2419,7 +2422,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 
 🟠 **HIGH (4)**
 
-1. **Profanity filter bypass via Cyrillic homographs** — `src/lib/profanity.ts:24-27`. JS `\b` boundary uses ASCII `\w`; single Cyrillic letter substitution (e.g. `niggеr` with U+0435) breaks regex match silently. Filter logs nothing. **Fix**: pre-normalize via NFKC + confusables fold before regex match. Or use `obscenity` lib.
+1. **[FIXED/VERIFIED 2026-04-30] Profanity filter bypass via Cyrillic homographs** — `containsProfanity()` now NFKC-normalizes and folds common Cyrillic confusables before regex matching, and `tests/sanitize-unicode.test.mjs` covers a Cyrillic-confusable slur match.
 
 2. **[FIXED 2026-04-30] Bidi/RTL injection in emails + notifications** — Email subjects now use `stripBidiControls()` through `safeSubject`, user/display-name write paths use `sanitizeUserName()`, and notification title/body/link limiting now normalizes NFKC and strips bidi controls before persistence. Regression coverage was added for notification text.
 
@@ -2699,10 +2702,10 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 4. **[FIXED/VERIFIED 2026-04-30] Sitemap leaks banned/vacation/non-charged sellers** — Sitemap seller routes now require `chargesEnabled: true`, `vacationMode: false`, a non-banned/non-deleted user, and at least one listing matching `publicListingWhere()`.
 5. **[FIXED/VERIFIED 2026-04-30] Sitemap leaks listings without seller safety filters** — Listing sitemap chunks now use shared `publicListingWhere()`, which includes listing status/privacy plus seller charges, vacation, banned, and deleted-user filters.
 6. **chargesEnabled backfill is dev-only — unrunnable in prod** — `scripts/backfill-charges-enabled.ts:3-7`. `assertNonProductionScript()` throws if `NODE_ENV=production` OR `VERCEL_ENV=production`. CLAUDE.md claims "all 7 existing sellers backfilled to true" — this script CANNOT have been run against production. Either it was run pre-guard OR via raw SQL. Going forward, sellers with `stripeAccountId` set but `chargesEnabled=false` will be hidden from public surfaces. **Fix**: add `--force-prod` flag, or run actual `account.updated` Stripe webhook over historical accounts.
-7. **No CI enforcement of `prisma migrate deploy` before vercel** — CLAUDE.md's `.github/workflows/ci.yml` runs `prisma generate` + `tsc` only. No pre-deploy migration hook. Schema migration merged + `vercel --prod` triggered → deploys code referencing columns that don't exist yet → 500s until manual `migrate deploy`. **Fix**: add Vercel build hook in `vercel.json` `buildCommand: "prisma migrate deploy && next build"` OR GitHub Actions deploy job that runs migrations before triggering Vercel.
-8. **advanceStep guard rails too loose — onboarding can be skipped** — `src/app/dashboard/onboarding/actions.ts:96-117`. `if (normalizedStep > seller.onboardingStep + 1)` only blocks skipping >1 step. User can call `advanceStep(5)` from step 4, then `completeOnboarding()` (only checks `onboardingStep < 5`, not chargesEnabled or listing existence). **Fix**: in `completeOnboarding`, gate on `if (!seller.chargesEnabled || listingCount === 0) return { error: "Complete required steps first" }`.
-9. **Maplibre CSS still loads on every listing page** — 5 components import `maplibre-gl/dist/maplibre-gl.css` at top: `AllSellersMap, LocationPicker, SellersMap, MapCard, MaplibreMap`. CLAUDE.md claims "code-split, only loaded when map renders" — true for `AllSellersMap` (dynamic), but `MapCard` is **statically imported** on listing detail page (`/listing/[id]/page.tsx`) — 68KB CSS loads on every listing view. **Fix**: convert `MapCard` to dynamic import: `const MapCard = dynamic(() => import("@/components/MapCard"), { ssr: false, loading: () => <div className="h-48" /> });`.
-10. **CSP missing `report-to` directive (modern reporting API)** — `next.config.ts:37`. Only `report-uri` (deprecated). Chrome 96+ uses `Reporting-Endpoints` + `report-to`. Reports not arriving from newer browsers. **Fix**: add `Reporting-Endpoints` header value `csp-endpoint="/api/csp-report"` and add `report-to csp-endpoint` directive to CSP.
+7. **[FIXED/VERIFIED 2026-04-30] No CI enforcement of `prisma migrate deploy` before vercel** — CI now applies migrations to the local Postgres service before typecheck/lint/test/build, and `vercel.json` runs `npx prisma migrate deploy` before production builds.
+8. **[FIXED/VERIFIED 2026-04-30] advanceStep guard rails too loose — onboarding can be skipped** — `completeOnboarding()` now rejects incomplete onboarding, missing Stripe `chargesEnabled`, and zero-listing sellers before setting `onboardingComplete`.
+9. **[FIXED/VERIFIED 2026-04-30] Maplibre CSS still loads on every listing page** — listing detail imports `DynamicMapCard`, which dynamically loads `MapCard` client-side with an SSR fallback instead of statically importing the MapLibre component.
+10. **[FIXED/VERIFIED 2026-04-30] CSP missing `report-to` directive (modern reporting API)** — security headers now include `Reporting-Endpoints: csp-endpoint="/api/csp-report"` and CSP includes both `report-to csp-endpoint` and legacy `report-uri`.
 11. **[FIXED/VERIFIED 2026-04-30] UnreadBadge NOT signed-in gated** — `UnreadBadge` now reads `isSignedIn` from Clerk, skips `fetch("/api/messages/unread-count")` when signed out, clears the count on sign-out, and only starts the polling interval for signed-in users.
 
 🟡 **MEDIUM (~20 — abbreviated, full in memory)**
@@ -2880,8 +2883,8 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 2. **Stripe processing fee deducted from seller transfer — CLAUDE.md says platform absorbs it** — `checkout-seller:319,322` + `single:223,226`. Code subtracts `estimatedStripeFee = preTaxTotal * 0.029 + 30¢` from `transfer_data.amount`. CLAUDE.md "Payments" explicitly states "Platform absorbs Stripe processing fees (~2.9% + 30¢) — covered by the 5% platform fee." Sellers are unknowingly paying ~2.9% + 30¢ on top of the 5% platform fee. **Either**: (a) remove `estimatedStripeFee` deduction from transfer math (platform absorbs as documented), OR (b) update Terms section 4.5 + 6.2 to disclose the actual ~7.9% effective rate.
 
 🟠 **HIGH (2)**
-3. **HMAC shipping token NOT bound to buyer** — `src/lib/shipping-token.ts:25-45`. `canonicalInput` lacks `buyerId`. Buyer A's signed rate (30-min TTL) can be replayed by Buyer B for the same listing/postal. **Fix**: add `buyerId` to `SignedRateFields` + `canonicalInput`; pass `me.id` from quote route, verify match in checkout. Replace canonical string with `${objectId}:${amountCents}:${displayName}:${carrier}:${estDays}:${contextId}:${buyerId}:${buyerPostal}:${expiresAt}`.
-4. **Quote route accepts arbitrary `cartId`+`sellerId` combo** — `src/app/api/shipping/quote/route.ts:141,154`. Buyer can pass `?cartId=mine&sellerId=ANY`. Filter returns empty rates if seller mismatched, but combined with #3, buyer-with-cart can mint signed rates for any seller they have a listing from. **Fix**: validate `sellerId` matches actual `CartItem.listing.sellerId` in the cart; reject if mismatch.
+3. **[FIXED/VERIFIED 2026-04-30] HMAC shipping token NOT bound to buyer** — `buyerId` is now in `SignedRateFields` and the canonical HMAC input; quote routes sign with the authenticated buyer ID and checkout routes verify using current `me.id`.
+4. **[FIXED/VERIFIED 2026-04-30] Quote route accepts arbitrary `cartId`+`sellerId` combo** — cart quote mode now verifies the cart belongs to the authenticated user and rejects a supplied `sellerId` that does not match any `CartItem.listing.sellerId` in that cart.
 
 🟡 **MEDIUM (1)**
 5. **Stripe-fee estimate may not match actual on Amex/international cards** — both checkout routes. `0.029 + 30¢` hardcoded; Amex is 3.5%; intl cards have FX conversion fees. Transfer is fixed, so platform eats the difference if estimate is too low; seller eats difference if too high. **Fix**: best done via `application_fee_amount` (#1) — let Stripe handle exact fee math.
@@ -2922,7 +2925,7 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 4. **Stock SOLD_OUT non-atomic check** — `webhook/route.ts:461-471, 756-766`. Two completed webhooks both read stockQuantity=0, both run UPDATE SOLD_OUT. If buyer A's expired webhook restores stock between A's completion and B's SOLD_OUT check, stock goes back to >0 yet status flips to SOLD_OUT. **Fix**: replace `findUnique + update` with single atomic `UPDATE Listing SET status='SOLD_OUT' WHERE id=$1 AND stockQuantity <= 0 AND status='ACTIVE'`.
 
 🟠 **HIGH (8)**
-5. **Listing edit during in-flight checkout — price manipulation** — `checkout-seller/route.ts:97-113, 431`. Buyer reads cart (price $100). Seller edits price to $200. Stripe session created with $100. Buyer pays $100 — seller fulfills $200 product. **Fix**: compare `listing.priceCents` against `cartItem.priceCents` snapshot; reject 409 if different + require buyer reconfirm.
+5. **[FIXED/VERIFIED 2026-04-30] Listing edit during in-flight checkout — price manipulation** — cart checkout now recalculates live listing + variant price, compares it with `CartItem.priceCents` and `priceVersion`, returns `PRICE_CHANGED` with old/new prices before Stripe session creation, and the cart UI blocks checkout until the buyer accepts refreshed prices.
 6. **chargesEnabled flips false during checkout** — `checkout-seller/route.ts:133`. account.application.deauthorized fires mid-session, buyer's session already created, transfer fails silently. **Fix**: re-verify `seller.chargesEnabled` inside webhook .completed before order creation; if false, mark `reviewNeeded=true` for manual transfer.
 7. **dispute.created races seller refund** — `webhook/route.ts:1042-1136` + `refund/route.ts:104`. Seller hits Refund while dispute fires; Stripe rejects refund post-dispute, but `sellerRefundId="pending"` set then catch clears, dispute creates Case + notif. Buyer sees both "refund issued" and "dispute opened". **Fix**: pre-check `OrderPaymentEvent` for `eventType='DISPUTE'` before claiming refund lock; block seller refund entirely if dispute exists.
 8. **Notification dedup is non-atomic — actually MISSING** — `notifications.ts:46-80`. Two concurrent favorites within 100ms both check prefs, both `prisma.notification.create`. **No dedup query at all** — CLAUDE.md claimed 24h dedup but it's not in the code path. **Fix**: add unique constraint `@@unique([userId, type, link, dateBucket])` where `dateBucket = date_trunc('day', createdAt)`. Or use `upsert`.

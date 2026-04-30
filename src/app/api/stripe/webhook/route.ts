@@ -22,6 +22,7 @@ import {
   markStripeWebhookEventFailed,
   markStripeWebhookEventProcessed,
 } from "@/lib/stripeWebhookEvents";
+import { parseSelectedVariantsMetadata } from "@/lib/stripeWebhookMetadata";
 import {
   lockCheckoutSessionMutation,
   restorableStockItemsFromLineItems,
@@ -976,6 +977,22 @@ export async function POST(req: Request) {
         const maxProcessingDaysSingle = Math.max(isInStock ? 1 : 3, effectiveProcessingDays);
         const { processingDeadline: singleProcessingDeadline, estimatedDeliveryDate: singleEstDelivery } =
           calcDeliveryDates(maxProcessingDaysSingle, estDays);
+        const selectedVariantsResult = parseSelectedVariantsMetadata(sessionMeta.selectedVariants);
+        const selectedVariants = selectedVariantsResult.ok ? selectedVariantsResult.selectedVariants : undefined;
+        if (!selectedVariantsResult.ok) {
+          Sentry.captureMessage("Stripe selectedVariants metadata parse failed", {
+            level: "warning",
+            tags: {
+              source: "stripe_webhook_selected_variants",
+              parseError: selectedVariantsResult.error,
+            },
+            extra: {
+              stripeSessionId: sessionId,
+              listingId,
+              metadataLength: selectedVariantsResult.metadataLength,
+            },
+          });
+        }
 
         const createdSingleOrder = await prisma.$transaction(async (tx) => {
           await lockCheckoutSessionMutation(tx, sessionId);
@@ -1030,13 +1047,7 @@ export async function POST(req: Request) {
                     sellerName: listingData?.seller?.displayName ?? "",
                     capturedAt: new Date().toISOString(),
                   },
-                  selectedVariants: (() => {
-                    try {
-                      const sv = sessionMeta.selectedVariants;
-                      if (typeof sv === "string" && sv.length > 2) return JSON.parse(sv);
-                    } catch { /* skip */ }
-                    return undefined;
-                  })(),
+                  selectedVariants,
                 }],
               },
 

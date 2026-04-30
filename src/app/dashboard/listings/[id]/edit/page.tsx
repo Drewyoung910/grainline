@@ -158,7 +158,6 @@ async function updateListing(
   if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
     return { ok: false, error: "Please provide a valid title and price." };
   }
-  if (priceCents <= 0) return { ok: false, error: "Price must be greater than zero." };
   if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
   if (listingType === "IN_STOCK" && stockQuantity === null) {
     return { ok: false, error: "In-stock listings need a stock quantity greater than zero." };
@@ -185,7 +184,7 @@ async function updateListing(
   const descChanged = description !== listing.description;
   const categoryChanged = (category ?? null) !== (listing.category ?? null);
   const tagsChanged = JSON.stringify([...tags].sort()) !== JSON.stringify([...listing.tags].sort());
-  const materialsChanged = materials !== listing.materials;
+  const materialsChanged = JSON.stringify([...materials].sort()) !== JSON.stringify([...listing.materials].sort());
   const metaDescriptionChanged = metaDescription !== listing.metaDescription;
   const productDimsChanged =
     productLengthIn !== listing.productLengthIn ||
