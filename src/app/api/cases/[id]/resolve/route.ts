@@ -9,6 +9,7 @@ import { sendCaseResolved } from "@/lib/email";
 import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/marketplaceRefunds";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
+import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import {
   blockingRefundLedgerWhere,
   orderHasRefundLedger,
@@ -302,19 +303,18 @@ export async function POST(
       throw txErr;
     }
 
-    const resolutionLabel =
-      resolution === "REFUND_FULL"
-        ? "Full refund issued"
-        : resolution === "REFUND_PARTIAL"
-        ? `Partial refund of $${((refundAmountCents ?? 0) / 100).toFixed(2)}`
-        : "Case dismissed";
+    const resolutionCopy = caseResolutionCopy(
+      resolution,
+      refundAmountForOrder ?? refundAmountCents ?? null,
+      caseRecord.order.currency,
+    );
 
     if (caseRecord.buyerId) {
       await createNotification({
         userId: caseRecord.buyerId,
         type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
-        title: refunding ? "Refund issued" : "Your case has been resolved",
-        body: resolutionLabel,
+        title: resolutionCopy.notificationTitle,
+        body: resolutionCopy.body,
         link: `/dashboard/orders/${caseRecord.orderId}`,
       });
     }
@@ -331,6 +331,7 @@ export async function POST(
             buyer: { name: buyerUser.name, email: buyerUser.email },
             resolution,
             refundAmountCents: refundAmountCents ?? null,
+            currency: caseRecord.order.currency,
           });
         }
       }

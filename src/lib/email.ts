@@ -8,6 +8,7 @@ import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { stripBidiControls } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
+import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -410,31 +411,26 @@ export async function sendCaseResolved(opts: {
   buyer: { name?: string | null; email: string };
   resolution: string;
   refundAmountCents?: number | null;
+  currency?: string | null;
 }) {
-  const { orderId, buyer, resolution, refundAmountCents } = opts;
+  const { orderId, buyer, resolution, refundAmountCents, currency } = opts;
   const name = buyer.name || "there";
   const orderUrl = `${APP_URL}/dashboard/orders/${orderId}`;
-
-  const resolutionLabel =
-    resolution === "REFUND_FULL"
-      ? "A full refund has been issued to your original payment method."
-      : resolution === "REFUND_PARTIAL" && refundAmountCents
-      ? `A partial refund of ${fmtCents(refundAmountCents)} has been issued to your original payment method.`
-      : "The case has been reviewed and dismissed.";
+  const resolutionCopy = caseResolutionCopy(resolution, refundAmountCents, currency);
 
   const refundNote =
-    resolution !== "DISMISSED"
+    resolutionCopy.refunding
       ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Refunds typically appear within 5–10 business days.</p>`
       : "";
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your case has been resolved.</p>
-    <p style="font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(resolutionLabel)}</p>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 16px;">${esc(resolutionCopy.body)}</p>
     ${refundNote}
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, "Your case has been resolved", baseTemplate("Case Resolved", body));
+  await send(buyer.email, resolutionCopy.emailSubject, baseTemplate(resolutionCopy.emailHeading, body));
 }
 
 export async function sendCustomOrderRequest(opts: {

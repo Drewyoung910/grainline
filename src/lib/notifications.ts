@@ -9,11 +9,6 @@ import {
   limitNotificationText,
 } from "@/lib/notificationPayload";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
-import {
-  VALID_EMAIL_PREFERENCE_KEYS,
-  VALID_IN_APP_PREFERENCE_KEYS,
-  VALID_PREFERENCE_KEYS,
-} from "@/lib/notificationPreferenceKeys";
 import { emailPreferenceDefaultEnabled } from "@/lib/notificationEmailPreferences";
 
 export {

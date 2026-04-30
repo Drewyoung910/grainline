@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 listing-card alt-text pass: **126** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 case-resolution copy pass: **125** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -153,6 +153,7 @@ Latest mechanical open-heading count after the 2026-04-30 listing-card alt-text 
 - **Stripe webhook unsupported-shape logging tightened.** Completed sessions that lack buyer/cart/listing routing metadata now create a Sentry warning before acknowledgement, and dispute handling uses an explicit event allowlist instead of `startsWith("charge.dispute.")`.
 - **Listing card image alt text now uses stored photo alt text.** Browse/home/seller/saved/similar listing card data paths now select and pass `Photo.altText` for primary and hover images, falling back to the listing title only when no photo alt text exists.
 - **Stale auth/notification findings reconciled.** R29 account-access API handling and the notification preference lookup failure item were re-verified against current code and marked fixed/verified instead of patched symptomatically.
+- **Case-resolution buyer copy is resolution-specific.** Admin case resolution now uses `caseResolutionCopy()` for notifications and emails, so full refunds, partial refunds, and dismissed cases have distinct titles/subjects/body copy and dismissed cases no longer read like refunds.
 
 ## Recommended Fix Order
 
@@ -3245,7 +3246,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 33. **9 subject lines have emoji** during domain warmup — spam folder risk. `src/lib/email.ts:204,232,259,295,449,514,559,578`. *Fix*: strip emoji from subjects for first 30 days post-domain-verification.
 
-34. **CASE_RESOLVED title doesn't differentiate** DISMISSED vs REFUND_FULL/PARTIAL — buyer thinks dismissed = refunded. *Fix*: title variants per resolution type.
+34. **[FIXED 2026-04-30] CASE_RESOLVED title doesn't differentiate** DISMISSED vs REFUND_FULL/PARTIAL — case resolution notifications and emails now use `caseResolutionCopy()` so full refunds, partial refunds, and dismissed cases have distinct buyer-facing titles/subjects and body text. Pure tests cover each resolution type.
 
 35. **[FIXED/VERIFIED 2026-04-30] VERIFICATION_REJECTED notification body lacks `reviewNotes`** — admin verification rejection paths now pass sanitized `reviewNotes` as the notification body when present, with a fallback message when absent.
 
