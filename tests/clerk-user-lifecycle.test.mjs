@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const { shouldRevokeSessionsForClerkEmailChange } = await import("../src/lib/clerkSessionSecurity.ts");
-const { resolveClerkWebhookPrimaryEmail } = await import("../src/lib/clerkWebhookEmail.ts");
+const { resolveClerkWebhookPrimaryEmail, shouldReserveClerkWelcomeEmail } = await import(
+  "../src/lib/clerkWebhookEmail.ts"
+);
 
 describe("Clerk user lifecycle session security", () => {
   it("revokes sessions for real primary email changes on user.updated", () => {
@@ -90,6 +92,43 @@ describe("Clerk webhook email resolution", () => {
         emailAddresses: [{ id: "email_empty", email_address: " " }],
       }),
       { reason: "primary_email_empty", email: null },
+    );
+  });
+});
+
+describe("Clerk webhook welcome email reservation", () => {
+  it("reserves only user.created events with a resolved email and no prior welcome timestamp", () => {
+    assert.equal(
+      shouldReserveClerkWelcomeEmail({
+        eventType: "user.created",
+        email: "person@example.com",
+        welcomeEmailSentAt: null,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldReserveClerkWelcomeEmail({
+        eventType: "user.updated",
+        email: "person@example.com",
+        welcomeEmailSentAt: null,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldReserveClerkWelcomeEmail({
+        eventType: "user.created",
+        email: null,
+        welcomeEmailSentAt: null,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldReserveClerkWelcomeEmail({
+        eventType: "user.created",
+        email: "person@example.com",
+        welcomeEmailSentAt: new Date("2026-04-30T12:00:00Z"),
+      }),
+      false,
     );
   });
 });

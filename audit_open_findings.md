@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 Clerk webhook pass: **98** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 webhook config/idempotency pass: **95** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -163,6 +163,7 @@ Latest mechanical open-heading count after the 2026-04-30 Clerk webhook pass: **
 - **Support/legal/runbook pass closed five verified gaps.** Public `/support` and `/legal/data-request` forms now create durable `SupportRequest` rows with 45-day SLA due dates, admin status tracking, and notification-email error evidence; middleware keeps these routes public for suspended/deleted users; `docs/runbook.md` now covers rollback, secret rotation, webhook recovery, restore drills, cron/email-outbox triage, and support/legal queue handling.
 - **Observability pass closed four concrete gaps.** Middleware now sets non-PII Sentry user context from the Clerk user ID, App Router cron routes send explicit Sentry check-ins through `cronMonitor.ts`, `/api/cron/ops-health` polls failed `CronRun` rows/stale email outbox/overdue support requests hourly, and Stripe dispute creation emits an ops-level Sentry warning.
 - **Clerk webhook primary-email drift tightened.** Clerk user webhooks now sync only the matched `primary_email_address_id`, log Sentry warnings when the primary email is missing or malformed, and capture Svix verification failures so tampering/replay noise is visible.
+- **Webhook provider config/idempotency tightened.** Clerk welcome email sends now reserve `welcomeEmailSentAt` atomically before direct send side effects; Resend webhook verification now requires both `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY`; the Stripe webhook missing-secret finding was re-verified already fixed with 503/Sentry/failure-spike handling.
 
 ## Recommended Fix Order
 
@@ -1849,15 +1850,15 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 9. **[FIXED 2026-04-30] Cart fall-through with missing buyerId silently marked processed** — completed checkout sessions that do not match cart or buy-now routing now emit a Sentry warning with session ID, buyer/cart/seller/listing metadata presence, then acknowledge the Stripe event.
 
-10. Clerk webhook `welcomeEmailSentAt` write + `sendWelcomeBuyer` not atomic — `clerk/webhook/route.ts:116-133`. Process killed between → retry sends another welcome email. **Fix**: write `welcomeEmailSentAt` BEFORE send (advisory lock pattern).
+10. **[FIXED 2026-04-30] Clerk webhook `welcomeEmailSentAt` write + `sendWelcomeBuyer` not atomic** — `clerk/webhook/route.ts` now gates welcome email side effects through `shouldReserveClerkWelcomeEmail()` and an atomic `updateMany({ id, welcomeEmailSentAt: null })` reservation before sending. Concurrent/retried `user.created` events that lose the reservation acknowledge without sending duplicates.
 
 11. **[FIXED 2026-04-30] Clerk webhook `email_addresses?.[0]?.email_address` fallback when primary not found** — `clerk/webhook/route.ts` now resolves only the matched `primary_email_address_id` through `resolveClerkWebhookPrimaryEmail()`. If Clerk omits the primary ID, omits the matching address, or sends an empty primary email, the webhook logs a Sentry warning and skips the email update instead of falling back to another account email.
 
 🟢 **LOW (3)**
 
-12. Stripe `STRIPE_WEBHOOK_SECRET!` non-null assertion — if env unset, `constructEvent` throws "Webhook secret not configured" → 400 Invalid signature instead of 503. Better mirror Resend's 503 pattern.
+12. **[FIXED/VERIFIED 2026-04-30] Stripe `STRIPE_WEBHOOK_SECRET!` non-null assertion** — current `stripe/webhook/route.ts` checks `process.env.STRIPE_WEBHOOK_SECRET` before `constructEvent`, captures fatal Sentry context, records a webhook failure-spike bucket, and returns 503 when the secret is missing.
 13. **[FIXED 2026-04-30] Clerk webhook svix verify failure not Sentry-captured** — invalid Clerk webhook signatures now capture a Sentry exception tagged `clerk_webhook_verify` with Svix ID/timestamp context before returning 400, preserving evidence for replay/tampering investigations.
-14. Resend webhook placeholder API key `"re_webhook_verify_only"` falls through if `RESEND_API_KEY` unset. Hides config errors. **Fix**: require both env vars or fail loud.
+14. **[FIXED 2026-04-30] Resend webhook placeholder API key `"re_webhook_verify_only"` falls through if `RESEND_API_KEY` unset** — `/api/resend/webhook` now resolves config through `resolveResendWebhookConfig()`, requires both `RESEND_WEBHOOK_SECRET` and `RESEND_API_KEY`, emits Sentry config context for missing values, and returns 503 instead of constructing the SDK with a placeholder key.
 
 ---
 

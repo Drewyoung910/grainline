@@ -6,7 +6,11 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { sendWelcomeBuyer, sendWelcomeSeller } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
-import { resolveClerkWebhookPrimaryEmail, type ClerkWebhookEmailAddress } from "@/lib/clerkWebhookEmail";
+import {
+  resolveClerkWebhookPrimaryEmail,
+  shouldReserveClerkWelcomeEmail,
+  type ClerkWebhookEmailAddress,
+} from "@/lib/clerkWebhookEmail";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
@@ -239,22 +243,39 @@ export async function POST(req: Request) {
       });
     }
 
-    if (event.type === "user.created" && email && !user.welcomeEmailSentAt) {
+    if (
+      shouldReserveClerkWelcomeEmail({
+        eventType: event.type,
+        email,
+        welcomeEmailSentAt: user.welcomeEmailSentAt,
+      })
+    ) {
+      const welcomeEmail = email;
+      if (!welcomeEmail) {
+        await markClerkWebhookProcessed(svixId);
+        return NextResponse.json({ ok: true });
+      }
+
+      const reserved = await prisma.user.updateMany({
+        where: { id: user.id, welcomeEmailSentAt: null },
+        data: { welcomeEmailSentAt: new Date() },
+      });
+      if (reserved.count !== 1) {
+        await markClerkWebhookProcessed(svixId);
+        return NextResponse.json({ ok: true });
+      }
+
       try {
-        await sendWelcomeBuyer({ user: { name, email } });
+        await sendWelcomeBuyer({ user: { name, email: welcomeEmail } });
         const sellerProfile = await prisma.sellerProfile.findUnique({
           where: { userId: user.id },
           select: { displayName: true },
         });
         if (sellerProfile) {
           await sendWelcomeSeller({
-            seller: { displayName: sellerProfile.displayName, email },
+            seller: { displayName: sellerProfile.displayName, email: welcomeEmail },
           });
         }
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { welcomeEmailSentAt: new Date() },
-        });
       } catch (error) {
         Sentry.captureException(error, {
           tags: { source: "clerk_webhook_welcome_email" },

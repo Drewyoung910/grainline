@@ -4,6 +4,7 @@ import { Resend, type WebhookEventPayload } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { normalizeEmailAddress, suppressEmail } from "@/lib/emailSuppression";
+import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
 import { truncateText } from "@/lib/sanitize";
 
 export const runtime = "nodejs";
@@ -147,9 +148,13 @@ async function recordTransientFailure(email: string, eventId: string, event: Web
 }
 
 export async function POST(request: Request) {
-  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    Sentry.captureMessage("RESEND_WEBHOOK_SECRET is not configured", { level: "error" });
+  const config = resolveResendWebhookConfig();
+  if (!config.ok) {
+    Sentry.captureMessage("Resend webhook is not configured", {
+      level: "error",
+      tags: { source: "resend_webhook_config" },
+      extra: { missing: config.missing },
+    });
     return NextResponse.json({ ok: false, error: "Webhook not configured" }, { status: 503 });
   }
 
@@ -163,9 +168,9 @@ export async function POST(request: Request) {
   let event: WebhookEventPayload;
   const payload = await request.text();
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY || "re_webhook_verify_only");
+    const resend = new Resend(config.apiKey);
     event = resend.webhooks.verify({
-      webhookSecret,
+      webhookSecret: config.webhookSecret,
       payload,
       headers: { id, timestamp, signature },
     });

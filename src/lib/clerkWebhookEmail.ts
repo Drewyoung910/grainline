@@ -43,3 +43,15 @@ export function resolveClerkWebhookPrimaryEmail({
 
   return { reason: "resolved", email };
 }
+
+export function shouldReserveClerkWelcomeEmail({
+  eventType,
+  email,
+  welcomeEmailSentAt,
+}: {
+  eventType: string;
+  email: string | null | undefined;
+  welcomeEmailSentAt: Date | string | null | undefined;
+}) {
+  return eventType === "user.created" && Boolean(email?.trim()) && !welcomeEmailSentAt;
+}
