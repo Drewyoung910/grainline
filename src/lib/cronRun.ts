@@ -8,9 +8,15 @@ export type CronRunHandle =
   | { acquired: true; runId: string; jobName: string; bucket: string }
   | { acquired: false; runId: string; jobName: string; bucket: string };
 
+const MAX_RECLAIM_RETRIES = 2;
+
 export { CRON_RUN_FAILED_RECLAIM_MS, cronUtcHourBucket, shouldReclaimFailedCronRun } from "@/lib/cronRunState";
 
-export async function beginCronRun(jobName: string, bucket = cronUtcHourBucket()): Promise<CronRunHandle> {
+export async function beginCronRun(
+  jobName: string,
+  bucket = cronUtcHourBucket(),
+  reclaimRetries = 0,
+): Promise<CronRunHandle> {
   const runId = `${jobName}:${bucket}`;
   try {
     await prisma.cronRun.create({
@@ -30,6 +36,14 @@ export async function beginCronRun(jobName: string, bucket = cronUtcHourBucket()
         select: { status: true, startedAt: true },
       });
       if (shouldReclaimFailedCronRun(existing)) {
+        if (reclaimRetries >= MAX_RECLAIM_RETRIES) {
+          Sentry.captureMessage("Cron run reclaim retry limit reached", {
+            level: "warning",
+            tags: { source: "cron_run_reclaim", jobName },
+            extra: { runId, bucket, reclaimRetries },
+          });
+          return { acquired: false, runId, jobName, bucket };
+        }
         await prisma.cronRun.delete({ where: { id: runId } }).catch((deleteError) => {
           if (
             deleteError instanceof Prisma.PrismaClientKnownRequestError &&
@@ -39,7 +53,7 @@ export async function beginCronRun(jobName: string, bucket = cronUtcHourBucket()
           }
           throw deleteError;
         });
-        return beginCronRun(jobName, bucket);
+        return beginCronRun(jobName, bucket, reclaimRetries + 1);
       }
       return { acquired: false, runId, jobName, bucket };
     }

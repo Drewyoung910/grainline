@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 accessibility/motion reconciliation pass: **59** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-04-30 critical-stale/cron reconciliation pass: **42** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -171,6 +171,7 @@ Latest mechanical open-heading count after the 2026-04-30 accessibility/motion r
 - **AI logging/query reconciliation pass closed four items.** AI review and listing alt-text operational count logs are now development-only `console.debug()` calls, while the follow-count, account-feed TypeScript hack, and listing view/click daily aggregate race findings were re-verified already fixed or stale in current code.
 - **Stock notification boundary tightened.** Back-in-stock subscription UI and subscription lookup now only run for out-of-stock `IN_STOCK` listings, matching the API route's invariant and avoiding a MADE_TO_ORDER/SOLD_OUT control that the server must reject; the quality-score new-seller-bonus finding was re-verified already fixed by seller-account-age gating.
 - **Accessibility/motion reconciliation pass closed nine items.** Cart quantity labels are now associated, avatar/notification popovers expose correct ARIA state and close on focus leave, hero mosaic animation has a pause control plus stable keys and reduced-motion image transforms, photo reorder labels describe ordering instead of grid direction, admin mobile nav exposes the active page, and the geo-blocking header dependency is documented as Vercel-ingress-only.
+- **Critical stale/cron reconciliation pass closed seventeen items.** The raw refund/unsubscribe/staff-removal criticals were re-verified fixed in current code, stale duplicate export/security assertions were marked closed, notification preference drift is covered by tests, quality-score/deleted-listing and gallery/favorite UI findings were verified stale, and cron-run failed-state reclaim now has an explicit retry cap with Sentry visibility.
 
 ## Recommended Fix Order
 
@@ -1433,7 +1434,7 @@ The section below is the verbatim chronological round-by-round content from the 
 8. **[FIXED 2026-04-30]** `FavoriteButton.tsx:48` uses `res.text()` not `res.json()` — now parses structured `{ error }`, rolls back optimistic state, and shows the server message when present.
 9. **[FIXED 2026-04-30]** `BlogCommentForm.tsx:28` strips out profanity/rate limit/banned messages — now parses structured errors and renders the specific server message.
 10. **[FIXED 2026-04-30]** `BlockReportButton.tsx:55,67` no error feedback — block/report failures now keep the menu open and show structured API/network errors inline.
-11. [FIXED 2026-04-30] `CommissionInterestButton.tsx:21-32` only handles 401/200; 400/403/429/404/500 all silent. The button now parses structured error JSON, shows inline `role="alert"` feedback for non-OK responses, and catches network/parse failures so the UI does not fail silently or trip an error boundary.
+11. **[FIXED 2026-04-30] `CommissionInterestButton.tsx:21-32` only handles 401/200; 400/403/429/404/500 all silent** — the button now parses structured error JSON, shows inline `role="alert"` feedback for non-OK responses, and catches network/parse failures so the UI does not fail silently or trip an error boundary.
 12. **[FIXED 2026-04-30] `NotifyMeButton.tsx:31` inverts local state instead of trusting server** — stock notification responses now flow through `stockNotificationSubscribedFromResponse()` and the client stores the returned `subscribed` boolean instead of blindly flipping old local state.
 13. **[FIXED 2026-04-30] `seller/payouts/page.tsx:27` posts no body to `connect/create`** — payout client POSTs now send `Content-Type: application/json` plus `{}` so the route contract stays compatible if optional JSON validation tightens.
 14. **[FIXED 2026-04-30] `messages/[id]/stream` returns `text/plain` errors** — pre-stream auth/permission/rate-limit failures now return structured JSON; fallback polling stops and shows explicit terminal state on 401/403/429 instead of silently looping.
@@ -1524,7 +1525,7 @@ The section below is the verbatim chronological round-by-round content from the 
 17. `accent-neutral-900` on radios — Safari <15.4 default blue.
 18. `font-display: swap` not set (Georgia is system, instant).
 19. **[FIXED/VERIFIED 2026-04-30] No `<meta name="theme-color">` per `prefers-color-scheme`** — the root layout exports a Next `viewport` config with `themeColor` and `viewportFit: "cover"`, so mobile browser chrome has an explicit theme color.
-20. Bleeding-edge JS APIs not used (Object.groupBy, URL.canParse, top-level await) — codebase is conservative ✓
+20. **[FIXED/VERIFIED 2026-04-30] Bleeding-edge JS APIs not used** — current codebase remains conservative and does not depend on risky browser/runtime-only APIs like `Object.groupBy`, `URL.canParse`, or app code top-level await.
 
 ✅ **No use of**: top-level await, Object.groupBy, URL.canParse — safe across modern browsers.
 
@@ -1599,7 +1600,7 @@ The section below is the verbatim chronological round-by-round content from the 
 
 ### 🐛 OPEN (1) — withdrawn
 
-13. ~~`/api/account/export` route DOES NOT EXIST~~ — **AGENT WAS WRONG.** Manually verified: `src/app/api/account/export/route.ts` exists. R23 verification was correct. Withdraw this finding.
+13. **[WITHDRAWN/VERIFIED 2026-04-30] ~~`/api/account/export` route DOES NOT EXIST~~** — the finding was false; `src/app/api/account/export/route.ts` exists and current code builds it.
 
 ### ⚠️ PARTIAL (2)
 
@@ -1889,7 +1890,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟢 **LOW (19)**
 
-7. [FIXED 2026-04-30] `recentlyViewed.ts:14` JSON.parse → `any`, contents not validated as strings. Parsed cookie values now pass through `normalizeRecentlyViewedIds()`, which keeps only unique non-empty strings and caps the payload.
+7. **[FIXED 2026-04-30] `recentlyViewed.ts:14` JSON.parse → `any`, contents not validated as strings** — parsed cookie values now pass through `normalizeRecentlyViewedIds()`, which keeps only unique non-empty strings and caps the payload.
 8. `admin/audit/page.tsx:87` Object.keys returns string[]; cast to `Array<keyof typeof ACTION_COLORS>`.
 9. `layout.tsx:60` stale TODO for Google Search Console verification.
 10. `email.ts` likely has unused exports (`sendWelcomeSeller`, `sendFirstSaleCongrats` — verify wiring).
@@ -1904,7 +1905,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 19. Pagination `take: N` no `PAGE_SIZE_DEFAULT`/`PAGE_SIZE_LARGE` constants.
 20. Time constants `5*60*1000`, `300000`, `600000` scattered. **Fix**: `lib/time.ts`.
 21. `ThreadMessages.tsx:25-27` `isImageUrl`/`isPdfUrl` regex by extension only — comment explaining R2 origin verified upstream.
-22. CLAUDE.md "default OFF" notification list vs `VALID_PREFERENCE_KEYS` — verify no drift via unit test.
+22. **[FIXED/VERIFIED 2026-04-30] CLAUDE.md "default OFF" notification list vs `VALID_PREFERENCE_KEYS`** — `tests/notification-preference-keys.test.mjs` verifies aggregate preference-key coverage for email keys, and the stale unsubscribe behavior note in `CLAUDE.md` now points to the all-email-preference suppression behavior.
 23. **[FIXED 2026-04-30] `email.ts ↔ notifications.ts` soft-circular import** — Shared preference key/default policy now lives in `notificationPreferenceKeys.ts` and `notificationEmailPreferences.ts`; `unsubscribe.ts` and the preferences route import those pure modules directly, so email delivery no longer reaches through `notifications.ts` for preference constants.
 24. `Object.keys` indexing with string[] (TS narrowing) in 4 spots.
 25. **[FIXED 2026-04-30]** `LIMIT 1000` in raw SQL truncates without warning (R32 finding overlap). Account-deletion admin-audit scans now use cursor pagination in 500-row batches rather than a single uncached first page.
@@ -2011,15 +2012,15 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 16. Follow notification across UTC midnight repeat spam — same as #12; UTC bucket dedup allows day-boundary repeats.
 
-17. [FIXED 2026-04-30] `softDeleteListingWithCleanup` Serializable not retried — `listingSoftDelete.ts` now runs its serializable cleanup transaction through `withSerializableRetry()`, which retries Prisma `P2034`, SQLSTATE `40001`, and serialization-failure messages while immediately surfacing non-retryable errors. Pure tests cover retry classification and retry/stop behavior.
+17. **[FIXED 2026-04-30] `softDeleteListingWithCleanup` Serializable not retried** — `listingSoftDelete.ts` now runs its serializable cleanup transaction through `withSerializableRetry()`, which retries Prisma `P2034`, SQLSTATE `40001`, and serialization-failure messages while immediately surfacing non-retryable errors. Pure tests cover retry classification and retry/stop behavior.
 
 18. `account.updated` lost-update — same as #10 (duplicate).
 
 🟢 **LOW (2)**
 
-19. `ensureUser` P2002 retry doesn't refetch existing — `lib/ensureUser.ts:90-101`. Redundant no-op overwrite of name/imageUrl could clobber recent Clerk webhook data.
+19. **[FIXED/VERIFIED 2026-04-30] `ensureUser` P2002 retry doesn't refetch existing** — current `ensureUserByClerkId()` re-enters through the normal existing-user path after a `clerkId` create race and drops only conflicting email updates, so it no longer blindly overwrites Clerk webhook data.
 
-20. `cronRun.ts` failed-stale recursion can starve — `lib/cronRun.ts:32-46`. P2002 + status=FAILED + age>5min: delete + recurse. If delete races (P2025 caught), recursion proceeds. Bounded by ms but no depth guard.
+20. **[FIXED 2026-04-30] `cronRun.ts` failed-stale recursion can starve** — stale failed-run reclaim now has `MAX_RECLAIM_RETRIES`, emits a warning-level Sentry message when the cap is hit, and returns a skipped handle instead of recursing indefinitely.
 
 ---
 
@@ -2094,7 +2095,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 🟡 **MEDIUM (7)**
 
 10. **[FIXED 2026-04-30] Cart quantity select label not associated** — each cart quantity select now gets a stable item-specific `id`, and the visible `Qty` label uses `htmlFor` so screen readers announce the control purpose.
-11. SellerGallery thumbnail single-row landscape may fall under 44px.
+11. **[FIXED/VERIFIED 2026-04-30] SellerGallery thumbnail single-row landscape may fall under 44px** — `SellerGallery` thumbnails are rendered as full-width buttons with `h-40`, so the interactive target is well above 44px even for a single landscape row.
 12. **[FIXED 2026-04-30] NotificationBell dropdown no role / focus handling** — the notification popover now uses dialog semantics, wires `aria-controls`, and closes when keyboard focus leaves the popover so it does not remain orphaned after tab navigation.
 13. **[FIXED 2026-04-30] UserAvatarMenu dropdown missing menu semantics** — the account trigger now exposes `aria-haspopup="menu"`/`aria-controls`, the dropdown has `role="menu"`, menu entries expose `role="menuitem"`, and focus leaving the menu closes it.
 14. **[FIXED 2026-04-30] HeroMosaic no user-controllable pause** — the animated mosaic now has an explicit pause/play button with `aria-pressed`, while `prefers-reduced-motion` users still get no animation.
@@ -2105,7 +2106,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 16. **[FIXED 2026-04-30] Header logo Link missing `aria-label="Grainline home"`** — desktop and mobile drawer home-logo links now use the explicit home label.
 17. **[FIXED 2026-04-30] Skip link uses `focus:not-sr-only` not `focus-visible:not-sr-only`** — the root skip link now reveals only on keyboard focus-visible state.
 18. MobileFilterBar 44px tall pill with 12px text + py-1 looks like padding bug.
-19. FavoriteButton overflow on hover scale (verified card has `overflow-hidden`).
+19. **[FIXED/VERIFIED 2026-04-30] FavoriteButton overflow on hover scale** — current listing cards keep the favorite control inside an overflow-clipped image/card surface, so hover scale does not spill into neighboring content.
 20. **[FIXED 2026-04-30] AdminMobileNav active section not announced** — the mobile admin navigation now has an `aria-label` and active links expose `aria-current="page"`; it intentionally remains semantic navigation instead of `role="tablist"` because the controls route between pages, not tab panels.
 
 ---
@@ -2300,8 +2301,8 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 🟢 **LOW (3)**
 
 18. **[FIXED/VERIFIED 2026-04-30] Banned check fires AFTER admin role check in middleware** — current middleware runs the signed-in suspended/deleted account check before admin role and PIN enforcement, so banned admins are blocked before privileged admin handling.
-19. Stripe `payment_status !== "paid"` invariant — verified safe at webhook line 422.
-20. `verifyAdminPinCookieValue` cookie payload is bound to userId via `${userId}.${expiresAtRaw}` — verified safe.
+19. **[FIXED/VERIFIED 2026-04-30] Stripe `payment_status !== "paid"` invariant** — webhook completion still rejects unpaid sessions before order creation, so the invariant is enforced in current code.
+20. **[FIXED/VERIFIED 2026-04-30] `verifyAdminPinCookieValue` cookie payload user binding** — the admin PIN cookie payload is bound to `userId` via `${userId}.${expiresAtRaw}`, so cross-user replay is not reproducible.
 
 ---
 
@@ -2959,7 +2960,7 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 🟡 **MEDIUM (8)**
 13. **Cart .expired over-restores stock** — `webhook/route.ts:1224-1234`. Cart A expires (3 items). Buyer B already bought 2 in separate cart. Restoration adds back 3 — over-restores. **Fix**: check `OrderItem.exists` for each listingId in any paid order from sibling sessions. Better: store reservation ID per-listing and only restore matching reservations.
 14. **Guild revoke cron + admin reinstate race** — `cron/guild-member-check/route.ts:90-104`. Cron starts at 8am; admin reinstates at 8:00:01. Cron's `revokeMember` overwrites at 8:00:02. **Fix**: change to `updateMany` with `where: { guildLevel: 'GUILD_MEMBER', listingsBelowThresholdSince: { lt: thirtyDaysAgo } }`.
-15. **Quality-score cron updates deleted listings** — implicit. Cron UPDATE on listing.id; admin/seller `softDeleteListingWithCleanup` parallel. Stale qualityScore on HIDDEN listing. **Fix**: cron WHERE `status='ACTIVE' AND deletedAt IS NULL`.
+15. **[FIXED/VERIFIED 2026-04-30] Quality-score cron updates deleted listings** — current schema has no `Listing.deletedAt`, soft-deleted listings are `HIDDEN`/private, scoring batches only select active non-private listings, and the zeroing query clears non-active/private listings.
 16. **account.updated arrives during .completed** — `webhook/route.ts:919, 132`. account.updated sets chargesEnabled=false at T0. .completed at T1 already loaded session — creates order to disabled seller. **Fix**: move chargesEnabled check INSIDE order-creation transaction (line 349).
 17. **checkoutLock TTL outlives Stripe session** — `checkoutSessionLock.ts:5`. Lock TTL 32min, Stripe session 31min. Abandon → Stripe expires → buyer retries within 60s → "checkout already open" 409 even though stock restored. **Fix**: cart path at line 1238 conditional release — change to always release unconditionally before returning from .expired.
 18. **PARTIAL refund + dispute_resolved race overpays** — `webhook/route.ts:965` + `refund/route.ts:114`. Seller issues PARTIAL $50. Stripe `dispute.lost` fires automatic chargeback for full $100. Total refunded > order total. **Fix**: in `charge.refunded` handler, compare `totalRefundedCents` against order total; flag if exceeded; halt fulfillment.
@@ -2971,7 +2972,7 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 ### Round 18 — GDPR / Account Deletion / Privacy (20 findings)
 
 🟠 **HIGH (5)**
-1. **No `/api/account/export` endpoint** — Privacy 7.5 promises portability + 45-day SAR response across 17 states. **Fix**: add JSON export endpoint returning User + orders + messages + reviews + listings + blog posts + cart + favorites; gate behind email re-verification.
+1. **[WITHDRAWN/VERIFIED 2026-04-30] No `/api/account/export` endpoint** — stale duplicate; `src/app/api/account/export/route.ts` exists and returns the JSON portability export. The remaining re-verification/audit-log concerns stay tracked as separate findings.
 2. **[FIXED/VERIFIED 2026-04-30] `accountDeletion.ts` doesn't deauthorize Stripe Connect** — deletion now attempts `stripe.accounts.reject(stripeAccountId, { reason: "other" })` before anonymization and flags the seller for manual reconciliation if Stripe cannot reject the account.
 3. **[FIXED/VERIFIED 2026-04-30] NewsletterSubscriber retains email indefinitely** — account deletion now deletes the newsletter subscriber row and records the address in `EmailSuppression` with `source: "account_deletion"` instead of retaining the newsletter row.
 4. **[FIXED/VERIFIED 2026-04-30] `BlogPost.author onDelete: Cascade`** — current schema uses nullable `authorId` with `onDelete: SetNull`, and account deletion archives authored/seller blog posts while clearing author/seller profile references.
@@ -3149,10 +3150,10 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 ## Round 12-15 highlights (newest first)
 
 **🐛 CONFIRMED CODEX REGRESSIONS (Round 15 verification):**
-1. `SellerRefundPanel.tsx:34-43` — "pending" sentinel leaks to UI as Stripe refund ID. Refund-in-flight shows green "Refund issued — Stripe refund ID: pending" to seller.
-2. `lib/unsubscribe.ts:5-9` — One-click unsubscribe disables only 3 prefs. CAN-SPAM violation.
-3. `lib/email.ts:103` — Footer Unsubscribe link still points to sign-in-required `/unsubscribe`, not tokenized one-click URL.
-4. `seller/[id]/shop/actions.ts publishListingAction` — Admin-removed listings (REJECTED + isPrivate + reason="Removed by Grainline staff.") can be Resubmitted by seller and AI re-review can flip to ACTIVE. **Bypasses moderation entirely.**
+1. **[FIXED/VERIFIED 2026-04-30] `SellerRefundPanel.tsx:34-43` "pending" sentinel leaks to UI as Stripe refund ID** — the panel now treats `sellerRefundId === "pending"` as an amber "Refund processing" state and does not display it as a Stripe refund ID.
+2. **[FIXED/VERIFIED 2026-04-30] `lib/unsubscribe.ts:5-9` one-click unsubscribe disables only 3 prefs** — unsubscribe now iterates over `VALID_EMAIL_PREFERENCE_KEYS`, disables every known email preference, and upserts an `EmailSuppression` row.
+3. **[FIXED/VERIFIED 2026-04-30] `lib/email.ts:103` footer Unsubscribe link points to sign-in-required `/unsubscribe`** — outbound email builds a recipient-specific tokenized `/api/email/unsubscribe` URL and injects it into both footer placeholders and `List-Unsubscribe` headers.
+4. **[FIXED/VERIFIED 2026-04-30] `seller/[id]/shop/actions.ts publishListingAction` admin-removed listings can be resubmitted** — `publishListingBlockReason()` blocks the staff-removal rejection reason, the publish update predicates exclude that reason, and tests cover the staff-removed path.
 
 **Round 15 missed-items findings:**
 - TOCTOU race on `api/follow/[sellerId]` notification dedup
