@@ -3564,6 +3564,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 
 ### Critical fixes
 - **@clerk/nextjs 7.0.7 → 7.2.3** — fixes middleware route protection bypass (GHSA-vqx2-fgx2-5wq9). Attacker could access `/dashboard`, `/admin`, etc. without auth.
+- **@clerk/nextjs 7.2.3 → 7.3.0** (2026-05-01) — fixes authorization bypass when combining organization/billing/reverification checks (GHSA-w24r-5266-9c3c). Lockfile-only bump via `npm audit fix`; the package.json `^7.2.3` caret range already covered 7.3.0. Affected transitive packages: `@clerk/shared 4.8.2 → 4.9.0`, `@clerk/backend 3.2.13 → 3.4.4`, `@clerk/react 6.4.2 → 6.5.0`. CI's `npm audit --audit-level=high` had been red for ~24h before the patch.
 - **next 16.2.1 → 16.2.4** — fixes Server Components DoS (GHSA-q4gf-8mx6-v5v3). Crafted request crashes Vercel instance.
 
 ### High fixes
