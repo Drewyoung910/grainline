@@ -1,8 +1,10 @@
-// src/app/sitemap.xml/route.ts
+// src/app/sitemap_index.xml/route.ts
 // Sitemap index. The chunked sitemaps live at /sitemap/[id].xml via
 // `generateSitemaps()` in `src/app/sitemap.ts`; Next.js does not auto-create an
-// index. This route advertises every chunk so robots.txt can keep pointing at
-// `/sitemap.xml` (the conventional path) and crawlers can discover all chunks.
+// index and reserves `/sitemap.xml` internally (a custom route there fails the
+// build with "Conflicting route and metadata"). The index lives at
+// `/sitemap_index.xml` and robots.txt advertises that URL — crawlers accept
+// any URL listed in the `Sitemap:` directive.
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";

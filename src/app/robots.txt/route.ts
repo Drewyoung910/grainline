@@ -58,7 +58,7 @@ Crawl-delay: 60
 User-agent: MJ12bot
 Disallow: /
 
-Sitemap: https://thegrainline.com/sitemap.xml
+Sitemap: https://thegrainline.com/sitemap_index.xml
 `;
   return new NextResponse(body, {
     headers: { "Content-Type": "text/plain" },
