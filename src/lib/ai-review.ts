@@ -61,6 +61,13 @@ const AI_REVIEW_RESPONSE_FORMAT = {
   },
 } as const;
 
+/**
+ * Converts the model response into the only shape callers are allowed to trust.
+ * Missing or malformed moderation decisions fail closed, free-form strings are
+ * bounded before persistence, confidence is clamped to 0..1, and alt text is
+ * padded to the reviewed image count so photo backfill code cannot drift by
+ * array index.
+ */
 function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIReviewResult {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
   const flags = Array.isArray(value.flags)
@@ -91,6 +98,27 @@ function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIRevi
   };
 }
 
+/**
+ * Moderates a seller-submitted listing before it can remain public.
+ *
+ * Input contract:
+ * - `sellerId` is the SellerProfile ID, used only for same-seller duplicate
+ *   checks and Sentry context.
+ * - `title`, `description`, `category`, `tags`, and `sellerName` are untrusted
+ *   seller content. They are prompt-redacted, bounded, and sent as delimited
+ *   user data, never as policy instructions.
+ * - `listingCount` controls the text-only leniency threshold: sellers with
+ *   0-2 prior listings may pass with `low-quality-description`; sellers with
+ *   3+ listings are held for very low-quality descriptions. Clear policy,
+ *   image, spam, or regulated-goods violations are rejected for every seller.
+ * - `imageUrls` must be first-party/R2 URLs. Invalid or third-party URLs are
+ *   filtered out before the OpenAI call.
+ *
+ * Failure contract: missing config, request failures, parse failures, invalid
+ * schema, and retry exhaustion all return `approved: false` with manual-review
+ * flags. Listing callers must keep those records in `PENDING_REVIEW` rather
+ * than falling open to `ACTIVE`.
+ */
 export async function reviewListingWithAI(listing: {
   sellerId: string
   title: string
@@ -334,8 +362,10 @@ USER_LISTING_DATA_${delimiterId}_END`
 }
 
 /**
- * Lightweight alt text generator for a single image.
- * ~$0.00003 per call (1 image at low detail).
+ * Generates one bounded alt-text string for a trusted listing image.
+ * Returns `null` instead of throwing on missing config, non-R2 URLs, provider
+ * errors, or unusable model text so callers can preserve seller-provided alt
+ * text and skip backfill cleanly.
  */
 export async function generateAltText(imageUrl: string): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;

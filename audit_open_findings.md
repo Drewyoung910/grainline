@@ -8,13 +8,15 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-05-05 schema text guard pass: **20** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-05 content quality/search pass: **15** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 2026-05-05 form/photo uploader pass closed six reproducible or stale-open findings: custom listings now use the shared `PhotoManager` path with seller/AI alt-text persistence, the dead `ImagesUploader` component was removed, money inputs flow through `parseMoneyInputToCents()` instead of `parseFloat`/`Number` exponent parsing, browse and saved-search price filters keep the dollars-to-cents boundary explicit, numeric controls advertise decimal/numeric keyboards, and the lingering "CUID-only public URL" SEO item was verified stale because listing/seller URLs now use canonical `id--slug` paths.
 
 2026-05-05 case/Guild race pass closed five race findings: Guild Member auto-revocation now re-checks the exact revocation condition inside the `SellerProfile.updateMany()` guard, case messages update the case and create the message in one transaction guarded by the previously-read active status, fulfillment case races were verified already guarded by relation filters in `Order.updateMany()`, and mark-resolved duplicate-notification risk was verified stale because current mark-resolved returns state only and uses a single guarded SQL update.
 
 2026-05-05 schema text guard pass closed or triaged ten schema findings: seller profile rich text now uses shared bounded sanitization, listing/blog/order text columns have database caps matching server/UI limits, buyer snapshot nullability is documented in schema, MakerVerification now has standard timestamps, Listing has database CHECK constraints for future positive price/non-negative stock writes, and JSON/snapshot/state-length items that were not actual bugs are tagged explicitly instead of left as open defects.
+
+2026-05-05 content quality/search pass closed five reproducible or fragile-open findings: search suggestions now normalize/cap query text and use stricter shared trigram thresholds, quality-score ranking subtracts explicit penalties for missing/short descriptions, low photo count, and persisted AI moderation flags, non-ASCII blog slugs keep readable text plus a stable FNV suffix to avoid homograph/diacritic collapse, AI review now documents its trusted input/fail-closed contract, and listing edit re-review now makes the pre-edit status snapshot explicit while preserving the `updatedAt` + `PENDING_REVIEW` race guard.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -1894,7 +1896,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 5. **`Notification.metadata Json @default("{}")`** — JSON column for what could be structured columns (targetType, targetId). At scale, queryable structured columns are cheaper. **Fix**: extract `targetType`/`targetId` columns; keep `metadata` for free-form extras.
 
-6. **`ai-review.ts` zero JSDoc on 3 critical functions with >50-line bodies** — Prompt logic is high-touch and changes often. **Fix**: JSDoc each `reviewListingWithAI` parameter + inline-document leniency thresholds.
+6. **[FIXED 2026-05-05] `ai-review.ts` zero JSDoc on 3 critical functions with >50-line bodies** — `normalizeAIReviewResult()`, `reviewListingWithAI()`, and `generateAltText()` now document normalization, trusted-input boundaries, new-seller leniency thresholds, first-party image filtering, and the fail-closed manual-review contract.
 
 🟢 **LOW (19)**
 
@@ -2151,9 +2153,9 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 🟢 **LOW (4)**
 
-12. **Search suggestions weak fuzzy threshold** — `api/search/suggestions/route.ts:71`. `similarity > 0.25` returns very weak matches. Cyrillic homograph queries match real listings (could be intentional, but UX concern).
+12. **[FIXED 2026-05-05] Search suggestions weak fuzzy threshold** — `src/lib/searchSuggestionState.ts` now centralizes normalized/capped suggestion queries and raises listing/blog trigram thresholds to 0.35/0.25. `/api/search/suggestions` uses those constants instead of permissive inline literals.
 
-13. **Quality score no spam/low-quality penalty** — `quality-score.ts`. No demotion for: descLength < 50, photoCount < 2, aiReviewFlags.length > 0. New listings get +0.15 with zero engagement signal — gameable. **Fix**: add penalty terms.
+13. **[FIXED 2026-05-05] Quality score no spam/low-quality penalty** — `src/lib/qualityScoreState.ts` adds pure penalty terms for missing/short descriptions, missing/low photo count, and persisted AI moderation flags. The quality-score cron now selects `aiReviewFlags` and clamps `score - penalty` at zero, preventing sparse listings from riding discovery boosts.
 
 14. **[FIXED 2026-04-30] Sitemap missing `/blog?type=GIFT_GUIDE` etc** — sitemap now emits one filtered blog URL per populated high-value blog type, using the latest post update for `lastModified`.
 
@@ -2362,7 +2364,7 @@ webhook advisory_lock 4 paths, createMarketplaceRefund tax split, dispute guard 
 
 18. **[FIXED 2026-04-30] AI sees only first 4 photos via `imageUrls.slice(0, 4)`** — AI review image filtering now allows up to 8 trusted listing photos, and listing create/custom/edit/resubmit review callers now pass or fetch up to the full 8-photo listing limit instead of truncating at four.
 
-19. **Stale-status read in re-review path** — `edit/page.tsx:142-183`. Re-review uses post-update field values but reads `listing.status` from pre-update snapshot. Currently harmless (status not in update data) but fragile.
+19. **[FIXED/VERIFIED 2026-05-05] Stale-status read in re-review path** — The re-review trigger now names the pre-edit status snapshot (`statusBeforeEdit`) explicitly, while later AI writes remain guarded by the post-update `updatedAt` value and `PENDING_REVIEW` status. This was already race-safe; the fix removes the fragile implicit read.
 
 20. **[FIXED/VERIFIED 2026-04-30] `presign/route.ts:73` uses `Math.random()`** — Same fix as R27-10/R47-10: upload keys now use `randomBytes(12).toString("hex")`; no `Math.random()` remains in the presign route.
 
@@ -2467,7 +2469,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 
 6. **Display name homograph collisions** — `src/app/api/search/suggestions/route.ts:48-57`. `displayName` matched with raw `contains` — Cyrillic `Аpple` and Latin `Apple` are treated as different sellers. Brand impersonator never collides on uniqueness. **Fix**: store `displayNameNormalized` (NFKC + confusables fold) for impersonation checks at signup/edit.
 
-7. **`generateSlug()` collision on emoji/homograph titles** — `src/lib/blog.ts:4-24`. Title `"🪵🛠"` → fallback hash slug; `"naïve"` → `naive` collides with separate `naive` post. Unique suffix `-2` saves it but admin can't distinguish. **Fix**: append FNV hash suffix on EVERY non-ASCII slug.
+7. **[FIXED 2026-05-05] `generateSlug()` collision on emoji/homograph titles** — Non-ASCII titles now append a stable FNV-64 base36 suffix to readable slugs, while fully non-Latin titles keep the `post-<hash>` fallback. ASCII titles remain readable without suffixes, and regression tests cover accented and non-Latin cases.
 
 8. **[FIXED 2026-04-30] `statement_descriptor_suffix` strips Unicode silently to empty** — checkout routes now use shared `stripeStatementDescriptorSuffix()`, which folds accented Latin names, strips unsupported characters, caps to Stripe's 22-character suffix limit, and falls back to `GRAINLINE` for non-Latin/empty seller names so the descriptor is never silently omitted.
 

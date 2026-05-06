@@ -6,13 +6,18 @@ import { searchRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { getPopularListingTags } from "@/lib/popularTags";
+import {
+  BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
+  LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY,
+  normalizeSearchSuggestionQuery,
+} from "@/lib/searchSuggestionState";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimitOpen(searchRatelimit, getIP(req));
   if (!success) {
     return rateLimitResponse(reset, "Too many searches.");
   }
-  const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("q"));
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
 
   const { userId } = await auth();
@@ -58,7 +63,8 @@ export async function GET(req: NextRequest) {
       take: 2,
     }),
 
-    // Fuzzy title suggestions via pg_trgm (similarity > 0.25)
+    // Fuzzy title suggestions via pg_trgm. Keep threshold conservative to avoid
+    // surfacing weak visual/homograph matches as marketplace suggestions.
     blockedSellerIds.length > 0
       ? prisma.$queryRaw<Array<{ title: string; sim: number }>>`
           SELECT DISTINCT l.title, similarity(l.title, ${q}) as sim
@@ -70,7 +76,7 @@ export async function GET(req: NextRequest) {
             AND sp."vacationMode" = false
             AND u.banned = false
             AND u."deletedAt" IS NULL
-            AND similarity(l.title, ${q}) > 0.25
+            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
             AND l."sellerId" != ALL(${blockedSellerIds})
           ORDER BY sim DESC LIMIT 2
@@ -85,7 +91,7 @@ export async function GET(req: NextRequest) {
             AND sp."vacationMode" = false
             AND u.banned = false
             AND u."deletedAt" IS NULL
-            AND similarity(l.title, ${q}) > 0.25
+            AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
             AND l.title NOT ILIKE ${`%${q}%`}
           ORDER BY sim DESC LIMIT 2
         `,
@@ -105,7 +111,7 @@ export async function GET(req: NextRequest) {
     WHERE bp.status = 'PUBLISHED'
       AND u.banned = false
       AND u."deletedAt" IS NULL
-      AND similarity(bp.title, ${q}) > 0.15
+      AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
     ORDER BY similarity(bp.title, ${q}) DESC
     LIMIT 3
   `;

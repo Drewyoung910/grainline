@@ -14,7 +14,8 @@
 //     photoScore * 0.05 +
 //     descScore * 0.05 +
 //     newListingBump (0.15 for 14 days, linear decay to 0 by day 30) +
-//     newSellerBonus (0.05 if seller has zero reviews)
+//     newSellerBonus (0.05 if seller has zero reviews) -
+//     qualityPenalty (short description, low photo count, moderation flags)
 //
 // Base weights sum to 1.0. Discovery bumps are additive by design, so a
 // brand-new zero-review listing can temporarily score up to 1.20.
@@ -22,6 +23,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { getSiteMetricsSnapshot } from "@/lib/site-metrics-snapshot";
+import { qualityPenaltyForListing } from "@/lib/qualityScoreState";
 
 const DAMPENING_C = 50;
 const BATCH_SIZE = 200;
@@ -36,6 +38,7 @@ interface ListingRow {
   photoCount: bigint;
   hasAltText: boolean;
   descLength: number;
+  aiReviewFlags: string[];
   createdAt: Date;
   sellerCreatedAt: Date;
   guildLevel: string;
@@ -74,6 +77,7 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       COALESCE(ph.cnt, 0) AS "photoCount",
       COALESCE(ph."hasAlt", false) AS "hasAltText",
       COALESCE(LENGTH(l.description), 0) AS "descLength",
+      l."aiReviewFlags",
       l."createdAt",
       sp."createdAt" AS "sellerCreatedAt",
       sp."guildLevel",
@@ -179,7 +183,8 @@ function scoreRow(row: ListingRow, globals: GlobalMeans, now: number): number {
   const sellerAgeDays = Math.max(0, (now - new Date(row.sellerCreatedAt).getTime()) / (1000 * 60 * 60 * 24));
   const newSellerBonus = sellerReviews === 0 && sellerAgeDays <= 30 ? 0.05 : 0;
 
-  // Weighted sum + discovery bumps
+  // Weighted sum + discovery bumps. Penalties keep sparse/spammy listings from
+  // being lifted by new-listing/new-seller boosts before they earn engagement.
   const score =
     dampenedConversion * 0.25 +
     sellerRating * 0.2 +
@@ -192,7 +197,13 @@ function scoreRow(row: ListingRow, globals: GlobalMeans, now: number): number {
     newListingBump +
     newSellerBonus;
 
-  return score;
+  const penalty = qualityPenaltyForListing({
+    descLength: row.descLength,
+    photoCount: photos,
+    aiReviewFlags: row.aiReviewFlags,
+  });
+
+  return Math.max(0, score - penalty);
 }
 
 export async function recalculateAllQualityScores(): Promise<{

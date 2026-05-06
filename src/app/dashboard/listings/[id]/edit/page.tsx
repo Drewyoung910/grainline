@@ -225,7 +225,10 @@ async function updateListing(
     shippingChanged ||
     priceChanged ||
     variantsChanged;
-  const requiresReview = listing.status === ListingStatus.ACTIVE && substantiveChange;
+  // Use the pre-edit status for the review trigger. Later AI state transitions
+  // are guarded by the updatedAt value from this write plus PENDING_REVIEW.
+  const statusBeforeEdit = listing.status;
+  const requiresReview = statusBeforeEdit === ListingStatus.ACTIVE && substantiveChange;
 
   const updatedListing = await prisma.listing.update({
     where: { id: listingId },

@@ -4,8 +4,15 @@ import { describe, it } from "node:test";
 const { calculateReadingTime, generateSlug } = await import("../src/lib/blog.ts");
 
 describe("blog slugs", () => {
-  it("normalizes Latin titles into readable slugs", () => {
-    assert.equal(generateSlug("Café Crème Cutting Board"), "cafe-creme-cutting-board");
+  it("keeps ASCII Latin titles readable", () => {
+    assert.equal(generateSlug("Cafe Creme Cutting Board"), "cafe-creme-cutting-board");
+  });
+
+  it("adds a stable hash suffix to non-ASCII readable slugs", () => {
+    const slug = generateSlug("Café Crème Cutting Board");
+    assert.match(slug, /^cafe-creme-cutting-board-[0-9a-z]+$/);
+    assert.equal(slug, generateSlug("Café Crème Cutting Board"));
+    assert.notEqual(generateSlug("naïve"), generateSlug("naive"));
   });
 
   it("uses a stable 64-bit hash fallback for non-Latin titles", () => {

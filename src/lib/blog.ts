@@ -3,12 +3,23 @@ import type { BlogPostType } from "@prisma/client";
 
 const FNV_64_OFFSET = 0xcbf29ce484222325n;
 const FNV_64_PRIME = 0x100000001b3n;
+const MAX_BLOG_SLUG_LENGTH = 255;
 const CJK_READING_CHAR_PATTERN =
   /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/gu;
 
 export const BLOG_BODY_MAX_CHARS = 50_000;
 
+function fnv64Base36(value: string): string {
+  let hash = FNV_64_OFFSET;
+  for (const char of value.normalize("NFC")) {
+    hash ^= BigInt(char.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * FNV_64_PRIME);
+  }
+  return hash.toString(36);
+}
+
 export function generateSlug(title: string): string {
+  const trimmed = title.trim();
   const slug = title
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -20,14 +31,15 @@ export function generateSlug(title: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 
-  if (slug) return slug;
-
-  let hash = FNV_64_OFFSET;
-  for (const char of title.trim()) {
-    hash ^= BigInt(char.codePointAt(0) ?? 0);
-    hash = BigInt.asUintN(64, hash * FNV_64_PRIME);
+  const hasNonAscii = /[^\x00-\x7F]/.test(trimmed);
+  const hash = fnv64Base36(trimmed);
+  if (slug) {
+    if (!hasNonAscii) return slug.slice(0, MAX_BLOG_SLUG_LENGTH);
+    const suffix = `-${hash}`;
+    const maxBaseLength = Math.max(1, MAX_BLOG_SLUG_LENGTH - suffix.length);
+    return `${slug.slice(0, maxBaseLength).replace(/-+$/g, "")}${suffix}`;
   }
-  return `post-${hash.toString(36)}`;
+  return `post-${hash}`;
 }
 
 export function calculateReadingTime(body: string): number {
