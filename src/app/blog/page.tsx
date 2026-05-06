@@ -3,13 +3,14 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { BlogPostType, BlogPostStatus, Prisma } from "@prisma/client";
+import { BlogPostType, Prisma } from "@prisma/client";
 import NewsletterSignup from "@/components/NewsletterSignup";
 import { auth } from "@clerk/nextjs/server";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlogSearchBar from "@/components/BlogSearchBar";
 import MediaImage from "@/components/MediaImage";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { safeJsonLd } from "@/lib/json-ld";
 import { truncateTextWithEllipsis } from "@/lib/sanitize";
 
@@ -64,7 +65,6 @@ export default async function BlogIndexPage({
     ...(tagsFilter.length > 0 ? { tags: { hasSome: tagsFilter } } : {}),
     ...(authorFilter ? { sellerProfileId: authorFilter } : {}),
     ...(blockedUserIdList.length > 0 ? { authorId: { notIn: blockedUserIdList } } : {}),
-    author: { banned: false, deletedAt: null },
   };
 
   type PostSelect = {
@@ -97,10 +97,21 @@ export default async function BlogIndexPage({
     type RankedRow = { id: string };
     const rankedRows = await prisma.$queryRaw<RankedRow[]>`
       SELECT "BlogPost".id FROM "BlogPost"
-      JOIN "User" ON "User".id = "BlogPost"."authorId"
+      JOIN "User" author_user ON author_user.id = "BlogPost"."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = "BlogPost"."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
       WHERE "BlogPost".status = 'PUBLISHED'
-        AND "User".banned = false
-        AND "User"."deletedAt" IS NULL
+        AND author_user.banned = false
+        AND author_user."deletedAt" IS NULL
+        AND (
+          "BlogPost"."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
         AND to_tsvector('english',
           coalesce("BlogPost".title, '') || ' ' || coalesce("BlogPost".excerpt, '') || ' ' || coalesce("BlogPost".body, '')
         ) @@ plainto_tsquery('english', ${q})
@@ -116,7 +127,7 @@ export default async function BlogIndexPage({
 
     if (rankedIds.length > 0) {
       const fetched = await prisma.blogPost.findMany({
-        where: { id: { in: rankedIds }, ...baseFilters },
+        where: publicBlogPostWhere({ id: { in: rankedIds }, ...baseFilters }),
         select: POST_SELECT,
       });
       const byId = new Map(fetched.map((p) => [p.id, p as PostSelect]));
@@ -126,8 +137,7 @@ export default async function BlogIndexPage({
     }
   } else {
     // Standard sort
-    const where: Prisma.BlogPostWhereInput = {
-      status: BlogPostStatus.PUBLISHED,
+    const where: Prisma.BlogPostWhereInput = publicBlogPostWhere({
       ...baseFilters,
       ...(q
         ? {
@@ -138,7 +148,7 @@ export default async function BlogIndexPage({
             ],
           }
         : {}),
-    };
+    });
     const orderBy = sort === "alpha" ? { title: "asc" as const } : { publishedAt: "desc" as const };
     [allPosts, total] = await Promise.all([
       prisma.blogPost.findMany({ where, orderBy, skip, take: pageSize, select: POST_SELECT }) as Promise<PostSelect[]>,
@@ -156,11 +166,22 @@ export default async function BlogIndexPage({
     const rows = await prisma.$queryRaw<Array<{ tag: string; count: bigint }>>`
       SELECT tag, COUNT(*) as count
       FROM "BlogPost" bp
-      INNER JOIN "User" u ON u.id = bp."authorId",
+      INNER JOIN "User" u ON u.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId",
       unnest(bp.tags) as tag
       WHERE bp.status = 'PUBLISHED'
         AND u.banned = false
         AND u."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
       GROUP BY tag
       ORDER BY count DESC
       LIMIT 20

@@ -1,9 +1,10 @@
 // src/app/api/blog/search/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { BlogPostType, BlogPostStatus } from "@prisma/client";
+import { BlogPostType } from "@prisma/client";
 import { searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 
 const POST_SELECT = {
   id: true,
@@ -49,20 +50,6 @@ export async function GET(req: NextRequest) {
   const skip = (page - 1) * limit;
 
   const typeValid = type && (Object.values(BlogPostType) as string[]).includes(type);
-  const publicBlogVisibility = {
-    author: { banned: false, deletedAt: null },
-    OR: [
-      { sellerProfileId: null },
-      {
-        sellerProfile: {
-          chargesEnabled: true,
-          vacationMode: false,
-          user: { banned: false, deletedAt: null },
-        },
-      },
-    ],
-  };
-
   if (q && sort === "relevant") {
     // GIN full-text search — get IDs ranked by ts_rank
     type RankedRow = { id: string };
@@ -108,12 +95,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch full records, applying type + tag filter
     const allPosts = await prisma.blogPost.findMany({
-      where: {
+      where: publicBlogPostWhere({
         id: { in: rankedIds },
-        ...publicBlogVisibility,
         ...(typeValid ? { type: type as BlogPostType } : {}),
         ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
-      },
+      }),
       select: POST_SELECT,
     });
 
@@ -127,22 +113,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Standard Prisma query (newest or alpha sort)
-  const where = {
-    status: BlogPostStatus.PUBLISHED,
-    author: { banned: false, deletedAt: null },
+  const where = publicBlogPostWhere({
     AND: [
-      {
-        OR: [
-          { sellerProfileId: null },
-          {
-            sellerProfile: {
-              chargesEnabled: true,
-              vacationMode: false,
-              user: { banned: false, deletedAt: null },
-            },
-          },
-        ],
-      },
       ...(q
         ? [{
             OR: [
@@ -155,7 +127,7 @@ export async function GET(req: NextRequest) {
     ],
     ...(typeValid ? { type: type as BlogPostType } : {}),
     ...(tags.length > 0 ? { tags: { hasSome: tags } } : {}),
-  };
+  });
 
   const orderBy = sort === "alpha" ? { title: "asc" as const } : { publishedAt: "desc" as const };
 

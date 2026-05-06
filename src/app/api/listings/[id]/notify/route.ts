@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { notifyRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingDetailWhere } from "@/lib/listingVisibility";
 
 export async function POST(
   _req: Request,
@@ -29,7 +29,7 @@ export async function POST(
   if (!rlOk) return rateLimitResponse(reset, "Too many requests.");
 
   const listing = await prisma.listing.findFirst({
-    where: publicListingWhere({ id: listingId }),
+    where: publicListingDetailWhere({ id: listingId }),
     select: { id: true, listingType: true, stockQuantity: true },
   });
   if (!listing) return NextResponse.json({ error: "Listing not found" }, { status: 404 });

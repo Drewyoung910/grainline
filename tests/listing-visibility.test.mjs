@@ -5,6 +5,8 @@ import { ListingStatus } from "@prisma/client";
 const {
   canViewListingDetail,
   isPublicListing,
+  isPublicListingDetail,
+  publicListingDetailWhere,
   publicListingWhere,
 } = await import("../src/lib/listingVisibility.ts");
 
@@ -60,6 +62,23 @@ describe("listing visibility", () => {
     });
   });
 
+  it("composes public listing detail filters for active and sold-out public pages", () => {
+    assert.deepEqual(publicListingDetailWhere({ sellerId: "seller_1" }), {
+      AND: [
+        {
+          status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+          isPrivate: false,
+          seller: {
+            chargesEnabled: true,
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
+        },
+        { sellerId: "seller_1" },
+      ],
+    });
+  });
+
   it("requires active, public, payable, non-vacation, non-banned seller state", () => {
     assert.equal(isPublicListing(listing()), true);
     assert.equal(isPublicListing(listing({ status: ListingStatus.HIDDEN })), false);
@@ -103,5 +122,12 @@ describe("listing visibility", () => {
       ),
       false,
     );
+  });
+
+  it("allows sold-out public listing detail pages without making them generally sellable", () => {
+    assert.equal(isPublicListing(listing({ status: ListingStatus.SOLD_OUT })), false);
+    assert.equal(isPublicListingDetail(listing({ status: ListingStatus.SOLD_OUT })), true);
+    assert.equal(canViewListingDetail(listing({ status: ListingStatus.SOLD_OUT }), {}), true);
+    assert.equal(isPublicListingDetail(listing({ status: ListingStatus.SOLD })), false);
   });
 });

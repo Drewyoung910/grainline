@@ -10,8 +10,9 @@ import ListingCard from "@/components/ListingCard";
 import { ArrowLeft } from "@/components/icons";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { ListingStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { truncateText } from "@/lib/sanitize";
 
 export const metadata: Metadata = {
@@ -37,27 +38,13 @@ export default async function SavedPage({
   const sp = await searchParams;
   const tab = sp.tab === "posts" ? "posts" : "listings";
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
-  const savedListingWhere: Prisma.FavoriteWhereInput = {
-    userId: me.id,
-    listing: {
-      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD, ListingStatus.SOLD_OUT] },
-      isPrivate: false,
-      ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-      seller: {
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
-      },
-    },
-  };
+  const savedListingWhere = savedListingFavoriteWhere(me.id, blockedSellerIds);
   const savedPostWhere: Prisma.SavedBlogPostWhereInput = {
     userId: me.id,
-    blogPost: {
-      status: "PUBLISHED",
+    blogPost: publicBlogPostWhere({
       publishedAt: { not: null },
-      author: { banned: false, deletedAt: null },
       ...(blockedSellerIds.length > 0 ? { sellerProfileId: { notIn: blockedSellerIds } } : {}),
-    },
+    }),
   };
 
   const [listingTotal, postTotal] = await Promise.all([

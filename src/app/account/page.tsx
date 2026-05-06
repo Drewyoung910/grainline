@@ -6,6 +6,8 @@ import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -14,6 +16,7 @@ export const metadata: Metadata = {
 
 export default async function AccountPage() {
   const me = await ensureUserForPage("/account");
+  const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 
   const [recentOrders, savedItems, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer
@@ -52,7 +55,7 @@ export default async function AccountPage() {
 
     // Most recent 6 saved (favorited) listings
     prisma.favorite.findMany({
-      where: { userId: me.id },
+      where: savedListingFavoriteWhere(me.id, blockedSellerIds),
       orderBy: { createdAt: "desc" },
       take: 6,
       select: {

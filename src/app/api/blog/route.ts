@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, Prisma } from "@prisma/client";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 
 export const runtime = "nodejs";
 
@@ -13,9 +14,10 @@ export async function GET(req: NextRequest) {
   const page = Math.min(1000, Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1));
   const pageSize = 12;
 
-  const where: Prisma.BlogPostWhereInput = { status: "PUBLISHED" };
-  if (type && Object.keys(BlogPostType).includes(type)) where.type = type as BlogPostType;
-  if (tag) where.tags = { has: tag };
+  const where: Prisma.BlogPostWhereInput = publicBlogPostWhere({
+    ...(type && Object.keys(BlogPostType).includes(type) ? { type: type as BlogPostType } : {}),
+    ...(tag ? { tags: { has: tag } } : {}),
+  });
 
   const [posts, total] = await Promise.all([
     prisma.blogPost.findMany({

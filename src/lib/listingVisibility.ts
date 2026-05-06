@@ -1,16 +1,31 @@
 import { ListingStatus, Prisma } from "@prisma/client";
 
+const PUBLIC_SELLER_STATE = {
+  chargesEnabled: true,
+  vacationMode: false,
+  user: { banned: false, deletedAt: null },
+} as const;
+
 export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
   return {
     AND: [
       {
         status: ListingStatus.ACTIVE,
         isPrivate: false,
-        seller: {
-          chargesEnabled: true,
-          vacationMode: false,
-          user: { banned: false, deletedAt: null },
-        },
+        seller: PUBLIC_SELLER_STATE,
+      },
+      extra,
+    ],
+  };
+}
+
+export function publicListingDetailWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
+  return {
+    AND: [
+      {
+        status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+        isPrivate: false,
+        seller: PUBLIC_SELLER_STATE,
       },
       extra,
     ],
@@ -44,6 +59,17 @@ export function isPublicListing(listing: ListingVisibilityInput) {
   );
 }
 
+export function isPublicListingDetail(listing: ListingVisibilityInput) {
+  return (
+    (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD_OUT) &&
+    !listing.isPrivate &&
+    listing.seller.chargesEnabled &&
+    !listing.seller.vacationMode &&
+    !listing.seller.user?.banned &&
+    !listing.seller.user?.deletedAt
+  );
+}
+
 export function canViewListingDetail(
   listing: ListingVisibilityInput,
   viewer: { dbUserId?: string | null; clerkUserId?: string | null; preview?: boolean },
@@ -67,5 +93,5 @@ export function canViewListingDetail(
     );
   }
 
-  return isPublicListing(listing);
+  return isPublicListingDetail(listing);
 }

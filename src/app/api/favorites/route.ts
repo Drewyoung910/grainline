@@ -6,6 +6,7 @@ import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { publicListingPath } from "@/lib/publicPaths";
 import { z } from "zod";
 
@@ -43,12 +44,12 @@ export async function POST(req: Request) {
   }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Block self-favoriting (inflates relevance score)
-  const listingOwner = await prisma.listing.findUnique({
-    where: { id: listingId },
-    select: { seller: { select: { userId: true } } },
+  const listing = await prisma.listing.findFirst({
+    where: publicListingDetailWhere({ id: listingId }),
+    select: { title: true, seller: { select: { userId: true } } },
   });
-  if (listingOwner?.seller?.userId === me.id) {
+  if (!listing) return NextResponse.json({ error: "Listing not found." }, { status: 404 });
+  if (listing.seller.userId === me.id) {
     return NextResponse.json({ error: "Cannot favorite your own listing." }, { status: 400 });
   }
 
@@ -69,19 +70,15 @@ export async function POST(req: Request) {
 
   // Notify listing owner (non-fatal; createNotification handles exact duplicate suppression)
   try {
-    const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: { title: true, seller: { select: { userId: true } } },
-    });
-    const ownerUserId = listing?.seller?.userId;
+    const ownerUserId = listing.seller.userId;
     if (ownerUserId && ownerUserId !== me.id) {
       const favName = me.name ?? me.email?.split("@")[0] ?? "Someone";
       await createNotification({
         userId: ownerUserId,
         type: "NEW_FAVORITE",
         title: `${favName} hearted your listing`,
-        body: listing!.title,
-        link: publicListingPath(listingId, listing!.title),
+        body: listing.title,
+        link: publicListingPath(listingId, listing.title),
         dedupScope: me.id,
       });
     }

@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { containsProfanity } from "@/lib/profanity";
 import { sanitizeText } from "@/lib/sanitize";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { z } from "zod";
 
 const AUTHOR_SELECT = {
@@ -26,7 +27,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const post = await prisma.blogPost.findUnique({ where: { slug }, select: { id: true } });
+  const post = await prisma.blogPost.findFirst({ where: publicBlogPostWhere({ slug }), select: { id: true } });
   if (!post) return NextResponse.json({ comments: [] });
 
   const comments = await prisma.blogComment.findMany({
@@ -94,7 +95,10 @@ export async function POST(
   const { success: rlOk, reset } = await safeRateLimit(blogCommentRatelimit, me.id);
   if (!rlOk) return rateLimitResponse(reset, "Too many comments.");
 
-  const post = await prisma.blogPost.findUnique({ where: { slug }, select: { id: true, authorId: true, title: true } });
+  const post = await prisma.blogPost.findFirst({
+    where: publicBlogPostWhere({ slug }),
+    select: { id: true, authorId: true, title: true },
+  });
   if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   let parsed;

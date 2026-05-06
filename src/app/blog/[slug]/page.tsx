@@ -14,6 +14,7 @@ import BlogCopyLinkButton from "@/components/BlogCopyLinkButton";
 import SaveBlogButton from "@/components/SaveBlogButton";
 import CoverLightbox from "@/components/CoverLightbox";
 import MediaImage from "@/components/MediaImage";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
@@ -29,18 +30,16 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = await prisma.blogPost.findUnique({
-    where: { slug },
+  const post = await prisma.blogPost.findFirst({
+    where: publicBlogPostWhere({ slug }),
     select: {
       title: true,
       metaDescription: true,
       excerpt: true,
       coverImageUrl: true,
-      status: true,
-      author: { select: { banned: true, deletedAt: true } },
     },
   });
-  if (!post || post.status !== "PUBLISHED" || post.author?.banned || post.author?.deletedAt) return {};
+  if (!post) return {};
 
   const description = post.metaDescription ?? post.excerpt ?? "";
   const ogImages = post.coverImageUrl
@@ -66,8 +65,8 @@ export default async function BlogPostPage({
 }) {
   const { slug } = await params;
 
-  const post = await prisma.blogPost.findUnique({
-    where: { slug },
+  const post = await prisma.blogPost.findFirst({
+    where: publicBlogPostWhere({ slug }),
     include: {
       author: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true, sellerProfile: { select: { avatarImageUrl: true, displayName: true } } } },
       sellerProfile: { select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } } },
@@ -103,7 +102,7 @@ export default async function BlogPostPage({
       },
     },
   });
-  if (!post || post.status !== "PUBLISHED" || post.author?.banned || post.author?.deletedAt) return notFound();
+  if (!post) return notFound();
 
   // Auth
   const { userId } = await auth();
@@ -165,14 +164,13 @@ export default async function BlogPostPage({
 
   // Related posts
   const related = await prisma.blogPost.findMany({
-    where: {
-      status: "PUBLISHED",
+    where: publicBlogPostWhere({
       id: { not: post.id },
       OR: [
         { type: post.type },
         ...(post.tags.length > 0 ? [{ tags: { hasSome: post.tags } }] : []),
       ],
-    },
+    }),
     orderBy: { publishedAt: "desc" },
     take: 3,
     select: {

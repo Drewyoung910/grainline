@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { MetadataRoute } from "next";
 import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
@@ -65,7 +66,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
       take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.blogPost.findMany({
-      where: { status: "PUBLISHED", author: { banned: false, deletedAt: null } },
+      where: publicBlogPostWhere(),
       select: { slug: true, publishedAt: true, updatedAt: true, type: true },
       orderBy: { publishedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,

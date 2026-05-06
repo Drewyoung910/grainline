@@ -17,6 +17,7 @@ export default function GalleryUploader({
   return (
     <div className="space-y-3">
       {/* Hidden inputs for form submission */}
+      <input type="hidden" name="galleryImageUrlsTouched" value="1" />
       {urls.map((url, i) => (
         <input key={i} type="hidden" name="galleryImageUrls" value={url} />
       ))}

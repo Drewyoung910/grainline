@@ -81,6 +81,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
 
   // Gallery images
+  const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
   const galleryImageUrls = filterR2PublicUrls(
     formData.getAll("galleryImageUrls").map(String).filter(Boolean),
     10,
@@ -132,7 +133,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       defaultPkgWeightGrams,
 
       // gallery
-      ...(galleryImageUrls.length > 0 ? { galleryImageUrls } : {}),
+      ...(galleryImageUrlsTouched ? { galleryImageUrls } : {}),
     },
   });
 

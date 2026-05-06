@@ -26,9 +26,20 @@ export async function GET(req: NextRequest) {
       SELECT bp.slug, bp.title
       FROM "BlogPost" bp
       INNER JOIN "User" u ON u.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
       WHERE bp.status = 'PUBLISHED'
         AND u.banned = false
         AND u."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
         AND similarity(bp.title, ${q}) > 0.2
       ORDER BY similarity(bp.title, ${q}) DESC
       LIMIT 5
@@ -38,11 +49,22 @@ export async function GET(req: NextRequest) {
     prisma.$queryRaw<Array<{ tag: string }>>`
       SELECT DISTINCT tag
       FROM "BlogPost" bp
-      INNER JOIN "User" u ON u.id = bp."authorId",
+      INNER JOIN "User" u ON u.id = bp."authorId"
+      LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+      LEFT JOIN "User" seller_user ON seller_user.id = sp."userId",
            unnest(bp.tags) AS tag
       WHERE bp.status = 'PUBLISHED'
         AND u.banned = false
         AND u."deletedAt" IS NULL
+        AND (
+          bp."sellerProfileId" IS NULL
+          OR (
+            sp."chargesEnabled" = true
+            AND sp."vacationMode" = false
+            AND seller_user.banned = false
+            AND seller_user."deletedAt" IS NULL
+          )
+        )
         AND tag ILIKE ${`%${q}%`}
       LIMIT 5
     `,
@@ -51,6 +73,8 @@ export async function GET(req: NextRequest) {
     prisma.sellerProfile.findMany({
       where: {
         displayName: { contains: q, mode: "insensitive" },
+        chargesEnabled: true,
+        vacationMode: false,
         user: { banned: false, deletedAt: null },
       },
       select: { id: true, displayName: true },

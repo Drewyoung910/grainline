@@ -21,7 +21,7 @@ import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
-import { canViewListingDetail, isPublicListing } from "@/lib/listingVisibility";
+import { canViewListingDetail, isPublicListingDetail } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -62,7 +62,7 @@ export async function generateMetadata(
     },
   });
   if (!listing) notFound();
-  if (!isPublicListing(listing)) {
+  if (!isPublicListingDetail(listing)) {
     notFound();
   }
   const sellerName = listing.seller.displayName ?? "Maker";

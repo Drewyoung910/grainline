@@ -4,10 +4,11 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { blogSaveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 async function getPost(slug: string) {
-  return prisma.blogPost.findUnique({ where: { slug }, select: { id: true } });
+  return prisma.blogPost.findFirst({ where: publicBlogPostWhere({ slug }), select: { id: true } });
 }
 
 async function getMe(userId: string) {
