@@ -133,7 +133,7 @@ model SellerProfile {
   userId         String   @unique
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName    String   @db.VarChar(100)
-  bio            String?
+  bio            String?  @db.VarChar(500)
   city           String?  @db.VarChar(100)
   state          String?  @db.VarChar(50)
   lat            Float?
@@ -181,7 +181,7 @@ model SellerProfile {
   avatarImageUrl            String?    @db.VarChar(2048)
   workshopImageUrl          String?    @db.VarChar(2048)
   storyTitle                String?    @db.VarChar(200)
-  storyBody                 String?
+  storyBody                 String?    @db.VarChar(2000)
   instagramUrl              String?    @db.VarChar(2048)
   facebookUrl               String?    @db.VarChar(2048)
   pinterestUrl              String?    @db.VarChar(2048)
@@ -193,9 +193,9 @@ model SellerProfile {
   customOrderTurnaroundDays Int?
   offersGiftWrapping        Boolean    @default(false)
   giftWrappingPriceCents    Int?
-  returnPolicy              String?
-  customOrderPolicy         String?
-  shippingPolicy            String?
+  returnPolicy              String?    @db.VarChar(2000)
+  customOrderPolicy         String?    @db.VarChar(2000)
+  shippingPolicy            String?    @db.VarChar(2000)
   featuredListingIds        String[]   @default([])
   galleryImageUrls          String[]   @default([])
   isVerifiedMaker           Boolean    @default(false)
@@ -266,7 +266,7 @@ model Listing {
   sellerId    String
   seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
   title       String        @db.VarChar(150)
-  description String
+  description String        @db.VarChar(5000)
   priceCents  Int
   priceVersion Int        @default(1)
   currency    String        @default("usd") @db.VarChar(3)
@@ -491,7 +491,9 @@ model Order {
   shippingAmountCents Int     @default(0)
   taxAmountCents      Int     @default(0)
 
-  // Buyer snapshot
+  // Buyer snapshot. Nullable by design: checkout may omit optional payer fields, and
+  // account deletion / fulfilled-order PII pruning clears these while retaining tax
+  // and fulfillment records.
   buyerEmail       String? @db.VarChar(254)
   buyerName        String? @db.VarChar(200)
   shipToLine1      String? @db.VarChar(200)
@@ -516,7 +518,7 @@ model Order {
   pickedUpAt        DateTime?
   shippedAt         DateTime?
   deliveredAt       DateTime?
-  sellerNotes       String?
+  sellerNotes       String? @db.VarChar(2000)
 
   items OrderItem[]
 
@@ -537,7 +539,7 @@ model Order {
 
   /// Flag when Checkout address/rate doesn’t match our quote
   reviewNeeded Boolean @default(false)
-  reviewNote   String?
+  reviewNote   String? @db.VarChar(10000)
 
   /// Tax reversal audit trail (webhook reverses tax portion of seller transfer)
   taxReversalId          String? @db.VarChar(255)
@@ -860,6 +862,8 @@ model MakerVerification {
   reviewNotes              String?            @db.VarChar(2000)
   appliedAt                DateTime           @default(now())
   reviewedAt               DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 }
 
 enum BlogPostType {
@@ -886,7 +890,7 @@ model BlogPost {
   slug               String          @unique @db.VarChar(255)
   title              String          @db.VarChar(200)
   excerpt            String?         @db.VarChar(500)
-  body               String
+  body               String          @db.VarChar(50000)
   coverImageUrl      String?         @db.VarChar(2048)
   videoUrl           String?         @db.VarChar(2048)
   authorId           String?

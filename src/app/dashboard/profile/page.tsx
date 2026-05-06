@@ -18,6 +18,7 @@ import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -88,12 +89,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   const taglineRaw = toNull(formData.get("tagline"));
   const tagline = taglineRaw ? truncateText(sanitizeText(taglineRaw), 140) : null;
-  const bioRaw = toNull(formData.get("bio"));
-  const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
+  const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
   const storyTitleRaw = toNull(formData.get("storyTitle"));
   const storyTitle = storyTitleRaw ? truncateText(sanitizeText(storyTitleRaw), 200) : null;
-  const storyBodyRaw = toNull(formData.get("storyBody"));
-  const storyBody = storyBodyRaw ? sanitizeRichText(storyBodyRaw) : null;
+  const storyBody = cleanSellerProfileRichText(formData.get("storyBody"), SELLER_PROFILE_TEXT_LIMITS.storyBody);
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
 
   const bannerImageUrl = normalizeR2ImageUrl(formData.get("bannerImageUrl"));
@@ -106,12 +105,9 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const tiktokUrl = normalizeHttpsUrl(formData.get("tiktokUrl"), ["tiktok.com"]);
   const websiteUrl = normalizeHttpsUrl(formData.get("websiteUrl"));
 
-  const returnPolicyRaw = toNull(formData.get("returnPolicy"));
-  const returnPolicy = returnPolicyRaw ? sanitizeRichText(returnPolicyRaw) : null;
-  const customOrderPolicyRaw = toNull(formData.get("customOrderPolicy"));
-  const customOrderPolicy = customOrderPolicyRaw ? sanitizeRichText(customOrderPolicyRaw) : null;
-  const shippingPolicyRaw = toNull(formData.get("shippingPolicy"));
-  const shippingPolicy = shippingPolicyRaw ? sanitizeRichText(shippingPolicyRaw) : null;
+  const returnPolicy = cleanSellerProfileRichText(formData.get("returnPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+  const customOrderPolicy = cleanSellerProfileRichText(formData.get("customOrderPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+  const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
 
   const acceptsCustomOrders = toBool(formData.get("acceptsCustomOrders"));
   const acceptingNewOrders = toBool(formData.get("acceptingNewOrders"));
@@ -469,6 +465,7 @@ export default async function ProfilePage({
               name="returnPolicy"
               autoComplete="off"
               rows={4}
+              maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
               defaultValue={fullSeller.returnPolicy ?? ""}
               className="w-full border rounded px-3 py-2"
               placeholder="Describe your return / refund policy..."
@@ -481,6 +478,7 @@ export default async function ProfilePage({
               name="customOrderPolicy"
               autoComplete="off"
               rows={4}
+              maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
               defaultValue={fullSeller.customOrderPolicy ?? ""}
               className="w-full border rounded px-3 py-2"
               placeholder="Describe how you handle custom orders..."
@@ -493,6 +491,7 @@ export default async function ProfilePage({
               name="shippingPolicy"
               autoComplete="off"
               rows={4}
+              maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
               defaultValue={fullSeller.shippingPolicy ?? ""}
               className="w-full border rounded px-3 py-2"
               placeholder="Describe your shipping timelines, carriers, etc."

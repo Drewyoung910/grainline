@@ -47,6 +47,7 @@ export default function SellerNotesForm({
           setNotes(e.target.value);
           setSaved(false);
         }}
+        maxLength={2000}
         placeholder="Notes visible to your team (not emailed for now)..."
         className="w-full rounded border px-2 py-1 text-sm"
         rows={3}

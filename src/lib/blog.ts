@@ -6,6 +6,8 @@ const FNV_64_PRIME = 0x100000001b3n;
 const CJK_READING_CHAR_PATTERN =
   /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/gu;
 
+export const BLOG_BODY_MAX_CHARS = 50_000;
+
 export function generateSlug(title: string): string {
   const slug = title
     .normalize("NFKD")

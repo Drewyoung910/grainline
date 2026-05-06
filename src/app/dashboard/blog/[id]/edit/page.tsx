@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
 import { prisma } from "@/lib/db";
-import { calculateReadingTime } from "@/lib/blog";
+import { BLOG_BODY_MAX_CHARS, calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
@@ -69,7 +69,7 @@ export default async function EditBlogPostPage({
     const isStaffUser = author.role === "EMPLOYEE" || author.role === "ADMIN";
 
     const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 200);
-    const body = String(formData.get("body") ?? "").trim();
+    const body = truncateText(String(formData.get("body") ?? "").trim(), BLOG_BODY_MAX_CHARS);
     const excerpt = truncateText(String(formData.get("excerpt") ?? "").trim(), 200) || null;
     const metaDescription = truncateText(String(formData.get("metaDescription") ?? "").trim(), 160) || null;
     let coverImageUrl: string | null = null;

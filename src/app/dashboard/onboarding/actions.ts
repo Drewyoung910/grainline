@@ -4,8 +4,9 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { sanitizeRichText, sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
+import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -46,8 +47,7 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
   try {
     const seller = await getSeller();
     const displayName = sanitizeUserName(String(formData.get("displayName") || ""));
-    const bioRaw = truncateText(String(formData.get("bio") || "").trim(), 500);
-    const bio = bioRaw ? sanitizeRichText(bioRaw) : null;
+    const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
     const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
     const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
     const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
@@ -80,10 +80,8 @@ export async function saveStep2(formData: FormData): Promise<ActionResult> {
     const yearsInBusiness = !Number.isNaN(yearsNum) ? Math.max(0, Math.min(100, yearsNum)) : null;
     const city = truncateText(String(formData.get("city") || "").trim(), 100) || null;
     const state = truncateText(String(formData.get("state") || "").trim(), 100) || null;
-    const returnPolicyRaw = truncateText(String(formData.get("returnPolicy") || "").trim(), 2000);
-    const shippingPolicyRaw = truncateText(String(formData.get("shippingPolicy") || "").trim(), 2000);
-    const returnPolicy = returnPolicyRaw ? sanitizeRichText(returnPolicyRaw) : null;
-    const shippingPolicy = shippingPolicyRaw ? sanitizeRichText(shippingPolicyRaw) : null;
+    const returnPolicy = cleanSellerProfileRichText(formData.get("returnPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
+    const shippingPolicy = cleanSellerProfileRichText(formData.get("shippingPolicy"), SELLER_PROFILE_TEXT_LIMITS.policy);
     const acceptsCustomOrders = formData.get("acceptsCustomOrders") === "on";
 
     await prisma.sellerProfile.update({

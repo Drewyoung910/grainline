@@ -16,16 +16,13 @@ import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
-import { sanitizeText, sanitizeRichText, sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeText, sanitizeUserName } from "@/lib/sanitize";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 
-function toNull(v: unknown) {
-  const s = typeof v === "string" ? v.trim() : v;
-  return s === "" || s === undefined ? null : s;
-}
 function shortText(v: unknown, maxLength: number) {
   const s = typeof v === "string" ? sanitizeText(v).slice(0, maxLength).trim() : "";
   return s || null;
@@ -48,8 +45,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const displayName = sanitizeUserName(String(formData.get("displayName") ?? "").trim());
   const city = shortText(formData.get("city"), 100);
   const state = shortText(formData.get("state"), 50);
-  const bioRaw = toNull(formData.get("bio"));
-  const bio = bioRaw ? sanitizeRichText(String(bioRaw)) : null;
+  const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
 
   // Location (for pickup map)
   const lat = toFloat(formData.get("lat"));

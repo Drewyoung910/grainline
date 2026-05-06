@@ -389,6 +389,7 @@ export default function OnboardingWizard({
                   name="returnPolicy"
                   autoComplete="off"
                   defaultValue={returnPolicy ?? ""}
+                  maxLength={2000}
                   rows={3}
                   className={inputClass}
                   placeholder="e.g. All sales final. Contact me within 7 days for damaged items."
@@ -405,6 +406,7 @@ export default function OnboardingWizard({
                   name="shippingPolicy"
                   autoComplete="off"
                   defaultValue={shippingPolicy ?? ""}
+                  maxLength={2000}
                   rows={3}
                   className={inputClass}
                   placeholder="e.g. Ships within 3 business days via UPS Ground."

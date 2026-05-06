@@ -8,11 +8,13 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-05-05 case/Guild race pass: **30** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-05 schema text guard pass: **20** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 2026-05-05 form/photo uploader pass closed six reproducible or stale-open findings: custom listings now use the shared `PhotoManager` path with seller/AI alt-text persistence, the dead `ImagesUploader` component was removed, money inputs flow through `parseMoneyInputToCents()` instead of `parseFloat`/`Number` exponent parsing, browse and saved-search price filters keep the dollars-to-cents boundary explicit, numeric controls advertise decimal/numeric keyboards, and the lingering "CUID-only public URL" SEO item was verified stale because listing/seller URLs now use canonical `id--slug` paths.
 
 2026-05-05 case/Guild race pass closed five race findings: Guild Member auto-revocation now re-checks the exact revocation condition inside the `SellerProfile.updateMany()` guard, case messages update the case and create the message in one transaction guarded by the previously-read active status, fulfillment case races were verified already guarded by relation filters in `Order.updateMany()`, and mark-resolved duplicate-notification risk was verified stale because current mark-resolved returns state only and uses a single guarded SQL update.
+
+2026-05-05 schema text guard pass closed or triaged ten schema findings: seller profile rich text now uses shared bounded sanitization, listing/blog/order text columns have database caps matching server/UI limits, buyer snapshot nullability is documented in schema, MakerVerification now has standard timestamps, Listing has database CHECK constraints for future positive price/non-negative stock writes, and JSON/snapshot/state-length items that were not actual bugs are tagged explicitly instead of left as open defects.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -1569,17 +1571,17 @@ The section below is the verbatim chronological round-by-round content from the 
 
 🟡 **MEDIUM — JSON columns + nullability (5)**
 
-12. **`User.notificationPreferences Json`** — 34+ keys; cannot be queried ("find all users with EMAIL_NEW_ORDER=false"). **Fix**: keep as JSON for now; consider extracting to `UserNotificationPreference(userId, key, enabled)` when admin queries needed.
-13. **`OrderShippingRateQuote.rates Json`** — Acceptable (snapshot), no schema enforcement of shape.
-14. **`Order.buyerEmail`/`buyerName` nullable** — Captured at checkout from Stripe; nullable allows missing. With `buyer SetNull` + `buyerDataPurgedAt` clearing, nullable is correct for GDPR. **Document why with comment.**
-15. **`Order.shipToState VarChar(50)`** — too long for US (2-letter codes). **Fix**: tighten to `VarChar(2)` after backfill.
-16. **`Order.sellerNotes`, `reviewNote`** untyped `String?` no max length — could store megabytes. **Fix**: `@db.VarChar(2000)`.
+12. **[DESIGN / NOT A BUG 2026-05-05] `User.notificationPreferences Json`** — Current code always loads preferences by user and merges against `VALID_EMAIL_PREFERENCE_KEYS`; no admin query currently needs "find all users with key=false." Extracting to `UserNotificationPreference` is a future analytics/admin design choice, not a correctness bug.
+13. **[NOT A BUG 2026-05-05] `OrderShippingRateQuote.rates Json`** — This is intentionally an immutable third-party Shippo quote snapshot; forcing the provider payload into relational columns would lose useful audit/debug context. Keep route validation at the write/read boundary.
+14. **[FIXED/VERIFIED 2026-05-05] `Order.buyerEmail`/`buyerName` nullable** — Nullability is intentional because checkout may omit optional payer fields and account deletion / order PII pruning clears buyer snapshots while retaining fulfillment/tax records. The schema now documents this directly above the buyer snapshot fields.
+15. **[NOT A BUG 2026-05-05] `Order.shipToState VarChar(50)`** — Shipping quote and checkout routes accept a two-letter country plus state/region text from carriers/user input; narrowing to `VarChar(2)` would reject provinces/regions without fixing a live correctness issue. Keep validation at the shipping-country/product-policy layer if Grainline later becomes US-only.
+16. **[FIXED 2026-05-05] `Order.sellerNotes`, `reviewNote` untyped `String?` no max length** — `sellerNotes` is now `@db.VarChar(2000)` with client/server caps; `reviewNote` is now `@db.VarChar(10000)`, matching the admin append total cap. Migration `20260505173000_schema_text_and_listing_guards` trims legacy oversized values before altering column types.
 
 🟡 **MEDIUM — Schema design (5)**
 
-17. **`Listing.description` untyped `String` no max length** — sellers paste 1MB. Form caps but no DB cap. **Fix**: `@db.VarChar(5000)` or Text with CHECK.
-18. **`SellerProfile.bio`, `storyBody`** untyped `String?` — same issue.
-19. **`BlogPost.body` untyped `String`** — same.
+17. **[FIXED 2026-05-05] `Listing.description` untyped `String` no max length** — Listing descriptions are now `@db.VarChar(5000)`, matching the server cap used by create/edit/custom-listing paths. Migration `20260505173000_schema_text_and_listing_guards` trims legacy oversized descriptions before altering the column.
+18. **[FIXED 2026-05-05] `SellerProfile.bio`, `storyBody` untyped `String?`** — `bio`, `storyBody`, return/custom/shipping policy fields now have Prisma/database caps and the profile/onboarding/seller write paths share `cleanSellerProfileRichText()` so malicious form posts cannot bypass UI max lengths.
+19. **[FIXED 2026-05-05] `BlogPost.body` untyped `String`** — Blog bodies now use `BLOG_BODY_MAX_CHARS = 50000` at create/edit write paths and `BlogPost.body @db.VarChar(50000)` in schema/migration. This keeps posts long enough for editorial use while preventing unbounded writes.
 20. **`UserReport.targetType + targetId` polymorphic without FK** — `schema.prisma:1296-1297`. Report points at nothing if target deleted. **Fix**: keep polymorphic but add background job to mark reports `targetMissing`.
 21. **`SellerProfile.featuredListingIds String[]`** — `schema.prisma:197`. Denormalized listing-ID list; when listing deleted, array still references. **Fix**: create `FeaturedListing(sellerProfileId, listingId, sortOrder)` join table.
 
@@ -1587,8 +1589,8 @@ The section below is the verbatim chronological round-by-round content from the 
 
 22. **`BlogPost.featuredListingIds String[]`** — same as #21.
 23. **`SellerProfile.galleryImageUrls String[]`** — orphan URLs not cleaned up on delete.
-24. **No CHECK constraints on `Listing.priceCents > 0`, `stockQuantity >= 0`** — checked in route handlers but not at DB. **Fix**: raw SQL CHECK constraints in migration.
-25. **`MakerVerification` missing `createdAt`/`updatedAt`** — has `appliedAt` + `reviewedAt` but no generic timestamps. **Fix**: add standard fields.
+24. **[FIXED 2026-05-05] No CHECK constraints on `Listing.priceCents > 0`, `stockQuantity >= 0`** — Migration `20260505173000_schema_text_and_listing_guards` adds PostgreSQL CHECK constraints for future writes (`priceCents > 0`, `stockQuantity IS NULL OR stockQuantity >= 0`). They are raw SQL because Prisma schema cannot express CHECK constraints.
+25. **[FIXED 2026-05-05] `MakerVerification` missing `createdAt`/`updatedAt`** — The model now has standard `createdAt @default(now())` and `updatedAt @updatedAt` fields, with migration defaults for existing rows.
 
 ### ✅ Verified clean
 

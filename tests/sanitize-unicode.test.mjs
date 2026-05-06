@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { sanitizeText, sanitizeUserName, stripBidiControls, truncateText, truncateTextWithEllipsis } = await import("../src/lib/sanitize.ts");
+const { sanitizeRichText, sanitizeText, sanitizeUserName, stripBidiControls, truncateText, truncateTextWithEllipsis } = await import("../src/lib/sanitize.ts");
 const { containsProfanity } = await import("../src/lib/profanity.ts");
 
 describe("unicode sanitization", () => {
@@ -26,6 +26,11 @@ describe("unicode sanitization", () => {
   it("does not split surrogate-pair characters while truncating text", () => {
     assert.equal(truncateText("aa🙂bb", 3), "aa🙂");
     assert.equal(truncateTextWithEllipsis("aa🙂bb", 3), "aa🙂…");
+  });
+
+  it("supports bounded rich-text persistence without script content", () => {
+    const cleaned = sanitizeRichText(`${"a".repeat(505)}<script>alert(1)</script>`);
+    assert.equal(truncateText(cleaned, 500), "a".repeat(500));
   });
 
   it("normalizes Cyrillic confusables before profanity matching", () => {
