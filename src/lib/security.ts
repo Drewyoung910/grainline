@@ -45,7 +45,10 @@ export type SecurityEventType =
   | "rate_limit_hit"
   | "ownership_violation"
   | "spam_attempt"
-  | "invalid_input";
+  | "invalid_input"
+  | "account_state_violation"
+  | "auth_challenge_failed"
+  | "token_rejected";
 
 export function logSecurityEvent(
   event: SecurityEventType,
@@ -54,6 +57,7 @@ export function logSecurityEvent(
     ip?: string;
     route: string;
     reason: string;
+    [key: string]: unknown;
   }
 ) {
   Sentry.addBreadcrumb({
@@ -63,7 +67,13 @@ export function logSecurityEvent(
     level: "warning",
   });
 
-  if (event === "ownership_violation" || event === "spam_attempt") {
+  if (
+    event === "ownership_violation" ||
+    event === "spam_attempt" ||
+    event === "account_state_violation" ||
+    event === "auth_challenge_failed" ||
+    event === "token_rejected"
+  ) {
     Sentry.captureEvent({
       message: `Security alert: ${event}`,
       level: "warning",

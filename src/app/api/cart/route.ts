@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -137,6 +138,7 @@ export async function GET() {
       return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     console.error("GET /api/cart error:", err);
+    Sentry.captureException(err, { tags: { source: "cart_route", route: "/api/cart" } });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

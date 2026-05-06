@@ -20,6 +20,7 @@ import {
 } from "@/lib/checkoutSessionLock";
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { truncateText } from "@/lib/sanitize";
+import { logSecurityEvent } from "@/lib/security";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -190,6 +191,16 @@ export async function POST(req: Request) {
     );
 
     if (!rateVerification.ok) {
+      if (rateVerification.status === 400) {
+        logSecurityEvent("token_rejected", {
+          userId: me.id,
+          route: "/api/cart/checkout/single",
+          reason: "invalid shipping rate token",
+          listingId: body.listingId,
+          objectIdPresent: !!body.selectedRate.objectId,
+          tokenLength: body.selectedRate.token.length,
+        });
+      }
       return NextResponse.json(
         { error: rateVerification.error },
         { status: rateVerification.status },

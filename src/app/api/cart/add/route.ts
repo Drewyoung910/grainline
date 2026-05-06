@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
 const CartAddSchema = z.object({
@@ -134,6 +135,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     console.error("POST /api/cart/add error:", err);
+    Sentry.captureException(err, { tags: { source: "cart_add_route", route: "/api/cart/add" } });
     return NextResponse.json({ error: "Server error adding to cart" }, { status: 500 });
   }
 }

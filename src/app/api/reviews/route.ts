@@ -87,6 +87,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cannot review your own listing" }, { status: 403 });
   }
   if (listingForOwnerCheck?.seller?.user.banned || listingForOwnerCheck?.seller?.user.deletedAt) {
+    logSecurityEvent("account_state_violation", {
+      userId: me.id,
+      route: "/api/reviews",
+      reason: listingForOwnerCheck.seller.user.banned
+        ? "review target seller banned"
+        : "review target seller deleted",
+      listingId,
+    });
     return NextResponse.json(
       { error: "Reviews are unavailable for this maker." },
       { status: 403 },

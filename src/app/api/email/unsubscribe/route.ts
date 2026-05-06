@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { unsubscribeEmail, verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import { getIP, rateLimitResponse, safeRateLimit, unsubscribeRatelimit } from "@/lib/ratelimit";
+import { logSecurityEvent } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +65,16 @@ async function handle(req: NextRequest, mode: "json" | "html") {
 
   const { email, token, issuedAt } = await readUnsubscribeParams(req);
   if (!email || !token || !issuedAt || !verifyUnsubscribeToken(email, token, issuedAt)) {
+    logSecurityEvent("token_rejected", {
+      ip: getIP(req),
+      route: "/api/email/unsubscribe",
+      reason: "invalid unsubscribe token",
+      method: req.method,
+      hasEmail: !!email,
+      hasToken: !!token,
+      hasIssuedAt: !!issuedAt,
+      tokenLength: token?.length ?? 0,
+    });
     if (mode === "html") {
       return htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400);
     }

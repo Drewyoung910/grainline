@@ -90,10 +90,6 @@ export async function POST(req: Request) {
   } catch (err: unknown) {
     console.error("Stripe webhook signature verification failed:", (err as { message?: string })?.message);
     Sentry.captureException(err, { tags: { source: "stripe_webhook_signature" } });
-    Sentry.captureMessage("Stripe webhook signature verification failed", {
-      level: "warning",
-      tags: { source: "stripe_webhook_signature" },
-    });
     await recordWebhookFailureSpike({ webhook: "stripe", kind: "signature", status: 400 });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }

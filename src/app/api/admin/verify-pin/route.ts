@@ -12,6 +12,7 @@ import {
   createAdminPinCookieValue,
 } from "@/lib/adminPin";
 import { getIP } from "@/lib/ratelimit";
+import { logSecurityEvent } from "@/lib/security";
 import { createHash, timingSafeEqual } from "crypto";
 
 // 5 attempts per 15 minutes per user — fail closed for compromised sessions.
@@ -156,6 +157,12 @@ export async function POST(req: Request) {
       action: "ADMIN_PIN_VERIFY_FAIL",
       ip,
       clerkUserId: userId,
+    });
+    logSecurityEvent("auth_challenge_failed", {
+      userId: user.id,
+      ip,
+      route: "/api/admin/verify-pin",
+      reason: "invalid admin pin",
     });
     return NextResponse.json({}, { status: 401 });
   }

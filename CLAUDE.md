@@ -3275,7 +3275,7 @@ Price: ≥ $0, ≤ $100,000 · Stock: non-negative · Processing time: ≤ 365 d
 
 ### Sentry security tracking (`src/lib/security.ts`)
 
-`logSecurityEvent(event, details)` — Sentry breadcrumb for all events; `captureEvent` for `ownership_violation` and `spam_attempt`.
+`logSecurityEvent(event, details)` — Sentry breadcrumb for all events; `captureEvent` for `ownership_violation`, `spam_attempt`, `account_state_violation`, `auth_challenge_failed`, and `token_rejected`.
 
 ### Bot prevention — `chargesEnabled`
 
@@ -5968,6 +5968,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Case message race behavior**: case-message creation must keep the case status update and `CaseMessage.create()` in one transaction guarded by the status read before the message. If cron or another actor changes the case first, return a conflict instead of appending a message to a resolved/closed case.
 - **Form JSON/error observability**: listing form hidden JSON fields must parse through `formJson.ts` and branch on the returned shape before use. Do not reintroduce bare `catch {}` in client/listing paths; expected non-fatal failures should leave contextual console or Sentry evidence.
 - **Request correlation behavior**: middleware owns `x-request-id`. It should preserve safe incoming IDs, generate one otherwise, forward it to downstream route headers, emit it on middleware responses, and tag Sentry with `requestId`.
+- **Observability signal behavior**: cart API unexpected failures should capture tagged Sentry exceptions, token/HMAC rejection telemetry must avoid raw tokens and PII, and webhook signature failures should report one exception plus failure-spike accounting rather than duplicate Sentry messages.
 - **Sentry user context behavior**: middleware sets Sentry user context to the authenticated Clerk user ID only. Do not add email, IP, names, or other PII to Sentry user context.
 - **Public account-state route behavior**: routes kept public for anonymous UX but able to see a Clerk session, such as `/api/me`, `/api/cart`, `/api/search/suggestions`, `/api/follow/[sellerId]`, and recently-viewed/feed/count-style endpoints, must enforce banned/deleted users inside the route with `ensureUserByClerkId()` or an equivalent `accountAccessErrorResponse()` path before returning user-specific data.
 - **Clerk webhook email behavior**: user webhooks must sync only the address whose ID matches `primary_email_address_id`. If the primary ID/address is missing or empty, log Sentry context and skip the email update instead of falling back to `email_addresses[0]`; Svix verification failures should also be Sentry-captured before returning 400. Welcome emails reserve `welcomeEmailSentAt` with an atomic `updateMany(... welcomeEmailSentAt: null ...)` before direct send side effects so retries cannot send duplicates.
