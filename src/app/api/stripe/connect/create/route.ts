@@ -6,6 +6,11 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { safeInternalReturnUrl } from "@/lib/internalReturnUrl";
 import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import {
+  createStripeConnectV2Account,
+  STRIPE_CONNECT_ACCOUNT_VERSION,
+  STRIPE_CONNECT_CONTROLLER_SUMMARY,
+} from "@/lib/stripeConnectV2";
 import { z } from "zod";
 
 const ConnectCreateSchema = z.object({
@@ -32,7 +37,12 @@ export async function POST(req: Request) {
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, stripeAccountId: true },
+    select: {
+      id: true,
+      stripeAccountId: true,
+      shipFromCountry: true,
+      user: { select: { email: true } },
+    },
   });
   if (!seller) return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
 
@@ -48,16 +58,19 @@ export async function POST(req: Request) {
   let accountId = seller.stripeAccountId;
 
   if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
+    const account = await createStripeConnectV2Account({
+      email: seller.user.email,
+      country: seller.shipFromCountry,
+      idempotencyKey: `connect-v2-account:${seller.id}`,
     });
     await prisma.sellerProfile.update({
       where: { id: seller.id },
-      data: { stripeAccountId: account.id, chargesEnabled: false },
+      data: {
+        stripeAccountId: account.id,
+        chargesEnabled: false,
+        stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+        stripeControllerType: STRIPE_CONNECT_CONTROLLER_SUMMARY,
+      },
     });
     accountId = account.id;
   } else {

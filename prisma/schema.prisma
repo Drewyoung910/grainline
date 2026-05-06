@@ -146,6 +146,8 @@ model SellerProfile {
   // Stripe Connect
   stripeAccountId                   String? @unique @db.VarChar(255)
   chargesEnabled                    Boolean @default(false)
+  stripeAccountVersion              String? @db.VarChar(20)
+  stripeControllerType              String? @db.VarChar(100)
   manualStripeReconciliationNeeded  Boolean @default(false)
   manualStripeReconciliationNote    String? @db.VarChar(1000)
 
