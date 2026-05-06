@@ -5,6 +5,7 @@ const {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  checkoutInvalidReasonState,
   checkoutPriceDriftState,
   disputeCaseAction,
   invalidCheckoutBuyerReason,
@@ -162,6 +163,31 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(invalidCheckoutBuyerReason({ id: "buyer_1", banned: false, deletedAt: null }), null);
   });
 
+  it("builds a transaction-revalidated checkout invalid state", () => {
+    assert.deepEqual(
+      checkoutInvalidReasonState({
+        buyer: { id: "buyer_1", banned: false, deletedAt: null },
+        sellers: [seller({ chargesEnabled: false }), seller({ id: "seller_2", userId: "user_2" })],
+      }),
+      {
+        reason: "Seller Stripe account was disabled before payment completion.",
+        buyerUserId: "buyer_1",
+        sellerUserIds: ["user_1"],
+      },
+    );
+    assert.deepEqual(
+      checkoutInvalidReasonState({
+        buyer: { id: "buyer_1", banned: true, deletedAt: null },
+        sellers: [seller()],
+      }),
+      {
+        reason: "Buyer account was suspended before payment completion.",
+        buyerUserId: null,
+        sellerUserIds: [],
+      },
+    );
+  });
+
   it("blocks automatic invalid-checkout refunds while a Stripe dispute is open", () => {
     const state = blockedCheckoutDisputeState({
       latestDispute: { status: "needs_response", stripeObjectId: "dp_123" },
@@ -245,6 +271,28 @@ describe("Stripe webhook state helpers", () => {
       reviewNeeded: true,
       reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
     });
+  });
+
+  it("flags Stripe refund totals that exceed the order total", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 6_000,
+      latestRefund: { id: "re_chargeback", amount: 5_000, status: "succeeded", created: 30 },
+      order: {
+        currency: "usd",
+        sellerRefundId: "re_local",
+        sellerRefundAmountCents: 1_000,
+        itemsSubtotalCents: 4_000,
+        shippingAmountCents: 500,
+        giftWrappingPriceCents: 0,
+        taxAmountCents: 300,
+      },
+    });
+
+    assert.equal(state.ledger.metadata.orderTotalCents, 4_800);
+    assert.equal(state.ledger.metadata.refundExceedsOrderTotal, true);
+    assert.match(state.orderUpdate?.reviewNote ?? "", /exceeds the order total/);
   });
 
   it("falls back to charge-level refund data when Stripe omits refund details", () => {

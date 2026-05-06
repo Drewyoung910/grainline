@@ -7,7 +7,7 @@ describe("seller refund route source-order guardrails", () => {
     const source = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
 
     const ownershipCheck = 'if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });';
-    const lockRelease = "await releaseStaleRefundLocks(orderId);";
+    const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
     const disputeCheck = "const latestDispute = await prisma.orderPaymentEvent.findFirst";
 
     assert.notEqual(source.indexOf(ownershipCheck), -1);

@@ -35,10 +35,9 @@ import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  checkoutInvalidReasonState,
   checkoutPriceDriftState,
   disputeCaseAction,
-  invalidCheckoutBuyerReason,
-  invalidCheckoutSellerReason,
   isLikelyThinStripeEventObject,
   isStaleStripeEvent,
   latestSuccessfulRefund,
@@ -406,6 +405,18 @@ export async function POST(req: Request) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${chargeId}))`;
   }
 
+  async function lockUserRowsForUpdate(tx: Prisma.TransactionClient, userIds: Array<string | null | undefined>) {
+    for (const userId of [...new Set(userIds.filter((id): id is string => Boolean(id)))]) {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    }
+  }
+
+  async function lockSellerProfileRowsForUpdate(tx: Prisma.TransactionClient, sellerProfileIds: Array<string | null | undefined>) {
+    for (const sellerProfileId of [...new Set(sellerProfileIds.filter((id): id is string => Boolean(id)))]) {
+      await tx.$queryRaw`SELECT id FROM "SellerProfile" WHERE id = ${sellerProfileId} FOR UPDATE`;
+    }
+  }
+
   type CheckoutLineItem = CheckoutStockRestoreLineItem;
 
   try {
@@ -494,15 +505,6 @@ export async function POST(req: Request) {
           : charge?.transfer?.id) ?? null;
 
       const buyerId: string | undefined = sessionMeta.buyerId;
-      const buyerAccount = buyerId
-        ? await prisma.user.findUnique({
-            where: { id: buyerId },
-            select: { id: true, banned: true, deletedAt: true },
-          })
-        : null;
-      const invalidBuyerReason = buyerId ? invalidCheckoutBuyerReason(buyerAccount) : null;
-      const orderBuyerId = invalidBuyerReason ? null : buyerId;
-
       // Quoted snapshot from metadata (typed on-site)
       const quotedShipToPostalCode = sessionMeta.quotedShipToPostalCode || sessionMeta.quotedToPostalCode || "";
       const quotedShipToState = sessionMeta.quotedShipToState || sessionMeta.quotedToState || "";
@@ -570,6 +572,7 @@ export async function POST(req: Request) {
         reason: string;
         lineItems: CheckoutLineItem[];
         sellerUserIds: string[];
+        buyerUserId: string | null;
       }) {
         const reviewPrefix = `${input.reason} Order was held for staff review.`;
         const { logSecurityEvent } = await import("@/lib/security");
@@ -679,9 +682,9 @@ export async function POST(req: Request) {
             });
           });
 
-          if (orderBuyerId) {
+          if (input.buyerUserId) {
             await createNotification({
-              userId: orderBuyerId,
+              userId: input.buyerUserId,
               type: "NEW_ORDER",
               title: "Payment refunded",
               body: "This payment was refunded because the checkout was no longer eligible to complete.",
@@ -775,25 +778,6 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        const invalidCartSellers = new Map<string, { reason: string; sellerUserId: string }>();
-        for (const item of cart.items) {
-          const seller = item.listing.seller;
-          const invalidReason = invalidCheckoutSellerReason(seller);
-          if (invalidReason) {
-            invalidCartSellers.set(seller?.id ?? item.listing.sellerId, {
-              reason: invalidReason,
-              sellerUserId: seller?.userId ?? "",
-            });
-          }
-        }
-        const cartInvalidReason = [
-          invalidBuyerReason,
-          ...[...invalidCartSellers.values()].map((value) => value.reason),
-        ].filter(Boolean).join(" ");
-        const cartInvalidSellerUserIds = [...invalidCartSellers.values()]
-          .map((value) => value.sellerUserId)
-          .filter(Boolean);
-
         const maxProcessingDaysCart = Math.max(
           3,
           ...cart.items.map((it) =>
@@ -814,9 +798,40 @@ export async function POST(req: Request) {
           });
           if (existingOrder) return null;
 
+          const cartSellerIds = [...new Set(cart.items.map((item) => item.listing.sellerId))];
+          await lockUserRowsForUpdate(tx, [buyerId]);
+          await lockSellerProfileRowsForUpdate(tx, cartSellerIds);
+          const cartSellerUserRefs = await tx.sellerProfile.findMany({
+            where: { id: { in: cartSellerIds } },
+            select: { userId: true },
+          });
+          await lockUserRowsForUpdate(tx, cartSellerUserRefs.map((seller) => seller.userId));
+
+          const transactionBuyer = buyerId
+            ? await tx.user.findUnique({
+                where: { id: buyerId },
+                select: { id: true, banned: true, deletedAt: true },
+              })
+            : null;
+          const transactionSellers = await tx.sellerProfile.findMany({
+            where: { id: { in: cartSellerIds } },
+            select: {
+              id: true,
+              userId: true,
+              chargesEnabled: true,
+              stripeAccountId: true,
+              user: { select: { id: true, banned: true, deletedAt: true } },
+            },
+          });
+          const transactionSellerById = new Map(transactionSellers.map((seller) => [seller.id, seller]));
+          const cartInvalidState = checkoutInvalidReasonState({
+            buyer: transactionBuyer,
+            sellers: cartSellerIds.map((sellerId) => transactionSellerById.get(sellerId)),
+          });
+
           const order = await tx.order.create({
             data: {
-              buyerId: orderBuyerId,
+              buyerId: cartInvalidState.buyerUserId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -856,9 +871,9 @@ export async function POST(req: Request) {
               quotedToCountry: quotedShipToCountry || null,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
-              reviewNeeded: reviewNeeded || !!cartInvalidReason,
-              reviewNote: cartInvalidReason
-                ? cartInvalidReason
+              reviewNeeded: reviewNeeded || !!cartInvalidState.reason,
+              reviewNote: cartInvalidState.reason
+                ? cartInvalidState.reason
                 : reviewNeeded
                   ? "Address and/or quoted amount changed at Checkout."
                   : null,
@@ -963,19 +978,25 @@ export async function POST(req: Request) {
               : { cartId },
           });
 
-          return order;
+          return {
+            id: order.id,
+            invalidReason: cartInvalidState.reason,
+            invalidSellerUserIds: cartInvalidState.sellerUserIds,
+            buyerUserId: cartInvalidState.buyerUserId,
+          };
         });
 
         await releaseCheckoutLock(checkoutLockKey, sessionId);
 
         if (!createdCartOrder) return NextResponse.json({ ok: true });
 
-        if (cartInvalidReason) {
+        if (createdCartOrder.invalidReason) {
           await refundBlockedCheckout({
             orderId: createdCartOrder.id,
-            reason: cartInvalidReason,
+            reason: createdCartOrder.invalidReason,
             lineItems: stripeLineItems,
-            sellerUserIds: cartInvalidSellerUserIds,
+            sellerUserIds: createdCartOrder.invalidSellerUserIds,
+            buyerUserId: createdCartOrder.buyerUserId,
           });
           return NextResponse.json({ ok: true });
         }
@@ -1019,10 +1040,6 @@ export async function POST(req: Request) {
             },
           },
         });
-        const singleSellerInvalidReason = invalidCheckoutSellerReason(listingData?.seller);
-        const singleInvalidReason = [invalidBuyerReason, singleSellerInvalidReason].filter(Boolean).join(" ");
-        const singleInvalidSellerUserIds =
-          singleSellerInvalidReason && listingData?.seller?.userId ? [listingData.seller.userId] : [];
         const price = priceCentsFromMeta ?? listingData?.priceCents ?? 0;
         const isInStock = listingData?.listingType === "IN_STOCK";
         const effectiveProcessingDays = isInStock
@@ -1080,9 +1097,48 @@ export async function POST(req: Request) {
           });
           if (existingOrder) return null;
 
+          await lockUserRowsForUpdate(tx, [buyerId]);
+          const transactionListingRef = await tx.listing.findUnique({
+            where: { id: listingId },
+            select: { sellerId: true },
+          });
+          await lockSellerProfileRowsForUpdate(tx, [transactionListingRef?.sellerId]);
+          const singleSellerUserRef = transactionListingRef?.sellerId
+            ? await tx.sellerProfile.findUnique({
+                where: { id: transactionListingRef.sellerId },
+                select: { userId: true },
+              })
+            : null;
+          await lockUserRowsForUpdate(tx, [singleSellerUserRef?.userId]);
+
+          const transactionBuyer = buyerId
+            ? await tx.user.findUnique({
+                where: { id: buyerId },
+                select: { id: true, banned: true, deletedAt: true },
+              })
+            : null;
+          const transactionListing = await tx.listing.findUnique({
+            where: { id: listingId },
+            select: {
+              seller: {
+                select: {
+                  id: true,
+                  userId: true,
+                  chargesEnabled: true,
+                  stripeAccountId: true,
+                  user: { select: { id: true, banned: true, deletedAt: true } },
+                },
+              },
+            },
+          });
+          const singleInvalidState = checkoutInvalidReasonState({
+            buyer: transactionBuyer,
+            sellers: [transactionListing?.seller],
+          });
+
           const order = await tx.order.create({
             data: {
-              buyerId: orderBuyerId,
+              buyerId: singleInvalidState.buyerUserId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -1140,9 +1196,9 @@ export async function POST(req: Request) {
               quotedToCountry: quotedShipToCountry || null,
               quotedShippingAmountCents: quotedShippingAmountCents ?? null,
 
-              reviewNeeded: reviewNeeded || !!singleInvalidReason,
-              reviewNote: singleInvalidReason
-                ? singleInvalidReason
+              reviewNeeded: reviewNeeded || !!singleInvalidState.reason,
+              reviewNote: singleInvalidState.reason
+                ? singleInvalidState.reason
                 : reviewNeeded
                   ? "Address and/or quoted amount changed at Checkout."
                   : null,
@@ -1171,19 +1227,25 @@ export async function POST(req: Request) {
             `;
           }
 
-          return order;
+          return {
+            id: order.id,
+            invalidReason: singleInvalidState.reason,
+            invalidSellerUserIds: singleInvalidState.sellerUserIds,
+            buyerUserId: singleInvalidState.buyerUserId,
+          };
         });
 
         await releaseCheckoutLock(checkoutLockKey, sessionId);
 
         if (!createdSingleOrder) return NextResponse.json({ ok: true });
 
-        if (singleInvalidReason) {
+        if (createdSingleOrder.invalidReason) {
           await refundBlockedCheckout({
             orderId: createdSingleOrder.id,
-            reason: singleInvalidReason,
+            reason: createdSingleOrder.invalidReason,
             lineItems: singleLineItems,
-            sellerUserIds: singleInvalidSellerUserIds,
+            sellerUserIds: createdSingleOrder.invalidSellerUserIds,
+            buyerUserId: createdSingleOrder.buyerUserId,
           });
           return NextResponse.json({ ok: true });
         }
@@ -1270,7 +1332,16 @@ export async function POST(req: Request) {
             const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
             const existingOrder = await tx.order.findFirst({
               where: { stripeChargeId: charge.id },
-              select: { id: true, currency: true, sellerRefundId: true, sellerRefundAmountCents: true },
+              select: {
+                id: true,
+                currency: true,
+                sellerRefundId: true,
+                sellerRefundAmountCents: true,
+                itemsSubtotalCents: true,
+                shippingAmountCents: true,
+                giftWrappingPriceCents: true,
+                taxAmountCents: true,
+              },
             });
             if (existingOrder) {
               const refundLedger = chargeRefundLedgerState({

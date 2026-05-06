@@ -32,10 +32,20 @@ export type CheckoutBuyerState = {
   deletedAt: Date | null;
 } | null;
 
+export type CheckoutInvalidReasonState = {
+  reason: string;
+  buyerUserId: string | null;
+  sellerUserIds: string[];
+};
+
 export type ChargeRefundOrderState = {
   currency: string;
   sellerRefundId: string | null;
   sellerRefundAmountCents: number | null;
+  itemsSubtotalCents?: number | null;
+  shippingAmountCents?: number | null;
+  giftWrappingPriceCents?: number | null;
+  taxAmountCents?: number | null;
 };
 
 export type ChargeRefundLedgerState = {
@@ -54,6 +64,8 @@ export type ChargeRefundLedgerState = {
       latestRefundAmountCents: number | null;
       totalRefundedCents: number;
       preservedLocalRefundId: string | null;
+      orderTotalCents: number;
+      refundExceedsOrderTotal: boolean;
     };
   };
   orderUpdate:
@@ -267,6 +279,34 @@ export function invalidCheckoutBuyerReason(buyer: CheckoutBuyerState | undefined
   return null;
 }
 
+export function checkoutInvalidReasonState(input: {
+  buyer: CheckoutBuyerState | undefined;
+  sellers: Array<CheckoutSellerState | null | undefined>;
+}): CheckoutInvalidReasonState {
+  const buyerReason = invalidCheckoutBuyerReason(input.buyer);
+  const invalidSellers = new Map<string, { reason: string; sellerUserId: string }>();
+  for (let index = 0; index < input.sellers.length; index += 1) {
+    const seller = input.sellers[index];
+    const reason = invalidCheckoutSellerReason(seller);
+    if (!reason) continue;
+    invalidSellers.set(seller?.id ?? `missing:${index}`, {
+      reason,
+      sellerUserId: seller?.userId ?? "",
+    });
+  }
+
+  return {
+    reason: [
+      buyerReason,
+      ...[...invalidSellers.values()].map((value) => value.reason),
+    ].filter(Boolean).join(" "),
+    buyerUserId: buyerReason ? null : input.buyer?.id ?? null,
+    sellerUserIds: [...invalidSellers.values()]
+      .map((value) => value.sellerUserId)
+      .filter(Boolean),
+  };
+}
+
 export function blockedCheckoutDisputeState({
   latestDispute,
   reviewPrefix,
@@ -302,6 +342,12 @@ export function chargeRefundLedgerState({
 }): ChargeRefundLedgerState {
   const latestRefundId = latestRefund?.id ?? fallbackRefundId ?? `external:${chargeId}`;
   const totalRefundedCents = amountRefundedCents ?? latestRefund?.amount ?? 0;
+  const orderTotalCents =
+    (order.itemsSubtotalCents ?? 0) +
+    (order.shippingAmountCents ?? 0) +
+    (order.giftWrappingPriceCents ?? 0) +
+    (order.taxAmountCents ?? 0);
+  const refundExceedsOrderTotal = orderTotalCents > 0 && totalRefundedCents > orderTotalCents;
   const hasLocalRefundAudit =
     !!order.sellerRefundId &&
     order.sellerRefundId !== "pending" &&
@@ -333,6 +379,8 @@ export function chargeRefundLedgerState({
       latestRefundAmountCents: latestRefund?.amount ?? null,
       totalRefundedCents,
       preservedLocalRefundId: isAdditionalExternalRefund ? order.sellerRefundId : null,
+      orderTotalCents,
+      refundExceedsOrderTotal,
     },
   };
 
@@ -349,7 +397,9 @@ export function chargeRefundLedgerState({
         sellerRefundAmountCents: Math.max(order.sellerRefundAmountCents ?? 0, totalRefundedCents),
         sellerRefundLockedAt: null,
         reviewNeeded: true,
-        reviewNote: "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
+        reviewNote: refundExceedsOrderTotal
+          ? "Additional Stripe refund was detected outside Grainline; total refunded exceeds the order total and staff must reconcile before fulfillment. Local refund audit ID was preserved."
+          : "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.",
       },
     };
   }
@@ -363,7 +413,9 @@ export function chargeRefundLedgerState({
       sellerRefundAmountCents: totalRefundedCents,
       sellerRefundLockedAt: null,
       reviewNeeded: true,
-      reviewNote: "Stripe refund was created outside Grainline.",
+      reviewNote: refundExceedsOrderTotal
+        ? "Stripe refund was created outside Grainline; total refunded exceeds the order total and staff must reconcile before fulfillment."
+        : "Stripe refund was created outside Grainline.",
     },
   };
 }
