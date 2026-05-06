@@ -1,14 +1,14 @@
 // src/app/api/orders/[id]/refund/route.ts
-// Seller-initiated refund. Issues a Stripe refund immediately using Stripe's
-// refund_application_fee + reverse_transfer flags. Full refunds also restore
-// IN_STOCK inventory.
+// Seller-initiated refund. Issues a Stripe refund immediately. Connected
+// seller refunds use Stripe reverse_transfer under the manual transfer_data
+// checkout model; full refunds also restore IN_STOCK inventory.
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
-import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/marketplaceRefunds";
+import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import { createNotification } from "@/lib/notifications";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
@@ -221,10 +221,7 @@ export async function POST(
       const transferNote = refund.usedPlatformOnly
         ? " Seller Stripe account is disconnected; transfer reversal must be reconciled manually."
         : "";
-      const taxNote = refund.usedSplitTaxRefund
-        ? " Tax was refunded separately without reversing seller transfer."
-        : "";
-      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}${taxNote}`;
+      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}`;
 
       await prisma.$transaction([
         prisma.order.update({
@@ -271,11 +268,6 @@ export async function POST(
           : []),
       ]);
     } catch (err) {
-      const partialRefundFailure = isStripeRefundPartialFailure(err) ? err : null;
-      if (partialRefundFailure) {
-        refundId = partialRefundFailure.primaryRefundId;
-        refundIds = partialRefundFailure.refundIds;
-      }
       if (refundId) {
         Sentry.captureException(err, {
           tags: { source: "seller_refund_orphaned_after_stripe" },

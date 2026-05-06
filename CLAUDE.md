@@ -191,11 +191,11 @@ Five API routes handle the full case lifecycle:
 `POST /api/orders/[id]/refund` lets sellers issue refunds directly:
 - Auth: verifies requesting user is a seller who owns items in the order
 - Body: `{ type: "FULL" | "PARTIAL", amountCents?: number }`
-- Issues Stripe refund with `refund_application_fee: true` + `reverse_transfer: true` — proportional platform fee returned to seller, refund comes from seller's Stripe balance (not platform). Manual `transfers.createReversal` removed (handled by `reverse_transfer` flag).
+- Uses the manual `transfer_data.amount` refund model: connected-seller full refunds issue one full-charge Stripe refund with `reverse_transfer: true`; connected-seller partial refunds issue one proportional reverse-transfer refund. Do not set `refund_application_fee` because checkout intentionally does not create an `application_fee_amount`.
 - Restores stock for IN_STOCK items on FULL refund
 - Atomically resolves any open case as REFUND_FULL or REFUND_PARTIAL
 
-**Refund flags** (audited 2026-04-15): both refund routes (`/api/orders/[id]/refund` + `/api/cases/[id]/resolve`) now include `refund_application_fee: true` and `reverse_transfer: true`. Without these, platform keeps fee on refunds (unfair to seller) and refund comes from platform balance (wrong).
+**Refund accounting** (audited 2026-05-06): both refund routes (`/api/orders/[id]/refund` + `/api/cases/[id]/resolve`) call `createMarketplaceRefund()`. Full connected-seller refunds must be a single full-charge refund with `reverse_transfer: true`; splitting tax into a second refund under-reverses the seller transfer because Stripe reverses transfers proportionally on partial refunds. Disconnected sellers use a platform-funded refund plus manual reconciliation note.
 
 **Gift wrap fee**: excluded from platform fee base — gift wrap is a seller-provided service added as separate Stripe line item. Platform fee applies only to product items.
 - Stamps `order.sellerRefundId`, `order.sellerRefundAmountCents`, `reviewNeeded = true`
@@ -5563,9 +5563,9 @@ This pass closed two contained email/privacy items from the Round 16-18 backlog.
 This pass closed several high-priority leftovers from the Round 16-18 fix backlog.
 
 ### Fixed in this pass
-- **Refund tax accounting now splits tax from seller transfer reversal**: seller and case full refunds use `createMarketplaceRefund()`, reversing item/shipping against the seller transfer and refunding tax separately without `reverse_transfer`.
+- **Refund tax accounting was centralized in `createMarketplaceRefund()`**: this pass originally split tax from seller transfer reversal. That model was superseded on 2026-05-06 after Stripe test-mode replay showed split full refunds under-reverse manual `transfer_data.amount` destination-charge transfers. Current behavior is one full-charge `reverse_transfer` refund for connected-seller full refunds.
 - **Refunds survive disconnected sellers**: if the seller profile no longer has a Stripe account, seller/case refunds fall back to a platform-funded refund and write a manual reconciliation note instead of getting stuck on the pending lock.
-- **Partial Stripe refund success is tracked**: multi-step refunds now throw a typed partial-failure error that preserves already-created refund IDs, allowing the order to be marked for manual reconciliation instead of clearing the lock incorrectly.
+- **Post-Stripe orphan reconciliation remains route-owned**: the old multi-step partial-failure helper was removed on 2026-05-06 when refunds became single-step. If Stripe returns a refund ID and later DB work fails, the seller/case routes still mark the order for manual reconciliation before rethrowing.
 - **Transactional email skips inactive accounts**: `src/lib/email.ts` now checks suppression and then skips recipients whose user account is banned or deleted before calling Resend.
 - **Account-state enforcement widened**: blog save/unsave, listing stock mutation, review creation, and shipping quote now use the shared active-user guard. Previously verified guarded routes include notify/follow/refund/notifications/favorites/saved search.
 - **Back-in-stock fan-out is idempotent**: stock restock notifications now claim subscribers with `DELETE ... RETURNING` before sending, preventing duplicate notifications under rapid restock races.
@@ -5579,7 +5579,7 @@ This pass closed several high-priority leftovers from the Round 16-18 fix backlo
 - `npm run build` ✅ outside sandbox; sandbox build still requires escalation for Turbopack local worker port binding
 
 ### Still open / next good passes
-- Cron idempotency/run keys and remaining partial-failure isolation.
+- Cron idempotency/run keys.
 - Account export endpoint and broader GDPR message/order/listing PII scrubbing.
 - Remaining admin/dashboard correctness items.
 
@@ -5807,7 +5807,7 @@ This pass closed the remaining high-risk account-state gap in the Stripe complet
 ### Fixed in this pass
 - **Completed checkout re-checks seller state**: both cart and single-listing completed checkout paths now verify seller `user.banned`, `user.deletedAt`, `chargesEnabled`, and `stripeAccountId` before normal notifications/emails.
 - **Invalid completed sessions are held for review**: if the seller became suspended/deleted/disconnected after session creation, the webhook creates a review-flagged order with a staff-facing note instead of sending normal seller/buyer order side effects.
-- **Automatic refund attempted for invalid sessions**: invalid completed sessions attempt a full Stripe refund with `reverse_transfer: true` and `refund_application_fee: true`, using `blocked-checkout-refund:${sessionId}` as the Stripe idempotency key.
+- **Automatic refund attempted for invalid sessions**: invalid completed sessions attempt a full Stripe refund with `reverse_transfer: true`, using `blocked-checkout-refund:${sessionId}` as the Stripe idempotency key.
 - **Reserved stock is restored after successful blocked-checkout refund**: the webhook restores stock from Stripe line-item metadata and reactivates `SOLD_OUT` listings when quantity is available again.
 - **Refund/manual-review state is captured**: successful blocked-checkout refunds write `sellerRefundId`, `sellerRefundAmountCents`, clear refund locks, and keep `reviewNeeded=true`; refund failures are captured to Sentry and leave a manual reconciliation note.
 - **Normal order notifications are skipped for invalid sessions**: the buyer gets a refund notification only after the blocked-checkout refund succeeds; seller sale notifications/emails and first-sale emails are skipped.

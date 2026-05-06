@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const {
-  StripeRefundPartialFailure,
-  createMarketplaceRefundWithCreator,
-  isStripeRefundPartialFailure,
-} = await import("../src/lib/marketplaceRefunds.ts");
+const { createMarketplaceRefundWithCreator } = await import("../src/lib/marketplaceRefunds.ts");
 
 function baseOpts(overrides = {}) {
   return {
@@ -23,60 +19,59 @@ function baseOpts(overrides = {}) {
 }
 
 describe("marketplace refunds", () => {
-  it("splits full refunds so tax is not reverse-transferred from the seller", async () => {
+  it("uses one full reverse-transfer refund when the original order included tax", async () => {
     const calls = [];
     const result = await createMarketplaceRefundWithCreator(baseOpts(), async (params, requestOptions) => {
       calls.push({ params, requestOptions });
-      return { id: calls.length === 1 ? "re_seller" : "re_tax" };
+      return { id: "re_full" };
     });
 
     assert.deepEqual(result, {
-      primaryRefundId: "re_seller",
-      refundIds: ["re_seller", "re_tax"],
+      primaryRefundId: "re_full",
+      refundIds: ["re_full"],
       sellerPortionCents: 10_500,
       taxAmountCents: 825,
       usedPlatformOnly: false,
-      usedSplitTaxRefund: true,
     });
     assert.deepEqual(calls, [
       {
         params: {
           payment_intent: "pi_test",
-          amount: 10_500,
-          refund_application_fee: true,
+          amount: 11_325,
           reverse_transfer: true,
         },
-        requestOptions: { idempotencyKey: "refund:order_1:seller" },
-      },
-      {
-        params: {
-          payment_intent: "pi_test",
-          amount: 825,
-        },
-        requestOptions: { idempotencyKey: "refund:order_1:tax" },
+        requestOptions: { idempotencyKey: "refund:order_1:full" },
       },
     ]);
   });
 
-  it("includes gift wrapping in the seller-reversible portion of full refunds", async () => {
+  it("includes gift wrapping in the full reverse-transfer refund amount", async () => {
     const calls = [];
     const result = await createMarketplaceRefundWithCreator(
       baseOpts({ amountCents: 11_825, giftWrappingPriceCents: 500 }),
       async (params, requestOptions) => {
         calls.push({ params, requestOptions });
-        return { id: calls.length === 1 ? "re_seller" : "re_tax" };
+        return { id: "re_full" };
       },
     );
 
     assert.deepEqual(result, {
-      primaryRefundId: "re_seller",
-      refundIds: ["re_seller", "re_tax"],
+      primaryRefundId: "re_full",
+      refundIds: ["re_full"],
       sellerPortionCents: 11_000,
       taxAmountCents: 825,
       usedPlatformOnly: false,
-      usedSplitTaxRefund: true,
     });
-    assert.deepEqual(calls.map((call) => call.params.amount), [11_000, 825]);
+    assert.deepEqual(calls, [
+      {
+        params: {
+          payment_intent: "pi_test",
+          amount: 11_825,
+          reverse_transfer: true,
+        },
+        requestOptions: { idempotencyKey: "refund:order_1:full" },
+      },
+    ]);
   });
 
   it("uses a platform-only refund when the seller transfer cannot be reversed", async () => {
@@ -95,7 +90,6 @@ describe("marketplace refunds", () => {
       sellerPortionCents: 0,
       taxAmountCents: 825,
       usedPlatformOnly: true,
-      usedSplitTaxRefund: false,
     });
     assert.deepEqual(calls, [
       {
@@ -129,14 +123,12 @@ describe("marketplace refunds", () => {
       sellerPortionCents: 1_200,
       taxAmountCents: 0,
       usedPlatformOnly: false,
-      usedSplitTaxRefund: false,
     });
     assert.deepEqual(calls, [
       {
         params: {
           payment_intent: "pi_test",
           amount: 1_200,
-          refund_application_fee: true,
           reverse_transfer: true,
           reason: "requested_by_customer",
         },
@@ -165,7 +157,6 @@ describe("marketplace refunds", () => {
       sellerPortionCents: 0,
       taxAmountCents: 825,
       usedPlatformOnly: false,
-      usedSplitTaxRefund: false,
     });
     assert.deepEqual(calls, [
       {
@@ -178,26 +169,6 @@ describe("marketplace refunds", () => {
     ]);
   });
 
-  it("preserves succeeded refund IDs when a later split-refund step fails", async () => {
-    const failure = new Error("stripe unavailable");
-
-    await assert.rejects(
-      () =>
-        createMarketplaceRefundWithCreator(baseOpts(), async (_params, _requestOptions) => {
-          if (_requestOptions.idempotencyKey.endsWith(":tax")) throw failure;
-          return { id: "re_seller" };
-        }),
-      (error) => {
-        assert.equal(error instanceof StripeRefundPartialFailure, true);
-        assert.equal(isStripeRefundPartialFailure(error), true);
-        assert.deepEqual(error.refundIds, ["re_seller"]);
-        assert.equal(error.primaryRefundId, "re_seller");
-        assert.equal(error.cause, failure);
-        return true;
-      },
-    );
-  });
-
   it("rejects zero or negative refund amounts before calling Stripe", async () => {
     let calls = 0;
 
@@ -208,6 +179,20 @@ describe("marketplace refunds", () => {
           return { id: "never" };
         }),
       /Refund amount must be positive/,
+    );
+    assert.equal(calls, 0);
+  });
+
+  it("rejects refund amounts above the order total before calling Stripe", async () => {
+    let calls = 0;
+
+    await assert.rejects(
+      () =>
+        createMarketplaceRefundWithCreator(baseOpts({ amountCents: 11_326 }), async () => {
+          calls += 1;
+          return { id: "never" };
+        }),
+      /Refund amount exceeds order total/,
     );
     assert.equal(calls, 0);
   });

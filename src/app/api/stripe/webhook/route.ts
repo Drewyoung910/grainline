@@ -660,7 +660,6 @@ export async function POST(req: Request) {
           const refund = await stripe.refunds.create(
             {
               payment_intent: paymentIntentId,
-              refund_application_fee: true,
               reverse_transfer: true,
             },
             { idempotencyKey: `blocked-checkout-refund:${sessionId}` },

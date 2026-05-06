@@ -6,7 +6,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseResolved } from "@/lib/email";
-import { createMarketplaceRefund, isStripeRefundPartialFailure } from "@/lib/marketplaceRefunds";
+import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
@@ -179,39 +179,17 @@ export async function POST(
             ? `Stripe refunds ${stripeRefundIds.join(", ")}`
             : `Stripe refund ${stripeRefundId}`,
           refund.usedPlatformOnly ? "seller Stripe account disconnected; transfer reversal requires manual reconciliation" : null,
-          refund.usedSplitTaxRefund ? "tax refunded separately without seller transfer reversal" : null,
         ].filter(Boolean).join("; ");
       } catch (stripeErr) {
-        const partialRefundFailure = isStripeRefundPartialFailure(stripeErr) ? stripeErr : null;
-        if (partialRefundFailure?.primaryRefundId) {
-          stripeRefundId = partialRefundFailure.primaryRefundId;
-          stripeRefundIds = partialRefundFailure.refundIds;
-          await prisma.order.updateMany({
-            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-            data: {
-              sellerRefundId: stripeRefundId,
-              sellerRefundAmountCents: refundAmountForOrder,
-              sellerRefundLockedAt: null,
-              reviewNeeded: true,
-              reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} succeeded before a later refund step failed. Manual reconciliation required.`,
-            },
-          }).catch((dbError) => {
-            Sentry.captureException(dbError, {
-              tags: { source: "case_refund_orphan_record_failed" },
-              extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, stripeRefundIds },
-            });
+        await prisma.order.updateMany({
+          where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+          data: { sellerRefundId: null, sellerRefundLockedAt: null },
+        }).catch((dbError) => {
+          Sentry.captureException(dbError, {
+            tags: { source: "case_refund_lock_release_failed" },
+            extra: { caseId: id, orderId: caseRecord.orderId },
           });
-        } else {
-          await prisma.order.updateMany({
-            where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
-            data: { sellerRefundId: null, sellerRefundLockedAt: null },
-          }).catch((dbError) => {
-            Sentry.captureException(dbError, {
-              tags: { source: "case_refund_lock_release_failed" },
-              extra: { caseId: id, orderId: caseRecord.orderId },
-            });
-          });
-        }
+        });
         throw stripeErr;
       }
     }
