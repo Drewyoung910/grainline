@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  canCreateCaseMessageForStatus,
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } = await import("../src/lib/caseMessagingState.ts");
@@ -58,5 +59,14 @@ describe("case messaging account-state guard", () => {
     assert.match(unavailableCaseRecipientMessage("suspended"), /Escalate this case/);
     assert.match(unavailableCaseRecipientMessage("deleted"), /Escalate this case/);
     assert.match(unavailableCaseRecipientMessage("missing"), /Escalate this case/);
+  });
+
+  it("allows messages only while the case is still open", () => {
+    assert.equal(canCreateCaseMessageForStatus("OPEN"), true);
+    assert.equal(canCreateCaseMessageForStatus("IN_DISCUSSION"), true);
+    assert.equal(canCreateCaseMessageForStatus("PENDING_CLOSE"), true);
+    assert.equal(canCreateCaseMessageForStatus("UNDER_REVIEW"), true);
+    assert.equal(canCreateCaseMessageForStatus("RESOLVED"), false);
+    assert.equal(canCreateCaseMessageForStatus("CLOSED"), false);
   });
 });

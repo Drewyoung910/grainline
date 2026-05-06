@@ -8,6 +8,7 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCaseMessage } from "@/lib/email";
 import { caseMessageRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import {
+  canCreateCaseMessageForStatus,
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
@@ -60,7 +61,7 @@ export async function POST(
     const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
     if (!isParty && !isStaff) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
-    if (caseRecord.status === "RESOLVED" || caseRecord.status === "CLOSED") {
+    if (!canCreateCaseMessageForStatus(caseRecord.status)) {
       return NextResponse.json({ error: "This case is closed." }, { status: 400 });
     }
 
@@ -87,15 +88,18 @@ export async function POST(
       caseUpdates.escalateUnlocksAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
     }
 
-    const [message] = await prisma.$transaction([
-      prisma.caseMessage.create({
-        data: { caseId: id, authorId: me.id, body: messageBody },
-      }),
-      prisma.case.update({
-        where: { id },
+    const message = await prisma.$transaction(async (tx) => {
+      const updated = await tx.case.updateMany({
+        where: { id, status: caseRecord.status },
         data: caseUpdates,
-      }),
-    ]);
+      });
+      if (updated.count === 0) {
+        throw new Error("CASE_STATUS_CHANGED");
+      }
+      return tx.caseMessage.create({
+        data: { caseId: id, authorId: me.id, body: messageBody },
+      });
+    });
 
     // Notify the appropriate party/parties
     const senderName = me.name ?? me.email?.split("@")[0] ?? "Someone";
@@ -188,6 +192,12 @@ export async function POST(
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
+    if (err instanceof Error && err.message === "CASE_STATUS_CHANGED") {
+      return NextResponse.json(
+        { error: "Case status changed before your message could be saved. Refresh and try again." },
+        { status: 409 },
+      );
+    }
 
     console.error("POST /api/cases/[id]/messages error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

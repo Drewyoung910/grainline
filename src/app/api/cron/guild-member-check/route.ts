@@ -12,6 +12,11 @@ import { sendGuildMemberRevokedEmail } from "@/lib/email";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
+import {
+  guildMemberRevocationCaseWhere,
+  guildMemberRevocationSellerWhere,
+  type GuildMemberRevocationGuard,
+} from "@/lib/guildMemberRevocationState";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -103,17 +108,17 @@ async function checkGuildMemberSeller(
   thirtyDaysAgo: Date
 ): Promise<number> {
   // Check 1: unresolved case older than 90 days
+  const unresolvedCaseGuard: GuildMemberRevocationGuard = {
+    kind: "unresolved_case",
+    caseCreatedBefore: ninetyDaysAgo,
+  };
   const longCase = await prisma.case.findFirst({
-    where: {
-      sellerId: seller.userId,
-      status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE"] },
-      createdAt: { lt: ninetyDaysAgo },
-    },
+    where: guildMemberRevocationCaseWhere(seller.userId, unresolvedCaseGuard),
     select: { id: true },
   });
 
   if (longCase) {
-    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.");
+    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.", unresolvedCaseGuard);
   }
 
   // Check 2: active listings below 5 for 30+ consecutive days
@@ -121,9 +126,14 @@ async function checkGuildMemberSeller(
     seller.listingsBelowThresholdSince &&
     new Date(seller.listingsBelowThresholdSince) < thirtyDaysAgo
   ) {
+    const listingThresholdGuard: GuildMemberRevocationGuard = {
+      kind: "listing_threshold",
+      listingsBelowThresholdBefore: thirtyDaysAgo,
+    };
     return revokeMember(
       seller,
-      "Your shop has had fewer than 5 active listings for over 30 consecutive days."
+      "Your shop has had fewer than 5 active listings for over 30 consecutive days.",
+      listingThresholdGuard,
     );
   }
 
@@ -132,11 +142,12 @@ async function checkGuildMemberSeller(
 
 async function revokeMember(
   seller: { id: string; userId: string; user: { name?: string | null; email?: string | null } | null },
-  reason: string
+  reason: string,
+  guard: GuildMemberRevocationGuard,
 ): Promise<number> {
   const revoked = await prisma.$transaction(async (tx) => {
     const updated = await tx.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: "GUILD_MEMBER" },
+      where: guildMemberRevocationSellerWhere(seller.id, seller.userId, guard),
       data: {
         guildLevel: "NONE",
         isVerifiedMaker: false,

@@ -5,6 +5,16 @@ type CaseParticipantState = {
 } | null;
 
 export type UnavailableCaseRecipientReason = "suspended" | "deleted" | "missing";
+export const CASE_MESSAGE_OPEN_STATUSES = [
+  "OPEN",
+  "IN_DISCUSSION",
+  "PENDING_CLOSE",
+  "UNDER_REVIEW",
+] as const;
+
+export function canCreateCaseMessageForStatus(status: string | null | undefined): boolean {
+  return CASE_MESSAGE_OPEN_STATUSES.includes(status as (typeof CASE_MESSAGE_OPEN_STATUSES)[number]);
+}
 
 export function unavailableCaseMessageRecipientReason({
   senderId,
