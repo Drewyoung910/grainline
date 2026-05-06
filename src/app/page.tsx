@@ -710,6 +710,8 @@ export default async function HomePage() {
                         src={(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl)!}
                         alt={featuredMaker.displayName ?? ""}
                         loading="lazy"
+                        width={80}
+                        height={80}
                         className="h-20 w-20 rounded-full border-2 border-white shadow object-cover"
                       />
                     ) : (
@@ -934,7 +936,7 @@ export default async function HomePage() {
                         <div className="flex items-center gap-1.5">
                           {authorAvatar ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={authorAvatar} alt={authorName} loading="lazy" className="h-5 w-5 rounded-full object-cover" />
+                            <img src={authorAvatar} alt={authorName} loading="lazy" width={20} height={20} className="h-5 w-5 rounded-full object-cover" />
                           ) : (
                             <div className="h-5 w-5 rounded-full bg-neutral-200" />
                           )}

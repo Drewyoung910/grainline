@@ -24,6 +24,7 @@ import { Hammer } from "@/components/icons";
 import { canViewListingDetail, isPublicListing } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
+import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -175,7 +176,7 @@ export default async function ListingPage({
 
   const [
     ratingAgg,
-    sellerRatingAgg,
+    sellerRatingMap,
     moreFromSeller,
     topReviews,
     favoriteRow,
@@ -188,11 +189,7 @@ export default async function ListingPage({
       _avg: { ratingX2: true },
       _count: { _all: true },
     }),
-    prisma.review.aggregate({
-      where: { listing: { sellerId: listing.sellerId } },
-      _avg: { ratingX2: true },
-      _count: { _all: true },
-    }),
+    getSellerRatingMap([listing.sellerId]),
     prisma.listing.findMany({
       where: {
         sellerId: listing.sellerId,
@@ -250,10 +247,9 @@ export default async function ListingPage({
   const countReviews = ratingAgg._count._all || 0;
   const stars = avgStarsRaw != null ? quarterRoundStars(avgStarsRaw) : null;
 
-  const sellerAvgRaw = sellerRatingAgg._avg.ratingX2
-    ? sellerRatingAgg._avg.ratingX2 / 2
-    : null;
-  const sellerReviewCount = sellerRatingAgg._count._all || 0;
+  const sellerRating = sellerRatingMap.get(listing.sellerId) ?? null;
+  const sellerAvgRaw = sellerRating && sellerRating.count > 0 ? sellerRating.avg : null;
+  const sellerReviewCount = sellerRating?.count ?? 0;
   const sellerStars = sellerAvgRaw != null ? quarterRoundStars(sellerAvgRaw) : null;
 
   const isFavorited = favoriteRow !== null;
@@ -532,6 +528,8 @@ export default async function ListingPage({
                   <img
                     src={sellerAvatar}
                     alt={sellerName}
+                    width={56}
+                    height={56}
                     className="h-14 w-14 rounded-full object-cover border border-neutral-200"
                   />
                 ) : (
@@ -777,6 +775,8 @@ export default async function ListingPage({
                   {ml.photos[0]?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
+                      width={320}
+                      height={320}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   ) : (
                     <div className="w-full h-full bg-neutral-200" />

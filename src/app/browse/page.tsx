@@ -474,7 +474,14 @@ export default async function BrowsePage({
                     <li key={l.id} className="border border-neutral-200 overflow-hidden">
                       <Link href={publicListingPath(l.id, l.title)} className="block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={l.photos[0]?.url ?? "/favicon.ico"} alt={l.photos[0]?.altText ?? l.title} loading="lazy" className="h-36 w-full object-cover" />
+                        <img
+                          src={l.photos[0]?.url ?? "/favicon.ico"}
+                          alt={l.photos[0]?.altText ?? l.title}
+                          loading="lazy"
+                          width={288}
+                          height={144}
+                          className="h-36 w-full object-cover"
+                        />
                         <div className="p-2 text-sm font-medium truncate">{l.title}</div>
                       </Link>
                     </li>
@@ -562,7 +569,7 @@ export default async function BrowsePage({
       <div className="flex">
         <Link href={publicListingPath(l.id, l.title)} className="shrink-0 w-36 sm:w-44 aspect-square overflow-hidden bg-neutral-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={l.title} src={img} loading="lazy" className="h-full w-full object-cover" />
+          <img alt={l.title} src={img} loading="lazy" width={176} height={176} className="h-full w-full object-cover" />
         </Link>
         <div className="flex-1 min-w-0 p-4">
           <div className="flex items-start justify-between gap-3">
