@@ -6,6 +6,12 @@ import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
 import { labelPurchaseRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import {
+  appendLabelClawbackReviewNote,
+  labelClawbackErrorMessage,
+  labelClawbackReviewNote,
+  type LabelClawbackFailureReason,
+} from "@/lib/labelClawbackState";
 import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -66,6 +72,28 @@ function prioritizeAndTrim(rates: LiveRate[], max = 4): LiveRate[] {
     if (out.length >= max) break;
   }
   return out.map(({ __boost, ...rest }) => rest);
+}
+
+async function markLabelClawbackForReview(opts: {
+  orderId: string;
+  existingReviewNote?: string | null;
+  amountCents: number;
+  reason: LabelClawbackFailureReason;
+  shippoTransactionId?: string | null;
+  stripeTransferId?: string | null;
+  errorMessage?: string | null;
+}) {
+  const note = appendLabelClawbackReviewNote(
+    opts.existingReviewNote,
+    labelClawbackReviewNote(opts),
+  );
+  return prisma.order.update({
+    where: { id: opts.orderId },
+    data: {
+      reviewNeeded: true,
+      reviewNote: note,
+    },
+  });
 }
 
 async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
@@ -390,7 +418,7 @@ export async function POST(
     };
     const now = new Date();
 
-    const updated = await prisma.order.update({
+    let updated = await prisma.order.update({
       where: { id },
       data: {
         shippoTransactionId: txn.object_id,
@@ -413,6 +441,18 @@ export async function POST(
         console.warn(
           `Order ${id} has no stripeTransferId — label cost clawback of ${labelCostCents} cents must be handled manually.`
         );
+        Sentry.captureMessage("Stripe label cost clawback needs manual reconciliation", {
+          level: "warning",
+          tags: { source: "label_cost_clawback", reason: "missing_transfer" },
+          extra: { orderId: id, shippoTransactionId: txn.object_id, labelCostCents },
+        });
+        updated = await markLabelClawbackForReview({
+          orderId: id,
+          existingReviewNote: updated.reviewNote,
+          amountCents: labelCostCents,
+          reason: "missing_transfer",
+          shippoTransactionId: txn.object_id,
+        });
       } else {
         try {
           await stripe.transfers.createReversal(order.stripeTransferId, {
@@ -426,6 +466,15 @@ export async function POST(
           Sentry.captureException(stripeErr, {
             tags: { source: "label_cost_clawback" },
             extra: { orderId: id, stripeTransferId: order.stripeTransferId, labelCostCents },
+          });
+          updated = await markLabelClawbackForReview({
+            orderId: id,
+            existingReviewNote: updated.reviewNote,
+            amountCents: labelCostCents,
+            reason: "stripe_reversal_failed",
+            shippoTransactionId: txn.object_id,
+            stripeTransferId: order.stripeTransferId,
+            errorMessage: labelClawbackErrorMessage(stripeErr),
           });
         }
       }

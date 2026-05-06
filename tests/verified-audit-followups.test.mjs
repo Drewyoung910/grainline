@@ -58,4 +58,13 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("src/lib/stripe.ts"), /apiVersion: "2025-10-29\.clover"/);
     assert.match(source("CLAUDE.md"), /pins `"2025-10-29\.clover"` explicitly/);
   });
+
+  it("marks label-cost clawback failures for durable admin reconciliation", () => {
+    const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    assert.match(labelRoute, /markLabelClawbackForReview/);
+    assert.match(labelRoute, /reason: "missing_transfer"/);
+    assert.match(labelRoute, /reason: "stripe_reversal_failed"/);
+    assert.match(labelRoute, /reviewNeeded: true/);
+    assert.match(source("src/lib/labelClawbackState.ts"), /Staff must retry or manually reconcile/);
+  });
 });
