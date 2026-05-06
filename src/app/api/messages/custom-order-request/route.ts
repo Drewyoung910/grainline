@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { z } from "zod";
@@ -81,6 +82,7 @@ export async function POST(req: Request) {
         select: {
           id: true,
           acceptsCustomOrders: true,
+          acceptingNewOrders: true,
           chargesEnabled: true,
           vacationMode: true,
         },
@@ -91,7 +93,11 @@ export async function POST(req: Request) {
   if (seller.banned || seller.deletedAt) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
   if (!seller.sellerProfile) return NextResponse.json({ error: "This user is not a seller." }, { status: 400 });
   if (!seller.sellerProfile.acceptsCustomOrders) return NextResponse.json({ error: "This seller is not accepting custom orders." }, { status: 400 });
-  if (!seller.sellerProfile.chargesEnabled || seller.sellerProfile.vacationMode) {
+  const sellerBlockReason = sellerOrderBlockReason({ ...seller.sellerProfile, user: seller });
+  if (sellerBlockReason) {
+    return NextResponse.json({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
+  }
+  if (!seller.sellerProfile.chargesEnabled) {
     return NextResponse.json({ error: "This seller is not accepting new orders right now." }, { status: 400 });
   }
 

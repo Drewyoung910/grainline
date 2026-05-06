@@ -292,7 +292,12 @@ export default async function ListingPage({
   const reservedForMe = isPrivate && !!meId && listing.reservedForUserId === meId;
   const reservedForOther = isPrivate && (!meId || listing.reservedForUserId !== meId);
 
-  const canBuy = isActive && !isOwnListing && !isOutOfStock && !reservedForOther;
+  const canBuy =
+    isActive &&
+    !isOwnListing &&
+    !isOutOfStock &&
+    !reservedForOther &&
+    listing.seller.acceptingNewOrders !== false;
 
   // Processing time label
   let processingLabel: string | null = null;
@@ -474,6 +479,7 @@ export default async function ListingPage({
             sellerName={sellerName}
             userId={userId}
             canBuy={canBuy}
+            sellerAcceptingNewOrders={listing.seller.acceptingNewOrders !== false}
             isActive={isActive}
             isOwnListing={isOwnListing}
             isOutOfStock={canSubscribeForStockNotification}

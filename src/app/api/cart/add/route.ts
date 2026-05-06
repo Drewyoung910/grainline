@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import * as Sentry from "@sentry/nextjs";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 const CartAddSchema = z.object({
@@ -14,6 +16,10 @@ const CartAddSchema = z.object({
 });
 
 export const runtime = "nodejs";
+
+function isUniqueConstraintError(err: unknown) {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+}
 
 export async function POST(req: Request) {
   try {
@@ -56,17 +62,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You cannot add your own listing to cart." }, { status: 400 });
     }
 
-    if (listing.seller.user.banned || listing.seller.user.deletedAt) {
-      return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
-    }
-
     if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
       return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
     }
 
-    // block adding items from a vacationing seller
-    if (listing.seller.vacationMode) {
-      return NextResponse.json({ error: "This seller is currently on vacation and not accepting new orders." }, { status: 400 });
+    const sellerBlockReason = sellerOrderBlockReason(listing.seller);
+    if (sellerBlockReason) {
+      return NextResponse.json({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
     }
 
     // Block private/reserved listings
@@ -94,40 +96,75 @@ export async function POST(req: Request) {
 
     const variantKey = variantResolution.variantKey;
 
-    // ensure cart
-    let cart = await prisma.cart.findUnique({ where: { userId: me.id } });
-    if (!cart) cart = await prisma.cart.create({ data: { userId: me.id } });
+    const cart = await prisma.cart.upsert({
+      where: { userId: me.id },
+      create: { userId: me.id },
+      update: {},
+    });
 
-    const existingItem = await prisma.cartItem.findUnique({
-      where: {
-        cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-      },
-      select: { quantity: true },
-    });
-    const nextQuantity = listing.listingType === "MADE_TO_ORDER"
-      ? 1
-      : (existingItem?.quantity ?? 0) + quantity;
-    if (nextQuantity > 99) {
-      return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
+    let item;
+    if (listing.listingType === "MADE_TO_ORDER") {
+      item = await prisma.cartItem.upsert({
+        where: {
+          cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+        },
+        update: { quantity: 1, priceCents: totalPriceCents, priceVersion: listing.priceVersion },
+        create: {
+          cartId: cart.id,
+          listingId,
+          quantity: 1,
+          priceCents: totalPriceCents,
+          priceVersion: listing.priceVersion,
+          selectedVariantOptionIds,
+          variantKey,
+        },
+        include: { listing: true },
+      });
+    } else {
+      try {
+        item = await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            listingId,
+            quantity,
+            priceCents: totalPriceCents,
+            priceVersion: listing.priceVersion,
+            selectedVariantOptionIds,
+            variantKey,
+          },
+          include: { listing: true },
+        });
+      } catch (err) {
+        if (!isUniqueConstraintError(err)) throw err;
+      }
+
+      if (!item) {
+        const updated = await prisma.cartItem.updateMany({
+          where: {
+            cartId: cart.id,
+            listingId,
+            variantKey,
+            quantity: { lte: 99 - quantity },
+          },
+          data: {
+            quantity: { increment: quantity },
+            priceCents: totalPriceCents,
+            priceVersion: listing.priceVersion,
+            selectedVariantOptionIds,
+          },
+        });
+        if (updated.count === 0) {
+          return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
+        }
+        item = await prisma.cartItem.findUnique({
+          where: {
+            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+          },
+          include: { listing: true },
+        });
+        if (!item) throw new Error("CART_ITEM_MISSING_AFTER_UPDATE");
+      }
     }
-    const item = await prisma.cartItem.upsert({
-      where: {
-        cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-      },
-      update: listing.listingType === "MADE_TO_ORDER"
-        ? { quantity: 1, priceCents: totalPriceCents, priceVersion: listing.priceVersion } // MTO: always 1, don't accumulate
-        : { quantity: { increment: quantity }, priceCents: totalPriceCents, priceVersion: listing.priceVersion },
-      create: {
-        cartId: cart.id,
-        listingId,
-        quantity,
-        priceCents: totalPriceCents,
-        priceVersion: listing.priceVersion,
-        selectedVariantOptionIds,
-        variantKey,
-      },
-      include: { listing: true },
-    });
 
     return NextResponse.json({ ok: true, item });
   } catch (err) {

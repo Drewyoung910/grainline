@@ -11,6 +11,7 @@ import {
   safeFallbackShippingCents,
   type ShippoQuoteRate,
 } from "@/lib/shippingQuoteState";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { z } from "zod";
 
@@ -123,6 +124,10 @@ function pickupOnlyResponse({
   });
 }
 
+function quoteBlockedResponse(error: string, status = 400) {
+  return NextResponse.json({ rates: [], error }, { status });
+}
+
 /**
  * POST /api/shipping/quote
  * Body:
@@ -202,7 +207,13 @@ export async function POST(req: Request) {
           where: { id: body.cartId },
           include: {
             items: {
-              include: { listing: { include: { seller: true } } },
+              include: {
+                listing: {
+                  include: {
+                    seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+                  },
+                },
+              },
               where: body.sellerId ? { listing: { sellerId: body.sellerId } } : undefined,
             },
           },
@@ -221,7 +232,13 @@ export async function POST(req: Request) {
           where: { userId: me.id },
           include: {
             items: {
-              include: { listing: { include: { seller: true } } },
+              include: {
+                listing: {
+                  include: {
+                    seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
+                  },
+                },
+              },
               where: body.sellerId ? { listing: { sellerId: body.sellerId } } : undefined,
             },
           },
@@ -231,6 +248,57 @@ export async function POST(req: Request) {
         return NextResponse.json({ rates: [] });
       }
       sellerId = cart.items[0].listing.sellerId;
+
+      const sellerBlockedItem = cart.items.find((it) => sellerOrderBlockReason(it.listing.seller));
+      if (sellerBlockedItem) {
+        const reason = sellerOrderBlockReason(sellerBlockedItem.listing.seller)!;
+        return quoteBlockedResponse(sellerOrderBlockMessage(reason));
+      }
+
+      const paymentUnavailableItem = cart.items.find(
+        (it) => !it.listing.seller.chargesEnabled || !it.listing.seller.stripeAccountId,
+      );
+      if (paymentUnavailableItem) {
+        return quoteBlockedResponse("This seller is not currently accepting orders.");
+      }
+
+      const selfPurchaseItem = cart.items.find((it) => it.listing.seller.userId === me.id);
+      if (selfPurchaseItem) {
+        return quoteBlockedResponse("You cannot purchase your own listings.");
+      }
+
+      const inactiveItem = cart.items.find((it) => it.listing.status !== "ACTIVE");
+      if (inactiveItem) {
+        return quoteBlockedResponse(`"${inactiveItem.listing.title}" is no longer available.`);
+      }
+
+      const privateItem = cart.items.find(
+        (it) => it.listing.isPrivate && it.listing.reservedForUserId !== me.id,
+      );
+      if (privateItem) {
+        return quoteBlockedResponse("One or more items in your cart are not available for purchase.");
+      }
+
+      const invalidMadeToOrderItem = cart.items.find(
+        (it) => it.listing.listingType === "MADE_TO_ORDER" && it.quantity !== 1,
+      );
+      if (invalidMadeToOrderItem) {
+        return quoteBlockedResponse(`"${invalidMadeToOrderItem.listing.title}" can only be ordered one at a time.`);
+      }
+
+      const unavailableStockItem = cart.items.find((it) => {
+        if (it.listing.listingType !== "IN_STOCK") return false;
+        const available = it.listing.stockQuantity ?? 0;
+        return available <= 0 || it.quantity > available;
+      });
+      if (unavailableStockItem) {
+        const available = unavailableStockItem.listing.stockQuantity ?? 0;
+        return quoteBlockedResponse(
+          available <= 0
+            ? `"${unavailableStockItem.listing.title}" is currently out of stock.`
+            : `Only ${available} available for "${unavailableStockItem.listing.title}".`,
+        );
+      }
 
       // Load seller defaults + ship-from
       const seller = await prisma.sellerProfile.findUnique({
@@ -290,11 +358,41 @@ export async function POST(req: Request) {
     } else if (mode === "single") {
       const listing = await prisma.listing.findUnique({
         where: { id: body.listingId ?? "" },
-        include: { seller: true },
+        include: { seller: { include: { user: { select: { banned: true, deletedAt: true } } } } },
       });
       if (!listing) return NextResponse.json({ rates: [] });
 
       sellerId = listing.sellerId;
+      const qty = Math.max(1, body.quantity ?? 1);
+
+      if (listing.status !== "ACTIVE") {
+        return quoteBlockedResponse("This listing is not currently available.");
+      }
+      if (listing.isPrivate && listing.reservedForUserId !== me.id) {
+        return quoteBlockedResponse("This listing is not available for purchase.");
+      }
+      if (listing.seller.userId === me.id) {
+        return quoteBlockedResponse("You cannot buy your own listing.");
+      }
+      const sellerBlockReason = sellerOrderBlockReason(listing.seller);
+      if (sellerBlockReason) {
+        return quoteBlockedResponse(sellerOrderBlockMessage(sellerBlockReason));
+      }
+      if (!listing.seller.chargesEnabled || !listing.seller.stripeAccountId) {
+        return quoteBlockedResponse("This seller is not currently accepting orders.");
+      }
+      if (listing.listingType === "MADE_TO_ORDER" && qty > 1) {
+        return quoteBlockedResponse("Made-to-order items can only be ordered one at a time.");
+      }
+      if (listing.listingType === "IN_STOCK") {
+        const available = listing.stockQuantity ?? 0;
+        if (available <= 0) {
+          return quoteBlockedResponse("This item is currently out of stock.");
+        }
+        if (qty > available) {
+          return quoteBlockedResponse(`Only ${available} available.`);
+        }
+      }
 
       const seller = await prisma.sellerProfile.findUnique({
         where: { id: sellerId },
@@ -336,7 +434,6 @@ export async function POST(req: Request) {
         },
       };
 
-      const qty = Math.max(1, body.quantity ?? 1);
       const w = listing.packagedWeightGrams ?? seller.defaultPkgWeightGrams ?? 0;
       const l = listing.packagedLengthCm ?? seller.defaultPkgLengthCm ?? 0;
       const wi = listing.packagedWidthCm ?? seller.defaultPkgWidthCm ?? 0;

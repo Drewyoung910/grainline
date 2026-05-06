@@ -41,6 +41,7 @@ export default function ListingPurchasePanel({
   sellerName,
   userId,
   canBuy,
+  sellerAcceptingNewOrders,
   isActive,
   isOwnListing,
   isOutOfStock,
@@ -62,6 +63,7 @@ export default function ListingPurchasePanel({
   sellerName: string;
   userId: string | null;
   canBuy: boolean;
+  sellerAcceptingNewOrders: boolean;
   isActive: boolean;
   isOwnListing: boolean;
   isOutOfStock: boolean;
@@ -89,6 +91,7 @@ export default function ListingPurchasePanel({
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>(intentSelectedOptionIds);
   const variantRequired = hasVariants;
   const variantSelectionComplete = !variantRequired || selectedOptionIds.length === variantGroups.length;
+  const canPurchase = canBuy && sellerAcceptingNewOrders;
   const selectedVariantLabels = useMemo(() => {
     const selected = new Set(selectedOptionIds);
     return variantGroups.flatMap((group) => {
@@ -178,7 +181,7 @@ export default function ListingPurchasePanel({
       )}
 
       {/* Buy buttons */}
-      {canBuy && (
+      {canPurchase && (
         <div className="flex flex-col gap-2">
           {userId ? (
             <BuyNowButton
@@ -237,7 +240,7 @@ export default function ListingPurchasePanel({
       )}
 
       {/* Gift wrapping */}
-      {offersGiftWrapping && canBuy && (
+      {offersGiftWrapping && canPurchase && (
         <p className="text-xs text-neutral-500 flex items-center gap-1">
           <Gift size={13} className="text-neutral-500" /> Gift wrapping available
           {giftWrappingPriceCents

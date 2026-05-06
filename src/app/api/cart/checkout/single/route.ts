@@ -21,6 +21,7 @@ import {
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -91,6 +92,7 @@ export async function POST(req: Request) {
             stripeAccountId: true,
             chargesEnabled: true,
             vacationMode: true,
+            acceptingNewOrders: true,
             offersGiftWrapping: true,
             giftWrappingPriceCents: true,
             user: { select: { banned: true, deletedAt: true } },
@@ -122,16 +124,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You cannot buy your own listing." }, { status: 400 });
     }
 
-    if (listing.seller.user.banned || listing.seller.user.deletedAt) {
+    const sellerBlockReason = sellerOrderBlockReason(listing.seller);
+    if (sellerBlockReason) {
       return NextResponse.json(
-        { error: "This seller is not currently accepting orders." },
-        { status: 400 },
-      );
-    }
-
-    if (listing.seller.vacationMode) {
-      return NextResponse.json(
-        { error: "This seller is currently on vacation and not accepting new orders." },
+        { error: sellerOrderBlockMessage(sellerBlockReason) },
         { status: 400 },
       );
     }

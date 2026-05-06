@@ -20,20 +20,31 @@ export default function CaseResolutionPanel({
   async function resolve(resolution: string, refundAmountCents?: number) {
     setLoading(true);
     setError(null);
-    const body: Record<string, unknown> = { resolution };
-    if (refundAmountCents != null) body.refundAmountCents = refundAmountCents;
-    const res = await fetch(`/api/cases/${caseId}/resolve`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Failed to resolve case");
+    try {
+      const body: Record<string, unknown> = { resolution };
+      if (refundAmountCents != null) body.refundAmountCents = refundAmountCents;
+      const res = await fetch(`/api/cases/${caseId}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let data: { error?: string } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        setError(data.error ?? "Failed to resolve case");
+        return;
+      }
+      router.push("/admin/cases");
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    router.push("/admin/cases");
   }
 
   function handlePartialSubmit(e: React.FormEvent) {

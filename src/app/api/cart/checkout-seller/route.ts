@@ -19,6 +19,8 @@ import {
   releaseCheckoutLock,
 } from "@/lib/checkoutSessionLock";
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import { logSecurityEvent } from "@/lib/security";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -134,24 +136,20 @@ export async function POST(req: Request) {
     const destination = sellerItems[0].listing.seller.stripeAccountId || null;
     const sellerChargesEnabled = sellerItems[0].listing.seller.chargesEnabled ?? false;
 
-    if (
-      sellerItems[0].listing.seller.user.banned ||
-      sellerItems[0].listing.seller.user.deletedAt
-    ) {
-      return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
+    const sellerBlockReason = sellerOrderBlockReason(sellerItems[0].listing.seller);
+    if (sellerBlockReason) {
+      return NextResponse.json(
+        {
+          error: sellerOrderBlockMessage(sellerBlockReason),
+          blockedSellers: [{ sellerId, reason: sellerBlockReason }],
+        },
+        { status: 400 },
+      );
     }
 
     // Pre-flight: verify seller can accept payments
     if (!destination || !sellerChargesEnabled) {
       return NextResponse.json({ error: "This seller is not currently accepting orders. Please try again later." }, { status: 400 });
-    }
-
-    // Block orders to vacationing sellers
-    if (sellerItems[0].listing.seller.vacationMode) {
-      return NextResponse.json(
-        { error: "This seller is currently on vacation and not accepting new orders." },
-        { status: 400 },
-      );
     }
 
     // Block self-purchase (Stripe ToS violation)
@@ -300,6 +298,16 @@ export async function POST(req: Request) {
     );
 
     if (!rateVerification.ok) {
+      if (rateVerification.status === 400) {
+        logSecurityEvent("token_rejected", {
+          userId: me.id,
+          route: "/api/cart/checkout-seller",
+          reason: "invalid shipping rate token",
+          sellerId: body.sellerId,
+          objectIdPresent: !!body.selectedRate.objectId,
+          tokenLength: body.selectedRate.token.length,
+        });
+      }
       return NextResponse.json(
         { error: rateVerification.error },
         { status: rateVerification.status },

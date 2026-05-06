@@ -126,6 +126,7 @@ export async function POST(
     let stripeRefundIds: string[] = [];
     let refundNote: string | null = null;
     const refundAmountForOrder = refundAmountForResolution(resolution, caseRecord.order, refundAmountCents);
+    const persistedRefundAmountCents = refunding ? refundAmountForOrder : null;
 
     if (refunding) {
       const paymentIntentId = caseRecord.order.stripePaymentIntentId;
@@ -197,7 +198,7 @@ export async function POST(
     const now = new Date();
     const resolutionNote = [
       `Case resolved: ${resolution}`,
-      refundAmountCents ? `(refund: $${(refundAmountCents / 100).toFixed(2)})` : null,
+      persistedRefundAmountCents ? `(refund: $${(persistedRefundAmountCents / 100).toFixed(2)})` : null,
       refundNote,
       `by ${me.name ?? me.email} at ${now.toISOString()}`,
     ]
@@ -209,29 +210,30 @@ export async function POST(
         ? refundStockRestoreQuantities(caseRecord.order.items)
         : [];
     const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
-    const stockRestoreOps = stockRestores.map((restore) =>
-      prisma.listing.update({
-        where: { id: restore.listingId },
-        data: { stockQuantity: { increment: restore.quantity } },
-      }),
-    );
 
     let updatedCase;
     try {
-      [updatedCase] = await prisma.$transaction([
-        prisma.case.update({
-          where: { id },
+      updatedCase = await prisma.$transaction(async (tx) => {
+        const caseUpdate = await tx.case.updateMany({
+          where: {
+            id,
+            status: { notIn: ["RESOLVED", "CLOSED"] },
+            resolvedAt: null,
+          },
           data: {
             status: "RESOLVED",
             resolution,
-            refundAmountCents: refundAmountCents ?? null,
+            refundAmountCents: persistedRefundAmountCents,
             stripeRefundId,
             resolvedAt: now,
             resolvedById: me.id,
           },
-          include: { messages: true, order: true },
-        }),
-        prisma.order.update({
+        });
+        if (caseUpdate.count === 0) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+
+        await tx.order.update({
           where: { id: caseRecord.orderId },
           data: {
             reviewNeeded: true,
@@ -239,23 +241,30 @@ export async function POST(
             ...(refunding ? { sellerRefundLockedAt: null } : {}),
             ...(stripeRefundId ? { sellerRefundId: stripeRefundId, sellerRefundAmountCents: refundAmountForOrder } : {}),
           },
-        }),
-        ...stockRestoreOps,
-        ...(stockRestoreIds.length
-          ? [
-              prisma.listing.updateMany({
-                where: {
-                  id: { in: stockRestoreIds },
-                  listingType: "IN_STOCK",
-                  status: "SOLD_OUT",
-                  stockQuantity: { gt: 0 },
-                  isPrivate: false,
-                },
-                data: { status: "ACTIVE" },
-              }),
-            ]
-          : []),
-      ]);
+        });
+        for (const restore of stockRestores) {
+          await tx.listing.update({
+            where: { id: restore.listingId },
+            data: { stockQuantity: { increment: restore.quantity } },
+          });
+        }
+        if (stockRestoreIds.length) {
+          await tx.listing.updateMany({
+            where: {
+              id: { in: stockRestoreIds },
+              listingType: "IN_STOCK",
+              status: "SOLD_OUT",
+              stockQuantity: { gt: 0 },
+              isPrivate: false,
+            },
+            data: { status: "ACTIVE" },
+          });
+        }
+        return tx.case.findUniqueOrThrow({
+          where: { id },
+          include: { messages: true, order: true },
+        });
+      });
     } catch (txErr) {
       if (stripeRefundId) {
         console.error(`ORPHANED REFUND: ${stripeRefundId} for case ${id}. Manual reconciliation required.`);
@@ -278,6 +287,12 @@ export async function POST(
           where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: { sellerRefundId: null, sellerRefundLockedAt: null },
         }).catch(() => {});
+      }
+      if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_CONFLICT") {
+        return NextResponse.json(
+          { error: "Case status changed before this resolution could be saved. Refresh and try again." },
+          { status: 409 },
+        );
       }
       throw txErr;
     }
@@ -309,7 +324,7 @@ export async function POST(
             orderId: caseRecord.orderId,
             buyer: { name: buyerUser.name, email: buyerUser.email },
             resolution,
-            refundAmountCents: refundAmountCents ?? null,
+            refundAmountCents: persistedRefundAmountCents,
             currency: caseRecord.order.currency,
           });
         }
@@ -324,8 +339,8 @@ export async function POST(
         action: "RESOLVE_CASE",
         targetType: "CASE",
         targetId: id,
-        reason: `${resolution}${refundAmountCents ? ` ($${(refundAmountCents / 100).toFixed(2)})` : ""}`,
-        metadata: { resolution, refundAmountCents, stripeRefundId },
+        reason: `${resolution}${persistedRefundAmountCents ? ` ($${(persistedRefundAmountCents / 100).toFixed(2)})` : ""}`,
+        metadata: { resolution, refundAmountCents: persistedRefundAmountCents, stripeRefundId },
       });
     } catch { /* non-fatal */ }
 
