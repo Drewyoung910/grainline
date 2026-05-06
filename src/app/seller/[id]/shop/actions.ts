@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
-import { ListingStatus } from "@prisma/client";
+import { ListingStatus, ListingType } from "@prisma/client";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import {
   STAFF_REMOVAL_REJECTION_REASON,
@@ -224,7 +224,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         where: {
           id: listingId,
           sellerId: listing.sellerId,
+          status: listing.status,
           updatedAt: listing.updatedAt,
+          ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
           OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
         },
         data: {
@@ -253,7 +255,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         where: {
           id: listingId,
           sellerId: listing.sellerId,
+          status: listing.status,
           updatedAt: listing.updatedAt,
+          ...(listing.listingType === ListingType.IN_STOCK ? { stockQuantity: { gt: 0 } } : {}),
           OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
         },
         data: {
@@ -266,6 +270,14 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       if (updateResult.count === 0) {
         return { error: "Listing state changed; refresh and try again." };
       }
+      await prisma.$executeRaw`
+        UPDATE "Listing"
+        SET status = 'SOLD_OUT'
+        WHERE id = ${listingId}
+          AND "listingType" = 'IN_STOCK'
+          AND COALESCE("stockQuantity", 0) <= 0
+          AND status = 'ACTIVE'
+      `;
       await syncThreshold(listing.sellerId);
       if (shouldNotifyFollowers) {
         queueFollowerFanoutForActiveListing(listing);
@@ -275,10 +287,12 @@ export async function publishListingAction(listingId: string): Promise<{ status:
     }
   } catch {
     // Fail closed: AI review error → send to admin review (not ACTIVE)
-    await prisma.listing.updateMany({
+    const updateResult = await prisma.listing.updateMany({
       where: {
         id: listingId,
         sellerId: listing.sellerId,
+        status: listing.status,
+        updatedAt: listing.updatedAt,
         OR: [{ rejectionReason: null }, { rejectionReason: { not: STAFF_REMOVAL_REJECTION_REASON } }],
       },
       data: {
@@ -288,6 +302,9 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         rejectionReason: null,
       },
     });
+    if (updateResult.count === 0) {
+      return { error: "Listing state changed; refresh and try again." };
+    }
     revalidateListingSurfaces(listingId, listing.sellerId);
     return { status: "PENDING_REVIEW" as const };
   }

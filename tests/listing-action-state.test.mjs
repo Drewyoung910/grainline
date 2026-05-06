@@ -79,5 +79,13 @@ describe("listing shop action state", () => {
       publishListingBlockReason(listing({ status: ListingStatus.REJECTED, rejectionReason: STAFF_REMOVAL_REJECTION_REASON })),
       /removed by Grainline staff/,
     );
+    assert.match(
+      publishListingBlockReason(listing({
+        status: ListingStatus.DRAFT,
+        listingType: ListingType.IN_STOCK,
+        stockQuantity: 0,
+      })),
+      /Add stock/,
+    );
   });
 });
