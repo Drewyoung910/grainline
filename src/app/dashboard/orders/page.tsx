@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { orderTotalCents } from "@/lib/orderTotals";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -84,7 +85,7 @@ export default async function OrdersPage() {
                 : o.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
             const shipping = o.shippingAmountCents ?? 0;
             const tax = o.taxAmountCents ?? 0;
-            const total = itemsSubtotal + shipping + tax;
+            const total = orderTotalCents(o, { itemsSubtotalCents: itemsSubtotal });
             const refundAmountCents =
               o.sellerRefundAmountCents ?? latestRefundLedgerEvent(o.paymentEvents)?.amountCents ?? null;
 

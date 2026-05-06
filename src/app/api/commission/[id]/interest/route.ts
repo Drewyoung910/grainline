@@ -7,7 +7,10 @@ import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
 import { commissionInterestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
+import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { logSecurityEvent } from "@/lib/security";
+
+const COMMISSION_CLOSED_DURING_INTEREST = "COMMISSION_CLOSED_DURING_INTEREST";
 
 export async function POST(
   _req: NextRequest,
@@ -106,27 +109,24 @@ export async function POST(
   // Upsert conversation (canonical sort, race-safe)
   const buyerUserId = commissionRequest.buyerId;
   const [a, b] = [me.id, buyerUserId].sort((x, y) => (x < y ? -1 : 1));
-
-  let convo = await prisma.conversation.findUnique({
-    where: { userAId_userBId: { userAId: a, userBId: b } },
-  });
-  if (!convo) {
-    try {
-      convo = await prisma.conversation.create({ data: { userAId: a, userBId: b } });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        convo = await prisma.conversation.findUnique({
-          where: { userAId_userBId: { userAId: a, userBId: b } },
-        });
-      } else {
-        throw e;
-      }
-    }
-  }
-  if (!convo) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
+  let conversationId: string | null = null;
 
   try {
     await prisma.$transaction(async (tx) => {
+      const openGuard = await tx.commissionRequest.updateMany({
+        where: openCommissionMutationWhere(id),
+        data: { updatedAt: new Date() },
+      });
+      if (openGuard.count === 0) {
+        throw new Error(COMMISSION_CLOSED_DURING_INTEREST);
+      }
+      const convo = await tx.conversation.upsert({
+        where: { userAId_userBId: { userAId: a, userBId: b } },
+        update: { updatedAt: new Date() },
+        create: { userAId: a, userBId: b },
+        select: { id: true },
+      });
+      conversationId = convo.id;
       await tx.commissionInterest.create({
         data: {
           commissionRequestId: id,
@@ -143,6 +143,9 @@ export async function POST(
       });
     });
   } catch (e) {
+    if (e instanceof Error && e.message === COMMISSION_CLOSED_DURING_INTEREST) {
+      return NextResponse.json({ error: "Commission request is no longer open" }, { status: 409 });
+    }
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       const racedExisting = await prisma.commissionInterest.findUnique({
         where: {
@@ -159,6 +162,8 @@ export async function POST(
     }
     throw e;
   }
+  if (!conversationId) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
+  const finalConversationId = conversationId;
 
   // Send a structured system message to the buyer
   const sellerDisplayName = sellerProfile.displayName ?? me.name ?? "A maker";
@@ -168,7 +173,7 @@ export async function POST(
       await Promise.all([
         prisma.message.create({
           data: {
-            conversationId: convo.id,
+            conversationId: finalConversationId,
             senderId: me.id,
             recipientId: commissionRequest.buyerId,
             body: JSON.stringify({
@@ -188,12 +193,12 @@ export async function POST(
           type: "COMMISSION_INTEREST",
           title: `${sellerName} is interested in your commission`,
           body: `"${commissionRequest.title}" — view the conversation`,
-          link: `/messages/${convo.id}`,
+          link: `/messages/${finalConversationId}`,
           dedupScope: id,
         }),
       ]);
     } catch { /* non-fatal */ }
   });
 
-  return NextResponse.json({ conversationId: convo.id, alreadyInterested: false });
+  return NextResponse.json({ conversationId: finalConversationId, alreadyInterested: false });
 }

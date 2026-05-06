@@ -11,10 +11,19 @@ const REASON_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-export default function OpenCaseForm({ orderId }: { orderId: string }) {
+export default function OpenCaseForm({
+  orderId,
+  allowNotReceived = true,
+}: {
+  orderId: string;
+  allowNotReceived?: boolean;
+}) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
-  const [reason, setReason] = useState("NOT_RECEIVED");
+  const reasonEntries = Object.entries(REASON_LABELS).filter(
+    ([value]) => allowNotReceived || value !== "NOT_RECEIVED",
+  );
+  const [reason, setReason] = useState(allowNotReceived ? "NOT_RECEIVED" : "DAMAGED");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +76,7 @@ export default function OpenCaseForm({ orderId }: { orderId: string }) {
           className="w-full rounded border bg-white px-3 py-1.5 text-sm"
           disabled={loading}
         >
-          {Object.entries(REASON_LABELS).map(([val, label]) => (
+          {reasonEntries.map(([val, label]) => (
             <option key={val} value={val}>
               {label}
             </option>

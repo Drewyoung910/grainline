@@ -13,6 +13,7 @@ import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { orderTotalCents } from "@/lib/orderTotals";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
@@ -129,7 +130,8 @@ export default async function BuyerOrderDetailPage({
       : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shipping = order.shippingAmountCents ?? 0;
   const tax = order.taxAmountCents ?? 0;
-  const total = itemsSubtotal + shipping + tax;
+  const giftWrapping = order.giftWrappingPriceCents ?? 0;
+  const total = orderTotalCents(order, { itemsSubtotalCents: itemsSubtotal });
 
   const hasAddress =
     !!(order.shipToLine1 || order.shipToCity || order.shipToPostalCode || order.shipToCountry);
@@ -141,13 +143,13 @@ export default async function BuyerOrderDetailPage({
 
   // Case eligibility
   const now = new Date();
-  const deliveryPassed =
-    order.estimatedDeliveryDate != null && order.estimatedDeliveryDate < now;
   const terminalStatuses = ["DELIVERED", "PICKED_UP"];
+  const isTerminal = terminalStatuses.includes(status);
+  const deliveryPassed =
+    isTerminal || (order.estimatedDeliveryDate != null && order.estimatedDeliveryDate < now);
   const canOpenCase =
     deliveryPassed &&
-    !order.case &&
-    !terminalStatuses.includes(status);
+    !order.case;
 
   const activeCase = order.case;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
@@ -193,8 +195,6 @@ export default async function BuyerOrderDetailPage({
 
   const deliveryInFuture =
     order.estimatedDeliveryDate != null && order.estimatedDeliveryDate >= now;
-  const isTerminal = terminalStatuses.includes(status);
-
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
       <Link href="/dashboard/orders" className="text-sm text-neutral-500 hover:text-neutral-700 mb-4 inline-flex items-center gap-1">
@@ -332,6 +332,12 @@ export default async function BuyerOrderDetailPage({
             <div className="text-neutral-600">Tax</div>
             <div className="font-medium">{fmtMoney(tax, currency)}</div>
           </div>
+          {giftWrapping > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="text-neutral-600">Gift wrapping</div>
+              <div className="font-medium">{fmtMoney(giftWrapping, currency)}</div>
+            </div>
+          )}
           <hr className="my-1 border-neutral-100" />
           {hasRefund && refundCents != null && (
             <div className="flex items-center justify-between text-green-700">
@@ -496,7 +502,7 @@ export default async function BuyerOrderDetailPage({
         </section>
       ) : canOpenCase ? (
         <section>
-          <OpenCaseForm orderId={order.id} />
+          <OpenCaseForm orderId={order.id} allowNotReceived={!isTerminal} />
         </section>
       ) : !isTerminal ? (
         deliveryInFuture ? (

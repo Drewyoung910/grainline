@@ -7,6 +7,7 @@ import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { orderTotalCents } from "@/lib/orderTotals";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -111,8 +112,9 @@ export default async function SalesPage({
               const currency = o.currency ?? "usd";
               const shipping = o.shippingAmountCents ?? 0;
               const tax = o.taxAmountCents ?? 0;
+              const giftWrapping = o.giftWrappingPriceCents ?? 0;
               // Use this seller's items subtotal (not all-seller itemsSubtotalCents)
-              const orderTotal = mySubtotalCents + shipping + tax;
+              const orderTotal = orderTotalCents(o, { itemsSubtotalCents: mySubtotalCents });
               const status = o.fulfillmentStatus ?? "PENDING";
               const refundAmountCents =
                 o.sellerRefundAmountCents ?? latestRefundLedgerEvent(o.paymentEvents)?.amountCents ?? null;
@@ -188,6 +190,12 @@ export default async function SalesPage({
                       <span className="text-neutral-600">Tax</span>
                       <span className="font-medium">{fmtMoney(tax, currency)}</span>
                     </div>
+                    {giftWrapping > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-neutral-600">Gift wrapping</span>
+                        <span className="font-medium">{fmtMoney(giftWrapping, currency)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
                       <span className="text-neutral-800">Order total</span>
                       <span className="text-base font-semibold">

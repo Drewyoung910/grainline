@@ -5,6 +5,7 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { orderTotalCents } from "@/lib/orderTotals";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default async function AccountOrdersPage({
         itemsSubtotalCents: true,
         shippingAmountCents: true,
         taxAmountCents: true,
+        giftWrappingPriceCents: true,
         sellerRefundAmountCents: true,
         fulfillmentStatus: true,
         labelTrackingNumber: true,
@@ -121,11 +123,7 @@ export default async function AccountOrdersPage({
       ) : (
         <ul className="space-y-4">
           {orders.map((order) => {
-            const computedTotal =
-              (order.itemsSubtotalCents || 0) + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0);
-            const total = computedTotal > 0
-              ? computedTotal
-              : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+            const total = orderTotalCents(order);
             const refundAmountCents =
               order.sellerRefundAmountCents ?? latestRefundLedgerEvent(order.paymentEvents)?.amountCents ?? null;
 

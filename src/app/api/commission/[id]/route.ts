@@ -8,6 +8,7 @@ import { createNotification } from "@/lib/notifications";
 import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { z } from "zod";
 
 const CommissionPatchSchema = z.object({
@@ -119,6 +120,9 @@ export async function PATCH(
   });
   if (!request) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (request.buyerId !== me.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (request.status !== CommissionStatus.OPEN) {
+    return NextResponse.json({ error: "Commission request is no longer open" }, { status: 400 });
+  }
   if (commissionIsExpired(request)) {
     return NextResponse.json({ error: "Commission request has expired" }, { status: 400 });
   }
@@ -137,11 +141,14 @@ export async function PATCH(
     return NextResponse.json({ error: "A commission request needs at least one interested maker before it can be fulfilled." }, { status: 400 });
   }
 
-  const updated = await prisma.commissionRequest.update({
-    where: { id },
+  const result = await prisma.commissionRequest.updateMany({
+    where: openCommissionMutationWhere(id, new Date(), { buyerId: me.id }),
     data: { status: status as CommissionStatus },
-    select: { id: true, status: true },
   });
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Commission request is no longer open" }, { status: 409 });
+  }
+  const updated = { id, status: status as CommissionStatus };
 
   // Notify interested sellers
   const isFulfilled = (status as CommissionStatus) === CommissionStatus.FULFILLED;

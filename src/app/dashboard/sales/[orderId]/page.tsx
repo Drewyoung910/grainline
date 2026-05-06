@@ -15,6 +15,7 @@ import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { orderTotalCents } from "@/lib/orderTotals";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -125,7 +126,8 @@ export default async function SellerOrderDetailPage({
     order.itemsSubtotalCents && order.itemsSubtotalCents > 0
       ? order.itemsSubtotalCents
       : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
-  const orderTotal = itemsSubtotal + shipping + tax;
+  const giftWrapping = order.giftWrappingPriceCents ?? 0;
+  const orderTotal = orderTotalCents(order, { itemsSubtotalCents: itemsSubtotal });
   const hasAddress =
     !!(order.shipToLine1 || order.shipToCity || order.shipToPostalCode || order.shipToCountry);
   const shippingDetailsPurged =
@@ -451,6 +453,12 @@ export default async function SellerOrderDetailPage({
             <span className="text-neutral-600">Tax</span>
             <span className="font-medium">{fmtMoney(tax, currency)}</span>
           </div>
+          {giftWrapping > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-600">Gift wrapping</span>
+              <span className="font-medium">{fmtMoney(giftWrapping, currency)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between pt-2 border-t border-neutral-100">
             <span className="text-neutral-800">Order total</span>
             <span className="text-base font-semibold">{fmtMoney(orderTotal, currency)}</span>

@@ -11,6 +11,7 @@ import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { sendEmailWithRetry } from "@/lib/emailRetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { orderTotalCents } from "@/lib/orderTotals";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -123,12 +124,20 @@ function itemTable(items: { title: string; quantity: number; priceCents: number 
   </table>`;
 }
 
-function totalsTable(order: { itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number; currency?: string | null }): string {
-  const total = order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+function totalsTable(order: {
+  itemsSubtotalCents: number;
+  shippingAmountCents: number;
+  taxAmountCents: number;
+  giftWrappingPriceCents?: number | null;
+  currency?: string | null;
+}): string {
+  const giftWrappingPriceCents = order.giftWrappingPriceCents ?? 0;
+  const total = orderTotalCents(order);
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
     <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
     <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>
     <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>
+    ${giftWrappingPriceCents > 0 ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(giftWrappingPriceCents, order.currency)}</td></tr>` : ""}
     <tr>
       <td style="font-size:15px;font-weight:700;color:#1C1C1A;padding:10px 0 3px;border-top:1px solid #E2E0DC;">Total</td>
       <td style="font-size:15px;font-weight:700;color:#1C1C1A;text-align:right;padding:10px 0 3px;border-top:1px solid #E2E0DC;">${fmtCents(total, order.currency)}</td>
@@ -239,6 +248,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     itemsSubtotalCents: number;
     shippingAmountCents: number;
     taxAmountCents: number;
+    giftWrappingPriceCents?: number | null;
     currency?: string | null;
     estimatedDeliveryDate?: Date | null;
     shipToLine1?: string | null;
@@ -285,6 +295,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
     itemsSubtotalCents: number;
     shippingAmountCents: number;
     taxAmountCents: number;
+    giftWrappingPriceCents?: number | null;
     currency?: string | null;
     processingDeadline?: Date | null;
   };
@@ -663,12 +674,19 @@ export async function sendFirstListingCongrats(opts: Parameters<typeof renderFir
 
 export function renderFirstSaleCongratsEmail(opts: {
   seller: { displayName?: string | null; email: string };
-  order: { id: string; itemsSubtotalCents: number; shippingAmountCents: number; taxAmountCents: number; currency?: string | null };
+  order: {
+    id: string;
+    itemsSubtotalCents: number;
+    shippingAmountCents: number;
+    taxAmountCents: number;
+    giftWrappingPriceCents?: number | null;
+    currency?: string | null;
+  };
 }) {
   const { seller, order } = opts;
   const name = seller.displayName || "there";
   const orderUrl = `${APP_URL}/dashboard/sales/${order.id}`;
-  const total = order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+  const total = orderTotalCents(order);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, you made your first sale! 🎉</p>

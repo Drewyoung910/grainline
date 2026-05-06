@@ -32,6 +32,7 @@ export async function GET() {
         itemsSubtotalCents: true,
         shippingAmountCents: true,
         taxAmountCents: true,
+        giftWrappingPriceCents: true,
         currency: true,
         fulfillmentStatus: true,
         buyer: { select: { name: true } },

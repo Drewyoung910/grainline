@@ -3,6 +3,10 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import {
+  canAttachConversationContextListing,
+  canStartConversationWith,
+} from "@/lib/conversationStartState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -17,17 +21,55 @@ export default async function NewConversationPage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/messages/new");
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) redirect("/sign-in?redirect_url=/messages/new");
+  if (me.banned || me.deletedAt) redirect("/messages");
 
   if (!to) redirect("/messages");
 
-  const other = await prisma.user.findUnique({ where: { id: to } });
-  if (!other || other.id === me.id) redirect("/messages");
+  const other = await prisma.user.findUnique({
+    where: { id: to },
+    select: { id: true, banned: true, deletedAt: true },
+  });
+  if (!other) redirect("/messages");
+  const blockExists = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: other.id },
+        { blockerId: other.id, blockedId: me.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!canStartConversationWith(me.id, other, !!blockExists)) redirect("/messages");
 
   // Canonicalize participant order
   const [a, b] = [me.id, other.id].sort((x, y) => (x < y ? -1 : 1));
-  const contextListingId = listing ?? null;
+  let contextListingId: string | null = null;
+  if (listing) {
+    const contextListing = await prisma.listing.findUnique({
+      where: { id: listing },
+      select: {
+        id: true,
+        status: true,
+        isPrivate: true,
+        reservedForUserId: true,
+        seller: {
+          select: {
+            chargesEnabled: true,
+            vacationMode: true,
+            user: { select: { id: true, banned: true, deletedAt: true } },
+          },
+        },
+      },
+    });
+    if (contextListing && canAttachConversationContextListing(contextListing, [me.id, other.id])) {
+      contextListingId = contextListing.id;
+    }
+  }
 
   // Prefer upsert to avoid race + preserve existing context
   // (We won't overwrite contextListingId if the convo already exists.)
@@ -67,5 +109,3 @@ export default async function NewConversationPage({
 
   redirect(`/messages/${convo.id}`);
 }
-
-

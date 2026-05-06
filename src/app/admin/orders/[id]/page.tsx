@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import AdminOrderActions from "./AdminOrderActions";
 import { publicListingPath } from "@/lib/publicPaths";
 import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { orderTotalCents } from "@/lib/orderTotals";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
@@ -82,10 +83,7 @@ export default async function AdminOrderDetailPage({
   if (!order) notFound();
 
   const currency = order.currency ?? "usd";
-  const total =
-    (order.itemsSubtotalCents ?? 0) +
-    (order.shippingAmountCents ?? 0) +
-    (order.taxAmountCents ?? 0);
+  const total = orderTotalCents(order);
 
   // Fulfillment timeline entries
   const timeline: { label: string; at: Date | null }[] = [
@@ -237,6 +235,12 @@ export default async function AdminOrderDetailPage({
             <span>Tax</span>
             <span>{fmtMoney(order.taxAmountCents, currency)}</span>
           </div>
+          {(order.giftWrappingPriceCents ?? 0) > 0 && (
+            <div className="flex justify-between text-neutral-600">
+              <span>Gift wrapping</span>
+              <span>{fmtMoney(order.giftWrappingPriceCents, currency)}</span>
+            </div>
+          )}
           <div className="flex justify-between border-t border-neutral-100 pt-2 font-semibold">
             <span>Total</span>
             <span>{fmtMoney(total, currency)}</span>

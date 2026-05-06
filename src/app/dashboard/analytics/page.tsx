@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Eye, Heart, Bell } from "@/components/icons";
 import { publicListingPath } from "@/lib/publicPaths";
+import { orderTotalCents } from "@/lib/orderTotals";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -844,6 +845,7 @@ function RecentSales() {
         itemsSubtotalCents: number;
         shippingAmountCents: number;
         taxAmountCents: number;
+        giftWrappingPriceCents: number | null;
         currency: string;
         fulfillmentStatus: string | null;
         buyer: { name: string | null } | null;
@@ -928,8 +930,12 @@ function RecentSales() {
             </thead>
             <tbody className="divide-y divide-neutral-100">
               {sales.map((order) => {
-                const total =
-                  order.itemsSubtotalCents + order.shippingAmountCents + order.taxAmountCents;
+                const total = orderTotalCents({
+                  itemsSubtotalCents: order.itemsSubtotalCents,
+                  shippingAmountCents: order.shippingAmountCents,
+                  taxAmountCents: order.taxAmountCents,
+                  giftWrappingPriceCents: order.giftWrappingPriceCents,
+                });
                 const title = order.items[0]?.listing.title ?? "Order";
                 const buyerFirstName = order.buyer?.name?.split(" ")[0] ?? "Buyer";
                 return (

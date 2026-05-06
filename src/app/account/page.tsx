@@ -5,6 +5,7 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import type { Metadata } from "next";
 import ClickTracker from "@/components/ClickTracker";
 import { publicListingPath } from "@/lib/publicPaths";
+import { orderTotalCents } from "@/lib/orderTotals";
 
 export const metadata: Metadata = {
   title: "My Account",
@@ -26,6 +27,7 @@ export default async function AccountPage() {
         itemsSubtotalCents: true,
         shippingAmountCents: true,
         taxAmountCents: true,
+        giftWrappingPriceCents: true,
         currency: true,
         fulfillmentStatus: true,
         items: {
@@ -167,11 +169,7 @@ export default async function AccountPage() {
             {recentOrders.map((order) => {
               const firstItem = order.items[0];
               const thumb = firstItem?.listing.photos[0]?.url;
-              const computedTotal =
-                (order.itemsSubtotalCents || 0) + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0);
-              const total = computedTotal > 0
-                ? computedTotal
-                : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+              const total = orderTotalCents(order);
 
               return (
                 <li key={order.id} className="flex items-center gap-4 p-3 hover:bg-neutral-50 transition-colors">
