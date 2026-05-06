@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-04-30
+Last updated: 2026-05-05
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -8,7 +8,7 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-04-30 critical-stale/cron reconciliation pass: **42** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-05 dependency audit override pass: **41** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -173,6 +173,7 @@ Latest mechanical open-heading count after the 2026-04-30 critical-stale/cron re
 - **Accessibility/motion reconciliation pass closed nine items.** Cart quantity labels are now associated, avatar/notification popovers expose correct ARIA state and close on focus leave, hero mosaic animation has a pause control plus stable keys and reduced-motion image transforms, photo reorder labels describe ordering instead of grid direction, admin mobile nav exposes the active page, and the geo-blocking header dependency is documented as Vercel-ingress-only.
 - **Critical stale/cron reconciliation pass closed seventeen items.** The raw refund/unsubscribe/staff-removal criticals were re-verified fixed in current code, stale duplicate export/security assertions were marked closed, notification preference drift is covered by tests, quality-score/deleted-listing and gallery/favorite UI findings were verified stale, and cron-run failed-state reclaim now has an explicit retry cap with Sentry visibility.
 - **Sitemap index 404 closed (2026-05-01).** `robots.txt` advertised `https://thegrainline.com/sitemap.xml` but Next.js's `generateSitemaps()` only emits chunked URLs at `/sitemap/N.xml`; the bare `/sitemap.xml` returned 404 for ~5 days, silently breaking sitemap-driven URL discovery. Initial fix put a custom route at `app/sitemap.xml/route.ts` and that broke the Turbopack build with "Conflicting route and metadata at /sitemap.xml" because Next.js reserves that path for the chunked metadata convention. Final fix moves the index to `/sitemap_index.xml` (`src/app/sitemap_index.xml/route.ts`) and updates `robots.txt` to advertise that URL. Crawlers accept any URL listed in the `Sitemap:` directive. The Prisma-free chunk-count helper `src/lib/sitemapIndex.ts` ships with a regression test. Found while doing a post-outage status check, not from the audit doc.
+- **Dependency audit override pass closed the remaining moderate audit findings (2026-05-05).** `npm audit --audit-level=moderate` now reports zero vulnerabilities after pinning `@hono/node-server` to 1.19.13 through npm overrides and forcing Next's nested PostCSS copy to dedupe to patched `postcss` 8.5.10. This avoids the risky `npm audit fix --force` Prisma downgrade.
 
 ## Recommended Fix Order
 
@@ -1478,7 +1479,7 @@ The section below is the verbatim chronological round-by-round content from the 
 
 🟢 **LOW (5)**
 
-11. **`@hono/node-server` middleware-bypass CVE via `@prisma/dev`** — moderate severity. Only dev tooling. Fix via `prisma@latest`.
+11. **[FIXED 2026-05-05] `@hono/node-server` middleware-bypass CVE via `@prisma/dev`** — live `npm audit` confirmed the advisory still applied through Prisma's dev tooling. `package.json` now overrides `@hono/node-server` to 1.19.13, avoiding the `npm audit fix --force` Prisma downgrade, and `npm audit --audit-level=moderate` reports zero vulnerabilities.
 12. **[FIXED 2026-05-01] `@clerk/nextjs` auth-bypass CVE patched** — GHSA-w24r-5266-9c3c (combining org/billing/reverification checks) was published against `@clerk/shared 4.0.0-4.8.2`. We were on 4.8.2 transitively via `@clerk/nextjs 7.2.3`. `npm audit fix` bumped to `@clerk/nextjs 7.3.0` / `@clerk/shared 4.9.0` (lockfile-only — package.json caret range already covered). CI was failing on `npm audit --audit-level=high` for ~24h before the patch landed; site itself was unaffected because the bypass requires combining specific check kinds Grainline does not currently call. The earlier 2026-04-29 finding about Next 16.2.4 / Clerk advisory is a separate (now also closed) middleware-bypass CVE — see CLAUDE.md security audit history.
 13. **[FIXED 2026-04-30] 404/500 error pages lack `noindex`** — `not-found.tsx` now exports noindex metadata, and the client error boundary injects a `robots=noindex,nofollow` meta tag while rendering the 500 fallback, then restores any previous robots meta content on cleanup.
 14. **[FIXED 2026-04-30] Reverse-geocode URL interpolation** — `reverseGeocode()` now rejects non-finite and out-of-range lat/lng values before network I/O, and builds the Nominatim URL with `URLSearchParams` instead of string interpolation.
@@ -3010,9 +3011,9 @@ Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{
 ✅ **0 critical, 0 high CVEs.** 14 moderate findings — all transitive or unreachable in our codepath. No launch blockers.
 
 Notable items worth tracking:
-- `postcss <8.5.10` (GHSA-qx2v-qp2m-jg93) — XSS via unescaped `</style>`. Pinned by Next 16; not exploitable (no user-controlled CSS rendering). Wait for Next 16.2.5+.
+- **[FIXED 2026-05-05]** `postcss <8.5.10` (GHSA-qx2v-qp2m-jg93) — XSS via unescaped `</style>`. `package.json` pins root `postcss` to 8.5.10 and overrides transitive PostCSS so Next's nested 8.4.31 copy is removed/deduped to the patched version.
 - `fast-xml-parser <5.7.0` (transitive via @aws-sdk/xml-builder) — XML CDATA injection. We send S3 PUT only, no XML parsing. `npm audit fix` resolves.
-- `hono` 6 advisories — dev-only via `@prisma/dev`. Not in production runtime. Fix would downgrade Prisma 6.19.3 (regression).
+- **[FIXED 2026-05-05]** `hono` advisories — dev-only via `@prisma/dev`, now cleared by overriding `@hono/node-server` to 1.19.13 without downgrading Prisma.
 - `protocol-buffers-schema <3.6.1` (prototype pollution) — transitive via maplibre-gl. Server-rendered tiles only; client uses trusted OpenFreeMap source. `npm audit fix` resolves.
 
 **Recommended config tightening (not bugs):**

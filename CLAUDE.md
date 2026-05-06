@@ -3566,6 +3566,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **@clerk/nextjs 7.0.7 → 7.2.3** — fixes middleware route protection bypass (GHSA-vqx2-fgx2-5wq9). Attacker could access `/dashboard`, `/admin`, etc. without auth.
 - **@clerk/nextjs 7.2.3 → 7.3.0** (2026-05-01) — fixes authorization bypass when combining organization/billing/reverification checks (GHSA-w24r-5266-9c3c). Lockfile-only bump via `npm audit fix`; the package.json `^7.2.3` caret range already covered 7.3.0. Affected transitive packages: `@clerk/shared 4.8.2 → 4.9.0`, `@clerk/backend 3.2.13 → 3.4.4`, `@clerk/react 6.4.2 → 6.5.0`. CI's `npm audit --audit-level=high` had been red for ~24h before the patch.
 - **next 16.2.1 → 16.2.4** — fixes Server Components DoS (GHSA-q4gf-8mx6-v5v3). Crafted request crashes Vercel instance.
+- **Dependency audit overrides (2026-05-05)** — `@hono/node-server` is overridden to 1.19.13 to clear Prisma dev-tooling middleware-bypass advisories without downgrading Prisma, and `postcss` is pinned/overridden to 8.5.10 so Next's nested vulnerable 8.4.31 copy is deduped. `npm audit --audit-level=moderate` reports zero vulnerabilities after this override pass.
 
 ### High fixes
 - **Banned seller listings via direct URL** — `listing/[id]/page.tsx` had no `seller.user.banned` check. Added `notFound()` after chargesEnabled check. Contrast: `seller/[id]/page.tsx` already had this.
@@ -3602,7 +3603,6 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 
 ### Known remaining items (not security-critical)
 - `defu` prototype pollution (transitive via Prisma) — build-time only, not runtime. Prisma upgraded to 7.7 but `defu` fix requires upstream `c12` update.
-- `hono` CVEs (transitive via `@prisma/dev`) — not in production runtime, dev tooling only
 - `Conversation`/`Message` lack `onDelete: Cascade` — will matter for GDPR account deletion
 - `UserReport` missing `resolvedAt`/`resolvedById` fields — audit trail gap
 
@@ -3913,13 +3913,13 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 2. Deploy in report-only mode first; check Sentry for new violations
 3. Once clean, enforce by changing `Content-Security-Policy-Report-Only` → `Content-Security-Policy`
 
-**npm audit cadence**: Run `npm audit` after every major dependency upgrade. Fix moderate/high vulnerabilities unless they are in transitive deps with no available fix (document the reason in a comment). Do NOT run `npm audit fix --force`.
+**npm audit cadence**: Run `npm audit` after every major dependency upgrade. Fix moderate/high vulnerabilities unless they are in transitive deps with no available fix (document the reason in a comment). Prefer targeted version bumps or npm `overrides` for safe transitive patches. Do NOT run `npm audit fix --force`.
 
 ## Production Deployment
 
 - **Live at**: [thegrainline.com](https://thegrainline.com) — deployed to Vercel, DNS via Cloudflare
 - **Next.js** 16.2.4 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3)
-- **Clerk** v7.2.3 (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix)
+- **Clerk** v7.3.0 in lockfile (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix; 7.3.0 also fixes GHSA-w24r-5266-9c3c)
 - **Stripe SDK** 19.3 (explicit `apiVersion` removed — uses SDK default)
 - **Prisma** 7.7.0 (upgraded from 7.6.0 via Dependabot)
 - **React** 19.2.5, **@sentry/nextjs** 10.49, **maplibre-gl** 5.23, **resend** 6.12
@@ -5936,6 +5936,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 
 ### Behavior changes future agents must preserve
 - **Audit workflow**: every audit/fix pass must update `audit_open_findings.md`, update this file when architecture/env/schema changed, run verification, and land a scoped commit before starting the next batch.
+- **Dependency override behavior**: `package.json` uses npm `overrides` for audited transitive fixes that should not require risky major/downgrade churn. Current overrides force `@hono/node-server` 1.19.13 for Prisma dev tooling and `postcss` 8.5.10 for Next's nested dependency. Keep `npm audit --audit-level=moderate` at zero unless a new advisory is explicitly documented.
 - **Operations runbook**: `docs/runbook.md` is the operational reference for incident triage, rollback, secret rotation, webhook recovery, database restore drills, cron/email-outbox triage, and support/legal queue handling.
 - **Public URL behavior**: listing/seller stale slug variants redirect permanently to canonical `id--slug` paths after access checks. Metadata paths call `notFound()` for missing/non-public records instead of returning `{}` soft defaults.
 - **Anonymous cart behavior**: signed-out add-to-cart uses browser storage and `cartEvents.ts`; signed-in cart APIs remain server-authoritative. Header/cart count must account for both flows.
