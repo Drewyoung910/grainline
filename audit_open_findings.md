@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-05
+Last updated: 2026-05-06
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -8,7 +8,9 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-05-06 R62 performance follow-up pass: **0** broad unclosed numbered findings in the current mechanical fix queue. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-06 R62 performance follow-up pass: **0** broad unclosed numbered findings in the prior mechanical fix queue. The 2026-05-06 audit-only sweep below adds **5 verified code findings** plus **2 verified improvement/documentation items** that have not been fixed yet. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
+
+2026-05-06 audit-only sweep found seven verified follow-ups and made no application-code changes. Code findings: `/messages/new` trusts arbitrary recipient/listing context and can attach private/inactive/unrelated listings to conversations; commission request PATCH can rewrite terminal `CLOSED`/`FULFILLED` state and the interest route can race a close into a stale interest/conversation; gift-wrapping charges are omitted from several buyer/seller/admin order totals and from the seller refund UI max even though checkout/refund math includes them; buyer order detail hides the case form for `DELIVERED`/`PICKED_UP` orders despite the API allowing damaged/wrong/not-as-described cases; label-cost transfer reversal failures are Sentry-only and need a durable staff-visible retry/reconciliation marker. Improvement/documentation items: Stripe client/docs drift (`src/lib/stripe.ts` now pins `2025-10-29.clover` while `CLAUDE.md` says the explicit API version was removed) and Connect onboarding still creates legacy Express accounts, which should be evaluated in a dedicated Stripe modernization pass rather than mixed into bug fixes.
 
 2026-05-05 form/photo uploader pass closed six reproducible or stale-open findings: custom listings now use the shared `PhotoManager` path with seller/AI alt-text persistence, the dead `ImagesUploader` component was removed, money inputs flow through `parseMoneyInputToCents()` instead of `parseFloat`/`Number` exponent parsing, browse and saved-search price filters keep the dollars-to-cents boundary explicit, numeric controls advertise decimal/numeric keyboards, and the lingering "CUID-only public URL" SEO item was verified stale because listing/seller URLs now use canonical `id--slug` paths.
 
