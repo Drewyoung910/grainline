@@ -1,6 +1,7 @@
 // src/components/SellerRefundPanel.tsx
 "use client";
 import * as React from "react";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 type Props = {
   orderId: string;
@@ -70,12 +71,11 @@ export default function SellerRefundPanel({
     let amountCents: number | null = null;
 
     if (type === "PARTIAL") {
-      const parsed = parseFloat(partialAmount);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
+      amountCents = parseMoneyInputToCents(partialAmount);
+      if (amountCents === null || amountCents <= 0) {
         setError("Enter a valid refund amount.");
         return;
       }
-      amountCents = Math.round(parsed * 100);
       if (amountCents > effectiveMax) {
         setError(`Refund amount cannot exceed ${fmtMoney(effectiveMax, currency)}.`);
         return;
@@ -173,11 +173,9 @@ export default function SellerRefundPanel({
           <div className="flex items-center gap-2">
             <span className="text-sm text-neutral-600">$</span>
             <input
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.01"
-              min="0.01"
-              max={(effectiveMax / 100).toFixed(2)}
+              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
               value={partialAmount}
               onChange={(e) => { setPartialAmount(e.target.value); setError(null); }}
               placeholder="0.00"

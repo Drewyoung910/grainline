@@ -20,6 +20,7 @@ import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 const PAGE_SIZE = 24;
 
@@ -232,10 +233,10 @@ export default async function BrowsePage({
 
   // Price filter
   const priceFilter: { gte?: number; lte?: number } = {};
-  const minNum = Number(min);
-  const maxNum = Number(max);
-  if (Number.isFinite(minNum) && min !== "" && minNum >= 0) priceFilter.gte = Math.round(Math.min(minNum, 500000) * 100);
-  if (Number.isFinite(maxNum) && max !== "" && maxNum >= 0) priceFilter.lte = Math.round(Math.min(maxNum, 500000) * 100);
+  const minCents = parseMoneyInputToCents(min);
+  const maxCents = parseMoneyInputToCents(max);
+  if (minCents !== null && minCents >= 0) priceFilter.gte = Math.min(minCents, 50_000_000);
+  if (maxCents !== null && maxCents >= 0) priceFilter.lte = Math.min(maxCents, 50_000_000);
 
   // Pre-pass: collect seller ID constraints from location filters. Rating is
   // applied via SellerRatingSummary so browse does not aggregate every review.

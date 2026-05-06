@@ -176,6 +176,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         <input
           name="ships"
           type="number"
+          inputMode="numeric"
           min="1"
           defaultValue={currentShips}
           placeholder="e.g. 7"
@@ -204,9 +205,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
         <div className="flex items-center gap-2">
           <input
             name="min"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMin}
             placeholder="Min"
             className="w-full rounded border px-2 py-1.5 min-h-[44px]"
@@ -214,9 +215,9 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           <span className="text-neutral-500 shrink-0">–</span>
           <input
             name="max"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMax}
             placeholder="Max"
             className="w-full rounded border px-2 py-1.5 min-h-[44px]"
@@ -264,6 +265,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
           <input
             name="radius"
             type="number"
+            inputMode="numeric"
             min="1"
             defaultValue={currentRadius}
             placeholder="Radius (miles)"

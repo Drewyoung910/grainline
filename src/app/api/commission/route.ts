@@ -16,14 +16,17 @@ import { containsProfanity } from "@/lib/profanity";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
+import { parseMoneyInputToCents } from "@/lib/money";
 import { z } from "zod";
+
+const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
 
 const CommissionCreateSchema = z.object({
   title: z.string().min(1).max(100),
   description: z.string().min(1).max(1000),
   category: z.string().optional().nullable(),
-  budgetMin: z.number().min(0).optional().nullable(),
-  budgetMax: z.number().min(0).optional().nullable(),
+  budgetMin: BudgetInputSchema.optional().nullable(),
+  budgetMax: BudgetInputSchema.optional().nullable(),
   timeline: z.string().max(200).optional().nullable(),
   referenceImageUrls: z.array(z.string().url().refine(
     (u) => isR2PublicUrl(u),
@@ -123,11 +126,14 @@ export async function POST(req: NextRequest) {
   }
 
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
-  const budgetMinCents = budgetMin ? Math.round(Number(budgetMin) * 100) : null;
-  const budgetMaxCents = budgetMax ? Math.round(Number(budgetMax) * 100) : null;
+  const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
+  const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
   const images = filterR2PublicUrls(referenceImageUrls ?? [], 3);
 
-  if (budgetMinCents !== null && budgetMinCents < 0) return NextResponse.json({ error: "Budget cannot be negative." }, { status: 400 });
+  if (budgetMin != null && budgetMinCents === null) return NextResponse.json({ error: "Minimum budget must be a valid dollar amount." }, { status: 400 });
+  if (budgetMax != null && budgetMaxCents === null) return NextResponse.json({ error: "Maximum budget must be a valid dollar amount." }, { status: 400 });
+  if (budgetMinCents !== null && budgetMinCents > 10_000_000) return NextResponse.json({ error: "Minimum budget cannot exceed $100,000." }, { status: 400 });
+  if (budgetMaxCents !== null && budgetMaxCents > 10_000_000) return NextResponse.json({ error: "Maximum budget cannot exceed $100,000." }, { status: 400 });
   if (budgetMaxCents !== null && budgetMinCents !== null && budgetMaxCents < budgetMinCents) return NextResponse.json({ error: "Maximum budget must be greater than minimum." }, { status: 400 });
 
   // Resolve location for local scope

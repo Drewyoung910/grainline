@@ -418,6 +418,7 @@ export default async function VerificationPage() {
                       id="yearsExperience"
                       name="yearsExperience"
                       type="number"
+                      inputMode="numeric"
                       required
                       min={0}
                       max={100}

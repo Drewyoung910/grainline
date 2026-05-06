@@ -9,7 +9,7 @@ import { sendCustomOrderReady } from "@/lib/email";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import ActionForm from "@/components/ActionForm";
-import ImagesUploader from "@/components/ImagesUploader";
+import PhotoManager from "@/components/PhotoManager";
 import ListingTypeFields from "@/components/ListingTypeFields";
 import type { Metadata } from "next";
 
@@ -19,6 +19,7 @@ import { ListingStatus, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 import { publicListingPath } from "@/lib/publicPaths";
 import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -62,10 +63,9 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
-  const priceStr = String(formData.get("price") ?? "0");
-  const priceCents = Math.round(parseFloat(priceStr) * 100);
+  const priceCents = parseMoneyInputToCents(formData.get("price"));
 
-  if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
+  if (!title || priceCents === null || priceCents <= 0) {
     return { ok: false, error: "Please fill title and price." };
   }
 
@@ -82,6 +82,15 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
   imageUrls = filterR2PublicUrls(imageUrls, 8);
+
+  let imageAltTexts: string[] = [];
+  const altJson = formData.get("imageAltTextsJson");
+  const imageAltTextsResult = parseJsonArrayField(altJson);
+  if (imageAltTextsResult.ok) {
+    imageAltTexts = imageAltTextsResult.value.filter((value): value is string => typeof value === "string");
+  } else {
+    console.warn("[custom-listing] invalid imageAltTextsJson:", imageAltTextsResult.error);
+  }
 
   // Packaged dims
   const lenIn = Number(String(formData.get("pkgLengthIn") ?? "").trim());
@@ -140,7 +149,11 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       packagedWidthCm,
       packagedHeightCm,
       packagedWeightGrams,
-      photos: { create: imageUrls.map((url, i) => ({ url, sortOrder: i })) },
+      photos: { create: imageUrls.map((url, i) => ({
+        url,
+        sortOrder: i,
+        altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
+      })) },
     },
   });
 
@@ -167,6 +180,27 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
     altTexts: [],
   }));
   const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
+
+  if (aiResult.altTexts?.length) {
+    try {
+      const photos = await prisma.photo.findMany({
+        where: { listingId: created.id },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, altText: true },
+      });
+      for (let i = 0; i < Math.min(photos.length, aiResult.altTexts.length); i++) {
+        if (aiResult.altTexts[i] && !photos[i].altText) {
+          await prisma.photo.update({
+            where: { id: photos[i].id },
+            data: { altText: truncateText(sanitizeText(aiResult.altTexts[i]), 200) },
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[custom-listing] AI alt-text backfill failed:", e);
+    }
+  }
+
   if (shouldHold) {
     const held = await prisma.listing.updateMany({
       where: { id: created.id, updatedAt: created.updatedAt, status: ListingStatus.PENDING_REVIEW },
@@ -369,9 +403,9 @@ export default async function CustomListingPage({
           <label className="block text-sm mb-1">Price (USD)</label>
           <input
             name="price"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             required
             className="w-full border rounded px-3 py-2"
           />
@@ -389,7 +423,7 @@ export default async function CustomListingPage({
 
         <div>
           <label className="block text-sm mb-1">Photos (optional for custom orders)</label>
-          <ImagesUploader max={8} fieldName="imageUrls" />
+          <PhotoManager max={8} />
         </div>
 
         <div className="border rounded p-3">
@@ -405,6 +439,7 @@ export default async function CustomListingPage({
               <input
                 name="pkgLengthIn"
                 type="number"
+                inputMode="decimal"
                 step="0.1"
                 min="0"
                 className="w-full border rounded px-3 py-2"
@@ -416,6 +451,7 @@ export default async function CustomListingPage({
               <input
                 name="pkgWidthIn"
                 type="number"
+                inputMode="decimal"
                 step="0.1"
                 min="0"
                 className="w-full border rounded px-3 py-2"
@@ -427,6 +463,7 @@ export default async function CustomListingPage({
               <input
                 name="pkgHeightIn"
                 type="number"
+                inputMode="decimal"
                 step="0.1"
                 min="0"
                 className="w-full border rounded px-3 py-2"
@@ -438,6 +475,7 @@ export default async function CustomListingPage({
               <input
                 name="pkgWeightLb"
                 type="number"
+                inputMode="decimal"
                 step="0.1"
                 min="0"
                 className="w-full border rounded px-3 py-2"

@@ -7,6 +7,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 export default function NewCommissionPage() {
   const router = useRouter();
@@ -34,8 +35,8 @@ export default function NewCommissionPage() {
           title: title.trim(),
           description: description.trim(),
           category: category || undefined,
-          budgetMin: budgetMin ? parseFloat(budgetMin) : undefined,
-          budgetMax: budgetMax ? parseFloat(budgetMax) : undefined,
+          budgetMin: parseMoneyInputToCents(budgetMin) != null ? budgetMin : undefined,
+          budgetMax: parseMoneyInputToCents(budgetMax) != null ? budgetMax : undefined,
           timeline: timeline.trim() || undefined,
           referenceImageUrls,
           isNational: scope === "national",
@@ -130,11 +131,12 @@ export default function NewCommissionPage() {
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">$</span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
+                pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
                 autoComplete="off"
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
-                min="0"
                 placeholder="Min"
                 className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />
@@ -143,11 +145,12 @@ export default function NewCommissionPage() {
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">$</span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
+                pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
                 autoComplete="off"
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
-                min="0"
                 placeholder="Max"
                 className="w-full border border-neutral-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />

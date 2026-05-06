@@ -2,6 +2,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 export default function CaseResolutionPanel({
   caseId,
@@ -37,12 +38,12 @@ export default function CaseResolutionPanel({
 
   function handlePartialSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const dollars = parseFloat(partialAmount);
-    if (!isFinite(dollars) || dollars <= 0) {
+    const cents = parseMoneyInputToCents(partialAmount);
+    if (cents === null || cents <= 0) {
       setError("Enter a valid refund amount.");
       return;
     }
-    resolve("REFUND_PARTIAL", Math.round(dollars * 100));
+    resolve("REFUND_PARTIAL", cents);
   }
 
   return (
@@ -75,9 +76,9 @@ export default function CaseResolutionPanel({
         <form onSubmit={handlePartialSubmit} className="flex items-center gap-2">
           <span className="text-sm text-neutral-600">{currency.toUpperCase()} $</span>
           <input
-            type="number"
-            min="0.01"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             placeholder="0.00"
             value={partialAmount}
             onChange={(e) => setPartialAmount(e.target.value)}

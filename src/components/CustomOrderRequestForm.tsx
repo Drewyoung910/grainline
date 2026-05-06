@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 const TIMELINE_OPTIONS = [
   { value: "no_rush", label: "No rush (2+ months)" },
@@ -44,12 +45,12 @@ export default function CustomOrderRequestForm({
     setSubmitting(true);
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const budgetRaw = fd.get("budget");
+    const budgetRaw = String(fd.get("budget") ?? "").trim();
     const payload = {
       sellerUserId,
       description: String(fd.get("description") ?? "").trim(),
       dimensions: String(fd.get("dimensions") ?? "").trim() || undefined,
-      budget: budgetRaw && String(budgetRaw).trim() ? Number(budgetRaw) : undefined,
+      budget: parseMoneyInputToCents(budgetRaw) != null ? budgetRaw : undefined,
       timeline: String(fd.get("timeline") ?? ""),
       listingId,
       listingTitle,
@@ -186,9 +187,9 @@ export default function CustomOrderRequestForm({
                   <label className="block text-sm font-medium mb-1">Your budget in USD</label>
                   <input
                     name="budget"
-                    type="number"
-                    min={1}
-                    step={1}
+                    type="text"
+                    inputMode="decimal"
+                    pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
                     placeholder="e.g. 250"
                     className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
                   />

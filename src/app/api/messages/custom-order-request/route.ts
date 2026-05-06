@@ -6,6 +6,7 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
+import { parseMoneyInputToCents } from "@/lib/money";
 import { z } from "zod";
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -15,11 +16,13 @@ const TIMELINE_LABELS: Record<string, string> = {
   "2_weeks": "Within 2 weeks",
 };
 
+const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
+
 const CustomOrderRequestSchema = z.object({
   sellerUserId: z.string().min(1),
   description: z.string().min(1).max(500),
   dimensions: z.string().max(200).optional().nullable(),
-  budget: z.number().positive().optional().nullable(),
+  budget: BudgetInputSchema.optional().nullable(),
   timeline: z.string().max(50).optional().nullable(),
   listingId: z.string().min(1).optional().nullable(),
   listingTitle: z.string().max(200).optional().nullable(),
@@ -145,7 +148,14 @@ export async function POST(req: Request) {
     });
   }
 
-  const budgetNum = budget && budget > 0 ? budget : null;
+  const budgetCents = budget != null ? parseMoneyInputToCents(budget) : null;
+  if (budget != null && (budgetCents === null || budgetCents <= 0)) {
+    return NextResponse.json({ error: "Budget must be a valid dollar amount." }, { status: 400 });
+  }
+  if (budgetCents !== null && budgetCents > 10_000_000) {
+    return NextResponse.json({ error: "Budget cannot exceed $100,000." }, { status: 400 });
+  }
+  const budgetNum = budgetCents !== null ? budgetCents / 100 : null;
   const timelineStr = timeline ?? null;
   const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
 

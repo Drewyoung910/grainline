@@ -3,6 +3,7 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
   const searchParams = useSearchParams();
@@ -46,8 +47,8 @@ export default function SaveSearchButton({ signedIn }: { signedIn: boolean }) {
           lng: finiteNumber(lng),
           radiusMiles: finiteNumber(radius),
           sort,
-          minPrice: min ? Math.round(Number(min) * 100) : undefined,
-          maxPrice: max ? Math.round(Number(max) * 100) : undefined,
+          minPrice: parseMoneyInputToCents(min),
+          maxPrice: parseMoneyInputToCents(max),
           tags,
         }),
       });

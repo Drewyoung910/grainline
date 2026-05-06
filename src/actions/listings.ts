@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { listingEditBlockReason } from "@/lib/listingEditState";
+import { parseMoneyInputToCents } from "@/lib/money";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 
@@ -17,11 +18,10 @@ export async function updateListingAction(listingId: string, formData: FormData)
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
-  const priceStr = (formData.get("price") as string) || "0";
   const imageUrl = String(formData.get("imageUrl") ?? "").trim();
-  const priceCents = Math.round(parseFloat(priceStr) * 100);
+  const priceCents = parseMoneyInputToCents(formData.get("price"));
 
-  if (!title || !imageUrl || !isR2PublicUrl(imageUrl) || !Number.isFinite(priceCents) || priceCents <= 0) {
+  if (!title || !imageUrl || !isR2PublicUrl(imageUrl) || priceCents === null || priceCents <= 0) {
     throw new Error("Please fill title, price and image.");
   }
 

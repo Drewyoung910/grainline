@@ -369,6 +369,7 @@ export default function OnboardingWizard({
                   id="yearsInBusiness"
                   name="yearsInBusiness"
                   type="number"
+                  inputMode="numeric"
                   autoComplete="off"
                   min="0"
                   max="100"

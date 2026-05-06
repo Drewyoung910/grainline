@@ -20,6 +20,7 @@ import { sanitizeText, sanitizeRichText, sanitizeUserName } from "@/lib/sanitize
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { publicSellerShopPath } from "@/lib/publicPaths";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 function toNull(v: unknown) {
   const s = typeof v === "string" ? v.trim() : v;
@@ -57,10 +58,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const publicMapOptIn = String(formData.get("publicMapOptIn") ?? "") === "on";
 
   // Shipping/tax in dollars
-  const shippingFlatRateRaw = toFloat(formData.get("shippingFlatRate"));
-  const shippingFlatRateCents = shippingFlatRateRaw != null ? Math.round(shippingFlatRateRaw * 100) : null;
-  const freeShippingOverRaw = toFloat(formData.get("freeShippingOver"));
-  const freeShippingOverCents = freeShippingOverRaw != null ? Math.round(freeShippingOverRaw * 100) : null;
+  const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"));
+  const freeShippingOverCents = parseMoneyInputToCents(formData.get("freeShippingOver"));
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
   const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on"; // 👈 NEW
 
@@ -317,8 +316,9 @@ export default async function SellerSettingsPage() {
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Flat shipping rate ($)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
               name="shippingFlatRate"
               autoComplete="off"
               defaultValue={row?.shippingFlatRateCents != null ? (row.shippingFlatRateCents / 100).toFixed(2) : ""}
@@ -330,8 +330,9 @@ export default async function SellerSettingsPage() {
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Free shipping over ($)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
+              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
               name="freeShippingOver"
               autoComplete="off"
               defaultValue={row?.freeShippingOverCents != null ? (row.freeShippingOverCents / 100).toFixed(2) : ""}
@@ -408,16 +409,16 @@ export default async function SellerSettingsPage() {
         <div className="border-t border-neutral-100 pt-4 space-y-3">
           <h2 className="text-lg font-semibold font-display">Default package (cm / g)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <input name="defaultPkgLengthCm" type="number" step="0.1" placeholder="Length (cm)"
+            <input name="defaultPkgLengthCm" type="number" inputMode="decimal" step="0.1" placeholder="Length (cm)"
                    autoComplete="off"
                    defaultValue={row?.defaultPkgLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="defaultPkgWidthCm" type="number" step="0.1" placeholder="Width (cm)"
+            <input name="defaultPkgWidthCm" type="number" inputMode="decimal" step="0.1" placeholder="Width (cm)"
                    autoComplete="off"
                    defaultValue={row?.defaultPkgWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="defaultPkgHeightCm" type="number" step="0.1" placeholder="Height (cm)"
+            <input name="defaultPkgHeightCm" type="number" inputMode="decimal" step="0.1" placeholder="Height (cm)"
                    autoComplete="off"
                    defaultValue={row?.defaultPkgHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="defaultPkgWeightGrams" type="number" step="1" placeholder="Weight (g)"
+            <input name="defaultPkgWeightGrams" type="number" inputMode="numeric" step="1" placeholder="Weight (g)"
                    autoComplete="off"
                    defaultValue={row?.defaultPkgWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>

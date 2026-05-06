@@ -17,6 +17,7 @@ import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isR2PublicUrl } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -117,11 +118,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const customOrderTurnaroundDays = toInt(formData.get("customOrderTurnaroundDays"));
 
   const offersGiftWrapping = toBool(formData.get("offersGiftWrapping"));
-  const giftWrappingPriceDollars = toNull(formData.get("giftWrappingPriceCents"));
-  const giftWrappingPriceCentsRaw =
-    giftWrappingPriceDollars !== null
-      ? Math.round(parseFloat(giftWrappingPriceDollars) * 100)
-      : null;
+  const giftWrappingPriceCentsRaw = parseMoneyInputToCents(formData.get("giftWrappingPriceCents"));
   const giftWrappingPriceCents =
     giftWrappingPriceCentsRaw !== null
       ? Math.max(0, Math.min(10000, giftWrappingPriceCentsRaw))
@@ -379,6 +376,7 @@ export default async function ProfilePage({
             <label className="block text-sm font-medium mb-1">Years in business</label>
             <input
               type="number"
+              inputMode="numeric"
               name="yearsInBusiness"
               autoComplete="off"
               min={0}
@@ -536,6 +534,7 @@ export default async function ProfilePage({
             </label>
             <input
               type="number"
+              inputMode="numeric"
               name="customOrderTurnaroundDays"
               autoComplete="off"
               min={1}
@@ -566,11 +565,11 @@ export default async function ProfilePage({
               Gift wrapping price (USD)
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
+              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
               name="giftWrappingPriceCents"
               autoComplete="off"
-              step="0.01"
-              min={0}
               defaultValue={
                 fullSeller.giftWrappingPriceCents != null
                   ? (fullSeller.giftWrappingPriceCents / 100).toFixed(2)

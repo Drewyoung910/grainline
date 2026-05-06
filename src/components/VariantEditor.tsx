@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { parseMoneyInputToCents } from "@/lib/money";
 
 export type VariantGroupData = {
   id?: string;
@@ -145,13 +146,14 @@ export default function VariantEditor({
                 <div className="relative w-28">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-500">$</span>
                   <input
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    pattern={"[+-]?(\\d+(\\.\\d{1,2})?|\\.\\d{1,2})"}
                     value={opt.priceAdjustCents === 0 ? "" : (opt.priceAdjustCents / 100).toFixed(2)}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const parsed = parseFloat(val);
-                      updateOption(gi, oi, "priceAdjustCents", val === "" || isNaN(parsed) ? 0 : Math.round(parsed * 100));
+                      const cents = parseMoneyInputToCents(val, { allowNegative: true });
+                      updateOption(gi, oi, "priceAdjustCents", val === "" || cents === null ? 0 : cents);
                     }}
                     placeholder="+0.00"
                     className="w-full border border-neutral-200 rounded-md pl-6 pr-2 py-1.5 text-sm"

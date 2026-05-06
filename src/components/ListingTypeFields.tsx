@@ -78,6 +78,7 @@ export default function ListingTypeFields({
               <input
                 name="processingTimeMinDays"
                 type="number"
+                inputMode="numeric"
                 step="1"
                 min="1"
                 placeholder="1"
@@ -90,6 +91,7 @@ export default function ListingTypeFields({
               <input
                 name="processingTimeMaxDays"
                 type="number"
+                inputMode="numeric"
                 step="1"
                 min="1"
                 placeholder="7"
@@ -112,6 +114,7 @@ export default function ListingTypeFields({
               <input
                 name="stockQuantity"
                 type="number"
+                inputMode="numeric"
                 step="1"
                 min="1"
                 placeholder="1"
@@ -124,6 +127,7 @@ export default function ListingTypeFields({
               <input
                 name="shipsWithinDays"
                 type="number"
+                inputMode="numeric"
                 step="1"
                 min="1"
                 placeholder="3"

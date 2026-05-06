@@ -24,6 +24,7 @@ import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
+import { parseMoneyInputToCents } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -53,8 +54,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
-  const priceStr = String(formData.get("price") ?? "0");
-  const priceCents = Math.round(parseFloat(priceStr) * 100);
+  const priceCents = parseMoneyInputToCents(formData.get("price"));
 
   // Photos
   let imageUrls: string[] = [];
@@ -165,7 +165,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     } catch { /* invalid JSON — skip variants */ }
   }
 
-  if (!title || !imageUrls.length || !Number.isFinite(priceCents) || priceCents <= 0) {
+  if (!title || !imageUrls.length || priceCents === null || priceCents <= 0) {
     return { ok: false, error: "Please fill title, price, and upload at least one photo." };
   }
   if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
@@ -483,11 +483,11 @@ export default async function NewListingPage({
             <span className="text-neutral-500 ml-1 font-normal">optional</span>
           </label>
           <div className="grid grid-cols-3 gap-3">
-            <input name="productLengthIn" type="number" step="0.1" min="0"
+            <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
               placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
-            <input name="productWidthIn" type="number" step="0.1" min="0"
+            <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
               placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
-            <input name="productHeightIn" type="number" step="0.1" min="0"
+            <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
               placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
           </div>
           <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
@@ -495,7 +495,7 @@ export default async function NewListingPage({
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Price (USD)</label>
-          <input name="price" type="number" step="0.01" min="0" required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          <input name="price" type="text" inputMode="decimal" pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"} required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
         </div>
 
         <div>
@@ -525,19 +525,19 @@ export default async function NewListingPage({
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
               <div className="mb-1">Length (in)</div>
-              <input name="pkgLengthIn" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
+              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Width (in)</div>
-              <input name="pkgWidthIn" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
+              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Height (in)</div>
-              <input name="pkgHeightIn" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
+              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Weight (lb)</div>
-              <input name="pkgWeightLb" type="number" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
+              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">

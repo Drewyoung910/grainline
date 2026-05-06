@@ -127,6 +127,7 @@ export default function InventoryRow({ listing }: { listing: Listing }) {
         {saved && <span className="text-xs text-green-600">Saved</span>}
         <input
           type="number"
+          inputMode="numeric"
           min="0"
           step="1"
           value={qty}

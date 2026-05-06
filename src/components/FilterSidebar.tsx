@@ -118,6 +118,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <input
           name="ships"
           type="number"
+          inputMode="numeric"
           min="1"
           defaultValue={currentShips}
           placeholder="e.g. 7"
@@ -146,9 +147,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
         <div className="flex items-center gap-2">
           <input
             name="min"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMin}
             placeholder="Min"
             className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -156,9 +157,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           <span className="text-neutral-500 shrink-0">–</span>
           <input
             name="max"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={currentMax}
             placeholder="Max"
             className="w-full rounded-md border border-neutral-200 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -201,6 +202,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
           <input
             name="radius"
             type="number"
+            inputMode="numeric"
             min="1"
             defaultValue={currentRadius}
             placeholder="Radius (miles)"

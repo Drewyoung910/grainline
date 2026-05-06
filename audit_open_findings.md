@@ -8,7 +8,9 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-05-05 dependency audit override pass: **41** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-05 form/photo uploader pass: **35** broad unclosed numbered findings. This still overcounts duplicate/stale/design items, so each pass verifies reproducibility before code changes.
+
+2026-05-05 form/photo uploader pass closed six reproducible or stale-open findings: custom listings now use the shared `PhotoManager` path with seller/AI alt-text persistence, the dead `ImagesUploader` component was removed, money inputs flow through `parseMoneyInputToCents()` instead of `parseFloat`/`Number` exponent parsing, browse and saved-search price filters keep the dollars-to-cents boundary explicit, numeric controls advertise decimal/numeric keyboards, and the lingering "CUID-only public URL" SEO item was verified stale because listing/seller URLs now use canonical `id--slug` paths.
 
 | Bucket | Current state | Next action |
 | --- | --- | --- |
@@ -1441,7 +1443,7 @@ The section below is the verbatim chronological round-by-round content from the 
 13. **[FIXED 2026-04-30] `seller/payouts/page.tsx:27` posts no body to `connect/create`** — payout client POSTs now send `Content-Type: application/json` plus `{}` so the route contract stays compatible if optional JSON validation tightens.
 14. **[FIXED 2026-04-30] `messages/[id]/stream` returns `text/plain` errors** — pre-stream auth/permission/rate-limit failures now return structured JSON; fallback polling stops and shows explicit terminal state on 401/403/429 instead of silently looping.
 15. **[FIXED 2026-04-30] `ReviewComposer.tsx:66` slices to 6 photos at edit but doesn't validate against original count** — review photo state now normalizes/dedupes through `reviewPhotoState.ts` and surfaces limit, duplicate, and empty upload URL feedback instead of silently dropping uploads beyond the cap.
-16. `FilterSidebar`/`SaveSearchButton.tsx:48` URL params dollars vs saved-search payload cents boundary non-obvious.
+16. **[FIXED 2026-05-05] `FilterSidebar`/`SaveSearchButton.tsx:48` URL params dollars vs saved-search payload cents boundary non-obvious** — Browse URL price params and saved-search payloads now both use `parseMoneyInputToCents()` at the conversion boundary. Invalid/exponent params are ignored instead of persisted, and the saved-search API continues storing normalized cents.
 
 ### Top priority
 
@@ -1515,11 +1517,11 @@ The section below is the verbatim chronological round-by-round content from the 
 🟢 **LOW (14 — abbreviated)**
 
 7. `scrollTo({behavior:"smooth"})` iOS<15.4 ignored.
-8. `type="number"` lacks `inputMode="decimal"` on prices, `inputMode="numeric"` on counts (8 files).
+8. **[FIXED 2026-05-05] `type="number"` lacks `inputMode="decimal"` on prices, `inputMode="numeric"` on counts (8 files)** — Price/money fields now use text inputs with `inputMode="decimal"` plus strict decimal patterns where exponent notation would be risky, while count/duration/stock fields now advertise `inputMode="numeric"` and dimensional fields advertise `inputMode="decimal"`.
 9. **[FIXED 2026-04-30] `autoFocus` on AdminPinGate + SellerRefundPanel triggers iOS zoom** — Removed both autofocus hooks; the refund amount field now uses `inputMode="decimal"` and mobile `text-base` so manual focus does not trigger iOS input zoom.
 10. **[FIXED 2026-04-30] HeroMosaic `width:200%` + blur+scale on iOS Safari = GPU thrash on older iPhones** — mosaic rows already stop animation for reduced-motion users; this pass also removes blur/scale transforms under `motion-reduce` and adds an explicit pause/play control.
 11. `backdrop-blur-sm` Firefox ESR may render solid white.
-12. `step="0.01"` allows `1e10` exponent input.
+12. **[FIXED 2026-05-05] `step="0.01"` allows `1e10` exponent input** — User-entered money values now flow through `parseMoneyInputToCents()`, which parses cents without floating-point math and rejects exponent notation, extra precision, negatives where not allowed, and unsafe integer overflow. Listing create/edit/custom prices, seller shipping/gift-wrap money fields, refunds, commission budgets, custom-order budgets, browse price filters, variant adjustments, and saved-search price persistence use the helper.
 13. **[FIXED/VERIFIED 2026-04-30] `localStorage` in DismissibleBanner** — current code wraps both read and write access in `try/catch`, so private-mode/storage-denied browsers do not crash the banner.
 14. `<select>` State dropdown unstyled across browsers (acceptable).
 15. `scrollbar-color`/`scrollbar-width` Firefox-only — visual inconsistency.
@@ -3354,7 +3356,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 ### SEO
 
-72. **Listings + sellers use CUIDs, not slugs** — `/listing/clx7abc...` no SEO keywords. Etsy uses slugs. *Fix*: schema add `slug @unique`, generate from title at create. Large refactor, big win.
+72. **[FIXED/VERIFIED 2026-05-05] Listings + sellers use CUIDs, not slugs** — Current listing and seller URLs use canonical `id--readable-slug` paths through `publicListingPath()` / `publicSellerPath()`, public surfaces and sitemaps emit those paths, and stale slug variants permanently redirect after access checks. A separate unique slug column is not required for the current durable-ID routing model.
 
 73. **No tag pages** (`/tag/walnut`) — only `?tag=` query, canonicalized away. *Fix*: dedicated route + sitemap entries.
 
@@ -3446,9 +3448,9 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 113. **[FIXED 2026-04-30] `src/app/api/whoami/route.ts`** — deleted the dev-only endpoint and removed `/api/whoami` from middleware's public-route list.
 
-114. **`src/app/dashboard/listings/custom/page.tsx`** still imports old `ImagesUploader` instead of `PhotoManager`. *Fix*: migrate.
+114. **[FIXED 2026-05-05] `src/app/dashboard/listings/custom/page.tsx` still imports old `ImagesUploader` instead of `PhotoManager`** — Custom listings now use the shared `PhotoManager` create flow, parse `imageUrlsJson` / `imageAltTextsJson`, persist seller-provided alt text, and backfill blank photo alt text from AI review output.
 
-115. **`src/components/AddPhotosButton.tsx`** only used on edit page — three uploaders for three surfaces. *Fix*: consolidate to PhotoManager.
+115. **[FIXED/VERIFIED 2026-05-05] `src/components/AddPhotosButton.tsx` only used on edit page — three uploaders for three surfaces** — The obsolete `ImagesUploader` surface was deleted, so create/custom listing flows share `PhotoManager`. `AddPhotosButton` remains intentionally separate for existing-listing photo attachment because it calls the listing photo API, handles warnings/errors, and triggers moderation re-review against an already persisted listing.
 
 116. **[FIXED 2026-04-30] `COMMISSION_ROOM_ENABLED = true` flag** — Header now renders the Commission Room links directly and no longer carries a dead always-true feature flag.
 

@@ -19,6 +19,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { listingEditBlockReason } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
+import { parseMoneyInputToCents } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -73,8 +74,7 @@ async function updateListing(
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);
-  const priceStr = String(formData.get("price") ?? "0");
-  const priceCents = Math.round(parseFloat(priceStr) * 100);
+  const priceCents = parseMoneyInputToCents(formData.get("price"));
 
   // Tags
   let tags: string[] = [];
@@ -154,7 +154,7 @@ async function updateListing(
     } catch { /* skip */ }
   }
 
-  if (!title || !Number.isFinite(priceCents) || priceCents <= 0) {
+  if (!title || priceCents === null || priceCents <= 0) {
     return { ok: false, error: "Please provide a valid title and price." };
   }
   if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
@@ -595,9 +595,9 @@ export default async function EditListingPage(props: {
           <label className="block text-sm font-medium text-neutral-700 mb-1">Price (USD)</label>
           <input
             name="price"
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
+            pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={(listing.priceCents / 100).toFixed(2)}
             required
             className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
@@ -642,13 +642,13 @@ export default async function EditListingPage(props: {
         <div className="card-section p-4">
           <label className="block text-sm font-medium text-neutral-700 mb-2">Packaged dimensions (cm / g)</label>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <input name="packagedLengthCm" type="number" step="0.1" placeholder="Length (cm)"
+            <input name="packagedLengthCm" type="number" inputMode="decimal" step="0.1" placeholder="Length (cm)"
                    defaultValue={listing.packagedLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="packagedWidthCm" type="number" step="0.1" placeholder="Width (cm)"
+            <input name="packagedWidthCm" type="number" inputMode="decimal" step="0.1" placeholder="Width (cm)"
                    defaultValue={listing.packagedWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="packagedHeightCm" type="number" step="0.1" placeholder="Height (cm)"
+            <input name="packagedHeightCm" type="number" inputMode="decimal" step="0.1" placeholder="Height (cm)"
                    defaultValue={listing.packagedHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="packagedWeightGrams" type="number" step="1" placeholder="Weight (g)"
+            <input name="packagedWeightGrams" type="number" inputMode="numeric" step="1" placeholder="Weight (g)"
                    defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
           <p className="text-xs text-neutral-500 mt-1">
@@ -695,13 +695,13 @@ export default async function EditListingPage(props: {
             <span className="text-neutral-500 ml-1 font-normal">optional</span>
           </label>
           <div className="grid grid-cols-3 gap-3">
-            <input name="productLengthIn" type="number" step="0.1" min="0"
+            <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
               defaultValue={listing.productLengthIn ?? ""}
               placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="productWidthIn" type="number" step="0.1" min="0"
+            <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
               defaultValue={listing.productWidthIn ?? ""}
               placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="productHeightIn" type="number" step="0.1" min="0"
+            <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
               defaultValue={listing.productHeightIn ?? ""}
               placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
           </div>
