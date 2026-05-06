@@ -73,8 +73,8 @@ export async function POST(req: Request) {
     }
   }
 
-  const refreshUrl = new URL("/seller/payouts", APP_URL).toString();
-  const returnUrl = customReturnUrl ?? new URL("/seller/payouts?onboarded=1", APP_URL).toString();
+  const refreshUrl = new URL("/dashboard/seller", APP_URL).toString();
+  const returnUrl = customReturnUrl ?? new URL("/dashboard/seller?onboarded=1", APP_URL).toString();
 
   const link = await stripe.accountLinks.create({
     account: accountId!,

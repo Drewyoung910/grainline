@@ -7,7 +7,7 @@ import type { Metadata } from "next";
 import FollowButton from "@/components/FollowButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
@@ -24,7 +24,7 @@ export default async function FollowingPage() {
   const follows = await prisma.follow.findMany({
     where: {
       followerId: me.id,
-      sellerProfile: activeSellerProfileWhere(),
+      sellerProfile: visibleSellerProfileWhere(),
     },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -77,7 +77,7 @@ export default async function FollowingPage() {
       {follows.length === 0 ? (
         <div className="card-section p-10 text-center space-y-4">
           <p className="text-neutral-500">You&apos;re not following any makers yet.</p>
-          <Link href="/sellers" className="inline-block bg-amber-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-amber-700 transition-colors">
+          <Link href="/map" className="inline-block bg-amber-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-amber-700 transition-colors">
             Find Makers to Follow
           </Link>
         </div>

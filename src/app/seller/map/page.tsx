@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function SellerMapPage() {
-  return null;
+  redirect("/map");
 }

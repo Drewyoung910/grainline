@@ -69,4 +69,39 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(labelRoute, /reviewNeeded: true/);
     assert.match(source("src/lib/labelClawbackState.ts"), /Staff must retry or manually reconcile/);
   });
+
+  it("keeps public middleware scoped to actual public seller and cron-auth surfaces", () => {
+    const middleware = source("src/middleware.ts");
+    assert.match(middleware, /"\/seller\/\(\(\?!payouts\|map\)\[\^\/\]\+\)"/);
+    assert.match(middleware, /"\/seller\/\(\(\?!payouts\|map\)\[\^\/\]\+\)\/shop\(\.\*\)"/);
+    assert.match(middleware, /"\/api\/seller\/\(\[\^\/\]\+\)\/view"/);
+    assert.match(middleware, /"\/api\/cases\/\(\[\^\/\]\+\)\/escalate"/);
+    assert.match(middleware, /\/\^\\\/api\\\/cases\\\/\[\^\/\]\+\\\/escalate\$\/\.test\(pathname\)/);
+    assert.doesNotMatch(middleware, /"\/seller\(\.\*\)"/);
+  });
+
+  it("keeps stale public links and singular routes from returning dead pages", () => {
+    assert.match(source("src/app/account/following/page.tsx"), /href="\/map"/);
+    assert.doesNotMatch(source("src/app/account/following/page.tsx"), /href="\/sellers"/);
+    assert.match(source("src/app/dashboard/analytics/page.tsx"), /href="\/dashboard\/inventory"/);
+    assert.match(source("src/app/seller/map/page.tsx"), /redirect\("\/map"\)/);
+    assert.match(source("src/app/seller/payouts/page.tsx"), /redirect\("\/dashboard\/seller"\)/);
+    assert.match(source("src/app/api/stripe/connect/create/route.ts"), /new URL\("\/dashboard\/seller"/);
+    assert.doesNotMatch(source("src/app/api/stripe/connect/create/route.ts"), /\/seller\/payouts/);
+  });
+
+  it("keeps global blog search suggestions on the public blog visibility predicate", () => {
+    const text = source("src/app/api/search/suggestions/route.ts");
+    assert.match(text, /LEFT JOIN "SellerProfile" sp ON sp\.id = bp\."sellerProfileId"/);
+    assert.match(text, /LEFT JOIN "User" seller_user ON seller_user\.id = sp\."userId"/);
+    assert.match(text, /sp\."chargesEnabled" = true/);
+    assert.match(text, /sp\."vacationMode" = false/);
+    assert.match(text, /seller_user\.banned = false/);
+    assert.match(text, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
+  });
+
+  it("documents current notification polling once instead of stale fixed intervals", () => {
+    assert.doesNotMatch(source("CLAUDE.md"), /polls `GET \/api\/notifications` every \*\*5 minutes\*\*/);
+    assert.match(source("CLAUDE.md"), /adaptive 60s\/5min\/15min\/stop polling/);
+  });
 });

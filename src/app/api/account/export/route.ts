@@ -383,7 +383,7 @@ async function handleExport(method: "GET" | "POST") {
     if (!rate.success) return rateLimitResponse(rate.reset, "Too many account export requests.");
 
     const payload = await buildExport(user);
-    await logUserAuditAction({
+    const auditLogId = await logUserAuditAction({
       actorId: user.id,
       action: "ACCOUNT_EXPORT",
       targetType: "USER",
@@ -391,6 +391,12 @@ async function handleExport(method: "GET" | "POST") {
       reason: "Account export generated",
       metadata: { route: "/api/account/export", method },
     });
+    if (!auditLogId) {
+      return NextResponse.json(
+        { error: "Could not record account export audit trail. Please try again." },
+        { status: 503 },
+      );
+    }
 
     return jsonDownload(payload, user.id);
   } catch (error) {

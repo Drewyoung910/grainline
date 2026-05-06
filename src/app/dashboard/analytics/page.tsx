@@ -655,7 +655,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Top Listings</h2>
           <Link
-            href="/dashboard/listings"
+            href="/dashboard/inventory"
             className="text-sm text-neutral-600 underline hover:text-neutral-900"
           >
             View all →

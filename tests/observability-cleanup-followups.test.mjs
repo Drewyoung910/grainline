@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { activeSellerProfileWhere } = await import("../src/lib/sellerVisibility.ts");
+const { activeSellerProfileWhere, visibleSellerProfileWhere } = await import("../src/lib/sellerVisibility.ts");
 
 function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -21,7 +21,16 @@ describe("observability cleanup follow-ups", () => {
     }
   });
 
-  it("defines active seller visibility for followable seller surfaces", () => {
+  it("separates visible seller profiles from currently sellable seller profiles", () => {
+    assert.deepEqual(visibleSellerProfileWhere({ id: "seller_1" }), {
+      AND: [
+        {
+          chargesEnabled: true,
+          user: { banned: false, deletedAt: null },
+        },
+        { id: "seller_1" },
+      ],
+    });
     assert.deepEqual(activeSellerProfileWhere({ id: "seller_1" }), {
       AND: [
         {
@@ -32,8 +41,8 @@ describe("observability cleanup follow-ups", () => {
         { id: "seller_1" },
       ],
     });
-    assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /activeSellerProfileWhere\(\{ id: sellerId \}\)/);
-    assert.match(source("src/app/account/following/page.tsx"), /sellerProfile: activeSellerProfileWhere\(\)/);
+    assert.match(source("src/app/api/follow/[sellerId]/route.ts"), /visibleSellerProfileWhere\(\{ id: sellerId \}\)/);
+    assert.match(source("src/app/account/following/page.tsx"), /sellerProfile: visibleSellerProfileWhere\(\)/);
   });
 
   it("keeps staff order totals on the gift-wrap-aware helper", () => {
@@ -54,12 +63,14 @@ describe("observability cleanup follow-ups", () => {
     assert.match(viewRoute, /hasTrackingCookie/);
     assert.match(viewRoute, /viewer\?\.id === seller\.userId/);
     assert.match(viewRoute, /isLikelyBot/);
+    assert.match(viewRoute, /visibleSellerProfileWhere\(\{ id \}\)/);
   });
 
-  it("records account export generation without exported payload data", () => {
+  it("records account export generation durably without exported payload data", () => {
     const text = source("src/app/api/account/export/route.ts");
     assert.match(text, /logUserAuditAction/);
     assert.match(text, /action: "ACCOUNT_EXPORT"/);
     assert.match(text, /metadata: \{ route: "\/api\/account\/export", method \}/);
+    assert.match(text, /if \(!auditLogId\)/);
   });
 });

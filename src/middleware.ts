@@ -14,7 +14,9 @@ const isPublic = createRouteMatcher([
   "/sign-up(.*)",
   "/browse(.*)",
   "/listing(.*)",
-  "/seller(.*)",          // public seller profiles
+  "/seller/map",          // legacy singular map route — redirects to /map
+  "/seller/((?!payouts|map)[^/]+)",          // public seller profiles
+  "/seller/((?!payouts|map)[^/]+)/shop(.*)", // public seller shops
   "/sellers(.*)",         // sellers directory
   "/makers(.*)",          // city-level makers pages — public
   "/blog(.*)",            // blog — public viewing; writing/commenting handled in API routes
@@ -47,8 +49,10 @@ const isPublic = createRouteMatcher([
   "/api/legal/data-request",   // data/privacy request form — no auth needed
   "/api/listings/([^/]+)/view",   // listing view tracking — fire-and-forget analytics
   "/api/listings/([^/]+)/click",  // listing click tracking — fire-and-forget analytics
+  "/api/seller/([^/]+)/view",     // seller profile view tracking — fire-and-forget analytics
   "/api/listings/([^/]+)/similar",       // similar listings — public
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
+  "/api/cases/([^/]+)/escalate",       // case escalation — route verifies session or CRON_SECRET
   "/api/health",                      // health check — public (UptimeRobot monitoring)
   "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
 ]);
@@ -102,7 +106,8 @@ function isGeoAllowedApiPath(pathname: string): boolean {
     pathname === "/api/resend/webhook" ||
     pathname === "/api/email/unsubscribe" ||
     pathname === "/api/support" ||
-    pathname === "/api/legal/data-request"
+    pathname === "/api/legal/data-request" ||
+    /^\/api\/cases\/[^/]+\/escalate$/.test(pathname)
   );
 }
 

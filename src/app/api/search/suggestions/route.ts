@@ -111,18 +111,55 @@ export async function GET(req: NextRequest) {
   );
   const categoryMatches = matchingCategoryValues.map((v) => CATEGORY_LABELS[v]);
 
-  // Blog post title suggestions
-  const blogRows = await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
-    SELECT bp.slug, bp.title
-    FROM "BlogPost" bp
-    INNER JOIN "User" u ON u.id = bp."authorId"
-    WHERE bp.status = 'PUBLISHED'
-      AND u.banned = false
-      AND u."deletedAt" IS NULL
-      AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
-    ORDER BY similarity(bp.title, ${q}) DESC
-    LIMIT 3
-  `;
+  // Blog post title suggestions. Keep this raw SQL predicate equivalent to
+  // publicBlogPostWhere() so global search never suggests a slug that the
+  // public blog page will hide.
+  const blogRows = blockedSellerIds.length > 0
+    ? await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
+        SELECT bp.slug, bp.title
+        FROM "BlogPost" bp
+        INNER JOIN "User" u ON u.id = bp."authorId"
+        LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+        LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+        WHERE bp.status = 'PUBLISHED'
+          AND u.banned = false
+          AND u."deletedAt" IS NULL
+          AND (
+            bp."sellerProfileId" IS NULL
+            OR (
+              sp."chargesEnabled" = true
+              AND sp."vacationMode" = false
+              AND seller_user.banned = false
+              AND seller_user."deletedAt" IS NULL
+            )
+          )
+          AND (bp."sellerProfileId" IS NULL OR bp."sellerProfileId" != ALL(${blockedSellerIds}))
+          AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
+        ORDER BY similarity(bp.title, ${q}) DESC
+        LIMIT 3
+      `
+    : await prisma.$queryRaw<Array<{ slug: string; title: string }>>`
+        SELECT bp.slug, bp.title
+        FROM "BlogPost" bp
+        INNER JOIN "User" u ON u.id = bp."authorId"
+        LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
+        LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
+        WHERE bp.status = 'PUBLISHED'
+          AND u.banned = false
+          AND u."deletedAt" IS NULL
+          AND (
+            bp."sellerProfileId" IS NULL
+            OR (
+              sp."chargesEnabled" = true
+              AND sp."vacationMode" = false
+              AND seller_user.banned = false
+              AND seller_user."deletedAt" IS NULL
+            )
+          )
+          AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
+        ORDER BY similarity(bp.title, ${q}) DESC
+        LIMIT 3
+      `;
 
   const seen = new Set<string>();
   const suggestions: string[] = [];

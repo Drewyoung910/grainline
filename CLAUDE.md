@@ -671,7 +671,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - `POST /api/notifications/mark-read` — auth required; body `{ ids?: string[] }` (omit to mark all read); updates `read = true`
 
 ### Components & pages
-- **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; polls `GET /api/notifications` every **5 minutes** (300000ms — was 30s; reduced 10x to cut Vercel CPU); shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
+- **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; uses adaptive 60s/5min/15min/stop polling as documented in the Scalability Optimizations section; shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
 - **`/dashboard/notifications`** (`src/app/dashboard/notifications/page.tsx`) — full paginated notification history; "Mark all read" server action; grouped by read/unread; links to relevant pages
 - **`UnreadBadge`** (`src/components/UnreadBadge.tsx`) — small red dot/count badge, reused by `NotificationBell`
 - `NotificationBell` rendered in `Header.tsx` inside `<Show when="signed-in">`, replacing the static bell placeholder
@@ -980,7 +980,7 @@ Server component (`src/app/dashboard/onboarding/page.tsx`) — calls `ensureSell
 - `src/app/dashboard/onboarding/page.tsx` — server component wrapper
 
 ### Stripe connect route update
-`POST /api/stripe/connect/create` now accepts optional `{ returnUrl: "/path" }` in the request body (relative paths only for security). Falls back to `/seller/payouts?onboarded=1` if not provided.
+`POST /api/stripe/connect/create` now accepts optional `{ returnUrl: "/path" }` in the request body (relative paths only for security). Falls back to `/dashboard/seller?onboarded=1` if not provided.
 
 ### Progress persistence
 Each "Save & Continue" or "Skip" calls `advanceStep(n)` which writes `onboardingStep` to the DB. If the seller navigates away and returns to `/dashboard/onboarding`, they resume at their saved step.
@@ -3433,7 +3433,7 @@ Before inserting a notification, fetches the recipient's `notificationPreference
 
 ## Performance Improvements (complete — 2026-04-02)
 
-- **Notification polling** (`NotificationBell.tsx`): 30s → 5 min → 10 min (600000ms). `UnreadBadge.tsx` default: 15s → 10 min (600000ms). Combined ~40x reduction from original polling rates.
+- **Notification polling** (`NotificationBell.tsx`): now adaptive 60s/5min/15min/stop based on tab visibility and recent activity. `UnreadBadge.tsx` default remains slower than the original 15s polling cadence.
 - **Notification cleanup prune**: `GET /api/notifications` only runs `deleteMany` when `getMinutes() === 0` — ~1/60th of requests instead of every poll (60x reduction in unnecessary DB writes)
 - **Browse `getSellerRatingMap` N+1 fixed**: replaced 2 sequential Prisma queries + in-memory join with a single SQL `JOIN` (`AVG(r."ratingX2")::float / 2.0`, `GROUP BY l."sellerId"`) — eliminates a full extra round trip on every browse page load
 - **Popular tags API** (`GET /api/search/popular-tags`): ISR 1hr cache, raw SQL unnest; search bar shows top 8 listing tags on focus when input is empty — one fetch per session, cached at CDN edge
@@ -5834,7 +5834,7 @@ This pass closed two small confirmed high-risk items from the Round 16-18 verifi
 ### Fixed in this pass
 - **Admin PIN cookie no longer falls back to the PIN**: `src/lib/adminPin.ts` now signs with `ADMIN_PIN_COOKIE_SECRET` only. Non-production without that env uses an ephemeral per-process fallback; production without the env fails closed instead of treating the PIN as an HMAC secret.
 - **Production env added**: `ADMIN_PIN_COOKIE_SECRET` was added to the Vercel Production environment.
-- **Stripe Connect return URL blocks protocol-relative redirects**: `/api/stripe/connect/create` now accepts only same-origin app-relative paths, rejects `//host` and `/\host` forms, normalizes with `new URL()`, and falls back to `/seller/payouts?onboarded=1`.
+- **Stripe Connect return URL blocks protocol-relative redirects**: `/api/stripe/connect/create` now accepts only same-origin app-relative paths, rejects `//host` and `/\host` forms, normalizes with `new URL()`, and falls back to `/dashboard/seller?onboarded=1`.
 - **Production unsubscribe secret added**: `UNSUBSCRIBE_SECRET` was added to the Vercel Production environment so tokenized footer/header URLs are emitted in production.
 
 ### Verification
@@ -5938,12 +5938,12 @@ This section summarizes architecture-level changes from the reconciliation/audit
 
 ### Behavior changes future agents must preserve
 - **Audit workflow**: every audit/fix pass must update `audit_open_findings.md`, update this file when architecture/env/schema changed, run verification, and land a scoped commit before starting the next batch.
-- **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. No application code was changed during that audit-only pass. Themes: seller profile analytics route publicness, visible-vs-sellable seller predicates, stale/dead routes and links, global search blog visibility, account-export audit durability, case-escalation cron docs, and stale notification polling docs. The deferred Stripe Connect v2 modernization remains a separate architecture branch; treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
+- **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass, with Stripe Connect v2 modernization still deferred as a separate architecture branch. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
 - **Public blog visibility behavior**: public blog page, detail, API list, comments, saves, sitemap, tag cloud, and suggestions should use `publicBlogPostWhere()` or equivalent raw-SQL author/seller-profile predicates. Published posts attached to suspended/deleted/vacation/disconnected seller profiles are not public.
 - **Public listing detail behavior**: `publicListingWhere()` remains ACTIVE-only for browse/sellable surfaces. Listing detail, stock notifications, and saved-listing surfaces use `publicListingDetailWhere()` / `savedListingFavoriteWhere()` so public SOLD_OUT in-stock listings can show an out-of-stock page and notify-me UI without becoming buyable.
 - **Public analytics tracking behavior**: listing view/click routes must guard counter writes with `publicListingWhere()` and skip tracking cookies plus daily aggregate rows when the listing is not currently public.
-- **Active seller follow behavior**: follow GET/POST and account following surfaces currently use `activeSellerProfileWhere()` so inactive, vacationing, disconnected, banned, or deleted sellers do not look followable. DELETE may still clean up stale follow rows by id. The latest audit-only pass flagged a product/UX mismatch here because public seller pages still render vacation sellers and follow buttons; resolve that by splitting visible-seller and sellable-seller predicates instead of broadening the existing helper casually.
-- **Seller profile view behavior**: seller profile views are tracked by the client `SellerProfileViewTracker` calling `/api/seller/[id]/view`. Do not reintroduce server-render mutations; the endpoint skips owners, likely bots, inactive sellers, and recent duplicate views before incrementing.
+- **Visible vs sellable seller behavior**: `visibleSellerProfileWhere()` means a seller profile can be publicly viewed/followed (`chargesEnabled` plus active user, vacation allowed). `activeSellerProfileWhere()` keeps the stricter sellable definition (`vacationMode: false`) for surfaces that require a currently orderable seller. Follow GET/POST, account following, and seller-profile view tracking use the visible predicate; DELETE may still clean up stale follow rows by id.
+- **Seller profile view behavior**: seller profile views are tracked by the client `SellerProfileViewTracker` calling public `/api/seller/[id]/view`. Do not reintroduce server-render mutations; the endpoint skips owners, likely bots, non-visible sellers, and recent duplicate views before incrementing.
 - **Workshop gallery clearing behavior**: `GalleryUploader` submits `galleryImageUrlsTouched=1`. Seller profile saves must persist an empty `galleryImageUrls` array when that sentinel is present; do not reintroduce length-gated writes that make clearing all gallery photos a no-op.
 - **Message-start context behavior**: `/messages/new` must verify the current user, target user, mutual block state, and optional listing context before creating/updating a conversation. Listing context may attach only when `conversationStartState.ts` says the listing is active with an active seller and is either public or a private reserved listing between the conversation participants.
 - **Commission mutation behavior**: commission close/fulfill and interest creation must use `openCommissionMutationWhere()` inside the write predicate so terminal, expired, or inactive-buyer requests cannot be mutated after a stale read.

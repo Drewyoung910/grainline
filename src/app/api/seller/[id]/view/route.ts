@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { getIP, profileViewRatelimit, safeRateLimitOpen, viewRatelimit } from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
-import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 
 const VIEWED_SELLER_IDS_COOKIE = "viewed_seller_profile_ids";
 
@@ -28,7 +28,7 @@ export async function POST(
   if (!dedupOk) return NextResponse.json({ ok: true, skipped: true });
 
   const seller = await prisma.sellerProfile.findFirst({
-    where: activeSellerProfileWhere({ id }),
+    where: visibleSellerProfileWhere({ id }),
     select: { userId: true },
   });
   if (!seller) return NextResponse.json({ ok: true, skipped: true });
@@ -55,7 +55,7 @@ export async function POST(
   }
 
   const result = await prisma.sellerProfile.updateMany({
-    where: activeSellerProfileWhere({ id }),
+    where: visibleSellerProfileWhere({ id }),
     data: { profileViews: { increment: 1 } },
   });
   if (result.count === 0) return NextResponse.json({ ok: true, skipped: true });
