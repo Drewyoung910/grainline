@@ -14,20 +14,25 @@ export default function CaseReplyBox({ caseId }: { caseId: string }) {
     if (!body.trim()) return;
     setLoading(true);
     setError(null);
-    const res = await fetch(`/api/cases/${caseId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body }),
-    });
-    const data = await res.json().catch(() => null) as { error?: string } | null;
-    if (!res.ok) {
-      setError(data?.error ?? "Failed to send");
+    try {
+      const res = await fetch(`/api/cases/${caseId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to send");
+        setLoading(false);
+        return;
+      }
+      setBody("");
       setLoading(false);
-      return;
+      router.refresh();
+    } catch {
+      setError("Failed to send. Check your connection and try again.");
+      setLoading(false);
     }
-    setBody("");
-    setLoading(false);
-    router.refresh();
   }
 
   return (

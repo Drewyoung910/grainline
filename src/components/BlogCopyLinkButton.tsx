@@ -1,8 +1,10 @@
 "use client";
 import * as React from "react";
+import { useToast } from "@/components/Toast";
 
 export default function BlogCopyLinkButton({ url }: { url: string }) {
   const [copied, setCopied] = React.useState(false);
+  const { toast } = useToast();
 
   async function handleCopy() {
     try {
@@ -13,8 +15,9 @@ export default function BlogCopyLinkButton({ url }: { url: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }
-    } catch {
-      // fallback: do nothing
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast("Could not copy the link. Copy it from the address bar.", "error");
     }
   }
 

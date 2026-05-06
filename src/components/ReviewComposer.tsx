@@ -44,6 +44,7 @@ export default function ReviewComposer(props: {
   const [photoUrls, setPhotoUrls] = React.useState<string[]>(
     existing?.photos?.map((p) => p.url) ?? []
   );
+  const [submitting, setSubmitting] = React.useState(false);
   const photoUrlsRef = React.useRef(photoUrls);
   React.useEffect(() => {
     photoUrlsRef.current = photoUrls;
@@ -64,6 +65,8 @@ export default function ReviewComposer(props: {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
 
     const payload = editing ? {
       ratingX2,
@@ -76,35 +79,41 @@ export default function ReviewComposer(props: {
       photoUrls: normalizeReviewPhotoUrls(photoUrls), // existing POST contract
     };
 
-    const res = await fetch(
-      editing ? `/api/reviews/${existing!.id}` : "/api/reviews",
-      {
-        method: editing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    try {
+      const res = await fetch(
+        editing ? `/api/reviews/${existing!.id}` : "/api/reviews",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast(j?.error || "Something went wrong.", "error");
+        return;
       }
-    );
 
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      toast(j?.error || "Something went wrong.", "error");
-      return;
-    }
+      // After editing: strip ?redit=1, keep other params (e.g., rsort),
+      // and jump back to #reviews (same page view, updated content).
+      if (editing) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("redit");
+        url.hash = "reviews";
+        router.replace(url.pathname + url.search + url.hash);
+        // Optional: force data refresh after replace if needed
+        router.refresh();
+        return;
+      }
 
-    // After editing: strip ?redit=1, keep other params (e.g., rsort),
-    // and jump back to #reviews (same page view, updated content).
-    if (editing) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("redit");
-      url.hash = "reviews";
-      router.replace(url.pathname + url.search + url.hash);
-      // Optional: force data refresh after replace if needed
+      // After creating: just refresh in place
       router.refresh();
-      return;
+    } catch {
+      toast("Could not submit your review. Check your connection and try again.", "error");
+    } finally {
+      setSubmitting(false);
     }
-
-    // After creating: just refresh in place
-    router.refresh();
   }
 
   return (
@@ -151,10 +160,13 @@ export default function ReviewComposer(props: {
               <button
                 type="button"
                 title="Remove"
+                aria-label="Remove photo"
                 onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
-                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-black/80 text-white text-xs"
+                className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center rounded-full text-white"
               >
-                ×
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/80 text-base">
+                  ×
+                </span>
               </button>
             </div>
           ))}
@@ -198,10 +210,10 @@ export default function ReviewComposer(props: {
         <button
           type="submit"
           className="rounded-full bg-black px-4 py-2 text-white hover:bg-neutral-800"
-          disabled={editing && existing?.locked}
+          disabled={submitting || (editing && existing?.locked)}
           title={editing && existing?.locked ? "This review is locked" : undefined}
         >
-          {editing ? "Save changes" : "Post review"}
+          {submitting ? (editing ? "Saving..." : "Posting...") : editing ? "Save changes" : "Post review"}
         </button>
       </div>
     </form>

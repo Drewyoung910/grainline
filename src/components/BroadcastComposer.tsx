@@ -20,12 +20,22 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
   const [loadingHistory, setLoadingHistory] = React.useState(false);
 
   React.useEffect(() => {
+    const controller = new AbortController();
     setLoadingHistory(true);
-    fetch("/api/seller/broadcast")
+    fetch("/api/seller/broadcast", { signal: controller.signal })
       .then((r) => r.json())
-      .then((data: { broadcasts: Broadcast[] }) => setBroadcasts(data.broadcasts ?? []))
-      .catch(() => setBroadcasts([]))
-      .finally(() => setLoadingHistory(false));
+      .then((data: { broadcasts: Broadcast[] }) => {
+        if (!controller.signal.aborted) setBroadcasts(data.broadcasts ?? []);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
+          setBroadcasts([]);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingHistory(false);
+      });
+    return () => controller.abort();
   }, [sent]);
 
   async function handleSend(e: React.FormEvent) {

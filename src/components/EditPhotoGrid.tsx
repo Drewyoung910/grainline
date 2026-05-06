@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition } from "react";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type Photo = {
@@ -33,10 +33,14 @@ export default function EditPhotoGrid({
   // Drag state
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
+  const reorderAbortRef = useRef<AbortController | null>(null);
   const altModalOpen = altModalIdx !== null && !!photos[altModalIdx];
 
   useDialogFocus(altModalOpen, altDialogRef, () => setAltModalIdx(null));
   useBodyScrollLock(altModalOpen);
+  useEffect(() => {
+    return () => reorderAbortRef.current?.abort();
+  }, []);
 
   function showToast(message: string, kind: "success" | "error" = "success") {
     setToast({ message, kind });
@@ -71,11 +75,20 @@ export default function EditPhotoGrid({
     setPhotos(newPhotos);
 
     startSaving(() => {
+      reorderAbortRef.current?.abort();
+      const controller = new AbortController();
+      reorderAbortRef.current = controller;
       void onReorder(newPhotos.map((p) => p.id))
-        .then(() => showToast("Reordered"))
+        .then(() => {
+          if (!controller.signal.aborted) showToast("Reordered");
+        })
         .catch(() => {
+          if (controller.signal.aborted) return;
           setPhotos(previousPhotos);
           showToast("Couldn't reorder photos.", "error");
+        })
+        .finally(() => {
+          if (reorderAbortRef.current === controller) reorderAbortRef.current = null;
         });
     });
   }
@@ -88,11 +101,20 @@ export default function EditPhotoGrid({
     setPhotos(newPhotos);
 
     startSaving(() => {
+      reorderAbortRef.current?.abort();
+      const controller = new AbortController();
+      reorderAbortRef.current = controller;
       void onReorder(newPhotos.map((p) => p.id))
-        .then(() => showToast("Reordered"))
+        .then(() => {
+          if (!controller.signal.aborted) showToast("Reordered");
+        })
         .catch(() => {
+          if (controller.signal.aborted) return;
           setPhotos(previousPhotos);
           showToast("Couldn't reorder photos.", "error");
+        })
+        .finally(() => {
+          if (reorderAbortRef.current === controller) reorderAbortRef.current = null;
         });
     });
   }

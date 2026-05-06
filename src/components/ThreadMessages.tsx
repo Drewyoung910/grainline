@@ -129,6 +129,7 @@ export default function ThreadMessages({
   React.useEffect(() => {
     let closed = false;
     let pollId: number | null = null;
+    let pollController: AbortController | null = null;
     setStreamError(null);
 
     const apply = (fresh: Msg[]) => {
@@ -145,10 +146,14 @@ export default function ThreadMessages({
     const startPolling = () => {
       if (closed) return;
       pollId = window.setInterval(async () => {
+        if (closed || pollController) return;
+        const controller = new AbortController();
+        pollController = controller;
         try {
           const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
           if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
-          const res = await fetch(u.toString(), { cache: "no-store" });
+          const res = await fetch(u.toString(), { cache: "no-store", signal: controller.signal });
+          if (closed) return;
           if (!res.ok) {
             if (isTerminalMessageStreamStatus(res.status)) {
               setStreamError(messageStreamStatusMessage(res.status));
@@ -158,9 +163,14 @@ export default function ThreadMessages({
             return;
           }
           const data = await res.json();
+          if (closed) return;
           apply(Array.isArray(data?.messages) ? data.messages : []);
         } catch (error) {
-          console.warn("[thread-messages] polling failed", error);
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            console.warn("[thread-messages] polling failed", error);
+          }
+        } finally {
+          if (pollController === controller) pollController = null;
         }
       }, 3000);
     };
@@ -182,6 +192,7 @@ export default function ThreadMessages({
         closed = true;
         es.close();
         if (pollId) window.clearInterval(pollId);
+        pollController?.abort();
       };
     } catch (error) {
       console.warn("[thread-messages] event stream setup failed", error);
@@ -189,6 +200,7 @@ export default function ThreadMessages({
       return () => {
         closed = true;
         if (pollId) window.clearInterval(pollId);
+        pollController?.abort();
       };
     }
   }, [convoId]);

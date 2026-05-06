@@ -239,7 +239,7 @@ export default function BuyNowCheckoutModal({
           {/* Step 2: Shipping */}
           {step === "shipping" && shippingAddress && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-md bg-stone-50 border border-neutral-200 text-sm">
+              <div className="flex items-center justify-between p-3 rounded-md bg-white border border-neutral-200 text-sm">
                 <span className="text-neutral-600 truncate mr-3 text-xs">
                   <span className="font-medium text-neutral-900">
                     Delivering to:

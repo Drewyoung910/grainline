@@ -123,7 +123,15 @@ export async function markSoldAction(listingId: string) {
   if (!listing) return;
   // Only ACTIVE and SOLD_OUT can be marked as sold
   if (listing.status !== "ACTIVE" && listing.status !== "SOLD_OUT") return;
-  await prisma.listing.update({ where: { id: listingId }, data: { status: ListingStatus.SOLD } });
+  const result = await prisma.listing.updateMany({
+    where: {
+      id: listingId,
+      sellerId: listing.sellerId,
+      status: { in: [ListingStatus.ACTIVE, ListingStatus.SOLD_OUT] },
+    },
+    data: { status: ListingStatus.SOLD },
+  });
+  if (result.count === 0) return;
   await syncThreshold(listing.sellerId);
   revalidateListingSurfaces(listingId, listing.sellerId);
 }
