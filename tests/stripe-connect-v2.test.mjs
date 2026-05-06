@@ -5,7 +5,11 @@ import {
   buildStripeConnectV2AccountCreateParams,
   STRIPE_CONNECT_ACCOUNT_VERSION,
   STRIPE_CONNECT_CONTROLLER_SUMMARY,
+  STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX,
   STRIPE_CONNECT_V2_API_VERSION,
+  isStripeConnectV2AccountEvent,
+  stripeConnectV2AccountIdFromNotification,
+  stripeWebhookCreatedSeconds,
 } from "../src/lib/stripeConnectV2State.ts";
 
 function source(path) {
@@ -60,6 +64,34 @@ describe("Stripe Connect v2 migration guardrails", () => {
     );
   });
 
+  it("normalizes v1 and v2 webhook event timestamps", () => {
+    assert.equal(stripeWebhookCreatedSeconds(1770000000), 1770000000);
+    assert.equal(stripeWebhookCreatedSeconds("2026-02-03T04:05:06.000Z"), 1770091506);
+    assert.equal(stripeWebhookCreatedSeconds("not-a-date"), undefined);
+  });
+
+  it("extracts account ids from Accounts v2 thin notifications only", () => {
+    assert.equal(STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX, "v2.core.account");
+    assert.equal(isStripeConnectV2AccountEvent("v2.core.account[requirements].updated"), true);
+    assert.equal(isStripeConnectV2AccountEvent("v2.core.account[configuration.recipient].updated"), true);
+    assert.equal(isStripeConnectV2AccountEvent("v2.core.account.created"), true);
+    assert.equal(isStripeConnectV2AccountEvent("v2.core.accounting.updated"), false);
+    assert.equal(isStripeConnectV2AccountEvent("v2.core.event_destination.ping"), false);
+    assert.equal(
+      stripeConnectV2AccountIdFromNotification({
+        related_object: { id: "acct_123", type: "v2.core.account" },
+      }),
+      "acct_123",
+    );
+    assert.equal(
+      stripeConnectV2AccountIdFromNotification({
+        related_object: { id: "acct_123", type: "v2.core.event_destination" },
+      }),
+      null,
+    );
+    assert.equal(stripeConnectV2AccountIdFromNotification({ related_object: null }), null);
+  });
+
   it("creates connected accounts through the v2 raw endpoint, not legacy express account creation", () => {
     const helper = source("src/lib/stripeConnectV2.ts");
     const route = source("src/app/api/stripe/connect/create/route.ts");
@@ -79,10 +111,14 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /createLoginLink\(seller\.stripeAccountId\)/);
 
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    assert.match(webhook, /isStripeConnectV2AccountEvent/);
+    assert.match(webhook, /stripe\.parseEventNotification\(body, signature, secret\)/);
+    assert.match(webhook, /stripeConnectV2AccountIdFromNotification\(notification\)/);
+    assert.match(webhook, /stripe\.accounts\.retrieve\(accountId\)/);
     assert.match(webhook, /event\.type === "account\.updated"/);
     assert.match(webhook, /charges_enabled\?: boolean/);
-    assert.match(webhook, /const newChargesEnabled = Boolean\(account\.charges_enabled\)/);
-    assert.match(webhook, /data: \{ chargesEnabled: newChargesEnabled \}/);
+    assert.match(webhook, /mirrorStripeChargesEnabled/);
+    assert.match(webhook, /chargesEnabled: Boolean\(account\.charges_enabled\)/);
 
     assert.match(webhook, /event\.type === "account\.application\.deauthorized"/);
   });
