@@ -1,7 +1,6 @@
 import { ListingStatus } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from './db'
-import { stripe } from './stripe'
 import { adminUndoActorBlockReason } from './adminAuditUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import { unbanClerkUser } from './clerkUserLifecycle'
@@ -105,6 +104,7 @@ export async function undoAdminAction({
       if (seller?.stripeAccountId) {
         let chargesEnabled = false
         try {
+          const { stripe } = await import('./stripe')
           const account = await stripe.accounts.retrieve(seller.stripeAccountId)
           chargesEnabled = Boolean(
             account.charges_enabled &&

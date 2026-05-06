@@ -6,6 +6,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import FollowButton from "@/components/FollowButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
@@ -20,7 +22,10 @@ export default async function FollowingPage() {
   if (!me) redirect("/sign-in");
 
   const follows = await prisma.follow.findMany({
-    where: { followerId: me.id },
+    where: {
+      followerId: me.id,
+      sellerProfile: activeSellerProfileWhere(),
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
     select: {
@@ -39,9 +44,9 @@ export default async function FollowingPage() {
           userId: true,
           guildLevel: true,
           user: { select: { imageUrl: true } },
-          _count: { select: { followers: true, listings: { where: { status: "ACTIVE", isPrivate: false } } } },
+          _count: { select: { followers: true, listings: { where: publicListingWhere() } } },
           listings: {
-            where: { status: "ACTIVE", isPrivate: false },
+            where: publicListingWhere(),
             orderBy: { createdAt: "desc" },
             take: 1,
             select: {

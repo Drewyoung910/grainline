@@ -34,6 +34,8 @@ describe("verified audit follow-up guardrails", () => {
       "src/app/dashboard/sales/[orderId]/page.tsx",
       "src/app/admin/orders/page.tsx",
       "src/app/admin/orders/[id]/page.tsx",
+      "src/app/admin/flagged/page.tsx",
+      "src/app/admin/cases/[id]/page.tsx",
       "src/app/dashboard/analytics/page.tsx",
       "src/lib/email.ts",
     ];

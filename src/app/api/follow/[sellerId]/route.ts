@@ -7,6 +7,7 @@ import { ensureUser, ensureUserByClerkId, isAccountAccessError } from "@/lib/ens
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { followRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 async function getFollowerCount(sellerProfileId: string) {
   return prisma.follow.count({ where: { sellerProfileId } });
@@ -20,8 +21,8 @@ export async function GET(
   const { sellerId } = await params;
 
   // sellerId here is the SellerProfile.id (not userId)
-  const sellerProfile = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
+  const sellerProfile = await prisma.sellerProfile.findFirst({
+    where: activeSellerProfileWhere({ id: sellerId }),
     select: { id: true },
   });
   if (!sellerProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -74,8 +75,8 @@ export async function POST(
   }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const sellerProfile = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
+  const sellerProfile = await prisma.sellerProfile.findFirst({
+    where: activeSellerProfileWhere({ id: sellerId }),
     select: { id: true, userId: true, displayName: true },
   });
   if (!sellerProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });

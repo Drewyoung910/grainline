@@ -5,6 +5,7 @@ import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/
 import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
+import { logUserAuditAction } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -373,7 +374,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
   });
 }
 
-async function handleExport() {
+async function handleExport(method: "GET" | "POST") {
   try {
     const user = await ensureUser();
     if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -381,7 +382,17 @@ async function handleExport() {
     const rate = await safeRateLimit(accountExportRatelimit, user.id);
     if (!rate.success) return rateLimitResponse(rate.reset, "Too many account export requests.");
 
-    return jsonDownload(await buildExport(user), user.id);
+    const payload = await buildExport(user);
+    await logUserAuditAction({
+      actorId: user.id,
+      action: "ACCOUNT_EXPORT",
+      targetType: "USER",
+      targetId: user.id,
+      reason: "Account export generated",
+      metadata: { route: "/api/account/export", method },
+    });
+
+    return jsonDownload(payload, user.id);
   } catch (error) {
     if (isAccountAccessError(error)) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
@@ -392,9 +403,9 @@ async function handleExport() {
 }
 
 export async function GET() {
-  return handleExport();
+  return handleExport("GET");
 }
 
 export async function POST() {
-  return handleExport();
+  return handleExport("POST");
 }

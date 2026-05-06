@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
+import { orderTotalCents } from "@/lib/orderTotals";
 
 function fmtMoney(cents: number | null | undefined, currency = "usd") {
   if (cents == null) return "—";
@@ -90,6 +91,7 @@ export default async function AdminCaseDetailPage({
           currency: true,
           itemsSubtotalCents: true,
           shippingAmountCents: true,
+          giftWrappingPriceCents: true,
           taxAmountCents: true,
         },
       },
@@ -179,9 +181,19 @@ export default async function AdminCaseDetailPage({
               label="Shipping"
               value={fmtMoney(caseRecord.order.shippingAmountCents, currency)}
             />
+            {caseRecord.order.giftWrappingPriceCents ? (
+              <Field
+                label="Gift wrapping"
+                value={fmtMoney(caseRecord.order.giftWrappingPriceCents, currency)}
+              />
+            ) : null}
             <Field
               label="Tax"
               value={fmtMoney(caseRecord.order.taxAmountCents, currency)}
+            />
+            <Field
+              label="Total"
+              value={fmtMoney(orderTotalCents(caseRecord.order), currency)}
             />
           </dl>
         </Section>

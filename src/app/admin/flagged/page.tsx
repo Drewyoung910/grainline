@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
+import { orderTotalCents } from "@/lib/orderTotals";
 
 const PAGE_SIZE = 25;
 
@@ -77,10 +78,7 @@ export default async function FlaggedOrdersPage({
               </thead>
               <tbody className="divide-y divide-neutral-100">
                 {orders.map((order) => {
-                  const total =
-                    (order.itemsSubtotalCents ?? 0) +
-                    (order.shippingAmountCents ?? 0) +
-                    (order.taxAmountCents ?? 0);
+                  const total = orderTotalCents(order);
                   const sellers = Array.from(
                     new Map(
                       order.items.map((item) => [

@@ -15,12 +15,15 @@ import FollowButton from "@/components/FollowButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import SellerGallery from "@/components/SellerGallery";
+import SellerProfileViewTracker from "@/components/SellerProfileViewTracker";
 import ListingCard from "@/components/ListingCard";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
+import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 
 export async function generateMetadata({
   params,
@@ -167,7 +170,7 @@ export default async function SellerPublicPage({
 
   // Fetch published blog posts by this seller
   const sellerBlogPosts = await prisma.blogPost.findMany({
-    where: { sellerProfileId: seller.id, status: "PUBLISHED", author: { banned: false, deletedAt: null } },
+    where: publicBlogPostWhere({ sellerProfileId: seller.id }),
     orderBy: { publishedAt: "desc" },
     take: 3,
     select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },
@@ -207,18 +210,8 @@ export default async function SellerPublicPage({
     for (const f of favs) savedSet.add(f.listingId);
   }
 
-  // Query reviews by sellerId so private listing reviews are included
-  let shopRating: { avg: number; count: number } | null = null;
-  const ratingResult = await prisma.$queryRaw<Array<{ avg: number; count: bigint }>>`
-    SELECT AVG(r."ratingX2")::float / 2.0 AS avg, COUNT(r.id) AS count
-    FROM "Review" r
-    JOIN "Listing" l ON l.id = r."listingId"
-    WHERE l."sellerId" = ${seller.id}
-    HAVING COUNT(r.id) > 0
-  `;
-  if (ratingResult.length > 0 && Number(ratingResult[0].count) > 0) {
-    shopRating = { avg: ratingResult[0].avg, count: Number(ratingResult[0].count) };
-  }
+  const sellerRatingMap = await getSellerRatingMap([seller.id]);
+  const shopRating = sellerRatingMap.get(seller.id) ?? null;
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
   const hasStructuredAddress = Boolean(cityState);
@@ -273,14 +266,10 @@ export default async function SellerPublicPage({
     ] as (SocialLink | null)[]
   ).filter((x): x is SocialLink => x !== null);
 
-  // Fire-and-forget profile view increment (don't await — don't slow page load)
-  prisma.sellerProfile.update({
-    where: { id: seller.id },
-    data: { profileViews: { increment: 1 } },
-  }).catch(() => {});
-
   return (
     <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      {!isOwner && <SellerProfileViewTracker sellerId={seller.id} />}
+
       {/* JSON-LD */}
       <script
         type="application/ld+json"
