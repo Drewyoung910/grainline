@@ -14,6 +14,7 @@ import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelim
 import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
   blockingRefundLedgerWhere,
+  blockingRefundOrDisputeLedgerWhere,
   isOpenStripeDisputeStatus,
   orderHasPurchasedLabel,
   orderHasRefundLedger,
@@ -22,6 +23,7 @@ import {
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundStockRestoreQuantities,
+  sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
 import { z } from "zod";
@@ -100,7 +102,11 @@ export async function POST(
     const myItems = order.items.filter((it) => it.listing.sellerId === seller.id);
     if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
-    await releaseStaleRefundLocks(orderId);
+    const staleLocksReleased = await releaseStaleRefundLocks(orderId);
+    const orderForRefundState = {
+      ...order,
+      sellerRefundId: sellerRefundIdAfterStaleRelease(order.sellerRefundId, staleLocksReleased.count),
+    };
 
     const latestDispute = await prisma.orderPaymentEvent.findFirst({
       where: { orderId, eventType: "DISPUTE" },
@@ -114,14 +120,14 @@ export async function POST(
       );
     }
 
-    const refundConflict = sellerRefundConflictResponse(order.sellerRefundId);
+    const refundConflict = sellerRefundConflictResponse(orderForRefundState.sellerRefundId);
     if (refundConflict) {
       return NextResponse.json(
         { error: refundConflict.error },
         { status: refundConflict.status },
       );
     }
-    if (orderHasRefundLedger(order)) {
+    if (orderHasRefundLedger(orderForRefundState)) {
       return NextResponse.json({ error: "A refund has already been issued for this order." }, { status: 400 });
     }
     if (orderHasPurchasedLabel(order)) {
@@ -155,7 +161,7 @@ export async function POST(
         id: orderId,
         sellerRefundId: null,
         OR: [{ labelStatus: null }, { labelStatus: { not: "PURCHASED" } }],
-        paymentEvents: { none: blockingRefundLedgerWhere() },
+        paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() },
       },
       data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
     });
@@ -166,8 +172,8 @@ export async function POST(
           sellerRefundId: true,
           labelStatus: true,
           paymentEvents: {
-            where: blockingRefundLedgerWhere(),
-            take: 1,
+            where: blockingRefundOrDisputeLedgerWhere(),
+            take: 2,
             select: { eventType: true, status: true },
           },
         },

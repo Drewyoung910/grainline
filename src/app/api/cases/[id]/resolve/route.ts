@@ -12,6 +12,7 @@ import { REFUND_LOCK_SENTINEL, releaseStaleRefundLocks } from "@/lib/refundLocks
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import {
   blockingRefundLedgerWhere,
+  blockingRefundOrDisputeLedgerWhere,
   orderHasRefundLedger,
   partialRefundExceedsOrderTotal,
   partialRefundInputError,
@@ -136,7 +137,7 @@ export async function POST(
       }
 
       const lockResult = await prisma.order.updateMany({
-        where: { id: caseRecord.orderId, sellerRefundId: null, paymentEvents: { none: blockingRefundLedgerWhere() } },
+        where: { id: caseRecord.orderId, sellerRefundId: null, paymentEvents: { none: blockingRefundOrDisputeLedgerWhere() } },
         data: { sellerRefundId: REFUND_LOCK_SENTINEL, sellerRefundLockedAt: new Date() },
       });
       if (lockResult.count === 0) {
@@ -145,8 +146,8 @@ export async function POST(
           select: {
             sellerRefundId: true,
             paymentEvents: {
-              where: blockingRefundLedgerWhere(),
-              take: 1,
+              where: blockingRefundOrDisputeLedgerWhere(),
+              take: 2,
               select: { eventType: true, status: true },
             },
           },

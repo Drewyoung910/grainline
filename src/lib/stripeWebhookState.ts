@@ -92,6 +92,7 @@ export type ChargeDisputeLedgerState = {
   orderUpdate: {
     reviewNeeded: true;
     reviewNote: string;
+    sellerRefundLockedAt?: null;
   };
 };
 
@@ -149,6 +150,14 @@ function isOpenDisputeStatus(status: string | null | undefined) {
   return !STRIPE_DISPUTE_CLOSED_STATUSES.has((status ?? "").toLowerCase());
 }
 
+export type CheckoutPriceDriftState = {
+  reasons: Array<"stripe_unit_amount_mismatch" | "price_version_changed">;
+  stripeUnitAmountCents: number | null;
+  expectedUnitAmountCents: number | null;
+  checkoutPriceVersion: number | null;
+  currentPriceVersion: number | null;
+};
+
 export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
   return refunds
     .filter((refund) => (refund.status ?? "").toLowerCase() === "succeeded")
@@ -170,6 +179,52 @@ export function normalizeShippoRateObjectId(value: string | null | undefined): s
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
   return normalized === "pickup" || normalized === "fallback" ? null : value;
+}
+
+export function checkoutPriceDriftState(input: {
+  stripeUnitAmountCents?: number | null;
+  expectedUnitAmountCents?: number | null;
+  checkoutPriceVersion?: number | null;
+  currentPriceVersion?: number | null;
+}): CheckoutPriceDriftState | null {
+  const stripeUnitAmountCents = Number.isInteger(input.stripeUnitAmountCents)
+    ? input.stripeUnitAmountCents ?? null
+    : null;
+  const expectedUnitAmountCents = Number.isInteger(input.expectedUnitAmountCents)
+    ? input.expectedUnitAmountCents ?? null
+    : null;
+  const checkoutPriceVersion = Number.isInteger(input.checkoutPriceVersion)
+    ? input.checkoutPriceVersion ?? null
+    : null;
+  const currentPriceVersion = Number.isInteger(input.currentPriceVersion)
+    ? input.currentPriceVersion ?? null
+    : null;
+
+  const reasons: CheckoutPriceDriftState["reasons"] = [];
+  if (
+    stripeUnitAmountCents != null &&
+    expectedUnitAmountCents != null &&
+    stripeUnitAmountCents !== expectedUnitAmountCents
+  ) {
+    reasons.push("stripe_unit_amount_mismatch");
+  }
+  if (
+    checkoutPriceVersion != null &&
+    currentPriceVersion != null &&
+    checkoutPriceVersion !== currentPriceVersion
+  ) {
+    reasons.push("price_version_changed");
+  }
+
+  return reasons.length > 0
+    ? {
+        reasons,
+        stripeUnitAmountCents,
+        expectedUnitAmountCents,
+        checkoutPriceVersion,
+        currentPriceVersion,
+      }
+    : null;
 }
 
 export function isLikelyThinStripeEventObject(value: unknown): boolean {
@@ -325,12 +380,16 @@ export function chargeDisputeLedgerState({
   orderCurrency: string;
 }): ChargeDisputeLedgerState {
   const description = `Stripe dispute ${eventType}${dispute.reason ? `: ${dispute.reason}` : ""}`;
+  const status = dispute.status ?? eventType.replace("charge.dispute.", "");
+  const shouldClearRefundLock =
+    eventType === "charge.dispute.closed" ||
+    STRIPE_DISPUTE_CLOSED_STATUSES.has((dispute.status ?? "").toLowerCase());
   return {
     ledger: {
       stripeObjectId: dispute.id ?? null,
       amountCents: dispute.amount ?? null,
       currency: dispute.currency ?? orderCurrency,
-      status: dispute.status ?? eventType.replace("charge.dispute.", ""),
+      status,
       reason: dispute.reason ?? null,
       description,
       metadata: {
@@ -342,6 +401,7 @@ export function chargeDisputeLedgerState({
     orderUpdate: {
       reviewNeeded: true,
       reviewNote: description,
+      ...(shouldClearRefundLock ? { sellerRefundLockedAt: null } : {}),
     },
   };
 }

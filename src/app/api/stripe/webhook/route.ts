@@ -35,6 +35,7 @@ import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  checkoutPriceDriftState,
   disputeCaseAction,
   invalidCheckoutBuyerReason,
   invalidCheckoutSellerReason,
@@ -886,6 +887,25 @@ export async function POST(req: Request) {
               paidByListing.get(it.listingId)?.shift();
             const orderQuantity = paid?.quantity ?? it.quantity;
             const orderPriceCents = paid?.priceCents ?? it.priceCents;
+            const priceDrift = checkoutPriceDriftState({
+              stripeUnitAmountCents: paid?.priceCents ?? null,
+              expectedUnitAmountCents: it.priceCents,
+              checkoutPriceVersion: it.priceVersion,
+              currentPriceVersion: it.listing.priceVersion,
+            });
+            if (priceDrift) {
+              Sentry.captureMessage("Stripe checkout line price drift detected", {
+                level: "warning",
+                tags: { source: "stripe_webhook_price_drift", checkoutMode: "cart" },
+                extra: {
+                  stripeSessionId: sessionId,
+                  cartId,
+                  cartItemId: it.id,
+                  listingId: it.listingId,
+                  ...priceDrift,
+                },
+              });
+            }
 
             // Resolve variant selections from cart item option IDs
             const variantSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
@@ -976,6 +996,7 @@ export async function POST(req: Request) {
           where: { id: listingId },
           select: {
             priceCents: true,
+            priceVersion: true,
             processingTimeMaxDays: true,
             listingType: true,
             stockQuantity: true,
@@ -1023,6 +1044,29 @@ export async function POST(req: Request) {
               stripeSessionId: sessionId,
               listingId,
               metadataLength: selectedVariantsResult.metadataLength,
+            },
+          });
+        }
+        const singleLineItems: CheckoutLineItem[] =
+          (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
+        const singlePaidLine = singleLineItems.find((lineItem) => {
+          const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
+          return product?.metadata?.listingId === listingId;
+        });
+        const singlePriceDrift = checkoutPriceDriftState({
+          stripeUnitAmountCents: singlePaidLine?.price?.unit_amount ?? null,
+          expectedUnitAmountCents: priceCentsFromMeta,
+          checkoutPriceVersion: parseOptionalNonNegativeInt(sessionMeta.priceVersion),
+          currentPriceVersion: listingData?.priceVersion ?? null,
+        });
+        if (singlePriceDrift) {
+          Sentry.captureMessage("Stripe checkout line price drift detected", {
+            level: "warning",
+            tags: { source: "stripe_webhook_price_drift", checkoutMode: "single" },
+            extra: {
+              stripeSessionId: sessionId,
+              listingId,
+              ...singlePriceDrift,
             },
           });
         }
@@ -1135,8 +1179,6 @@ export async function POST(req: Request) {
         if (!createdSingleOrder) return NextResponse.json({ ok: true });
 
         if (singleInvalidReason) {
-          const singleLineItems: CheckoutLineItem[] =
-            (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
           await refundBlockedCheckout({
             orderId: createdSingleOrder.id,
             reason: singleInvalidReason,

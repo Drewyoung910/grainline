@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  blockingOpenDisputeLedgerWhere,
+  blockingRefundOrDisputeLedgerWhere,
+  isBlockingDisputeLedgerEvent,
   isOpenStripeDisputeStatus,
   isBlockingRefundLedgerEvent,
   latestRefundLedgerEvent,
@@ -13,6 +16,7 @@ const {
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundStockRestoreQuantities,
+  sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
   shouldReactivateRefundedListing,
 } = await import("../src/lib/refundRouteState.ts");
@@ -91,6 +95,16 @@ describe("refund route state", () => {
     assert.deepEqual(
       refundLockAcquisitionConflictResponse({
         sellerRefundId: null,
+        paymentEvents: [{ eventType: "DISPUTE", status: "needs_response" }],
+      }),
+      {
+        status: 409,
+        error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
+      },
+    );
+    assert.deepEqual(
+      refundLockAcquisitionConflictResponse({
+        sellerRefundId: null,
         labelStatus: "PURCHASED",
         paymentEvents: [],
       }),
@@ -154,6 +168,48 @@ describe("refund route state", () => {
     assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: "pending" }), true);
     assert.equal(isBlockingRefundLedgerEvent({ eventType: "REFUND", status: null }), true);
     assert.equal(isBlockingRefundLedgerEvent({ eventType: "DISPUTE", status: "open" }), false);
+  });
+
+  it("treats only open dispute ledgers as refund-lock blockers", () => {
+    assert.equal(isBlockingDisputeLedgerEvent({ eventType: "DISPUTE", status: "needs_response" }), true);
+    assert.equal(isBlockingDisputeLedgerEvent({ eventType: "DISPUTE", status: null }), true);
+    assert.equal(isBlockingDisputeLedgerEvent({ eventType: "DISPUTE", status: "won" }), false);
+    assert.equal(isBlockingDisputeLedgerEvent({ eventType: "REFUND", status: "succeeded" }), false);
+  });
+
+  it("uses stale-lock release results for same-request refund state", () => {
+    assert.equal(sellerRefundIdAfterStaleRelease("pending", 1), null);
+    assert.equal(sellerRefundIdAfterStaleRelease("pending", 0), "pending");
+    assert.equal(sellerRefundIdAfterStaleRelease("re_123", 1), "re_123");
+    assert.equal(sellerRefundIdAfterStaleRelease(null, 1), null);
+  });
+
+  it("builds an atomic refund-lock predicate that excludes open disputes", () => {
+    assert.deepEqual(blockingOpenDisputeLedgerWhere(), {
+      eventType: "DISPUTE",
+      OR: [
+        { status: null },
+        { status: { notIn: ["won", "lost", "warning_closed"] } },
+      ],
+    });
+    assert.deepEqual(blockingRefundOrDisputeLedgerWhere(), {
+      OR: [
+        {
+          eventType: "REFUND",
+          OR: [
+            { status: null },
+            { status: { notIn: ["failed", "canceled", "cancelled"] } },
+          ],
+        },
+        {
+          eventType: "DISPUTE",
+          OR: [
+            { status: null },
+            { status: { notIn: ["won", "lost", "warning_closed"] } },
+          ],
+        },
+      ],
+    });
   });
 
   it("selects the first refund ledger event from already-sorted payment events", () => {

@@ -5,6 +5,7 @@ const {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
+  checkoutPriceDriftState,
   disputeCaseAction,
   invalidCheckoutBuyerReason,
   invalidCheckoutSellerReason,
@@ -91,6 +92,45 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(parseOptionalNonNegativeInt(""), null);
     assert.equal(parseOptionalNonNegativeInt("-1"), null);
     assert.equal(parseOptionalNonNegativeInt("1.25"), null);
+  });
+
+  it("detects checkout price drift without changing Stripe-authoritative order data", () => {
+    assert.deepEqual(
+      checkoutPriceDriftState({
+        stripeUnitAmountCents: 1_200,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: 3,
+        currentPriceVersion: 4,
+      }),
+      {
+        reasons: ["stripe_unit_amount_mismatch", "price_version_changed"],
+        stripeUnitAmountCents: 1_200,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: 3,
+        currentPriceVersion: 4,
+      },
+    );
+    assert.equal(
+      checkoutPriceDriftState({
+        stripeUnitAmountCents: 1_000,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: 4,
+        currentPriceVersion: 4,
+      }),
+      null,
+    );
+  });
+
+  it("ignores incomplete checkout price drift inputs", () => {
+    assert.equal(
+      checkoutPriceDriftState({
+        stripeUnitAmountCents: null,
+        expectedUnitAmountCents: 1_000,
+        checkoutPriceVersion: null,
+        currentPriceVersion: 4,
+      }),
+      null,
+    );
   });
 
   it("does not persist synthetic Shippo pickup/fallback IDs", () => {
@@ -246,6 +286,21 @@ describe("Stripe webhook state helpers", () => {
     assert.deepEqual(state.orderUpdate, {
       reviewNeeded: true,
       reviewNote: "Stripe dispute charge.dispute.created: fraudulent",
+    });
+  });
+
+  it("clears stale refund-lock timestamps when a Stripe dispute closes", () => {
+    const state = chargeDisputeLedgerState({
+      chargeId: "ch_1",
+      eventType: "charge.dispute.closed",
+      orderCurrency: "usd",
+      dispute: { id: "dp_1", amount: 3_200, currency: "usd", reason: "fraudulent", status: "lost" },
+    });
+
+    assert.deepEqual(state.orderUpdate, {
+      reviewNeeded: true,
+      reviewNote: "Stripe dispute charge.dispute.closed: fraudulent",
+      sellerRefundLockedAt: null,
     });
   });
 

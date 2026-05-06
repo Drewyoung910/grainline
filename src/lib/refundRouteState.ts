@@ -66,12 +66,38 @@ export function isBlockingRefundLedgerEvent(event: {
   );
 }
 
+export function isBlockingDisputeLedgerEvent(event: {
+  eventType?: string | null | undefined;
+  status?: string | null | undefined;
+}) {
+  return event.eventType === "DISPUTE" && isOpenStripeDisputeStatus(event.status);
+}
+
 export function blockingRefundLedgerWhere() {
   return {
     eventType: "REFUND",
     OR: [
       { status: null },
       { status: { notIn: [...NON_BLOCKING_REFUND_LEDGER_STATUSES] } },
+    ],
+  };
+}
+
+export function blockingOpenDisputeLedgerWhere() {
+  return {
+    eventType: "DISPUTE",
+    OR: [
+      { status: null },
+      { status: { notIn: [...STRIPE_DISPUTE_CLOSED_STATUSES] } },
+    ],
+  };
+}
+
+export function blockingRefundOrDisputeLedgerWhere() {
+  return {
+    OR: [
+      blockingRefundLedgerWhere(),
+      blockingOpenDisputeLedgerWhere(),
     ],
   };
 }
@@ -95,6 +121,14 @@ export function orderHasRefundLedger(order: {
     Boolean(order.paymentEvents?.some(isBlockingRefundLedgerEvent));
 }
 
+export function sellerRefundIdAfterStaleRelease(
+  sellerRefundId: string | null | undefined,
+  releasedStaleLockCount: number,
+) {
+  if (sellerRefundId === REFUND_LOCK_SENTINEL && releasedStaleLockCount > 0) return null;
+  return sellerRefundId ?? null;
+}
+
 export function orderHasPurchasedLabel(order: { labelStatus?: string | null | undefined }) {
   return order.labelStatus === "PURCHASED";
 }
@@ -111,6 +145,13 @@ export function refundLockAcquisitionConflictResponse(order: {
     return {
       status: 400,
       error: "A refund has already been issued for this order.",
+    };
+  }
+
+  if (order?.paymentEvents?.some(isBlockingDisputeLedgerEvent)) {
+    return {
+      status: 409,
+      error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",
     };
   }
 
