@@ -52,7 +52,9 @@ export async function POST(
     if (mySeller) {
       await prisma.follow.deleteMany({ where: { followerId: blockedId, sellerProfileId: mySeller.id } });
     }
-  } catch { /* non-fatal */ }
+  } catch (error) {
+    console.error("Failed to remove follow rows after block:", error);
+  }
 
   return NextResponse.json({ ok: true, blocked: true });
 }

@@ -149,7 +149,17 @@ export async function POST(req: NextRequest) {
   // Notify the seller
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    select: { title: true, seller: { select: { userId: true, id: true, displayName: true } } },
+    select: {
+      title: true,
+      seller: {
+        select: {
+          userId: true,
+          id: true,
+          displayName: true,
+          user: { select: { banned: true, deletedAt: true } },
+        },
+      },
+    },
   });
   if (listing?.seller.id) {
     try {
@@ -158,7 +168,7 @@ export async function POST(req: NextRequest) {
       console.error("Failed to refresh seller rating summary after review create:", error);
     }
   }
-  if (listing?.seller.userId) {
+  if (listing?.seller.userId && !listing.seller.user.banned && !listing.seller.user.deletedAt) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
     const reviewerName = me.name ?? me.email?.split("@")[0] ?? "Someone";
     await createNotification({

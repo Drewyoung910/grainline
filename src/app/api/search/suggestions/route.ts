@@ -6,6 +6,8 @@ import { searchRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { getPopularListingTags } from "@/lib/popularTags";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import {
   BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
   LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY,
@@ -23,8 +25,14 @@ export async function GET(req: NextRequest) {
   const { userId } = await auth();
   let meDbId: string | null = null;
   if (userId) {
-    const meRow = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-    meDbId = meRow?.id ?? null;
+    try {
+      const me = await ensureUserByClerkId(userId);
+      meDbId = me.id;
+    } catch (err) {
+      const accountResponse = accountAccessErrorResponse(err);
+      if (accountResponse) return accountResponse;
+      throw err;
+    }
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 

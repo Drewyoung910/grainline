@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ensureUser, ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { followRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 
@@ -32,8 +33,14 @@ export async function GET(
     return NextResponse.json({ following: false, followerCount });
   }
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) return NextResponse.json({ following: false, followerCount });
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   const existing = await prisma.follow.findUnique({
     where: { followerId_sellerProfileId: { followerId: me.id, sellerProfileId: sellerProfile.id } },

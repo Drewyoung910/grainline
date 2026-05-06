@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 import {
   accountFeedCursorTieMode,
   buildAccountFeedCursor,
@@ -42,8 +44,14 @@ export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
-  if (!me) return NextResponse.json({ error: "User not found" }, { status: 401 });
+  let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+  try {
+    me = await ensureUserByClerkId(userId);
+  } catch (err) {
+    const accountResponse = accountAccessErrorResponse(err);
+    if (accountResponse) return accountResponse;
+    throw err;
+  }
 
   const rate = await safeRateLimitOpen(accountFeedRatelimit, me.id);
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many feed requests.");

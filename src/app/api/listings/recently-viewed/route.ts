@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimitOpen, searchRatelimit } from "@/lib/ratelimit";
+import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { ensureUserByClerkId } from "@/lib/ensureUser";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimitOpen(searchRatelimit, `recently-viewed:${getIP(req)}`);
@@ -24,11 +26,14 @@ export async function GET(req: NextRequest) {
   const { userId } = await auth();
   let blockedSellerIds: string[] = [];
   if (userId) {
-    const me = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
-    if (me) blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+    try {
+      const me = await ensureUserByClerkId(userId);
+      blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+    } catch (err) {
+      const accountResponse = accountAccessErrorResponse(err);
+      if (accountResponse) return accountResponse;
+      throw err;
+    }
   }
 
   const rows = await prisma.listing.findMany({
