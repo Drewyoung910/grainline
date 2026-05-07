@@ -5,19 +5,16 @@ import { prisma } from "@/lib/db";
 import { getIP, profileViewRatelimit, safeRateLimitOpen, viewRatelimit } from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 
 const VIEWED_SELLER_IDS_COOKIE = "viewed_seller_profile_ids";
-
-function isLikelyBot(userAgent: string) {
-  return /\b(bot|crawler|spider|preview|facebookexternalhit|slurp|bingpreview|headless)\b/i.test(userAgent);
-}
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const userAgent = req.headers.get("user-agent") ?? "";
-  if (isLikelyBot(userAgent)) return NextResponse.json({ ok: true, skipped: true });
+  if (isLikelyBotUserAgent(userAgent)) return NextResponse.json({ ok: true, skipped: true });
 
   const ip = getIP(req);
   const { success: globalOk } = await safeRateLimitOpen(viewRatelimit, ip);

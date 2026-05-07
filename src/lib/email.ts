@@ -160,13 +160,13 @@ async function findInactiveEmailAccount(recipient: string, subject: string) {
       });
     } catch (err) {
       if (attempt === 2) {
-        console.error("[email] inactive-account lookup failed; sending anyway:", err);
+        console.error("[email] inactive-account lookup failed; skipping send:", err);
         Sentry.captureException(err, {
           level: "warning",
           tags: { source: "email_inactive_account_lookup" },
           extra: { to: recipient, subject },
         });
-        return null;
+        throw err;
       }
     }
   }
