@@ -13,7 +13,7 @@ import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import PhotoManager from "@/components/PhotoManager";
-import ActionForm from "@/components/ActionForm";
+import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
@@ -28,6 +28,7 @@ import { parseMoneyInputToCents } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
+const PUBLISH_REQUIRES_STRIPE_MESSAGE = "Connect Stripe payouts before publishing. Save as Draft is still available.";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -49,7 +50,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
   // 2. Check chargesEnabled for publish (not for draft)
   if (!saveAsDraft && !seller.chargesEnabled) {
-    redirect("/dashboard/listings/new?error=stripe");
+    return { ok: false, error: PUBLISH_REQUIRES_STRIPE_MESSAGE };
   }
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
@@ -419,7 +420,7 @@ export default async function NewListingPage({
 
   const sp = await searchParams;
   const errorMessage = sp.error === "stripe"
-    ? "Connect your bank account in Shop Settings to publish listings."
+    ? PUBLISH_REQUIRES_STRIPE_MESSAGE
     : null;
 
   return (
@@ -550,23 +551,33 @@ export default async function NewListingPage({
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <button
-            type="submit"
-            name="saveAsDraft"
-            value="false"
-            className="flex-1 rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800"
-          >
-            Publish
-          </button>
-          <button
-            type="submit"
+          <span className="flex-1" title={!chargesEnabled ? PUBLISH_REQUIRES_STRIPE_MESSAGE : undefined}>
+            <SubmitButton
+              name="saveAsDraft"
+              value="false"
+              disabled={!chargesEnabled}
+              title={!chargesEnabled ? PUBLISH_REQUIRES_STRIPE_MESSAGE : undefined}
+              pendingLabel="Publishing…"
+              aria-describedby={!chargesEnabled ? "publish-stripe-required" : undefined}
+              className="w-full rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Publish
+            </SubmitButton>
+          </span>
+          <SubmitButton
             name="saveAsDraft"
             value="true"
-            className="flex-1 rounded-md border border-neutral-200 px-4 py-2.5 bg-white text-neutral-700 text-sm font-medium hover:bg-neutral-50"
+            pendingLabel="Saving draft…"
+            className="flex-1 rounded-md border border-neutral-200 px-4 py-2.5 bg-white text-neutral-700 text-sm font-medium hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"
           >
             Save as Draft
-          </button>
+          </SubmitButton>
         </div>
+        {!chargesEnabled && (
+          <p id="publish-stripe-required" className="sr-only">
+            {PUBLISH_REQUIRES_STRIPE_MESSAGE}
+          </p>
+        )}
       </ActionForm>
     </div>
   );
