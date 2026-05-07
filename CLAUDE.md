@@ -3284,6 +3284,7 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 ### Clerk security settings (configured in Clerk dashboard)
 
 - Bot protection via Cloudflare Turnstile — enabled
+- Clerk Turnstile requires `https://challenges.cloudflare.com` in `script-src`, `script-src-elem`, `frame-src`, and `connect-src`; do not remove it from CSP or Clerk signup CAPTCHA can fail, especially in Safari.
 - Disposable email blocking — enabled
 - Email subaddress blocking — enabled
 - Strict user enumeration protection — enabled
@@ -3324,7 +3325,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 ## Content Security Policy (enforced — 2026-04-02)
 
-`Content-Security-Policy` is **enforced** in `next.config.ts` as of 2026-04-02. Was report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` (was causing 3K Sentry CSP violation events from Clerk's custom domain scripts).
+`Content-Security-Policy` is **enforced** in `next.config.ts` as of 2026-04-02. Was report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` (was causing 3K Sentry CSP violation events from Clerk's custom domain scripts). Clerk bot protection also requires `https://challenges.cloudflare.com` in `script-src`, `script-src-elem`, `frame-src`, and `connect-src` for Cloudflare Turnstile CAPTCHA.
 
 **Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs to Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode.
 
@@ -3332,13 +3333,13 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 | Directive | Key allowed sources |
 |---|---|
-| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) |
-| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com` |
+| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) + Clerk custom domain + Cloudflare Turnstile |
+| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com challenges.cloudflare.com` |
 | `style-src` | `'self' 'unsafe-inline'` |
 | `img-src` | `'self' data: blob:` + explicit Grainline CDN/R2, Clerk, Stripe, and map tile origins |
 | `font-src` | `'self' data:` |
-| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks` + checkout), R2/CDN, Sentry, Upstash, OpenStreetMap/OpenFreeMap, `wss://*.clerk.*` |
-| `frame-src` | `'self'` + Stripe, Clerk, YouTube no-cookie, Vimeo |
+| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks` + checkout), Cloudflare Turnstile, R2/CDN, Sentry, Upstash, OpenStreetMap/OpenFreeMap, `wss://*.clerk.*` |
+| `frame-src` | `'self'` + Stripe, Clerk, Cloudflare Turnstile, YouTube no-cookie, Vimeo |
 | `worker-src` | `'self' blob:` |
 | `media-src` | `'self' cdn.thegrainline.com` |
 | `object-src` | `'none'` |
@@ -5997,6 +5998,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Header/accessibility behavior**: header logo links should keep explicit `aria-label="Grainline home"` copy, the root skip link should reveal on `focus-visible`, and `UserAvatarMenu` should rely on `/api/me` avatar/image props instead of subscribing to Clerk `useUser()` for a fallback image.
 - **Popover/motion accessibility behavior**: header/account popovers should expose `aria-controls`/expanded state and close when keyboard focus leaves them; animated hero mosaic media must keep a pause/play control, reduced-motion transforms, and stable listing/image keys. Admin mobile navigation stays semantic navigation with `aria-current="page"` instead of tab roles.
 - **CSP report observability**: `/api/csp-report` may still return 204 for malformed browser/provider reports, but parse failures must be Sentry-captured with non-PII context after rate limiting. Do not restore a bare catch around report parsing.
+- **Clerk Turnstile CSP behavior**: Clerk bot protection depends on Cloudflare Turnstile. Keep `https://challenges.cloudflare.com` allowlisted only in the required CSP directives (`script-src`, `script-src-elem`, `frame-src`, and `connect-src`); do not replace it with wildcard Cloudflare hosts or broader script/frame allowances.
 - **Rate-limit UX behavior**: `rateLimitResponse()` returns structured `RATE_LIMITED` payloads with `retryAfterSeconds`, `retryAt`, `Retry-After`, and human retry copy. UI fetch code should surface that message through `readApiErrorMessage()` on non-OK responses.
 - **Cron monitor behavior**: App Router cron routes wrap successful auth requests in `withSentryCronMonitor()`. `/api/cron/ops-health` runs hourly and warns on failed `CronRun` rows from the last 24 hours, stale email outbox jobs, and overdue support requests.
 - **Cron run claim behavior**: `beginCronRun()` may reclaim stale failed run IDs, but reclaim create retries are explicitly capped and emit a Sentry warning before returning a skipped run. Do not reintroduce unbounded recursion in cron-run locking.
