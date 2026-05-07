@@ -101,6 +101,19 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(page, /Save as Draft/);
   });
 
+  it("keeps the high-friction auth and form surfaces on Grainline styling tokens", () => {
+    assert.match(source("src/app/sign-in/[[...sign-in]]/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/sign-in/[[...sign-in]]/page.tsx"), /appearance=\{\{/);
+    assert.match(source("src/app/sign-up/[[...sign-up]]/SignUpTermsGate.tsx"), /appearance=\{\{/);
+    assert.match(source("src/app/support/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/legal/data-request/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/components/BuyNowCheckoutModal.tsx"), /rounded-md border border-red-200/);
+    assert.doesNotMatch(source("src/components/BuyNowCheckoutModal.tsx"), /bg-stone-50/);
+    assert.match(source("src/app/dashboard/listings/custom/page.tsx"), /const inputClass = "w-full rounded-md border border-neutral-200/);
+    assert.match(source("src/app/account/orders/page.tsx"), /className="card-section"/);
+    assert.match(source("src/app/admin/audit/page.tsx"), /className="card-section overflow-x-auto"/);
+  });
+
   it("marks label-cost clawback failures for durable admin reconciliation", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
     assert.match(labelRoute, /markLabelClawbackForReview/);

@@ -217,7 +217,7 @@ export default function BuyNowCheckoutModal({
         {/* Step content */}
         <div className="px-5 pb-5 pt-3">
           {error && (
-            <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 mb-4">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 mb-4">
               {error}
             </div>
           )}
@@ -288,7 +288,7 @@ export default function BuyNowCheckoutModal({
               )}
 
               {/* Order summary */}
-              <div className="border border-neutral-200 rounded-lg p-4 space-y-2 text-sm bg-neutral-50">
+              <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-neutral-600">
                   <span>Items</span>
                   <span>${((priceCents * quantity) / 100).toFixed(2)}</span>

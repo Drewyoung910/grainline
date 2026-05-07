@@ -107,15 +107,15 @@ export default async function AccountOrdersPage({
         <Link href="/account" className="text-sm text-neutral-500 hover:text-neutral-700">
           ← My Account
         </Link>
-        <h1 className="text-3xl font-bold">My Orders</h1>
+        <h1 className="text-3xl font-semibold font-display">My Orders</h1>
       </div>
 
       {orders.length === 0 ? (
-        <div className="border border-neutral-200 p-8 text-center space-y-3">
+        <div className="card-section p-8 text-center space-y-3">
           <p className="text-neutral-600">No orders yet.</p>
           <Link
             href="/browse"
-            className="inline-block border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
+            className="inline-block rounded-md border border-neutral-900 bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors"
           >
             Browse pieces →
           </Link>
@@ -128,9 +128,9 @@ export default async function AccountOrdersPage({
               order.sellerRefundAmountCents ?? latestRefundLedgerEvent(order.paymentEvents)?.amountCents ?? null;
 
             return (
-              <li key={order.id} className="border border-neutral-200">
+              <li key={order.id} className="card-section">
                 {/* Order header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 bg-stone-50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100 bg-white">
                   <div className="text-sm">
                     <span className="text-neutral-500 text-xs">Order</span>{" "}
                     <span className="font-mono text-xs text-neutral-700">{order.id.slice(-8).toUpperCase()}</span>

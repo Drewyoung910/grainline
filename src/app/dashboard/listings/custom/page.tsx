@@ -346,6 +346,7 @@ export default async function CustomListingPage({
     where: { id: buyerId },
     select: { name: true, email: true },
   });
+  const inputClass = "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
 
   return (
     <div className="max-w-2xl mx-auto p-8">
@@ -394,7 +395,7 @@ export default async function CustomListingPage({
           <input
             name="title"
             required
-            className="w-full border rounded px-3 py-2"
+            className={inputClass}
             placeholder="e.g. Custom walnut dining table"
           />
         </div>
@@ -407,7 +408,7 @@ export default async function CustomListingPage({
             inputMode="decimal"
             pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             required
-            className="w-full border rounded px-3 py-2"
+            className={inputClass}
           />
         </div>
 
@@ -416,7 +417,7 @@ export default async function CustomListingPage({
           <textarea
             name="description"
             rows={4}
-            className="w-full border rounded px-3 py-2 resize-none"
+            className={`${inputClass} resize-none`}
             placeholder="Describe what you're making and any specifics…"
           />
         </div>
@@ -426,12 +427,12 @@ export default async function CustomListingPage({
           <PhotoManager max={8} />
         </div>
 
-        <div className="border rounded p-3">
+        <div className="card-section p-3">
           <div className="font-medium mb-2">Listing type</div>
           <ListingTypeFields />
         </div>
 
-        <div className="border rounded p-3">
+        <div className="card-section p-3">
           <div className="font-medium mb-2">Packaged size &amp; weight (for calculated shipping)</div>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
@@ -442,7 +443,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className={inputClass}
                 placeholder="e.g. 24"
               />
             </label>
@@ -454,7 +455,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className={inputClass}
                 placeholder="e.g. 12"
               />
             </label>
@@ -466,7 +467,7 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className={inputClass}
                 placeholder="e.g. 8"
               />
             </label>
@@ -478,14 +479,14 @@ export default async function CustomListingPage({
                 inputMode="decimal"
                 step="0.1"
                 min="0"
-                className="w-full border rounded px-3 py-2"
+                className={inputClass}
                 placeholder="e.g. 5.5"
               />
             </label>
           </div>
         </div>
 
-        <button type="submit" className="rounded px-4 py-2 bg-black text-white">
+        <button type="submit" className="rounded-md px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800">
           Create Custom Listing &amp; Notify Buyer
         </button>
       </ActionForm>
