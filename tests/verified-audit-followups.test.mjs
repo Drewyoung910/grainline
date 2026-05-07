@@ -74,6 +74,31 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(acceptRoute, /termsAccepted: z\.literal\(true\)/);
     assert.match(acceptRoute, /ageAttested: z\.literal\(true\)/);
     assert.match(acceptRoute, /termsVersion: z\.literal\(CURRENT_TERMS_VERSION\)/);
+    assert.match(acceptRoute, /currentTermsAcceptanceUpdate\(me, acceptedAt\)/);
+
+    const acceptForm = source("src/app/accept-terms/AcceptTermsForm.tsx");
+    assert.match(acceptForm, /fetch\("\/api\/account\/accept-terms"/);
+    assert.match(acceptForm, /window\.location\.assign\(redirectUrl\)/);
+  });
+
+  it("keeps Stripe setup reachable from the final onboarding summary", () => {
+    const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
+    assert.match(wizard, /Connect Stripe Payouts/);
+    assert.match(wizard, /onClick=\{handleConnectStripe\}/);
+    assert.match(wizard, /body: JSON\.stringify\(\{ returnUrl: "\/dashboard\/onboarding" \}\)/);
+    assert.match(wizard, /disabled=\{loading \|\| !chargesEnabled \|\| listingCount < 1\}/);
+    assert.doesNotMatch(wizard, /bg-stone-50/);
+    assert.match(wizard, /className="card-section p-8/);
+    assert.match(wizard, /font-display/);
+  });
+
+  it("keeps disconnected sellers from losing new-listing form data on publish", () => {
+    const page = source("src/app/dashboard/listings/new/page.tsx");
+    assert.match(page, /PUBLISH_REQUIRES_STRIPE_MESSAGE/);
+    assert.match(page, /return \{ ok: false, error: PUBLISH_REQUIRES_STRIPE_MESSAGE \}/);
+    assert.doesNotMatch(page, /redirect\("\/dashboard\/listings\/new\?error=stripe"\)/);
+    assert.match(page, /disabled=\{!chargesEnabled\}/);
+    assert.match(page, /Save as Draft/);
   });
 
   it("marks label-cost clawback failures for durable admin reconciliation", () => {
@@ -127,5 +152,9 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("src/middleware.ts"), /"\/become-a-maker"/);
     assert.match(source("src/app/account/page.tsx"), /!sellerProfile &&/);
     assert.match(source("src/app/account/page.tsx"), /Become a Maker/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /!hasSeller &&/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /Start Selling/);
+    assert.match(source("src/components/Header.tsx"), /!hasSeller &&/);
+    assert.match(source("src/components/Header.tsx"), /Start Selling/);
   });
 });

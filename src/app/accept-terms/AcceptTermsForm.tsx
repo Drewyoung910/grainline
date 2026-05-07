@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { CURRENT_TERMS_VERSION } from "@/lib/termsAcceptance";
 
 export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }) {
-  const router = useRouter();
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageAttested, setAgeAttested] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -34,8 +32,7 @@ export default function AcceptTermsForm({ redirectUrl }: { redirectUrl: string }
         throw new Error(data?.error ?? "Could not save your acceptance. Please try again.");
       }
 
-      router.replace(redirectUrl);
-      router.refresh();
+      window.location.assign(redirectUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your acceptance. Please try again.");
     } finally {

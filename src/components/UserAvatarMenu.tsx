@@ -109,6 +109,16 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
           {/* Menu items */}
           <div className="py-1">
+            {!hasSeller && (
+              <Link
+                href="/dashboard"
+                role="menuitem"
+                className="flex items-center px-4 py-2.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
+                onClick={() => setOpen(false)}
+              >
+                Start Selling
+              </Link>
+            )}
             <Link
               href="/account"
               role="menuitem"

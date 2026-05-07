@@ -5,7 +5,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUser } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/lib/ratelimit";
-import { CURRENT_TERMS_VERSION } from "@/lib/termsAcceptance";
+import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/termsAcceptance";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
@@ -42,11 +42,7 @@ export async function POST(req: Request) {
   const acceptedAt = new Date();
   const user = await prisma.user.update({
     where: { id: me.id },
-    data: {
-      termsAcceptedAt: me.termsAcceptedAt ?? acceptedAt,
-      ageAttestedAt: me.ageAttestedAt ?? acceptedAt,
-      termsVersion: CURRENT_TERMS_VERSION,
-    },
+    data: currentTermsAcceptanceUpdate(me, acceptedAt),
     select: {
       termsAcceptedAt: true,
       termsVersion: true,

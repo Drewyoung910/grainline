@@ -3,11 +3,38 @@
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 
-export function SubmitButton({ children, className = "rounded px-4 py-2 bg-black text-white", }: { children: React.ReactNode; className?: string; }) {
+export function SubmitButton({
+  children,
+  className = "rounded px-4 py-2 bg-black text-white",
+  disabled = false,
+  name,
+  pendingLabel = "Saving…",
+  title,
+  value,
+  "aria-describedby": ariaDescribedBy,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+  name?: string;
+  pendingLabel?: string;
+  title?: string;
+  value?: string;
+  "aria-describedby"?: string;
+}) {
   const { pending } = useFormStatus();
+  const isDisabled = disabled || pending;
   return (
-    <button type="submit" disabled={pending} className={className}>
-      {pending ? "Saving…" : children}
+    <button
+      type="submit"
+      name={name}
+      value={value}
+      disabled={isDisabled}
+      title={title}
+      aria-describedby={ariaDescribedBy}
+      className={className}
+    >
+      {pending ? pendingLabel : children}
     </button>
   );
 }
@@ -53,4 +80,3 @@ export default function ActionForm({
     </>
   );
 }
-
