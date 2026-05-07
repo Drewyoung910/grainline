@@ -19,7 +19,7 @@ const SUPPORT_TOPICS = [
 
 export default function SupportPage() {
   return (
-    <main className="min-h-[100svh] bg-stone-50 px-4 py-12 sm:px-6">
+    <main className="min-h-[100svh] bg-[#F7F5F0] px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-3xl space-y-8">
         <header className="space-y-3">
           <p className="text-sm font-medium text-neutral-500">Support</p>
@@ -39,7 +39,7 @@ export default function SupportPage() {
           successMessage="The support queue has your request. Keep the request ID for follow-up."
         />
 
-        <section className="rounded-lg border border-neutral-200 bg-white px-5 py-4 text-sm leading-6 text-neutral-700">
+        <section className="card-section px-5 py-4 text-sm leading-6 text-neutral-700">
           <h2 className="mb-2 font-semibold text-neutral-950">Other contacts</h2>
           <p>
             For privacy rights or account access requests, use the{" "}

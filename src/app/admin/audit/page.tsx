@@ -69,11 +69,11 @@ export default async function AdminAuditPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Audit Log</h1>
+        <h1 className="text-2xl font-semibold font-display">Audit Log</h1>
         <span className="text-sm text-neutral-500">{total} entries</span>
       </div>
 
-      <form method="get" className="flex flex-wrap items-end gap-3 rounded-md border border-neutral-200 bg-white px-4 py-3">
+      <form method="get" className="card-section flex flex-wrap items-end gap-3 px-4 py-3">
         <div>
           <label htmlFor="action" className="block text-xs font-medium text-neutral-500 mb-1">
             Action
@@ -105,7 +105,7 @@ export default async function AdminAuditPage({
         )}
       </form>
 
-      <div className="border border-neutral-200 bg-white overflow-x-auto">
+      <div className="card-section overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b border-neutral-200 bg-neutral-50">
             <tr>
@@ -175,7 +175,7 @@ export default async function AdminAuditPage({
           {page > 1 && (
             <a
               href={pageHref(page - 1)}
-              className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               ← Prev
             </a>
@@ -186,7 +186,7 @@ export default async function AdminAuditPage({
           {page < totalPages && (
             <a
               href={pageHref(page + 1)}
-              className="border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
+              className="rounded-md border border-neutral-200 px-3 py-1 text-sm hover:bg-neutral-50"
             >
               Next →
             </a>
