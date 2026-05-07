@@ -32,6 +32,12 @@ import {
 } from "@/lib/checkoutStockRestore";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import {
+  isStripeConnectV2AccountEvent,
+  stripeConnectV2AccountIdFromNotification,
+  stripeWebhookCreatedSeconds,
+  type StripeConnectV2AccountNotification,
+} from "@/lib/stripeConnectV2";
+import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
   chargeRefundLedgerState,
@@ -94,7 +100,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  if (isStaleStripeEvent(event.created)) {
+  const eventCreatedSeconds = stripeWebhookCreatedSeconds(
+    (event as { created?: number | string | null }).created,
+  );
+  if (isStaleStripeEvent(eventCreatedSeconds)) {
     Sentry.captureMessage("Stripe webhook event is too old", {
       level: "warning",
       tags: { source: "stripe_webhook_stale_event" },
@@ -126,8 +135,10 @@ export async function POST(req: Request) {
   // Handle Stripe Workbench Snapshot thin events:
   // thin events only carry { id, object } (≤3 keys) in data.object. Keep the
   // signed envelope and copy in only the retrieved data.object after matching.
-  const rawDataObj = event.data.object as unknown as Record<string, unknown>;
-  if (isLikelyThinStripeEventObject(rawDataObj)) {
+  const rawDataObj = (event as { data?: { object?: unknown } }).data?.object as
+    | Record<string, unknown>
+    | undefined;
+  if (rawDataObj && isLikelyThinStripeEventObject(rawDataObj)) {
     try {
       const retrievedEvent = await stripe.events.retrieve(event.id);
       if (!retrievedStripeEventMatchesSignedEnvelope(event, retrievedEvent)) {
@@ -201,6 +212,54 @@ export async function POST(req: Request) {
         }
       }
     }
+  }
+
+  async function mirrorStripeChargesEnabled({
+    accountId,
+    chargesEnabled,
+  }: {
+    accountId: string;
+    chargesEnabled: boolean;
+  }) {
+    const seller = await prisma.sellerProfile.findFirst({
+      where: { stripeAccountId: accountId },
+      select: {
+        id: true,
+        chargesEnabled: true,
+        user: { select: { id: true } },
+      },
+    });
+
+    if (!seller || seller.chargesEnabled === chargesEnabled) return;
+
+    await prisma.sellerProfile.update({
+      where: { id: seller.id },
+      data: { chargesEnabled },
+    });
+
+    if (!chargesEnabled) {
+      const { logSecurityEvent } = await import("@/lib/security");
+      logSecurityEvent("ownership_violation", {
+        userId: seller.user.id,
+        route: "/api/stripe/webhook",
+        reason: `Seller Stripe account disabled by Stripe: ${accountId}`,
+      });
+    }
+  }
+
+  if (isStripeConnectV2AccountEvent((event as { type: string }).type)) {
+    return processIdempotentEvent(async () => {
+      const notification = stripe.parseEventNotification(body, signature, secret) as StripeConnectV2AccountNotification;
+      const accountId = stripeConnectV2AccountIdFromNotification(notification);
+      if (accountId) {
+        const account = await stripe.accounts.retrieve(accountId);
+        await mirrorStripeChargesEnabled({
+          accountId,
+          chargesEnabled: Boolean(account.charges_enabled),
+        });
+      }
+      return NextResponse.json({ received: true });
+    });
   }
 
   type OrderPaymentEventClient = {
@@ -1279,37 +1338,14 @@ export async function POST(req: Request) {
           requirements?: { disabled_reason?: string | null } | null;
         };
         if (account.id) {
-          const seller = await prisma.sellerProfile.findFirst({
-            where: { stripeAccountId: account.id },
-            select: {
-              id: true,
-              chargesEnabled: true,
-              user: { select: { id: true } },
-            },
+          // Stripe separates the ability to accept charges from payout and
+          // verification state. Only mirror charges_enabled into Grainline's
+          // buyer-facing purchase gate; payout/requirements problems are
+          // operational issues that should be surfaced separately.
+          await mirrorStripeChargesEnabled({
+            accountId: account.id,
+            chargesEnabled: Boolean(account.charges_enabled),
           });
-
-          if (seller) {
-            // Stripe separates the ability to accept charges from payout and
-            // verification state. Only mirror charges_enabled into Grainline's
-            // buyer-facing purchase gate; payout/requirements problems are
-            // operational issues that should be surfaced separately.
-            const newChargesEnabled = Boolean(account.charges_enabled);
-            if (seller.chargesEnabled !== newChargesEnabled) {
-              await prisma.sellerProfile.update({
-                where: { id: seller.id },
-                data: { chargesEnabled: newChargesEnabled },
-              });
-
-              if (!newChargesEnabled) {
-                const { logSecurityEvent } = await import("@/lib/security");
-                logSecurityEvent("ownership_violation", {
-                  userId: seller.user.id,
-                  route: "/api/stripe/webhook",
-                  reason: `Seller Stripe account disabled by Stripe: ${account.id}`,
-                });
-              }
-            }
-          }
         }
         return NextResponse.json({ received: true });
       });
