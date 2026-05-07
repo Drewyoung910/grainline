@@ -4,10 +4,9 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
-import { sendCustomOrderReady } from "@/lib/email";
 import { filterR2PublicUrls } from "@/lib/urlValidation";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
+import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import ActionForm from "@/components/ActionForm";
 import PhotoManager from "@/components/PhotoManager";
 import ListingTypeFields from "@/components/ListingTypeFields";
@@ -233,53 +232,13 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       AND status = 'ACTIVE'
   `;
 
-  // Send a custom_order_link message back to the buyer
-  await prisma.message.create({
-    data: {
-      conversationId,
-      senderId: me.id,
-      recipientId: reservedForUserId,
-      kind: "custom_order_link",
-      body: JSON.stringify({
-        listingId: created.id,
-        title: created.title,
-        priceCents: created.priceCents,
-        currency: created.currency,
-      }),
-    },
+  await sendCustomOrderReadyLink({
+    conversationId,
+    sellerUserId: me.id,
+    buyerUserId: reservedForUserId,
+    sellerName: seller.displayName,
+    listing: created,
   });
-
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { updatedAt: new Date() },
-  });
-
-  await createNotification({
-    userId: reservedForUserId,
-    type: "CUSTOM_ORDER_LINK",
-    title: "Your custom piece is ready to review!",
-    body: `${created.title} — review and purchase`,
-    link: publicListingPath(created.id, created.title),
-  });
-
-  try {
-    if (await shouldSendEmail(reservedForUserId, "EMAIL_CUSTOM_ORDER")) {
-      const buyerUser = await prisma.user.findUnique({
-        where: { id: reservedForUserId },
-        select: { name: true, email: true },
-      });
-      if (buyerUser?.email) {
-        await sendCustomOrderReady({
-          buyer: { name: buyerUser.name, email: buyerUser.email },
-          sellerName: seller.displayName,
-          listingTitle: created.title,
-          priceCents: created.priceCents,
-          currency: created.currency,
-          listingId: created.id,
-        });
-      }
-    }
-  } catch { /* non-fatal */ }
 
   revalidatePath(`/messages/${conversationId}`);
   redirect(`/messages/${conversationId}`);

@@ -32,9 +32,17 @@ export default async function ThreadPage({
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
+  const isStaff = me.role === "ADMIN" || me.role === "EMPLOYEE";
+  const reportedThread = isStaff
+    ? await prisma.userReport.findFirst({
+        where: { targetType: "MESSAGE_THREAD", targetId: id, resolved: false },
+        select: { id: true },
+      })
+    : null;
+  const canStaffReviewThread = !!reportedThread;
 
   const convo = await prisma.conversation.findFirst({
-    where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
+    where: canStaffReviewThread ? { id } : { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     include: {
       userA: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
       userB: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
@@ -50,20 +58,27 @@ export default async function ThreadPage({
     },
   });
   if (!convo) return notFound();
+  const isParticipant = convo.userAId === me.id || convo.userBId === me.id;
+  const isStaffReviewMode = canStaffReviewThread && !isParticipant;
 
   // Auto-mark any unread NEW_MESSAGE notifications for this conversation as read
-  await prisma.notification.updateMany({
-    where: {
-      userId: me.id,
-      type: "NEW_MESSAGE",
-      read: false,
-      link: { contains: `/messages/${id}` },
-    },
-    data: { read: true },
-  });
+  if (isParticipant) {
+    await prisma.notification.updateMany({
+      where: {
+        userId: me.id,
+        type: "NEW_MESSAGE",
+        read: false,
+        link: { contains: `/messages/${id}` },
+      },
+      data: { read: true },
+    });
+  }
 
-  const other = convo.userAId === me.id ? convo.userB : convo.userA;
-  const otherUnavailableReason = messagingUnavailableReason(other);
+  const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
+  const otherUnavailableReason = isParticipant ? messagingUnavailableReason(other) : null;
+  const participantLabel = isStaffReviewMode
+    ? `${convo.userA.name || convo.userA.email || "User"} ↔ ${convo.userB.name || convo.userB.email || "User"}`
+    : other?.name || other?.email || "User";
 
   // Check if the other participant is a seller accepting custom orders
   const otherSellerProfile = other
@@ -72,7 +87,7 @@ export default async function ThreadPage({
         select: { displayName: true, acceptsCustomOrders: true, avatarImageUrl: true },
       })
     : null;
-  const showCustomOrderButton = !!(otherSellerProfile?.acceptsCustomOrders && !otherUnavailableReason);
+  const showCustomOrderButton = !!(isParticipant && otherSellerProfile?.acceptsCustomOrders && !otherUnavailableReason);
 
   // Avatar priority: custom seller avatar first, Clerk imageUrl fallback
   const otherAvatarUrl = otherSellerProfile?.avatarImageUrl ?? other?.imageUrl ?? null;
@@ -279,29 +294,32 @@ export default async function ThreadPage({
   const ctx = convo.contextListing;
   const ctxImg = ctx?.photos?.[0]?.url ?? null;
   const archivedForMe =
-    (convo.userAId === me.id ? convo.archivedAAt : convo.archivedBAt) ?? null;
+    isParticipant ? (convo.userAId === me.id ? convo.archivedAAt : convo.archivedBAt) ?? null : null;
 
   return (
     <main className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
-      <MarkReadClient id={id} />
+      {isParticipant && <MarkReadClient id={id} />}
 
       {/* Two-row header for mobile friendliness */}
       <header className="flex flex-col gap-2">
         {/* Row 1: back link + participant name */}
         <div className="flex items-center gap-3">
-          <Link href="/messages" className="text-sm text-neutral-500 hover:text-neutral-800 shrink-0">
-            ← Inbox
+          <Link href={isStaffReviewMode ? "/admin/reports" : "/messages"} className="text-sm text-neutral-500 hover:text-neutral-800 shrink-0">
+            {isStaffReviewMode ? "← Reports" : "← Inbox"}
           </Link>
           <div className="flex items-center gap-2 min-w-0">
             <div className="h-8 w-8 rounded-full bg-neutral-200 overflow-hidden shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
             </div>
-            <div className="font-medium truncate">{other?.name || other?.email || "User"}</div>
+            <div className="font-medium truncate">{participantLabel}</div>
+            {isStaffReviewMode ? (
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-[2px] text-[11px] text-blue-700 shrink-0">Staff review</span>
+            ) : null}
             {archivedForMe ? (
               <span className="rounded-full border px-2 py-[2px] text-[11px] text-neutral-600 shrink-0">Archived</span>
             ) : null}
-            {other && other.id !== me.id && (
+            {isParticipant && other && other.id !== me.id && (
               <BlockReportButton
                 targetUserId={other.id}
                 targetName={other.name ?? "this user"}
@@ -321,11 +339,13 @@ export default async function ThreadPage({
             />
           )}
           {/* Archive / Unarchive */}
-          <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
-            <SubmitButton className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50">
-              {archivedForMe ? "Unarchive" : "Archive"}
-            </SubmitButton>
-          </ActionForm>
+          {isParticipant && (
+            <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
+              <SubmitButton className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50">
+                {archivedForMe ? "Unarchive" : "Archive"}
+              </SubmitButton>
+            </ActionForm>
+          )}
         </div>
       </header>
 
@@ -366,11 +386,11 @@ export default async function ThreadPage({
       />
 
       {/* sticky composer */}
-      {otherUnavailableReason ? null : (
+      {isParticipant && !otherUnavailableReason ? (
         <ActionForm action={sendMessage}>
           <MessageComposer />
         </ActionForm>
-      )}
+      ) : null}
     </main>
   );
 }
