@@ -119,4 +119,13 @@ describe("verified audit follow-up guardrails", () => {
     assert.doesNotMatch(source("CLAUDE.md"), /polls `GET \/api\/notifications` every \*\*5 minutes\*\*/);
     assert.match(source("CLAUDE.md"), /adaptive 60s\/5min\/15min\/stop polling/);
   });
+
+  it("keeps a visible become-maker path for non-sellers", () => {
+    assert.match(source("src/app/layout.tsx"), /href="\/become-a-maker"/);
+    assert.match(source("src/app/become-a-maker/page.tsx"), /signUpPathForRedirect\("\/dashboard"\)/);
+    assert.match(source("src/app/become-a-maker/page.tsx"), /redirect\(userId \? "\/dashboard"/);
+    assert.match(source("src/middleware.ts"), /"\/become-a-maker"/);
+    assert.match(source("src/app/account/page.tsx"), /!sellerProfile &&/);
+    assert.match(source("src/app/account/page.tsx"), /Become a Maker/);
+  });
 });

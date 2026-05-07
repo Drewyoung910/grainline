@@ -129,6 +129,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/privacy" className="hover:text-stone-600 hover:underline">Privacy Policy</Link>
               <Link href="/blog" className="hover:text-stone-600 hover:underline">Blog</Link>
               <Link href="/commission" className="hover:text-stone-600 hover:underline">Commission Room</Link>
+              <Link href="/become-a-maker" className="hover:text-stone-600 hover:underline">Become a Maker</Link>
               <Link href="/accessibility" className="hover:text-stone-600 hover:underline">Accessibility</Link>
             </div>
             <p className="mt-2">&copy; {new Date().getFullYear()} Grainline. All rights reserved.</p>
@@ -138,4 +139,3 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     </html>
   );
 }
-

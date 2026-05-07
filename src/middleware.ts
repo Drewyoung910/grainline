@@ -29,6 +29,7 @@ const isPublic = createRouteMatcher([
   "/monitoring",          // Sentry client-event tunnel — no Clerk session
   "/about",               // About page — public
   "/support",             // Support request form — no auth needed
+  "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
