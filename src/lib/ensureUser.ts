@@ -180,15 +180,18 @@ export async function ensureUser() {
   const termsVersion =
     typeof unsafeMetadata.termsVersion === "string" ? truncateText(unsafeMetadata.termsVersion, 50) : undefined;
 
-  // Here we DO pass real fields so your DB stays accurate
-  const result = await ensureUserByClerkId(u.id, {
+  const userFields: Parameters<typeof ensureUserByClerkId>[1] = {
     email,
     name,
     imageUrl,
-    termsAcceptedAt,
-    ageAttestedAt,
-    termsVersion,
-  });
+    ...(termsAcceptedAt ? { termsAcceptedAt } : {}),
+    ...(ageAttestedAt ? { ageAttestedAt } : {}),
+    ...(termsVersion ? { termsVersion } : {}),
+  };
+
+  // Here we DO pass real fields so your DB stays accurate, but we do not clear
+  // durable legal acceptance fields when Clerk metadata is absent.
+  const result = await ensureUserByClerkId(u.id, userFields);
   if (result && (result as { banned?: boolean }).banned) {
     throw new AccountAccessError(
       "Your account has been suspended. Contact support@thegrainline.com",

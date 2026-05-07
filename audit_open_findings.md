@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-06
+Last updated: 2026-05-07
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -8,7 +8,12 @@ This file is the canonical fix-mode backlog for the later audit rounds. It focus
 
 Raw audit volume across all rounds is roughly 750+ findings. That number includes duplicates, already-fixed issues, future ideas, product/legal decisions, and false positives. The historical sections below are retained for traceability, but the live code backlog is much smaller after the later fix passes.
 
-Latest mechanical open-heading count after the 2026-05-06 order-state follow-up pass: **0** broad unclosed numbered findings in the prior mechanical fix queue and **0** verified code/doc follow-ups from the latest audit-only sweep. The only remaining item from this live ledger is the deferred Stripe Connect v2 architecture modernization, which should be handled as a dedicated branch rather than mixed into bug-fix batches. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-07 Terms enforcement pass: **0** broad unclosed numbered code findings in the prior mechanical fix queue and **0** verified launch-blocking code/doc follow-ups from the latest sweep. Remaining non-code/product work from this live ledger: deferred Stripe Connect v2 architecture modernization and the Phase 2 "Become a Maker" CTA UX follow-up. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
+
+2026-05-07 Terms acceptance enforcement pass:
+
+1. **[CRITICAL LAUNCH BLOCKER FIXED 2026-05-07] Terms/age acceptance was bypassable through OAuth/back-button signup completion paths.** The durable source of truth is now the existing `User.termsAcceptedAt`, `User.termsVersion`, and `User.ageAttestedAt` fields. Middleware checks signed-in accounts against `termsAcceptance.ts` and redirects pages to `/accept-terms` or returns `TERMS_NOT_ACCEPTED` for APIs before account features are available. `/accept-terms` plus `POST /api/account/accept-terms` writes current-version Terms/Privacy acceptance and age attestation to the DB. `ensureUser()` no longer clears stored `termsVersion` when Clerk metadata is absent. Regression coverage: `tests/terms-acceptance-state.test.mjs` and `tests/verified-audit-followups.test.mjs`.
+2. **[PHASE 2 UX OPEN] Non-sellers do not have a discoverable "Become a Maker" CTA.** Current direct entry is `/dashboard`, which creates/loads a seller profile and redirects incomplete sellers to onboarding. Recommended follow-up: add a visible "Become a Maker" CTA on `/account` for non-sellers and in the footer for signed-out/signed-in users.
 
 2026-05-06 order-state/case-resolution follow-up pass closed these verified findings:
 
