@@ -334,6 +334,16 @@ export default function Header() {
 
               <Show when="signed-in">
                 {/* My Account */}
+                {!hasSeller && (
+                  <Link
+                    href="/dashboard"
+                    className="flex items-center gap-3 px-4 py-3 font-medium text-neutral-900 hover:bg-stone-50 min-h-[44px]"
+                    onClick={() => setDrawerOpen(false)}
+                  >
+                    Start Selling
+                  </Link>
+                )}
+
                 <Link
                   href="/account"
                   className="flex items-center gap-3 px-4 py-3 text-neutral-800 hover:bg-stone-50 min-h-[44px]"

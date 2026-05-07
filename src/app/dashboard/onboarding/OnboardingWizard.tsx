@@ -177,18 +177,18 @@ export default function OnboardingWizard({
   }
 
   const inputClass =
-    "w-full border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400";
+    "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400";
   const btnPrimary =
-    "flex-1 bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2.5 text-sm min-h-[44px] disabled:opacity-50 transition-colors";
+    "flex-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2.5 text-sm min-h-[44px] disabled:opacity-50 transition-colors";
   const btnSecondary =
-    "flex-1 border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50";
+    "flex-1 rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50";
 
   return (
-    <div className="min-h-[100svh] bg-stone-50 flex flex-col items-center justify-start py-12 px-4">
+    <div className="min-h-[100svh] bg-[#F7F5F0] flex flex-col items-center justify-start py-12 px-4">
       <div className="w-full max-w-xl">
         {/* Action errors */}
         {actionError && (
-          <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {actionError}
           </div>
         )}
@@ -211,9 +211,9 @@ export default function OnboardingWizard({
 
         {/* ── Step 0: Welcome ─────────────────────────────────── */}
         {step === 0 && (
-          <div className="border border-neutral-200 bg-white p-8 text-center">
+          <div className="card-section p-8 text-center">
             <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
-            <h1 className="text-2xl font-bold mb-2">
+            <h1 className="text-2xl font-semibold font-display mb-2">
               Welcome to Grainline, {displayName}!
             </h1>
             <p className="text-neutral-600 mb-8">
@@ -222,7 +222,7 @@ export default function OnboardingWizard({
             <button
               onClick={() => advance(1)}
               disabled={loading}
-              className="bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+              className="rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
             >
               {loading ? "Loading…" : "Get Started →"}
             </button>
@@ -231,8 +231,8 @@ export default function OnboardingWizard({
 
         {/* ── Step 1: Your Profile ─────────────────────────────── */}
         {step === 1 && (
-          <div className="border border-neutral-200 bg-white p-8">
-            <h2 className="text-xl font-bold mb-1">Your Profile</h2>
+          <div className="card-section p-8">
+            <h2 className="text-xl font-semibold font-display mb-1">Your Profile</h2>
             <p className="text-sm text-neutral-500 mb-6">
               This is how buyers will know you. Tell them about your craft.
             </p>
@@ -314,7 +314,7 @@ export default function OnboardingWizard({
 
         {/* ── Step 2: Your Shop ────────────────────────────────── */}
         {step === 2 && (
-          <div className="border border-neutral-200 bg-white p-8">
+          <div className="card-section p-8">
             <button
               type="button"
               onClick={() => setStep(1)}
@@ -322,7 +322,7 @@ export default function OnboardingWizard({
             >
               ← Back
             </button>
-            <h2 className="text-xl font-bold mb-1">Your Shop</h2>
+            <h2 className="text-xl font-semibold font-display mb-1">Your Shop</h2>
             <p className="text-sm text-neutral-500 mb-6">
               Help buyers know what to expect when shopping with you.
             </p>
@@ -445,7 +445,7 @@ export default function OnboardingWizard({
 
         {/* ── Step 3: Get Paid ─────────────────────────────────── */}
         {step === 3 && (
-          <div className="border border-neutral-200 bg-white p-8">
+          <div className="card-section p-8">
             <button
               type="button"
               onClick={() => setStep(2)}
@@ -453,14 +453,14 @@ export default function OnboardingWizard({
             >
               ← Back
             </button>
-            <h2 className="text-xl font-bold mb-1">Get Paid</h2>
+            <h2 className="text-xl font-semibold font-display mb-1">Get Paid</h2>
             <p className="text-sm text-neutral-500 mb-6">
               Grainline uses Stripe to send you money when you make a sale. Setup takes 2 minutes.
             </p>
 
             {chargesEnabled || completed.step3 ? (
               // Fully connected and charges enabled
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 px-4 py-4 mb-6">
+              <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
                 <span className="text-green-600 text-lg">✓</span>
                 <div>
                   <p className="font-medium text-green-800">Stripe Connected</p>
@@ -472,7 +472,7 @@ export default function OnboardingWizard({
             ) : hasStripeAccount ? (
               // Account exists but setup not complete
               <div className="space-y-3 mb-6">
-                <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 px-4 py-3 mb-3">
+                <div className="flex items-center gap-3 rounded-md bg-amber-50 border border-amber-200 px-4 py-3 mb-3">
                   <span className="text-amber-600 text-lg">⚠</span>
                   <div>
                     <p className="font-medium text-amber-800">Stripe Setup Incomplete</p>
@@ -484,7 +484,7 @@ export default function OnboardingWizard({
                 <button
                   onClick={handleConnectStripe}
                   disabled={connectingStripe || loading}
-                  className="w-full bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-6 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                  className="w-full rounded-md bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-6 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
                 >
                   {connectingStripe ? "Connecting…" : "Continue Stripe Setup →"}
                 </button>
@@ -495,7 +495,7 @@ export default function OnboardingWizard({
                 <button
                   onClick={handleConnectStripe}
                   disabled={connectingStripe || loading}
-                  className="w-full bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-6 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                  className="w-full rounded-md bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-6 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
                 >
                   {connectingStripe ? "Connecting…" : "Connect Stripe →"}
                 </button>
@@ -507,7 +507,7 @@ export default function OnboardingWizard({
             )}
 
             {!chargesEnabled && !completed.step3 && (
-              <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Stripe must be fully connected before onboarding can be completed or listings can publish.
               </div>
             )}
@@ -515,7 +515,7 @@ export default function OnboardingWizard({
             <button
               onClick={() => advance(4)}
               disabled={loading}
-              className="w-full border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+              className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
             >
               {loading
                 ? "Loading…"
@@ -528,7 +528,7 @@ export default function OnboardingWizard({
 
         {/* ── Step 4: Your First Listing ───────────────────────── */}
         {step === 4 && (
-          <div className="border border-neutral-200 bg-white p-8">
+          <div className="card-section p-8">
             <button
               type="button"
               onClick={() => setStep(3)}
@@ -536,13 +536,13 @@ export default function OnboardingWizard({
             >
               ← Back
             </button>
-            <h2 className="text-xl font-bold mb-1">Your First Listing</h2>
+            <h2 className="text-xl font-semibold font-display mb-1">Your First Listing</h2>
             <p className="text-sm text-neutral-500 mb-6">
               Show buyers what you make. You can always add more later.
             </p>
 
             {listingCount > 0 || completed.step4 ? (
-              <div className="flex items-center gap-3 bg-green-50 border border-green-200 px-4 py-4 mb-6">
+              <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
                 <span className="text-green-600 text-lg">✓</span>
                 <div>
                   <p className="font-medium text-green-800">You already have listings!</p>
@@ -558,7 +558,7 @@ export default function OnboardingWizard({
                   onClick={() => {
                     void advanceStep(5);
                   }}
-                  className="block w-full text-center bg-amber-500 hover:bg-amber-600 text-white font-medium px-6 py-3 min-h-[44px] transition-colors"
+                  className="block w-full rounded-md text-center bg-amber-500 hover:bg-amber-600 text-white font-medium px-6 py-3 min-h-[44px] transition-colors"
                 >
                   Create a Listing →
                 </Link>
@@ -568,7 +568,7 @@ export default function OnboardingWizard({
             <button
               onClick={() => advance(5)}
               disabled={loading || (listingCount === 0 && !completed.step4)}
-              className="w-full border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+              className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
             >
               {loading
                 ? "Loading…"
@@ -581,12 +581,12 @@ export default function OnboardingWizard({
 
         {/* ── Step 5: All set! ─────────────────────────────────── */}
         {step === 5 && (
-          <div className="border border-neutral-200 bg-white p-8 text-center">
+          <div className="card-section p-8 text-center">
             <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
-            <h2 className="text-2xl font-bold mb-2">Your shop is ready!</h2>
+            <h2 className="text-2xl font-semibold font-display mb-2">Your shop is ready!</h2>
             <p className="text-neutral-600 mb-6">Here&apos;s a summary of what you set up:</p>
 
-            <div className="text-left border border-neutral-200 divide-y divide-neutral-100 mb-8">
+            <div className="text-left rounded-lg border border-neutral-200 divide-y divide-neutral-100 mb-8 overflow-hidden">
               <div className="flex items-center gap-3 px-4 py-3">
                 <span
                   className={
@@ -634,15 +634,25 @@ export default function OnboardingWizard({
             </div>
 
             {!chargesEnabled && (
-              <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
-              </div>
+              <>
+                <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleConnectStripe}
+                  disabled={connectingStripe || loading}
+                  className="mb-3 w-full rounded-md bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                >
+                  {connectingStripe ? "Connecting…" : "Connect Stripe Payouts →"}
+                </button>
+              </>
             )}
 
             <button
               onClick={handleComplete}
               disabled={loading || !chargesEnabled || listingCount < 1}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+              className="w-full rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}
             </button>

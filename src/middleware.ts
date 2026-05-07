@@ -7,6 +7,7 @@ import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { normalizeRequestId, requestHeadersWithRequestId, REQUEST_ID_HEADER } from "@/lib/requestId";
+import { shouldRequireTermsAcceptance } from "@/lib/termsAcceptance";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -28,6 +29,7 @@ const isPublic = createRouteMatcher([
   "/monitoring",          // Sentry client-event tunnel — no Clerk session
   "/about",               // About page — public
   "/support",             // Support request form — no auth needed
+  "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
@@ -60,6 +62,31 @@ const isPublic = createRouteMatcher([
 const isAdminPage = createRouteMatcher(["/admin(.*)"]);
 const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
+const isTermsAcceptanceAllowed = createRouteMatcher([
+  "/accept-terms(.*)",
+  "/api/account/accept-terms",
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/sign-out(.*)",
+  "/terms",
+  "/privacy",
+  "/legal/data-request",
+  "/accessibility",
+  "/unsubscribe",
+  "/support",
+  "/not-available",
+  "/monitoring",
+  "/banned",
+  "/api/clerk/webhook",
+  "/api/stripe/webhook",
+  "/api/resend/webhook",
+  "/api/email/unsubscribe",
+  "/api/support",
+  "/api/legal/data-request",
+  "/api/csp-report",
+  "/api/health",
+  "/api/cron(.*)",
+]);
 const isSuspendedAccountAllowed = createRouteMatcher([
   "/banned",
   "/sign-in(.*)",
@@ -93,6 +120,23 @@ function forbiddenFor(req: Request, requestId: string) {
     return withRequestId(NextResponse.json({ error: "Forbidden" }, { status: 403 }), requestId);
   }
   return withRequestId(NextResponse.redirect(new URL("/", req.url)), requestId);
+}
+
+function termsRequiredFor(req: Request, requestId: string) {
+  const url = new URL(req.url);
+  if (url.pathname.startsWith("/api/")) {
+    return withRequestId(NextResponse.json(
+      {
+        error: "You must accept Grainline's Terms of Service and confirm your age before continuing.",
+        code: "TERMS_NOT_ACCEPTED",
+      },
+      { status: 428 },
+    ), requestId);
+  }
+
+  const acceptUrl = new URL("/accept-terms", req.url);
+  acceptUrl.searchParams.set("redirect_url", `${url.pathname}${url.search}`);
+  return withRequestId(NextResponse.redirect(acceptUrl), requestId);
 }
 
 function isGeoAllowedApiPath(pathname: string): boolean {
@@ -160,11 +204,28 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
   Sentry.setUser(userId ? { id: userId } : null);
 
-  if (userId && !isSuspendedAccountAllowed(req)) {
-    const account = await prisma.user.findUnique({
+  let account: {
+    banned: boolean;
+    deletedAt: Date | null;
+    termsAcceptedAt: Date | null;
+    termsVersion: string | null;
+    ageAttestedAt: Date | null;
+  } | null = null;
+
+  if (userId && (!isSuspendedAccountAllowed(req) || !isTermsAcceptanceAllowed(req))) {
+    account = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { banned: true, deletedAt: true },
+      select: {
+        banned: true,
+        deletedAt: true,
+        termsAcceptedAt: true,
+        termsVersion: true,
+        ageAttestedAt: true,
+      },
     });
+  }
+
+  if (userId && !isSuspendedAccountAllowed(req)) {
     if (account?.banned || account?.deletedAt) {
       if (req.nextUrl.pathname.startsWith("/api/")) {
         return withRequestId(NextResponse.json(
@@ -179,6 +240,10 @@ export default clerkMiddleware(async (auth, req) => {
       }
       return withRequestId(NextResponse.redirect(new URL("/banned", req.url)), requestId);
     }
+  }
+
+  if (userId && !isTermsAcceptanceAllowed(req) && shouldRequireTermsAcceptance(account)) {
+    return termsRequiredFor(req, requestId);
   }
 
   // Enforce EMPLOYEE or ADMIN role for admin pages and APIs.

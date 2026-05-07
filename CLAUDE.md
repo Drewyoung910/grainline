@@ -972,7 +972,7 @@ Server component (`src/app/dashboard/onboarding/page.tsx`) — calls `ensureSell
 - **Step 2 — Your Shop (40%)**: city, state, years in business, return policy, shipping policy, accepts custom orders toggle
 - **Step 3 — Get Paid (60%)**: Stripe Connect button (green checkmark if already connected); "Connect Stripe →" calls `/api/stripe/connect/create` with `{ returnUrl: "/dashboard/onboarding" }` so user returns to step 4 after Stripe onboarding
 - **Step 4 — Your First Listing (80%)**: "Create a Listing →" link to `/dashboard/listings/new`; shows green checkmark if listings already exist
-- **Step 5 — Done! (100%)**: checklist summary of completed vs skipped steps; "Go to My Dashboard →" calls `completeOnboarding()` which sets `onboardingComplete = true` and redirects to `/dashboard`
+- **Step 5 — Done! (100%)**: checklist summary of completed vs skipped steps; if Stripe is still incomplete, "Connect Stripe Payouts →" re-runs `/api/stripe/connect/create` with `{ returnUrl: "/dashboard/onboarding" }`; "Go to My Dashboard →" stays disabled until `chargesEnabled` and calls `completeOnboarding()` only after the server invariant can pass
 
 ### Files
 - `src/app/dashboard/onboarding/actions.ts` — `saveStep1`, `saveStep2`, `advanceStep(targetStep)`, `completeOnboarding`
@@ -1132,7 +1132,7 @@ These items were identified in a comprehensive 196-item attorney discussion list
 - ✅ Operating agreement — not legally required for single-member LLC in Texas but recommended. Template sufficient for solo launch.
 - ✅ Stripe Connect v2 migration — implemented on `feature/stripe-connect-v2` with Accounts v2 creation and Express-dashboard access preserved; declare complete after Stripe test-mode A-F checklist passes and the branch is merged.
 - Attorney sign-off on Terms and Privacy Policy (remove DRAFT banner)
-- ✅ Clickwrap/age-gate technical implementation — `/sign-up` requires Terms/Privacy + 18+ attestation; attorney still reviews wording/enforceability
+- ✅ Clickwrap/age-gate server enforcement — middleware requires durable `User.termsAcceptedAt` + current `termsVersion` + `ageAttestedAt`; `/sign-up` metadata alone is not the enforcement boundary. Attorney still reviews wording/enforceability.
 - Money transmitter licensing confirmation from attorney
 - Stripe live mode webhook (after switching to live mode)
 - Clerk webhook production setup (`CLERK_WEBHOOK_SECRET` + register endpoint)
@@ -2664,7 +2664,7 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - **`prefers-reduced-motion`** in `globals.css`: all animations disabled (`animation: none !important`), all transitions set to `0.01ms` duration. Covers hero mosaic scroll, slide-in, slide-up, pulse skeletons.
 
 ### Remaining items from Opus 4.7 audit (not yet implemented)
-- ~~**Clickwrap on sign-up**~~ — DONE as technical implementation: `/sign-up` gates Clerk sign-up behind Terms/Privacy acceptance and stores `termsAcceptedAt`/`termsVersion` metadata. Attorney still reviews final legal wording.
+- ✅ **Clickwrap/age-gate server enforcement** — `/sign-up` still captures Terms/Privacy acceptance for normal signups, and middleware now enforces `User.termsAcceptedAt` + current `termsVersion` + `ageAttestedAt` for every signed-in account. OAuth/back-button and webhook-created users without durable DB acceptance are redirected to `/accept-terms` before account features are available. Attorney still reviews final legal wording.
 - ~~**Age gate checkbox**~~ — DONE as technical implementation: `/sign-up` requires 18+ attestation and stores `ageAttestedAt`.
 - ~~**Account deletion flow**~~ — DONE: `/api/account/delete`, account settings UI, cascade-aware anonymization, and Clerk `user.deleted` webhook handling.
 - ~~**EXIF stripping from uploads**~~ — DONE for JPEG/PNG/WebP: server-side `sharp` pipeline strips metadata before R2 storage. GIF/video/PDF may retain metadata and Privacy discloses that.
@@ -3206,7 +3206,7 @@ Follow-up audit pass against the remaining 300+ item backlog. This pass first re
 - **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
 - **Texas marketplace facilitator registration** ✅ completed 2026-04-18; first quarterly return due 2026-07-20 and must be filed even with zero sales
 - **Operating agreement** ✅ template sufficient for solo launch; not a launch blocker for single-member Texas LLC
-- **Clickwrap implementation** ✅ technical gate built before account creation; attorney still reviews wording/enforceability
+- **Clickwrap implementation** ✅ server-side middleware gate uses durable `User` Terms/age fields; attorney still reviews wording/enforceability
 - **Trademark Class 035** filing — ~$350; clearance search first (conflict risk with "Grainline Studio")
 - **Business insurance** — general liability ($30–60/mo) + cyber liability + marketplace product liability
 - Fix Terms 6.3 redundant sentence — delete "Payout timing is governed by Stripe's standard payout schedule." *(fixed in c7bde34)*
@@ -3288,6 +3288,7 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 ### Clerk security settings (configured in Clerk dashboard)
 
 - Bot protection via Cloudflare Turnstile — enabled
+- Clerk Turnstile requires `https://challenges.cloudflare.com` in `script-src`, `script-src-elem`, `frame-src`, and `connect-src`; do not remove it from CSP or Clerk signup CAPTCHA can fail, especially in Safari.
 - Disposable email blocking — enabled
 - Email subaddress blocking — enabled
 - Strict user enumeration protection — enabled
@@ -3328,7 +3329,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 ## Content Security Policy (enforced — 2026-04-02)
 
-`Content-Security-Policy` is **enforced** in `next.config.ts` as of 2026-04-02. Was report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` (was causing 3K Sentry CSP violation events from Clerk's custom domain scripts).
+`Content-Security-Policy` is **enforced** in `next.config.ts` as of 2026-04-02. Was report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` (was causing 3K Sentry CSP violation events from Clerk's custom domain scripts). Clerk bot protection also requires `https://challenges.cloudflare.com` in `script-src`, `script-src-elem`, `frame-src`, and `connect-src` for Cloudflare Turnstile CAPTCHA.
 
 **Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs to Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode.
 
@@ -3336,13 +3337,13 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 | Directive | Key allowed sources |
 |---|---|
-| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) |
-| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com` |
+| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` (Next.js hydration requires both) + Clerk custom domain + Cloudflare Turnstile |
+| `script-src-elem` | `'self' 'unsafe-inline'` + `clerk.com *.clerk.accounts.dev *.clerk.com clerk.thegrainline.com js.stripe.com challenges.cloudflare.com` |
 | `style-src` | `'self' 'unsafe-inline'` |
 | `img-src` | `'self' data: blob:` + explicit Grainline CDN/R2, Clerk, Stripe, and map tile origins |
 | `font-src` | `'self' data:` |
-| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks` + checkout), R2/CDN, Sentry, Upstash, OpenStreetMap/OpenFreeMap, `wss://*.clerk.*` |
-| `frame-src` | `'self'` + Stripe, Clerk, YouTube no-cookie, Vimeo |
+| `connect-src` | `'self'` + Clerk, Stripe (`api` + `hooks` + checkout), Cloudflare Turnstile, R2/CDN, Sentry, Upstash, OpenStreetMap/OpenFreeMap, `wss://*.clerk.*` |
+| `frame-src` | `'self'` + Stripe, Clerk, Cloudflare Turnstile, YouTube no-cookie, Vimeo |
 | `worker-src` | `'self' blob:` |
 | `media-src` | `'self' cdn.thegrainline.com` |
 | `object-src` | `'none'` |
@@ -5928,7 +5929,7 @@ This pass closed a documentation/code mismatch around CI build enforcement and e
 This section summarizes architecture-level changes from the reconciliation/audit-fix run. `audit_open_findings.md` remains the source of truth for individual findings, statuses, and per-finding fix notes.
 
 ### New or expanded helpers
-- **Account/admin/session helpers**: `accountAccessError.ts`, `clerkWebhookEmail.ts`, `clerkUserLifecycle.ts`, `clerkSessionSecurity.ts`, `adminEmailRecipient.ts`, `adminPin.ts`, and `requestId.ts` centralize account-state errors, Clerk webhook primary-email selection, Clerk lifecycle/session invalidation behavior, admin email recipient checks, signed admin PIN cookies, and request correlation IDs. Production admin PIN cookies require `ADMIN_PIN_COOKIE_SECRET`.
+- **Account/admin/session helpers**: `accountAccessError.ts`, `clerkWebhookEmail.ts`, `clerkUserLifecycle.ts`, `clerkSessionSecurity.ts`, `termsAcceptance.ts`, `adminEmailRecipient.ts`, `adminPin.ts`, and `requestId.ts` centralize account-state errors, Clerk webhook primary-email selection, Clerk lifecycle/session invalidation behavior, server-side Terms/age acceptance state, admin email recipient checks, signed admin PIN cookies, and request correlation IDs. Production admin PIN cookies require `ADMIN_PIN_COOKIE_SECRET`.
 - **Cron/observability helpers**: `cronMonitor.ts`, `cronMonitorState.ts`, and `guildMemberRevocationState.ts` provide explicit Sentry check-ins for App Router cron route handlers, classify 5xx cron responses as failed check-ins, and build reason-specific Guild Member revocation guards. Do not rely on `automaticVercelMonitors` for App Router routes, and do not revoke Guild badges from stale cron reads without re-checking the exact revocation condition in the write predicate.
 - **Cart/checkout/order helpers**: `anonymousCart.ts`, `cartEvents.ts`, `checkoutAmounts.ts`, `checkoutSessionExpiry.ts`, `checkoutStockRestore.ts`, `checkoutSuccessState.ts`, `orderTotals.ts`, `sellerOrderState.ts`, `shippingQuoteState.ts`, `stockMutationState.ts`, and `transactionRetry.ts` keep cart merge/count behavior, checkout retry/rollback behavior, amount math, order total display math, seller order-availability blocks, stock restoration, and retryable transaction rules testable outside route handlers.
 - **Stripe/webhook helpers**: `labelClawbackState.ts`, `stripeConnectV2State.ts`, `stripeConnectV2.ts`, `stripeWebhookState.ts`, `stripeWebhookEventState.ts`, `webhookFailureSpike.ts`, and `webhookFailureSpikeState.ts` own label-cost clawback reconciliation notes, Accounts v2 creation params/raw endpoint calls, idempotent webhook state, checkout price-drift classification, dispute/refund order updates, failure-spike detection, and retry semantics. Completed checkout email side effects enqueue through `EmailOutbox` with stable dedup keys.
@@ -5944,6 +5945,13 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Audit workflow**: every audit/fix pass must update `audit_open_findings.md`, update this file when architecture/env/schema changed, run verification, and land a scoped commit before starting the next batch.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. The dedicated `feature/stripe-connect-v2` branch implements the deferred Stripe Connect v2 modernization; merge remains gated on Stripe test-mode evidence. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
 - **Stripe Connect v2 behavior**: new seller Connect accounts are created through raw `/v2/core/accounts` with API version `"2026-02-25.clover"`, `dashboard: "express"`, application-collected fees/losses responsibilities, and card-payment plus Stripe-transfer capabilities. Keep the existing destination-charge checkout model (`transfer_data.amount`, platform retains tax). Continue mirroring legacy `account.updated.charges_enabled` and Accounts v2 `v2.core.account[...]` thin events into `SellerProfile.chargesEnabled` by retrieving the account and reading `charges_enabled`. `account.application.deauthorized` remains a legacy safety handler until Stripe test-mode proves a v2 replacement is needed.
+- **Terms acceptance behavior**: Terms/Privacy acceptance and 18+ attestation are enforced server-side from `User.termsAcceptedAt`, `User.termsVersion`, and `User.ageAttestedAt` through middleware. Do not rely solely on `/sign-up` form rendering or Clerk OAuth metadata; any signed-in account missing current durable DB acceptance must be routed to `/accept-terms` before account features are available.
+- **Terms acceptance redirect behavior**: after `POST /api/account/accept-terms` succeeds, the client performs a full document navigation with `window.location.assign(redirectUrl)` so middleware and server components re-read durable DB acceptance on the next request. Avoid replacing this with a cached client-only transition.
+- **Seller onboarding summary behavior**: the final onboarding summary must keep a primary "Connect Stripe Payouts →" action visible whenever `chargesEnabled === false`. It posts to `/api/stripe/connect/create` with `returnUrl: "/dashboard/onboarding"`; the dashboard completion button stays disabled until Stripe charges are enabled.
+- **Listing publish gating behavior**: disconnected sellers may save drafts, but the new-listing Publish button stays disabled until `chargesEnabled === true`; the server action still returns an inline `PUBLISH_REQUIRES_STRIPE_MESSAGE` instead of redirecting so rejected publish attempts do not clear the form. Do not reintroduce `/dashboard/listings/new?error=stripe` redirects for this guard.
+- **Seller onboarding entry behavior**: `/become-a-maker` is the public discovery route for seller onboarding. Signed-out users redirect to `/sign-up?redirect_url=/dashboard`; signed-in users redirect to `/dashboard`, where `ensureSeller()` creates/loads the seller profile and sends incomplete sellers to onboarding. Keep the footer link, desktop avatar-menu "Start Selling", mobile drawer "Start Selling", and non-seller `/account` CTA visible so seller onboarding is not only discoverable by manually typing `/dashboard`.
+- **Onboarding visual behavior**: `/dashboard/onboarding` uses the site warm page background, `card-section` surfaces, `font-display` headings, rounded-md action controls, and a visible final-summary Stripe reconnect CTA. Keep future wizard edits aligned with the Grainline design tokens instead of falling back to generic gray hard-corner panels.
+- **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization remains deferred as a separate architecture branch. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
 - **Seller order-availability behavior**: `SellerProfile.acceptingNewOrders === false` is a hard server-side purchase blocker, not just a badge. Cart add, buy-now checkout, seller cart checkout, shipping quotes, and custom-order requests should call `sellerOrderBlockReason()` / `sellerOrderBlockMessage()` before mutating cart state, requesting Shippo rates, or creating Stripe sessions. Listing detail should hide purchase controls when the same state says the seller is blocked.
 - **Cart add concurrency behavior**: signed-in cart creation uses `cart.upsert`, and existing cart item quantity increments use an `updateMany` guard against the 99-item cap. Do not reintroduce find-then-create cart creation or read-then-increment quantity checks.
 - **Admin case resolution behavior**: staff case resolution must write the terminal case state with an atomic unresolved-case precondition and return 409 on stale resolution attempts. Full case refunds store the computed order refund amount in `Case.refundAmountCents`; do not persist the nullable full-refund form input.
@@ -6002,6 +6010,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Header/accessibility behavior**: header logo links should keep explicit `aria-label="Grainline home"` copy, the root skip link should reveal on `focus-visible`, and `UserAvatarMenu` should rely on `/api/me` avatar/image props instead of subscribing to Clerk `useUser()` for a fallback image.
 - **Popover/motion accessibility behavior**: header/account popovers should expose `aria-controls`/expanded state and close when keyboard focus leaves them; animated hero mosaic media must keep a pause/play control, reduced-motion transforms, and stable listing/image keys. Admin mobile navigation stays semantic navigation with `aria-current="page"` instead of tab roles.
 - **CSP report observability**: `/api/csp-report` may still return 204 for malformed browser/provider reports, but parse failures must be Sentry-captured with non-PII context after rate limiting. Do not restore a bare catch around report parsing.
+- **Clerk Turnstile CSP behavior**: Clerk bot protection depends on Cloudflare Turnstile. Keep `https://challenges.cloudflare.com` allowlisted only in the required CSP directives (`script-src`, `script-src-elem`, `frame-src`, and `connect-src`); do not replace it with wildcard Cloudflare hosts or broader script/frame allowances.
 - **Rate-limit UX behavior**: `rateLimitResponse()` returns structured `RATE_LIMITED` payloads with `retryAfterSeconds`, `retryAt`, `Retry-After`, and human retry copy. UI fetch code should surface that message through `readApiErrorMessage()` on non-OK responses.
 - **Cron monitor behavior**: App Router cron routes wrap successful auth requests in `withSentryCronMonitor()`. `/api/cron/ops-health` runs hourly and warns on failed `CronRun` rows from the last 24 hours, stale email outbox jobs, and overdue support requests.
 - **Cron run claim behavior**: `beginCronRun()` may reclaim stale failed run IDs, but reclaim create retries are explicitly capped and emit a Sentry warning before returning a skipped run. Do not reintroduce unbounded recursion in cron-run locking.

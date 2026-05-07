@@ -363,6 +363,25 @@ export default async function AccountPage() {
           </div>
         </section>
       )}
+      {!sellerProfile && (
+        <section>
+          <h2 className="text-xl font-semibold font-display mb-4">Sell on Grainline</h2>
+          <div className="card-section p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium">Open your maker workshop</p>
+              <p className="mt-1 text-sm text-neutral-500">
+                Create a seller profile, connect Stripe, and start listing handmade woodworking.
+              </p>
+            </div>
+            <Link
+              href="/dashboard"
+              className="inline-flex shrink-0 items-center justify-center rounded-md border border-neutral-900 bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors"
+            >
+              Become a Maker →
+            </Link>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

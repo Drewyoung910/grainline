@@ -4,8 +4,7 @@ import { SignUp } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState } from "react";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
-
-const TERMS_VERSION = "2026-03-30";
+import { CURRENT_TERMS_VERSION } from "@/lib/termsAcceptance";
 
 export default function SignUpTermsGate({ redirectUrl }: { redirectUrl: string }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -22,7 +21,7 @@ export default function SignUpTermsGate({ redirectUrl }: { redirectUrl: string }
           fallbackRedirectUrl={redirectUrl}
           unsafeMetadata={{
             termsAcceptedAt: acceptedAt,
-            termsVersion: TERMS_VERSION,
+            termsVersion: CURRENT_TERMS_VERSION,
             ageAttestedAt: acceptedAt,
             ageAttested: true,
           }}
