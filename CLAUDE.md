@@ -2609,7 +2609,7 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 - **Live at**: [thegrainline.com](https://thegrainline.com) — deployed to Vercel, DNS via Cloudflare
 - **Next.js** 16.2.4 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3)
 - **Clerk** v7.3.0 in lockfile (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix; 7.3.0 also fixes GHSA-w24r-5266-9c3c)
-- **Stripe SDK** 19.3 (`src/lib/stripe.ts` explicitly pins API version `2025-10-29.clover`)
+- **Stripe SDK** 19.3 (`src/lib/stripe.ts` pins `"2025-10-29.clover"` explicitly)
 - **Prisma** 7.7.0 (upgraded from 7.6.0 via Dependabot)
 - **React** 19.2.5, **@sentry/nextjs** 10.49, **maplibre-gl** 5.23, **resend** 6.12
 - **All ESLint/build errors fixed** — zero `any` types, all `<a>` → `<Link>`, unescaped entities fixed, unused imports removed
