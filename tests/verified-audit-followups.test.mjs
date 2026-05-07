@@ -74,6 +74,19 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(acceptRoute, /termsAccepted: z\.literal\(true\)/);
     assert.match(acceptRoute, /ageAttested: z\.literal\(true\)/);
     assert.match(acceptRoute, /termsVersion: z\.literal\(CURRENT_TERMS_VERSION\)/);
+    assert.match(acceptRoute, /currentTermsAcceptanceUpdate\(me, acceptedAt\)/);
+
+    const acceptForm = source("src/app/accept-terms/AcceptTermsForm.tsx");
+    assert.match(acceptForm, /fetch\("\/api\/account\/accept-terms"/);
+    assert.match(acceptForm, /window\.location\.assign\(redirectUrl\)/);
+  });
+
+  it("keeps Stripe setup reachable from the final onboarding summary", () => {
+    const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
+    assert.match(wizard, /Connect Stripe Payouts/);
+    assert.match(wizard, /onClick=\{handleConnectStripe\}/);
+    assert.match(wizard, /body: JSON\.stringify\(\{ returnUrl: "\/dashboard\/onboarding" \}\)/);
+    assert.match(wizard, /disabled=\{loading \|\| !chargesEnabled \|\| listingCount < 1\}/);
   });
 
   it("marks label-cost clawback failures for durable admin reconciliation", () => {

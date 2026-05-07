@@ -634,9 +634,19 @@ export default function OnboardingWizard({
             </div>
 
             {!chargesEnabled && (
-              <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
-              </div>
+              <>
+                <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleConnectStripe}
+                  disabled={connectingStripe || loading}
+                  className="mb-3 w-full bg-[#635bff] hover:bg-[#5147e6] text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+                >
+                  {connectingStripe ? "Connecting…" : "Connect Stripe Payouts →"}
+                </button>
+              </>
             )}
 
             <button
