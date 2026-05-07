@@ -384,6 +384,13 @@ export const accountExportRatelimit = new Ratelimit({
   prefix: "rl:account-export",
 });
 
+export const termsAcceptanceRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "10 m"),
+  analytics: true,
+  prefix: "rl:terms-acceptance",
+});
+
 // Stripe Connect account creation/onboarding (fail closed — Stripe API calls)
 export const stripeConnectRatelimit = new Ratelimit({
   redis,

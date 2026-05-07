@@ -1131,7 +1131,7 @@ These items were identified in a comprehensive 196-item attorney discussion list
 - ✅ `www.thegrainline.com` — 308 permanent redirect to bare domain configured in Vercel. SSL certificate provisioned.
 - ✅ Operating agreement — not legally required for single-member LLC in Texas but recommended. Template sufficient for solo launch.
 - Attorney sign-off on Terms and Privacy Policy (remove DRAFT banner)
-- ✅ Clickwrap/age-gate technical implementation — `/sign-up` requires Terms/Privacy + 18+ attestation; attorney still reviews wording/enforceability
+- ✅ Clickwrap/age-gate server enforcement — middleware requires durable `User.termsAcceptedAt` + current `termsVersion` + `ageAttestedAt`; `/sign-up` metadata alone is not the enforcement boundary. Attorney still reviews wording/enforceability.
 - Money transmitter licensing confirmation from attorney
 - Stripe live mode webhook (after switching to live mode)
 - Clerk webhook production setup (`CLERK_WEBHOOK_SECRET` + register endpoint)
@@ -2660,7 +2660,7 @@ This pass corrected incomplete fixes from the prior audit implementation and tig
 - **`prefers-reduced-motion`** in `globals.css`: all animations disabled (`animation: none !important`), all transitions set to `0.01ms` duration. Covers hero mosaic scroll, slide-in, slide-up, pulse skeletons.
 
 ### Remaining items from Opus 4.7 audit (not yet implemented)
-- ~~**Clickwrap on sign-up**~~ — DONE as technical implementation: `/sign-up` gates Clerk sign-up behind Terms/Privacy acceptance and stores `termsAcceptedAt`/`termsVersion` metadata. Attorney still reviews final legal wording.
+- ✅ **Clickwrap/age-gate server enforcement** — `/sign-up` still captures Terms/Privacy acceptance for normal signups, and middleware now enforces `User.termsAcceptedAt` + current `termsVersion` + `ageAttestedAt` for every signed-in account. OAuth/back-button and webhook-created users without durable DB acceptance are redirected to `/accept-terms` before account features are available. Attorney still reviews final legal wording.
 - ~~**Age gate checkbox**~~ — DONE as technical implementation: `/sign-up` requires 18+ attestation and stores `ageAttestedAt`.
 - ~~**Account deletion flow**~~ — DONE: `/api/account/delete`, account settings UI, cascade-aware anonymization, and Clerk `user.deleted` webhook handling.
 - ~~**EXIF stripping from uploads**~~ — DONE for JPEG/PNG/WebP: server-side `sharp` pipeline strips metadata before R2 storage. GIF/video/PDF may retain metadata and Privacy discloses that.
@@ -3202,7 +3202,7 @@ Follow-up audit pass against the remaining 300+ item backlog. This pass first re
 - **DMCA agent registration** ✅ — DMCA-1071504, registered 2026-04-14
 - **Texas marketplace facilitator registration** ✅ completed 2026-04-18; first quarterly return due 2026-07-20 and must be filed even with zero sales
 - **Operating agreement** ✅ template sufficient for solo launch; not a launch blocker for single-member Texas LLC
-- **Clickwrap implementation** ✅ technical gate built before account creation; attorney still reviews wording/enforceability
+- **Clickwrap implementation** ✅ server-side middleware gate uses durable `User` Terms/age fields; attorney still reviews wording/enforceability
 - **Trademark Class 035** filing — ~$350; clearance search first (conflict risk with "Grainline Studio")
 - **Business insurance** — general liability ($30–60/mo) + cyber liability + marketplace product liability
 - Fix Terms 6.3 redundant sentence — delete "Payout timing is governed by Stripe's standard payout schedule." *(fixed in c7bde34)*
@@ -5925,7 +5925,7 @@ This pass closed a documentation/code mismatch around CI build enforcement and e
 This section summarizes architecture-level changes from the reconciliation/audit-fix run. `audit_open_findings.md` remains the source of truth for individual findings, statuses, and per-finding fix notes.
 
 ### New or expanded helpers
-- **Account/admin/session helpers**: `accountAccessError.ts`, `clerkWebhookEmail.ts`, `clerkUserLifecycle.ts`, `clerkSessionSecurity.ts`, `adminEmailRecipient.ts`, `adminPin.ts`, and `requestId.ts` centralize account-state errors, Clerk webhook primary-email selection, Clerk lifecycle/session invalidation behavior, admin email recipient checks, signed admin PIN cookies, and request correlation IDs. Production admin PIN cookies require `ADMIN_PIN_COOKIE_SECRET`.
+- **Account/admin/session helpers**: `accountAccessError.ts`, `clerkWebhookEmail.ts`, `clerkUserLifecycle.ts`, `clerkSessionSecurity.ts`, `termsAcceptance.ts`, `adminEmailRecipient.ts`, `adminPin.ts`, and `requestId.ts` centralize account-state errors, Clerk webhook primary-email selection, Clerk lifecycle/session invalidation behavior, server-side Terms/age acceptance state, admin email recipient checks, signed admin PIN cookies, and request correlation IDs. Production admin PIN cookies require `ADMIN_PIN_COOKIE_SECRET`.
 - **Cron/observability helpers**: `cronMonitor.ts`, `cronMonitorState.ts`, and `guildMemberRevocationState.ts` provide explicit Sentry check-ins for App Router cron route handlers, classify 5xx cron responses as failed check-ins, and build reason-specific Guild Member revocation guards. Do not rely on `automaticVercelMonitors` for App Router routes, and do not revoke Guild badges from stale cron reads without re-checking the exact revocation condition in the write predicate.
 - **Cart/checkout/order helpers**: `anonymousCart.ts`, `cartEvents.ts`, `checkoutAmounts.ts`, `checkoutSessionExpiry.ts`, `checkoutStockRestore.ts`, `checkoutSuccessState.ts`, `orderTotals.ts`, `sellerOrderState.ts`, `shippingQuoteState.ts`, `stockMutationState.ts`, and `transactionRetry.ts` keep cart merge/count behavior, checkout retry/rollback behavior, amount math, order total display math, seller order-availability blocks, stock restoration, and retryable transaction rules testable outside route handlers.
 - **Stripe/webhook helpers**: `labelClawbackState.ts`, `stripeWebhookState.ts`, `stripeWebhookEventState.ts`, `webhookFailureSpike.ts`, and `webhookFailureSpikeState.ts` own label-cost clawback reconciliation notes, idempotent webhook state, checkout price-drift classification, dispute/refund order updates, failure-spike detection, and retry semantics. Completed checkout email side effects enqueue through `EmailOutbox` with stable dedup keys.
@@ -5939,6 +5939,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 
 ### Behavior changes future agents must preserve
 - **Audit workflow**: every audit/fix pass must update `audit_open_findings.md`, update this file when architecture/env/schema changed, run verification, and land a scoped commit before starting the next batch.
+- **Terms acceptance behavior**: Terms/Privacy acceptance and 18+ attestation are enforced server-side from `User.termsAcceptedAt`, `User.termsVersion`, and `User.ageAttestedAt` through middleware. Do not rely solely on `/sign-up` form rendering or Clerk OAuth metadata; any signed-in account missing current durable DB acceptance must be routed to `/accept-terms` before account features are available.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization remains deferred as a separate architecture branch. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
 - **Seller order-availability behavior**: `SellerProfile.acceptingNewOrders === false` is a hard server-side purchase blocker, not just a badge. Cart add, buy-now checkout, seller cart checkout, shipping quotes, and custom-order requests should call `sellerOrderBlockReason()` / `sellerOrderBlockMessage()` before mutating cart state, requesting Shippo rates, or creating Stripe sessions. Listing detail should hide purchase controls when the same state says the seller is blocked.
 - **Cart add concurrency behavior**: signed-in cart creation uses `cart.upsert`, and existing cart item quantity increments use an `updateMany` guard against the 99-item cap. Do not reintroduce find-then-create cart creation or read-then-increment quantity checks.

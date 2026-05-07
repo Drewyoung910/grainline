@@ -61,6 +61,21 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("CLAUDE.md"), /pins `"2025-10-29\.clover"` explicitly/);
   });
 
+  it("keeps terms acceptance enforced server-side instead of only in the signup form", () => {
+    const middleware = source("src/middleware.ts");
+    assert.match(middleware, /isTermsAcceptanceAllowed/);
+    assert.match(middleware, /termsAcceptedAt: true/);
+    assert.match(middleware, /termsVersion: true/);
+    assert.match(middleware, /ageAttestedAt: true/);
+    assert.match(middleware, /shouldRequireTermsAcceptance\(account\)/);
+    assert.match(middleware, /new URL\("\/accept-terms"/);
+
+    const acceptRoute = source("src/app/api/account/accept-terms/route.ts");
+    assert.match(acceptRoute, /termsAccepted: z\.literal\(true\)/);
+    assert.match(acceptRoute, /ageAttested: z\.literal\(true\)/);
+    assert.match(acceptRoute, /termsVersion: z\.literal\(CURRENT_TERMS_VERSION\)/);
+  });
+
   it("marks label-cost clawback failures for durable admin reconciliation", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
     assert.match(labelRoute, /markLabelClawbackForReview/);
