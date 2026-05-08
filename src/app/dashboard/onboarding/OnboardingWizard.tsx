@@ -547,40 +547,45 @@ export default function OnboardingWizard({
             </p>
 
             {listingCount > 0 || completed.step4 ? (
-              <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
-                <span className="text-green-600 text-lg">✓</span>
-                <div>
-                  <p className="font-medium text-green-800">You already have listings!</p>
-                  <p className="text-sm text-green-700">
-                    {listingCount} listing{listingCount !== 1 ? "s" : ""} in your shop.
-                  </p>
+              <>
+                <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
+                  <span className="text-green-600 text-lg">✓</span>
+                  <div>
+                    <p className="font-medium text-green-800">You already have listings!</p>
+                    <p className="text-sm text-green-700">
+                      {listingCount} listing{listingCount !== 1 ? "s" : ""} in your shop.
+                    </p>
+                  </div>
                 </div>
-              </div>
+                <button
+                  onClick={() => advance(5)}
+                  disabled={loading}
+                  className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+                >
+                  {loading ? "Loading…" : "Continue →"}
+                </button>
+              </>
             ) : (
-              <div className="mb-6">
+              <>
                 <Link
                   href="/dashboard/listings/new"
                   onClick={() => {
                     void advanceStep(5);
                   }}
-                  className="block w-full rounded-md text-center bg-amber-500 hover:bg-amber-600 text-white font-medium px-6 py-3 min-h-[44px] transition-colors"
+                  className="block w-full rounded-md text-center bg-amber-500 hover:bg-amber-600 text-white font-medium px-6 py-3 min-h-[44px] transition-colors mb-3"
                 >
                   Create a Listing →
                 </Link>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => advance(5)}
+                  disabled={loading}
+                  className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
+                >
+                  {loading ? "Loading…" : "Skip for now"}
+                </button>
+              </>
             )}
-
-            <button
-              onClick={() => advance(5)}
-              disabled={loading || (listingCount === 0 && !completed.step4)}
-              className="w-full rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50"
-            >
-              {loading
-                ? "Loading…"
-                : listingCount > 0 || completed.step4
-                ? "Continue →"
-                : "Create a listing first"}
-            </button>
           </div>
         )}
 
