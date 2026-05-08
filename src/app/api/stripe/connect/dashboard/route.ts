@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { stripeConnectRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 
 export async function POST() {
   const { userId } = await auth();
@@ -13,10 +14,13 @@ export async function POST() {
 
   const seller = await prisma.sellerProfile.findFirst({
     where: { user: { clerkId: userId } },
-    select: { stripeAccountId: true },
+    select: { stripeAccountId: true, stripeAccountVersion: true },
   });
   if (!seller?.stripeAccountId) {
     return NextResponse.json({ error: "Stripe account not connected" }, { status: 400 });
+  }
+  if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
+    return NextResponse.json({ error: "Reconnect Stripe payouts before opening the dashboard." }, { status: 409 });
   }
 
   const link = await stripe.accounts.createLoginLink(seller.stripeAccountId);

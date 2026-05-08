@@ -10,6 +10,7 @@ import {
   createStripeConnectV2Account,
   STRIPE_CONNECT_ACCOUNT_VERSION,
   STRIPE_CONNECT_CONTROLLER_SUMMARY,
+  isSupportedStripeConnectAccountVersion,
 } from "@/lib/stripeConnectV2";
 import { z } from "zod";
 
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
     select: {
       id: true,
       stripeAccountId: true,
+      stripeAccountVersion: true,
       shipFromCountry: true,
       user: { select: { email: true } },
     },
@@ -73,6 +75,11 @@ export async function POST(req: Request) {
       },
     });
     accountId = account.id;
+  } else if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
+    return NextResponse.json(
+      { error: "This Stripe account was created with an older onboarding flow. Contact support to reconnect payouts." },
+      { status: 409 },
+    );
   } else {
     // Refresh charges_enabled status from Stripe
     try {

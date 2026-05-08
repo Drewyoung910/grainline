@@ -358,14 +358,18 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
   return blockers;
 }
 
-async function rejectConnectedStripeAccount(stripeAccountId: string, userId: string) {
+async function rejectConnectedStripeAccount(
+  stripeAccountId: string,
+  userId: string,
+  stripeAccountVersion: string | null,
+) {
   try {
     await stripe.accounts.reject(stripeAccountId, { reason: "other" });
     return true;
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "account_delete_stripe_reject" },
-      extra: { userId, stripeAccountId },
+      extra: { userId, stripeAccountId, stripeAccountVersion },
     });
     return false;
   }
@@ -479,7 +483,13 @@ export async function anonymizeUserAccount(userId: string) {
     where: { id: userId },
     select: {
       deletedAt: true,
-      sellerProfile: { select: { stripeAccountId: true } },
+      sellerProfile: {
+        select: {
+          stripeAccountId: true,
+          stripeAccountVersion: true,
+          stripeControllerType: true,
+        },
+      },
     },
   });
 
@@ -487,8 +497,10 @@ export async function anonymizeUserAccount(userId: string) {
   if (account.deletedAt) return { ok: true, alreadyDeleted: true };
 
   const stripeAccountId = account.sellerProfile?.stripeAccountId ?? null;
+  const stripeAccountVersion = account.sellerProfile?.stripeAccountVersion ?? null;
+  const stripeControllerType = account.sellerProfile?.stripeControllerType ?? null;
   const stripeRejectSucceeded = stripeAccountId
-    ? await rejectConnectedStripeAccount(stripeAccountId, userId)
+    ? await rejectConnectedStripeAccount(stripeAccountId, userId, stripeAccountVersion)
     : true;
 
   const mediaUrls = await collectAccountDeletionMediaUrls(userId);
@@ -646,11 +658,13 @@ export async function anonymizeUserAccount(userId: string) {
           radiusMeters: null,
           publicMapOptIn: false,
           stripeAccountId: null,
+          stripeAccountVersion: null,
+          stripeControllerType: null,
           chargesEnabled: false,
           manualStripeReconciliationNeeded: !stripeRejectSucceeded,
           manualStripeReconciliationNote: stripeRejectSucceeded
             ? null
-            : `Account deletion could not reject Stripe Connect account ${stripeAccountId}; manual Stripe dashboard reconciliation required.`,
+            : `Account deletion could not reject Stripe Connect account ${stripeAccountId} (${stripeAccountVersion ?? "legacy/unknown"}; ${stripeControllerType ?? "controller unknown"}); manual Stripe dashboard reconciliation required.`,
           shippingFlatRateCents: null,
           freeShippingOverCents: null,
           allowLocalPickup: false,

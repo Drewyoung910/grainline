@@ -90,6 +90,7 @@ export async function POST(req: Request) {
             userId: true,
             displayName: true,
             stripeAccountId: true,
+            stripeAccountVersion: true,
             chargesEnabled: true,
             vacationMode: true,
             acceptingNewOrders: true,

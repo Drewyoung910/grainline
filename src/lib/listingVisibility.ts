@@ -1,7 +1,10 @@
 import { ListingStatus, Prisma } from "@prisma/client";
 
+const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
+
 const PUBLIC_SELLER_STATE = {
   chargesEnabled: true,
+  stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION,
   vacationMode: false,
   user: { banned: false, deletedAt: null },
 } as const;
@@ -38,6 +41,7 @@ type ListingVisibilityInput = {
   reservedForUserId?: string | null;
   seller: {
     chargesEnabled: boolean;
+    stripeAccountVersion?: string | null;
     vacationMode?: boolean | null;
     user?: {
       id?: string | null;
@@ -53,6 +57,10 @@ export function isPublicListing(listing: ListingVisibilityInput) {
     listing.status === ListingStatus.ACTIVE &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
+    (
+      listing.seller.stripeAccountVersion === undefined ||
+      listing.seller.stripeAccountVersion === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION
+    ) &&
     !listing.seller.vacationMode &&
     !listing.seller.user?.banned &&
     !listing.seller.user?.deletedAt
@@ -64,6 +72,10 @@ export function isPublicListingDetail(listing: ListingVisibilityInput) {
     (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD_OUT) &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
+    (
+      listing.seller.stripeAccountVersion === undefined ||
+      listing.seller.stripeAccountVersion === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION
+    ) &&
     !listing.seller.vacationMode &&
     !listing.seller.user?.banned &&
     !listing.seller.user?.deletedAt
@@ -87,6 +99,10 @@ export function canViewListingDetail(
   if (reservedForViewer) {
     return (
       listing.seller.chargesEnabled &&
+      (
+        listing.seller.stripeAccountVersion === undefined ||
+        listing.seller.stripeAccountVersion === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION
+      ) &&
       !listing.seller.vacationMode &&
       !listing.seller.user?.banned &&
       !listing.seller.user?.deletedAt

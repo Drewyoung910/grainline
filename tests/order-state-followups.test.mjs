@@ -13,9 +13,16 @@ function source(path) {
 describe("order-state audit follow-up guardrails", () => {
   it("keeps acceptingNewOrders as a server-side purchase blocker", () => {
     assert.equal(sellerOrderBlockReason({ acceptingNewOrders: false }), "not_accepting_orders");
+    assert.equal(sellerOrderBlockReason({ stripeAccountVersion: null }), "unsupported_stripe_account");
+    assert.equal(sellerOrderBlockReason({ stripeAccountVersion: "v1" }), "unsupported_stripe_account");
+    assert.equal(sellerOrderBlockReason({ stripeAccountVersion: "v2", acceptingNewOrders: true, vacationMode: false }), null);
     assert.equal(
       sellerOrderBlockMessage("not_accepting_orders"),
       "This maker is not currently accepting new orders.",
+    );
+    assert.equal(
+      sellerOrderBlockMessage("unsupported_stripe_account"),
+      "This seller needs to reconnect Stripe before accepting orders.",
     );
     assert.equal(sellerOrderBlockReason({ acceptingNewOrders: true, vacationMode: false }), null);
 
@@ -25,6 +32,7 @@ describe("order-state audit follow-up guardrails", () => {
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     assert.match(singleCheckout, /acceptingNewOrders: true/);
+    assert.match(singleCheckout, /stripeAccountVersion: true/);
     assert.match(singleCheckout, /sellerOrderBlockReason\(listing\.seller\)/);
 
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
@@ -38,6 +46,8 @@ describe("order-state audit follow-up guardrails", () => {
 
     const customOrder = source("src/app/api/messages/custom-order-request/route.ts");
     assert.match(customOrder, /acceptingNewOrders: true/);
+    assert.match(customOrder, /stripeAccountVersion: true/);
+    assert.match(customOrder, /!seller\.sellerProfile\.chargesEnabled \|\| !seller\.sellerProfile\.stripeAccountId/);
     assert.match(customOrder, /sellerOrderBlockReason\(\{ \.\.\.seller\.sellerProfile, user: seller \}\)/);
 
     const listingPage = source("src/app/listing/[id]/page.tsx");
