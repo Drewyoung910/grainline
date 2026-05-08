@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  acceptTermsPathForRedirect,
   safeInternalPath,
   safeInternalReturnUrl,
   signInPathForRedirect,
@@ -57,6 +58,21 @@ describe("safe internal auth redirect paths", () => {
     assert.equal(
       signUpPathForRedirect("https://evil.example/cart", "/cart"),
       "/sign-up?redirect_url=%2Fcart",
+    );
+  });
+
+  it("builds accept-terms paths without double-wrapping existing accept routes", () => {
+    assert.equal(
+      acceptTermsPathForRedirect("/dashboard?setup=required"),
+      "/accept-terms?redirect_url=%2Fdashboard%3Fsetup%3Drequired",
+    );
+    assert.equal(
+      acceptTermsPathForRedirect("/accept-terms?redirect_url=%2Fdashboard"),
+      "/accept-terms?redirect_url=%2Fdashboard",
+    );
+    assert.equal(
+      acceptTermsPathForRedirect("https://evil.example/dashboard", "/account"),
+      "/accept-terms?redirect_url=%2Faccount",
     );
   });
 });

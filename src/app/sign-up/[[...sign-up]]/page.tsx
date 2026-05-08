@@ -1,5 +1,5 @@
-import { safeInternalPath } from "@/lib/internalReturnUrl";
-import SignUpTermsGate from "./SignUpTermsGate";
+import { SignUp } from "@clerk/nextjs";
+import { acceptTermsPathForRedirect, safeInternalPath, signInPathForRedirect } from "@/lib/internalReturnUrl";
 
 export default async function Page({
   searchParams,
@@ -8,5 +8,16 @@ export default async function Page({
 }) {
   const params = await searchParams;
   const redirectUrl = safeInternalPath(params.redirect_url, "/");
-  return <SignUpTermsGate redirectUrl={redirectUrl} />;
+  const postAuthUrl = acceptTermsPathForRedirect(redirectUrl);
+
+  return (
+    <main className="min-h-[100svh] flex items-center justify-center p-8">
+      <SignUp
+        routing="hash"
+        signInUrl={signInPathForRedirect(postAuthUrl)}
+        forceRedirectUrl={postAuthUrl}
+        fallbackRedirectUrl={postAuthUrl}
+      />
+    </main>
+  );
 }
