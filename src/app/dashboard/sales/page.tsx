@@ -49,9 +49,44 @@ export default async function SalesPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, onboardingComplete: true, chargesEnabled: true },
   });
   if (!seller) redirect("/dashboard/seller");
+
+  if (!seller.onboardingComplete) {
+    return (
+      <main className="mx-auto max-w-4xl p-8 space-y-6">
+        <header>
+          <h1 className="text-2xl font-semibold">My sales</h1>
+          <p className="text-sm text-neutral-600">Orders containing your listings.</p>
+        </header>
+        <section className="card-section p-8">
+          <p className="text-base font-semibold text-neutral-900">
+            {seller.chargesEnabled ? "Finish setup to start accepting orders" : "Connect Stripe to start accepting orders"}
+          </p>
+          <p className="mt-2 text-sm text-neutral-600">
+            Your sales dashboard will unlock after your shop setup is complete and buyers can pay you.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/onboarding"
+              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
+            >
+              Continue setup →
+            </Link>
+            {!seller.chargesEnabled && (
+              <Link
+                href="/dashboard/seller"
+                className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+              >
+                Connect Stripe Payouts →
+              </Link>
+            )}
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);

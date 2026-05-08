@@ -164,23 +164,23 @@ async function deleteSavedSearch(searchId: string) {
   revalidatePath("/dashboard");
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ setup?: string }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard");
+  const params = searchParams ? await searchParams : {};
 
   const { me, seller } = await ensureSeller();
 
-  // Check if this user actually has an existing seller profile (ensureSeller creates one if absent,
-  // so we check onboardingComplete to distinguish first-time sellers from pure buyers who stumbled here).
   const sellerProfile = await prisma.sellerProfile.findUnique({
     where: { id: seller.id },
     select: { onboardingComplete: true },
   });
-
-  // Redirect new sellers (onboardingComplete = false) to the setup wizard
-  if (sellerProfile && !sellerProfile.onboardingComplete) {
-    redirect("/dashboard/onboarding");
-  }
+  const onboardingComplete = sellerProfile?.onboardingComplete ?? false;
+  const forceSetupBanner = params.setup === "required";
 
   const [listings, savedSearches, verification, notifUnreadCount, guildSeller] = await Promise.all([
     prisma.listing.findMany({
@@ -226,6 +226,38 @@ export default async function DashboardPage() {
 
   return (
     <main className="max-w-7xl mx-auto p-8">
+      {!onboardingComplete && (
+        <DismissibleBanner
+          className="mb-8 rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 pr-10 text-sm text-amber-950"
+          rejectedIds={forceSetupBanner ? [] : [`dashboard-onboarding:${seller.id}:${chargesEnabled ? "setup" : "stripe"}`]}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">Finish setup to start selling</p>
+              <p className="mt-1 text-amber-800">
+                You can keep editing drafts and shop settings now. Complete setup before your listings can go live.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/onboarding"
+                className="inline-flex rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100"
+              >
+                Continue setup →
+              </Link>
+              {!chargesEnabled && (
+                <Link
+                  href="/dashboard/seller"
+                  className="inline-flex rounded-md bg-amber-900 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-800"
+                >
+                  Connect Stripe Payouts →
+                </Link>
+              )}
+            </div>
+          </div>
+        </DismissibleBanner>
+      )}
+
       <header className="mb-10">
         <h1 className="text-4xl font-bold font-display">
           Workshop — {me.name ?? me.email.split("@")[0]}
@@ -384,7 +416,7 @@ export default async function DashboardPage() {
       </header>
 
       {/* Stripe Connect banner */}
-      {!chargesEnabled && (
+      {!chargesEnabled && onboardingComplete && (
         <div className="bg-amber-50 border border-amber-200 p-4 mb-6 flex items-center justify-between">
           <div>
             <p className="font-medium text-amber-900 text-sm">Your listings are not visible to buyers yet</p>
@@ -651,5 +683,3 @@ export default async function DashboardPage() {
     </main>
   );
 }
-
-

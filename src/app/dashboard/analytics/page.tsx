@@ -86,6 +86,10 @@ type AnalyticsData = {
   guildMasterFailures: string[];
 };
 
+type SetupRequiredState = {
+  chargesEnabled: boolean;
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(cents: number, currency = "usd") {
@@ -470,16 +474,27 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [setupRequired, setSetupRequired] = useState<SetupRequiredState | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setSetupRequired(null);
     fetch(`/api/seller/analytics?range=${range}`)
-      .then((r) => {
+      .then(async (r) => {
+        const body = await r.json().catch(() => null) as { code?: string; chargesEnabled?: boolean } | null;
+        if (r.status === 409 && body?.code === "SETUP_REQUIRED") {
+          setSetupRequired({ chargesEnabled: body.chargesEnabled === true });
+          setData(null);
+          setLoading(false);
+          return null;
+        }
         if (!r.ok) throw new Error("Failed to load analytics");
-        return r.json();
+        if (!body) throw new Error("Failed to load analytics");
+        return body as AnalyticsData;
       })
-      .then((d: AnalyticsData) => {
+      .then((d) => {
+        if (!d) return;
         setData(d);
         setLoading(false);
       })
@@ -522,6 +537,35 @@ export default function AnalyticsPage() {
         <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
+      {setupRequired && (
+        <section className="card-section p-8">
+          <p className="text-base font-semibold text-neutral-900">
+            {setupRequired.chargesEnabled ? "Finish setup to start accepting orders" : "Connect Stripe to start accepting orders"}
+          </p>
+          <p className="mt-2 text-sm text-neutral-600">
+            Analytics unlock after your shop setup is complete and buyers can pay you.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/onboarding"
+              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
+            >
+              Continue setup →
+            </Link>
+            {!setupRequired.chargesEnabled && (
+              <Link
+                href="/dashboard/seller"
+                className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+              >
+                Connect Stripe Payouts →
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!setupRequired && (
+        <>
       {/* ── Section A: Overview ── */}
       <section>
         <h2 className="text-xl font-semibold mb-4">Overview</h2>
@@ -831,6 +875,8 @@ export default function AnalyticsPage() {
 
       {/* ── Section G: Recent Sales ── */}
       <RecentSales />
+        </>
+      )}
     </main>
   );
 }

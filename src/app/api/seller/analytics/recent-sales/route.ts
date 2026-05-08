@@ -15,9 +15,22 @@ export async function GET() {
     const me = await ensureUserByClerkId(userId);
     const sellerProfile = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
-      select: { id: true },
+      select: { id: true, onboardingComplete: true, chargesEnabled: true },
     });
     if (!sellerProfile) return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
+    if (!sellerProfile.onboardingComplete) {
+      return NextResponse.json(
+        {
+          error: sellerProfile.chargesEnabled
+            ? "Finish setup to start accepting orders."
+            : "Connect Stripe to start accepting orders.",
+          code: "SETUP_REQUIRED",
+          chargesEnabled: sellerProfile.chargesEnabled,
+          sales: [],
+        },
+        { status: 409 },
+      );
+    }
 
     const sales = await prisma.order.findMany({
       where: {
