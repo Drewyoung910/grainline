@@ -1,7 +1,7 @@
 const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
 
 function isSupportedSellerStripeAccountVersion(version: string | null | undefined) {
-  return version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
+  return version == null || version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
 }
 
 export type SellerOrderBlockReason =

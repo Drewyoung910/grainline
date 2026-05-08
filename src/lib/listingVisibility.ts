@@ -4,10 +4,17 @@ const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
 
 const PUBLIC_SELLER_STATE = {
   chargesEnabled: true,
-  stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION,
+  OR: [
+    { stripeAccountVersion: null },
+    { stripeAccountVersion: SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION },
+  ],
   vacationMode: false,
   user: { banned: false, deletedAt: null },
-} as const;
+} satisfies Prisma.SellerProfileWhereInput;
+
+function isSupportedPublicStripeAccountVersion(version: string | null | undefined) {
+  return version == null || version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
+}
 
 export function publicListingWhere(extra: Prisma.ListingWhereInput = {}): Prisma.ListingWhereInput {
   return {
@@ -57,10 +64,7 @@ export function isPublicListing(listing: ListingVisibilityInput) {
     listing.status === ListingStatus.ACTIVE &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
-    (
-      listing.seller.stripeAccountVersion === undefined ||
-      listing.seller.stripeAccountVersion === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION
-    ) &&
+    isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
     !listing.seller.vacationMode &&
     !listing.seller.user?.banned &&
     !listing.seller.user?.deletedAt
@@ -72,10 +76,7 @@ export function isPublicListingDetail(listing: ListingVisibilityInput) {
     (listing.status === ListingStatus.ACTIVE || listing.status === ListingStatus.SOLD_OUT) &&
     !listing.isPrivate &&
     listing.seller.chargesEnabled &&
-    (
-      listing.seller.stripeAccountVersion === undefined ||
-      listing.seller.stripeAccountVersion === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION
-    ) &&
+    isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
     !listing.seller.vacationMode &&
     !listing.seller.user?.banned &&
     !listing.seller.user?.deletedAt
@@ -99,10 +100,7 @@ export function canViewListingDetail(
   if (reservedForViewer) {
     return (
       listing.seller.chargesEnabled &&
-      (
-        listing.seller.stripeAccountVersion === undefined ||
-        listing.seller.stripeAccountVersion === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION
-      ) &&
+      isSupportedPublicStripeAccountVersion(listing.seller.stripeAccountVersion) &&
       !listing.seller.vacationMode &&
       !listing.seller.user?.banned &&
       !listing.seller.user?.deletedAt

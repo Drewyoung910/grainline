@@ -26,7 +26,7 @@ describe("Stripe Connect v2 migration guardrails", () => {
 
     assert.equal(STRIPE_CONNECT_ACCOUNT_VERSION, "v2");
     assert.equal(isSupportedStripeConnectAccountVersion("v2"), true);
-    assert.equal(isSupportedStripeConnectAccountVersion(null), false);
+    assert.equal(isSupportedStripeConnectAccountVersion(null), true);
     assert.equal(isSupportedStripeConnectAccountVersion("v1"), false);
     assert.equal(STRIPE_CONNECT_V2_API_VERSION, "2026-02-25.clover");
     assert.equal(STRIPE_CONNECT_CONTROLLER_SUMMARY, "dashboard:express|fees:application|losses:application|requirements:stripe");

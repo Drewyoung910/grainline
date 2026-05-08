@@ -32,12 +32,7 @@ import {
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
-import {
-  isStripeConnectV2AccountEvent,
-  stripeConnectV2AccountIdFromNotification,
-  stripeWebhookCreatedSeconds,
-  type StripeConnectV2AccountNotification,
-} from "@/lib/stripeConnectV2";
+import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
@@ -213,54 +208,6 @@ export async function POST(req: Request) {
         }
       }
     }
-  }
-
-  async function mirrorStripeChargesEnabled({
-    accountId,
-    chargesEnabled,
-  }: {
-    accountId: string;
-    chargesEnabled: boolean;
-  }) {
-    const seller = await prisma.sellerProfile.findFirst({
-      where: { stripeAccountId: accountId },
-      select: {
-        id: true,
-        chargesEnabled: true,
-        user: { select: { id: true } },
-      },
-    });
-
-    if (!seller || seller.chargesEnabled === chargesEnabled) return;
-
-    await prisma.sellerProfile.update({
-      where: { id: seller.id },
-      data: { chargesEnabled },
-    });
-
-    if (!chargesEnabled) {
-      const { logSecurityEvent } = await import("@/lib/security");
-      logSecurityEvent("ownership_violation", {
-        userId: seller.user.id,
-        route: "/api/stripe/webhook",
-        reason: `Seller Stripe account disabled by Stripe: ${accountId}`,
-      });
-    }
-  }
-
-  if (isStripeConnectV2AccountEvent((event as { type: string }).type)) {
-    return processIdempotentEvent(async () => {
-      const notification = stripe.parseEventNotification(body, signature, secret) as StripeConnectV2AccountNotification;
-      const accountId = stripeConnectV2AccountIdFromNotification(notification);
-      if (accountId) {
-        const account = await stripe.accounts.retrieve(accountId);
-        await mirrorStripeChargesEnabled({
-          accountId,
-          chargesEnabled: Boolean(account.charges_enabled),
-        });
-      }
-      return NextResponse.json({ received: true });
-    });
   }
 
   type OrderPaymentEventClient = {

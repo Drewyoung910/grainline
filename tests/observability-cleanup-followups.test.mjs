@@ -27,7 +27,10 @@ describe("observability cleanup follow-ups", () => {
       AND: [
         {
           chargesEnabled: true,
-          stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+          OR: [
+            { stripeAccountVersion: null },
+            { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+          ],
           user: { banned: false, deletedAt: null },
         },
         { id: "seller_1" },
@@ -37,7 +40,10 @@ describe("observability cleanup follow-ups", () => {
       AND: [
         {
           chargesEnabled: true,
-          stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+          OR: [
+            { stripeAccountVersion: null },
+            { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+          ],
           vacationMode: false,
           user: { banned: false, deletedAt: null },
         },

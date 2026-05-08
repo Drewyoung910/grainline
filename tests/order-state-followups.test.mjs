@@ -13,7 +13,7 @@ function source(path) {
 describe("order-state audit follow-up guardrails", () => {
   it("keeps acceptingNewOrders as a server-side purchase blocker", () => {
     assert.equal(sellerOrderBlockReason({ acceptingNewOrders: false }), "not_accepting_orders");
-    assert.equal(sellerOrderBlockReason({ stripeAccountVersion: null }), "unsupported_stripe_account");
+    assert.equal(sellerOrderBlockReason({ stripeAccountVersion: null, acceptingNewOrders: true, vacationMode: false }), null);
     assert.equal(sellerOrderBlockReason({ stripeAccountVersion: "v1" }), "unsupported_stripe_account");
     assert.equal(sellerOrderBlockReason({ stripeAccountVersion: "v2", acceptingNewOrders: true, vacationMode: false }), null);
     assert.equal(

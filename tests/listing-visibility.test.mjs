@@ -39,7 +39,10 @@ describe("listing visibility", () => {
           isPrivate: false,
           seller: {
             chargesEnabled: true,
-            stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+            OR: [
+              { stripeAccountVersion: null },
+              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+            ],
             vacationMode: false,
             user: { banned: false, deletedAt: null },
           },
@@ -55,7 +58,10 @@ describe("listing visibility", () => {
           isPrivate: false,
           seller: {
             chargesEnabled: true,
-            stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+            OR: [
+              { stripeAccountVersion: null },
+              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+            ],
             vacationMode: false,
             user: { banned: false, deletedAt: null },
           },
@@ -73,7 +79,10 @@ describe("listing visibility", () => {
           isPrivate: false,
           seller: {
             chargesEnabled: true,
-            stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
+            OR: [
+              { stripeAccountVersion: null },
+              { stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION },
+            ],
             vacationMode: false,
             user: { banned: false, deletedAt: null },
           },
@@ -85,6 +94,8 @@ describe("listing visibility", () => {
 
   it("requires active, public, payable, non-vacation, non-banned seller state", () => {
     assert.equal(isPublicListing(listing()), true);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: null } })), true);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "v2" } })), true);
     assert.equal(isPublicListing(listing({ status: ListingStatus.HIDDEN })), false);
     assert.equal(isPublicListing(listing({ isPrivate: true })), false);
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, chargesEnabled: false } })), false);
