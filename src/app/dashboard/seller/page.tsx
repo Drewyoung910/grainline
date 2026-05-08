@@ -18,7 +18,7 @@ import { NotificationToggle } from "@/components/NotificationToggle";
 import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { sanitizeText, sanitizeUserName } from "@/lib/sanitize";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
-import { filterR2PublicUrls } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
@@ -82,7 +82,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   // Gallery images
   const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
-  const galleryImageUrls = filterR2PublicUrls(
+  const galleryImageUrls = filterFirstPartyMediaUrls(
     formData.getAll("galleryImageUrls").map(String).filter(Boolean),
     10,
   );

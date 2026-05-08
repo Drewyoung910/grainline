@@ -5,14 +5,14 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { mapWithConcurrency } from "@/lib/concurrency";
 
 const ReviewPhotoUrlsSchema = z.array(
-  z.string().url().refine((url) => isR2PublicUrl(url), { message: "Invalid image URL" })
+  z.string().url().refine((url) => isFirstPartyMediaUrl(url), { message: "Invalid image URL" })
 ).max(6).optional();
 
 const ReviewPatchSchema = z.object({

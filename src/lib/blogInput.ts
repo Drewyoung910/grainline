@@ -1,4 +1,4 @@
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { normalizeBlogVideoUrlString } from "@/lib/blogVideo";
 
 function trimmed(raw: FormDataEntryValue | string | null | undefined): string | null {
@@ -9,7 +9,7 @@ function trimmed(raw: FormDataEntryValue | string | null | undefined): string | 
 export function normalizeBlogCoverImageUrl(raw: FormDataEntryValue | string | null | undefined): string | null {
   const value = trimmed(raw);
   if (!value) return null;
-  if (!isR2PublicUrl(value)) {
+  if (!isFirstPartyMediaUrl(value)) {
     throw new Error("Cover image must be an uploaded Grainline image.");
   }
   return value;

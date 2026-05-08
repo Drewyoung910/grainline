@@ -27,18 +27,15 @@ function normalizedUrl(input: string): URL | null {
   }
 }
 
-export function isR2PublicUrl(input: string): boolean {
-  const candidate = normalizedUrl(input);
-  if (!candidate || candidate.protocol !== "https:") return false;
-
-  const allowedBases = [...configuredPublicUrls, ...FIRST_PARTY_MEDIA_ORIGINS, ...LEGACY_MEDIA_ORIGINS]
+function matchesAllowedBase(candidate: URL, allowedBases: string[]): boolean {
+  const bases = allowedBases
     .map((url) => normalizedUrl(url))
     .filter((url): url is URL => Boolean(url));
 
-  for (const r2Base of allowedBases) {
-    const basePath = r2Base.pathname.replace(/\/$/, "");
+  for (const base of bases) {
+    const basePath = base.pathname.replace(/\/$/, "");
     if (
-      candidate.origin === r2Base.origin &&
+      candidate.origin === base.origin &&
       (basePath === "" || candidate.pathname.startsWith(`${basePath}/`))
     ) {
       return true;
@@ -46,6 +43,28 @@ export function isR2PublicUrl(input: string): boolean {
   }
 
   return false;
+}
+
+export function isFirstPartyMediaUrl(input: string): boolean {
+  const candidate = normalizedUrl(input);
+  if (!candidate || candidate.protocol !== "https:") return false;
+
+  return matchesAllowedBase(candidate, [...configuredPublicUrls, ...FIRST_PARTY_MEDIA_ORIGINS]);
+}
+
+export function filterFirstPartyMediaUrls(urls: string[], max: number): string[] {
+  return urls.filter((url) => isFirstPartyMediaUrl(url)).slice(0, max);
+}
+
+export function isR2PublicUrl(input: string): boolean {
+  const candidate = normalizedUrl(input);
+  if (!candidate || candidate.protocol !== "https:") return false;
+
+  return matchesAllowedBase(candidate, [
+    ...configuredPublicUrls,
+    ...FIRST_PARTY_MEDIA_ORIGINS,
+    ...LEGACY_MEDIA_ORIGINS,
+  ]);
 }
 
 export function filterR2PublicUrls(urls: string[], max: number): string[] {

@@ -8,13 +8,13 @@ import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreference
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
   message: z.string().min(1).max(500),
   imageUrl: z.string().url().regex(/^https:\/\//).refine(
-    (u) => isR2PublicUrl(u),
+    (u) => isFirstPartyMediaUrl(u),
     { message: "Invalid image URL origin" }
   ).optional().nullable(),
   sellersOnly: z.boolean().optional(),

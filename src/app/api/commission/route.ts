@@ -15,7 +15,7 @@ import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
-import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { z } from "zod";
 
@@ -29,7 +29,7 @@ const CommissionCreateSchema = z.object({
   budgetMax: BudgetInputSchema.optional().nullable(),
   timeline: z.string().max(200).optional().nullable(),
   referenceImageUrls: z.array(z.string().url().refine(
-    (u) => isR2PublicUrl(u),
+    (u) => isFirstPartyMediaUrl(u),
     { message: "Invalid image URL" }
   )).max(3).optional(),
   isNational: z.boolean().optional(),
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
   const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
-  const images = filterR2PublicUrls(referenceImageUrls ?? [], 3);
+  const images = filterFirstPartyMediaUrls(referenceImageUrls ?? [], 3);
 
   if (budgetMin != null && budgetMinCents === null) return NextResponse.json({ error: "Minimum budget must be a valid dollar amount." }, { status: 400 });
   if (budgetMax != null && budgetMaxCents === null) return NextResponse.json({ error: "Maximum budget must be a valid dollar amount." }, { status: 400 });

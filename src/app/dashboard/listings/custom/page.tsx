@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { filterR2PublicUrls } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import ActionForm from "@/components/ActionForm";
@@ -80,7 +80,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterR2PublicUrls(imageUrls, 8);
+  imageUrls = filterFirstPartyMediaUrls(imageUrls, 8);
 
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");
