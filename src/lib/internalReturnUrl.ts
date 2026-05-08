@@ -38,6 +38,14 @@ export function signUpPathForRedirect(returnUrl: string | string[] | null | unde
   return `/sign-up?redirect_url=${encodeURIComponent(safePath)}`;
 }
 
+export function acceptTermsPathForRedirect(returnUrl: string | string[] | null | undefined, fallback = "/") {
+  const safePath = safeInternalPath(returnUrl, fallback);
+  if (safePath === "/accept-terms" || safePath.startsWith("/accept-terms?")) {
+    return safePath;
+  }
+  return `/accept-terms?redirect_url=${encodeURIComponent(safePath)}`;
+}
+
 export function safeInternalReturnUrl(
   returnUrl: string | null | undefined,
   appUrl = DEFAULT_APP_URL,
