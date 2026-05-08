@@ -23,6 +23,7 @@ interface Props {
   /** Stripe account is fully onboarded and charges_enabled = true */
   chargesEnabled: boolean;
   listingCount: number;
+  latestListing: { id: string; title: string; status: string } | null;
 }
 
 const TOTAL_STEPS = 5;
@@ -42,6 +43,7 @@ export default function OnboardingWizard({
   hasStripeAccount,
   chargesEnabled,
   listingCount,
+  latestListing,
 }: Props) {
   const [step, setStep] = useState(initialStep);
   const [loading, setLoading] = useState(false);
@@ -57,6 +59,9 @@ export default function OnboardingWizard({
   });
 
   const progressPct = Math.round((step / TOTAL_STEPS) * 100);
+  const hasListing = listingCount > 0 || completed.step4;
+  const canComplete = chargesEnabled && listingCount > 0;
+  const latestListingTitle = latestListing?.title?.trim() || "Your latest listing";
 
   async function advance(targetStep: number) {
     setLoading(true);
@@ -583,29 +588,41 @@ export default function OnboardingWizard({
         {step === 5 && (
           <div className="card-section p-8 text-center">
             <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
-            <h2 className="text-2xl font-semibold font-display mb-2">Your shop is ready!</h2>
-            <p className="text-neutral-600 mb-6">Here&apos;s a summary of what you set up:</p>
+            <h2 className="text-2xl font-semibold font-display mb-2">
+              {canComplete ? "Your shop is ready!" : "Finish your shop setup"}
+            </h2>
+            <p className="text-neutral-600 mb-6">
+              {canComplete
+                ? "Here's a summary of what you set up:"
+                : "Complete the remaining items below before opening your dashboard."}
+            </p>
 
             <div className="text-left rounded-lg border border-neutral-200 divide-y divide-neutral-100 mb-8 overflow-hidden">
               <div className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className={
-                    completed.step1 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"
-                  }
-                >
+                <span className={completed.step1 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"}>
                   {completed.step1 ? "✓" : "○"}
                 </span>
-                <span className="text-sm">Profile — display name, bio &amp; tagline</span>
+                <span className="text-sm flex-1">Profile — display name, bio &amp; tagline</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  Edit
+                </button>
               </div>
               <div className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className={
-                    completed.step2 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"
-                  }
-                >
+                <span className={completed.step2 ? "text-green-600 font-medium" : "text-neutral-300 font-medium"}>
                   {completed.step2 ? "✓" : "○"}
                 </span>
-                <span className="text-sm">Shop — location &amp; policies</span>
+                <span className="text-sm flex-1">Shop — location &amp; policies</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  Edit
+                </button>
               </div>
               <div className="flex items-center gap-3 px-4 py-3">
                 <span
@@ -617,21 +634,55 @@ export default function OnboardingWizard({
                 >
                   {chargesEnabled || completed.step3 ? "✓" : "○"}
                 </span>
-                <span className="text-sm">Stripe payouts connected</span>
+                <span className="text-sm flex-1">Stripe payouts connected</span>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                >
+                  {chargesEnabled ? "View" : "Finish"}
+                </button>
               </div>
               <div className="flex items-center gap-3 px-4 py-3">
                 <span
                   className={
-                    listingCount > 0 || completed.step4
+                    hasListing
                       ? "text-green-600 font-medium"
                       : "text-neutral-300 font-medium"
                   }
                 >
-                  {listingCount > 0 || completed.step4 ? "✓" : "○"}
+                  {hasListing ? "✓" : "○"}
                 </span>
-                <span className="text-sm">First listing created</span>
+                <span className="text-sm flex-1">
+                  {latestListing ? `First listing created — ${latestListingTitle}` : "First listing created"}
+                </span>
+                {latestListing ? (
+                  <Link
+                    href={`/dashboard/listings/${latestListing.id}/edit`}
+                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  >
+                    Edit
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStep(4)}
+                    className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  >
+                    Create
+                  </button>
+                )}
               </div>
             </div>
+
+            {latestListing && !chargesEnabled && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+                Your draft listing is saved. You can keep editing it while Stripe setup is pending.
+                <Link href={`/dashboard/listings/${latestListing.id}/edit`} className="ml-1 font-semibold underline">
+                  Open draft
+                </Link>
+              </div>
+            )}
 
             {!chargesEnabled && (
               <>
