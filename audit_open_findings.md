@@ -23,6 +23,11 @@ Latest mechanical open-heading count after the 2026-05-07 PR J follow-up pass: *
 3. **[MEDIUM FIXED 2026-05-08] Delete-account UX could leave users retrying after their Clerk session was already deleted.** `/api/account/delete` now marks post-Clerk anonymization failures with `clerkSessionDeleted: true`; the client treats that response as terminal, clears local recently-viewed data, signs out, and lands on the public noindex `/account/deleted` page. Successful deletion also signs out to that terminal page. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
 4. **[LOW FIXED 2026-05-08] Account settings link was mislabeled as notification-only.** `/account` now labels the `/account/settings` link "Account settings →" because the destination also contains export and delete-account controls. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
 
+2026-05-08 documentation trim pass:
+
+1. **[LOW FIXED 2026-05-08] `commissionState.ts` existed without an architectural note.** `CLAUDE.md` now documents that the helper owns commission open/non-expired/active-buyer mutation predicates shared by PATCH/close and interest creation.
+2. **[LOW FIXED 2026-05-08] Completed audit pass history was accumulating inline in `CLAUDE.md`.** Completed dated audit/fix-pass log sections were moved to `CLOSED_AUDIT_HISTORY.md`; `CLAUDE.md` keeps current architecture, helpers, schema/env notes, and behavior contracts, plus a top-level archival rule for future completed audit logs. Regression coverage: `tests/docs-archive.test.mjs`.
+
 2026-05-07 PR J Stripe account-version follow-up pass:
 
 1. **[LOW-MEDIUM FIXED 2026-05-07] `stripeAccountVersion` was written for v2 accounts but not read by runtime guards.** Public listing/seller predicates now require `stripeAccountVersion === "v2"`, seller order blockers reject selected legacy/unknown account versions, and Connect account-link routes reject existing non-v2 account IDs instead of silently continuing an older onboarding model. Regression coverage: `tests/stripe-connect-v2.test.mjs`, `tests/listing-visibility.test.mjs`, `tests/order-state-followups.test.mjs`, and `tests/observability-cleanup-followups.test.mjs`.
