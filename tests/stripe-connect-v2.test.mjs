@@ -118,14 +118,25 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
 
     const webhook = source("src/app/api/stripe/webhook/route.ts");
-    assert.match(webhook, /isStripeConnectV2AccountEvent/);
-    assert.match(webhook, /stripe\.parseEventNotification\(body, signature, secret\)/);
-    assert.match(webhook, /stripeConnectV2AccountIdFromNotification\(notification\)/);
-    assert.match(webhook, /stripe\.accounts\.retrieve\(accountId\)/);
     assert.match(webhook, /event\.type === "account\.updated"/);
     assert.match(webhook, /charges_enabled\?: boolean/);
     assert.match(webhook, /mirrorStripeChargesEnabled/);
-    assert.match(webhook, /chargesEnabled: Boolean\(account\.charges_enabled\)/);
+    assert.doesNotMatch(webhook, /parseEventNotification/);
+    assert.doesNotMatch(webhook, /STRIPE_V2_WEBHOOK_SECRET/);
+
+    const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
+    assert.match(v2Webhook, /STRIPE_V2_WEBHOOK_SECRET/);
+    assert.match(v2Webhook, /stripe\.parseEventNotification\(body, signature, secret\)/);
+    assert.match(v2Webhook, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
+    assert.match(v2Webhook, /stripeConnectV2AccountIdFromNotification\(notification\)/);
+    assert.match(v2Webhook, /stripe\.accounts\.retrieve\(accountId\)/);
+    assert.match(v2Webhook, /mirrorStripeChargesEnabled/);
+    assert.match(v2Webhook, /chargesEnabled: Boolean\(account\.charges_enabled\)/);
+    assert.match(v2Webhook, /route: "\/api\/stripe\/webhook\/v2"/);
+
+    const middleware = source("src/middleware.ts");
+    assert.match(middleware, /"\/api\/stripe\/webhook\/v2"/);
+    assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/v2"/);
 
     assert.match(webhook, /event\.type === "account\.application\.deauthorized"/);
   });
