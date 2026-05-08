@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
-import { Hammer } from "@/components/icons";
+import { Store, CheckCircle } from "@/components/icons";
 import { saveStep1, saveStep2, advanceStep, completeOnboarding } from "./actions";
 
 interface Props {
@@ -217,7 +217,7 @@ export default function OnboardingWizard({
         {/* ── Step 0: Welcome ─────────────────────────────────── */}
         {step === 0 && (
           <div className="card-section p-8 text-center">
-            <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
+            <div className="flex justify-center mb-4 text-amber-600"><Store size={48} /></div>
             <h1 className="text-2xl font-semibold font-display mb-2">
               Welcome to Grainline, {displayName}!
             </h1>
@@ -592,7 +592,7 @@ export default function OnboardingWizard({
         {/* ── Step 5: All set! ─────────────────────────────────── */}
         {step === 5 && (
           <div className="card-section p-8 text-center">
-            <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
+            <div className="flex justify-center mb-4 text-green-600"><CheckCircle size={48} /></div>
             <h2 className="text-2xl font-semibold font-display mb-2">
               {canComplete ? "Your shop is ready!" : "Finish your shop setup"}
             </h2>
