@@ -36,5 +36,11 @@ describe("PR E onboarding summary follow-ups", () => {
     );
 
     assert.equal((listingStep.match(/Create a Listing/g) ?? []).length, 1);
+
+    // The previous disabled secondary button labelled "Create a listing first" was
+    // visually indistinguishable from a real action. The secondary button must read
+    // "Skip for now" so its disabled-vs-enabled state matches buyer expectation.
+    assert.equal(listingStep.includes("Create a listing first"), false);
+    assert.match(listingStep, /Skip for now/);
   });
 });
