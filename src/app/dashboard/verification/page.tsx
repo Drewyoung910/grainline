@@ -36,7 +36,7 @@ async function getGuildMemberEligibility({
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
   const [listingCount, salesRows, caseCount] = await Promise.all([
-    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE" } }),
+    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false } }),
     prisma.$queryRaw<Array<{ totalSalesCents: bigint | null }>>`
       SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
       FROM "OrderItem" oi

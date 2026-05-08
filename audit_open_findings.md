@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-07
+Last updated: 2026-05-08
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -10,6 +10,61 @@ Raw audit volume across all rounds is roughly 750+ findings. That number include
 
 Latest mechanical open-heading count after the 2026-05-06 Stripe Connect v2 branch pass: **0** broad unclosed numbered findings in the prior mechanical fix queue and **0** verified code/doc follow-ups from the latest audit-only sweep. The deferred Stripe Connect v2 architecture modernization is implemented on `feature/stripe-connect-v2`; final merge remains gated on the Stripe test-mode verification checklist. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
 Latest mechanical open-heading count after the 2026-05-07 Terms enforcement pass: **0** broad unclosed numbered code findings in the prior mechanical fix queue and **0** verified launch-blocking code/doc follow-ups from the latest sweep. Remaining architecture work from this live ledger: deferred Stripe Connect v2 architecture modernization. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
+Latest mechanical open-heading count after the 2026-05-07 PR J follow-up pass: **16** newly verified findings closed across PR F, PR G, PR H, PR I, PR E, and PR J. Remaining verified follow-up queue from the 2026-05-07 post-v2 audit: **0 code findings**. The alleged checkout stock oversell race was re-audited against the current guarded SQL reservation model and verified false positive; add concurrency regression coverage if this resurfaces, but do not rewrite the reservation logic without new evidence.
+
+2026-05-08 Stripe Connect v2 webhook split pass:
+
+1. **[HIGH FIXED 2026-05-08] Stripe Connect v2 thin events were wired into the legacy snapshot webhook route and could not be delivered by Stripe.** `/api/stripe/webhook` now remains snapshot-only with `STRIPE_WEBHOOK_SECRET`; Connect v2 thin events are handled by the new public `/api/stripe/webhook/v2` route with `STRIPE_V2_WEBHOOK_SECRET`, `stripe.parseEventNotification()`, shared `mirrorStripeChargesEnabled()`, and the existing webhook idempotency ledger. This matches Stripe's separate destination/protocol requirement and removes the dead mixed-secret branch from the legacy route. Regression coverage: `tests/stripe-webhook-v2-route.test.mjs` and `tests/stripe-connect-v2.test.mjs`.
+
+2026-05-08 onboarding-incomplete dashboard access pass:
+
+1. **[MEDIUM FIXED 2026-05-08] Onboarding-incomplete sellers were blocked from read/draft dashboard surfaces after creating wizard drafts.** `/dashboard` no longer redirects `onboardingComplete = false` sellers to `/dashboard/onboarding`; it renders a dismissible "Finish setup to start selling" banner with setup and Stripe payout CTAs while preserving draft/listing/shop/profile access. Sales/detail/analytics surfaces now route incomplete sellers to setup state instead of normal sales metrics. Publish-state mutations remain gated by `chargesEnabled`. Regression coverage: `tests/onboarding-incomplete-dashboard-access.test.mjs`.
+
+2026-05-08 account deletion timeout/terminal UX pass:
+
+1. **[CRITICAL FIXED 2026-05-08] Account deletion could reject a Stripe Connect account before a local DB transaction timed out.** `anonymizeUserAccount()` now runs the required local deletion transaction with `{ timeout: 30000, maxWait: 10000 }`, keeps admin-audit-log redaction outside the transaction as best-effort Sentry-captured follow-up work, and captures `source: "account_delete_partial"` before rethrowing when a successful Stripe reject is followed by a local transaction failure. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+2. **[HIGH FIXED 2026-05-08] Account deletion relied only on Stripe webhooks to flip seller payout/orderability state.** The deletion transaction now explicitly sets `SellerProfile.chargesEnabled = false` and `vacationMode = true` when the connected-account reject succeeds, while the webhook mirror remains idempotent. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+3. **[MEDIUM FIXED 2026-05-08] Delete-account UX could leave users retrying after their Clerk session was already deleted.** `/api/account/delete` now marks post-Clerk anonymization failures with `clerkSessionDeleted: true`; the client treats that response as terminal, clears local recently-viewed data, signs out, and lands on the public noindex `/account/deleted` page. Successful deletion also signs out to that terminal page. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+4. **[LOW FIXED 2026-05-08] Account settings link was mislabeled as notification-only.** `/account` now labels the `/account/settings` link "Account settings →" because the destination also contains export and delete-account controls. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+
+2026-05-08 documentation trim pass:
+
+1. **[LOW FIXED 2026-05-08] `commissionState.ts` existed without an architectural note.** `CLAUDE.md` now documents that the helper owns commission open/non-expired/active-buyer mutation predicates shared by PATCH/close and interest creation.
+2. **[LOW FIXED 2026-05-08] Completed audit pass history was accumulating inline in `CLAUDE.md`.** Completed dated audit/fix-pass log sections were moved to `CLOSED_AUDIT_HISTORY.md`; `CLAUDE.md` keeps current architecture, helpers, schema/env notes, and behavior contracts, plus a top-level archival rule for future completed audit logs. Regression coverage: `tests/docs-archive.test.mjs`.
+
+2026-05-07 PR J Stripe account-version follow-up pass:
+
+1. **[LOW-MEDIUM FIXED 2026-05-07] `stripeAccountVersion` was written for v2 accounts but not read by runtime guards.** Public listing/seller predicates now require `stripeAccountVersion === "v2"`, seller order blockers reject selected legacy/unknown account versions, and Connect account-link routes reject existing non-v2 account IDs instead of silently continuing an older onboarding model. Regression coverage: `tests/stripe-connect-v2.test.mjs`, `tests/listing-visibility.test.mjs`, `tests/order-state-followups.test.mjs`, and `tests/observability-cleanup-followups.test.mjs`.
+2. **[LOW-MEDIUM FIXED 2026-05-07] Account deletion called the Stripe account reject path without reading/clearing Connect version diagnostics.** Account deletion now selects `stripeAccountVersion` and `stripeControllerType`, includes the version in Stripe reject telemetry/manual reconciliation notes, and clears both diagnostic fields when the seller profile is anonymized. Regression coverage: `tests/stripe-connect-v2.test.mjs`.
+
+2026-05-07 PR E onboarding-summary follow-up pass:
+
+1. **[MEDIUM FIXED 2026-05-07] Onboarding could strand saved draft listings while `/dashboard` redirected incomplete sellers back to onboarding.** The onboarding page now loads the seller's latest listing and the final summary links directly to `/dashboard/listings/[id]/edit`, including a visible "Open draft" recovery link while Stripe remains incomplete. Regression coverage: `tests/pr-e-onboarding-summary-followups.test.mjs`.
+2. **[LOW-MEDIUM FIXED 2026-05-07] Final onboarding summary said "Your shop is ready!" even when Stripe or listing prerequisites were incomplete.** The final summary now gates the headline and explanatory copy on `chargesEnabled && listingCount > 0`; incomplete sellers see "Finish your shop setup" plus the remaining actions. Regression coverage: `tests/pr-e-onboarding-summary-followups.test.mjs`.
+3. **[LOW-MEDIUM FIXED 2026-05-07] Final onboarding summary had no way to revisit completed or incomplete steps.** Each summary row now has an explicit edit/view/finish/create control for profile, shop, Stripe, and listing steps. Regression coverage: `tests/pr-e-onboarding-summary-followups.test.mjs`.
+
+2026-05-07 PR I media/upload/unsubscribe follow-up pass:
+
+1. **[LOW-MEDIUM FIXED 2026-05-07] Legacy UploadThing origins were accepted on new media write paths.** `src/lib/urlValidation.ts` now separates first-party writable media (`isFirstPartyMediaUrl()` / `filterFirstPartyMediaUrls()`) from legacy/trusted display media (`isR2PublicUrl()` / `isTrustedMediaUrl()`). New listing, review, profile, gallery, broadcast, commission, blog cover, and message attachment writes now require Grainline-controlled media origins while emails/AI review can still render legacy media. Regression coverage: `tests/media-url.test.mjs` and `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
+2. **[LOW-MEDIUM FIXED 2026-05-07] Processed R2 image uploads leaked objects when public availability verification failed.** `/api/upload/image` now deletes the just-written object on `assertPublicMediaAvailable()` failure and captures cleanup failures to Sentry with `source: "upload_image_cleanup"`. Regression coverage: `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
+3. **[LOW-MEDIUM FIXED 2026-05-07] GET unsubscribe requests mutated email preferences.** `GET /api/email/unsubscribe` now verifies the signed token and renders a confirmation form without calling `unsubscribeEmail()`. `POST` remains the only mutating path, preserving one-click unsubscribe support through the existing `List-Unsubscribe-Post` header while avoiding scanner/prefetch state changes. Regression coverage: `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
+
+2026-05-07 PR H deletion/analytics/email follow-up pass:
+
+1. **[MEDIUM FIXED 2026-05-07] Account deletion deleted conversations before redacting the deleted user's messages.** `anonymizeUserAccount()` no longer deletes `Conversation` rows for the account; conversations remain because the user row is anonymized in place, and the deleted user's sent `Message.body` values are redacted before the account is marked deleted. Regression coverage: `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
+2. **[LOW-MEDIUM FIXED 2026-05-07] Listing view/click analytics counted likely bots while seller profile views did not.** `src/lib/botUserAgent.ts` now centralizes the bot user-agent predicate, and listing view, listing click, and seller profile view endpoints all skip likely bots before rate-limit/counter/cookie mutation. Regression coverage: `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
+3. **[LOW-MEDIUM FIXED 2026-05-07] Email preference lookup failures failed open.** `shouldSendEmail()` now captures Sentry evidence and returns `false` on lookup errors instead of falling back to the preference default. Regression coverage: `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
+4. **[LOW-MEDIUM FIXED 2026-05-07] Direct outbound email could proceed when inactive-account lookup failed.** The email inactive-account lookup now skips sending by throwing into the existing send failure path after the retry attempts, instead of treating lookup failure as "not inactive." Regression coverage: `tests/pr-h-deletion-analytics-email-followups.test.mjs`.
+
+2026-05-07 PR G Guild/listing-edit follow-up pass:
+
+1. **[MEDIUM FIXED 2026-05-07] Guild Member eligibility UI counted private active listings while the API did not.** `/dashboard/verification` now matches `/api/verification/apply` by counting only `status: "ACTIVE"` and `isPrivate: false` listings for the five-listing criterion. Regression coverage: `tests/guild-listing-edit-followups.test.mjs`.
+2. **[MEDIUM FIXED 2026-05-07] Listing edit could save listing fields while variant deletion/recreation failed.** The edit action now wraps the listing row update plus `ListingVariantGroup` delete/recreate work in a single Prisma transaction, so variant failures roll back the listing content/status/priceVersion change instead of leaving mixed state. Regression coverage: `tests/guild-listing-edit-followups.test.mjs`.
+
+2026-05-07 PR F buyer/admin messaging follow-up pass:
+
+1. **[MEDIUM-HIGH FIXED 2026-05-07] Custom-order listings held for admin review stranded the buyer after approval.** `src/lib/customOrderReadyLink.ts` now owns the custom-order ready-link message, buyer notification, and optional email side effects. Immediate custom-listing activation and admin listing approval both call the helper, so a `PENDING_REVIEW` custom order with `customOrderConversationId` and `reservedForUserId` sends the buyer the same `custom_order_link` after staff approval. Regression coverage: `tests/custom-order-admin-thread-followups.test.mjs`.
+2. **[MEDIUM FIXED 2026-05-07] Staff could not view reported message threads from `/admin/reports`.** `/messages/[id]` now allows `ADMIN`/`EMPLOYEE` users to load any reported thread in explicit read-only staff-review mode while preserving participant-only behavior for notification read marks, archive actions, custom-order controls, and message sending. Regression coverage: `tests/custom-order-admin-thread-followups.test.mjs`.
 
 2026-05-07 Terms acceptance enforcement pass:
 

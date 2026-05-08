@@ -1,11 +1,19 @@
+const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
+
+function isSupportedSellerStripeAccountVersion(version: string | null | undefined) {
+  return version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
+}
+
 export type SellerOrderBlockReason =
   | "inactive_account"
   | "vacation"
-  | "not_accepting_orders";
+  | "not_accepting_orders"
+  | "unsupported_stripe_account";
 
 export type SellerOrderState = {
   acceptingNewOrders?: boolean | null;
   vacationMode?: boolean | null;
+  stripeAccountVersion?: string | null;
   user?: {
     banned?: boolean | null;
     deletedAt?: Date | string | null;
@@ -17,6 +25,12 @@ export function sellerOrderBlockReason(
 ): SellerOrderBlockReason | null {
   if (!seller) return "inactive_account";
   if (seller.user?.banned || seller.user?.deletedAt) return "inactive_account";
+  if (
+    "stripeAccountVersion" in seller &&
+    !isSupportedSellerStripeAccountVersion(seller.stripeAccountVersion)
+  ) {
+    return "unsupported_stripe_account";
+  }
   if (seller.vacationMode) return "vacation";
   if (seller.acceptingNewOrders === false) return "not_accepting_orders";
   return null;
@@ -28,6 +42,8 @@ export function sellerOrderBlockMessage(reason: SellerOrderBlockReason) {
       return "This seller is currently on vacation and not accepting new orders.";
     case "not_accepting_orders":
       return "This maker is not currently accepting new orders.";
+    case "unsupported_stripe_account":
+      return "This seller needs to reconnect Stripe before accepting orders.";
     case "inactive_account":
     default:
       return "This seller is not currently accepting orders.";

@@ -32,18 +32,25 @@ export function AccountDeletionButton() {
         ok?: boolean;
         error?: string;
         warning?: string;
+        clerkSessionDeleted?: boolean;
         blockers?: Blocker[];
       };
 
       if (!res.ok) {
         setBlockers(data.blockers ?? []);
+        if (data.clerkSessionDeleted) {
+          toast(data.error ?? "Account deletion needs manual support follow-up.", "error");
+          clearRecentlyViewed();
+          await signOut({ redirectUrl: "/account/deleted?status=support" });
+          return;
+        }
         toast(data.error ?? "Account deletion failed.", "error");
         return;
       }
 
       toast(data.warning ?? "Account deleted.", data.warning ? "info" : "success");
       clearRecentlyViewed();
-      await signOut({ redirectUrl: "/" });
+      await signOut({ redirectUrl: "/account/deleted" });
     } catch {
       toast("Network error. Please try again.", "error");
     } finally {

@@ -17,11 +17,32 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#039;");
 }
 
-function htmlResponse(title: string, message: string, status = 200) {
+function htmlDocument(title: string, bodyHtml: string, status = 200) {
   return new NextResponse(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head><body style="margin:0;background:#fafaf8;color:#1c1c1a;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"><main style="max-width:520px;margin:12vh auto;padding:0 24px;"><h1 style="font-size:24px;line-height:1.2;margin:0 0 12px;">${escapeHtml(title)}</h1><p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">${escapeHtml(message)}</p><p style="margin:24px 0 0;"><a href="/" style="color:#1c1c1a;">Return to Grainline</a></p></main></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head><body style="margin:0;background:#fafaf8;color:#1c1c1a;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"><main style="max-width:520px;margin:12vh auto;padding:0 24px;"><h1 style="font-size:24px;line-height:1.2;margin:0 0 12px;">${escapeHtml(title)}</h1>${bodyHtml}<p style="margin:24px 0 0;"><a href="/" style="color:#1c1c1a;">Return to Grainline</a></p></main></body></html>`,
     { status, headers: { "Content-Type": "text/html; charset=utf-8" } }
   );
+}
+
+function htmlResponse(title: string, message: string, status = 200) {
+  return htmlDocument(
+    title,
+    `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">${escapeHtml(message)}</p>`,
+    status,
+  );
+}
+
+function confirmationResponse(email: string, token: string, issuedAt: string) {
+  const action = `/api/email/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&issuedAt=${encodeURIComponent(issuedAt)}&response=html`;
+  return htmlDocument(
+    "Confirm unsubscribe",
+    `<p style="font-size:15px;line-height:1.6;color:#55514a;margin:0;">Confirm that you want to turn off Grainline email notifications for ${escapeHtml(email)}.</p><form method="post" action="${action}" style="margin:24px 0 0;"><button type="submit" style="appearance:none;border:0;background:#1c1c1a;color:#ffffff;padding:12px 18px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;">Unsubscribe</button></form>`,
+  );
+}
+
+function wantsHtmlResponse(req: NextRequest): boolean {
+  const url = new URL(req.url);
+  return url.searchParams.get("response") === "html";
 }
 
 async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParams> {
@@ -54,13 +75,13 @@ async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParam
   return { email, token, issuedAt };
 }
 
-async function handle(req: NextRequest, mode: "json" | "html") {
+async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html") {
   const rate = await safeRateLimit(unsubscribeRatelimit, getIP(req));
   if (!rate.success) {
     if (mode === "html") {
-      return htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", 429);
+      return { response: htmlResponse("Too many requests", "Please wait a few minutes before trying this unsubscribe link again.", 429) };
     }
-    return rateLimitResponse(rate.reset, "Too many unsubscribe attempts.");
+    return { response: rateLimitResponse(rate.reset, "Too many unsubscribe attempts.") };
   }
 
   const { email, token, issuedAt } = await readUnsubscribeParams(req);
@@ -76,10 +97,20 @@ async function handle(req: NextRequest, mode: "json" | "html") {
       tokenLength: token?.length ?? 0,
     });
     if (mode === "html") {
-      return htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400);
+      return { response: htmlResponse("Invalid unsubscribe link", "This unsubscribe link is invalid or has expired.", 400) };
     }
-    return NextResponse.json({ ok: false, error: "Invalid unsubscribe link" }, { status: 400 });
+    return { response: NextResponse.json({ ok: false, error: "Invalid unsubscribe link" }, { status: 400 }) };
   }
+
+  return { email, token, issuedAt };
+}
+
+async function handlePost(req: NextRequest) {
+  const mode = wantsHtmlResponse(req) ? "html" : "json";
+  const validated = await validateUnsubscribeRequest(req, mode);
+  if ("response" in validated) return validated.response;
+
+  const { email } = validated;
 
   try {
     const result = await unsubscribeEmail(email);
@@ -100,9 +131,11 @@ async function handle(req: NextRequest, mode: "json" | "html") {
 }
 
 export async function POST(req: NextRequest) {
-  return handle(req, "json");
+  return handlePost(req);
 }
 
 export async function GET(req: NextRequest) {
-  return handle(req, "html");
+  const validated = await validateUnsubscribeRequest(req, "html");
+  if ("response" in validated) return validated.response;
+  return confirmationResponse(validated.email, validated.token, validated.issuedAt);
 }

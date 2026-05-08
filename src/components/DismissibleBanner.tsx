@@ -31,7 +31,11 @@ export default function DismissibleBanner({
 
   const handleDismiss = () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(rejectedIds));
+      if (rejectedIds.length > 0) {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        const dismissedIds = stored ? JSON.parse(stored) as string[] : [];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([...new Set([...dismissedIds, ...rejectedIds])]));
+      }
     } catch { /* non-fatal */ }
     setDismissed(true);
   };

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { clickRatelimit, clickDedupRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
 import { hasTrackingCookie, setTrackingCookie } from "@/lib/listingTrackingCookies";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { isLikelyBotUserAgent } from "@/lib/botUserAgent";
 
 const CLICKED_LISTING_IDS_COOKIE = "clicked_listing_ids";
 
@@ -17,6 +18,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const userAgent = req.headers.get("user-agent") ?? "";
+  if (isLikelyBotUserAgent(userAgent)) return NextResponse.json({ ok: true, skipped: true });
+
   const ip = getIP(req);
   const { success } = await safeRateLimitOpen(clickRatelimit, ip);
   if (!success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });

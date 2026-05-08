@@ -8,6 +8,7 @@ import {
   STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX,
   STRIPE_CONNECT_V2_API_VERSION,
   isStripeConnectV2AccountEvent,
+  isSupportedStripeConnectAccountVersion,
   stripeConnectV2AccountIdFromNotification,
   stripeWebhookCreatedSeconds,
 } from "../src/lib/stripeConnectV2State.ts";
@@ -24,6 +25,9 @@ describe("Stripe Connect v2 migration guardrails", () => {
     });
 
     assert.equal(STRIPE_CONNECT_ACCOUNT_VERSION, "v2");
+    assert.equal(isSupportedStripeConnectAccountVersion("v2"), true);
+    assert.equal(isSupportedStripeConnectAccountVersion(null), false);
+    assert.equal(isSupportedStripeConnectAccountVersion("v1"), false);
     assert.equal(STRIPE_CONNECT_V2_API_VERSION, "2026-02-25.clover");
     assert.equal(STRIPE_CONNECT_CONTROLLER_SUMMARY, "dashboard:express|fees:application|losses:application|requirements:stripe");
     assert.deepEqual(params, {
@@ -104,21 +108,35 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.doesNotMatch(route, /stripe\.accounts\.create\(/);
     assert.match(route, /stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION/);
     assert.match(route, /stripeControllerType: STRIPE_CONNECT_CONTROLLER_SUMMARY/);
+    assert.match(route, /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
   });
 
   it("keeps Express dashboard login links and account.updated charges_enabled semantics", () => {
     assert.match(source("src/app/api/stripe/connect/login-link/route.ts"), /createLoginLink\(stripeAccountId\)/);
+    assert.match(source("src/app/api/stripe/connect/login-link/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /createLoginLink\(seller\.stripeAccountId\)/);
+    assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
 
     const webhook = source("src/app/api/stripe/webhook/route.ts");
-    assert.match(webhook, /isStripeConnectV2AccountEvent/);
-    assert.match(webhook, /stripe\.parseEventNotification\(body, signature, secret\)/);
-    assert.match(webhook, /stripeConnectV2AccountIdFromNotification\(notification\)/);
-    assert.match(webhook, /stripe\.accounts\.retrieve\(accountId\)/);
     assert.match(webhook, /event\.type === "account\.updated"/);
     assert.match(webhook, /charges_enabled\?: boolean/);
     assert.match(webhook, /mirrorStripeChargesEnabled/);
-    assert.match(webhook, /chargesEnabled: Boolean\(account\.charges_enabled\)/);
+    assert.doesNotMatch(webhook, /parseEventNotification/);
+    assert.doesNotMatch(webhook, /STRIPE_V2_WEBHOOK_SECRET/);
+
+    const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
+    assert.match(v2Webhook, /STRIPE_V2_WEBHOOK_SECRET/);
+    assert.match(v2Webhook, /stripe\.parseEventNotification\(body, signature, secret\)/);
+    assert.match(v2Webhook, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
+    assert.match(v2Webhook, /stripeConnectV2AccountIdFromNotification\(notification\)/);
+    assert.match(v2Webhook, /stripe\.accounts\.retrieve\(accountId\)/);
+    assert.match(v2Webhook, /mirrorStripeChargesEnabled/);
+    assert.match(v2Webhook, /chargesEnabled: Boolean\(account\.charges_enabled\)/);
+    assert.match(v2Webhook, /route: "\/api\/stripe\/webhook\/v2"/);
+
+    const middleware = source("src/middleware.ts");
+    assert.match(middleware, /"\/api\/stripe\/webhook\/v2"/);
+    assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/v2"/);
 
     assert.match(webhook, /event\.type === "account\.application\.deauthorized"/);
   });
@@ -150,5 +168,15 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(schema, /stripeControllerType\s+String\?\s+@db\.VarChar\(100\)/);
     assert.match(migration, /ADD COLUMN "stripeAccountVersion" VARCHAR\(20\)/);
     assert.match(migration, /ADD COLUMN "stripeControllerType" VARCHAR\(100\)/);
+  });
+
+  it("reads Connect version diagnostics before deletion and clears them during anonymization", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    assert.match(accountDeletion, /stripeAccountVersion: true/);
+    assert.match(accountDeletion, /stripeControllerType: true/);
+    assert.match(accountDeletion, /rejectConnectedStripeAccount\(stripeAccountId, userId, stripeAccountVersion\)/);
+    assert.match(accountDeletion, /stripeAccountVersion: null/);
+    assert.match(accountDeletion, /stripeControllerType: null/);
+    assert.match(accountDeletion, /manualStripeReconciliationNote/);
   });
 });

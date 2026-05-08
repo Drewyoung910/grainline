@@ -230,59 +230,63 @@ async function updateListing(
   const statusBeforeEdit = listing.status;
   const requiresReview = statusBeforeEdit === ListingStatus.ACTIVE && substantiveChange;
 
-  const updatedListing = await prisma.listing.update({
-    where: { id: listingId },
-    data: {
-      title,
-      description,
-      priceCents,
-      ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
-      tags,
-      metaDescription,
-      materials,
-      productLengthIn,
-      productWidthIn,
-      productHeightIn,
-      packagedLengthCm,
-      packagedWidthCm,
-      packagedHeightCm,
-      packagedWeightGrams,
-      category,
-      listingType,
-      stockQuantity,
-      shipsWithinDays,
-      processingTimeMinDays,
-      processingTimeMaxDays,
-      ...(requiresReview ? {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["pending-ai-review"],
-        aiReviewScore: 0,
-      } : {}),
-    },
-    select: { title: true, updatedAt: true },
-  });
-
-  // Update variants — delete existing and recreate
-  await prisma.listingVariantGroup.deleteMany({ where: { listingId } });
-  for (let gi = 0; gi < variantGroups.length; gi++) {
-    const g = variantGroups[gi];
-    if (!g.name || g.options.length === 0) continue;
-    await prisma.listingVariantGroup.create({
+  const updatedListing = await prisma.$transaction(async (tx) => {
+    const updated = await tx.listing.update({
+      where: { id: listingId },
       data: {
-        listingId,
-        name: g.name,
-        sortOrder: gi,
-        options: {
-          create: g.options.filter((o) => o.label).map((o, oi) => ({
-            label: o.label,
-            priceAdjustCents: o.priceAdjustCents,
-            sortOrder: oi,
-            inStock: o.inStock,
-          })),
-        },
+        title,
+        description,
+        priceCents,
+        ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
+        tags,
+        metaDescription,
+        materials,
+        productLengthIn,
+        productWidthIn,
+        productHeightIn,
+        packagedLengthCm,
+        packagedWidthCm,
+        packagedHeightCm,
+        packagedWeightGrams,
+        category,
+        listingType,
+        stockQuantity,
+        shipsWithinDays,
+        processingTimeMinDays,
+        processingTimeMaxDays,
+        ...(requiresReview ? {
+          status: ListingStatus.PENDING_REVIEW,
+          aiReviewFlags: ["pending-ai-review"],
+          aiReviewScore: 0,
+        } : {}),
       },
+      select: { title: true, updatedAt: true },
     });
-  }
+
+    // Update variants with the listing row so failures cannot leave mixed old/new state.
+    await tx.listingVariantGroup.deleteMany({ where: { listingId } });
+    for (let gi = 0; gi < variantGroups.length; gi++) {
+      const g = variantGroups[gi];
+      if (!g.name || g.options.length === 0) continue;
+      await tx.listingVariantGroup.create({
+        data: {
+          listingId,
+          name: g.name,
+          sortOrder: gi,
+          options: {
+            create: g.options.filter((o) => o.label).map((o, oi) => ({
+              label: o.label,
+              priceAdjustCents: o.priceAdjustCents,
+              sortOrder: oi,
+              inStock: o.inStock,
+            })),
+          },
+        },
+      });
+    }
+
+    return updated;
+  });
 
   // Re-trigger AI review if ACTIVE listing had substantive content changes
   if (requiresReview) {

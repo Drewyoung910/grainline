@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -51,7 +51,7 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
     const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
     const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
     const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
-    if (avatarImageUrl && !isR2PublicUrl(avatarImageUrl)) {
+    if (avatarImageUrl && !isFirstPartyMediaUrl(avatarImageUrl)) {
       return { ok: false, error: "Use an uploaded Grainline image for your profile photo." };
     }
 

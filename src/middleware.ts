@@ -32,8 +32,10 @@ const isPublic = createRouteMatcher([
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
+  "/account/deleted",     // terminal account deletion page after Clerk sign-out
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
+  "/api/stripe/webhook/v2", // Stripe Connect v2 thin webhook — separate destination/signing secret
   "/api/resend/webhook",   // Resend webhook — called by Resend servers, no Clerk session
   "/api/email/unsubscribe", // One-click email unsubscribe — called by mail providers, no Clerk session
   "/api/me",
@@ -64,6 +66,7 @@ const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
 const isTermsAcceptanceAllowed = createRouteMatcher([
   "/accept-terms(.*)",
+  "/account/deleted",
   "/api/account/accept-terms",
   "/sign-in(.*)",
   "/sign-up(.*)",
@@ -79,6 +82,7 @@ const isTermsAcceptanceAllowed = createRouteMatcher([
   "/banned",
   "/api/clerk/webhook",
   "/api/stripe/webhook",
+  "/api/stripe/webhook/v2",
   "/api/resend/webhook",
   "/api/email/unsubscribe",
   "/api/support",
@@ -89,6 +93,7 @@ const isTermsAcceptanceAllowed = createRouteMatcher([
 ]);
 const isSuspendedAccountAllowed = createRouteMatcher([
   "/banned",
+  "/account/deleted",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/terms",
@@ -101,6 +106,7 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/monitoring",
   "/api/clerk/webhook",
   "/api/stripe/webhook",
+  "/api/stripe/webhook/v2",
   "/api/resend/webhook",
   "/api/email/unsubscribe",
   "/api/support",
@@ -147,6 +153,7 @@ function isGeoAllowedApiPath(pathname: string): boolean {
     pathname.startsWith("/api/cron/") ||
     pathname === "/api/clerk/webhook" ||
     pathname === "/api/stripe/webhook" ||
+    pathname === "/api/stripe/webhook/v2" ||
     pathname === "/api/resend/webhook" ||
     pathname === "/api/email/unsubscribe" ||
     pathname === "/api/support" ||

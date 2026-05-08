@@ -15,7 +15,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
@@ -76,7 +76,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     if (raw.length > 2048) {
       redirect("/dashboard/profile?warning=invalid-url");
     }
-    if (!isR2PublicUrl(raw)) {
+    if (!isFirstPartyMediaUrl(raw)) {
       redirect("/dashboard/profile?warning=invalid-url");
     }
     return raw;

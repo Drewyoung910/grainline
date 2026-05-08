@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ListingStatus } from "@prisma/client";
+import { STRIPE_CONNECT_ACCOUNT_VERSION } from "../src/lib/stripeConnectV2State.ts";
 
 const {
   canViewListingDetail,
@@ -38,6 +39,7 @@ describe("listing visibility", () => {
           isPrivate: false,
           seller: {
             chargesEnabled: true,
+            stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
             vacationMode: false,
             user: { banned: false, deletedAt: null },
           },
@@ -53,6 +55,7 @@ describe("listing visibility", () => {
           isPrivate: false,
           seller: {
             chargesEnabled: true,
+            stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
             vacationMode: false,
             user: { banned: false, deletedAt: null },
           },
@@ -70,6 +73,7 @@ describe("listing visibility", () => {
           isPrivate: false,
           seller: {
             chargesEnabled: true,
+            stripeAccountVersion: STRIPE_CONNECT_ACCOUNT_VERSION,
             vacationMode: false,
             user: { banned: false, deletedAt: null },
           },
@@ -84,6 +88,7 @@ describe("listing visibility", () => {
     assert.equal(isPublicListing(listing({ status: ListingStatus.HIDDEN })), false);
     assert.equal(isPublicListing(listing({ isPrivate: true })), false);
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, chargesEnabled: false } })), false);
+    assert.equal(isPublicListing(listing({ seller: { ...listing().seller, stripeAccountVersion: "legacy-v1" } })), false);
     assert.equal(isPublicListing(listing({ seller: { ...listing().seller, vacationMode: true } })), false);
     assert.equal(
       isPublicListing(listing({ seller: { ...listing().seller, user: { ...listing().seller.user, banned: true } } })),

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
 import { z } from 'zod'
@@ -51,6 +52,15 @@ export async function PATCH(
       data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
     })
     if (approved.count === 0) {
+      if (listing.status === 'ACTIVE' && listing.customOrderConversationId && listing.reservedForUserId) {
+        await sendCustomOrderReadyLink({
+          conversationId: listing.customOrderConversationId,
+          sellerUserId: listing.seller.userId,
+          buyerUserId: listing.reservedForUserId,
+          sellerName: listing.seller.displayName,
+          listing,
+        })
+      }
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     await logAdminAction({
@@ -67,6 +77,15 @@ export async function PATCH(
       body: `Your listing "${listing.title}" has been approved and is now live!`,
       link: publicListingPath(id, listing.title),
     }).catch(() => {})
+    if (listing.customOrderConversationId && listing.reservedForUserId) {
+      await sendCustomOrderReadyLink({
+        conversationId: listing.customOrderConversationId,
+        sellerUserId: listing.seller.userId,
+        buyerUserId: listing.reservedForUserId,
+        sellerName: listing.seller.displayName,
+        listing,
+      })
+    }
   } else if (action === 'reject') {
     if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
     const rejected = await prisma.listing.updateMany({

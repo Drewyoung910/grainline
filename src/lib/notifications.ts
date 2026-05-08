@@ -40,12 +40,11 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
     return prefs[prefKey] !== false;
   } catch (e) {
     console.error("Failed to check email preference:", e);
-    const fallbackEnabled = emailPreferenceDefaultEnabled(prefKey);
     Sentry.captureException(e, {
       tags: { source: "email_preference_check" },
-      extra: { userId, prefKey, fallbackEnabled },
+      extra: { userId, prefKey, failClosed: true },
     });
-    return fallbackEnabled;
+    return false;
   }
 }
 

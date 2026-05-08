@@ -30,6 +30,11 @@ export default async function OnboardingPage() {
       acceptsCustomOrders: true,
       stripeAccountId: true,
       _count: { select: { listings: true } },
+      listings: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { id: true, title: true, status: true },
+      },
     },
   });
 
@@ -71,6 +76,7 @@ export default async function OnboardingPage() {
       hasStripeAccount={hasStripeAccount}
       chargesEnabled={chargesEnabled}
       listingCount={sp._count.listings}
+      latestListing={sp.listings[0] ?? null}
     />
   );
 }

@@ -10,14 +10,14 @@ import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelim
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
-import { filterR2PublicUrls, isR2PublicUrl } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { z } from "zod";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
-  (u) => isR2PublicUrl(u),
+  (u) => isFirstPartyMediaUrl(u),
   { message: "Invalid photo URL" }
 )).max(6).optional();
 
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
   }
 
-  const urls = filterR2PublicUrls(photoUrls ?? [], 6);
+  const urls = filterFirstPartyMediaUrls(photoUrls ?? [], 6);
 
   const created = await prisma.$transaction(async (tx) => {
     const r = await tx.review.create({

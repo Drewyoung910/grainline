@@ -9,7 +9,7 @@ import {
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { listingPhotoReviewImageUrls } from "@/lib/listingPhotoReview";
 import { ListingStatus } from "@prisma/client";
@@ -17,7 +17,7 @@ import { z } from "zod";
 
 const PhotosSchema = z.object({
   urls: z.array(z.string().url().refine(
-    (u) => isR2PublicUrl(u),
+    (u) => isFirstPartyMediaUrl(u),
     { message: "Invalid photo URL origin" }
   )).max(8).optional(),
 });

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
@@ -62,6 +62,10 @@ async function stripMetadata(input: Buffer, contentType: string) {
   if (contentType === "image/png") return image.png({ compressionLevel: 9 }).toBuffer();
   if (contentType === "image/webp") return image.webp({ quality: 88 }).toBuffer();
   return image.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+}
+
+async function deleteUploadedImageObject(key: string) {
+  await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
 }
 
 export async function POST(req: Request) {
@@ -143,6 +147,14 @@ export async function POST(req: Request) {
     await assertPublicMediaAvailable(publicUrl);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Uploaded media is not publicly available.";
+    await deleteUploadedImageObject(key).catch((deleteError) => {
+      console.error("[upload image] failed to delete unavailable object:", deleteError);
+      Sentry.captureException(deleteError, {
+        level: "warning",
+        tags: { source: "upload_image_cleanup", endpoint },
+        extra: { key },
+      });
+    });
     return NextResponse.json({ error: message }, { status: 502 });
   }
 

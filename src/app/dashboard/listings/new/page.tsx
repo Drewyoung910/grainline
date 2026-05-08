@@ -10,7 +10,7 @@ import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { filterR2PublicUrls } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import PhotoManager from "@/components/PhotoManager";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
@@ -69,7 +69,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterR2PublicUrls(imageUrls, 8);
+  imageUrls = filterFirstPartyMediaUrls(imageUrls, 8);
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];

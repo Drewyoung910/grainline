@@ -4,6 +4,10 @@ export const STRIPE_CONNECT_CONTROLLER_SUMMARY =
   "dashboard:express|fees:application|losses:application|requirements:stripe";
 export const STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX = "v2.core.account";
 
+export function isSupportedStripeConnectAccountVersion(version: string | null | undefined) {
+  return version === STRIPE_CONNECT_ACCOUNT_VERSION;
+}
+
 export type StripeConnectV2AccountCreateParams = {
   contact_email?: string;
   identity: {

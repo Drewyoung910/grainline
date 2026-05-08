@@ -13,6 +13,7 @@ export {
   STRIPE_CONNECT_V2_ACCOUNT_EVENT_PREFIX,
   STRIPE_CONNECT_V2_API_VERSION,
   isStripeConnectV2AccountEvent,
+  isSupportedStripeConnectAccountVersion,
   stripeConnectV2AccountIdFromNotification,
   stripeWebhookCreatedSeconds,
   type StripeConnectV2AccountNotification,

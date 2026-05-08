@@ -83,6 +83,8 @@ export async function POST(req: Request) {
           id: true,
           acceptsCustomOrders: true,
           acceptingNewOrders: true,
+          stripeAccountId: true,
+          stripeAccountVersion: true,
           chargesEnabled: true,
           vacationMode: true,
         },
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
   if (sellerBlockReason) {
     return NextResponse.json({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
   }
-  if (!seller.sellerProfile.chargesEnabled) {
+  if (!seller.sellerProfile.chargesEnabled || !seller.sellerProfile.stripeAccountId) {
     return NextResponse.json({ error: "This seller is not accepting new orders right now." }, { status: 400 });
   }
 

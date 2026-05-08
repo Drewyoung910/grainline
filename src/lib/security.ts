@@ -7,9 +7,11 @@
  * read the response. The routes below are intentionally unauthenticated and are
  * safe for the following reasons:
  *
- * 1. POST /api/stripe/webhook
- *    — Webhook called by Stripe servers using HTTPS POST with a raw body.
- *      Protected by Stripe-Signature HMAC verification (stripe.webhooks.constructEvent).
+ * 1. POST /api/stripe/webhook and POST /api/stripe/webhook/v2
+ *    — Webhooks called by Stripe servers using HTTPS POST with a raw body.
+ *      Protected by Stripe-Signature HMAC verification. Snapshot events use
+ *      stripe.webhooks.constructEvent; Connect v2 thin events use
+ *      stripe.parseEventNotification with a separate signing secret.
  *      No session cookie involved; CSRF not applicable.
  *
  * 2. POST /api/clerk/webhook

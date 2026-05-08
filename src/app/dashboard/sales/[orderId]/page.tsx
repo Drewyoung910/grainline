@@ -76,9 +76,10 @@ export default async function SellerOrderDetailPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, onboardingComplete: true },
   });
   if (!seller) redirect("/dashboard/seller");
+  if (!seller.onboardingComplete) redirect("/dashboard?setup=required");
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },

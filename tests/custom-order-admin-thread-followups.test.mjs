@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("custom-order and staff-thread audit follow-ups", () => {
+  it("sends custom-order ready links from both immediate and admin approval paths", () => {
+    const helper = source("src/lib/customOrderReadyLink.ts");
+    const customPage = source("src/app/dashboard/listings/custom/page.tsx");
+    const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
+
+    assert.match(helper, /kind: "custom_order_link"/);
+    assert.match(helper, /dedupScope: listing\.id/);
+    assert.match(helper, /sendCustomOrderReady/);
+    assert.match(customPage, /sendCustomOrderReadyLink\(\{/);
+    assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
+    assert.match(adminReview, /sendCustomOrderReadyLink\(\{/);
+    assert.match(adminReview, /listing\.status === 'ACTIVE' && listing\.customOrderConversationId/);
+  });
+
+  it("lets staff view reported message threads without becoming a participant", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(threadPage, /const isStaff = me\.role === "ADMIN" \|\| me\.role === "EMPLOYEE"/);
+    assert.match(threadPage, /targetType: "MESSAGE_THREAD", targetId: id, resolved: false/);
+    assert.match(threadPage, /where: canStaffReviewThread \? \{ id \} : \{ id, OR: \[\{ userAId: me\.id \}, \{ userBId: me\.id \}\] \}/);
+    assert.match(threadPage, /const isStaffReviewMode = canStaffReviewThread && !isParticipant/);
+    assert.match(threadPage, /\{isParticipant && <MarkReadClient id=\{id\} \/>\}/);
+    assert.match(threadPage, /isParticipant && !otherUnavailableReason/);
+    assert.match(threadPage, /Staff review/);
+  });
+});

@@ -9,7 +9,9 @@ process.env.CLOUDFLARE_R2_PUBLIC_URL = "https://media.example.com/grain";
 process.env.CLOUDFLARE_R2_PUBLIC_URLS = "https://assets.example.com/base,not-a-url";
 
 const {
+  filterFirstPartyMediaUrls,
   filterR2PublicUrls,
+  isFirstPartyMediaUrl,
   filterTrustedMediaUrls,
   isR2PublicUrl,
   isTrustedMediaUrl,
@@ -40,6 +42,20 @@ describe("media URL validation", () => {
         "https://attacker.example.com/photo.jpg",
       ], 5),
       ["https://i.postimg.cc/example/photo.jpg"],
+    );
+  });
+
+  it("keeps legacy display hosts out of first-party write-path validation", () => {
+    assert.equal(isR2PublicUrl("https://utfs.io/f/legacy.jpg"), true);
+    assert.equal(isFirstPartyMediaUrl("https://utfs.io/f/legacy.jpg"), false);
+    assert.equal(isFirstPartyMediaUrl("https://cdn.thegrainline.com/listings/photo.jpg"), true);
+    assert.deepEqual(
+      filterFirstPartyMediaUrls([
+        "https://media.example.com/grain/a.jpg",
+        "https://utfs.io/f/legacy.jpg",
+        "https://cdn.thegrainline.com/c.jpg",
+      ], 5),
+      ["https://media.example.com/grain/a.jpg", "https://cdn.thegrainline.com/c.jpg"],
     );
   });
 
