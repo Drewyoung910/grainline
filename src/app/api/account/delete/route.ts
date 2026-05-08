@@ -42,6 +42,7 @@ export async function POST() {
     Sentry.captureException(error, { tags: { source: "account_delete_anonymize" }, extra: { dbUserId: me.id } });
     return NextResponse.json({
       error: "Your sign-in was deleted, but account data anonymization needs manual support follow-up.",
+      clerkSessionDeleted: true,
     }, { status: 500 });
   }
 

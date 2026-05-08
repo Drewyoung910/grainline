@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-07
+Last updated: 2026-05-08
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -15,6 +15,13 @@ Latest mechanical open-heading count after the 2026-05-07 PR J follow-up pass: *
 2026-05-08 onboarding-incomplete dashboard access pass:
 
 1. **[MEDIUM FIXED 2026-05-08] Onboarding-incomplete sellers were blocked from read/draft dashboard surfaces after creating wizard drafts.** `/dashboard` no longer redirects `onboardingComplete = false` sellers to `/dashboard/onboarding`; it renders a dismissible "Finish setup to start selling" banner with setup and Stripe payout CTAs while preserving draft/listing/shop/profile access. Sales/detail/analytics surfaces now route incomplete sellers to setup state instead of normal sales metrics. Publish-state mutations remain gated by `chargesEnabled`. Regression coverage: `tests/onboarding-incomplete-dashboard-access.test.mjs`.
+
+2026-05-08 account deletion timeout/terminal UX pass:
+
+1. **[CRITICAL FIXED 2026-05-08] Account deletion could reject a Stripe Connect account before a local DB transaction timed out.** `anonymizeUserAccount()` now runs the required local deletion transaction with `{ timeout: 30000, maxWait: 10000 }`, keeps admin-audit-log redaction outside the transaction as best-effort Sentry-captured follow-up work, and captures `source: "account_delete_partial"` before rethrowing when a successful Stripe reject is followed by a local transaction failure. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+2. **[HIGH FIXED 2026-05-08] Account deletion relied only on Stripe webhooks to flip seller payout/orderability state.** The deletion transaction now explicitly sets `SellerProfile.chargesEnabled = false` and `vacationMode = true` when the connected-account reject succeeds, while the webhook mirror remains idempotent. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+3. **[MEDIUM FIXED 2026-05-08] Delete-account UX could leave users retrying after their Clerk session was already deleted.** `/api/account/delete` now marks post-Clerk anonymization failures with `clerkSessionDeleted: true`; the client treats that response as terminal, clears local recently-viewed data, signs out, and lands on the public noindex `/account/deleted` page. Successful deletion also signs out to that terminal page. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
+4. **[LOW FIXED 2026-05-08] Account settings link was mislabeled as notification-only.** `/account` now labels the `/account/settings` link "Account settings →" because the destination also contains export and delete-account controls. Regression coverage: `tests/account-deletion-timeout-fix.test.mjs`.
 
 2026-05-07 PR J Stripe account-version follow-up pass:
 

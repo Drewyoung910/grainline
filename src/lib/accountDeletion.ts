@@ -35,6 +35,8 @@ type NotificationRedactionCandidate = {
   body: string;
 };
 
+type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
+
 function mergeAuditLogRedactionCandidate(
   candidates: Map<string, AuditLogRedactionCandidate>,
   id: string,
@@ -62,7 +64,7 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
 }
 
 async function collectAuditLogsBySensitiveMetadata(
-  tx: Prisma.TransactionClient,
+  db: AuditLogRedactionDb,
   candidates: Map<string, AuditLogRedactionCandidate>,
   sensitiveValues: string[],
 ) {
@@ -87,7 +89,7 @@ async function collectAuditLogsBySensitiveMetadata(
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `;
-      const matches: { id: string; metadata: Prisma.JsonValue }[] = await tx.$queryRaw(query);
+      const matches: { id: string; metadata: Prisma.JsonValue }[] = await db.$queryRaw(query);
       matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, false));
 
       if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
@@ -98,7 +100,7 @@ async function collectAuditLogsBySensitiveMetadata(
 }
 
 async function collectAuditLogsByAccountReference(
-  tx: Prisma.TransactionClient,
+  db: AuditLogRedactionDb,
   candidates: Map<string, AuditLogRedactionCandidate>,
   adminId: string,
   targetIds: string[],
@@ -112,7 +114,7 @@ async function collectAuditLogsByAccountReference(
   };
 
   for (;;) {
-    const matches = await tx.adminAuditLog.findMany({
+    const matches = await db.adminAuditLog.findMany({
       where,
       select: { id: true, metadata: true },
       orderBy: { id: "asc" },
@@ -129,19 +131,19 @@ async function collectAuditLogsByAccountReference(
 }
 
 async function redactAdminAuditLogsForAccountDeletion({
-  tx,
+  db,
   adminId,
   targetIds,
   sensitiveValues,
 }: {
-  tx: Prisma.TransactionClient;
+  db: AuditLogRedactionDb;
   adminId: string;
   targetIds: string[];
   sensitiveValues: string[];
 }) {
   const candidates = new Map<string, AuditLogRedactionCandidate>();
-  await collectAuditLogsBySensitiveMetadata(tx, candidates, sensitiveValues);
-  await collectAuditLogsByAccountReference(tx, candidates, adminId, targetIds);
+  await collectAuditLogsBySensitiveMetadata(db, candidates, sensitiveValues);
+  await collectAuditLogsByAccountReference(db, candidates, adminId, targetIds);
 
   for (const [id, candidate] of candidates) {
     const redacted = redactAccountDeletionAuditMetadata(
@@ -153,7 +155,7 @@ async function redactAdminAuditLogsForAccountDeletion({
       : { metadata: redacted.metadata, changed: false };
 
     if (!redacted.changed && !marked.changed) continue;
-    await tx.adminAuditLog.update({
+    await db.adminAuditLog.update({
       where: { id },
       data: { metadata: marked.metadata as Prisma.InputJsonValue },
     });
@@ -511,8 +513,8 @@ export async function anonymizeUserAccount(userId: string) {
       include: { sellerProfile: { select: { id: true, displayName: true } } },
     });
 
-    if (!user) return { ok: true, alreadyDeleted: true };
-    if (user.deletedAt) return { ok: true, alreadyDeleted: true };
+    if (!user) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
+    if (user.deletedAt) return { ok: true, alreadyDeleted: true, auditTargetIds: [], accountSensitiveValues: [] };
 
     const now = new Date();
     const deletedEmail = `deleted+${user.id}@deleted.thegrainline.local`;
@@ -596,18 +598,18 @@ export async function anonymizeUserAccount(userId: string) {
         details: { accountDeleted: true },
       },
     });
-    await redactAdminAuditLogsForAccountDeletion({
-      tx,
-      adminId: user.id,
-      targetIds: auditTargetIds,
-      sensitiveValues: accountSensitiveValues,
-    });
     await tx.commissionRequest.updateMany({
       where: { buyerId: user.id, status: { in: [...ACTIVE_COMMISSION_STATUSES] } },
       data: { status: "CLOSED" },
     });
 
     if (user.sellerProfile) {
+      if (stripeRejectSucceeded) {
+        await tx.sellerProfile.updateMany({
+          where: { userId: user.id },
+          data: { chargesEnabled: false, vacationMode: true },
+        });
+      }
       await tx.photo.deleteMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
       });
@@ -750,8 +752,42 @@ export async function anonymizeUserAccount(userId: string) {
       },
     });
 
-    return { ok: true, alreadyDeleted: false };
+    return {
+      ok: true,
+      alreadyDeleted: false,
+      auditTargetIds,
+      accountSensitiveValues,
+    };
+  }, { timeout: 30000, maxWait: 10000 }).catch((error) => {
+    if (stripeRejectSucceeded && stripeAccountId) {
+      Sentry.captureException(error, {
+        tags: { source: "account_delete_partial" },
+        extra: {
+          userId,
+          stripeAccountId,
+          stripeAccountVersion,
+          stripeControllerType,
+        },
+      });
+    }
+    throw error;
   });
+
+  if (!result.alreadyDeleted) {
+    try {
+      await redactAdminAuditLogsForAccountDeletion({
+        db: prisma,
+        adminId: userId,
+        targetIds: result.auditTargetIds,
+        sensitiveValues: result.accountSensitiveValues,
+      });
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: "account_delete_audit_redaction" },
+        extra: { userId },
+      });
+    }
+  }
 
   const deletions = await mapWithConcurrency(mediaUrls, 5, (url) => deleteR2ObjectByUrl(url));
   deletions.forEach((deletion, index) => {
@@ -771,7 +807,7 @@ export async function anonymizeUserAccount(userId: string) {
     }
   });
 
-  return result;
+  return { ok: result.ok, alreadyDeleted: result.alreadyDeleted };
 }
 
 export async function anonymizeUserAccountByClerkId(clerkId: string) {

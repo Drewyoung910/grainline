@@ -32,6 +32,7 @@ const isPublic = createRouteMatcher([
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
+  "/account/deleted",     // terminal account deletion page after Clerk sign-out
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
   "/api/resend/webhook",   // Resend webhook — called by Resend servers, no Clerk session
@@ -64,6 +65,7 @@ const isAdminApi = createRouteMatcher(["/api/admin(.*)"]);
 const isAdminPinVerification = createRouteMatcher(["/api/admin/verify-pin"]);
 const isTermsAcceptanceAllowed = createRouteMatcher([
   "/accept-terms(.*)",
+  "/account/deleted",
   "/api/account/accept-terms",
   "/sign-in(.*)",
   "/sign-up(.*)",
@@ -89,6 +91,7 @@ const isTermsAcceptanceAllowed = createRouteMatcher([
 ]);
 const isSuspendedAccountAllowed = createRouteMatcher([
   "/banned",
+  "/account/deleted",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/terms",
