@@ -271,7 +271,7 @@ Plus category label matches from `CATEGORY_VALUES`.
 - **JSON-LD** on listing pages: `Product` schema (name, description, images, sku, brand, offers with seller name, aggregateRating when reviews exist) + `BreadcrumbList` (Home → Category → Listing, or Home → Listing if no category)
 - **LocalBusiness JSON-LD** on seller pages: name, description, url, `knowsAbout: "Handmade Woodworking"`, PostalAddress (city/state), GeoCoordinates (only when lat/lng set)
 - **Sitemap** (`src/app/sitemap.ts`): homepage `priority: 1.0` daily, browse `0.9` daily, active listings `0.8` weekly with `updatedAt`, seller profiles `0.6` monthly with `updatedAt`; private routes excluded
-- **robots.txt** (`src/app/robots.txt/route.ts`): allows all crawlers with `Crawl-delay: 10`; disallows `/dashboard`, `/admin`, `/cart`, `/checkout`, `/api`; blocks AI training bots (GPTBot, ClaudeBot, CCBot, Google-Extended, anthropic-ai, MJ12bot, SemrushBot); rate-limits AhrefsBot (`Crawl-delay: 60`); `Sitemap: https://thegrainline.com/sitemap.xml`
+- **robots.txt** (`src/app/robots.txt/route.ts`): allows all crawlers with `Crawl-delay: 10`; disallows `/dashboard`, `/admin`, `/cart`, `/checkout`, `/api`; blocks AI training bots (GPTBot, ClaudeBot, CCBot, Google-Extended, anthropic-ai, MJ12bot, SemrushBot); rate-limits AhrefsBot (`Crawl-delay: 60`); `Sitemap: https://thegrainline.com/sitemap_index.xml`
 - **Photo filename tip** in new and edit listing forms (below uploader/photos section)
 
 ## Seller Profile Personalization (complete)
@@ -2519,7 +2519,7 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 ### SEO
 
-17. **Google Search Console** — verify domain ownership, submit `https://thegrainline.com/sitemap.xml`
+17. **Google Search Console** — set `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` in production for the root metadata verification tag, verify domain ownership, and submit `https://thegrainline.com/sitemap_index.xml`
 18. **`metadataBase`** ✅ corrected to `https://thegrainline.com` in `layout.tsx`
 
 ### Process
@@ -3449,6 +3449,8 @@ Clears UploadThing URLs from: seller profile images, listing photos, review phot
 
 All UploadThing-related vulnerabilities resolved — `uploadthing` and `@uploadthing/react` removed. `npm audit` reports 0 vulnerabilities.
 
+2026-05-08 launch-readiness pass: transitive `hono` from Prisma dev tooling is locked to 4.12.18 in `package-lock.json`; `npm audit --audit-level=moderate` reports 0 vulnerabilities.
+
 ## Prisma 7 Migration (complete — 2026-03-31)
 
 Upgraded from Prisma 6.16.2 → 7.6.0. Zero TypeScript errors; zero build errors.
@@ -3929,6 +3931,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Account deletion terminal UX behavior**: after `POST /api/account/delete` returns success, the client clears recently viewed state, signs out through Clerk, and redirects to public noindex `/account/deleted`. If Clerk deletion succeeded but local anonymization returns a 5xx with `clerkSessionDeleted: true`, the client treats the response as terminal and signs out to `/account/deleted?status=support` instead of letting the user retry with a dead session.
 - **Terms acceptance behavior**: Terms/Privacy acceptance and 18+ attestation are enforced server-side from `User.termsAcceptedAt`, `User.termsVersion`, and `User.ageAttestedAt` through middleware. Do not rely on `/sign-up` form rendering, Clerk OAuth metadata, or Clerk-hosted legal UI; any signed-in account missing current durable DB acceptance must be routed to the full-page `/accept-terms` gate before account features are available. Clerk sign-in and sign-up completion URLs intentionally bounce through `/accept-terms?redirect_url=...`; do not restore a separate pre-Clerk Grainline clickwrap or direct post-auth redirects to `/`, `/browse`, `/dashboard`, `/account`, or `/messages`.
 - **Terms acceptance redirect behavior**: after `POST /api/account/accept-terms` succeeds, the client performs a full document navigation with `window.location.assign(redirectUrl)` so middleware and server components re-read durable DB acceptance on the next request. Avoid replacing this with a cached client-only transition.
+- **Signed-out route behavior**: middleware owns signed-out UX instead of relying on Clerk's default `auth.protect()` response. Non-public page requests without a session redirect to `/sign-in?redirect_url=...`; non-public API requests return JSON 401. `/cart` remains middleware-public because it renders the anonymous cart and sign-in merge prompt, while `/api/cart` still enforces signed-in account state for server cart data. `/accept-terms` remains middleware-public so the full-page gate can redirect signed-out users to sign-in without Clerk rewriting the page to 404.
 - **Seller onboarding summary behavior**: the final onboarding summary must keep a primary "Connect Stripe Payouts →" action visible whenever `chargesEnabled === false`. It posts to `/api/stripe/connect/create` with `returnUrl: "/dashboard/onboarding"`; the dashboard completion button stays disabled until Stripe charges are enabled. The final summary headline is conditional: only show "Your shop is ready!" when `chargesEnabled && listingCount > 0`; incomplete sellers need step-level edit/finish/create controls plus a direct latest-listing edit link so saved drafts remain reachable.
 - **Onboarding-incomplete dashboard access behavior**: onboarding-incomplete sellers (`onboardingComplete = false`) have read + draft access to `/dashboard`, `/dashboard/inventory`, `/dashboard/listings/new`, `/dashboard/listings/[id]/edit`, `/dashboard/seller`, `/dashboard/profile`, and `/dashboard/notifications`. Publish-state mutations (`createListing` publish path, `publishListingAction`, checkout routes, broadcast send) remain gated by `chargesEnabled`. Sales/analytics surfaces redirect or show setup empty-state until there is a paid-order context. Do not re-add the `!onboardingComplete` redirect from `/dashboard`.
 - **Listing publish gating behavior**: disconnected sellers may save drafts, but the new-listing Publish button stays disabled until `chargesEnabled === true`; the server action still returns an inline `PUBLISH_REQUIRES_STRIPE_MESSAGE` instead of redirecting so rejected publish attempts do not clear the form. Do not reintroduce `/dashboard/listings/new?error=stripe` redirects for this guard.
@@ -4035,7 +4038,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 
 ### Production environment variables
 - **Required**: `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`, `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_V2_WEBHOOK_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`, `SENTRY_DSN`, and `NEXT_PUBLIC_SENTRY_DSN`.
-- **Operational but not strictly required for normal traffic**: `HEALTH_CHECK_TOKEN` for verbose health output, `EMAIL_OUTBOX_DAILY_LIMIT` to override the default 3,000/day queued-email quota.
+- **Operational but not strictly required for normal traffic**: `HEALTH_CHECK_TOKEN` for verbose health output, `EMAIL_OUTBOX_DAILY_LIMIT` to override the default 3,000/day queued-email quota, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` for Search Console ownership verification.
 - **Support/legal intake**: no new env vars; notification email uses existing `RESEND_API_KEY` and `EMAIL_FROM`.
 - **Local/dev only**: `ADMIN_PIN_COOKIE_SECRET_DEV` can make local admin PIN cookies stable. Never rely on it in production.
 
