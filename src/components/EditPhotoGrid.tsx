@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useTransition } from "react";
+import ImageRecropButton from "@/components/ImageRecropButton";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type Photo = {
@@ -13,12 +14,14 @@ export default function EditPhotoGrid({
   photos: initialPhotos,
   onReorder,
   onDelete,
+  onReplace,
   onSaveAltTexts,
 }: {
   photos: Photo[];
   listingId: string;
   onReorder: (photoIds: string[]) => Promise<void>;
   onDelete: (photoId: string) => Promise<void>;
+  onReplace: (photoId: string, url: string) => Promise<void>;
   onSaveAltTexts: (data: Record<string, string>) => Promise<void>;
 }) {
   const [photos, setPhotos] = useState(initialPhotos);
@@ -134,6 +137,21 @@ export default function EditPhotoGrid({
     });
   }
 
+  function handleReplace(idx: number, url: string) {
+    const photo = photos[idx];
+    if (!photo) return;
+    const previousPhotos = photos;
+    setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, url } : p));
+    startSaving(() => {
+      void onReplace(photo.id, url)
+        .then(() => showToast("Photo crop updated"))
+        .catch(() => {
+          setPhotos(previousPhotos);
+          showToast("Couldn't update the photo crop.", "error");
+        });
+    });
+  }
+
   function saveAltTexts() {
     startSaving(() => {
       void onSaveAltTexts(altTexts)
@@ -225,6 +243,15 @@ export default function EditPhotoGrid({
                     </button>
                   </div>
                   <div className="flex items-center gap-1">
+                    <ImageRecropButton
+                      imageUrl={p.url}
+                      endpoint="listingImage"
+                      cropAspect={1}
+                      filename={`listing-photo-${idx + 1}.jpg`}
+                      label="Re-crop"
+                      onCropped={(url) => handleReplace(idx, url)}
+                      className="min-h-11 rounded border border-neutral-200 px-3 hover:bg-neutral-50 disabled:opacity-50"
+                    />
                     <button
                       type="button"
                       onClick={() => setAltModalIdx(idx)}
@@ -283,7 +310,7 @@ export default function EditPhotoGrid({
             <img
               src={photos[altModalIdx].url}
               alt=""
-              className="w-full aspect-video object-cover rounded-md"
+              className="w-full aspect-square object-cover rounded-md"
             />
             <textarea
               value={altTexts[photos[altModalIdx].id] ?? ""}

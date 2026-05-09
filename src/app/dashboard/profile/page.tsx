@@ -354,7 +354,7 @@ export default async function ProfilePage({
           <div>
             <label className="block text-sm font-medium mb-1">Banner image</label>
             <p className="text-xs text-neutral-500 mb-2">
-              Displayed at the top of your public profile. Ideal size: 1200×300.
+              Displayed at the top of your public profile. Ideal size: 1800×600.
             </p>
             <ProfileBannerUploader initialUrl={fullSeller.bannerImageUrl} />
           </div>

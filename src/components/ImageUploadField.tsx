@@ -38,7 +38,8 @@ export default function ImageUploadField({
 
       <UploadButton
         endpoint="listingImage"
-        cropAspect={4 / 3}
+        cropAspect={1}
+        allowMultiple={false}
         onClientUploadComplete={(res) => {
           const file = res?.[0];
           setUrl(uploadedFileUrl(file));

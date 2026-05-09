@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import ImageRecropButton from "@/components/ImageRecropButton";
 import UploadButton from "@/components/R2UploadButton";
 import { emitToast } from "@/components/Toast";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
@@ -98,12 +99,16 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
     });
   }, []);
 
+  const replacePhoto = useCallback((index: number, url: string) => {
+    setPhotos((prev) => prev.map((photo, i) => i === index ? { ...photo, url } : photo));
+  }, []);
+
   return (
     <div className="space-y-3">
       {photos.length < max && (
         <UploadButton
           endpoint="listingImage"
-          cropAspect={4 / 3}
+          cropAspect={1}
           appearance={{
             button:
               "rounded-md bg-neutral-900 px-3 py-2 text-white hover:bg-neutral-800",
@@ -211,6 +216,15 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                   </button>
                 </div>
                 <div className="flex items-center gap-1">
+                  <ImageRecropButton
+                    imageUrl={photo.url}
+                    endpoint="listingImage"
+                    cropAspect={1}
+                    filename={`listing-photo-${i + 1}.jpg`}
+                    label="Re-crop"
+                    onCropped={(url) => replacePhoto(i, url)}
+                    className="min-h-11 rounded border border-neutral-200 px-3 hover:bg-neutral-50 disabled:opacity-50"
+                  />
                   <button
                     type="button"
                     onClick={() => setAltModalIdx(i)}
@@ -259,7 +273,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
             <img
               src={photos[altModalIdx].url}
               alt=""
-              className="w-full aspect-video object-cover rounded-md"
+              className="w-full aspect-square object-cover rounded-md"
             />
             <textarea
               value={photos[altModalIdx].altText}

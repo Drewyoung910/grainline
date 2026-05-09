@@ -62,13 +62,43 @@ describe("upload UX follow-ups", () => {
   });
 
   it("opens crop UI for banner, avatar, and listing photo uploads", () => {
-    assert.match(source("src/components/ImageCropModal.tsx"), /MAX_OUTPUT_LONG_EDGE = 2000/);
-    assert.match(source("src/components/ImageCropModal.tsx"), /canvas\.toBlob\(resolve, "image\/jpeg", 0\.9\)/);
+    const modal = source("src/components/ImageCropModal.tsx");
+    assert.match(modal, /MAX_OUTPUT_LONG_EDGE = 2000/);
+    assert.match(modal, /canvas\.toBlob\(resolve, "image\/jpeg", 0\.9\)/);
+    assert.match(modal, /setProcessing\(false\)/);
+    assert.match(modal, /setZoom\(1\)/);
+    assert.match(modal, /setOffset\(\{ x: 0, y: 0 \}\)/);
     assert.match(source("src/components/R2UploadButton.tsx"), /ImageCropModal/);
     assert.match(source("src/components/ProfileBannerUploader.tsx"), /cropAspect=\{3 \/ 1\}/);
     assert.match(source("src/components/ProfileAvatarUploader.tsx"), /cropAspect=\{1\}/);
-    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{4 \/ 3\}/);
-    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 3\}/);
+    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{1\}/);
+    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{1\}/);
+    assert.match(source("src/components/ImageUploadField.tsx"), /cropAspect=\{1\}/);
+  });
+
+  it("keeps crop ratios aligned with public display surfaces", () => {
+    assert.match(source("src/app/seller/[id]/page.tsx"), /sm:aspect-\[3\/1\]/);
+    assert.match(source("src/components/ProfileBannerUploader.tsx"), /aspect-\[3\/1\]/);
+    assert.match(source("src/components/SellerGallery.tsx"), /aspect-\[3\/2\]/);
+    assert.match(source("src/components/ProfileWorkshopUploader.tsx"), /cropAspect=\{3 \/ 2\}/);
+    assert.match(source("src/components/ProfileWorkshopUploader.tsx"), /aspect-\[3\/2\]/);
+    assert.match(source("src/components/GalleryUploader.tsx"), /cropAspect=\{3 \/ 2\}/);
+    assert.match(source("src/components/GalleryUploader.tsx"), /aspect-\[3\/2\]/);
+    assert.match(source("src/components/EditPhotoGrid.tsx"), /aspect-square/);
+    assert.match(source("src/components/PhotoManager.tsx"), /aspect-square/);
+  });
+
+  it("keeps single-slot uploaders single-file and adds re-crop controls", () => {
+    assert.match(source("src/components/R2UploadButton.tsx"), /allowMultiple/);
+    assert.match(source("src/components/ProfileBannerUploader.tsx"), /allowMultiple=\{false\}/);
+    assert.match(source("src/components/ProfileAvatarUploader.tsx"), /allowMultiple=\{false\}/);
+    assert.match(source("src/components/ProfileWorkshopUploader.tsx"), /allowMultiple=\{false\}/);
+    assert.match(source("src/components/BlogPostForm.tsx"), /allowMultiple=\{false\}/);
+    assert.match(source("src/components/ImageUploadField.tsx"), /allowMultiple=\{false\}/);
+    assert.match(source("src/components/ImageRecropButton.tsx"), /fileFromUrl/);
+    assert.match(source("src/components/EditPhotoGrid.tsx"), /label="Re-crop"/);
+    assert.match(source("src/components/PhotoManager.tsx"), /label="Re-crop"/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /replacePhotoAction/);
   });
 
   it("does not swallow uploader errors at known upload call sites", () => {

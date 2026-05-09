@@ -32,7 +32,7 @@ export default function AddPhotosButton({
   return (
     <UploadButton
       endpoint="listingImage"
-      cropAspect={4 / 3}
+      cropAspect={1}
       // Make the button obvious
       appearance={{
         container: "inline-block",

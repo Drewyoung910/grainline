@@ -295,7 +295,7 @@ export default async function SellerPublicPage({
       )}
 
       {/* ── Banner ────────────────────────────────────────────────────────── */}
-      <div className="relative h-48 sm:h-56">
+      <div className="relative h-56 sm:aspect-[3/1] sm:h-auto">
         <MediaImage
           src={seller.bannerImageUrl}
           alt={`${seller.displayName} banner`}

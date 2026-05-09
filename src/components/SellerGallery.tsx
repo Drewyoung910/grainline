@@ -57,7 +57,7 @@ export default function SellerGallery({
           <button
             key={url}
             onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
-            className="relative h-40 w-full overflow-hidden border hover:border-neutral-400 transition-colors group"
+            className="group relative aspect-[3/2] w-full overflow-hidden rounded-md border border-neutral-200 bg-white transition-colors hover:border-neutral-400"
             aria-label={`View gallery image ${i + 1}`}
           >
             <MediaImage

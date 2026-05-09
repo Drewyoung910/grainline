@@ -6,7 +6,7 @@ type Props = {
   file: File;
   aspect?: number;
   onCancel: () => void;
-  onConfirm: (blob: Blob) => void;
+  onConfirm: (blob: Blob) => void | Promise<void>;
 };
 
 const MAX_OUTPUT_LONG_EDGE = 2000;
@@ -25,6 +25,12 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
 
   React.useEffect(() => {
     const url = URL.createObjectURL(file);
+    setNaturalSize({ width: 0, height: 0 });
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+    setDragStart(null);
+    setProcessing(false);
+    setError(null);
     setImageUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
@@ -102,7 +108,8 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
       ctx.drawImage(img, sx, sy, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight);
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
       if (!blob) throw new Error("Could not prepare image crop.");
-      onConfirm(blob);
+      await onConfirm(blob);
+      setProcessing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not prepare image crop.");
       setProcessing(false);

@@ -25,6 +25,7 @@ type Props = {
   };
   disabled?: boolean;
   cropAspect?: number;
+  allowMultiple?: boolean;
 };
 
 export default function R2UploadButton({
@@ -37,6 +38,7 @@ export default function R2UploadButton({
   content,
   disabled,
   cropAspect,
+  allowMultiple,
 }: Props) {
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [cropState, setCropState] = React.useState<{
@@ -69,7 +71,7 @@ export default function R2UploadButton({
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const multipleEndpoints = ["listingImage", "messageImage", "messageAny", "reviewPhoto", "galleryImage"];
-  const multiple = multipleEndpoints.includes(endpoint);
+  const multiple = allowMultiple ?? multipleEndpoints.includes(endpoint);
 
   const acceptMap: Record<string, string> = {
     listingImage: "image/*",

@@ -21,6 +21,7 @@ import { listingEditBlockReason } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -511,6 +512,128 @@ async function deletePhotoAction(listingId: string, photoId: string) {
   revalidatePath("/dashboard");
 }
 
+async function replacePhotoAction(listingId: string, photoId: string, url: string) {
+  "use server";
+  const { userId } = await auth();
+  if (!userId || !isFirstPartyMediaUrl(url)) return;
+
+  const existing = await prisma.photo.findFirst({
+    where: { id: photoId, listingId, listing: { seller: { user: { clerkId: userId } } } },
+    select: {
+      url: true,
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          priceCents: true,
+          category: true,
+          tags: true,
+          status: true,
+          isPrivate: true,
+          rejectionReason: true,
+          updatedAt: true,
+          sellerId: true,
+        },
+      },
+    },
+  });
+  if (!existing) return;
+  if (listingEditBlockReason(existing.listing)) return;
+
+  await prisma.photo.updateMany({
+    where: { id: photoId, listingId },
+    data: { url },
+  });
+  await deleteR2ObjectByUrl(existing.url).catch((error) => {
+    console.error("[listing photo replace] R2 delete failed:", error);
+  });
+
+  if (existing.listing.status === ListingStatus.ACTIVE) {
+    const pending = await prisma.listing.updateMany({
+      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: existing.listing.updatedAt },
+      data: {
+        status: ListingStatus.PENDING_REVIEW,
+        aiReviewFlags: ["pending-ai-review"],
+        aiReviewScore: 0,
+      },
+    });
+    if (pending.count === 1) {
+      const reviewSnapshot = await prisma.listing.findUnique({
+        where: { id: listingId },
+        select: { updatedAt: true },
+      });
+      if (reviewSnapshot) {
+        try {
+          const [seller, currentPhotos] = await Promise.all([
+            prisma.sellerProfile.findFirst({
+              where: { listings: { some: { id: listingId } } },
+              select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
+            }),
+            prisma.photo.findMany({
+              where: { listingId },
+              select: { url: true },
+              orderBy: { sortOrder: "asc" },
+              take: 8,
+            }),
+          ]);
+          if (!seller?.chargesEnabled) {
+            await prisma.listing.updateMany({
+              where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
+              data: { status: ListingStatus.DRAFT },
+            });
+          } else {
+            const { reviewListingWithAI } = await import("@/lib/ai-review");
+            const aiResult = await reviewListingWithAI({
+              sellerId: seller.id,
+              title: existing.listing.title,
+              description: existing.listing.description,
+              priceCents: existing.listing.priceCents,
+              category: existing.listing.category ?? null,
+              tags: existing.listing.tags,
+              sellerName: seller.displayName,
+              listingCount: seller._count.listings,
+              imageUrls: currentPhotos.map((p) => p.url),
+            }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
+
+            if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
+              await prisma.listing.updateMany({
+                where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
+                data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+              });
+              await prisma.$executeRaw`
+                UPDATE "Listing"
+                SET status = 'SOLD_OUT'
+                WHERE id = ${listingId}
+                  AND "listingType" = 'IN_STOCK'
+                  AND COALESCE("stockQuantity", 0) <= 0
+                  AND status = 'ACTIVE'
+              `;
+            } else {
+              await prisma.listing.updateMany({
+                where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
+                data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
+              });
+            }
+          }
+        } catch {
+          await prisma.listing.updateMany({
+            where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
+            data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
+          });
+        }
+      }
+    }
+  }
+
+  revalidatePath(`/dashboard/listings/${listingId}/edit`);
+  revalidatePath(`/listing/${listingId}`);
+  revalidatePath(`/seller/${existing.listing.sellerId}`);
+  revalidatePath(`/seller/${existing.listing.sellerId}/shop`);
+  revalidatePath("/browse");
+  revalidatePath("/dashboard");
+}
+
 async function saveAltTextsAction(listingId: string, altTexts: Record<string, string>) {
   "use server";
   const { userId } = await auth();
@@ -735,6 +858,7 @@ export default async function EditListingPage(props: {
           listingId={id}
           onReorder={reorderPhotos.bind(null, id)}
           onDelete={deletePhotoAction.bind(null, id)}
+          onReplace={replacePhotoAction.bind(null, id)}
           onSaveAltTexts={saveAltTextsAction.bind(null, id)}
         />
       </section>
