@@ -50,6 +50,7 @@ export default function ProfileAvatarUploader({
       <div>
         <UploadButton
           endpoint="galleryImage"
+          cropAspect={1}
           appearance={{
             button: "rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-800",
             container: "inline-block",

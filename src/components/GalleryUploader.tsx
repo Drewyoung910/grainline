@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import UploadButton from "@/components/R2UploadButton";
+import { emitToast } from "@/components/Toast";
 import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 export default function GalleryUploader({
@@ -59,7 +60,7 @@ export default function GalleryUploader({
             const newUrls = uploadedFileUrls(files);
             setUrls((prev) => [...prev, ...newUrls].slice(0, maxImages));
           }}
-          onUploadError={() => {}}
+          onUploadError={(e) => emitToast(e.message, "error")}
         />
       )}
 

@@ -1,6 +1,8 @@
 "use client";
 import * as React from "react";
 import { useR2Upload, type UploadedFile } from "@/hooks/useR2Upload";
+import ImageCropModal from "@/components/ImageCropModal";
+import { validateUploadFile } from "@/lib/uploadRules";
 
 type Endpoint =
   | "listingImage" | "messageImage" | "messageFile" | "messageAny"
@@ -22,6 +24,7 @@ type Props = {
     allowedContent?: React.ReactNode; // accepted for compat, not rendered
   };
   disabled?: boolean;
+  cropAspect?: number;
 };
 
 export default function R2UploadButton({
@@ -33,8 +36,14 @@ export default function R2UploadButton({
   appearance,
   content,
   disabled,
+  cropAspect,
 }: Props) {
   const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [cropState, setCropState] = React.useState<{
+    files: File[];
+    cropped: File[];
+    index: number;
+  } | null>(null);
 
   const { startUpload, isUploading, progress } = useR2Upload({
     endpoint,
@@ -75,14 +84,55 @@ export default function R2UploadButton({
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    if (files.length > 0) startUpload(files);
+    if (files.length > 0) {
+      try {
+        files.forEach((file, index) => validateUploadFile(endpoint, file, index));
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error("Upload failed");
+        setUploadError(err.message);
+        onUploadError?.(err);
+        e.target.value = "";
+        return;
+      }
+
+      if (cropAspect && files.every((file) => file.type.startsWith("image/"))) {
+        setUploadError(null);
+        setCropState({ files, cropped: [], index: 0 });
+      } else {
+        void startUpload(files);
+      }
+    }
     e.target.value = "";
   }
 
+  function finishCrop(blob: Blob) {
+    if (!cropState) return;
+    const source = cropState.files[cropState.index];
+    const croppedFile = new File([blob], croppedFilename(source.name), {
+      type: blob.type || "image/jpeg",
+      lastModified: Date.now(),
+    });
+    const cropped = [...cropState.cropped, croppedFile];
+    const nextIndex = cropState.index + 1;
+    if (nextIndex < cropState.files.length) {
+      setCropState({ files: cropState.files, cropped, index: nextIndex });
+      return;
+    }
+    setCropState(null);
+    void startUpload(cropped);
+  }
+
+  function cancelCrop() {
+    setCropState(null);
+  }
+
   const rawButton = content?.button;
-  const buttonLabel = typeof rawButton === "function"
+  const configuredButtonLabel = typeof rawButton === "function"
     ? rawButton({ ready: !isUploading })
     : (rawButton ?? (isUploading ? "Uploading…" : "Upload"));
+  const buttonLabel = isUploading
+    ? `Uploading ${progress > 0 ? `${progress}%` : "…"}`
+    : configuredButtonLabel;
 
   return (
     <div className={appearance?.container}>
@@ -101,11 +151,32 @@ export default function R2UploadButton({
         disabled={disabled || isUploading}
         className={appearance?.button ?? "rounded-md bg-neutral-900 text-white px-4 py-2 text-sm hover:bg-neutral-800 transition-colors disabled:opacity-50"}
       >
-        {buttonLabel}
+        <span className="inline-flex items-center justify-center gap-2">
+          {isUploading && (
+            <span
+              className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white"
+              aria-hidden="true"
+            />
+          )}
+          {buttonLabel}
+        </span>
       </button>
       {uploadError && (
         <p className="text-xs text-red-600 mt-1">{uploadError}</p>
       )}
+      {cropState && (
+        <ImageCropModal
+          file={cropState.files[cropState.index]}
+          aspect={cropAspect}
+          onCancel={cancelCrop}
+          onConfirm={finishCrop}
+        />
+      )}
     </div>
   );
+}
+
+function croppedFilename(name: string) {
+  const base = name.replace(/\.[^.]+$/, "") || "image";
+  return `${base}-crop.jpg`;
 }

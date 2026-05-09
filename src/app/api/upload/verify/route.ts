@@ -11,18 +11,11 @@ import {
   uploadKeyBelongsToUser,
   verifyUploadVerificationToken,
 } from "@/lib/uploadVerificationToken";
-
-const MAX_SIZES: Record<string, number> = {
-  listingVideo: 128 * 1024 * 1024,
-  messageFile: 8 * 1024 * 1024,
-  messageAny: 8 * 1024 * 1024,
-};
-
-const ENDPOINTS = Object.keys(MAX_SIZES) as [keyof typeof MAX_SIZES, ...Array<keyof typeof MAX_SIZES>];
+import { DIRECT_UPLOAD_ENDPOINTS, UPLOAD_MAX_SIZES } from "@/lib/uploadRules";
 
 const Schema = z.object({
   key: z.string().min(1).max(500),
-  endpoint: z.enum(ENDPOINTS),
+  endpoint: z.enum(DIRECT_UPLOAD_ENDPOINTS),
   expectedSize: z.number().int().positive(),
   contentType: z.string().min(1).max(100),
   verificationToken: z.string().min(1).max(200),
@@ -76,7 +69,7 @@ export async function POST(req: Request) {
   }
 
   const actualSize = head.ContentLength ?? 0;
-  const maxSize = MAX_SIZES[endpoint];
+  const maxSize = UPLOAD_MAX_SIZES[endpoint];
   const verificationError = uploadedObjectVerificationError({
     actualSize,
     expectedSize,

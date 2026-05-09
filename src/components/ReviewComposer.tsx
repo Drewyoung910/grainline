@@ -175,7 +175,7 @@ export default function ReviewComposer(props: {
 
       {/* Visible Add photos button */}
       <UploadButton
-        endpoint="messageImage"
+        endpoint="reviewPhoto"
         onClientUploadComplete={(res) => {
           const first = res?.[0];
           const url = uploadedFileUrl(first);

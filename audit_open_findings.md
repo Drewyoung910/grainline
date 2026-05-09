@@ -1,6 +1,6 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-08
+Last updated: 2026-05-09
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
 
@@ -12,6 +12,13 @@ Latest mechanical open-heading count after the 2026-05-06 Stripe Connect v2 bran
 Latest mechanical open-heading count after the 2026-05-07 Terms enforcement pass: **0** broad unclosed numbered code findings in the prior mechanical fix queue and **0** verified launch-blocking code/doc follow-ups from the latest sweep. Remaining architecture work from this live ledger: deferred Stripe Connect v2 architecture modernization. Historical sections still contain raw open/design/proven-stale notes for traceability; each future pass should keep verifying reproducibility before code changes.
 Latest mechanical open-heading count after the 2026-05-07 PR J follow-up pass: **16** newly verified findings closed across PR F, PR G, PR H, PR I, PR E, and PR J. Remaining verified follow-up queue from the 2026-05-07 post-v2 audit: **0 code findings**. The alleged checkout stock oversell race was re-audited against the current guarded SQL reservation model and verified false positive; add concurrency regression coverage if this resurfaces, but do not rewrite the reservation logic without new evidence.
 Latest launch-readiness pass on 2026-05-08 closed the signed-out middleware/cart regression, privacy export SLA copy drift, and Search Console/sitemap docs drift. Remaining launch blockers are **business/ops gates**, not code fixes from this pass: attorney sign-off/removal of Terms + Privacy draft banners, Stripe live-mode webhook verification, Clerk production webhook verification, and live Search Console ownership/submission after `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` is configured.
+
+2026-05-09 image upload UX/crop pass:
+
+1. **[MEDIUM UX FIXED 2026-05-09] Large phone photos could hang and then show generic "Upload failed" copy.** Upload limits, labels, allowed types, and user-facing validation messages now live in `uploadRules.ts`; `useR2Upload` prevalidates before network upload, reports actual size/type errors, uses XMLHttpRequest progress, and downsizes large processed images before the app-route POST. Banner uploads now allow 8MB. Regression coverage: `tests/upload-ux-followups.test.mjs`.
+2. **[LOW-MEDIUM UX FIXED 2026-05-09] Server-side upload errors were terse and inconsistent.** `/api/upload/image` and `/api/upload/presign` now return endpoint-specific messages for size, type, and count failures, including the actual size and max size when applicable. Regression coverage: `tests/upload-ux-followups.test.mjs`.
+3. **[LOW-MEDIUM UX FIXED 2026-05-09] Prominent profile/listing image uploads had no crop/position step.** `ImageCropModal` now supports pre-upload crop/zoom/pan for shop banners (3:1), avatars (1:1), and listing photo uploaders (4:3), exporting a max-2000px JPEG into the existing R2 upload flow. Chat/message uploads intentionally skip the crop step to avoid friction. Regression coverage: `tests/upload-ux-followups.test.mjs`.
+4. **[LOW UX FIXED 2026-05-09] One gallery uploader swallowed upload errors.** `GalleryUploader` now emits the concrete `e.message` toast like the rest of the upload surfaces. Review photos now use the `reviewPhoto` endpoint instead of the generic message-image endpoint. Regression coverage: `tests/upload-ux-followups.test.mjs`.
 
 2026-05-08 post-launch UI/IA verification pass:
 

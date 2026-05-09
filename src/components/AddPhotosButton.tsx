@@ -32,11 +32,12 @@ export default function AddPhotosButton({
   return (
     <UploadButton
       endpoint="listingImage"
+      cropAspect={4 / 3}
       // Make the button obvious
       appearance={{
         container: "inline-block",
         button:
-          "rounded-md bg-black text-white px-3 py-1.5 text-sm font-medium hover:bg-black/90 focus:outline-none focus:ring-2 focus:ring-black/40",
+          "rounded-md bg-neutral-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-300",
         allowedContent: "hidden",
       }}
       content={{

@@ -12,42 +12,24 @@ import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
+import {
+  IMAGE_UPLOAD_ENDPOINTS,
+  IMAGE_UPLOAD_TYPES,
+  UPLOAD_MAX_COUNTS,
+  UPLOAD_MAX_SIZES,
+  type UploadEndpoint,
+  uploadTooLargeMessage,
+  uploadTooManyFilesMessage,
+  uploadTypeMessage,
+} from "@/lib/uploadRules";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const IMAGE_ENDPOINTS = [
-  "listingImage",
-  "messageImage",
-  "messageAny",
-  "reviewPhoto",
-  "bannerImage",
-  "galleryImage",
-] as const;
-
-const MAX_SIZES: Record<(typeof IMAGE_ENDPOINTS)[number], number> = {
-  listingImage: 8 * 1024 * 1024,
-  messageImage: 8 * 1024 * 1024,
-  messageAny: 8 * 1024 * 1024,
-  reviewPhoto: 8 * 1024 * 1024,
-  bannerImage: 4 * 1024 * 1024,
-  galleryImage: 4 * 1024 * 1024,
-};
-
-const MAX_COUNTS: Record<(typeof IMAGE_ENDPOINTS)[number], number> = {
-  listingImage: 8,
-  messageImage: 6,
-  messageAny: 6,
-  reviewPhoto: 6,
-  bannerImage: 1,
-  galleryImage: 10,
-};
-
 const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "bannerImage", "galleryImage"]);
 
 const FormSchema = z.object({
-  endpoint: z.enum(IMAGE_ENDPOINTS),
+  endpoint: z.enum(IMAGE_UPLOAD_ENDPOINTS),
   fileIndex: z.coerce.number().int().min(0).default(0),
 });
 
@@ -97,6 +79,7 @@ export async function POST(req: Request) {
   }
 
   const { endpoint, fileIndex } = parsed.data;
+  const uploadEndpoint = endpoint as UploadEndpoint;
   if (SELLER_ONLY_ENDPOINTS.has(endpoint)) {
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
@@ -104,14 +87,14 @@ export async function POST(req: Request) {
     });
     if (!seller) return NextResponse.json({ error: "Seller profile required" }, { status: 403 });
   }
-  if (fileIndex >= MAX_COUNTS[endpoint]) {
-    return NextResponse.json({ error: "Too many files" }, { status: 400 });
+  if (fileIndex >= UPLOAD_MAX_COUNTS[uploadEndpoint]) {
+    return NextResponse.json({ error: uploadTooManyFilesMessage(uploadEndpoint) }, { status: 400 });
   }
-  if (!IMAGE_TYPES.includes(file.type as (typeof IMAGE_TYPES)[number])) {
-    return NextResponse.json({ error: "File type not allowed" }, { status: 400 });
+  if (!IMAGE_UPLOAD_TYPES.includes(file.type as (typeof IMAGE_UPLOAD_TYPES)[number])) {
+    return NextResponse.json({ error: uploadTypeMessage(uploadEndpoint, file.type) }, { status: 400 });
   }
-  if (file.size > MAX_SIZES[endpoint]) {
-    return NextResponse.json({ error: "File too large" }, { status: 400 });
+  if (file.size > UPLOAD_MAX_SIZES[uploadEndpoint]) {
+    return NextResponse.json({ error: uploadTooLargeMessage(uploadEndpoint, file.size) }, { status: 400 });
   }
 
   let processed: Buffer;

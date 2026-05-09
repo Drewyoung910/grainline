@@ -1,9 +1,13 @@
 "use client";
 import * as React from "react";
+import {
+  IMAGE_UPLOAD_ENDPOINTS,
+  IMAGE_UPLOAD_TYPES,
+  type UploadEndpoint,
+  validateUploadFile,
+} from "@/lib/uploadRules";
 
-type Endpoint =
-  | "listingImage" | "messageImage" | "messageFile" | "messageAny"
-  | "reviewPhoto" | "listingVideo" | "bannerImage" | "galleryImage";
+type Endpoint = UploadEndpoint;
 
 // ufsUrl is an alias for url — existing components access file.ufsUrl
 export type UploadedFile = {
@@ -22,15 +26,119 @@ type UseR2UploadOptions = {
   onUploadBegin?: (filename: string) => void;
 };
 
-const PROCESSED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const IMAGE_ENDPOINTS = new Set<Endpoint>([
-  "listingImage",
-  "messageImage",
-  "messageAny",
-  "reviewPhoto",
-  "bannerImage",
-  "galleryImage",
-]);
+const PROCESSED_IMAGE_TYPES = new Set<string>(IMAGE_UPLOAD_TYPES);
+const IMAGE_ENDPOINTS = new Set<Endpoint>(IMAGE_UPLOAD_ENDPOINTS);
+
+type XhrUploadOptions = {
+  method: "POST" | "PUT";
+  body: XMLHttpRequestBodyInit;
+  headers?: Record<string, string>;
+  onProgress?: (progress: number) => void;
+  responseType?: "json" | "text";
+};
+
+function xhrUpload<T = unknown>(url: string, options: XhrUploadOptions): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(options.method, url);
+    for (const [key, value] of Object.entries(options.headers ?? {})) {
+      xhr.setRequestHeader(key, value);
+    }
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || !options.onProgress) return;
+      options.onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      const text = xhr.responseText || "";
+      let parsed: unknown = text;
+      if ((options.responseType ?? "json") === "json" && text) {
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = text;
+        }
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(parsed as T);
+        return;
+      }
+      const message = typeof parsed === "object" && parsed && "error" in parsed
+        ? String((parsed as { error?: unknown }).error)
+        : "Upload failed before it reached Grainline. Try a smaller file or a supported format.";
+      reject(new Error(message));
+    };
+    xhr.onerror = () => reject(new Error("Upload failed before it reached Grainline. Check the file size and try again."));
+    xhr.ontimeout = () => reject(new Error("Upload timed out. Try a smaller file or a stronger connection."));
+    xhr.send(options.body);
+  });
+}
+
+const routeBodyRiskThreshold = 4 * 1024 * 1024;
+
+async function shrinkLargeImageForRouteUpload(file: File) {
+  if (!PROCESSED_IMAGE_TYPES.has(file.type) || file.size <= routeBodyRiskThreshold) return file;
+
+  const imageUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(imageUrl);
+    const candidates = [
+      { longEdge: 2000, quality: 0.9 },
+      { longEdge: 1800, quality: 0.86 },
+      { longEdge: 1600, quality: 0.82 },
+      { longEdge: 1400, quality: 0.78 },
+      { longEdge: 1200, quality: 0.74 },
+      { longEdge: 1000, quality: 0.7 },
+      { longEdge: 800, quality: 0.68 },
+    ];
+    let bestBlob: Blob | null = null;
+    for (const candidate of candidates) {
+      const blob = await renderImageToJpeg(image, candidate.longEdge, candidate.quality);
+      if (!blob) continue;
+      if (!bestBlob || blob.size < bestBlob.size) bestBlob = blob;
+      if (blob.size <= routeBodyRiskThreshold) {
+        return new File([blob], compressedFilename(file.name), {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+      }
+    }
+    if (!bestBlob || bestBlob.size >= file.size) return file;
+    return new File([bestBlob], compressedFilename(file.name), {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
+async function renderImageToJpeg(image: HTMLImageElement, longEdge: number, quality: number) {
+  const longest = Math.max(image.naturalWidth, image.naturalHeight);
+  const scale = Math.min(1, longEdge / Math.max(1, longest));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.drawImage(image, 0, 0, width, height);
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+}
+
+function loadImage(url: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not read this image. Try a JPEG, PNG, or WebP file."));
+    image.src = url;
+  });
+}
+
+function compressedFilename(name: string) {
+  const base = name.replace(/\.[^.]+$/, "") || "image";
+  return `${base}-optimized.jpg`;
+}
 
 export function useR2Upload({
   endpoint,
@@ -48,8 +156,18 @@ export function useR2Upload({
 
     try {
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        onUploadBegin?.(file.name);
+        const originalFile = files[i];
+        validateUploadFile(endpoint, originalFile, i);
+        onUploadBegin?.(originalFile.name);
+        let file = originalFile;
+        if (PROCESSED_IMAGE_TYPES.has(file.type) && IMAGE_ENDPOINTS.has(endpoint)) {
+          file = await shrinkLargeImageForRouteUpload(file);
+          validateUploadFile(endpoint, file, i);
+        }
+        const setFileProgress = (fileProgress: number) => {
+          const bounded = Math.max(0, Math.min(100, fileProgress));
+          setProgress(Math.round(((i + bounded / 100) / files.length) * 100));
+        };
 
         if (PROCESSED_IMAGE_TYPES.has(file.type) && IMAGE_ENDPOINTS.has(endpoint)) {
           const form = new FormData();
@@ -57,22 +175,18 @@ export function useR2Upload({
           form.set("endpoint", endpoint);
           form.set("fileIndex", String(i));
 
-          const imageRes = await fetch("/api/upload/image", {
-            method: "POST",
-            body: form,
-          });
-
-          if (!imageRes.ok) {
-            const err = await imageRes.json().catch(() => ({ error: "Upload failed" }));
-            throw new Error((err as { error?: string }).error ?? "Image upload failed");
-          }
-
-          const { publicUrl, key, contentType, size } = await imageRes.json() as {
+          const imageResult = await xhrUpload<{
             publicUrl: string;
             key: string;
             contentType?: string;
             size?: number;
-          };
+          }>("/api/upload/image", {
+            method: "POST",
+            body: form,
+            onProgress: setFileProgress,
+          });
+
+          const { publicUrl, key, contentType, size } = imageResult;
 
           uploaded.push({
             url: publicUrl,
@@ -122,13 +236,13 @@ export function useR2Upload({
           verificationExpiresAt: number;
         };
 
-        const uploadRes = await fetch(presignedUrl, {
+        await xhrUpload(presignedUrl, {
           method: "PUT",
           body: file,
           headers: { "Content-Type": file.type },
+          onProgress: setFileProgress,
+          responseType: "text",
         });
-
-        if (!uploadRes.ok) throw new Error("Upload to R2 failed");
 
         const verifyRes = await fetch("/api/upload/verify", {
           method: "POST",

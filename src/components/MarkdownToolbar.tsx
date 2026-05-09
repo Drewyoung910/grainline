@@ -7,6 +7,7 @@ import TipTapLink from "@tiptap/extension-link";
 import TipTapImage from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
 import { useToast } from "@/components/Toast";
+import { validateUploadFile } from "@/lib/uploadRules";
 
 type Props = {
   value: string;
@@ -253,9 +254,7 @@ export default function MarkdownToolbar({
               const file = input.files?.[0];
               if (!file) return;
               try {
-                if (file.type === "image/gif") {
-                  throw new Error("Animated GIF uploads are not supported.");
-                }
+                validateUploadFile("galleryImage", file, 0);
 
                 const form = new FormData();
                 form.set("file", file);
@@ -265,7 +264,10 @@ export default function MarkdownToolbar({
                   method: "POST",
                   body: form,
                 });
-                if (!uploadRes.ok) throw new Error("Upload failed");
+                if (!uploadRes.ok) {
+                  const body = await uploadRes.json().catch(() => ({} as { error?: string }));
+                  throw new Error(body.error ?? "Image upload failed.");
+                }
                 const { publicUrl } = await uploadRes.json() as { publicUrl: string };
                 editor.chain().focus().setImage({ src: publicUrl }).run();
               } catch (error) {

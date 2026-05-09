@@ -283,11 +283,11 @@ Plus category label matches from `CATEGORY_VALUES`.
 - Migration: `20260327190830_expand_seller_profile`
 
 ### Upload endpoints added
-- `bannerImage` — 1 file, max 4MB, auth required
+- `bannerImage` — 1 file, max 8MB, auth required
 - `galleryImage` — 10 files, max 4MB each, auth required
 
 ### New components
-- `ProfileBannerUploader` — client component for banner upload; shows current image or gradient placeholder; hidden input passes URL to parent form
+- `ProfileBannerUploader` — client component for banner upload; shows current image or neutral placeholder; hidden input passes URL to parent form; opens the 3:1 crop step before upload
 - `ProfileWorkshopUploader` — same pattern for workshop photo (uses `galleryImage` endpoint)
 - `CharCounter` — controlled textarea with live character counter
 
@@ -3408,14 +3408,17 @@ CSP: removed `unpkg.com` from both `script-src-elem` and `connect-src`; added `h
 
 ## File Uploads (Cloudflare R2)
 
-Files upload directly from browser to Cloudflare R2 via presigned URLs — no server bottleneck, zero egress fees. UploadThing (`uploadthing`, `@uploadthing/react`) removed as of 2026-04-02.
+Files upload to Cloudflare R2. Images use the processed upload route so metadata can be stripped and images can be normalized; videos/PDFs use presigned browser-to-R2 PUTs. UploadThing (`uploadthing`, `@uploadthing/react`) removed as of 2026-04-02.
 
 ### Architecture
-- `POST /api/upload/presign` — auth required; Zod-validates type/size/count; returns presigned PUT URL + public URL; generates key: `{endpoint}/{userId}/{timestamp}-{random}.{ext}`
-- Browser PUTs file directly to R2 using the presigned URL
+- `POST /api/upload/image` — auth required; Zod-validates type/size/count; strips image metadata via Sharp; writes processed images to R2; returns public URL
+- `POST /api/upload/presign` — auth required; Zod-validates type/size/count for video/PDF uploads; returns presigned PUT URL + public URL; generates key: `{endpoint}/{userId}/{timestamp}-{random}.{ext}`
+- Browser PUTs video/PDF files directly to R2 using the presigned URL
 - `src/lib/r2.ts` — R2 S3-compatible client (`@aws-sdk/client-s3`)
-- `src/hooks/useR2Upload.ts` — upload hook; uploads files sequentially; returns `UploadedFile[]` with `url` and `ufsUrl` alias fields for component compatibility.
-- `src/components/R2UploadButton.tsx` — direct upload button used by all current upload UI components; handles `content.button` as ReactNode or render function `({ ready }) => ReactNode`; accepts `onUploadProgress`, `appearance.allowedContent` for compatibility.
+- `src/lib/uploadRules.ts` — canonical upload endpoint labels, max sizes, max counts, allowed types, and user-facing validation messages shared by client and server routes
+- `src/hooks/useR2Upload.ts` — upload hook; prevalidates type/size/count before fetch, uploads files sequentially, uses XMLHttpRequest for upload progress, downsizes oversized processed images before the app-route POST, and returns `UploadedFile[]` with `url` and `ufsUrl` alias fields for component compatibility.
+- `src/components/R2UploadButton.tsx` — direct upload button used by current upload UI components; handles `content.button` as ReactNode or render function `({ ready }) => ReactNode`; accepts `onUploadProgress`, `appearance.allowedContent` for compatibility; renders inline upload errors and progress/spinner state.
+- `src/components/ImageCropModal.tsx` — reusable pre-upload cropper for prominent image surfaces; exports cropped JPEG output through canvas before the existing R2 upload pipeline
 - The old `src/utils/uploadthing.ts` compatibility shim was removed in the 2026-04-24 continuation cleanup; components now import `R2UploadButton` directly.
 
 ### Endpoints
@@ -3427,7 +3430,7 @@ Files upload directly from browser to Cloudflare R2 via presigned URLs — no se
 | `messageAny` | 8MB | 6 |
 | `reviewPhoto` | 8MB | 6 |
 | `listingVideo` | 128MB | 1 |
-| `bannerImage` | 4MB | 1 |
+| `bannerImage` | 8MB | 1 |
 | `galleryImage` | 4MB | 10 |
 
 ### R2 CORS Policy
@@ -3940,6 +3943,8 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Blog publish gating behavior**: seller blog posts are content/marketing and are intentionally not gated by Stripe/`chargesEnabled`; a disconnected seller may draft or publish a blog post. Non-staff authors must still have a real `SellerProfile` before creating maker-authored posts, and maker posts must write `sellerProfileId` so public visibility, comments, saves, and feed surfaces can apply seller/profile safety filters.
 - **Shop profile canonical fields**: `/dashboard/profile` is canonical for public identity/profile content: display name, tagline, bio, story, avatar/banner/workshop image, workshop gallery, social links, public policies, custom-order availability, gift wrap, FAQs, and featured listings. `/dashboard/seller` is operational: payouts, vacation mode, city/state map location, pickup, shipping/tax, ship-from, package defaults, notification preferences, and broadcasts. Do not re-add display name, bio, or workshop gallery editing to `/dashboard/seller`.
 - **Address autocomplete behavior**: checkout shipping address, seller ship-from address, and pickup-map search use the shared address autocomplete/dropdown. Keep Nominatim use throttled/debounced and country-scoped to US, and keep state-code normalization through `usStates.ts`.
+- **Image upload error UX behavior**: all upload validation should use `uploadRules.ts` so client and server agree on max size, max count, allowed types, labels, and error copy. Client-side prevalidation runs before network upload so users are not waiting on multi-MB files that will be rejected. User-facing errors should include the actual file size and endpoint limit when size is the problem, and should spell out allowed formats when type is the problem. All uploader components must wire `onUploadError` to `emitToast(e.message, "error")` or render `R2UploadButton`'s inline error; do not swallow upload errors.
+- **Image upload crop UX behavior**: `bannerImage` uploads from `ProfileBannerUploader` use a 3:1 crop, `ProfileAvatarUploader` uses a 1:1 crop, and listing photo uploaders (`PhotoManager`, `AddPhotosButton`, `ImageUploadField`) use a 4:3 crop before upload. `ImageCropModal` exports a JPEG with max 2000px long edge through `canvas.toBlob(..., 0.9)` and then uploads through the existing R2 pipeline. Message/chat uploads skip the crop step to avoid extra friction.
 - **Seller onboarding entry behavior**: `/become-a-maker` is the public discovery route for seller onboarding. Signed-out users redirect to `/sign-up?redirect_url=/dashboard`; signed-in users redirect to `/dashboard`, where `ensureSeller()` creates/loads the seller profile and sends incomplete sellers to onboarding. Keep the footer link, desktop avatar-menu "Start Selling", mobile drawer "Start Selling", and non-seller `/account` CTA visible so seller onboarding is not only discoverable by manually typing `/dashboard`.
 - **Onboarding visual behavior**: `/dashboard/onboarding` uses the site warm page background, `card-section` surfaces, `font-display` headings, rounded-md action controls, and a visible final-summary Stripe reconnect CTA. Keep future wizard edits aligned with the Grainline design tokens instead of falling back to generic gray hard-corner panels.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization remains deferred as a separate architecture branch. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.

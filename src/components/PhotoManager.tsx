@@ -103,9 +103,10 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
       {photos.length < max && (
         <UploadButton
           endpoint="listingImage"
+          cropAspect={4 / 3}
           appearance={{
             button:
-              "bg-black text-white rounded px-3 py-2 hover:bg-neutral-800",
+              "rounded-md bg-neutral-900 px-3 py-2 text-white hover:bg-neutral-800",
             container: "inline-block",
             allowedContent: "hidden",
           }}

@@ -1,0 +1,96 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("upload UX follow-ups", () => {
+  it("keeps upload limits and user-facing validation messages centralized", async () => {
+    const rules = await import("../src/lib/uploadRules.ts");
+
+    assert.equal(rules.UPLOAD_MAX_SIZES.bannerImage, 8 * 1024 * 1024);
+    assert.equal(rules.uploadMaxSizeMb("bannerImage"), "8");
+    assert.match(
+      rules.uploadTooLargeMessage("bannerImage", 12.4 * 1024 * 1024),
+      /Shop banner must be under 8 MB\. Your file is 12\.4 MB/,
+    );
+    assert.match(
+      rules.uploadTypeMessage("bannerImage", "image/heic"),
+      /Only JPEG, PNG, and WebP images are allowed\. You uploaded image\/heic\./,
+    );
+    assert.match(
+      rules.uploadExtensionMessage("video/quicktime", ["mov", "qt"]),
+      /Use \.mov, \.qt\./,
+    );
+    assert.throws(
+      () => rules.validateUploadFile("bannerImage", { size: 9 * 1024 * 1024, type: "image/jpeg" }, 0),
+      /Shop banner must be under 8 MB/,
+    );
+  });
+
+  it("uses the shared upload rules on client and server upload paths", () => {
+    for (const path of [
+      "src/app/api/upload/image/route.ts",
+      "src/app/api/upload/presign/route.ts",
+      "src/app/api/upload/verify/route.ts",
+      "src/hooks/useR2Upload.ts",
+      "src/components/MarkdownToolbar.tsx",
+    ]) {
+      assert.match(source(path), /uploadRules|validateUploadFile|UPLOAD_MAX_SIZES/, path);
+    }
+
+    const imageRoute = source("src/app/api/upload/image/route.ts");
+    assert.match(imageRoute, /uploadTooLargeMessage/);
+    assert.match(imageRoute, /uploadTypeMessage/);
+    assert.match(imageRoute, /uploadTooManyFilesMessage/);
+    assert.doesNotMatch(imageRoute, /File too large/);
+    assert.doesNotMatch(imageRoute, /File type not allowed/);
+  });
+
+  it("prevalidates before upload and reports progress with XMLHttpRequest", () => {
+    const hook = source("src/hooks/useR2Upload.ts");
+    const button = source("src/components/R2UploadButton.tsx");
+
+    assert.match(hook, /validateUploadFile\(endpoint, originalFile, i\)/);
+    assert.match(hook, /xhr\.upload\.onprogress/);
+    assert.match(hook, /shrinkLargeImageForRouteUpload/);
+    assert.match(button, /validateUploadFile\(endpoint, file, index\)/);
+    assert.match(button, /Uploading \$\{progress > 0 \? `\$\{progress\}%` : "…"\}/);
+    assert.match(button, /animate-spin/);
+  });
+
+  it("opens crop UI for banner, avatar, and listing photo uploads", () => {
+    assert.match(source("src/components/ImageCropModal.tsx"), /MAX_OUTPUT_LONG_EDGE = 2000/);
+    assert.match(source("src/components/ImageCropModal.tsx"), /canvas\.toBlob\(resolve, "image\/jpeg", 0\.9\)/);
+    assert.match(source("src/components/R2UploadButton.tsx"), /ImageCropModal/);
+    assert.match(source("src/components/ProfileBannerUploader.tsx"), /cropAspect=\{3 \/ 1\}/);
+    assert.match(source("src/components/ProfileAvatarUploader.tsx"), /cropAspect=\{1\}/);
+    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{4 \/ 3\}/);
+    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 3\}/);
+  });
+
+  it("does not swallow uploader errors at known upload call sites", () => {
+    const checked = [
+      "src/components/ProfileBannerUploader.tsx",
+      "src/components/ProfileAvatarUploader.tsx",
+      "src/components/ProfileWorkshopUploader.tsx",
+      "src/components/GalleryUploader.tsx",
+      "src/components/PhotoManager.tsx",
+      "src/components/AddPhotosButton.tsx",
+      "src/components/ReviewComposer.tsx",
+      "src/components/MessageComposer.tsx",
+      "src/components/BlogPostForm.tsx",
+      "src/components/ImageUploadField.tsx",
+      "src/components/VideoUploader.tsx",
+      "src/app/commission/new/page.tsx",
+    ];
+
+    for (const path of checked) {
+      const text = source(path);
+      assert.match(text, /onUploadError=/, path);
+      assert.doesNotMatch(text, /onUploadError=\{\(\) => \{\}\}/, path);
+    }
+  });
+});
