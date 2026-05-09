@@ -43,7 +43,10 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/LocationPicker.tsx"), /AddressAutocomplete/);
     assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /AddressAutocomplete/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /countrycodes/);
-    assert.match(source("src/components/AddressAutocomplete.tsx"), /1100/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /trimmed\.length < 2/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /}, 350\);/);
+    assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.suburb/s);
+    assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.neighbourhood/s);
   });
 
   it("allows seller blog publishing before Stripe but requires an actual seller profile", () => {
@@ -61,5 +64,50 @@ describe("post-launch UI follow-ups", () => {
     assert.match(verification, /Available after Guild Member approval/);
     assert.doesNotMatch(dashboard, /Sparkles/);
     assert.match(dashboard, /Shield/);
+  });
+
+  it("keeps profile media uploaders aligned with the design system", () => {
+    for (const path of [
+      "src/components/ProfileBannerUploader.tsx",
+      "src/components/ProfileAvatarUploader.tsx",
+      "src/components/ProfileWorkshopUploader.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(text, /border-neutral-200/);
+      assert.match(text, /bg-neutral-900/);
+      assert.match(text, /rounded-md/);
+      assert.doesNotMatch(text, /bg-black/);
+    }
+  });
+
+  it("keeps search dropdowns useful even when data-backed popular tags are empty", () => {
+    const searchBar = source("src/components/SearchBar.tsx");
+    const blogSearchBar = source("src/components/BlogSearchBar.tsx");
+
+    assert.match(searchBar, /FALLBACK_POPULAR_SEARCHES/);
+    assert.match(searchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_POPULAR_SEARCHES/);
+    assert.match(blogSearchBar, /FALLBACK_BLOG_TOPICS/);
+    assert.match(blogSearchBar, /popularTags\.length > 0 \? popularTags : FALLBACK_BLOG_TOPICS/);
+    assert.match(blogSearchBar, /absolute right-2 top-1\/2/);
+  });
+
+  it("invalidates popular search caches when public listing or blog visibility changes", () => {
+    assert.match(source("src/lib/searchCache.ts"), /popular-listing-tags/);
+    assert.match(source("src/lib/searchCache.ts"), /popular-blog-tags/);
+    assert.match(source("src/lib/popularBlogTags.ts"), /unstable_cache/);
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/page.tsx"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/api/admin/listings/[id]/review/route.ts"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/api/listings/[id]/stock/route.ts"), /revalidateListingSearchCaches/);
+    assert.match(source("src/app/dashboard/blog/new/page.tsx"), /revalidateBlogSearchCaches/);
+    assert.match(source("src/app/dashboard/blog/[id]/edit/page.tsx"), /revalidateBlogSearchCaches/);
+  });
+
+  it("uses neutral primary CTAs in the onboarding wizard while keeping amber as an accent", () => {
+    const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
+    assert.match(wizard, /bg-neutral-900/);
+    assert.match(wizard, /h-full bg-amber-500/);
+    assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 });

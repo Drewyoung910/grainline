@@ -20,6 +20,7 @@ import { normalizeTag } from "@/lib/tags";
 import { listingEditBlockReason } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -373,6 +374,7 @@ async function updateListing(
   revalidatePath(`/seller/${listing.sellerId}/shop`);
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+  revalidateListingSearchCaches();
 
   redirect(publicListingPath(listingId, updatedListing.title));
 }

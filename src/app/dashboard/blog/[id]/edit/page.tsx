@@ -11,6 +11,7 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
+import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -150,6 +151,10 @@ export default async function EditBlogPostPage({
       },
       select: { slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true } } },
     });
+
+    if (existing.status === "PUBLISHED" || newStatus === "PUBLISHED") {
+      revalidateBlogSearchCaches();
+    }
 
     // Notify followers when a maker blog post is first published
     if (newStatus === "PUBLISHED" && existing.status !== "PUBLISHED" && updated.sellerProfileId) {

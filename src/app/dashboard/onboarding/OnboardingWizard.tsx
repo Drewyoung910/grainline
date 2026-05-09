@@ -216,7 +216,7 @@ export default function OnboardingWizard({
   const inputClass =
     "w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400";
   const btnPrimary =
-    "flex-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2.5 text-sm min-h-[44px] disabled:opacity-50 transition-colors";
+    "flex-1 rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]";
   const btnSecondary =
     "flex-1 rounded-md border border-neutral-200 px-4 py-2.5 text-sm text-neutral-600 hover:bg-neutral-50 min-h-[44px] disabled:opacity-50";
 
@@ -259,7 +259,7 @@ export default function OnboardingWizard({
             <button
               onClick={() => advance(1)}
               disabled={loading}
-              className="rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+              className="rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
             >
               {loading ? "Loading…" : "Get Started →"}
             </button>
@@ -610,7 +610,7 @@ export default function OnboardingWizard({
                   onClick={() => {
                     void advanceStep(5);
                   }}
-                  className="block w-full rounded-md text-center bg-amber-500 hover:bg-amber-600 text-white font-medium px-6 py-3 min-h-[44px] transition-colors mb-3"
+                  className="mb-3 block w-full rounded-md bg-neutral-900 px-6 py-3 text-center font-medium text-white transition-colors hover:bg-neutral-800 min-h-[44px]"
                 >
                   Create a Listing →
                 </Link>
@@ -746,7 +746,7 @@ export default function OnboardingWizard({
             <button
               onClick={handleComplete}
               disabled={loading || !stripeReady || listingCount < 1}
-              className="w-full rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
+              className="w-full rounded-md bg-neutral-900 px-8 py-3 font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 min-h-[44px]"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}
             </button>

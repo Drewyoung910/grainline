@@ -25,6 +25,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -387,6 +388,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
     select: { status: true },
   });
   if (finalListing?.status === "ACTIVE") {
+    revalidateListingSearchCaches();
     // Notify followers after the response so listing creation stays responsive.
     after(async () => {
       try {

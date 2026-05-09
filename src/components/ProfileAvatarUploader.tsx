@@ -41,17 +41,17 @@ export default function ProfileAvatarUploader({
         <img
           src={url}
           alt="Shop avatar"
-          className="h-20 w-20 rounded-full border object-cover shrink-0"
+          className="h-20 w-20 shrink-0 rounded-full border border-neutral-200 object-cover shadow-sm"
         />
       ) : (
-        <div className="h-20 w-20 rounded-full border bg-neutral-200 shrink-0" />
+        <div className="h-20 w-20 shrink-0 rounded-full border border-dashed border-neutral-200 bg-white" />
       )}
 
       <div>
         <UploadButton
           endpoint="galleryImage"
           appearance={{
-            button: "bg-black text-white rounded px-3 py-2 hover:bg-neutral-800 text-sm",
+            button: "rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-800",
             container: "inline-block",
             allowedContent: "hidden",
           }}

@@ -11,6 +11,7 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
+import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -146,6 +147,10 @@ export default async function NewBlogPostPage() {
         publishedAt: status === "PUBLISHED" ? new Date() : null,
       },
     });
+
+    if (status === "PUBLISHED") {
+      revalidateBlogSearchCaches();
+    }
 
     // Notify followers of makers when a new post is published
     if (status === "PUBLISHED" && sellerProfileId) {

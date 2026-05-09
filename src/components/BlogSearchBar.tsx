@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { BlogSuggestion } from "@/app/api/blog/search/suggestions/route";
 import { Search } from "@/components/icons";
 
+const FALLBACK_BLOG_TOPICS = ["woodworking", "behind the build", "care guide", "maker story"];
+
 export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,32 +117,34 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           >
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <input
-            value={value}
-            onChange={handleChange}
-            onFocus={() => {
-              if (value.length === 0) {
-                loadPopularTags();
-                setOpen(true);
-              } else if (suggestions.length > 0) {
-                setOpen(true);
-              }
-            }}
-            onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
-            placeholder="Search posts, topics, makers..."
-            className="flex-1 pl-10 pr-2 py-2 text-sm bg-transparent text-neutral-900 placeholder:text-neutral-500 focus:outline-none"
-            autoComplete="off"
-          />
-          {value && (
-            <button
-              type="button"
-              onClick={() => { setValue(""); setSuggestions([]); setOpen(false); navigate(""); }}
-              className="shrink-0 text-neutral-500 hover:text-neutral-700 text-lg leading-none px-2"
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          )}
+          <div className="relative flex-1">
+            <input
+              value={value}
+              onChange={handleChange}
+              onFocus={() => {
+                if (value.length === 0) {
+                  loadPopularTags();
+                  setOpen(true);
+                } else if (suggestions.length > 0) {
+                  setOpen(true);
+                }
+              }}
+              onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+              placeholder="Search posts, topics, makers..."
+              className="w-full bg-transparent py-2 pl-10 pr-8 text-sm text-neutral-900 placeholder:text-neutral-500 focus:outline-none"
+              autoComplete="off"
+            />
+            {value && (
+              <button
+                type="button"
+                onClick={() => { setValue(""); setSuggestions([]); setOpen(false); navigate(""); }}
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-base leading-none text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
           <button
             type="submit"
             aria-label="Search"
@@ -153,7 +157,8 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
       </form>
 
       {(() => {
-        const showPopular = open && value.length === 0 && popularTags.length > 0;
+        const visiblePopularTags = popularTags.length > 0 ? popularTags : FALLBACK_BLOG_TOPICS;
+        const showPopular = open && value.length === 0 && visiblePopularTags.length > 0;
         const showSuggestions = open && suggestions.length > 0;
         if (!showPopular && !showSuggestions) return null;
         return (
@@ -163,7 +168,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
                 <li className="px-4 py-2 text-xs text-neutral-500 font-medium uppercase tracking-wide">
                   Popular topics
                 </li>
-                {popularTags.map((tag) => (
+                {visiblePopularTags.map((tag) => (
                   <li key={tag}>
                     <button
                       type="button"

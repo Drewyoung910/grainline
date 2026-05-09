@@ -20,10 +20,10 @@ export default function ProfileBannerUploader({
         <img
           src={url}
           alt="Shop banner"
-          className="w-full h-40 object-cover rounded-lg border"
+          className="h-40 w-full rounded-lg border border-neutral-200 object-cover shadow-sm"
         />
       ) : (
-        <div className="w-full h-40 rounded-lg border bg-gradient-to-r from-neutral-800 to-neutral-600 flex items-center justify-center text-white text-sm">
+        <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-neutral-200 bg-white text-sm text-neutral-500">
           No banner yet
         </div>
       )}
@@ -31,7 +31,7 @@ export default function ProfileBannerUploader({
       <UploadButton
         endpoint="bannerImage"
         appearance={{
-          button: "bg-black text-white rounded px-3 py-2 hover:bg-neutral-800 text-sm",
+          button: "rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-800",
           container: "inline-block",
           allowedContent: "hidden",
         }}

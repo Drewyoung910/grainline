@@ -16,6 +16,7 @@ import {
   lowStockNotificationLink,
   stockAlertBody,
 } from "@/lib/stockMutationState";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
@@ -129,6 +130,9 @@ export async function PATCH(
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
     await syncListingsThreshold(listing.seller.id);
+    if (listing.status !== updated.status) {
+      revalidateListingSearchCaches();
+    }
 
     // If stock is low (1–2), notify the seller
     if (updated.stockQuantity !== null && updated.stockQuantity > 0 && updated.stockQuantity <= 2) {

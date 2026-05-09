@@ -14,6 +14,7 @@ type SearchOption =
   | { kind: "blog"; key: string; section: "Stories"; slug: string; label: string };
 const MAX_SEARCH_QUERY_LENGTH = 200;
 const SEARCH_LISTBOX_ID = "site-search-listbox";
+const FALLBACK_POPULAR_SEARCHES = ["furniture", "kitchen", "decor", "gifts", "woodworking"];
 
 function normalizeSearchQuery(query: string): string {
   return query.trim().slice(0, MAX_SEARCH_QUERY_LENGTH);
@@ -113,11 +114,15 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   }
 
   const hasItems = suggestions.length > 0 || blogs.length > 0 || categories.length > 0;
-  const showPopular = open && value.length === 0 && popularTags.length > 0;
+  const visiblePopularTags = React.useMemo(
+    () => (popularTags.length > 0 ? popularTags : FALLBACK_POPULAR_SEARCHES),
+    [popularTags],
+  );
+  const showPopular = open && value.length === 0 && visiblePopularTags.length > 0;
   const options = React.useMemo<SearchOption[]>(() => {
     if (!open) return [];
     if (showPopular) {
-      return popularTags.map((tag) => ({
+      return visiblePopularTags.map((tag) => ({
         kind: "tag",
         key: `tag:${tag}`,
         section: "Popular searches",
@@ -147,7 +152,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         label: blog.title,
       })),
     ];
-  }, [blogs, categories, hasItems, open, popularTags, showPopular, suggestions]);
+  }, [blogs, categories, hasItems, open, showPopular, suggestions, visiblePopularTags]);
 
   React.useEffect(() => {
     setActiveIndex((index) => {

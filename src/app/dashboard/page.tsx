@@ -14,6 +14,7 @@ import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
 import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
+import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -96,6 +97,7 @@ async function setStatus(
   revalidatePath(`/listing/${listingId}`);
   revalidatePath(`/seller/${listing.sellerId}`);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
+  revalidateListingSearchCaches();
 
   return { ok: true };
 }
@@ -147,6 +149,7 @@ async function deleteListing(
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+  revalidateListingSearchCaches();
 
   return { ok: true };
 }

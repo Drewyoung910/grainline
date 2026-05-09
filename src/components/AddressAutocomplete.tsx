@@ -37,20 +37,40 @@ type NominatimPlace = {
   };
 };
 
+function formatAddressLabel({
+  line1,
+  city,
+  state,
+  postalCode,
+  fallback,
+}: {
+  line1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  fallback?: string;
+}) {
+  const locality = [city, [state, postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const label = [line1, locality].filter(Boolean).join(", ");
+  return label || fallback || "";
+}
+
 function placeToAddress(place: NominatimPlace): AddressAutocompleteResult {
   const address = place.address ?? {};
   const street = address.road ?? address.pedestrian ?? address.footway ?? address.cycleway ?? "";
   const line1 = [address.house_number, street].filter(Boolean).join(" ").trim();
-  const city = address.city ?? address.town ?? address.village ?? address.municipality ?? address.suburb ?? address.county ?? "";
+  const city = address.city ?? address.town ?? address.village ?? address.municipality ?? address.county ?? "";
   const lat = Number.parseFloat(place.lat ?? "");
   const lng = Number.parseFloat(place.lon ?? "");
+  const state = normalizeUsState(address.state);
+  const postalCode = address.postcode ?? "";
 
   return {
-    label: place.display_name ?? line1,
+    label: formatAddressLabel({ line1, city, state, postalCode, fallback: place.display_name }),
     line1,
     city,
-    state: normalizeUsState(address.state),
-    postalCode: address.postcode ?? "",
+    state,
+    postalCode,
     country: (address.country_code ?? "US").toUpperCase(),
     lat: Number.isFinite(lat) ? lat : null,
     lng: Number.isFinite(lng) ? lng : null,
@@ -82,7 +102,7 @@ export default function AddressAutocomplete({
     const trimmed = query.trim();
     abortRef.current?.abort();
 
-    if (trimmed.length < 3) {
+    if (trimmed.length < 2) {
       setResults([]);
       setLoading(false);
       return;
@@ -113,7 +133,7 @@ export default function AddressAutocomplete({
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, 1100);
+    }, 350);
 
     return () => {
       window.clearTimeout(timer);

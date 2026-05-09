@@ -6,6 +6,7 @@ import { createNotification } from '@/lib/notifications'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
+import { revalidateListingSearchCaches } from '@/lib/searchCache'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
@@ -63,6 +64,7 @@ export async function PATCH(
       }
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
+    revalidateListingSearchCaches()
     await logAdminAction({
       adminId: admin.id,
       action: 'APPROVE_LISTING',
@@ -95,6 +97,7 @@ export async function PATCH(
     if (rejected.count === 0) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
+    revalidateListingSearchCaches()
     await logAdminAction({
       adminId: admin.id,
       action: 'REJECT_LISTING',
