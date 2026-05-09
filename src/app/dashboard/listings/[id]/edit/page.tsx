@@ -8,9 +8,8 @@ import AddPhotosButton from "@/components/AddPhotosButton";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import EditPhotoGrid from "@/components/EditPhotoGrid";
-import VariantEditor from "@/components/VariantEditor";
+import ListingTypeVariantSection from "@/components/ListingTypeVariantSection";
 import TagsInput from "@/components/TagsInput";
-import ListingTypeFields from "@/components/ListingTypeFields";
 import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
@@ -717,7 +716,7 @@ export default async function EditListingPage(props: {
         </div>
       )}
 
-      <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10">
+      <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10" preventEnterSubmit preserveOnError>
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
           <InputCharCounter name="title" maxLength={100} defaultValue={listing.title} required />
@@ -741,23 +740,14 @@ export default async function EditListingPage(props: {
           <TagsInput initial={listing.tags ?? []} />
         </div>
 
-        {/* Listing type */}
-        <div className="card-section p-4">
-          <div className="text-sm font-medium text-neutral-700 mb-2">Listing type</div>
-          <ListingTypeFields
-            listingType={listing.listingType}
-            minDays={listing.processingTimeMinDays}
-            maxDays={listing.processingTimeMaxDays}
-            stockQuantity={listing.stockQuantity}
-            shipsWithinDays={listing.shipsWithinDays}
-            category={listing.category}
-          />
-        </div>
-
-        {/* Variants */}
-        <div className="card-section p-4">
-          <VariantEditor
-            initialGroups={listing.variantGroups.map((g) => ({
+        <ListingTypeVariantSection
+          listingType={listing.listingType}
+          minDays={listing.processingTimeMinDays}
+          maxDays={listing.processingTimeMaxDays}
+          stockQuantity={listing.stockQuantity}
+          shipsWithinDays={listing.shipsWithinDays}
+          category={listing.category}
+          initialVariantGroups={listing.variantGroups.map((g) => ({
               id: g.id,
               name: g.name,
               options: g.options.map((o) => ({
@@ -767,8 +757,7 @@ export default async function EditListingPage(props: {
                 inStock: o.inStock,
               })),
             }))}
-          />
-        </div>
+        />
 
         {/* Packaged dims/weight */}
         <div className="card-section p-4">

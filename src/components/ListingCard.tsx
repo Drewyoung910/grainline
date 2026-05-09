@@ -67,8 +67,8 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
               src={displayImg}
               fallbackSrc={displayImg === l.secondPhotoUrl ? l.photoUrl : l.secondPhotoUrl}
               loading="lazy"
-              className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
-              fallbackClassName="w-full aspect-square bg-gradient-to-br from-amber-50 to-stone-100"
+              className="w-full aspect-[4/5] object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
+              fallbackClassName="w-full aspect-[4/5] bg-gradient-to-br from-amber-50 to-stone-100"
             />
           </Link>
         ) : (
@@ -77,8 +77,8 @@ export default function ListingCard({ listing: l, initialSaved = false, href }: 
             src={displayImg}
             fallbackSrc={displayImg === l.secondPhotoUrl ? l.photoUrl : l.secondPhotoUrl}
             loading="lazy"
-            className="w-full aspect-square object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
-            fallbackClassName="w-full aspect-square bg-gradient-to-br from-amber-50 to-stone-100"
+            className="w-full aspect-[4/5] object-cover transition-all duration-300 motion-safe:group-hover:scale-105"
+            fallbackClassName="w-full aspect-[4/5] bg-gradient-to-br from-amber-50 to-stone-100"
           />
         )}
         {/* Heart — top right */}

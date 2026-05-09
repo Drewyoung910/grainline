@@ -47,6 +47,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/AddressAutocomplete.tsx"), /}, 350\);/);
     assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.suburb/s);
     assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.neighbourhood/s);
+    assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.county/s);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /formatAddressLabel/);
   });
 
   it("allows seller blog publishing before Stripe but requires an actual seller profile", () => {
@@ -109,5 +111,53 @@ describe("post-launch UI follow-ups", () => {
     assert.match(wizard, /bg-neutral-900/);
     assert.match(wizard, /h-full bg-amber-500/);
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
+  });
+
+  it("keeps listing product imagery on one portrait ratio from crop through display", () => {
+    assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
+    assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
+    assert.doesNotMatch(source("src/components/ListingGallery.tsx"), /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
+    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{4 \/ 5\}/);
+    assert.match(source("src/components/EditPhotoGrid.tsx"), /cropAspect=\{4 \/ 5\}/);
+    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+  });
+
+  it("keeps made-to-order variants from exposing stock checkboxes", () => {
+    const variant = source("src/components/VariantEditor.tsx");
+    const wrapper = source("src/components/ListingTypeVariantSection.tsx");
+    assert.match(wrapper, /onListingTypeChange=\{setType\}/);
+    assert.match(variant, /listingType = "MADE_TO_ORDER"/);
+    assert.match(variant, /!isMadeToOrder &&/);
+    assert.match(variant, /inStock: isMadeToOrder \? true : o\.inStock/);
+  });
+
+  it("keeps variant price typing raw until blur", () => {
+    const variant = source("src/components/VariantEditor.tsx");
+    assert.match(variant, /priceDrafts/);
+    assert.match(variant, /focusedPriceKey/);
+    assert.match(variant, /onBlur=/);
+    assert.doesNotMatch(variant, /value=\{opt\.priceAdjustCents === 0 \? "" : \(opt\.priceAdjustCents \/ 100\)\.toFixed\(2\)\}/);
+  });
+
+  it("prevents accidental listing form submit and restores values after server errors", () => {
+    const actionForm = source("src/components/ActionForm.tsx");
+    assert.match(actionForm, /preventEnterSubmit/);
+    assert.match(actionForm, /preserveOnError/);
+    assert.match(actionForm, /restoreFormValues/);
+    assert.match(actionForm, /field\.type === "file"/);
+    assert.match(actionForm, /field\.checked = values\?\.some/);
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /preventEnterSubmit preserveOnError/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /preventEnterSubmit preserveOnError/);
+  });
+
+  it("uses one left disclosure marker in listing shop policies", () => {
+    assert.doesNotMatch(source("src/app/listing/[id]/page.tsx"), /▾/);
+  });
+
+  it("keeps light avatars visible on light surfaces", () => {
+    assert.doesNotMatch(source("src/app/seller/[id]/page.tsx"), /ring-white/);
+    assert.match(source("src/app/seller/[id]/page.tsx"), /ring-4 ring-neutral-200 shadow-sm/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
+    assert.match(source("src/components/ThreadMessages.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
   });
 });

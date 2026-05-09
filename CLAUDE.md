@@ -302,7 +302,7 @@ Seven sections with a single `updateSellerProfile` server action for fields A–
 - **G. Featured Listings** — active listings grid, click to feature/unfeature (max 6), star badge on featured
 
 ### Public seller profile (`/seller/[id]`) redesigned
-- Full-width banner image (or gradient placeholder) + seller avatar (`absolute bottom-0 translate-y-1/2`, `ring-4 ring-white`, h-24 w-24) overlapping banner
+- Full-width banner image (or gradient placeholder) + seller avatar (`absolute bottom-0 translate-y-1/2`, `ring-4 ring-neutral-200 shadow-sm`, h-24 w-24) overlapping banner
 - Display name, tagline, city/state, verified maker badge (amber, "✓ Verified Maker") if `isVerifiedMaker`
 - Social links as icon components (20×20, `title` tooltip, opens in new tab) — `Instagram`, `Facebook`, `Pinterest`, `TikTok`, `Globe` from `@/components/icons`
 - Years in business, shop rating, custom order acceptance badges
@@ -1528,7 +1528,7 @@ Full redesign of `src/app/listing/[id]/page.tsx`. Zero TypeScript errors. Deploy
 
 ### `ListingGallery` component (`src/components/ListingGallery.tsx`)
 - `"use client"` — manages active photo index + lightbox state
-- Main photo: `height: 500px`, `cursor-zoom-in`, photo counter overlay (`1 / N`)
+- Main photo: `aspect-[4/5]`, `cursor-zoom-in`, photo counter overlay (`1 / N`); keep this ratio aligned with listing upload crop and `ListingCard` product display.
 - Click main photo → opens full lightbox with keyboard nav (Arrow keys + Escape)
 - Horizontal scrollable thumbnail row below main photo; active thumbnail has `border-neutral-900` highlight
 - Lightbox: prev/next buttons, close, counter
@@ -1985,7 +1985,7 @@ Full visual polish pass across all pages. All changes were CSS/class-only (no lo
 ## ListingCard Redesign (complete — 2026-04-09)
 
 Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to all migrated call sites:
-- Photo: `rounded-2xl overflow-hidden aspect-square group-hover:scale-105` — square crop, rounded, subtle zoom on hover
+- Photo: `rounded-2xl overflow-hidden aspect-[4/5] group-hover:scale-105` — portrait product crop, rounded, subtle zoom on hover
 - No card border or bg-white background — text floats on page background
 - Title: `line-clamp-1` (single line, truncated with ellipsis) — prevents height mismatches between cards in grid/scroll rows
 - Single star rating: `★ 4.8 (12)` replaces five-star StarsInline on all cards
@@ -2021,7 +2021,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 
 ## Message + Mobile Fixes (2026-04-10)
 
-- seller/[id]/page.tsx: featured/all listings use w-[200px]/w-[220px] flex-none — fixes mobile card stretch with aspect-square
+- seller/[id]/page.tsx: featured/all listings use fixed flex widths — fixes mobile card stretch with the current listing-card aspect ratio
 - ActionForm.tsx: useEffect dependency [state?.ok] → [state] — fixes repeat sends not clearing MessageComposer
 - MessageComposer.tsx: actionform:ok handler explicitly resets textarea DOM value + height — fixes emoji residue after send
 - ThreadMessages.tsx: 500ms fallback setTimeout after initial requestAnimationFrame scroll — fixes mobile loading at top of thread
@@ -3027,7 +3027,7 @@ All emoji replaced with SVG icon components from `src/components/icons/` or plai
 ### Other UI fixes
 - **Cart label**: "Grand total (items only)" → "Subtotal (items only)" (shipping not yet calculated at that step)
 - **TipTap toolbar**: transaction listener forces re-render so `isActive()` reflects current state immediately after toggling bold/italic/etc.
-- **ListingGallery mobile**: `style={{ height: "500px" }}` → `h-[350px] sm:h-[400px] md:h-[500px]`. Was portrait-cropping on mobile (500px tall × 375px wide).
+- **ListingGallery image aspect**: fixed pixel heights were replaced by the current listing-photo aspect (`aspect-[4/5]` as of 2026-05-09) so listing crop, card, and detail displays stay aligned across viewports.
 - **Back buttons**: "Back to Sales" / "Back to Orders" links added to order detail pages
 - **Refund button**: partial refund confirm changed from `bg-neutral-900` → `bg-red-600` (destructive action color match)
 - **R2UploadButton**: error state added — shows user-facing error message on upload failure, clears on retry/success
@@ -3653,7 +3653,7 @@ All card surfaces across the site now use the design system's `card-section` cla
 ### Visual consistency fixes
 - **Mosaic animation seam** — `translateX(-50%)` → `translateX(-50.05%)` in both keyframes. Sub-pixel overlap hides the vertical line where the duplicated row meets itself.
 - **SearchBar button** — added `rounded-none` to the submit button. The outer `rounded-full overflow-hidden` container clips it; the global `button { border-radius }` rule was creating visible inner-left corners.
-- **"Makers You Follow" cards** — `h-36` fixed height → `aspect-square`, `rounded-2xl overflow-hidden`, hover lift effect. Matches ListingCard modern look.
+- **"Makers You Follow" cards** — `h-36` fixed height → current listing-photo aspect (`aspect-[4/5]` as of 2026-05-09), `rounded-2xl overflow-hidden`, hover lift effect. Matches ListingCard modern look.
 - **Meet a Maker featured listings** — added `hover:shadow-lg hover:-translate-y-1 transition-all` hover lift.
 
 ## Visual Polish — Hover Fix + Dividers + Dashboard (2026-04-22)
@@ -3711,7 +3711,7 @@ All three order list pages (buyer dashboard, seller sales, account orders) now s
 - **Order/sales item photos** — removed black border outline (kept rounded + object-cover)
 - **Saved page** — "Back to My Account" link with ArrowLeft icon
 - **Browse FilterSidebar** — consistent `rounded-md border border-neutral-200` on all inputs/selects, `accent-neutral-900` on radios, proper Apply/Reset button styling
-- **List view thumbnails** — forced `aspect-square` on thumbnail containers (was non-square)
+- **List view thumbnails** — forced a stable thumbnail aspect on containers (now `aspect-[4/5]` as of 2026-05-09; was non-square)
 - **Featured blog card** — `aspect-[16/9] overflow-hidden` (was using original image proportions)
 - **Cart mobile** — `flex-wrap gap-2` on price/qty/remove row + `shrink-0` on prices. Prevents overlap on large amounts.
 
@@ -3837,7 +3837,7 @@ Seller field in offers uses `Organization` type with profile URL.
 - **100K+ listings**: consider hourly score updates for trending, daily for quality. Batch update via raw SQL instead of individual Prisma updates.
 
 ### RecentlyViewed styling
-Updated to modern floating-text cards: `rounded-2xl overflow-hidden aspect-square`, no borders, photo hover zoom, text floating on page background.
+Updated to modern floating-text cards: `rounded-2xl overflow-hidden` with the current listing-photo aspect (`aspect-[4/5]` as of 2026-05-09), no borders, photo hover zoom, text floating on page background.
 
 ### New Listing Bump + New Seller Bonus (2026-04-22)
 
@@ -3943,11 +3943,15 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Listing publish gating behavior**: disconnected sellers may save drafts, but the new-listing Publish button stays disabled until `chargesEnabled === true`; the server action still returns an inline `PUBLISH_REQUIRES_STRIPE_MESSAGE` instead of redirecting so rejected publish attempts do not clear the form. Do not reintroduce `/dashboard/listings/new?error=stripe` redirects for this guard.
 - **Blog publish gating behavior**: seller blog posts are content/marketing and are intentionally not gated by Stripe/`chargesEnabled`; a disconnected seller may draft or publish a blog post. Non-staff authors must still have a real `SellerProfile` before creating maker-authored posts, and maker posts must write `sellerProfileId` so public visibility, comments, saves, and feed surfaces can apply seller/profile safety filters.
 - **Shop profile canonical fields**: `/dashboard/profile` is canonical for public identity/profile content: display name, tagline, bio, story, avatar/banner/workshop image, workshop gallery, social links, public policies, custom-order availability, gift wrap, FAQs, and featured listings. `/dashboard/seller` is operational: payouts, vacation mode, city/state map location, pickup, shipping/tax, ship-from, package defaults, notification preferences, and broadcasts. Do not re-add display name, bio, or workshop gallery editing to `/dashboard/seller`.
-- **Address autocomplete behavior**: checkout shipping address, seller ship-from address, and pickup-map search use the shared address autocomplete/dropdown. Keep Nominatim use throttled/debounced and country-scoped to US, and keep state-code normalization through `usStates.ts`.
 - **Image upload error UX behavior**: all upload validation should use `uploadRules.ts` so client and server agree on max size, max count, allowed types, labels, and error copy. Client-side prevalidation runs before network upload so users are not waiting on multi-MB files that will be rejected. User-facing errors should include the actual file size and endpoint limit when size is the problem, and should spell out allowed formats when type is the problem. All uploader components must wire `onUploadError` to `emitToast(e.message, "error")` or render `R2UploadButton`'s inline error; do not swallow upload errors.
-- **Image upload crop UX behavior**: `bannerImage` uploads from `ProfileBannerUploader` use a 3:1 crop and the public seller banner displays at 3:1 from the `sm` breakpoint up (`h-56` fallback on mobile). `ProfileAvatarUploader` uses a 1:1 crop. Listing photo uploaders (`PhotoManager`, `AddPhotosButton`, `ImageUploadField`, and edit-page `EditPhotoGrid`) use a 1:1 crop because listing cards and listing management previews display square product images. Workshop photo and workshop gallery uploads use 3:2 crops and 3:2 public/profile previews. `ImageCropModal` exports a JPEG with max 2000px long edge through `canvas.toBlob(..., 0.9)` and then uploads through the existing R2 pipeline. Message/chat uploads skip the crop step to avoid extra friction. `ImageCropModal` must reset processing/zoom/offset/naturalSize/error when the `file` prop changes so multi-file listing-photo batches cannot get stuck after the first crop.
+- **Image upload crop UX behavior**: `bannerImage` uploads from `ProfileBannerUploader` use a 3:1 crop and the public seller banner displays at 3:1 from the `sm` breakpoint up (`h-56` fallback on mobile). `ProfileAvatarUploader` uses a 1:1 crop. Listing photo uploaders (`PhotoManager`, `AddPhotosButton`, `ImageUploadField`, and edit-page `EditPhotoGrid`) use a 4:5 portrait crop; listing cards, listing management previews, browse/home listing tiles, and listing detail gallery must display the same 4:5 ratio so the crop is WYSIWYG. Workshop photo and workshop gallery uploads use 3:2 crops and 3:2 public/profile previews. `ImageCropModal` exports a JPEG with max 2000px long edge through `canvas.toBlob(..., 0.9)` and then uploads through the existing R2 pipeline. Message/chat uploads skip the crop step to avoid extra friction. `ImageCropModal` must reset processing/zoom/offset/naturalSize/error when the `file` prop changes so multi-file listing-photo batches cannot get stuck after the first crop.
 - **Image recrop behavior**: existing banner, avatar, workshop, gallery, new-listing photos, and edit-listing photos expose "Adjust crop" / "Re-crop" controls through `ImageRecropButton`. Profile recrops update the form's hidden URL and still require the profile form save. New-listing recrops update hidden `imageUrlsJson` before submit. Edit-listing recrops replace the `Photo.url` through `replacePhotoAction`; if the listing is active, the replacement goes through the existing AI review/PENDING_REVIEW flow because the image bytes changed.
 - **Single-slot upload behavior**: single-image surfaces (`ProfileBannerUploader`, `ProfileAvatarUploader`, `ProfileWorkshopUploader`, `BlogPostForm` cover, and `ImageUploadField`) pass `allowMultiple={false}` even when they reuse a multi-capable endpoint such as `galleryImage`; do not rely only on endpoint heuristics for single-slot UI.
+- **Avatar visibility behavior**: avatars on light surfaces need a visible neutral boundary. Use `ring-1 ring-neutral-200 shadow-sm` for normal avatars; the seller banner-overlap avatar may use `ring-4 ring-neutral-200 shadow-sm`. Do not use white rings/borders for avatar boundaries on white cards.
+- **Variant editor MADE_TO_ORDER behavior**: `ListingTypeVariantSection` owns shared listing-type state for `ListingTypeFields` and `VariantEditor`. When the listing is `MADE_TO_ORDER`, `VariantEditor` hides per-option "In stock" checkboxes and serializes `inStock: true` for all options. In-stock listings keep per-option stock toggles.
+- **Variant price input behavior**: variant price adjustments keep raw text drafts while focused and parse/format to cents on blur or submit. Do not reintroduce `.toFixed(2)` formatting on every keystroke because it causes cursor jumps and dropped digits.
+- **Listing form Enter/error behavior**: listing create/edit forms pass `preventEnterSubmit preserveOnError` to `ActionForm`. Enter in text/number inputs must not publish/save; textareas still accept Enter. On server validation errors, `ActionForm` restores submitted field values so user work is not cleared.
+- **Address autocomplete behavior**: checkout shipping address, seller ship-from address, and pickup-map search use the shared address autocomplete/dropdown. Keep Nominatim use throttled/debounced and country-scoped to US, keep state-code normalization through `usStates.ts`, and never fall back to county as the city or display county fragments in suggestion labels.
 - **Seller onboarding entry behavior**: `/become-a-maker` is the public discovery route for seller onboarding. Signed-out users redirect to `/sign-up?redirect_url=/dashboard`; signed-in users redirect to `/dashboard`, where `ensureSeller()` creates/loads the seller profile and sends incomplete sellers to onboarding. Keep the footer link, desktop avatar-menu "Start Selling", mobile drawer "Start Selling", and non-seller `/account` CTA visible so seller onboarding is not only discoverable by manually typing `/dashboard`.
 - **Onboarding visual behavior**: `/dashboard/onboarding` uses the site warm page background, `card-section` surfaces, `font-display` headings, rounded-md action controls, and a visible final-summary Stripe reconnect CTA. Keep future wizard edits aligned with the Grainline design tokens instead of falling back to generic gray hard-corner panels.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization remains deferred as a separate architecture branch. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.

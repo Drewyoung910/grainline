@@ -67,7 +67,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded-full overflow-hidden h-8 w-8 bg-transparent border-0 p-0 cursor-pointer block"
+        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-neutral-200 shadow-sm"
         aria-label="Account menu"
         aria-expanded={open}
         aria-haspopup="menu"
@@ -75,9 +75,9 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       >
         {avatarSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarSrc} alt={displayName} className="h-8 w-8 rounded-full object-cover block" />
+          <img src={avatarSrc} alt={displayName} className="block h-8 w-8 rounded-full object-cover" />
         ) : (
-          <div className="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-200">
             <span className="text-sm font-medium text-neutral-600 select-none">
               {displayName.charAt(0).toUpperCase()}
             </span>
@@ -94,7 +94,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
         >
           {/* Header — avatar + name */}
           <div role="presentation" className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
-            <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200 shrink-0 flex items-center justify-center">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
               {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover rounded-full" />

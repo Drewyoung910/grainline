@@ -196,7 +196,7 @@ export default function EditPhotoGrid({
                   <img
                     src={p.url}
                     alt={altTexts[p.id] || ""}
-                    className="aspect-square w-full object-cover"
+                    className="aspect-[4/5] w-full object-cover"
                     draggable={false}
                   />
                   {idx === 0 && (
@@ -246,7 +246,7 @@ export default function EditPhotoGrid({
                     <ImageRecropButton
                       imageUrl={p.url}
                       endpoint="listingImage"
-                      cropAspect={1}
+                      cropAspect={4 / 5}
                       filename={`listing-photo-${idx + 1}.jpg`}
                       label="Re-crop"
                       onCropped={(url) => handleReplace(idx, url)}
@@ -310,7 +310,7 @@ export default function EditPhotoGrid({
             <img
               src={photos[altModalIdx].url}
               alt=""
-              className="w-full aspect-square object-cover rounded-md"
+              className="w-full aspect-[4/5] object-cover rounded-md"
             />
             <textarea
               value={altTexts[photos[altModalIdx].id] ?? ""}

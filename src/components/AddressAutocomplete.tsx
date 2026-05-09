@@ -52,14 +52,19 @@ function formatAddressLabel({
 }) {
   const locality = [city, [state, postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const label = [line1, locality].filter(Boolean).join(", ");
-  return label || fallback || "";
+  const cleanFallback = fallback
+    ?.split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && !/\bcounty\b/i.test(part))
+    .join(", ");
+  return label || cleanFallback || "";
 }
 
 function placeToAddress(place: NominatimPlace): AddressAutocompleteResult {
   const address = place.address ?? {};
   const street = address.road ?? address.pedestrian ?? address.footway ?? address.cycleway ?? "";
   const line1 = [address.house_number, street].filter(Boolean).join(" ").trim();
-  const city = address.city ?? address.town ?? address.village ?? address.municipality ?? address.county ?? "";
+  const city = address.city ?? address.town ?? address.village ?? address.municipality ?? "";
   const lat = Number.parseFloat(place.lat ?? "");
   const lng = Number.parseFloat(place.lon ?? "");
   const state = normalizeUsState(address.state);

@@ -567,9 +567,9 @@ export default async function BrowsePage({
 
     return (
       <div className="flex">
-        <Link href={publicListingPath(l.id, l.title)} className="shrink-0 w-36 sm:w-44 aspect-square overflow-hidden bg-neutral-100">
+        <Link href={publicListingPath(l.id, l.title)} className="shrink-0 w-36 sm:w-44 aspect-[4/5] overflow-hidden bg-neutral-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt={l.title} src={img} loading="lazy" width={176} height={176} className="h-full w-full object-cover" />
+          <img alt={l.title} src={img} loading="lazy" width={176} height={220} className="h-full w-full object-cover" />
         </Link>
         <div className="flex-1 min-w-0 p-4">
           <div className="flex items-start justify-between gap-3">

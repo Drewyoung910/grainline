@@ -304,7 +304,7 @@ export default async function SellerPublicPage({
           fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
         />
         {/* Avatar: sits at bottom of banner, half-overlapping downward */}
-        <div className="absolute bottom-0 left-8 translate-y-1/2 h-24 w-24 rounded-full overflow-hidden ring-4 ring-white shadow">
+        <div className="absolute bottom-0 left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
           {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

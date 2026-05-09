@@ -254,7 +254,7 @@ export default async function SellerShopPage({
           <img
             src={avatarSrc}
             alt={seller.displayName ?? ""}
-            className="h-10 w-10 rounded-full object-cover shrink-0"
+            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
           />
         ) : (
           <div className="h-10 w-10 rounded-full bg-neutral-200 shrink-0" />

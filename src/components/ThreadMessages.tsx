@@ -435,7 +435,7 @@ export default function ThreadMessages({
               {!mine && (
                 <div className="shrink-0 w-8">
                   {showAvatar ? (
-                    <div className="h-8 w-8 rounded-full overflow-hidden bg-neutral-200">
+                    <div className="h-8 w-8 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
                       {otherAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={otherAvatar} alt="" className="h-full w-full object-cover" />

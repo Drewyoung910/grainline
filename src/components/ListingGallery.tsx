@@ -79,7 +79,7 @@ export default function ListingGallery({
       <button
         type="button"
         aria-label={`Open ${title} photo gallery`}
-        className="relative block w-full rounded-lg overflow-hidden cursor-zoom-in h-[350px] sm:h-[400px] md:h-[500px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        className="relative block w-full overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {

@@ -536,7 +536,7 @@ export default async function ListingPage({
                     alt={sellerName}
                     width={56}
                     height={56}
-                    className="h-14 w-14 rounded-full object-cover border border-neutral-200"
+                    className="h-14 w-14 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
                   />
                 ) : (
                   <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center">
@@ -739,27 +739,24 @@ export default async function ListingPage({
           <div className="space-y-0">
             {listing.seller.returnPolicy && (
               <details className="border-b border-neutral-100 last:border-0">
-                <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
+                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
                   Returns & Exchanges
-                  <span className="text-neutral-500 text-xs">▾</span>
                 </summary>
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.returnPolicy}</p>
               </details>
             )}
             {listing.seller.shippingPolicy && (
               <details className="border-b border-neutral-100 last:border-0">
-                <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
+                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
                   Shipping
-                  <span className="text-neutral-500 text-xs">▾</span>
                 </summary>
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.shippingPolicy}</p>
               </details>
             )}
             {listing.seller.customOrderPolicy && (
               <details className="border-b border-neutral-100 last:border-0">
-                <summary className="py-3 text-sm font-medium text-neutral-800 cursor-pointer list-none flex items-center justify-between">
+                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
                   Custom Orders
-                  <span className="text-neutral-500 text-xs">▾</span>
                 </summary>
                 <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.customOrderPolicy}</p>
               </details>
@@ -777,12 +774,12 @@ export default async function ListingPage({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {moreFromSeller.map((ml) => (
               <Link key={ml.id} href={publicListingPath(ml.id, ml.title)} className="group">
-                <div className="rounded-2xl overflow-hidden aspect-square bg-neutral-100">
+                <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
                   {ml.photos[0]?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={ml.photos[0].url} alt={ml.title} loading="lazy"
                       width={320}
-                      height={320}
+                      height={400}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   ) : (
                     <div className="w-full h-full bg-neutral-200" />

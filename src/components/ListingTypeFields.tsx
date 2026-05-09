@@ -10,6 +10,7 @@ export default function ListingTypeFields({
   stockQuantity,
   shipsWithinDays,
   category,
+  onListingTypeChange,
 }: {
   listingType?: "MADE_TO_ORDER" | "IN_STOCK";
   minDays?: number | null;
@@ -17,8 +18,13 @@ export default function ListingTypeFields({
   stockQuantity?: number | null;
   shipsWithinDays?: number | null;
   category?: string | null;
+  onListingTypeChange?: (type: "MADE_TO_ORDER" | "IN_STOCK") => void;
 }) {
   const [type, setType] = React.useState<"MADE_TO_ORDER" | "IN_STOCK">(listingType);
+  function changeType(nextType: "MADE_TO_ORDER" | "IN_STOCK") {
+    setType(nextType);
+    onListingTypeChange?.(nextType);
+  }
 
   return (
     <div className="space-y-4">
@@ -45,7 +51,7 @@ export default function ListingTypeFields({
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => setType("MADE_TO_ORDER")}
+            onClick={() => changeType("MADE_TO_ORDER")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "MADE_TO_ORDER"
                 ? "border-neutral-900 bg-neutral-50 text-neutral-900"
@@ -56,7 +62,7 @@ export default function ListingTypeFields({
           </button>
           <button
             type="button"
-            onClick={() => setType("IN_STOCK")}
+            onClick={() => changeType("IN_STOCK")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "IN_STOCK"
                 ? "border-neutral-900 bg-neutral-50 text-neutral-900"

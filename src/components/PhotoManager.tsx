@@ -108,7 +108,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
       {photos.length < max && (
         <UploadButton
           endpoint="listingImage"
-          cropAspect={1}
+          cropAspect={4 / 5}
           appearance={{
             button:
               "rounded-md bg-neutral-900 px-3 py-2 text-white hover:bg-neutral-800",
@@ -169,7 +169,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                 <img
                   src={photo.url}
                   alt={photo.altText || `Photo ${i + 1}`}
-                  className="aspect-square w-full object-cover"
+                  className="aspect-[4/5] w-full object-cover"
                   draggable={false}
                 />
                 {i === 0 && (
@@ -219,7 +219,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                   <ImageRecropButton
                     imageUrl={photo.url}
                     endpoint="listingImage"
-                    cropAspect={1}
+                    cropAspect={4 / 5}
                     filename={`listing-photo-${i + 1}.jpg`}
                     label="Re-crop"
                     onCropped={(url) => replacePhoto(i, url)}
@@ -273,7 +273,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
             <img
               src={photos[altModalIdx].url}
               alt=""
-              className="w-full aspect-square object-cover rounded-md"
+              className="w-full aspect-[4/5] object-cover rounded-md"
             />
             <textarea
               value={photos[altModalIdx].altText}

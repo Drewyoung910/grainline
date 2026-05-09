@@ -148,10 +148,10 @@ export default async function MyCommissionsPage() {
                           key={interest.id}
                           src={avatar}
                           alt={sp?.displayName ?? ""}
-                          className="w-6 h-6 rounded-full object-cover border-2 border-white"
+                          className="h-6 w-6 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
                         />
                       ) : (
-                        <div key={interest.id} className="w-6 h-6 rounded-full bg-neutral-200 border-2 border-white" />
+                        <div key={interest.id} className="h-6 w-6 rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm" />
                       );
                     })}
                   </div>

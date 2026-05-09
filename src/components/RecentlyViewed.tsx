@@ -52,7 +52,7 @@ export default function RecentlyViewed() {
         <div className="flex gap-4 overflow-x-auto pb-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse shrink-0 w-48">
-              <div className="rounded-2xl overflow-hidden aspect-square bg-neutral-200" />
+              <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-200" />
               <div className="mt-2 space-y-1.5 px-0.5">
                 <div className="h-3 bg-neutral-200 rounded w-3/4" />
                 <div className="h-3 bg-neutral-200 rounded w-1/2" />
@@ -65,7 +65,7 @@ export default function RecentlyViewed() {
           {listings.map((l) => (
             <li key={l.id} className="shrink-0 w-48 group">
               <Link href={publicListingPath(l.id, l.title)} className="block">
-                <div className="rounded-2xl overflow-hidden aspect-square bg-neutral-100">
+                <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-100">
                   {l.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img

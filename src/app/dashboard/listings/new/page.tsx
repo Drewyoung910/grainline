@@ -15,9 +15,8 @@ import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import PhotoManager from "@/components/PhotoManager";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
-import VariantEditor from "@/components/VariantEditor";
 import TagsInput from "@/components/TagsInput";
-import ListingTypeFields from "@/components/ListingTypeFields";
+import ListingTypeVariantSection from "@/components/ListingTypeVariantSection";
 import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import type { AIReviewResult } from "@/lib/ai-review";
 import { CATEGORY_VALUES } from "@/lib/categories";
@@ -437,7 +436,7 @@ export default async function NewListingPage({
 
       <h1 className="text-2xl font-semibold mb-6">Create a listing</h1>
 
-      <ActionForm action={createListing} className="space-y-4">
+      <ActionForm action={createListing} className="space-y-4" preventEnterSubmit preserveOnError>
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
           <InputCharCounter name="title" maxLength={100} required />
@@ -514,14 +513,7 @@ export default async function NewListingPage({
           <TagsInput />
         </div>
 
-        <div className="card-section p-4">
-          <div className="text-sm font-medium text-neutral-700 mb-2">Listing type</div>
-          <ListingTypeFields />
-        </div>
-
-        <div className="card-section p-4">
-          <VariantEditor />
-        </div>
+        <ListingTypeVariantSection />
 
         <div className="card-section p-4">
           <div className="text-sm font-medium text-neutral-700 mb-2">Packaged size &amp; weight (for calculated shipping)</div>

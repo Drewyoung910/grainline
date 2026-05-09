@@ -71,9 +71,9 @@ describe("upload UX follow-ups", () => {
     assert.match(source("src/components/R2UploadButton.tsx"), /ImageCropModal/);
     assert.match(source("src/components/ProfileBannerUploader.tsx"), /cropAspect=\{3 \/ 1\}/);
     assert.match(source("src/components/ProfileAvatarUploader.tsx"), /cropAspect=\{1\}/);
-    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{1\}/);
-    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{1\}/);
-    assert.match(source("src/components/ImageUploadField.tsx"), /cropAspect=\{1\}/);
+    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{4 \/ 5\}/);
+    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+    assert.match(source("src/components/ImageUploadField.tsx"), /cropAspect=\{4 \/ 5\}/);
   });
 
   it("keeps crop ratios aligned with public display surfaces", () => {
@@ -84,8 +84,10 @@ describe("upload UX follow-ups", () => {
     assert.match(source("src/components/ProfileWorkshopUploader.tsx"), /aspect-\[3\/2\]/);
     assert.match(source("src/components/GalleryUploader.tsx"), /cropAspect=\{3 \/ 2\}/);
     assert.match(source("src/components/GalleryUploader.tsx"), /aspect-\[3\/2\]/);
-    assert.match(source("src/components/EditPhotoGrid.tsx"), /aspect-square/);
-    assert.match(source("src/components/PhotoManager.tsx"), /aspect-square/);
+    assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
+    assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
+    assert.match(source("src/components/EditPhotoGrid.tsx"), /aspect-\[4\/5\]/);
+    assert.match(source("src/components/PhotoManager.tsx"), /aspect-\[4\/5\]/);
   });
 
   it("keeps single-slot uploaders single-file and adds re-crop controls", () => {

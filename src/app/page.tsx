@@ -612,7 +612,7 @@ export default async function HomePage() {
                 item.kind === "listing" ? (
                   <ClickTracker key={item.id} listingId={item.id} className="w-44 flex-none snap-start rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
                     <Link href={publicListingPath(item.id, item.title)} className="block">
-                      <div className="aspect-square bg-neutral-100 overflow-hidden">
+                      <div className="aspect-[4/5] bg-neutral-100 overflow-hidden">
                         <MediaImage
                           src={item.photoUrl}
                           alt={item.photoAltText ?? item.title}
@@ -712,10 +712,10 @@ export default async function HomePage() {
                         loading="lazy"
                         width={80}
                         height={80}
-                        className="h-20 w-20 rounded-full border-2 border-white shadow object-cover"
+                        className="h-20 w-20 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
                       />
                     ) : (
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 border-2 border-white shadow">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-1 ring-neutral-200 shadow-sm">
                         {(featuredMaker.displayName || "M")[0]?.toUpperCase()}
                       </div>
                     )}
@@ -771,7 +771,7 @@ export default async function HomePage() {
                   <div className="grid grid-cols-3 gap-3 self-start">
                     {featuredListings.map((fl) => (
                       <Link key={fl.id} href={publicListingPath(fl.id, fl.title)} className="block group">
-                        <div className="aspect-square overflow-hidden rounded-xl">
+                        <div className="aspect-[4/5] overflow-hidden rounded-xl">
                           <MediaImage
                             src={fl.photos[0]?.url ?? null}
                             alt={fl.photos[0]?.altText ?? fl.title}

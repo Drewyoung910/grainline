@@ -21,10 +21,15 @@ const MAX_OPTIONS = 10;
 
 export default function VariantEditor({
   initialGroups = [],
+  listingType = "MADE_TO_ORDER",
 }: {
   initialGroups?: VariantGroupData[];
+  listingType?: "MADE_TO_ORDER" | "IN_STOCK";
 }) {
   const [groups, setGroups] = useState<VariantGroupData[]>(initialGroups);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [focusedPriceKey, setFocusedPriceKey] = useState<string | null>(null);
+  const isMadeToOrder = listingType === "MADE_TO_ORDER";
 
   const addGroup = useCallback(() => {
     if (groups.length >= MAX_GROUPS) return;
@@ -79,6 +84,23 @@ export default function VariantEditor({
     },
     []
   );
+
+  const priceKey = (gi: number, oi: number) => `${gi}:${oi}`;
+  const optionPriceCents = (gi: number, oi: number, opt: VariantOptionData) => {
+    const draft = priceDrafts[priceKey(gi, oi)];
+    if (draft === undefined) return opt.priceAdjustCents || 0;
+    if (draft.trim() === "") return 0;
+    return parseMoneyInputToCents(draft, { allowNegative: true }) ?? 0;
+  };
+
+  function priceDisplayValue(gi: number, oi: number, opt: VariantOptionData) {
+    const key = priceKey(gi, oi);
+    const draft = priceDrafts[key];
+    if (focusedPriceKey === key) return draft ?? (opt.priceAdjustCents === 0 ? "" : String(opt.priceAdjustCents / 100));
+    if (draft !== undefined && draft.trim() === "") return "";
+    const cents = optionPriceCents(gi, oi, opt);
+    return cents === 0 ? "" : (cents / 100).toFixed(2);
+  }
 
   return (
     <div className="space-y-4">
@@ -149,25 +171,34 @@ export default function VariantEditor({
                     type="text"
                     inputMode="decimal"
                     pattern={"[+-]?(\\d+(\\.\\d{1,2})?|\\.\\d{1,2})"}
-                    value={opt.priceAdjustCents === 0 ? "" : (opt.priceAdjustCents / 100).toFixed(2)}
+                    value={priceDisplayValue(gi, oi, opt)}
+                    onFocus={() => setFocusedPriceKey(priceKey(gi, oi))}
                     onChange={(e) => {
+                      setPriceDrafts((prev) => ({ ...prev, [priceKey(gi, oi)]: e.target.value }));
+                    }}
+                    onBlur={(e) => {
+                      const key = priceKey(gi, oi);
                       const val = e.target.value;
                       const cents = parseMoneyInputToCents(val, { allowNegative: true });
                       updateOption(gi, oi, "priceAdjustCents", val === "" || cents === null ? 0 : cents);
+                      setPriceDrafts((prev) => ({ ...prev, [key]: val }));
+                      setFocusedPriceKey((current) => current === key ? null : current);
                     }}
                     placeholder="+0.00"
                     className="w-full border border-neutral-200 rounded-md pl-6 pr-2 py-1.5 text-sm"
                   />
                 </div>
-                <label className="flex items-center gap-1.5 text-xs text-neutral-600 shrink-0 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={opt.inStock}
-                    onChange={(e) => updateOption(gi, oi, "inStock", e.target.checked)}
-                    className="accent-neutral-900"
-                  />
-                  In stock
-                </label>
+                {!isMadeToOrder && (
+                  <label className="flex items-center gap-1.5 text-xs text-neutral-600 shrink-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={opt.inStock}
+                      onChange={(e) => updateOption(gi, oi, "inStock", e.target.checked)}
+                      className="accent-neutral-900"
+                    />
+                    In stock
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => removeOption(gi, oi)}
@@ -202,15 +233,15 @@ export default function VariantEditor({
         value={JSON.stringify(
           groups
             .filter((g) => g.name.trim() && g.options.some((o) => o.label.trim()))
-            .map((g) => ({
+            .map((g, gi) => ({
               name: g.name.trim(),
               options: g.options
-                .filter((o) => o.label.trim())
-                .map((o) => ({
+                .map((o, oi) => ({
                   label: o.label.trim(),
-                  priceAdjustCents: o.priceAdjustCents || 0,
-                  inStock: o.inStock,
-                })),
+                  priceAdjustCents: optionPriceCents(gi, oi, o),
+                  inStock: isMadeToOrder ? true : o.inStock,
+                }))
+                .filter((o) => o.label),
             }))
         )}
       />
