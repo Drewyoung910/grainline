@@ -658,13 +658,15 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Data portability.</strong> Request an export of your personal data in a
-              commonly used, machine-readable format. Data export requests are processed manually and
-              fulfilled within 30 days of a verified request. Exports typically include your account
-              information, transaction history, messages, reviews, and listing data in JSON or CSV
-              format. For Makers, data exports may also include listing data, order fulfillment
-              history, seller analytics (views, clicks, conversion data), and Guild program data.
-              Customer personal data (buyer names, addresses) is not included in seller data exports
-              except as required by applicable law.
+              commonly used, machine-readable format. Signed-in users can download an automated
+              account export from Account settings. Other verified privacy-rights requests are
+              reviewed through Grainline&apos;s privacy request process and fulfilled within the
+              timeframe required by applicable law. Exports typically include your account
+              information, transaction history, messages, reviews, and listing data in JSON format.
+              For Makers, data exports may also include listing data, order fulfillment history,
+              seller analytics (views, clicks, conversion data), and Guild program data. Customer
+              personal data (buyer names, addresses) is not included in seller data exports except
+              as required by applicable law.
             </li>
             <li>
               <strong>Opt out of marketing.</strong> Opt out of marketing emails at any time by
@@ -678,8 +680,8 @@ export default function PrivacyPage() {
           <p>
             To exercise any of the rights described in this section, please contact us at{" "}
             <a href="mailto:privacy@thegrainline.com" className="underline">privacy@thegrainline.com</a>.
-            We will respond within 30 days (or within the timeframe required by applicable law). We
-            may need to verify your identity before processing your request.
+            We will respond within the timeframe required by applicable law. We may need to verify
+            your identity before processing your request.
           </p>
 
           <h3 className="text-base font-semibold mt-6 mb-2">7.2 California Residents (CCPA)</h3>

@@ -6,6 +6,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
 import { prisma } from "@/lib/db";
 import { verifyCronRequest } from "@/lib/cronAuth";
+import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { normalizeRequestId, requestHeadersWithRequestId, REQUEST_ID_HEADER } from "@/lib/requestId";
 import { shouldRequireTermsAcceptance } from "@/lib/termsAcceptance";
 
@@ -30,6 +31,8 @@ const isPublic = createRouteMatcher([
   "/about",               // About page — public
   "/support",             // Support request form — no auth needed
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
+  "/cart(.*)",            // anonymous cart page; server cart APIs still enforce auth/account state
+  "/accept-terms(.*)",    // full-page terms gate; page redirects signed-out users to sign-in
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
   "/accessibility",       // Accessibility statement — ADA compliance
   "/account/deleted",     // terminal account deletion page after Clerk sign-out
@@ -128,6 +131,18 @@ function forbiddenFor(req: Request, requestId: string) {
   return withRequestId(NextResponse.redirect(new URL("/", req.url)), requestId);
 }
 
+function signInRequiredFor(req: Request, requestId: string) {
+  const url = new URL(req.url);
+  if (url.pathname.startsWith("/api/")) {
+    return withRequestId(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), requestId);
+  }
+
+  return withRequestId(
+    NextResponse.redirect(new URL(signInPathForRedirect(`${url.pathname}${url.search}`), req.url)),
+    requestId,
+  );
+}
+
 function termsRequiredFor(req: Request, requestId: string) {
   const url = new URL(req.url);
   if (url.pathname.startsWith("/api/")) {
@@ -203,13 +218,15 @@ export default clerkMiddleware(async (auth, req) => {
     return withRequestId(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), requestId);
   }
 
-  // Enforce authentication on all non-public routes
-  if (!isPublic(req)) {
-    await auth.protect();
-  }
-
   const { userId } = await auth();
   Sentry.setUser(userId ? { id: userId } : null);
+
+  // Enforce authentication on all non-public routes with app-owned responses.
+  // Clerk's default protection can rewrite signed-out page requests to 404;
+  // keep launch UX explicit and preserve API JSON semantics.
+  if (!userId && !isPublic(req)) {
+    return signInRequiredFor(req, requestId);
+  }
 
   let account: {
     banned: boolean;

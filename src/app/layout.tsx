@@ -54,10 +54,12 @@ export const metadata: Metadata = {
     description: "Handmade woodworking marketplace",
     images: ["/og-image.jpg"],
   },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+  },
   robots: { index: true, follow: true },
 };
 
-// TODO: Add Google Search Console verification meta tag — Drew will add this manually from search.google.com/search-console
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const footerMetros = await prisma.metro.findMany({
     where: {
