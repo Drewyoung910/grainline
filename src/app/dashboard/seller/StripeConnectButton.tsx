@@ -12,7 +12,7 @@ export default function StripeConnectButton() {
       const res = await fetch("/api/stripe/connect/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnUrl: "/dashboard/seller" }),
+        body: JSON.stringify({ returnUrl: "/dashboard/seller?stripe_return=1" }),
       });
       const data = await res.json();
       if (data.url) {

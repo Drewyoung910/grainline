@@ -144,7 +144,8 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
           <button
             type="submit"
             aria-label="Search"
-            className="flex items-center justify-center px-4 bg-neutral-900 text-white hover:bg-neutral-800 transition-colors shrink-0"
+            className="flex shrink-0 items-center justify-center rounded-none bg-neutral-900 px-4 text-white transition-colors hover:bg-neutral-800"
+            style={{ borderRadius: 0 }}
           >
             <Search size={16} />
           </button>
@@ -156,7 +157,7 @@ export default function BlogSearchBar({ initialQ }: { initialQ?: string }) {
         const showSuggestions = open && suggestions.length > 0;
         if (!showPopular && !showSuggestions) return null;
         return (
-          <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-white shadow-lg">
+          <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg">
             {showPopular && (
               <>
                 <li className="px-4 py-2 text-xs text-neutral-500 font-medium uppercase tracking-wide">

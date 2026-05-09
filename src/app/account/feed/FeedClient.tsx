@@ -73,17 +73,19 @@ export default function FeedClient() {
 
   if (!initialLoading && items.length === 0 && !error) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <p className="text-neutral-500 mb-4">Your feed is empty.</p>
-        <p className="text-sm text-neutral-500 mb-6">
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <div className="card-section p-8 text-center sm:p-10">
+        <h1 className="mb-3 text-2xl font-semibold font-display text-neutral-900">Your feed is empty</h1>
+        <p className="mx-auto mb-6 max-w-md text-sm text-neutral-500">
           {emptyMessage ?? "Follow some makers to see their latest listings and posts here."}
         </p>
         <Link
-          href="/browse"
-          className="inline-block border border-neutral-900 px-4 py-2 text-sm hover:bg-neutral-50"
+          href="/map"
+          className="inline-flex min-h-10 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
         >
           Browse Makers →
         </Link>
+        </div>
       </div>
     );
   }

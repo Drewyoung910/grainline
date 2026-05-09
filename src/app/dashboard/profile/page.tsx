@@ -8,6 +8,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import ProfileBannerUploader from "@/components/ProfileBannerUploader";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
 import ProfileWorkshopUploader from "@/components/ProfileWorkshopUploader";
+import GalleryUploader from "@/components/GalleryUploader";
 import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
 
@@ -15,10 +16,19 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
+
+const inputClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+const textareaClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+const checkboxClass =
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
+const primaryButtonClass =
+  "rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Server actions
@@ -98,6 +108,11 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const bannerImageUrl = normalizeR2ImageUrl(formData.get("bannerImageUrl"));
   const avatarImageUrl = normalizeR2ImageUrl(formData.get("avatarImageUrl"));
   const workshopImageUrl = normalizeR2ImageUrl(formData.get("workshopImageUrl"));
+  const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
+  const galleryImageUrls = filterFirstPartyMediaUrls(
+    formData.getAll("galleryImageUrls").map(String).filter(Boolean),
+    10,
+  );
 
   const instagramUrl = normalizeHttpsUrl(formData.get("instagramUrl"), ["instagram.com"]);
   const facebookUrl = normalizeHttpsUrl(formData.get("facebookUrl"), ["facebook.com", "fb.com"]);
@@ -141,6 +156,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       bannerImageUrl,
       avatarImageUrl,
       workshopImageUrl,
+      ...(galleryImageUrlsTouched ? { galleryImageUrls } : {}),
       instagramUrl,
       facebookUrl,
       pinterestUrl,
@@ -284,7 +300,7 @@ export default async function ProfilePage({
   const featured = new Set(fullSeller.featuredListingIds ?? []);
 
   return (
-    <main className="max-w-3xl mx-auto p-8 space-y-10">
+    <main className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-8">
       {sp.warning === "duplicate-name" && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           Another maker already uses this display name. Consider adding your location
@@ -299,20 +315,20 @@ export default async function ProfilePage({
       )}
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Shop Profile</h1>
+        <h1 className="text-2xl font-semibold font-display">Shop Profile</h1>
         <Link
           href={publicSellerPath(seller.id, seller.displayName)}
           target="_blank"
-          className="text-sm underline text-neutral-600"
+          className="rounded-md border border-neutral-200 px-3 py-2 text-sm text-neutral-600 hover:bg-white"
         >
           View public profile
         </Link>
       </div>
 
-      <ActionForm action={updateSellerProfile} className="space-y-10">
+      <ActionForm action={updateSellerProfile} className="space-y-6">
         {/* ── A. Shop Identity ─────────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Shop Identity</h2>
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Shop Identity</h2>
 
           <div>
             <label className="block text-sm font-medium mb-2">Profile avatar</label>
@@ -352,7 +368,7 @@ export default async function ProfilePage({
               required
               autoComplete="name"
               defaultValue={fullSeller.displayName}
-              className="w-full border rounded px-3 py-2"
+              className={inputClass}
             />
           </div>
 
@@ -364,7 +380,7 @@ export default async function ProfilePage({
               maxLength={100}
               defaultValue={fullSeller.tagline ?? ""}
               placeholder="e.g. Hand-crafting heirloom pieces in Austin since 2018"
-              className="w-full border rounded px-3 py-2"
+              className={inputClass}
             />
           </div>
 
@@ -378,14 +394,14 @@ export default async function ProfilePage({
               min={0}
               max={200}
               defaultValue={fullSeller.yearsInBusiness ?? ""}
-              className="w-40 border rounded px-3 py-2"
+              className={`${inputClass} w-40`}
             />
           </div>
         </section>
 
         {/* ── B. Your Story ─────────────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Your Story</h2>
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Your Story</h2>
 
           <div>
             <label className="block text-sm font-medium mb-1">Bio</label>
@@ -395,6 +411,7 @@ export default async function ProfilePage({
               rows={4}
               defaultValue={fullSeller.bio ?? ""}
               placeholder="Tell buyers a bit about yourself and your craft."
+              className={textareaClass}
             />
           </div>
 
@@ -404,7 +421,7 @@ export default async function ProfilePage({
               name="storyTitle"
               defaultValue={fullSeller.storyTitle ?? ""}
               placeholder="e.g. How I got into woodworking"
-              className="w-full border rounded px-3 py-2"
+              className={inputClass}
             />
           </div>
 
@@ -416,6 +433,7 @@ export default async function ProfilePage({
               rows={8}
               defaultValue={fullSeller.storyBody ?? ""}
               placeholder="Share your full story with buyers..."
+              className={textareaClass}
             />
           </div>
 
@@ -426,11 +444,19 @@ export default async function ProfilePage({
             </p>
             <ProfileWorkshopUploader initialUrl={fullSeller.workshopImageUrl} />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Workshop gallery</label>
+            <p className="text-xs text-neutral-500 mb-2">
+              Add supporting photos of your workspace, process, and finished details.
+            </p>
+            <GalleryUploader initialUrls={fullSeller.galleryImageUrls ?? []} maxImages={8} />
+          </div>
         </section>
 
         {/* ── C. Social Links ───────────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Social Links</h2>
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Social Links</h2>
 
           {(
             [
@@ -449,15 +475,15 @@ export default async function ProfilePage({
                 autoComplete="url"
                 defaultValue={(fullSeller[field] as string | null) ?? ""}
                 placeholder={placeholder}
-                className="w-full border rounded px-3 py-2"
+                className={inputClass}
               />
             </div>
           ))}
         </section>
 
         {/* ── D. Shop Policies ──────────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Shop Policies</h2>
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Shop Policies</h2>
 
           <div>
             <label className="block text-sm font-medium mb-1">Return policy</label>
@@ -467,7 +493,7 @@ export default async function ProfilePage({
               rows={4}
               maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
               defaultValue={fullSeller.returnPolicy ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className={textareaClass}
               placeholder="Describe your return / refund policy..."
             />
           </div>
@@ -480,7 +506,7 @@ export default async function ProfilePage({
               rows={4}
               maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
               defaultValue={fullSeller.customOrderPolicy ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className={textareaClass}
               placeholder="Describe how you handle custom orders..."
             />
           </div>
@@ -493,15 +519,15 @@ export default async function ProfilePage({
               rows={4}
               maxLength={SELLER_PROFILE_TEXT_LIMITS.policy}
               defaultValue={fullSeller.shippingPolicy ?? ""}
-              className="w-full border rounded px-3 py-2"
+              className={textareaClass}
               placeholder="Describe your shipping timelines, carriers, etc."
             />
           </div>
         </section>
 
         {/* ── E. Custom Orders & Availability ───────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Custom Orders &amp; Availability</h2>
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Custom Orders &amp; Availability</h2>
 
           <div className="flex items-center gap-2">
             <input
@@ -509,6 +535,7 @@ export default async function ProfilePage({
               name="acceptsCustomOrders"
               type="checkbox"
               defaultChecked={fullSeller.acceptsCustomOrders}
+              className={checkboxClass}
             />
             <label htmlFor="acceptsCustomOrders" className="text-sm">
               I accept custom orders
@@ -521,6 +548,7 @@ export default async function ProfilePage({
               name="acceptingNewOrders"
               type="checkbox"
               defaultChecked={fullSeller.acceptingNewOrders}
+              className={checkboxClass}
             />
             <label htmlFor="acceptingNewOrders" className="text-sm">
               Currently accepting new orders
@@ -538,14 +566,14 @@ export default async function ProfilePage({
               autoComplete="off"
               min={1}
               defaultValue={fullSeller.customOrderTurnaroundDays ?? ""}
-              className="w-40 border rounded px-3 py-2"
+              className={`${inputClass} w-40`}
             />
           </div>
         </section>
 
         {/* ── F. Gift Wrapping ───────────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Gift Wrapping</h2>
+        <section className="card-section space-y-4 p-6">
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Gift Wrapping</h2>
 
           <div className="flex items-center gap-2">
             <input
@@ -553,6 +581,7 @@ export default async function ProfilePage({
               name="offersGiftWrapping"
               type="checkbox"
               defaultChecked={fullSeller.offersGiftWrapping}
+              className={checkboxClass}
             />
             <label htmlFor="offersGiftWrapping" className="text-sm">
               I offer gift wrapping
@@ -575,7 +604,7 @@ export default async function ProfilePage({
                   : ""
               }
               placeholder="e.g. 5.00"
-              className="w-40 border rounded px-3 py-2"
+              className={`${inputClass} w-40`}
             />
           </div>
         </section>
@@ -583,7 +612,7 @@ export default async function ProfilePage({
         <div>
           <button
             type="submit"
-            className="rounded px-6 py-2 bg-black text-white hover:bg-neutral-800"
+            className={primaryButtonClass}
           >
             Save profile
           </button>
@@ -591,8 +620,8 @@ export default async function ProfilePage({
       </ActionForm>
 
       {/* ── FAQs ───────────────────────────────────────────────────────────── */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">FAQs</h2>
+      <section className="card-section space-y-4 p-6">
+        <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">FAQs</h2>
 
         {fullSeller.faqs.length === 0 ? (
           <p className="text-sm text-neutral-500">No FAQs yet.</p>
@@ -610,7 +639,7 @@ export default async function ProfilePage({
                 <form action={deleteFaq.bind(null, faq.id)}>
                   <button
                     type="submit"
-                    className="text-xs text-red-600 border border-red-200 rounded px-2 py-1 hover:bg-red-50 shrink-0"
+                    className="shrink-0 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                   >
                     Delete
                   </button>
@@ -621,7 +650,7 @@ export default async function ProfilePage({
         )}
 
         {/* Add FAQ form */}
-        <form action={addFaq} className="space-y-3 card-section p-4">
+        <form action={addFaq} className="space-y-3 rounded-md border border-neutral-200 bg-white p-4">
           <h3 className="text-sm font-medium">Add a FAQ</h3>
           <div>
             <label className="block text-xs text-neutral-500 mb-1">Question</label>
@@ -629,7 +658,7 @@ export default async function ProfilePage({
               name="question"
               autoComplete="off"
               required
-              className="w-full border rounded px-3 py-2 text-sm"
+              className={inputClass}
               placeholder="e.g. Do you ship internationally?"
             />
           </div>
@@ -640,13 +669,13 @@ export default async function ProfilePage({
               autoComplete="off"
               required
               rows={3}
-              className="w-full border rounded px-3 py-2 text-sm"
+              className={textareaClass}
               placeholder="Your answer..."
             />
           </div>
           <button
             type="submit"
-            className="rounded px-4 py-1.5 bg-black text-white text-sm hover:bg-neutral-800"
+            className={primaryButtonClass}
           >
             Add FAQ
           </button>
@@ -654,9 +683,9 @@ export default async function ProfilePage({
       </section>
 
       {/* ── Featured Listings ──────────────────────────────────────────────── */}
-      <section className="space-y-4">
+      <section className="card-section space-y-4 p-6">
         <div>
-          <h2 className="text-lg font-medium border-b border-neutral-100 pb-2">Featured Listings</h2>
+          <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Featured Listings</h2>
           <p className="text-sm text-neutral-500 mt-1">
             Select up to 6 active listings to feature at the top of your profile.
           </p>

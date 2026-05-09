@@ -2,6 +2,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState, useMemo } from "react";
 import maplibregl from "maplibre-gl";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import MapFallback from "@/components/MapFallback";
 import { maplibreSupported } from "@/lib/mapSupport";
 
@@ -29,37 +30,8 @@ export default function LocationPicker({
   const meters = miles > 0 ? Math.round(miles * 1609.34) : 0;
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
-
-  async function search(q: string) {
-    if (!q) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}`;
-    try {
-      const res = await fetch(url, {
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data) && data[0]) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        if (Number.isFinite(lat) && Number.isFinite(lon)) {
-          setPos([lat, lon]);
-          if (mapRef.current) mapRef.current.panTo([lon, lat]);
-          if (markerRef.current) markerRef.current.setLngLat([lon, lat]);
-        }
-      }
-    } catch {
-      // Nominatim is best-effort; users can still click or drag the map.
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -172,29 +144,17 @@ export default function LocationPicker({
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
-        <input
-          ref={searchInputRef}
-          type="text"
-          placeholder="Search address or place"
-          className="flex-1 border border-neutral-200 rounded-md px-3 py-2 text-sm"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              search((e.target as HTMLInputElement).value);
-            }
-          }}
-        />
-        <button
-          type="button"
-          className="border border-neutral-200 rounded-md px-3 py-2 text-sm hover:bg-neutral-50"
-          onClick={() => {
-            search(searchInputRef.current?.value ?? "");
-          }}
-        >
-          Search
-        </button>
-      </div>
+      <AddressAutocomplete
+        id="pickup-location-search"
+        label=""
+        placeholder="Search address or place"
+        onSelect={(address) => {
+          if (address.lat == null || address.lng == null) return;
+          setPos([address.lat, address.lng]);
+          if (mapRef.current) mapRef.current.panTo([address.lng, address.lat]);
+          if (markerRef.current) markerRef.current.setLngLat([address.lng, address.lat]);
+        }}
+      />
 
       {mapUnavailable ? (
         <MapFallback
@@ -218,7 +178,7 @@ export default function LocationPicker({
           <label className="block text-xs mb-1">Latitude</label>
           <input
             readOnly
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm bg-neutral-50"
+            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
             value={pos[0].toFixed(6)}
           />
         </div>
@@ -226,7 +186,7 @@ export default function LocationPicker({
           <label className="block text-xs mb-1">Longitude</label>
           <input
             readOnly
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm bg-neutral-50"
+            className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
             value={pos[1].toFixed(6)}
           />
         </div>

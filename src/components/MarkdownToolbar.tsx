@@ -87,12 +87,12 @@ export default function MarkdownToolbar({
     }`;
 
   return (
-    <div>
+    <div className="overflow-hidden rounded-md border border-neutral-200 bg-white focus-within:ring-2 focus-within:ring-neutral-300">
       {/* Hidden input for formData submission — always contains markdown */}
       {name && <input type="hidden" name={name} value={value} />}
 
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 flex-wrap border border-neutral-300 rounded-t-lg bg-neutral-50 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-neutral-200 bg-neutral-50 px-2 py-1.5">
         <button
           type="button"
           title="Bold"
@@ -294,7 +294,7 @@ export default function MarkdownToolbar({
       </div>
 
       {/* Editor content area */}
-      <div className="border border-t-0 border-neutral-300 rounded-b-lg bg-white">
+      <div className="bg-white">
         <EditorContent editor={editor} />
       </div>
     </div>

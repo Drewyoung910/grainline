@@ -10,7 +10,8 @@ describe("PR E onboarding summary follow-ups", () => {
   it("keeps final summary copy conditional on completing Stripe and listing requirements", () => {
     const wizard = source("src/app/dashboard/onboarding/OnboardingWizard.tsx");
 
-    assert.match(wizard, /const canComplete = chargesEnabled && listingCount > 0/);
+    assert.match(wizard, /const stripeReady = chargesEnabled \|\| completed\.step3/);
+    assert.match(wizard, /const canComplete = stripeReady && listingCount > 0/);
     assert.match(wizard, /canComplete \? "Your shop is ready!" : "Finish your shop setup"/);
     assert.match(wizard, /Complete the remaining items below before opening your dashboard/);
   });

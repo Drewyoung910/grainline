@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
-import { Hammer } from "@/components/icons";
+import { Store } from "@/components/icons";
 import { saveStep1, saveStep2, advanceStep, completeOnboarding } from "./actions";
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
   hasStripeAccount: boolean;
   /** Stripe account is fully onboarded and charges_enabled = true */
   chargesEnabled: boolean;
+  stripeReturn?: boolean;
   listingCount: number;
   latestListing: { id: string; title: string; status: string } | null;
 }
@@ -42,12 +44,15 @@ export default function OnboardingWizard({
   acceptsCustomOrders,
   hasStripeAccount,
   chargesEnabled,
+  stripeReturn = false,
   listingCount,
   latestListing,
 }: Props) {
+  const router = useRouter();
   const [step, setStep] = useState(initialStep);
   const [loading, setLoading] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
+  const [checkingStripe, setCheckingStripe] = useState(stripeReturn && hasStripeAccount && !chargesEnabled);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // Track what was completed during the session (for summary on step 5)
@@ -60,8 +65,35 @@ export default function OnboardingWizard({
 
   const progressPct = Math.round((step / TOTAL_STEPS) * 100);
   const hasListing = listingCount > 0 || completed.step4;
-  const canComplete = chargesEnabled && listingCount > 0;
+  const stripeReady = chargesEnabled || completed.step3;
+  const canComplete = stripeReady && listingCount > 0;
   const latestListingTitle = latestListing?.title?.trim() || "Your latest listing";
+
+  useEffect(() => {
+    if (!hasStripeAccount || chargesEnabled) return;
+    let cancelled = false;
+    async function refreshStripeStatus() {
+      setCheckingStripe(true);
+      try {
+        const res = await fetch("/api/stripe/connect/status", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { chargesEnabled?: boolean };
+        if (cancelled) return;
+        if (data.chargesEnabled) {
+          setCompleted((current) => ({ ...current, step3: true }));
+          router.replace("/dashboard/onboarding", { scroll: false });
+        }
+      } catch {
+        // Status refresh is best effort; the Connect button remains available.
+      } finally {
+        if (!cancelled) setCheckingStripe(false);
+      }
+    }
+    void refreshStripeStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [chargesEnabled, hasStripeAccount, router, stripeReturn]);
 
   async function advance(targetStep: number) {
     setLoading(true);
@@ -152,7 +184,7 @@ export default function OnboardingWizard({
       const res = await fetch("/api/stripe/connect/create", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ returnUrl: "/dashboard/onboarding" }),
+        body: JSON.stringify({ returnUrl: "/dashboard/onboarding?stripe_return=1" }),
       });
       const data = await res.json();
       if (data.url) {
@@ -217,7 +249,7 @@ export default function OnboardingWizard({
         {/* ── Step 0: Welcome ─────────────────────────────────── */}
         {step === 0 && (
           <div className="card-section p-8 text-center">
-            <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
+            <div className="flex justify-center mb-4 text-neutral-600"><Store size={48} /></div>
             <h1 className="text-2xl font-semibold font-display mb-2">
               Welcome to Grainline, {displayName}!
             </h1>
@@ -463,7 +495,7 @@ export default function OnboardingWizard({
               Grainline uses Stripe to send you money when you make a sale. Setup takes 2 minutes.
             </p>
 
-            {chargesEnabled || completed.step3 ? (
+            {stripeReady ? (
               // Fully connected and charges enabled
               <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-4 mb-6">
                 <span className="text-green-600 text-lg">✓</span>
@@ -511,7 +543,13 @@ export default function OnboardingWizard({
               </div>
             )}
 
-            {!chargesEnabled && !completed.step3 && (
+            {checkingStripe && (
+              <div className="mb-4 rounded-md border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600">
+                Checking your Stripe setup...
+              </div>
+            )}
+
+            {!stripeReady && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Stripe must be fully connected before onboarding can be completed or listings can publish.
               </div>
@@ -524,7 +562,7 @@ export default function OnboardingWizard({
             >
               {loading
                 ? "Loading…"
-                : chargesEnabled || completed.step3
+                : stripeReady
                 ? "Continue →"
                 : "Skip for now"}
             </button>
@@ -592,7 +630,7 @@ export default function OnboardingWizard({
         {/* ── Step 5: All set! ─────────────────────────────────── */}
         {step === 5 && (
           <div className="card-section p-8 text-center">
-            <div className="flex justify-center mb-4 text-neutral-600"><Hammer size={48} /></div>
+            <div className="flex justify-center mb-4 text-neutral-600"><Store size={48} /></div>
             <h2 className="text-2xl font-semibold font-display mb-2">
               {canComplete ? "Your shop is ready!" : "Finish your shop setup"}
             </h2>
@@ -632,12 +670,12 @@ export default function OnboardingWizard({
               <div className="flex items-center gap-3 px-4 py-3">
                 <span
                   className={
-                    chargesEnabled || completed.step3
+                    stripeReady
                       ? "text-green-600 font-medium"
                       : "text-neutral-300 font-medium"
                   }
                 >
-                  {chargesEnabled || completed.step3 ? "✓" : "○"}
+                  {stripeReady ? "✓" : "○"}
                 </span>
                 <span className="text-sm flex-1">Stripe payouts connected</span>
                 <button
@@ -645,7 +683,7 @@ export default function OnboardingWizard({
                   onClick={() => setStep(3)}
                   className="rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
                 >
-                  {chargesEnabled ? "View" : "Finish"}
+                  {stripeReady ? "View" : "Finish"}
                 </button>
               </div>
               <div className="flex items-center gap-3 px-4 py-3">
@@ -680,7 +718,7 @@ export default function OnboardingWizard({
               </div>
             </div>
 
-            {latestListing && !chargesEnabled && (
+            {latestListing && !stripeReady && (
               <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
                 Your draft listing is saved. You can keep editing it while Stripe setup is pending.
                 <Link href={`/dashboard/listings/${latestListing.id}/edit`} className="ml-1 font-semibold underline">
@@ -689,7 +727,7 @@ export default function OnboardingWizard({
               </div>
             )}
 
-            {!chargesEnabled && (
+            {!stripeReady && (
               <>
                 <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   Stripe payouts are not fully connected yet. Finish Stripe setup before completing onboarding.
@@ -707,7 +745,7 @@ export default function OnboardingWizard({
 
             <button
               onClick={handleComplete}
-              disabled={loading || !chargesEnabled || listingCount < 1}
+              disabled={loading || !stripeReady || listingCount < 1}
               className="w-full rounded-md bg-amber-500 hover:bg-amber-600 text-white font-medium px-8 py-3 min-h-[44px] disabled:opacity-50 transition-colors"
             >
               {loading ? "Loading…" : "Go to My Dashboard →"}

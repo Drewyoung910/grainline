@@ -17,7 +17,6 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       "src/app/messages/[id]/page.tsx",
       "src/app/dashboard/listings/new/page.tsx",
       "src/app/dashboard/listings/custom/page.tsx",
-      "src/app/dashboard/seller/page.tsx",
       "src/app/dashboard/profile/page.tsx",
       "src/app/dashboard/onboarding/actions.ts",
       "src/lib/blogInput.ts",

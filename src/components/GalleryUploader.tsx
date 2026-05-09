@@ -31,7 +31,7 @@ export default function GalleryUploader({
               <img
                 src={url}
                 alt={`Gallery ${i + 1}`}
-                className="w-full h-20 object-cover border border-neutral-200"
+                className="h-20 w-full rounded-md border border-neutral-200 object-cover"
               />
               <button
                 type="button"

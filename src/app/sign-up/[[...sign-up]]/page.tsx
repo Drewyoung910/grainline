@@ -11,9 +11,10 @@ export default async function Page({
   const postAuthUrl = acceptTermsPathForRedirect(redirectUrl);
 
   return (
-    <main className="min-h-[100svh] flex items-center justify-center p-8">
+    <main className="flex min-h-[100svh] items-center justify-center bg-[#F7F5F0] p-8">
       <SignUp
-        routing="hash"
+        path="/sign-up"
+        routing="path"
         signInUrl={signInPathForRedirect(postAuthUrl)}
         forceRedirectUrl={postAuthUrl}
         fallbackRedirectUrl={postAuthUrl}

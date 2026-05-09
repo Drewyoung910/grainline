@@ -22,9 +22,9 @@ describe("public visibility follow-ups", () => {
 
   it("allows sellers to clear their workshop gallery explicitly", () => {
     const uploader = read("src/components/GalleryUploader.tsx");
-    const sellerPage = read("src/app/dashboard/seller/page.tsx");
+    const profilePage = read("src/app/dashboard/profile/page.tsx");
     assert.match(uploader, /name="galleryImageUrlsTouched"/);
-    assert.match(sellerPage, /galleryImageUrlsTouched \? \{ galleryImageUrls \} : \{\}/);
+    assert.match(profilePage, /galleryImageUrlsTouched \? \{ galleryImageUrls \} : \{\}/);
   });
 
   it("builds saved listing filters with only public active or sold-out listings", () => {

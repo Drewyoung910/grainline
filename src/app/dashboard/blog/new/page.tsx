@@ -33,6 +33,7 @@ export default async function NewBlogPostPage() {
     where: { userId: me.id },
     select: { id: true, listings: { where: { status: "ACTIVE" }, select: { id: true, title: true }, orderBy: { updatedAt: "desc" } } },
   });
+  if (!isStaff && !seller) redirect("/dashboard");
 
   async function createBlogPost(_prevState: unknown, formData: FormData) {
     "use server";
@@ -103,9 +104,13 @@ export default async function NewBlogPostPage() {
 
     const readingTimeMinutes = calculateReadingTime(body);
     const authorType: BlogAuthorType = isStaffUser ? "STAFF" : "MAKER";
-    const sellerProfileId = !isStaffUser
-      ? (await prisma.sellerProfile.findUnique({ where: { userId: author.id }, select: { id: true } }))?.id ?? null
+    const sellerForAuthor = !isStaffUser
+      ? await prisma.sellerProfile.findUnique({ where: { userId: author.id }, select: { id: true } })
       : null;
+    if (!isStaffUser && !sellerForAuthor) {
+      return { ok: false, error: "Create a maker profile before publishing blog posts." };
+    }
+    const sellerProfileId = sellerForAuthor?.id ?? null;
     const uniqueFeaturedListingIds = [...new Set(featuredListingIds)].slice(0, 6);
     const verifiedFeaturedListings = uniqueFeaturedListingIds.length
       ? await prisma.listing.findMany({
@@ -176,14 +181,21 @@ export default async function NewBlogPostPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto p-8">
-      <h1 className="text-2xl font-bold mb-6">New Blog Post</h1>
-      <BlogPostForm
-        action={createBlogPost}
-        isStaff={isStaff}
-        listings={seller?.listings ?? []}
-        submitLabel="Create Post"
-      />
+    <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-8">
+      <div>
+        <h1 className="text-2xl font-semibold font-display">New Blog Post</h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          Share build notes, project stories, and educational posts with buyers.
+        </p>
+      </div>
+      <section className="card-section p-6">
+        <BlogPostForm
+          action={createBlogPost}
+          isStaff={isStaff}
+          listings={seller?.listings ?? []}
+          submitLabel="Create Post"
+        />
+      </section>
     </main>
   );
 }

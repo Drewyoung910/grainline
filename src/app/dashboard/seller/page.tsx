@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import SellerLocationSection from "@/components/SellerLocationSection";
 import VacationModeForm from "./VacationModeForm";
 import BroadcastComposer from "@/components/BroadcastComposer";
-import GalleryUploader from "@/components/GalleryUploader";
+import SellerShipFromAddressFields from "@/components/SellerShipFromAddressFields";
 import ActionForm from "@/components/ActionForm";
 import type { Metadata } from "next";
 
@@ -16,12 +16,15 @@ import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
-import { sanitizeText, sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeText } from "@/lib/sanitize";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
-import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
 import { publicSellerShopPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
-import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
+
+const inputClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+const checkboxClass =
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 
 function shortText(v: unknown, maxLength: number) {
   const s = typeof v === "string" ? sanitizeText(v).slice(0, maxLength).trim() : "";
@@ -42,10 +45,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   const { seller } = await ensureSeller();
 
-  const displayName = sanitizeUserName(String(formData.get("displayName") ?? "").trim());
   const city = shortText(formData.get("city"), 100);
   const state = shortText(formData.get("state"), 50);
-  const bio = cleanSellerProfileRichText(formData.get("bio"), SELLER_PROFILE_TEXT_LIMITS.bio);
 
   // Location (for pickup map)
   const lat = toFloat(formData.get("lat"));
@@ -57,9 +58,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const shippingFlatRateCents = parseMoneyInputToCents(formData.get("shippingFlatRate"));
   const freeShippingOverCents = parseMoneyInputToCents(formData.get("freeShippingOver"));
   const allowLocalPickup = String(formData.get("allowLocalPickup") ?? "") === "on";
-  const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on"; // 👈 NEW
+  const useCalculatedShipping = String(formData.get("useCalculatedShipping") ?? "") === "on";
 
-  if (!displayName) return { ok: false, error: "Display name is required." };
   if (publicMapOptIn) {
     if (!(Number.isFinite(lat as number) && Number.isFinite(lng as number))) {
       return { ok: false, error: "To appear on the public map, set an exact pin location." };
@@ -80,13 +80,6 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   // Preferred carriers
   const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
 
-  // Gallery images
-  const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
-  const galleryImageUrls = filterFirstPartyMediaUrls(
-    formData.getAll("galleryImageUrls").map(String).filter(Boolean),
-    10,
-  );
-
   // Default package (cm / g)
   const defaultPkgLengthCm = toFloat(formData.get("defaultPkgLengthCm"));
   const defaultPkgWidthCm = toFloat(formData.get("defaultPkgWidthCm"));
@@ -101,10 +94,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   await prisma.sellerProfile.update({
     where: { id: seller.id },
     data: {
-      displayName,
       city,
       state,
-      bio,
       lat: lat as number | null,
       lng: lng as number | null,
       radiusMeters: radiusMeters as number | null,
@@ -131,9 +122,6 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       defaultPkgWidthCm,
       defaultPkgHeightCm,
       defaultPkgWeightGrams,
-
-      // gallery
-      ...(galleryImageUrlsTouched ? { galleryImageUrls } : {}),
     },
   });
 
@@ -149,10 +137,15 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   }
 
   revalidatePath(`/seller/${seller.id}`);
-  redirect(`/seller/${seller.id}`);
+  revalidatePath("/dashboard/seller");
+  return { ok: true };
 }
 
-export default async function SellerSettingsPage() {
+export default async function SellerSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stripe_return?: string | string[]; onboarded?: string | string[] }>;
+}) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/seller");
 
@@ -183,6 +176,25 @@ export default async function SellerSettingsPage() {
     }),
   ]);
 
+  const stripeParams = await searchParams;
+  let currentRow = row;
+  if ((stripeParams.stripe_return != null || stripeParams.onboarded != null) && currentRow?.stripeAccountId) {
+    try {
+      const { stripe } = await import("@/lib/stripe");
+      const account = await stripe.accounts.retrieve(currentRow.stripeAccountId);
+      const chargesEnabled = account.charges_enabled ?? false;
+      if (chargesEnabled !== currentRow.chargesEnabled) {
+        await prisma.sellerProfile.update({
+          where: { id: seller.id },
+          data: { chargesEnabled },
+        });
+        currentRow = { ...currentRow, chargesEnabled };
+      }
+    } catch (error) {
+      console.error("[stripe-connect] Failed to refresh seller account status:", error);
+    }
+  }
+
   const prefs = (userRow?.notificationPreferences as Record<string, boolean>) ?? {};
   const SELLER_DEFAULT_OFF: NotificationPreferenceKey[] = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY", "EMAIL_NEW_FOLLOWER"];
   function isEnabled(type: NotificationPreferenceKey) {
@@ -195,7 +207,7 @@ export default async function SellerSettingsPage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto p-8 space-y-6">
+    <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-8">
       <h1 className="text-2xl font-semibold font-display">Shop Settings</h1>
 
       {/* Payouts & Banking */}
@@ -215,7 +227,7 @@ export default async function SellerSettingsPage() {
             </p>
           </div>
         )}
-        {row?.chargesEnabled && row?.stripeAccountId ? (
+        {currentRow?.chargesEnabled && currentRow?.stripeAccountId ? (
           <div className="space-y-3">
             <p className="text-sm text-green-700 font-medium">✓ Stripe Connected</p>
             <StripeLoginButton hasStripeAccount={true} />
@@ -233,7 +245,7 @@ export default async function SellerSettingsPage() {
               </div>
             )}
           </div>
-        ) : row?.stripeAccountId && !row?.chargesEnabled ? (
+        ) : currentRow?.stripeAccountId && !currentRow?.chargesEnabled ? (
           <div className="space-y-3">
             <p className="text-sm text-amber-700 font-medium">⚠ Stripe setup incomplete</p>
             <p className="text-sm text-neutral-500">
@@ -254,31 +266,20 @@ export default async function SellerSettingsPage() {
       {/* Vacation Mode */}
       <VacationModeForm
         sellerId={seller.id}
-        vacationMode={row?.vacationMode ?? false}
-        vacationReturnDate={row?.vacationReturnDate ?? null}
-        vacationMessage={row?.vacationMessage ?? null}
+        vacationMode={currentRow?.vacationMode ?? false}
+        vacationReturnDate={currentRow?.vacationReturnDate ?? null}
+        vacationMessage={currentRow?.vacationMessage ?? null}
       />
 
-      <ActionForm action={updateSellerProfile} className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Display name</label>
-          <input
-            name="displayName"
-            required
-            autoComplete="name"
-            defaultValue={row?.displayName ?? ""}
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
-          />
-        </div>
-
+      <ActionForm action={updateSellerProfile} className="card-section space-y-6 p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">City</label>
             <input
               name="city"
               autoComplete="address-level2"
-              defaultValue={row?.city ?? ""}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              defaultValue={currentRow?.city ?? ""}
+              className={inputClass}
             />
           </div>
           <div>
@@ -286,8 +287,8 @@ export default async function SellerSettingsPage() {
             <input
               name="state"
               autoComplete="address-level1"
-              defaultValue={row?.state ?? ""}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              defaultValue={currentRow?.state ?? ""}
+              className={inputClass}
             />
           </div>
         </div>
@@ -296,10 +297,10 @@ export default async function SellerSettingsPage() {
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-2">Pickup location</label>
           <SellerLocationSection
-            defaultLat={row?.lat != null ? Number(row.lat) : null}
-            defaultLng={row?.lng != null ? Number(row.lng) : null}
-            defaultRadiusMeters={row?.radiusMeters ?? null}
-            defaultPublicMapOptIn={row?.publicMapOptIn ?? false}
+            defaultLat={currentRow?.lat != null ? Number(currentRow.lat) : null}
+            defaultLng={currentRow?.lng != null ? Number(currentRow.lng) : null}
+            defaultRadiusMeters={currentRow?.radiusMeters ?? null}
+            defaultPublicMapOptIn={currentRow?.publicMapOptIn ?? false}
           />
           <p className="mt-2 text-xs text-neutral-500">
             Drag the pin or click the map to set your pickup spot.
@@ -318,8 +319,8 @@ export default async function SellerSettingsPage() {
               pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
               name="shippingFlatRate"
               autoComplete="off"
-              defaultValue={row?.shippingFlatRateCents != null ? (row.shippingFlatRateCents / 100).toFixed(2) : ""}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              defaultValue={currentRow?.shippingFlatRateCents != null ? (currentRow.shippingFlatRateCents / 100).toFixed(2) : ""}
+              className={inputClass}
               placeholder="e.g. 7.00"
             />
           </div>
@@ -332,8 +333,8 @@ export default async function SellerSettingsPage() {
               pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
               name="freeShippingOver"
               autoComplete="off"
-              defaultValue={row?.freeShippingOverCents != null ? (row.freeShippingOverCents / 100).toFixed(2) : ""}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              defaultValue={currentRow?.freeShippingOverCents != null ? (currentRow.freeShippingOverCents / 100).toFixed(2) : ""}
+              className={inputClass}
               placeholder="e.g. 50.00"
             />
           </div>
@@ -343,7 +344,8 @@ export default async function SellerSettingsPage() {
               id="allowLocalPickup"
               name="allowLocalPickup"
               type="checkbox"
-              defaultChecked={row?.allowLocalPickup ?? false}
+              defaultChecked={currentRow?.allowLocalPickup ?? false}
+              className={checkboxClass}
             />
             <label htmlFor="allowLocalPickup" className="text-sm">
               Allow local pickup
@@ -355,7 +357,8 @@ export default async function SellerSettingsPage() {
               id="useCalculatedShipping"
               name="useCalculatedShipping"
               type="checkbox"
-              defaultChecked={row?.useCalculatedShipping ?? false}
+              defaultChecked={currentRow?.useCalculatedShipping ?? false}
+              className={checkboxClass}
             />
             <label htmlFor="useCalculatedShipping" className="text-sm">
               Use calculated shipping (Shippo)
@@ -372,8 +375,8 @@ export default async function SellerSettingsPage() {
                   type="checkbox"
                   name="preferredCarriers"
                   value={c}
-                  defaultChecked={row?.preferredCarriers?.includes(c)}
-                  className="accent-neutral-900"
+                  defaultChecked={currentRow?.preferredCarriers?.includes(c)}
+                  className={checkboxClass}
                 />
                 {c}
               </label>
@@ -381,25 +384,9 @@ export default async function SellerSettingsPage() {
           </div>
         </div>
 
-        {/* 🏷️ Ship-from address */}
         <div className="border-t border-neutral-100 pt-4 space-y-3">
           <h2 className="text-lg font-semibold font-display">Ship from address</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input name="shipFromName" autoComplete="name" placeholder="Sender name"
-                   defaultValue={row?.shipFromName ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromLine1" autoComplete="address-line1" placeholder="Address line 1 *"
-                   defaultValue={row?.shipFromLine1 ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm md:col-span-2" />
-            <input name="shipFromLine2" autoComplete="address-line2" placeholder="Address line 2"
-                   defaultValue={row?.shipFromLine2 ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm md:col-span-2" />
-            <input name="shipFromCity" autoComplete="address-level2" placeholder="City *"
-                   defaultValue={row?.shipFromCity ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromState" autoComplete="address-level1" placeholder="State * (e.g., TX)"
-                   defaultValue={row?.shipFromState ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromPostal" autoComplete="postal-code" placeholder="Postal code *"
-                   defaultValue={row?.shipFromPostal ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="shipFromCountry" autoComplete="country" placeholder="Country *"
-                   defaultValue={row?.shipFromCountry ?? "US"} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-          </div>
+          <SellerShipFromAddressFields defaults={currentRow ?? {}} />
         </div>
 
         {/* Default package (cm / g) */}
@@ -408,45 +395,20 @@ export default async function SellerSettingsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="defaultPkgLengthCm" type="number" inputMode="decimal" step="0.1" placeholder="Length (cm)"
                    autoComplete="off"
-                   defaultValue={row?.defaultPkgLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={currentRow?.defaultPkgLengthCm ?? ""} className={inputClass} />
             <input name="defaultPkgWidthCm" type="number" inputMode="decimal" step="0.1" placeholder="Width (cm)"
                    autoComplete="off"
-                   defaultValue={row?.defaultPkgWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={currentRow?.defaultPkgWidthCm ?? ""} className={inputClass} />
             <input name="defaultPkgHeightCm" type="number" inputMode="decimal" step="0.1" placeholder="Height (cm)"
                    autoComplete="off"
-                   defaultValue={row?.defaultPkgHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={currentRow?.defaultPkgHeightCm ?? ""} className={inputClass} />
             <input name="defaultPkgWeightGrams" type="number" inputMode="numeric" step="1" placeholder="Weight (g)"
                    autoComplete="off"
-                   defaultValue={row?.defaultPkgWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={currentRow?.defaultPkgWeightGrams ?? ""} className={inputClass} />
           </div>
           <p className="text-xs text-neutral-500">
             These defaults are used for live carrier quotes when a listing doesn’t specify its own packaged size/weight.
           </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Bio</label>
-          <textarea
-            name="bio"
-            autoComplete="off"
-            rows={5}
-            defaultValue={row?.bio ?? ""}
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
-          />
-        </div>
-
-        {/* Workshop Gallery */}
-        <div className="border-t border-neutral-100 pt-4 space-y-3">
-          <div>
-            <h2 className="text-lg font-semibold font-display">Workshop Gallery</h2>
-            <p className="text-sm text-neutral-500 mt-0.5">
-              Show buyers your workspace and craftsmanship (up to 8 photos)
-            </p>
-          </div>
-          <GalleryUploader
-            initialUrls={row?.galleryImageUrls ?? []}
-            maxImages={8}
-          />
         </div>
 
         <button type="submit" className="rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800">

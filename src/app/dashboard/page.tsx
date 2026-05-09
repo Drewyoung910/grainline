@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { ListingStatus } from "@prisma/client";
 import InlineActionButton from "@/components/InlineActionButton";
-import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Sparkles, Bell, BarChart, Eye, Heart } from "@/components/icons";
+import { Store, Package, Tag, MessageCircle, User, Grid, Edit, Shield, Bell, BarChart, Eye, Heart } from "@/components/icons";
 import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { archiveListingBlockReason, hideListingBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
@@ -336,8 +336,8 @@ export default async function DashboardPage({
                 href="/dashboard/verification"
                 className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 !border-indigo-300 !bg-indigo-50 px-4 py-3 sm:py-2 text-sm font-medium text-indigo-800 hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
               >
-                <Sparkles size={20} className="sm:hidden shrink-0" />
-                <Sparkles size={16} className="hidden sm:block shrink-0" />
+                <Shield size={20} className="sm:hidden shrink-0" />
+                <Shield size={16} className="hidden sm:block shrink-0" />
                 Guild Master
               </Link>
             ) : guildLevel === "GUILD_MEMBER" ? (
@@ -345,8 +345,8 @@ export default async function DashboardPage({
                 href="/dashboard/verification"
                 className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 !border-amber-300 !bg-amber-50 px-4 py-3 sm:py-2 text-sm font-medium text-amber-800 hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
               >
-                <Sparkles size={20} className="sm:hidden shrink-0" />
-                <Sparkles size={16} className="hidden sm:block shrink-0" />
+                <Shield size={20} className="sm:hidden shrink-0" />
+                <Shield size={16} className="hidden sm:block shrink-0" />
                 Guild Member
               </Link>
             ) : (
@@ -354,8 +354,8 @@ export default async function DashboardPage({
                 href="/dashboard/verification"
                 className="card-section flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium hover:shadow-md transition-shadow min-h-[56px] sm:min-h-0 text-center sm:text-left"
               >
-                <Sparkles size={20} className="sm:hidden shrink-0" />
-                <Sparkles size={16} className="hidden sm:block shrink-0" />
+                <Shield size={20} className="sm:hidden shrink-0" />
+                <Shield size={16} className="hidden sm:block shrink-0" />
                 {verification?.status === "PENDING" ? "Guild Badge Pending" : "Apply for Guild Badge"}
               </Link>
             )}

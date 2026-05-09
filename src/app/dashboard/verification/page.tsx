@@ -12,6 +12,19 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 const REQUIRED_LISTINGS = 5;
 const REQUIRED_SALES_CENTS = 25000; // $250
 const REQUIRED_ACCOUNT_DAYS = 30;
+const GUILD_MASTER_PREVIEW_REQUIREMENTS = [
+  "4.5+ star average rating",
+  "25+ verified reviews",
+  "95% on-time shipping",
+  "90% message response rate",
+  "6+ months on Grainline",
+  "$1,000 in completed sales",
+  "No open disputes",
+];
+const inputClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+const checkboxClass =
+  "mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 
 function normalizeHttpsUrl(input: string): string | null {
   const trimmed = input.trim();
@@ -265,9 +278,9 @@ export default async function VerificationPage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto p-8 space-y-10">
+    <main className="mx-auto max-w-2xl space-y-10 px-4 py-8 sm:px-8">
       <div>
-        <h1 className="text-2xl font-bold">Guild Verification Program</h1>
+        <h1 className="text-2xl font-semibold font-display">Guild Verification Program</h1>
         <p className="text-neutral-600 mt-1 text-sm">
           Guild badges appear on your profile and listings to signal trust and performance to buyers.
         </p>
@@ -404,7 +417,7 @@ export default async function VerificationPage() {
                     rows={4}
                     defaultValue={verification?.craftDescription ?? ""}
                     placeholder="Describe your woodworking practice — what you make, your techniques, and what makes your work special."
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                    className={inputClass}
                   />
                   <p className="text-xs text-neutral-500">Max 500 characters</p>
                 </div>
@@ -424,7 +437,7 @@ export default async function VerificationPage() {
                       max={100}
                       defaultValue={verification?.yearsExperience ?? ""}
                       placeholder="0"
-                      className="w-24 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                      className={`${inputClass} w-24`}
                     />
                     <span className="text-sm text-neutral-600">years</span>
                   </div>
@@ -440,12 +453,12 @@ export default async function VerificationPage() {
                     type="url"
                     defaultValue={verification?.portfolioUrl ?? ""}
                     placeholder="https://instagram.com/yourhandle"
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                    className={inputClass}
                   />
                 </div>
 
                 <div className="flex items-start gap-2">
-                  <input id="confirmHandmade" name="confirmHandmade" type="checkbox" required className="mt-0.5" />
+                  <input id="confirmHandmade" name="confirmHandmade" type="checkbox" required className={checkboxClass} />
                   <label htmlFor="confirmHandmade" className="text-sm text-neutral-700">
                     I confirm all items I list are handmade by me{" "}
                     <span className="text-red-500">*</span>
@@ -454,7 +467,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-lg bg-amber-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-700"
+                  className="rounded-md bg-amber-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-700"
                 >
                   Apply for Guild Member Badge
                 </button>
@@ -676,7 +689,7 @@ export default async function VerificationPage() {
                     maxLength={500}
                     rows={4}
                     placeholder="Tell us about your business — volume, consistency, how you maintain quality at scale."
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                    className={inputClass}
                   />
                 </div>
 
@@ -690,12 +703,12 @@ export default async function VerificationPage() {
                     type="url"
                     defaultValue={verification?.portfolioUrl ?? ""}
                     placeholder="https://instagram.com/yourhandle"
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                    className={inputClass}
                   />
                 </div>
 
                 <div className="flex items-start gap-2">
-                  <input id="confirmStandards" name="confirmStandards" type="checkbox" required className="mt-0.5" />
+                  <input id="confirmStandards" name="confirmStandards" type="checkbox" required className={checkboxClass} />
                   <label htmlFor="confirmStandards" className="text-sm text-neutral-700">
                     I agree to maintain Grainline&apos;s performance standards and understand my badge
                     may be revoked if I fall below them <span className="text-red-500">*</span>
@@ -704,7 +717,7 @@ export default async function VerificationPage() {
 
                 <button
                   type="submit"
-                  className="rounded-lg bg-indigo-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-600"
+                  className="rounded-md bg-indigo-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-600"
                 >
                   Apply for Guild Master Badge
                 </button>
@@ -712,6 +725,37 @@ export default async function VerificationPage() {
               )}
             </>
           )}
+        </section>
+      )}
+
+      {!showSectionB && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Guild Master</h2>
+            <GuildBadge level="GUILD_MASTER" showLabel={true} size={28} />
+          </div>
+          <p className="text-sm text-neutral-600">
+            Our highest tier unlocks after Guild Member approval and sustained marketplace performance.
+          </p>
+          <div className="card-section border-dashed p-5 space-y-3 opacity-90">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-neutral-800">Future requirements</p>
+              <span className="rounded-full border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-500">
+                Locked
+              </span>
+            </div>
+            <ul className="space-y-2 text-sm text-neutral-700">
+              {GUILD_MASTER_PREVIEW_REQUIREMENTS.map((requirement) => (
+                <li key={requirement} className="flex items-center gap-2">
+                  <span className="text-neutral-300 font-medium">○</span>
+                  <span>{requirement}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="border-t border-neutral-100 pt-3 text-xs text-neutral-500">
+              Available after Guild Member approval.
+            </p>
+          </div>
         </section>
       )}
     </main>

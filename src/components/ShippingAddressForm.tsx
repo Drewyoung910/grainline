@@ -1,39 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { STATE_CODES, US_STATES } from "@/lib/usStates";
 import type { ShippingAddress } from "@/types/checkout";
 
 export type { ShippingAddress };
-
-const US_STATES = [
-  { code: "AL", name: "Alabama" }, { code: "AK", name: "Alaska" },
-  { code: "AZ", name: "Arizona" }, { code: "AR", name: "Arkansas" },
-  { code: "CA", name: "California" }, { code: "CO", name: "Colorado" },
-  { code: "CT", name: "Connecticut" }, { code: "DE", name: "Delaware" },
-  { code: "FL", name: "Florida" }, { code: "GA", name: "Georgia" },
-  { code: "HI", name: "Hawaii" }, { code: "ID", name: "Idaho" },
-  { code: "IL", name: "Illinois" }, { code: "IN", name: "Indiana" },
-  { code: "IA", name: "Iowa" }, { code: "KS", name: "Kansas" },
-  { code: "KY", name: "Kentucky" }, { code: "LA", name: "Louisiana" },
-  { code: "ME", name: "Maine" }, { code: "MD", name: "Maryland" },
-  { code: "MA", name: "Massachusetts" }, { code: "MI", name: "Michigan" },
-  { code: "MN", name: "Minnesota" }, { code: "MS", name: "Mississippi" },
-  { code: "MO", name: "Missouri" }, { code: "MT", name: "Montana" },
-  { code: "NE", name: "Nebraska" }, { code: "NV", name: "Nevada" },
-  { code: "NH", name: "New Hampshire" }, { code: "NJ", name: "New Jersey" },
-  { code: "NM", name: "New Mexico" }, { code: "NY", name: "New York" },
-  { code: "NC", name: "North Carolina" }, { code: "ND", name: "North Dakota" },
-  { code: "OH", name: "Ohio" }, { code: "OK", name: "Oklahoma" },
-  { code: "OR", name: "Oregon" }, { code: "PA", name: "Pennsylvania" },
-  { code: "RI", name: "Rhode Island" }, { code: "SC", name: "South Carolina" },
-  { code: "SD", name: "South Dakota" }, { code: "TN", name: "Tennessee" },
-  { code: "TX", name: "Texas" }, { code: "UT", name: "Utah" },
-  { code: "VT", name: "Vermont" }, { code: "VA", name: "Virginia" },
-  { code: "WA", name: "Washington" }, { code: "WV", name: "West Virginia" },
-  { code: "WI", name: "Wisconsin" }, { code: "WY", name: "Wyoming" },
-] as const;
-
-const STATE_CODES = new Set(US_STATES.map((s) => s.code));
 
 type Props = {
   onConfirm: (address: ShippingAddress) => void;
@@ -149,6 +121,18 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         {errors.name && <p className="text-sm text-red-600 mt-1">{errors.name}</p>}
       </div>
 
+      <AddressAutocomplete
+        id="sa-address-search"
+        label="Find address"
+        placeholder="Start typing a shipping address"
+        onSelect={(address) => {
+          if (address.line1) setLine1(address.line1);
+          if (address.city) setCity(address.city);
+          if (address.state) setState(address.state);
+          if (address.postalCode) setPostalCode(address.postalCode);
+        }}
+      />
+
       {/* Address line 1 */}
       <div>
         <label htmlFor="sa-line1" className="block text-sm font-medium text-neutral-700 mb-1">Address</label>
@@ -247,7 +231,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             type="checkbox"
             checked={saveAddress}
             onChange={(e) => setSaveAddress(e.target.checked)}
-            className="accent-neutral-900"
+            className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300"
           />
           Save this address for future orders
         </label>

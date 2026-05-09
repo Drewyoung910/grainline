@@ -10,8 +10,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stripe_return?: string | string[] }>;
+}) {
   const { seller } = await ensureSeller();
+  const params = await searchParams;
 
   const sp = await prisma.sellerProfile.findUnique({
     where: { id: seller.id },
@@ -75,6 +80,7 @@ export default async function OnboardingPage() {
       acceptsCustomOrders={sp.acceptsCustomOrders}
       hasStripeAccount={hasStripeAccount}
       chargesEnabled={chargesEnabled}
+      stripeReturn={params.stripe_return != null}
       listingCount={sp._count.listings}
       latestListing={sp.listings[0] ?? null}
     />

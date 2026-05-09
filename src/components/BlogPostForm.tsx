@@ -10,6 +10,12 @@ import type { BlogPostType } from "@prisma/client";
 
 const STAFF_TYPES: BlogPostType[] = ["STANDARD", "MAKER_SPOTLIGHT", "BEHIND_THE_BUILD", "GIFT_GUIDE", "WOOD_EDUCATION"];
 const MAKER_TYPES: BlogPostType[] = ["STANDARD", "BEHIND_THE_BUILD"];
+const inputClass =
+  "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+const selectClass =
+  "rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
+const checkboxClass =
+  "h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300";
 
 type Listing = { id: string; title: string };
 
@@ -55,7 +61,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={inputClass}
           placeholder="Enter post title"
         />
         <p className="text-xs text-neutral-500">Slug preview: <code className="bg-neutral-100 px-1 rounded">/blog/{slugPreview}</code></p>
@@ -67,7 +73,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
         <select
           name="type"
           defaultValue={defaultValues.type ?? "STANDARD"}
-          className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={selectClass}
         >
           {allowedTypes.map((t) => (
             <option key={t} value={t}>{BLOG_TYPE_LABELS[t]}</option>
@@ -82,20 +88,21 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
         {coverImageUrl ? (
           <div className="relative inline-block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={coverImageUrl} alt="Cover" className="h-40 w-64 object-cover rounded-lg border" />
+            <img src={coverImageUrl} alt="Cover" className="h-40 w-64 rounded-md border border-neutral-200 object-cover" />
             <button
               type="button"
               onClick={() => setCoverImageUrl("")}
-              className="absolute top-1 right-1 rounded-full bg-white border px-1.5 text-xs hover:bg-red-50"
+              className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white text-xs hover:bg-red-50"
+              aria-label="Remove cover image"
             >
-              ✕
+              ×
             </button>
           </div>
         ) : (
           <UploadButton
             endpoint="galleryImage"
             appearance={{
-              button: "bg-neutral-900 text-white rounded px-3 py-2 text-sm hover:bg-neutral-700",
+              button: "rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700",
               container: "inline-block",
               allowedContent: "hidden",
             }}
@@ -117,7 +124,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           type="url"
           defaultValue={defaultValues.videoUrl ?? ""}
           placeholder="YouTube or Vimeo URL"
-          className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={inputClass}
         />
       </div>
 
@@ -150,7 +157,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           value={excerpt}
           onChange={(e) => setExcerpt(e.target.value)}
           placeholder="Short summary shown in blog listings"
-          className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={inputClass}
         />
         <p className="text-xs text-neutral-500">{excerpt.length}/200</p>
       </div>
@@ -165,7 +172,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           value={metaDescription}
           onChange={(e) => setMetaDescription(e.target.value)}
           placeholder="SEO description (defaults to excerpt if blank)"
-          className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={inputClass}
         />
         <p className="text-xs text-neutral-500">{metaDescription.length}/160</p>
       </div>
@@ -178,7 +185,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
           type="text"
           defaultValue={defaultValues.tags ?? ""}
           placeholder="e.g. walnut, dining table, finishing"
-          className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={inputClass}
         />
       </div>
 
@@ -186,7 +193,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
       {listings.length > 0 && (
         <div className="space-y-2">
           <label className="block text-sm font-medium">Feature listings in this post</label>
-          <div className="space-y-1.5 max-h-48 overflow-y-auto border rounded-lg p-3">
+          <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-neutral-200 bg-white p-3">
             {listings.map((l) => (
               <label key={l.id} className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -194,7 +201,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
                   name="featuredListingIds"
                   value={l.id}
                   defaultChecked={defaultValues.featuredListingIds?.includes(l.id)}
-                  className="rounded"
+                  className={checkboxClass}
                 />
                 {l.title}
               </label>
@@ -209,7 +216,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
         <select
           name="status"
           defaultValue={defaultValues.status ?? "DRAFT"}
-          className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={selectClass}
         >
           <option value="DRAFT">Draft</option>
           <option value="PUBLISHED">Published</option>
@@ -217,7 +224,7 @@ export default function BlogPostForm({ action, isStaff, listings, submitLabel = 
         </select>
       </div>
 
-      <SubmitButton className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-60">
+      <SubmitButton className="rounded-md bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-60">
         {submitLabel}
       </SubmitButton>
     </ActionForm>
