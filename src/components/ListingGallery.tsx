@@ -46,6 +46,14 @@ export default function ListingGallery({
     setLightboxOpen(true);
   }
 
+  function showPreviousPhoto() {
+    setActiveIndex((i) => (i - 1 + photos.length) % photos.length);
+  }
+
+  function showNextPhoto() {
+    setActiveIndex((i) => (i + 1) % photos.length);
+  }
+
   // Lightbox swipe handlers
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.targetTouches[0].clientX;
@@ -76,15 +84,22 @@ export default function ListingGallery({
   return (
     <>
       {/* Main photo */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
-        className="relative block w-full overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        className="relative block w-full touch-pan-y overflow-hidden rounded-lg aspect-[4/5] cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
         onClick={() => {
           if (mainSwiped.current) { mainSwiped.current = false; return; }
           openLightbox(activeIndex);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openLightbox(activeIndex);
+          }
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -99,6 +114,48 @@ export default function ListingGallery({
             {activeIndex + 1} / {photos.length}
           </div>
         )}
+        {photos.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous photo"
+              onClick={(event) => {
+                event.stopPropagation();
+                showPreviousPhoto();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  showPreviousPhoto();
+                }
+              }}
+              className="absolute left-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-3xl leading-none text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              style={{ borderRadius: "9999px" }}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label="Next photo"
+              onClick={(event) => {
+                event.stopPropagation();
+                showNextPhoto();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  showNextPhoto();
+                }
+              }}
+              className="absolute right-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-3xl leading-none text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              style={{ borderRadius: "9999px" }}
+            >
+              ›
+            </button>
+          </>
+        )}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
           <div className="bg-black bg-opacity-30 rounded-full p-2">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -106,7 +163,7 @@ export default function ListingGallery({
             </svg>
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Thumbnails */}
       {photos.length > 1 && (
@@ -137,7 +194,7 @@ export default function ListingGallery({
           aria-modal="true"
           aria-label="Image lightbox"
           tabIndex={-1}
-          className="fixed inset-0 z-[9999] bg-black bg-opacity-90 flex items-center justify-center"
+          className="fixed inset-0 z-[9999] flex touch-pan-y items-center justify-center bg-black bg-opacity-90"
           onClick={() => setLightboxOpen(false)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}

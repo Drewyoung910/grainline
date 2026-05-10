@@ -24,7 +24,7 @@ describe("public visibility follow-ups", () => {
     const uploader = read("src/components/GalleryUploader.tsx");
     const profilePage = read("src/app/dashboard/profile/page.tsx");
     assert.match(uploader, /name="galleryImageUrlsTouched"/);
-    assert.match(profilePage, /galleryImageUrlsTouched \? \{ galleryImageUrls \} : \{\}/);
+    assert.match(profilePage, /galleryImageUrlsTouched \? \{ galleryImageUrls, galleryAltTexts \} : \{\}/);
   });
 
   it("builds saved listing filters with only public active or sold-out listings", () => {

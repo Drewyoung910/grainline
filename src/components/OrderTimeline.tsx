@@ -21,6 +21,9 @@ type Props = {
   trackingCarrier?: string | null;
   refundedAt?: string | Date | null;
   refundAmountCents?: number | null;
+  estimatedDeliveryDate?: string | Date | null;
+  processingTimeMinDays?: number | null;
+  processingTimeMaxDays?: number | null;
 };
 
 function carrierTrackingUrl(
@@ -49,11 +52,28 @@ function fmtDate(d: string | Date): string {
   });
 }
 
+function fmtDateOnly(d: string | Date): string {
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function fmtMoney(cents: number) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
   });
+}
+
+function processingWindowDetail(min?: number | null, max?: number | null): string | null {
+  if (typeof min === "number" && typeof max === "number") {
+    return min === max ? `Ships in ${min} days` : `Ships in ${min}-${max} days`;
+  }
+  if (typeof min === "number") return `Ships in ${min}+ days`;
+  if (typeof max === "number") return `Ships within ${max} days`;
+  return null;
 }
 
 function buildSteps(props: Props): Step[] {
@@ -67,6 +87,9 @@ function buildSteps(props: Props): Step[] {
     fulfillmentStatus,
     refundedAt,
     refundAmountCents,
+    estimatedDeliveryDate,
+    processingTimeMinDays,
+    processingTimeMaxDays,
   } = props;
 
   const isPickup = fulfillmentMethod === "PICKUP";
@@ -74,6 +97,7 @@ function buildSteps(props: Props): Step[] {
   const orderPlaced: Step = {
     label: "Order placed",
     date: placedAt,
+    detail: processingWindowDetail(processingTimeMinDays, processingTimeMaxDays),
     completed: true,
     current: false,
   };
@@ -113,6 +137,7 @@ function buildSteps(props: Props): Step[] {
     const shippedStep: Step = {
       label: "Shipped",
       date: shippedAt,
+      detail: estimatedDeliveryDate ? `Estimated delivery: ${fmtDateOnly(estimatedDeliveryDate)}` : null,
       completed: shippedCompleted,
       current: !shippedCompleted && fulfillmentStatus === "PENDING",
     };

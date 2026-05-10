@@ -6,13 +6,12 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { createNotification } from "@/lib/notifications";
+import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import {
-  renderOrderConfirmedBuyerEmail,
-  renderOrderConfirmedSellerEmail,
-  renderFirstSaleCongratsEmail,
+  sendOrderConfirmedBuyer,
+  sendOrderConfirmedSeller,
+  sendFirstSaleCongrats,
 } from "@/lib/email";
-import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
@@ -366,42 +365,52 @@ export async function POST(req: Request) {
     };
 
     if (order.buyer?.email) {
-      await enqueueEmailOutbox({
-        ...renderOrderConfirmedBuyerEmail({
+      try {
+        await sendOrderConfirmedBuyer({
           order: orderSummary,
           buyer: { name: order.buyer.name, email: order.buyer.email },
           seller: { displayName: sellerName },
           items: emailItems,
-        }),
-        userId: order.buyerId ?? undefined,
-        dedupKey: `order-confirmed-buyer:${order.id}`,
-      });
+        });
+      } catch (error) {
+        Sentry.captureException(error, {
+          tags: { source: "stripe_webhook_email", email: "order_confirmed_buyer" },
+          extra: { orderId: order.id, buyerId: order.buyerId },
+        });
+      }
     }
 
     if (sellerUserId && seller?.user?.email) {
       const sellerOrderCount = await prisma.order.count({
         where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
       });
-      await enqueueEmailOutbox({
-        ...renderOrderConfirmedSellerEmail({
-          order: orderSummary,
-          buyer: { name: buyerDisplayName },
-          seller: { displayName: sellerName, email: seller.user.email },
-          items: emailItems,
-        }),
-        userId: sellerUserId,
-        preferenceKey: "EMAIL_NEW_ORDER",
-        dedupKey: `order-confirmed-seller:${order.id}`,
-      });
+      if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
+        try {
+          await sendOrderConfirmedSeller({
+            order: orderSummary,
+            buyer: { name: buyerDisplayName },
+            seller: { displayName: sellerName, email: seller.user.email },
+            items: emailItems,
+          });
+        } catch (error) {
+          Sentry.captureException(error, {
+            tags: { source: "stripe_webhook_email", email: "order_confirmed_seller" },
+            extra: { orderId: order.id, sellerUserId },
+          });
+        }
+      }
       if (sellerOrderCount === 1) {
-        await enqueueEmailOutbox({
-          ...renderFirstSaleCongratsEmail({
+        try {
+          await sendFirstSaleCongrats({
             seller: { displayName: sellerName, email: seller.user.email },
             order: orderSummary,
-          }),
-          userId: sellerUserId,
-          dedupKey: `first-sale:${sellerUserId}:${order.id}`,
-        });
+          });
+        } catch (error) {
+          Sentry.captureException(error, {
+            tags: { source: "stripe_webhook_email", email: "first_sale_congrats" },
+            extra: { orderId: order.id, sellerUserId },
+          });
+        }
       }
     }
   }

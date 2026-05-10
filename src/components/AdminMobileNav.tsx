@@ -8,7 +8,7 @@ import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star, File } from
 const NAV_ITEMS = [
   { href: "/admin/orders",       label: "Orders",     Icon: Package },
   { href: "/admin/cases",        label: "Cases",      Icon: AlertTriangle, badgeKey: "openCaseCount" as const },
-  { href: "/admin/flagged",      label: "Flagged",    Icon: AlertTriangle },
+  { href: "/admin/flagged",      label: "Needs Review", Icon: AlertTriangle },
   { href: "/admin/verification", label: "Verify",     Icon: Shield, badgeKey: "pendingVerificationCount" as const },
   { href: "/admin/blog",         label: "Blog",       Icon: Edit, badgeKey: "pendingCommentCount" as const },
   { href: "/admin/broadcasts",   label: "Broadcasts", Icon: Rss },

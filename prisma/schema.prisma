@@ -200,6 +200,7 @@ model SellerProfile {
   shippingPolicy            String?    @db.VarChar(2000)
   featuredListingIds        String[]   @default([])
   galleryImageUrls          String[]   @default([])
+  galleryAltTexts           String[]   @default([])
   isVerifiedMaker           Boolean    @default(false)
   verifiedAt                DateTime?
   guildLevel                GuildLevel @default(NONE)

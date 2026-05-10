@@ -545,6 +545,7 @@ export default async function SellerPublicPage({
             <SellerGallery
               workshopImageUrl={seller.workshopImageUrl}
               images={seller.galleryImageUrls ?? []}
+              imageAltTexts={seller.galleryAltTexts ?? []}
             />
           </section>
         )}

@@ -140,6 +140,12 @@ export default async function SellerOrderDetailPage({
 
   const status = order.fulfillmentStatus ?? "PENDING";
   const method = order.fulfillmentMethod ?? (isPickup ? "PICKUP" : "SHIPPING");
+  const processingMins = myItems
+    .map((item) => item.listing.processingTimeMinDays)
+    .filter((value): value is number => typeof value === "number");
+  const processingMaxes = myItems
+    .map((item) => item.listing.processingTimeMaxDays)
+    .filter((value): value is number => typeof value === "number");
 
   const activeCase = order.case;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
@@ -203,12 +209,15 @@ export default async function SellerOrderDetailPage({
         fulfillmentStatus={status}
         trackingNumber={order.trackingNumber}
         trackingCarrier={order.trackingCarrier}
+        estimatedDeliveryDate={order.estimatedDeliveryDate}
+        processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
+        processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
         refundAmountCents={hasRefund ? refundCents : null}
       />
 
       {order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Shipping address or rate changed during Checkout. Verify shipping before fulfillment.
+          This order needs staff review before fulfillment. Check the review note or contact support before shipping.
         </div>
       )}
 

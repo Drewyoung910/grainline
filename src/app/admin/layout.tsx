@@ -63,7 +63,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-neutral-700 hover:bg-neutral-100"
           >
             <AlertTriangle size={16} className="shrink-0 text-amber-500" />
-            Flagged Orders
+            Orders Needing Review
           </Link>
           <Link
             href="/admin/orders"

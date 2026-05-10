@@ -140,6 +140,12 @@ export default async function BuyerOrderDetailPage({
 
   const status = order.fulfillmentStatus ?? "PENDING";
   const method = order.fulfillmentMethod ?? (hasAddress ? "SHIPPING" : "PICKUP");
+  const processingMins = order.items
+    .map((item) => item.listing.processingTimeMinDays)
+    .filter((value): value is number => typeof value === "number");
+  const processingMaxes = order.items
+    .map((item) => item.listing.processingTimeMaxDays)
+    .filter((value): value is number => typeof value === "number");
 
   // Case eligibility
   const now = new Date();
@@ -231,6 +237,9 @@ export default async function BuyerOrderDetailPage({
         fulfillmentStatus={status}
         trackingNumber={order.trackingNumber}
         trackingCarrier={order.trackingCarrier}
+        estimatedDeliveryDate={order.estimatedDeliveryDate}
+        processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
+        processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
         refundAmountCents={hasRefund ? refundCents : null}
       />
 
@@ -246,7 +255,7 @@ export default async function BuyerOrderDetailPage({
 
       {order.reviewNeeded && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Your order is being reviewed due to a shipping detail change. No action needed.
+          Your order is being reviewed by Grainline support. No action needed.
         </div>
       )}
 
@@ -533,7 +542,7 @@ export default async function BuyerOrderDetailPage({
           Back to orders
         </Link>
         <Link
-          href="/messages"
+          href={messageHref}
           className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
         >
           Message maker

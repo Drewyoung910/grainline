@@ -113,6 +113,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     formData.getAll("galleryImageUrls").map(String).filter(Boolean),
     10,
   );
+  const galleryAltTexts = galleryImageUrls.map((_, index) => {
+    const raw = formData.getAll("galleryAltTexts")[index];
+    return truncateText(sanitizeText(String(raw ?? "")), 240);
+  });
 
   const instagramUrl = normalizeHttpsUrl(formData.get("instagramUrl"), ["instagram.com"]);
   const facebookUrl = normalizeHttpsUrl(formData.get("facebookUrl"), ["facebook.com", "fb.com"]);
@@ -156,7 +160,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
       bannerImageUrl,
       avatarImageUrl,
       workshopImageUrl,
-      ...(galleryImageUrlsTouched ? { galleryImageUrls } : {}),
+      ...(galleryImageUrlsTouched ? { galleryImageUrls, galleryAltTexts } : {}),
       instagramUrl,
       facebookUrl,
       pinterestUrl,
@@ -450,7 +454,11 @@ export default async function ProfilePage({
             <p className="text-xs text-neutral-500 mb-2">
               Add supporting photos of your workspace, process, and finished details.
             </p>
-            <GalleryUploader initialUrls={fullSeller.galleryImageUrls ?? []} maxImages={8} />
+            <GalleryUploader
+              initialUrls={fullSeller.galleryImageUrls ?? []}
+              initialAltTexts={fullSeller.galleryAltTexts ?? []}
+              maxImages={8}
+            />
           </div>
         </section>
 

@@ -51,14 +51,14 @@ export default async function FlaggedOrdersPage({
 
   return (
     <div>
-      <h1 className="text-xl font-semibold mb-1">Flagged Orders</h1>
+      <h1 className="text-xl font-semibold mb-1">Orders Needing Review</h1>
       <p className="text-sm text-neutral-500 mb-6">
-        Orders where the shipping address or rate changed between quote and checkout.
+        Orders that need staff reconciliation after payment, shipping, refund, dispute, or checkout review events.
       </p>
 
       {total === 0 ? (
         <div className="rounded-xl border border-neutral-200 bg-white px-6 py-16 text-center text-neutral-500">
-          No flagged orders
+          No orders needing review
         </div>
       ) : (
         <>
@@ -141,7 +141,7 @@ export default async function FlaggedOrdersPage({
           {/* Pagination */}
           <div className="mt-4 flex items-center justify-between text-sm text-neutral-500">
             <span>
-              {total} flagged order{total !== 1 ? "s" : ""} · Page {safePage} of {totalPages}
+              {total} order{total !== 1 ? "s" : ""} needing review · Page {safePage} of {totalPages}
             </span>
             <div className="flex gap-2">
               {safePage > 1 ? (

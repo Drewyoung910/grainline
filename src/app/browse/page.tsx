@@ -432,7 +432,7 @@ export default async function BrowsePage({
     });
 
     return (
-      <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-[100svh]">
+      <div className="bg-[#F7F5F0] min-h-[100svh]">
       <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
         <MobileFilterBar popularTags={visiblePopularTags} />
         <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
@@ -634,7 +634,7 @@ export default async function BrowsePage({
   ].filter(Boolean).length;
 
   return (
-    <div className="bg-gradient-to-b from-amber-50/30 via-amber-50/10 to-white min-h-[100svh]">
+    <div className="bg-[#F7F5F0] min-h-[100svh]">
     <main className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
       <MobileFilterBar popularTags={visiblePopularTags} />
       <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">

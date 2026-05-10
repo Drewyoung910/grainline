@@ -158,6 +158,74 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(source("src/app/seller/[id]/page.tsx"), /ring-white/);
     assert.match(source("src/app/seller/[id]/page.tsx"), /ring-4 ring-neutral-200 shadow-sm/);
     assert.match(source("src/components/UserAvatarMenu.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
+    assert.match(source("src/components/UserAvatarMenu.tsx"), /borderRadius: "9999px"/);
     assert.match(source("src/components/ThreadMessages.tsx"), /ring-1 ring-neutral-200 shadow-sm/);
+  });
+
+  it("uses direct order message links and touch-friendly listing gallery controls", () => {
+    const buyerOrder = source("src/app/dashboard/orders/[id]/page.tsx");
+    const gallery = source("src/components/ListingGallery.tsx");
+
+    assert.match(buyerOrder, /href=\{messageHref\}/);
+    assert.doesNotMatch(buyerOrder, /href="\/messages"[\s\S]*Message maker/);
+    assert.match(gallery, /touch-pan-y/);
+    assert.match(gallery, /aria-label="Previous photo"/);
+    assert.match(gallery, /aria-label="Next photo"/);
+  });
+
+  it("sends order confirmations directly from the Stripe webhook", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(webhook, /sendOrderConfirmedBuyer/);
+    assert.match(webhook, /sendOrderConfirmedSeller/);
+    assert.match(webhook, /sendFirstSaleCongrats/);
+    assert.match(webhook, /shouldSendEmail\(sellerUserId, "EMAIL_NEW_ORDER"\)/);
+    assert.doesNotMatch(webhook, /enqueueEmailOutbox\(\{[\s\S]*order-confirmed-buyer/);
+    assert.doesNotMatch(webhook, /enqueueEmailOutbox\(\{[\s\S]*order-confirmed-seller/);
+  });
+
+  it("supports workshop gallery alt text, reordering, and buyer-facing alt attributes", () => {
+    const galleryUploader = source("src/components/GalleryUploader.tsx");
+    const profilePage = source("src/app/dashboard/profile/page.tsx");
+    const sellerGallery = source("src/components/SellerGallery.tsx");
+    const schema = source("prisma/schema.prisma");
+
+    assert.match(schema, /galleryAltTexts\s+String\[\]\s+@default\(\[\]\)/);
+    assert.match(galleryUploader, /name="galleryAltTexts"/);
+    assert.match(galleryUploader, /draggable/);
+    assert.match(galleryUploader, /Move photo left/);
+    assert.match(galleryUploader, /Save alt text/);
+    assert.match(profilePage, /galleryAltTexts/);
+    assert.match(sellerGallery, /imageAltTexts/);
+    assert.match(sellerGallery, /alt=\{url\.alt \|\| `Gallery image \$\{i \+ 1\}`\}/);
+  });
+
+  it("uses solid warm-cream page backgrounds instead of page-wide amber gradients", () => {
+    assert.match(source("src/components/Header.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/browse/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.match(source("src/app/listing/[id]/page.tsx"), /bg-\[#F7F5F0\]/);
+    assert.doesNotMatch(source("src/components/Header.tsx"), /bg-gradient-to-b/);
+  });
+
+  it("adds order timeline context without a redundant payment-confirmed step", () => {
+    const timeline = source("src/components/OrderTimeline.tsx");
+    const buyerOrder = source("src/app/dashboard/orders/[id]/page.tsx");
+    const sellerOrder = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.match(timeline, /Estimated delivery:/);
+    assert.match(timeline, /processingWindowDetail/);
+    assert.match(buyerOrder, /estimatedDeliveryDate=\{order\.estimatedDeliveryDate\}/);
+    assert.match(sellerOrder, /processingTimeMinDays=\{processingMins\.length/);
+    assert.doesNotMatch(timeline, /Payment confirmed/);
+  });
+
+  it("renames the staff reconciliation queue away from old flagged-order wording", () => {
+    assert.match(source("src/app/admin/flagged/page.tsx"), /Orders Needing Review/);
+    assert.match(source("src/app/admin/layout.tsx"), /Orders Needing Review/);
+    assert.match(source("src/components/AdminMobileNav.tsx"), /Needs Review/);
+    assert.doesNotMatch(source("src/app/admin/flagged/page.tsx"), /No flagged orders/);
+    assert.doesNotMatch(source("src/app/dashboard/orders/[id]/page.tsx"), /shipping detail change/);
+    assert.doesNotMatch(source("src/app/dashboard/sales/[orderId]/page.tsx"), /Shipping address or rate changed/);
   });
 });

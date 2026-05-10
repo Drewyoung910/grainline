@@ -8,14 +8,19 @@ import MediaImage from "@/components/MediaImage";
 export default function SellerGallery({
   workshopImageUrl,
   images = [],
+  imageAltTexts = [],
 }: {
   workshopImageUrl?: string | null;
   images?: string[];
+  imageAltTexts?: string[];
 }) {
   const allImages = [
-    ...(workshopImageUrl ? [workshopImageUrl] : []),
-    ...images,
-  ].filter(Boolean) as string[];
+    ...(workshopImageUrl ? [{ url: workshopImageUrl, alt: "Workshop photo" }] : []),
+    ...images.map((url, index) => ({
+      url,
+      alt: imageAltTexts[index] || `Workshop gallery image ${index + 1}`,
+    })),
+  ].filter((image) => image.url);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -55,14 +60,14 @@ export default function SellerGallery({
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {allImages.map((url, i) => (
           <button
-            key={url}
+            key={`${url.url}:${i}`}
             onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
             className="group relative aspect-[3/2] w-full overflow-hidden rounded-md border border-neutral-200 bg-white transition-colors hover:border-neutral-400"
             aria-label={`View gallery image ${i + 1}`}
           >
             <MediaImage
-              src={url}
-              alt={`Gallery image ${i + 1}`}
+              src={url.url}
+              alt={url.alt || `Gallery image ${i + 1}`}
               className="h-full w-full object-cover"
               fallbackClassName="h-full w-full bg-gradient-to-br from-amber-50 to-stone-100"
             />
@@ -106,8 +111,8 @@ export default function SellerGallery({
           )}
           <div onClick={(e) => e.stopPropagation()} className="max-w-4xl max-h-[85vh] mx-4">
             <MediaImage
-              src={allImages[lightboxIndex]}
-              alt={`Gallery image ${lightboxIndex + 1}`}
+              src={allImages[lightboxIndex]?.url ?? ""}
+              alt={allImages[lightboxIndex]?.alt || `Gallery image ${lightboxIndex + 1}`}
               className="max-w-full max-h-[85vh] object-contain"
               fallbackClassName="h-[60vh] w-[80vw] max-w-full bg-neutral-900"
             />
