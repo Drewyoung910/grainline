@@ -1,86 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { normalizeUsState } from "@/lib/usStates";
-
-export type AddressAutocompleteResult = {
-  label: string;
-  line1: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  lat: number | null;
-  lng: number | null;
-};
-
-type NominatimPlace = {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  address?: {
-    house_number?: string;
-    road?: string;
-    pedestrian?: string;
-    footway?: string;
-    cycleway?: string;
-    suburb?: string;
-    neighbourhood?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    municipality?: string;
-    county?: string;
-    state?: string;
-    postcode?: string;
-    country_code?: string;
-  };
-};
-
-function formatAddressLabel({
-  line1,
-  city,
-  state,
-  postalCode,
-  fallback,
-}: {
-  line1: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  fallback?: string;
-}) {
-  const locality = [city, [state, postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  const label = [line1, locality].filter(Boolean).join(", ");
-  const cleanFallback = fallback
-    ?.split(",")
-    .map((part) => part.trim())
-    .filter((part) => part && !/\bcounty\b/i.test(part))
-    .join(", ");
-  return label || cleanFallback || "";
-}
-
-function placeToAddress(place: NominatimPlace): AddressAutocompleteResult {
-  const address = place.address ?? {};
-  const street = address.road ?? address.pedestrian ?? address.footway ?? address.cycleway ?? "";
-  const line1 = [address.house_number, street].filter(Boolean).join(" ").trim();
-  const city = address.city ?? address.town ?? address.village ?? address.municipality ?? "";
-  const lat = Number.parseFloat(place.lat ?? "");
-  const lng = Number.parseFloat(place.lon ?? "");
-  const state = normalizeUsState(address.state);
-  const postalCode = address.postcode ?? "";
-
-  return {
-    label: formatAddressLabel({ line1, city, state, postalCode, fallback: place.display_name }),
-    line1,
-    city,
-    state,
-    postalCode,
-    country: (address.country_code ?? "US").toUpperCase(),
-    lat: Number.isFinite(lat) ? lat : null,
-    lng: Number.isFinite(lng) ? lng : null,
-  };
-}
+import {
+  placeToAddress,
+  type AddressAutocompleteResult,
+  type NominatimPlace,
+} from "@/lib/addressAutocompleteState";
 
 export default function AddressAutocomplete({
   id,
@@ -178,7 +103,7 @@ export default function AddressAutocomplete({
                 className="block w-full px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  setQuery(result.label);
+                  setQuery("");
                   setOpen(false);
                   onSelect(result);
                 }}

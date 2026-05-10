@@ -45,10 +45,15 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/AddressAutocomplete.tsx"), /countrycodes/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /trimmed\.length < 2/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /}, 350\);/);
-    assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.suburb/s);
-    assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.neighbourhood/s);
-    assert.doesNotMatch(source("src/components/AddressAutocomplete.tsx"), /address\.city \?\?.*address\.county/s);
-    assert.match(source("src/components/AddressAutocomplete.tsx"), /formatAddressLabel/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /setQuery\(""\)/);
+    const state = source("src/lib/addressAutocompleteState.ts");
+    assert.match(state, /address\.hamlet/);
+    assert.match(state, /address\.suburb/);
+    assert.match(state, /address\.neighbourhood/);
+    assert.match(state, /address\.city_district/);
+    assert.match(state, /cityFromDisplayName/);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.county/s);
+    assert.match(state, /formatAddressLabel/);
   });
 
   it("allows seller blog publishing before Stripe but requires an actual seller profile", () => {
@@ -169,8 +174,25 @@ describe("post-launch UI follow-ups", () => {
     assert.match(buyerOrder, /href=\{messageHref\}/);
     assert.doesNotMatch(buyerOrder, /href="\/messages"[\s\S]*Message maker/);
     assert.match(gallery, /touch-pan-y/);
+    assert.match(gallery, /addEventListener\("touchmove"/);
+    assert.match(gallery, /passive: false/);
+    assert.match(gallery, /horizontalLocked/);
+    assert.match(gallery, /event\.preventDefault\(\)/);
     assert.match(gallery, /aria-label="Previous photo"/);
     assert.match(gallery, /aria-label="Next photo"/);
+  });
+
+  it("keeps listing detail constrained on narrow mobile viewports", () => {
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+    const purchasePanel = source("src/components/ListingPurchasePanel.tsx");
+    const variantSelector = source("src/components/VariantSelector.tsx");
+
+    assert.match(listingPage, /overflow-x-hidden/);
+    assert.match(listingPage, /grid min-w-0/);
+    assert.match(listingPage, /card-section min-w-0 overflow-x-hidden/);
+    assert.match(purchasePanel, /min-w-0 space-y-4 overflow-x-hidden/);
+    assert.match(variantSelector, /flex min-w-0 flex-wrap gap-2/);
+    assert.match(variantSelector, /max-w-full whitespace-normal break-words/);
   });
 
   it("sends order confirmations directly from the Stripe webhook", () => {

@@ -119,10 +119,10 @@ export default function ListingPurchasePanel({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       {/* Price + rating */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-3xl font-semibold">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="min-w-0 text-3xl font-semibold">
           ${(totalPriceCents / 100).toFixed(2)}
           {hasVariants && totalPriceCents !== basePriceCents && (
             <span className="text-base font-normal text-neutral-500 ml-2 line-through">

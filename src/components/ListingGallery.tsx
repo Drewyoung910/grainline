@@ -1,7 +1,7 @@
 // src/components/ListingGallery.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type MutableRefObject, type RefObject } from "react";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type Photo = { id: string; url: string; altText?: string | null };
@@ -17,12 +17,17 @@ export default function ListingGallery({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const mainPhotoRef = useRef<HTMLDivElement>(null);
   // Lightbox swipe
   const touchStartX = useRef<number>(0);
+  const touchStartY = useRef<number>(0);
   const touchEndX = useRef<number>(0);
+  const lightboxHorizontalLocked = useRef(false);
   // Main photo swipe
   const mainTouchStartX = useRef<number>(0);
+  const mainTouchStartY = useRef<number>(0);
   const mainSwiped = useRef(false);
+  const mainHorizontalLocked = useRef(false);
 
   useDialogFocus(lightboxOpen, dialogRef, () => setLightboxOpen(false));
   useBodyScrollLock(lightboxOpen);
@@ -35,6 +40,28 @@ export default function ListingGallery({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxOpen, photos.length]);
+
+  useEffect(() => {
+    if (photos.length <= 1) return;
+    const cleanup = attachHorizontalTouchLock(
+      mainPhotoRef,
+      mainTouchStartX,
+      mainTouchStartY,
+      mainHorizontalLocked,
+    );
+    return cleanup;
+  }, [photos.length]);
+
+  useEffect(() => {
+    if (!lightboxOpen || photos.length <= 1) return;
+    const cleanup = attachHorizontalTouchLock(
+      dialogRef,
+      touchStartX,
+      touchStartY,
+      lightboxHorizontalLocked,
+    );
+    return cleanup;
   }, [lightboxOpen, photos.length]);
 
   if (photos.length === 0) return null;
@@ -57,6 +84,8 @@ export default function ListingGallery({
   // Lightbox swipe handlers
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
+    lightboxHorizontalLocked.current = false;
   }
   function handleTouchEnd(e: React.TouchEvent) {
     touchEndX.current = e.changedTouches[0].clientX;
@@ -65,12 +94,15 @@ export default function ListingGallery({
       if (diff > 0) setLightboxIndex((i) => (i + 1) % photos.length);
       else setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
     }
+    lightboxHorizontalLocked.current = false;
   }
 
   // Main photo swipe handlers — swipe changes index; tap (< 10px) opens lightbox
   function handleMainTouchStart(e: React.TouchEvent) {
     mainTouchStartX.current = e.targetTouches[0].clientX;
+    mainTouchStartY.current = e.targetTouches[0].clientY;
     mainSwiped.current = false;
+    mainHorizontalLocked.current = false;
   }
   function handleMainTouchEnd(e: React.TouchEvent) {
     const diff = mainTouchStartX.current - e.changedTouches[0].clientX;
@@ -79,12 +111,14 @@ export default function ListingGallery({
       if (diff > 0) setActiveIndex((i) => (i + 1) % photos.length);
       else setActiveIndex((i) => (i - 1 + photos.length) % photos.length);
     }
+    mainHorizontalLocked.current = false;
   }
 
   return (
     <>
       {/* Main photo */}
       <div
+        ref={mainPhotoRef}
         role="button"
         tabIndex={0}
         aria-label={`Open ${title} photo gallery`}
@@ -249,4 +283,34 @@ export default function ListingGallery({
       )}
     </>
   );
+}
+
+function attachHorizontalTouchLock(
+  nodeRef: RefObject<HTMLElement | null>,
+  startXRef: MutableRefObject<number>,
+  startYRef: MutableRefObject<number>,
+  horizontalLockedRef: MutableRefObject<boolean>,
+) {
+  const node = nodeRef.current;
+  if (!node) return undefined;
+
+  function handleTouchMove(event: TouchEvent) {
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    if (horizontalLockedRef.current) {
+      if (event.cancelable) event.preventDefault();
+      return;
+    }
+
+    const dx = Math.abs(touch.clientX - startXRef.current);
+    const dy = Math.abs(touch.clientY - startYRef.current);
+    if (dx > 10 && dx > dy) {
+      horizontalLockedRef.current = true;
+      if (event.cancelable) event.preventDefault();
+    }
+  }
+
+  node.addEventListener("touchmove", handleTouchMove, { passive: false });
+  return () => node.removeEventListener("touchmove", handleTouchMove);
 }

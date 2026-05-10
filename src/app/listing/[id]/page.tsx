@@ -401,7 +401,7 @@ export default async function ListingPage({
         Preview mode — this is how your listing appears to buyers. It is not yet published.
       </div>
     )}
-    <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-6">
+    <main className="max-w-[1600px] mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 pb-16 pt-6">
       <ListingViewTracker listingId={listingId} />
       <RecentlyViewedTracker listingId={listingId} />
       {/* JSON-LD */}
@@ -433,9 +433,9 @@ export default async function ListingPage({
       </nav>
 
       {/* ── Two-column layout ─────────────────────────────────────────────── */}
-      <div className="grid lg:grid-cols-2 gap-8 mb-10">
+      <div className="grid min-w-0 gap-8 mb-10 lg:grid-cols-2">
         {/* Left: gallery */}
-        <div className="relative">
+        <div className="relative min-w-0">
           {/* Favorite button overlaid */}
           <div className="absolute right-3 top-3 z-10">
             <FavoriteButton listingId={listingId} initialSaved={isFavorited} size={24} />
@@ -444,7 +444,7 @@ export default async function ListingPage({
         </div>
 
         {/* Right: purchase panel */}
-        <div className="card-section bg-white p-6 space-y-4">
+        <div className="card-section min-w-0 overflow-x-hidden bg-white p-6 space-y-4">
           <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
 
           {/* Private listing banners */}

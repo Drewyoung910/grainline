@@ -57,13 +57,13 @@ export default function VariantSelector({
   const allSelected = groups.every((g) => selected[g.id]);
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {groups.map((group) => (
-        <div key={group.id}>
+        <div key={group.id} className="min-w-0">
           <label className="block text-sm font-medium text-neutral-700 mb-2">
             {group.name}
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {group.options.map((opt) => {
               const isSelected = selected[group.id] === opt.id;
               return (
@@ -72,7 +72,7 @@ export default function VariantSelector({
                   type="button"
                   disabled={!opt.inStock}
                   onClick={() => selectOption(group.id, opt.id)}
-                  className={`px-3 py-1.5 rounded-md text-sm border transition-colors ${
+                  className={`max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-colors ${
                     isSelected
                       ? "border-neutral-900 bg-neutral-900 text-white"
                       : opt.inStock
