@@ -126,10 +126,10 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
         label="Find address"
         placeholder="Start typing a shipping address"
         onSelect={(address) => {
-          if (address.line1) setLine1(address.line1);
-          if (address.city) setCity(address.city);
-          if (address.state) setState(address.state);
-          if (address.postalCode) setPostalCode(address.postalCode);
+          setLine1(address.line1);
+          setCity(address.city);
+          setState(address.state);
+          setPostalCode(address.postalCode);
         }}
       />
 

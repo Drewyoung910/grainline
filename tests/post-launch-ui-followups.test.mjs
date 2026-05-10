@@ -43,16 +43,24 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/LocationPicker.tsx"), /AddressAutocomplete/);
     assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /AddressAutocomplete/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /countrycodes/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /dedupe/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /limit: "8"/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /trimmed\.length < 2/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /}, 350\);/);
     assert.match(source("src/components/AddressAutocomplete.tsx"), /setQuery\(""\)/);
+    assert.match(source("src/components/AddressAutocomplete.tsx"), /No address matches yet/);
+    assert.match(source("src/components/ShippingAddressForm.tsx"), /setCity\(address\.city\)/);
+    assert.doesNotMatch(source("src/components/ShippingAddressForm.tsx"), /if \(address\.city\)/);
+    assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /setCity\(address\.city\)/);
+    assert.doesNotMatch(source("src/components/SellerShipFromAddressFields.tsx"), /if \(address\.city\)/);
     const state = source("src/lib/addressAutocompleteState.ts");
     assert.match(state, /address\.hamlet/);
-    assert.match(state, /address\.suburb/);
-    assert.match(state, /address\.neighbourhood/);
-    assert.match(state, /address\.city_district/);
     assert.match(state, /cityFromDisplayName/);
     assert.doesNotMatch(state, /address\.city \?\?.*address\.county/s);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.suburb/s);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.neighbourhood/s);
+    assert.doesNotMatch(state, /address\.city \?\?.*address\.city_district/s);
+    assert.match(state, /cityFromDisplayName\(place\.display_name, \[address\.suburb, address\.neighbourhood, address\.city_district\]\)/);
     assert.match(state, /formatAddressLabel/);
   });
 

@@ -36,7 +36,15 @@ export type NominatimPlace = {
   };
 };
 
-export function cityFromDisplayName(displayName?: string): string {
+function normalizeLocality(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  return values.find((value) => value?.trim())?.trim() ?? "";
+}
+
+export function cityFromDisplayName(displayName?: string, rejectedLocalities: Array<string | null | undefined> = []): string {
   if (!displayName) return "";
   const parts = displayName
     .split(",")
@@ -50,6 +58,10 @@ export function cityFromDisplayName(displayName?: string): string {
 
   const candidate = cityCandidates[cityCandidates.length - 1] ?? "";
   if (!candidate) return "";
+  const normalizedCandidate = normalizeLocality(candidate);
+  if (rejectedLocalities.map(normalizeLocality).filter(Boolean).includes(normalizedCandidate)) {
+    return "";
+  }
   const streetAddressPattern = /\b(st|street|rd|road|ave|avenue|dr|drive|ln|lane|blvd|boulevard|way|ct|court|cir|circle|trl|trail|hwy|highway)\b/i;
   if (cityCandidates.length === 1 && (/\d/.test(candidate) || streetAddressPattern.test(candidate))) {
     return "";
@@ -85,15 +97,8 @@ export function placeToAddress(place: NominatimPlace): AddressAutocompleteResult
   const street = address.road ?? address.pedestrian ?? address.footway ?? address.cycleway ?? "";
   const line1 = [address.house_number, street].filter(Boolean).join(" ").trim();
   const city =
-    address.city ??
-    address.town ??
-    address.village ??
-    address.municipality ??
-    address.hamlet ??
-    address.suburb ??
-    address.neighbourhood ??
-    address.city_district ??
-    cityFromDisplayName(place.display_name);
+    firstNonEmpty(address.city, address.town, address.village, address.municipality, address.hamlet) ||
+    cityFromDisplayName(place.display_name, [address.suburb, address.neighbourhood, address.city_district]);
   const lat = Number.parseFloat(place.lat ?? "");
   const lng = Number.parseFloat(place.lon ?? "");
   const state = normalizeUsState(address.state);

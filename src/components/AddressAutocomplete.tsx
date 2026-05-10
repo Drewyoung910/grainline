@@ -26,6 +26,7 @@ export default function AddressAutocomplete({
   const [results, setResults] = useState<AddressAutocompleteResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [searched, setSearched] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -35,31 +36,47 @@ export default function AddressAutocomplete({
     if (trimmed.length < 2) {
       setResults([]);
       setLoading(false);
+      setSearched(false);
       return;
     }
 
     const controller = new AbortController();
     abortRef.current = controller;
+    setResults([]);
+    setSearched(false);
+    setLoading(true);
+    setOpen(true);
     const timer = window.setTimeout(async () => {
-      setLoading(true);
       try {
         const params = new URLSearchParams({
           format: "jsonv2",
           addressdetails: "1",
+          dedupe: "1",
+          "accept-language": "en-US",
           countrycodes: "us",
-          limit: "5",
+          limit: "8",
           q: trimmed,
         });
         const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-          headers: { Accept: "application/json" },
+          headers: { Accept: "application/json", "Accept-Language": "en-US" },
           signal: controller.signal,
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          setResults([]);
+          setSearched(true);
+          setOpen(true);
+          return;
+        }
         const data = (await res.json()) as NominatimPlace[];
         setResults(Array.isArray(data) ? data.map(placeToAddress).filter((item) => item.label) : []);
+        setSearched(true);
         setOpen(true);
       } catch (error) {
-        if ((error as Error).name !== "AbortError") setResults([]);
+        if ((error as Error).name !== "AbortError") {
+          setResults([]);
+          setSearched(true);
+          setOpen(true);
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -91,10 +108,14 @@ export default function AddressAutocomplete({
           "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
         }
       />
-      {open && (results.length > 0 || loading) && (
+      {open && (results.length > 0 || loading || (searched && query.trim().length >= 2)) && (
         <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-md border border-neutral-200 bg-white shadow-lg">
           {loading && results.length === 0 ? (
             <div className="px-3 py-2 text-sm text-neutral-500">Searching...</div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-neutral-500">
+              No address matches yet. Add the city or ZIP, or enter the fields below.
+            </div>
           ) : (
             results.map((result) => (
               <button

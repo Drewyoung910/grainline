@@ -33,11 +33,11 @@ export default function SellerShipFromAddressFields({
         label="Search ship-from address"
         placeholder="Start typing an address"
         onSelect={(address) => {
-          if (address.line1) setLine1(address.line1);
-          if (address.city) setCity(address.city);
-          if (address.state) setState(address.state);
-          if (address.postalCode) setPostal(address.postalCode);
-          if (address.country) setCountry(address.country);
+          setLine1(address.line1);
+          setCity(address.city);
+          setState(address.state);
+          setPostal(address.postalCode);
+          setCountry(address.country || "US");
         }}
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
