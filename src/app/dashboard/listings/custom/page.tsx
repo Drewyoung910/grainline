@@ -382,7 +382,7 @@ export default async function CustomListingPage({
 
         <div>
           <label className="block text-sm mb-1">Photos (optional for custom orders)</label>
-          <PhotoManager max={8} />
+          <PhotoManager max={10} />
         </div>
 
         <div className="border rounded p-3">

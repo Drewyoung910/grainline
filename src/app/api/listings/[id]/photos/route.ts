@@ -19,7 +19,7 @@ const PhotosSchema = z.object({
   urls: z.array(z.string().url().refine(
     (u) => isFirstPartyMediaUrl(u),
     { message: "Invalid photo URL origin" }
-  )).max(8).optional(),
+  )).max(10).optional(),
 });
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -96,7 +96,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     const photoCount = await tx.photo.count({ where: { listingId } });
-    const urls = clean.slice(0, Math.max(0, 8 - photoCount));
+    const urls = clean.slice(0, Math.max(0, 10 - photoCount));
     if (urls.length === 0) return { urls, error: "full" as const };
 
     await tx.photo.createMany({

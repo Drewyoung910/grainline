@@ -762,7 +762,7 @@ export default async function EditListingPage(props: {
     );
   }
 
-  const remaining = Math.max(0, 8 - listing.photos.length);
+  const remaining = Math.max(0, 10 - listing.photos.length);
 
   const canPublishFromEdit =
     listing.status === "DRAFT" ||

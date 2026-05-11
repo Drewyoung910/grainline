@@ -254,7 +254,7 @@ export default async function ReviewsSection({
 
       {/* Others */}
       {sorted.length === 0 ? (
-        <div className="card-section px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
+        <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
       ) : (
         <ul className="space-y-4">
           {sorted.map((r) => {

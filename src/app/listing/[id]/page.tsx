@@ -446,7 +446,7 @@ export default async function ListingPage({
         </div>
 
         {/* Right: purchase panel */}
-        <div className="card-section min-w-0 overflow-x-hidden bg-white p-6 space-y-4">
+        <div className="rounded-lg border border-stone-200/60 shadow-sm min-w-0 overflow-x-hidden bg-[#EFEAE0] p-6 space-y-4">
           <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
 
           {/* Private listing banners */}
@@ -736,7 +736,7 @@ export default async function ListingPage({
 
       {/* ── Shop Policies ──────────────────────────────────────────────────── */}
       {(listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
-        <section className="card-section p-6 mb-10">
+        <section className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] p-6 mb-10">
           <h2 className="font-semibold font-display text-neutral-900 mb-3">Shop Policies</h2>
           <div className="space-y-0">
             {listing.seller.returnPolicy && (
