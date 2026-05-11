@@ -553,26 +553,26 @@ export default async function HomePage() {
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="border-b border-amber-100 bg-amber-50">
+      <div className="bg-[#D9E2D5]">
         <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">pieces listed</span>
+            <span className="text-sm text-neutral-700">pieces listed</span>
           </div>
-          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">active makers</span>
+            <span className="text-sm text-neutral-700">active makers</span>
           </div>
-          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">members</span>
+            <span className="text-sm text-neutral-700">members</span>
           </div>
-          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">orders fulfilled</span>
+            <span className="text-sm text-neutral-700">orders fulfilled</span>
           </div>
         </ScrollSection>
       </div>

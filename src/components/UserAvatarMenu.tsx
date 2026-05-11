@@ -67,7 +67,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-neutral-200 shadow-sm"
+        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-neutral-200 hover:ring-2 hover:ring-white shadow-sm hover:shadow-md transition-all"
         style={{ borderRadius: "9999px" }}
         aria-label="Account menu"
         aria-expanded={open}

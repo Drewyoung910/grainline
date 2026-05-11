@@ -408,6 +408,8 @@ export default async function DashboardPage({
               href="/account/saved"
               className="card-warm flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1.5 px-4 py-3 sm:py-2 text-sm font-medium min-h-[56px] sm:min-h-0 text-center sm:text-left"
             >
+              <Heart size={20} className="sm:hidden shrink-0" />
+              <Heart size={16} className="hidden sm:block shrink-0" />
               Saved items
             </Link>
           </div>

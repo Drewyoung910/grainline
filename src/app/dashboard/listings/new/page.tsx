@@ -401,7 +401,15 @@ async function createListing(_prevState: unknown, formData: FormData) {
     });
   }
 
-  redirect(publicListingPath(created.id, created.title));
+  // Final redirect: the public listing page 404s for non-ACTIVE statuses, so
+  // pick the right destination from the post-AI-review status. PENDING_REVIEW
+  // listings go to the preview URL (same UX as the edit flow) so the seller
+  // sees their work in a buyer-perspective preview with an "under review"
+  // banner instead of the "page got sanded down" 404.
+  if (finalListing?.status === "ACTIVE") {
+    redirect(publicListingPath(created.id, created.title));
+  }
+  redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
 }
 
 export default async function NewListingPage({
@@ -474,7 +482,7 @@ export default async function NewListingPage({
           <input
             name="materials"
             placeholder="e.g. walnut, maple, brass hardware"
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
         </div>
@@ -486,18 +494,18 @@ export default async function NewListingPage({
           </label>
           <div className="grid grid-cols-3 gap-3">
             <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+              placeholder="Length" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+              placeholder="Width" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
-              placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+              placeholder="Height" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
           </div>
           <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Price (USD)</label>
-          <input name="price" type="text" inputMode="decimal" pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"} required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          <input name="price" type="text" inputMode="decimal" pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"} required className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
         </div>
 
         <div>
@@ -520,19 +528,19 @@ export default async function NewListingPage({
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
               <div className="mb-1">Length (in)</div>
-              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
+              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Width (in)</div>
-              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
+              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Height (in)</div>
-              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
+              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Weight (lb)</div>
-              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
+              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">
