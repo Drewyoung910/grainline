@@ -148,13 +148,22 @@ export default function Header() {
 
         {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
         <div className="ml-auto hidden md:flex items-center gap-4">
-          <Link href="/browse" className="text-stone-100 hover:text-white transition-colors">
+          <Link
+            href="/browse"
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+          >
             Browse
           </Link>
-          <Link href="/blog" className="text-stone-100 hover:text-white transition-colors">
+          <Link
+            href="/blog"
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+          >
             Blog
           </Link>
-          <Link href="/commission" className="text-stone-100 hover:text-white transition-colors">
+          <Link
+            href="/commission"
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+          >
             Commission Room
           </Link>
 
@@ -196,7 +205,10 @@ export default function Header() {
           <Show
             when="signed-in"
             fallback={
-              <Link href="/sign-in" className="text-stone-100 hover:text-white transition-colors">
+              <Link
+                href="/sign-in"
+                className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+              >
                 Sign in
               </Link>
             }

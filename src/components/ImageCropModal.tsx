@@ -10,7 +10,7 @@ type Props = {
   onConfirm: (blob: Blob) => void | Promise<void>;
 };
 
-const MAX_OUTPUT_LONG_EDGE = 2000;
+const MAX_OUTPUT_LONG_EDGE = 2400;
 
 export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }: Props) {
   const [imageUrl, setImageUrl] = React.useState("");
@@ -111,8 +111,13 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
       canvas.height = outputHeight;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Could not prepare image crop.");
+      // High-quality canvas resampling must be set BEFORE drawImage so the
+      // downscale uses the better filter. Output JPEG at 95% quality so
+      // crops (especially banners) don't lose detail vs the original upload.
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, sx, sy, sourceWidth, sourceHeight, 0, 0, outputWidth, outputHeight);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
       if (!blob) throw new Error("Could not prepare image crop.");
       await onConfirm(blob);
       setProcessing(false);

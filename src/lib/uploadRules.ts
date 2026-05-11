@@ -36,8 +36,8 @@ export const UPLOAD_MAX_SIZES: Record<UploadEndpoint, number> = {
   messageAny: 8 * 1024 * 1024,
   reviewPhoto: 8 * 1024 * 1024,
   listingVideo: 128 * 1024 * 1024,
-  bannerImage: 8 * 1024 * 1024,
-  galleryImage: 4 * 1024 * 1024,
+  bannerImage: 15 * 1024 * 1024,
+  galleryImage: 8 * 1024 * 1024,
 };
 
 export const UPLOAD_MAX_COUNTS: Record<UploadEndpoint, number> = {

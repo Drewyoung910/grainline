@@ -277,7 +277,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         <ul
           id={SEARCH_LISTBOX_ID}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-white shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-lg"
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>

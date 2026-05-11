@@ -65,7 +65,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
           fill="#F59E0B"
           stroke="#D97706"
           strokeWidth={1}
-          className="translate-y-[1px]"
+          className="translate-y-[2px]"
           style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }}
         >
           <path d="M5 3a2 2 0 0 0-2 2v16l9-4 9 4V5a2 2 0 0 0-2-2H5z" />
@@ -81,7 +81,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="translate-y-[1px]"
+          className="translate-y-[2px]"
           style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}
         >
           <path d="M5 3a2 2 0 0 0-2 2v16l9-4 9 4V5a2 2 0 0 0-2-2H5z" />

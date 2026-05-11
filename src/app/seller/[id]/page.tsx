@@ -294,15 +294,21 @@ export default async function SellerPublicPage({
         </div>
       )}
 
-      {/* ── Banner ────────────────────────────────────────────────────────── */}
-      <div className="relative h-56 sm:aspect-[3/1] sm:h-auto rounded-2xl overflow-hidden mt-4">
-        <MediaImage
-          src={seller.bannerImageUrl}
-          alt={`${seller.displayName} banner`}
-          fetchPriority="high"
-          className="w-full h-full object-cover"
-          fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
-        />
+      {/* ── Banner ──────────────────────────────────────────────────────────
+          The outer div does NOT have overflow-hidden because the avatar uses
+          translate-y-1/2 to overlap below the banner; clipping the outer
+          would clip the avatar. The banner image lives in an inner wrapper
+          that owns the rounded corners + overflow. */}
+      <div className="relative h-56 sm:aspect-[3/1] sm:h-auto mt-4">
+        <div className="absolute inset-0 rounded-2xl overflow-hidden">
+          <MediaImage
+            src={seller.bannerImageUrl}
+            alt={`${seller.displayName} banner`}
+            fetchPriority="high"
+            className="w-full h-full object-cover"
+            fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
+          />
+        </div>
         {/* Avatar: sits at bottom of banner, half-overlapping downward */}
         <div className="absolute bottom-0 left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
           {seller.avatarImageUrl ?? seller.user?.imageUrl ? (

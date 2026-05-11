@@ -89,7 +89,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
               name="audience"
               checked={!sellersOnly}
               onChange={() => setSellersOnly(false)}
-              className="accent-amber-600"
+              className="accent-neutral-900"
             />
             All followers
           </label>
@@ -99,7 +99,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
               name="audience"
               checked={sellersOnly}
               onChange={() => setSellersOnly(true)}
-              className="accent-amber-600"
+              className="accent-neutral-900"
             />
             Sellers only
           </label>

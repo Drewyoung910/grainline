@@ -247,7 +247,7 @@ export default async function BlogIndexPage({
     <main className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(blogLd) }} />
       {/* Hero */}
-      <section className="py-12 sm:py-16 text-center bg-gradient-to-b from-amber-50 to-white -mx-4 sm:-mx-6 px-4 sm:px-6 mb-8">
+      <section className="py-12 sm:py-16 text-center mb-8">
         <h1 className="text-4xl sm:text-5xl font-bold font-display text-neutral-900 mb-3">
           Stories from the Workshop
         </h1>

@@ -666,17 +666,17 @@ export default async function HomePage() {
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-amber-50 p-4 sm:p-5 text-center hover:bg-amber-100 transition-colors flex-none w-28 sm:w-auto"
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#D9E2D5] p-4 sm:p-5 text-center hover:bg-[#C7D4C2] transition-colors flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-amber-700" />
+                  <c.Icon size={28} className="text-[#3F5D3A]" />
                   <span className="text-xs font-medium text-neutral-800">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-amber-50 p-4 sm:p-5 text-center hover:bg-amber-100 transition-colors flex-none w-28 sm:w-auto"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#D9E2D5] p-4 sm:p-5 text-center hover:bg-[#C7D4C2] transition-colors flex-none w-28 sm:w-auto"
               >
-                <span className="text-2xl text-amber-700">→</span>
+                <span className="text-2xl text-[#3F5D3A]">→</span>
                 <span className="text-xs font-medium text-neutral-800">Browse all</span>
               </Link>
             </div>
