@@ -206,7 +206,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       where: { listingId: listing.id },
       select: { url: true },
       orderBy: { sortOrder: "asc" },
-      take: 8,
+      take: 10,
     });
 
     const aiResult = await reviewListingWithAI({

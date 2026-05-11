@@ -293,7 +293,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
               maxLength={200}
               rows={3}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-500"
+              className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-300"
             />
             <p className="text-xs text-neutral-500">
               Improves visibility in Google Image Search. If left blank, AI will generate alt text automatically.

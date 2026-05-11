@@ -648,9 +648,65 @@ export default async function EditListingPage(props: {
       )}
 
       <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10" preventEnterSubmit preserveOnError>
+        {/* Section order intentionally mirrors the create-listing page:
+            Title → Description → Meta → Materials → Product dimensions →
+            Price → Tags → Listing type/variants → Packaged dimensions.
+            Keep these in lockstep so the create and edit flows feel like
+            the same form. */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
           <InputCharCounter name="title" maxLength={100} defaultValue={listing.title} required />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
+          <CharCounter name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Meta description
+            <span className="text-neutral-500 ml-1 font-normal">
+              — helps your listing rank in search results
+            </span>
+          </label>
+          <CharCounter
+            name="metaDescription"
+            maxLength={160}
+            rows={2}
+            defaultValue={listing.metaDescription ?? ""}
+            placeholder="Briefly describe your piece for Google search results (160 chars max)"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Materials used</label>
+          <input
+            name="materials"
+            defaultValue={(listing.materials ?? []).join(", ")}
+            placeholder="e.g. walnut, maple, brass hardware"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          />
+          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Product dimensions (inches)
+            <span className="text-neutral-500 ml-1 font-normal">optional</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
+              defaultValue={listing.productLengthIn ?? ""}
+              placeholder="Length" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+            <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
+              defaultValue={listing.productWidthIn ?? ""}
+              placeholder="Width" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+            <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
+              defaultValue={listing.productHeightIn ?? ""}
+              placeholder="Height" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          </div>
+          <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div>
@@ -662,7 +718,7 @@ export default async function EditListingPage(props: {
             pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={(listing.priceCents / 100).toFixed(2)}
             required
-            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
         </div>
 
@@ -695,69 +751,18 @@ export default async function EditListingPage(props: {
           <label className="block text-sm font-medium text-neutral-700 mb-2">Packaged dimensions (cm / g)</label>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="packagedLengthCm" type="number" inputMode="decimal" step="0.1" placeholder="Length (cm)"
-                   defaultValue={listing.packagedLengthCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedLengthCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="packagedWidthCm" type="number" inputMode="decimal" step="0.1" placeholder="Width (cm)"
-                   defaultValue={listing.packagedWidthCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedWidthCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="packagedHeightCm" type="number" inputMode="decimal" step="0.1" placeholder="Height (cm)"
-                   defaultValue={listing.packagedHeightCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedHeightCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="packagedWeightGrams" type="number" inputMode="numeric" step="1" placeholder="Weight (g)"
-                   defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             These should be the finished, ready-to-ship package size/weight per unit.
             If left blank, your seller default package will be used.
           </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
-          <CharCounter name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Meta description
-            <span className="text-neutral-500 ml-1 font-normal">
-              — helps your listing rank in search results
-            </span>
-          </label>
-          <CharCounter
-            name="metaDescription"
-            maxLength={160}
-            rows={2}
-            defaultValue={listing.metaDescription ?? ""}
-            placeholder="Briefly describe your piece for Google search results (160 chars max)"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Materials used</label>
-          <input
-            name="materials"
-            defaultValue={(listing.materials ?? []).join(", ")}
-            placeholder="e.g. walnut, maple, brass hardware"
-            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm"
-          />
-          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Product dimensions (inches)
-            <span className="text-neutral-500 ml-1 font-normal">optional</span>
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              defaultValue={listing.productLengthIn ?? ""}
-              placeholder="Length" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
-            <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              defaultValue={listing.productWidthIn ?? ""}
-              placeholder="Width" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
-            <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
-              defaultValue={listing.productHeightIn ?? ""}
-              placeholder="Height" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" />
-          </div>
-          <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div className="flex flex-col gap-3 pt-2 sm:flex-row">
