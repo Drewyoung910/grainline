@@ -179,11 +179,8 @@ async function updateListing(
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  // Detect price/variant changes for priceVersion bump only — edits to an
-  // ACTIVE listing no longer auto-trigger AI re-review. Sellers can edit
-  // their listings freely; AI review only runs on the explicit publish
-  // transitions (DRAFT/HIDDEN/REJECTED → ACTIVE via publishListingAction,
-  // or new-listing initial publish). See CLAUDE.md "Listing edit re-review".
+  // Detect price/variant changes for priceVersion bump and to flag this
+  // save as a content edit that should go through AI re-review.
   const priceValueChanged = priceCents !== listing.priceCents;
   const previousVariantGroups = normalizeVariantGroupsForCompare(listing.variantGroups);
   const nextVariantGroups = normalizeVariantGroupsForCompare(
@@ -199,6 +196,12 @@ async function updateListing(
     }))
   );
   const variantsChanged = JSON.stringify(previousVariantGroups) !== JSON.stringify(nextVariantGroups);
+  // Save on an ACTIVE listing triggers AI re-review of the new content.
+  // Photo upload alone does NOT (that was the original "kick-out" bug —
+  // photos route used to flip status mid-edit). The seller controls
+  // when review runs by clicking Save. Bypassing review by skipping
+  // Save isn't possible because Save is the only way to commit edits.
+  const wasActive = listing.status === ListingStatus.ACTIVE;
 
   const updatedListing = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.update({
@@ -253,18 +256,99 @@ async function updateListing(
     return updated;
   });
 
-  // Note: edits to ACTIVE listings used to trigger AI re-review automatically
-  // — see git history pre-2026-05-11 for that flow. Removed because it made
-  // every save feel like an unwanted re-publish. AI review now runs only at
-  // explicit publish transitions (publishListingAction below for the Publish
-  // button, or DRAFT/HIDDEN/REJECTED → ACTIVE). Acceptable security trade-off
-  // for early-stage marketplace; photo-swap surveillance is admin-side.
+  // Save on an ACTIVE listing routes the new content through AI re-review.
+  // - Photo upload via AddPhotosButton no longer flips status mid-edit (that
+  //   was the original "kick-out" bug).
+  // - Save is now the only path that triggers re-review on existing ACTIVE
+  //   listings — so sellers cannot silently bypass review by editing.
+  // - If AI approves: listing stays ACTIVE, new content is live.
+  // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
+  //   stays on the edit page (?saved=pending banner) instead of being
+  //   redirected to a 404'd public listing path.
+  if (wasActive) {
+    try {
+      const seller = await prisma.sellerProfile.findFirst({
+        where: { listings: { some: { id: listingId } } },
+        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
+      });
+      if (seller?.chargesEnabled) {
+        const photos = await prisma.photo.findMany({
+          where: { listingId },
+          select: { url: true },
+          orderBy: { sortOrder: "asc" },
+          take: 10,
+        });
+        const { reviewListingWithAI } = await import("@/lib/ai-review");
+        const aiResult = await reviewListingWithAI({
+          sellerId: seller.id,
+          title,
+          description,
+          priceCents,
+          category: category ?? null,
+          tags,
+          sellerName: seller.displayName,
+          listingCount: seller._count.listings,
+          imageUrls: photos.map((p) => p.url),
+        }).catch(() => ({
+          approved: false,
+          flags: ["AI review error"] as string[],
+          confidence: 0,
+          reason: "AI error",
+          altTexts: [] as string[],
+        }));
 
-  // Publish-on-save: if the user clicked the Publish / Resubmit-for-review
-  // button on the edit form, route the listing through publishListingAction
-  // (AI moderation). This is the ONLY path that triggers re-review on
-  // existing ACTIVE listings — Save alone never re-reviews. PENDING_REVIEW
-  // (already in review) and SOLD/SOLD_OUT (terminal) skip.
+        // Backfill AI-generated alt texts on photos missing seller-provided alt text.
+        const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
+        await backfillEmptyAltTexts(listingId, aiResult.altTexts);
+
+        const shouldHold =
+          !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
+        if (shouldHold) {
+          await prisma.listing.updateMany({
+            where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            data: {
+              status: ListingStatus.PENDING_REVIEW,
+              aiReviewFlags: aiResult.flags,
+              aiReviewScore: aiResult.confidence,
+            },
+          });
+        } else {
+          // Stays ACTIVE; refresh AI metadata to reflect this review pass.
+          await prisma.listing.updateMany({
+            where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            data: {
+              aiReviewFlags: aiResult.flags,
+              aiReviewScore: aiResult.confidence,
+            },
+          });
+        }
+      } else {
+        // Seller lost chargesEnabled mid-edit: send the listing to draft.
+        await prisma.listing.updateMany({
+          where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+          data: { status: ListingStatus.DRAFT },
+        });
+      }
+    } catch (err) {
+      console.error("[listing-update] AI re-review failed:", err);
+      // AI infrastructure error — flip to PENDING_REVIEW conservatively so
+      // staff can review the new content.
+      await prisma.listing.updateMany({
+        where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+        data: {
+          status: ListingStatus.PENDING_REVIEW,
+          aiReviewFlags: ["AI review error"],
+          aiReviewScore: 0,
+        },
+      });
+    }
+  }
+
+  // Publish-on-save: if the user clicked the Publish button on the edit form
+  // (only shown for DRAFT/HIDDEN/REJECTED — these are not-yet-public statuses
+  // that need the publish flow to transition to ACTIVE). For ACTIVE source
+  // listings the Save branch above already runs AI re-review, so no Publish
+  // button is shown on ACTIVE.
   const wantsPublish = formData.get("publish") === "true";
   if (wantsPublish) {
     const current = await prisma.listing.findUnique({
@@ -275,8 +359,7 @@ async function updateListing(
       current && (
         current.status === ListingStatus.DRAFT ||
         current.status === ListingStatus.HIDDEN ||
-        current.status === ListingStatus.REJECTED ||
-        current.status === ListingStatus.ACTIVE
+        current.status === ListingStatus.REJECTED
       )
     ) {
       const { publishListingAction } = await import("@/app/seller/[id]/shop/actions");
@@ -527,15 +610,14 @@ export default async function EditListingPage(props: {
 
   const remaining = Math.max(0, 10 - listing.photos.length);
 
-  // ACTIVE listings can also click Publish — that re-submits the current
-  // (edited) content for AI re-review. Use case: seller edits an active
-  // listing's title/photos/etc, then explicitly resubmits. Save alone no
-  // longer auto-triggers re-review; Publish does.
+  // Publish button is shown on not-yet-public statuses only — for ACTIVE
+  // listings the Save flow already runs AI re-review on edits, so no
+  // separate Publish/Resubmit button is needed (and shouldn't be visible —
+  // having one would imply Save bypasses review, which it does not).
   const canPublishFromEdit =
     listing.status === "DRAFT" ||
     listing.status === "HIDDEN" ||
-    listing.status === "REJECTED" ||
-    listing.status === "ACTIVE";
+    listing.status === "REJECTED";
   const publishDisabledTitle = !chargesEnabled
     ? "Connect Stripe payouts in Shop Settings before publishing."
     : undefined;
@@ -697,11 +779,7 @@ export default async function EditListingPage(props: {
                 title={publishDisabledTitle}
                 className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {listing.status === "REJECTED"
-                  ? "Publish (Resubmit)"
-                  : listing.status === "ACTIVE"
-                    ? "Resubmit for review"
-                    : "Publish"}
+                {listing.status === "REJECTED" ? "Publish (Resubmit)" : "Publish"}
               </SubmitButton>
             </span>
           )}

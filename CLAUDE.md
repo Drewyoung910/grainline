@@ -1726,28 +1726,20 @@ After `prisma.listing.create()`, AI review runs async in a try/catch:
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
 ### Listing edit re-review
-**AI re-review does NOT run on routine "Save changes" or on photo add/delete/replace.** Sellers can freely:
+**On ACTIVE listings: Save changes IS the action that runs AI re-review.** Photo upload / delete / re-crop alone never run review — those just modify the listing's photo set. AI review runs when the seller commits the edit via Save.
 
-- Edit text fields (title, description, price, tags, materials, etc.) and click Save changes
-- Add new photos via `AddPhotosButton`
-- Replace photos via `ImageRecropButton` (re-crop)
-- Delete photos
-- Edit variants
+Critical UX rule Drew has corrected the implementation on twice already (read this before changing):
 
-All of these persist without flipping the listing into `PENDING_REVIEW`. The listing stays ACTIVE with the new content visible publicly.
+- Photos uploaded via `AddPhotosButton` go straight to the listing's photo set without flipping status or running AI review. The seller stays on the edit page.
+- Photo re-crop via `ImageRecropButton` → `replacePhotoAction` swaps `url` (and lazily backfills `originalUrl`). No status flip. No AI review.
+- Photo delete via `deletePhotoAction` removes the photo. No status flip. No AI review.
+- **Save changes on the edit form (`updateListing`)** persists the text + variants AND, if the listing's pre-edit status was ACTIVE, runs `reviewListingWithAI` on the full current content (title, description, price, category, tags, all current photo URLs). AI approves → listing stays ACTIVE with updated `aiReviewFlags` and `aiReviewScore`. AI flags or errors → flips to PENDING_REVIEW so staff can review. Either way the redirect lands cleanly (see "Edit listing redirect behavior").
 
-**AI review runs only when the seller clicks an explicit Publish / Resubmit button** (the second submit button on the edit form, separate from "Save changes"):
+**Do not** make Save bypass review on ACTIVE — that would let sellers swap clean approved photos for arbitrary content without any moderation. **Do not** auto-flip status on photo upload — that's the "kick-out" bug Drew has explicitly flagged multiple times. **Do not** add a separate Publish/Resubmit button on ACTIVE listings — Save covers it, and having both buttons would imply Save bypasses review.
 
-1. New listing first publish via `createListing` server action.
-2. `publishListingAction` for any of these source statuses:
-   - DRAFT / HIDDEN / REJECTED → ACTIVE (initial or post-rejection publish)
-   - ACTIVE → AI re-review (seller chose to resubmit edited content for moderation)
+For not-yet-public statuses (DRAFT / HIDDEN / REJECTED) the edit form keeps a separate Publish button which routes through `publishListingAction` (the same AI review pipeline, but it also handles the status transition to ACTIVE on approval).
 
-The Publish button is now also shown on ACTIVE listings (labeled "Resubmit for review") so sellers have an explicit path to send edited content back through AI review when they want it. publishListingAction handles ACTIVE source state — re-runs AI and either keeps the listing ACTIVE (if approved) or flips to PENDING_REVIEW (if flagged).
-
-Prior to 2026-05-11 the edit flow auto-triggered AI review on substantive text changes, photo adds, photo deletes, and photo replacements. Drew explicitly rejected that UX — every save felt like an unwanted re-submit and the silent status flip looked like a phantom publish to the seller. Removed.
-
-If you re-add an auto-review trigger, you MUST also surface a clear UI explanation (toast or banner) to the seller so the status flip isn't silent.
+New listing first publish runs through `createListing` → `reviewListingWithAI` per the original flow.
 
 ### Admin review queue (`/admin/review`)
 - Shows all `PENDING_REVIEW` listings ordered oldest-first
