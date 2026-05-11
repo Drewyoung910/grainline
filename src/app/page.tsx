@@ -811,7 +811,7 @@ export default async function HomePage() {
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
                         listing={{
                           id: l.id,
@@ -861,7 +861,7 @@ export default async function HomePage() {
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
                         listing={{
                           id: l.id,

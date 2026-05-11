@@ -34,7 +34,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
   }
 
   return (
-    <div className="rounded-2xl bg-amber-50 px-6 py-8 text-center space-y-4">
+    <div className="rounded-2xl bg-[#EFEAE0] px-6 py-8 text-center space-y-4">
       <div>
         <h3 className="text-lg font-semibold text-neutral-900">
           {heading ?? "Get workshop stories in your inbox"}
@@ -68,7 +68,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
           <button
             type="submit"
             disabled={status === "loading"}
-            className="shrink-0 rounded-md bg-amber-800 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+            className="shrink-0 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
           >
             {status === "loading" ? "..." : "Subscribe"}
           </button>

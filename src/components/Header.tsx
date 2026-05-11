@@ -241,20 +241,25 @@ export default function Header() {
             </span>
           </Show>
 
-          {/* Cart — always visible. Badge matches NotificationBell + UnreadBadge
-              dimensions (h-5 / min-w-5 / text-[11px]) so all three mobile
-              header badges look the same size. */}
+          {/* Cart — always visible. Two-layer structure mirrors
+              NotificationBell + MessageIconLink: outer Link is the 44×44
+              tap target, inner span is the 36×36 visible hover circle.
+              Badge is positioned -top-1 -right-1 on the inner span (NOT
+              the outer Link) so all three mobile badges sit at the same
+              vertical position in the header row. */}
           <Link
             href="/cart"
-            className="relative inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
             aria-label="Cart"
           >
-            <ShoppingBag size={20} />
-            {cartCount != null && cartCount > 0 && (
-              <span className="absolute right-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
-                {cartCount}
-              </span>
-            )}
+            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors">
+              <ShoppingBag size={20} />
+              {cartCount != null && cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+                  {cartCount}
+                </span>
+              )}
+            </span>
           </Link>
 
           {/* Hamburger */}

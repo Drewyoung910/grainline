@@ -54,8 +54,8 @@ export default function ListingTypeFields({
             onClick={() => changeType("MADE_TO_ORDER")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "MADE_TO_ORDER"
-                ? "border-neutral-900 bg-neutral-50 text-neutral-900"
-                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                ? "border-neutral-900 bg-neutral-900 text-white"
+                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
             Made to Order
@@ -65,8 +65,8 @@ export default function ListingTypeFields({
             onClick={() => changeType("IN_STOCK")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "IN_STOCK"
-                ? "border-neutral-900 bg-neutral-50 text-neutral-900"
-                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                ? "border-neutral-900 bg-neutral-900 text-white"
+                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
             In Stock
