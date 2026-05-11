@@ -107,34 +107,34 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div id="main-content">
           {children}
           </div>
-          <footer className="border-t border-stone-200 mt-16 py-10 px-6 text-center text-xs text-stone-500">
+          <footer className="bg-[#3F5D3A] text-stone-200 mt-16 py-12 px-6 text-center text-xs">
             <div className="flex justify-center mb-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto opacity-40" />
+              <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto invert opacity-80" />
             </div>
             {/* Browse by City — dynamic, only shown when metros have content */}
             {footerMetros.length > 0 && (
-              <div className="mb-4">
-                <p className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">Browse by city</p>
+              <div className="mb-5">
+                <p className="text-[11px] text-stone-300/80 uppercase tracking-wide mb-2">Browse by city</p>
                 <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
                   {footerMetros.map((m) => (
-                    <Link key={m.slug} href={`/browse/${m.slug}`} className="hover:text-stone-600 hover:underline">
+                    <Link key={m.slug} href={`/browse/${m.slug}`} className="text-stone-200 hover:text-white hover:underline">
                       {m.name}
                     </Link>
                   ))}
                 </div>
               </div>
             )}
-            <div className="flex flex-wrap justify-center gap-4 mb-2">
-              <Link href="/about" className="hover:text-stone-600 hover:underline">About</Link>
-              <Link href="/terms" className="hover:text-stone-600 hover:underline">Terms of Service</Link>
-              <Link href="/privacy" className="hover:text-stone-600 hover:underline">Privacy Policy</Link>
-              <Link href="/blog" className="hover:text-stone-600 hover:underline">Blog</Link>
-              <Link href="/commission" className="hover:text-stone-600 hover:underline">Commission Room</Link>
-              <Link href="/become-a-maker" className="hover:text-stone-600 hover:underline">Become a Maker</Link>
-              <Link href="/accessibility" className="hover:text-stone-600 hover:underline">Accessibility</Link>
+            <div className="flex flex-wrap justify-center gap-4 mb-3">
+              <Link href="/about" className="text-stone-200 hover:text-white hover:underline">About</Link>
+              <Link href="/terms" className="text-stone-200 hover:text-white hover:underline">Terms of Service</Link>
+              <Link href="/privacy" className="text-stone-200 hover:text-white hover:underline">Privacy Policy</Link>
+              <Link href="/blog" className="text-stone-200 hover:text-white hover:underline">Blog</Link>
+              <Link href="/commission" className="text-stone-200 hover:text-white hover:underline">Commission Room</Link>
+              <Link href="/become-a-maker" className="text-stone-200 hover:text-white hover:underline">Become a Maker</Link>
+              <Link href="/accessibility" className="text-stone-200 hover:text-white hover:underline">Accessibility</Link>
             </div>
-            <p className="mt-2">&copy; {new Date().getFullYear()} Grainline. All rights reserved.</p>
+            <p className="mt-2 text-stone-300/80">&copy; {new Date().getFullYear()} Grainline. All rights reserved.</p>
           </footer>
         </Providers>
       </body>

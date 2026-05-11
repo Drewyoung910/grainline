@@ -51,13 +51,13 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="sticky bottom-0 bg-white border-t px-3 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]">
+    <div className="sticky bottom-0 bg-white border-t border-neutral-200 px-3 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]">
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((a) => (
             <span
               key={a.id}
-              className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-3 py-1 text-xs"
             >
               <span className="truncate max-w-[160px]">{a.name}</span>
               {a.uploading ? (
@@ -168,7 +168,7 @@ export default function MessageComposer({
             }
           }}
           placeholder={placeholder}
-          className="w-full resize-none rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300 max-h-40 overflow-y-auto"
+          className="w-full resize-none rounded-md border border-neutral-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300 max-h-40 overflow-y-auto"
         />
 
         {canSend ? (

@@ -59,7 +59,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
         <p className="text-sm text-neutral-500 max-w-sm mx-auto mb-6">
-          Browse handmade pieces from makers across the country and add what you love.
+          Pieces you save will appear here.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {children}

@@ -177,16 +177,20 @@ export default async function MessagesPage({
         <div className="flex flex-wrap gap-2">
           <Link
             href={withQ("/messages")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "inbox" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+              tab === "inbox"
+                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
+                : "hover:bg-neutral-50"
             }`}
           >
             Inbox
           </Link>
           <Link
             href={withQ("/messages?tab=unread")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "unread" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+              tab === "unread"
+                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
+                : "hover:bg-neutral-50"
             }`}
           >
             Unread{" "}
@@ -198,8 +202,10 @@ export default async function MessagesPage({
           </Link>
           <Link
             href={withQ("/messages?tab=sent")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "sent" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+              tab === "sent"
+                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
+                : "hover:bg-neutral-50"
             }`}
           >
             Awaiting Reply{" "}
@@ -211,8 +217,10 @@ export default async function MessagesPage({
           </Link>
           <Link
             href={withQ("/messages?tab=archived")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "archived" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+              tab === "archived"
+                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
+                : "hover:bg-neutral-50"
             }`}
           >
             Archived

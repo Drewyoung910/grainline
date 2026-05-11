@@ -64,9 +64,19 @@ html, body {
   letter-spacing: -0.025em;
 }
 
-/* Base button rounding — Tailwind .rounded-* classes override via higher specificity */
-button {
-  border-radius: 0.375rem; /* rounded-md / 6px — overridden by .rounded-full etc. */
+/* Base button rounding — placed in @layer base so Tailwind utilities in
+   @layer utilities (e.g. .rounded-full, .rounded-lg) can override it without
+   needing inline style hacks. */
+@layer base {
+  button {
+    border-radius: 0.375rem; /* rounded-md / 6px */
+  }
+}
+
+/* Warm section accent — slightly darker than body cream (#F7F5F0).
+   Use for alternating section panels, footer-adjacent surfaces, etc. */
+.section-warm {
+  background-color: #EFEAE0;
 }
 
 /* Consistent section spacing */

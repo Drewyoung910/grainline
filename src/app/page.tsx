@@ -691,7 +691,7 @@ export default async function HomePage() {
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="rounded-2xl bg-stone-50 overflow-hidden">
+            <div className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
               <MediaImage
                 src={featuredMaker.bannerImageUrl}
                 fallbackSrc={featuredMakerFallbackImage}

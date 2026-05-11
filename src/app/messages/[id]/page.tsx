@@ -300,53 +300,74 @@ export default async function ThreadPage({
     <main className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
       {isParticipant && <MarkReadClient id={id} />}
 
-      {/* Two-row header for mobile friendliness */}
-      <header className="flex flex-col gap-2">
-        {/* Row 1: back link + participant name */}
-        <div className="flex items-center gap-3">
-          <Link href={isStaffReviewMode ? "/admin/reports" : "/messages"} className="text-sm text-neutral-500 hover:text-neutral-800 shrink-0">
-            {isStaffReviewMode ? "← Reports" : "← Inbox"}
+      {/* Conversation header: avatar + name on the left, ••• menu on the right.
+          Action buttons (Custom Order, Archive) render as a small toolbar
+          below only when there is something to show. */}
+      <header className="space-y-3 pb-3 border-b border-neutral-100">
+        {/* Top row */}
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href={isStaffReviewMode ? "/admin/reports" : "/messages"}
+            className="shrink-0 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800"
+          >
+            <span aria-hidden="true">←</span>
+            <span className="hidden sm:inline">{isStaffReviewMode ? "Reports" : "Inbox"}</span>
+            <span className="sr-only sm:hidden">{isStaffReviewMode ? "Back to reports" : "Back to inbox"}</span>
           </Link>
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="h-8 w-8 rounded-full bg-neutral-200 overflow-hidden shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
-            </div>
-            <div className="font-medium truncate">{participantLabel}</div>
-            {isStaffReviewMode ? (
-              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-[2px] text-[11px] text-blue-700 shrink-0">Staff review</span>
-            ) : null}
-            {archivedForMe ? (
-              <span className="rounded-full border px-2 py-[2px] text-[11px] text-neutral-600 shrink-0">Archived</span>
-            ) : null}
-            {isParticipant && other && other.id !== me.id && (
+
+          <div className="h-10 w-10 rounded-full bg-neutral-200 overflow-hidden shrink-0 ring-1 ring-neutral-200 shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="font-medium truncate text-neutral-900">{participantLabel}</div>
+            {(isStaffReviewMode || archivedForMe) && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                {isStaffReviewMode ? (
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-[2px] text-[11px] text-blue-700">
+                    Staff review
+                  </span>
+                ) : null}
+                {archivedForMe ? (
+                  <span className="rounded-full border border-neutral-200 px-2 py-[2px] text-[11px] text-neutral-600">
+                    Archived
+                  </span>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {isParticipant && other && other.id !== me.id && (
+            <div className="shrink-0">
               <BlockReportButton
                 targetUserId={other.id}
                 targetName={other.name ?? "this user"}
                 targetType="MESSAGE_THREAD"
                 targetId={id}
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Row 2: action buttons (only rendered when there's something to show) */}
-        <div className="flex items-center gap-2 flex-wrap pl-[4.5rem]">
-          {showCustomOrderButton && other && (
-            <ThreadCustomOrderButton
-              sellerUserId={other.id}
-              sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
-            />
-          )}
-          {/* Archive / Unarchive */}
-          {isParticipant && (
-            <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
-              <SubmitButton className="rounded-md border border-neutral-200 px-3 py-1.5 text-sm hover:bg-neutral-50">
-                {archivedForMe ? "Unarchive" : "Archive"}
-              </SubmitButton>
-            </ActionForm>
-          )}
-        </div>
+        {/* Action toolbar — only renders when there is at least one action */}
+        {(showCustomOrderButton || isParticipant) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {showCustomOrderButton && other && (
+              <ThreadCustomOrderButton
+                sellerUserId={other.id}
+                sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
+              />
+            )}
+            {isParticipant && (
+              <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
+                <SubmitButton className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors">
+                  {archivedForMe ? "Unarchive" : "Archive"}
+                </SubmitButton>
+              </ActionForm>
+            )}
+          </div>
+        )}
       </header>
 
       {otherUnavailableReason ? (
