@@ -103,6 +103,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       data: urls.map((url, i) => ({
         listingId,
         url,
+        // New uploads through AddPhotosButton don't crop — `url` IS the
+        // pre-crop original. Preserving it now means future re-crops can
+        // zoom back out to the full frame.
+        originalUrl: url,
         sortOrder: photoCount + i,
       })),
     });
@@ -231,5 +235,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   revalidatePath(`/seller/${listing.sellerId}`);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
 
-  return NextResponse.json({ added: toAdd.length });
+  // Read the post-review status so we can tell the client whether re-review
+  // is still pending. The client uses this to show a clear "we're re-reviewing
+  // this listing" toast instead of having the status badge silently flip and
+  // look like a phantom publish.
+  const after = await prisma.listing.findUnique({
+    where: { id: listingId },
+    select: { status: true },
+  });
+  const reviewPending = listing.status === ListingStatus.ACTIVE && after?.status !== ListingStatus.ACTIVE;
+
+  return NextResponse.json({ added: toAdd.length, reviewPending });
 }

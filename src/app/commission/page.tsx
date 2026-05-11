@@ -377,7 +377,7 @@ export default async function CommissionPage({
         <Link
           href={buildHref({ category: "", page: "" })}
           className={`rounded-full px-3 py-1 text-sm border whitespace-nowrap transition-colors ${
-            !categoryFilter ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+            !categoryFilter ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
           }`}
         >
           All
@@ -387,7 +387,7 @@ export default async function CommissionPage({
             key={cat}
             href={buildHref({ category: cat, page: "" })}
             className={`rounded-full px-3 py-1 text-sm border whitespace-nowrap transition-colors ${
-              categoryFilter === cat ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+              categoryFilter === cat ? "bg-neutral-900 text-white border-neutral-900" : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
             {CATEGORY_LABELS[cat]}

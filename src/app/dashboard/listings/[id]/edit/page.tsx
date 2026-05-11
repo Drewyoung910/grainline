@@ -468,7 +468,7 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
-    select: { url: true, listing: { select: { status: true, isPrivate: true, rejectionReason: true, updatedAt: true, sellerId: true } } },
+    select: { url: true, originalUrl: true, listing: { select: { status: true, isPrivate: true, rejectionReason: true, updatedAt: true, sellerId: true } } },
   });
   if (!ok) return;
   if (listingEditBlockReason(ok.listing)) return;
@@ -477,6 +477,14 @@ async function deletePhotoAction(listingId: string, photoId: string) {
   await deleteR2ObjectByUrl(ok.url).catch((error) => {
     console.error("[listing photo delete] R2 delete failed:", error);
   });
+  // Also clean up the preserved pre-crop source if it's a different
+  // object than `url` (e.g. the photo had been re-cropped at least once,
+  // so url and originalUrl point to different R2 objects).
+  if (ok.originalUrl && ok.originalUrl !== ok.url) {
+    await deleteR2ObjectByUrl(ok.originalUrl).catch((error) => {
+      console.error("[listing photo delete] R2 original delete failed:", error);
+    });
+  }
 
   // Re-trigger AI review if listing is ACTIVE (image removed)
   const listing = await prisma.listing.findUnique({ where: { id: listingId } });
@@ -579,6 +587,7 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
     where: { id: photoId, listingId, listing: { seller: { user: { clerkId: userId } } } },
     select: {
       url: true,
+      originalUrl: true,
       listing: {
         select: {
           id: true,
@@ -599,13 +608,32 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
   if (!existing) return;
   if (listingEditBlockReason(existing.listing)) return;
 
-  await prisma.photo.updateMany({
-    where: { id: photoId, listingId },
-    data: { url },
-  });
-  await deleteR2ObjectByUrl(existing.url).catch((error) => {
-    console.error("[listing photo replace] R2 delete failed:", error);
-  });
+  // Re-crop preserves the pre-crop source:
+  //   - If originalUrl is already populated (this isn't the first re-crop),
+  //     keep it untouched so future re-crops can still zoom out to the
+  //     original frame, and only delete the previously-displayed `url`
+  //     object from R2.
+  //   - If originalUrl is null (legacy photo or first re-crop under the
+  //     new field), lazily backfill it to the current `url` BEFORE we
+  //     overwrite `url` with the new cropped version. The current url
+  //     becomes the preserved original (do NOT delete it from R2). Future
+  //     re-crops will fetch this preserved original as the source.
+  if (existing.originalUrl) {
+    await prisma.photo.updateMany({
+      where: { id: photoId, listingId },
+      data: { url },
+    });
+    await deleteR2ObjectByUrl(existing.url).catch((error) => {
+      console.error("[listing photo replace] R2 delete failed:", error);
+    });
+  } else {
+    await prisma.photo.updateMany({
+      where: { id: photoId, listingId },
+      data: { url, originalUrl: existing.url },
+    });
+    // Intentionally NOT deleting existing.url from R2 — it becomes the
+    // preserved original for future re-crops.
+  }
 
   if (existing.listing.status === ListingStatus.ACTIVE) {
     const pending = await prisma.listing.updateMany({
@@ -954,7 +982,7 @@ export default async function EditListingPage(props: {
         </p>
 
         <EditPhotoGrid
-          photos={listing.photos.map((p) => ({ id: p.id, url: p.url, altText: p.altText }))}
+          photos={listing.photos.map((p) => ({ id: p.id, url: p.url, originalUrl: p.originalUrl, altText: p.altText }))}
           listingId={id}
           onReorder={reorderPhotos.bind(null, id)}
           onDelete={deletePhotoAction.bind(null, id)}

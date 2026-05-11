@@ -69,7 +69,23 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrls(imageUrls, 8);
+  imageUrls = filterFirstPartyMediaUrls(imageUrls, 10);
+
+  // Original (pre-crop) URLs from PhotoManager. Aligned by index with
+  // imageUrls. For new uploads these equal imageUrls (no crop applied
+  // before upload). They diverge once the seller re-crops on the edit
+  // page — re-crop writes a new cropped url and preserves the original
+  // here. We validate the same way as imageUrls (must be first-party
+  // media URLs) so a tampered hidden field can't inject foreign URLs.
+  let imageOriginalUrls: string[] = [];
+  const originalJson = formData.get("imageOriginalUrlsJson");
+  const imageOriginalUrlsResult = parseJsonArrayField(originalJson);
+  if (imageOriginalUrlsResult.ok) {
+    imageOriginalUrls = imageOriginalUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[listing-create] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
+  }
+  imageOriginalUrls = filterFirstPartyMediaUrls(imageOriginalUrls, 10);
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];
@@ -205,6 +221,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
       status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
       photos: { create: imageUrls.map((url, i) => ({
         url,
+        // originalUrl is paired with `url` by index. If the form didn't send
+        // a paired value (legacy client, length mismatch), default to `url`
+        // since uploads currently don't crop — `url` IS the original at
+        // creation time. Re-crop on the edit page is what causes them to
+        // diverge later.
+        originalUrl: imageOriginalUrls[i] ?? url,
         sortOrder: i,
         altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
       })) },
@@ -528,19 +550,19 @@ export default async function NewListingPage({
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
               <div className="mb-1">Length (in)</div>
-              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
+              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 24" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Width (in)</div>
-              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
+              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 12" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Height (in)</div>
-              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
+              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 8" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Weight (lb)</div>
-              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
+              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 5.5" />
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">

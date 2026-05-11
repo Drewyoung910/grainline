@@ -238,7 +238,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             <Link
               key={t}
               href={tagToggleHref(t)}
-              className={`rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-xs hover:bg-neutral-50 transition-colors ${
+              className={`rounded-full border border-neutral-200 bg-[#F7F5F0] px-2.5 py-0.5 text-xs hover:bg-white transition-colors ${
                 active ? "bg-neutral-900 text-white hover:bg-neutral-900 border-neutral-900" : ""
               }`}
             >

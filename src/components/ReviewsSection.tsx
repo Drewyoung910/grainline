@@ -236,7 +236,7 @@ export default async function ReviewsSection({
               className={`rounded-full border border-neutral-200 px-3 py-1 transition-colors ${
                 active
                   ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
-                  : "bg-white hover:bg-neutral-50"
+                  : "bg-[#EFEAE0] hover:bg-[#E5DFD2]"
               }`}
               scroll={false}
             >

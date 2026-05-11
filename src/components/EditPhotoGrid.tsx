@@ -7,6 +7,12 @@ import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 type Photo = {
   id: string;
   url: string;
+  /** Pre-crop source preserved on first re-crop (lazy backfill).
+      Used by ImageRecropButton so subsequent re-crops can zoom back out
+      to the full original frame instead of cropping within the
+      already-cropped url. Null for very old photos with no preserved
+      original — in that case ImageRecropButton falls back to `url`. */
+  originalUrl: string | null;
   altText: string | null;
 };
 
@@ -264,6 +270,7 @@ export default function EditPhotoGrid({
                   <div className="flex items-center gap-1">
                     <ImageRecropButton
                       imageUrl={p.url}
+                      originalImageUrl={p.originalUrl}
                       endpoint="listingImage"
                       cropAspect={4 / 5}
                       filename={`listing-photo-${idx + 1}.jpg`}

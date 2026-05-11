@@ -9,6 +9,14 @@ import type { UploadEndpoint } from "@/lib/uploadRules";
 
 type Props = {
   imageUrl: string;
+  /**
+   * Optional pre-crop source. When provided, re-crop fetches THIS for the
+   * crop modal source instead of the currently-displayed `imageUrl`, so
+   * users can zoom back out to the full original frame instead of only
+   * cropping within the already-cropped image. If omitted, falls back to
+   * `imageUrl` (legacy behavior).
+   */
+  originalImageUrl?: string | null;
   endpoint: UploadEndpoint;
   cropAspect: number;
   filename: string;
@@ -19,6 +27,7 @@ type Props = {
 
 export default function ImageRecropButton({
   imageUrl,
+  originalImageUrl,
   endpoint,
   cropAspect,
   filename,
@@ -38,7 +47,12 @@ export default function ImageRecropButton({
     setError(null);
     setLoading(true);
     try {
-      setSourceFile(await fileFromUrl(imageUrl, filename));
+      // Prefer the preserved pre-crop original so the user can re-frame
+      // (including zooming out) instead of only cropping within an already-
+      // cropped image. Falls back to imageUrl for legacy data with no
+      // originalImageUrl.
+      const source = originalImageUrl ?? imageUrl;
+      setSourceFile(await fileFromUrl(source, filename));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load this image for cropping.");
     } finally {

@@ -591,7 +591,7 @@ export default async function ListingPage({
             <div className="flex items-center gap-2 flex-wrap">
               <Link
                 href={sellerHref}
-                className="text-xs rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                className="text-xs rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-1.5 hover:bg-white transition-colors"
               >
                 Visit Shop
               </Link>
@@ -630,7 +630,7 @@ export default async function ListingPage({
                 <Link
                   key={t}
                   href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
-                  className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600 hover:bg-neutral-100 transition-colors"
+                  className="rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-[11px] text-neutral-600 hover:bg-white transition-colors"
                 >
                   #{t}
                 </Link>
@@ -740,7 +740,7 @@ export default async function ListingPage({
           <h2 className="font-semibold font-display text-neutral-900 mb-3">Shop Policies</h2>
           <div className="space-y-0">
             {listing.seller.returnPolicy && (
-              <details className="border-b border-neutral-100 last:border-0">
+              <details className="border-b border-[#F7F5F0] last:border-0">
                 <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
                   Returns & Exchanges
                 </summary>
@@ -748,7 +748,7 @@ export default async function ListingPage({
               </details>
             )}
             {listing.seller.shippingPolicy && (
-              <details className="border-b border-neutral-100 last:border-0">
+              <details className="border-b border-[#F7F5F0] last:border-0">
                 <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
                   Shipping
                 </summary>
@@ -756,7 +756,7 @@ export default async function ListingPage({
               </details>
             )}
             {listing.seller.customOrderPolicy && (
-              <details className="border-b border-neutral-100 last:border-0">
+              <details className="border-b border-[#F7F5F0] last:border-0">
                 <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
                   Custom Orders
                 </summary>

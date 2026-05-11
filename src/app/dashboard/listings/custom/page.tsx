@@ -80,7 +80,19 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrls(imageUrls, 8);
+  imageUrls = filterFirstPartyMediaUrls(imageUrls, 10);
+
+  // Original (pre-crop) URLs paired by index with imageUrls — same
+  // validation, used so the seller can re-crop from the full original.
+  let imageOriginalUrls: string[] = [];
+  const originalJson = formData.get("imageOriginalUrlsJson");
+  const imageOriginalUrlsResult = parseJsonArrayField(originalJson);
+  if (imageOriginalUrlsResult.ok) {
+    imageOriginalUrls = imageOriginalUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[custom-listing] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
+  }
+  imageOriginalUrls = filterFirstPartyMediaUrls(imageOriginalUrls, 10);
 
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");
@@ -150,6 +162,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
       packagedWeightGrams,
       photos: { create: imageUrls.map((url, i) => ({
         url,
+        originalUrl: imageOriginalUrls[i] ?? url,
         sortOrder: i,
         altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
       })) },

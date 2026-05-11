@@ -365,7 +365,14 @@ model Photo {
   id        String   @id @default(cuid())
   listingId String
   listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  // Currently-displayed image (may be a re-cropped version of originalUrl)
   url       String   @db.VarChar(2048)
+  // Pre-crop source preserved so re-crop can zoom back out to the full
+  // original frame. Nullable for legacy photos uploaded before this field
+  // existed — first re-crop after this column lands lazily backfills it
+  // from the current url. New uploads always populate originalUrl = url
+  // since uploads don't crop, only re-crop does.
+  originalUrl String? @db.VarChar(2048)
   altText   String?  @db.VarChar(200)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
