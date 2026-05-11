@@ -21,6 +21,18 @@ function isUniqueConstraintError(err: unknown) {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
+// Prisma codes that indicate a transient DB-side problem (connection pool
+// exhaustion, network blip, server-closed-connection). Worth one retry
+// rather than surfacing a 500 to the buyer.
+function isTransientPrismaError(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    return err.code === "P2024" || err.code === "P1001" || err.code === "P1008" || err.code === "P1017";
+  }
+  if (err instanceof Prisma.PrismaClientInitializationError) return true;
+  if (err instanceof Prisma.PrismaClientRustPanicError) return false;
+  return false;
+}
+
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
@@ -102,25 +114,32 @@ export async function POST(req: Request) {
       update: {},
     });
 
-    let item;
-    if (listing.listingType === "MADE_TO_ORDER") {
-      item = await prisma.cartItem.upsert({
-        where: {
-          cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-        },
-        update: { quantity: 1, priceCents: totalPriceCents, priceVersion: listing.priceVersion },
-        create: {
-          cartId: cart.id,
-          listingId,
-          quantity: 1,
-          priceCents: totalPriceCents,
-          priceVersion: listing.priceVersion,
-          selectedVariantOptionIds,
-          variantKey,
-        },
-        include: { listing: true },
-      });
-    } else {
+    // Idempotent add: wrap the create-or-increment flow so transient DB
+    // errors get one retry before bubbling to a 500. The pattern is:
+    //   1. Try insert (cart + listing + variantKey is unique).
+    //   2. If unique-constraint hit, fall through to increment.
+    //   3. On any other error, retry the whole sequence once for transient
+    //      Prisma errors (timeout / connection blip), else throw.
+    async function addOrIncrement() {
+      let item: Awaited<ReturnType<typeof prisma.cartItem.create>> | null = null;
+      if (listing!.listingType === "MADE_TO_ORDER") {
+        return prisma.cartItem.upsert({
+          where: {
+            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+          },
+          update: { quantity: 1, priceCents: totalPriceCents, priceVersion: listing!.priceVersion },
+          create: {
+            cartId: cart.id,
+            listingId,
+            quantity: 1,
+            priceCents: totalPriceCents,
+            priceVersion: listing!.priceVersion,
+            selectedVariantOptionIds,
+            variantKey,
+          },
+          include: { listing: true },
+        });
+      }
       try {
         item = await prisma.cartItem.create({
           data: {
@@ -128,7 +147,7 @@ export async function POST(req: Request) {
             listingId,
             quantity,
             priceCents: totalPriceCents,
-            priceVersion: listing.priceVersion,
+            priceVersion: listing!.priceVersion,
             selectedVariantOptionIds,
             variantKey,
           },
@@ -137,33 +156,51 @@ export async function POST(req: Request) {
       } catch (err) {
         if (!isUniqueConstraintError(err)) throw err;
       }
+      if (item) return item;
 
-      if (!item) {
-        const updated = await prisma.cartItem.updateMany({
-          where: {
-            cartId: cart.id,
-            listingId,
-            variantKey,
-            quantity: { lte: 99 - quantity },
-          },
-          data: {
-            quantity: { increment: quantity },
-            priceCents: totalPriceCents,
-            priceVersion: listing.priceVersion,
-            selectedVariantOptionIds,
-          },
-        });
-        if (updated.count === 0) {
-          return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
-        }
-        item = await prisma.cartItem.findUnique({
-          where: {
-            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-          },
-          include: { listing: true },
-        });
-        if (!item) throw new Error("CART_ITEM_MISSING_AFTER_UPDATE");
+      const updated = await prisma.cartItem.updateMany({
+        where: {
+          cartId: cart.id,
+          listingId,
+          variantKey,
+          quantity: { lte: 99 - quantity },
+        },
+        data: {
+          quantity: { increment: quantity },
+          priceCents: totalPriceCents,
+          priceVersion: listing!.priceVersion,
+          selectedVariantOptionIds,
+        },
+      });
+      if (updated.count === 0) {
+        return null; // Signals the 99-cap path to the caller.
       }
+      return prisma.cartItem.findUnique({
+        where: {
+          cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+        },
+        include: { listing: true },
+      });
+    }
+
+    let item;
+    try {
+      item = await addOrIncrement();
+    } catch (err) {
+      if (isTransientPrismaError(err)) {
+        Sentry.captureMessage("Cart add: transient Prisma error, retrying once", {
+          level: "warning",
+          tags: { source: "cart_add_route", listingId, variantKey: variantKey || "(none)" },
+          extra: { errCode: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : null },
+        });
+        item = await addOrIncrement();
+      } else {
+        throw err;
+      }
+    }
+
+    if (!item) {
+      return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true, item });
@@ -172,7 +209,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     console.error("POST /api/cart/add error:", err);
-    Sentry.captureException(err, { tags: { source: "cart_add_route", route: "/api/cart/add" } });
-    return NextResponse.json({ error: "Server error adding to cart" }, { status: 500 });
+    const errCode = err instanceof Prisma.PrismaClientKnownRequestError ? err.code : null;
+    Sentry.captureException(err, {
+      tags: {
+        source: "cart_add_route",
+        route: "/api/cart/add",
+        prismaErrorCode: errCode ?? "(none)",
+      },
+    });
+    // The previous generic 500 left buyers staring at "Server error adding to
+    // cart" with no path forward. Surface a slightly more useful retry hint
+    // so the user knows it wasn't a duplicate-add or validation problem.
+    return NextResponse.json(
+      { error: "We couldn't add this to your cart. Please try again in a moment." },
+      { status: 500 },
+    );
   }
 }

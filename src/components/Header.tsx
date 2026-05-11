@@ -196,7 +196,7 @@ export default function Header() {
           >
             <ShoppingBag size={20} />
             {cartCount != null && cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 text-[11px] font-medium leading-5 text-white text-center">
+              <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
                 {cartCount}
               </span>
             )}
@@ -241,7 +241,9 @@ export default function Header() {
             </span>
           </Show>
 
-          {/* Cart — always visible */}
+          {/* Cart — always visible. Badge matches NotificationBell + UnreadBadge
+              dimensions (h-5 / min-w-5 / text-[11px]) so all three mobile
+              header badges look the same size. */}
           <Link
             href="/cart"
             className="relative inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
@@ -249,7 +251,7 @@ export default function Header() {
           >
             <ShoppingBag size={20} />
             {cartCount != null && cartCount > 0 && (
-              <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
+              <span className="absolute right-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
                 {cartCount}
               </span>
             )}

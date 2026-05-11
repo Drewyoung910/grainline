@@ -959,7 +959,7 @@ export default async function HomePage() {
       </div>
 
       {/* ── Newsletter ───────────────────────────────────────────────────── */}
-      <ScrollSection className="border-t border-neutral-100 bg-amber-50">
+      <ScrollSection className="bg-[#F7F5F0]">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16">
           <NewsletterSignup
             heading="Get workshop stories in your inbox"

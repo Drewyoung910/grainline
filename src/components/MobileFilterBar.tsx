@@ -448,7 +448,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
       <div className="md:hidden sticky top-[2px] z-30 bg-[#F7F5F0] border-b border-neutral-200 -mx-4 px-4 pt-3 pb-3 flex items-center gap-3">
           <button
             onClick={() => setMobileOpen(true)}
-            className="mt-[2px] inline-flex items-center gap-2 rounded border bg-white px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+            className="mt-[2px] inline-flex items-center gap-2 rounded-md border border-neutral-200 bg-[#EFEAE0] px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-[#E5DFD2] transition-colors min-h-[44px]"
           >
             <Filter size={16} />
             Filters
@@ -461,7 +461,7 @@ export default function MobileFilterBar({ popularTags }: { popularTags: string[]
 
           <button
             onClick={() => setSortOpen(true)}
-            className="mt-[2px] inline-flex items-center gap-2 rounded border bg-white px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 min-h-[44px]"
+            className="mt-[2px] inline-flex items-center gap-2 rounded-md border border-neutral-200 bg-[#EFEAE0] px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-[#E5DFD2] transition-colors min-h-[44px]"
           >
             Sort: {sortLabel}
           </button>
