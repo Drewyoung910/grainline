@@ -21,7 +21,6 @@ import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
-import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -180,26 +179,12 @@ async function updateListing(
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  // Check if substantive content changed (triggers AI re-review for ACTIVE listings)
-  const titleChanged = title !== listing.title;
-  const descChanged = description !== listing.description;
-  const categoryChanged = (category ?? null) !== (listing.category ?? null);
-  const tagsChanged = JSON.stringify([...tags].sort()) !== JSON.stringify([...listing.tags].sort());
-  const materialsChanged = JSON.stringify([...materials].sort()) !== JSON.stringify([...listing.materials].sort());
-  const metaDescriptionChanged = metaDescription !== listing.metaDescription;
-  const productDimsChanged =
-    productLengthIn !== listing.productLengthIn ||
-    productWidthIn !== listing.productWidthIn ||
-    productHeightIn !== listing.productHeightIn;
-  const listingTypeChanged = listingType !== listing.listingType;
-  const stockChanged = stockQuantity !== listing.stockQuantity;
-  const shippingChanged =
-    shipsWithinDays !== listing.shipsWithinDays ||
-    processingTimeMinDays !== listing.processingTimeMinDays ||
-    processingTimeMaxDays !== listing.processingTimeMaxDays;
-  const priceRatio = listing.priceCents > 0 ? Math.abs(priceCents - listing.priceCents) / listing.priceCents : 0;
+  // Detect price/variant changes for priceVersion bump only — edits to an
+  // ACTIVE listing no longer auto-trigger AI re-review. Sellers can edit
+  // their listings freely; AI review only runs on the explicit publish
+  // transitions (DRAFT/HIDDEN/REJECTED → ACTIVE via publishListingAction,
+  // or new-listing initial publish). See CLAUDE.md "Listing edit re-review".
   const priceValueChanged = priceCents !== listing.priceCents;
-  const priceChanged = priceRatio > 0.5; // >50% price change
   const previousVariantGroups = normalizeVariantGroupsForCompare(listing.variantGroups);
   const nextVariantGroups = normalizeVariantGroupsForCompare(
     variantGroups.map((group, groupIndex) => ({
@@ -214,23 +199,6 @@ async function updateListing(
     }))
   );
   const variantsChanged = JSON.stringify(previousVariantGroups) !== JSON.stringify(nextVariantGroups);
-  const substantiveChange =
-    titleChanged ||
-    descChanged ||
-    categoryChanged ||
-    tagsChanged ||
-    materialsChanged ||
-    metaDescriptionChanged ||
-    productDimsChanged ||
-    listingTypeChanged ||
-    stockChanged ||
-    shippingChanged ||
-    priceChanged ||
-    variantsChanged;
-  // Use the pre-edit status for the review trigger. Later AI state transitions
-  // are guarded by the updatedAt value from this write plus PENDING_REVIEW.
-  const statusBeforeEdit = listing.status;
-  const requiresReview = statusBeforeEdit === ListingStatus.ACTIVE && substantiveChange;
 
   const updatedListing = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.update({
@@ -256,11 +224,6 @@ async function updateListing(
         shipsWithinDays,
         processingTimeMinDays,
         processingTimeMaxDays,
-        ...(requiresReview ? {
-          status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: ["pending-ai-review"],
-          aiReviewScore: 0,
-        } : {}),
       },
       select: { title: true, updatedAt: true },
     });
@@ -290,87 +253,12 @@ async function updateListing(
     return updated;
   });
 
-  // Re-trigger AI review if ACTIVE listing had substantive content changes
-  if (requiresReview) {
-    try {
-      const seller = await prisma.sellerProfile.findFirst({
-        where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
-      });
-      // If seller lost chargesEnabled, revert listing to DRAFT
-      if (!seller?.chargesEnabled) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.DRAFT },
-        });
-        return {
-          ok: false,
-          error: "Stripe disconnected — listing moved to draft. Reconnect Stripe to publish.",
-        };
-      }
-      const photos = await prisma.photo.findMany({
-        where: { listingId },
-        select: { url: true },
-        orderBy: { sortOrder: "asc" },
-        take: 8,
-      });
-      const { reviewListingWithAI } = await import("@/lib/ai-review");
-      const aiResult = await reviewListingWithAI({
-        sellerId: seller?.id ?? "",
-        title,
-        description,
-        priceCents,
-        category: category ?? null,
-        tags,
-        sellerName: seller?.displayName ?? "Unknown",
-        listingCount: seller?._count.listings ?? 0,
-        imageUrls: photos.map((p) => p.url),
-      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review", altTexts: [] as string[] }));
-
-      // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-      await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        const activated = await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: {
-            status: ListingStatus.ACTIVE,
-            aiReviewFlags: aiResult.flags,
-            aiReviewScore: aiResult.confidence,
-          },
-        });
-        if (activated.count === 0) {
-          return { ok: false, error: "Listing state changed during review. Refresh and try again." };
-        }
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET status = 'SOLD_OUT'
-          WHERE id = ${listingId}
-            AND "listingType" = 'IN_STOCK'
-            AND COALESCE("stockQuantity", 0) <= 0
-            AND status = 'ACTIVE'
-        `;
-      } else {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: {
-            status: ListingStatus.PENDING_REVIEW,
-            aiReviewFlags: aiResult.flags,
-            aiReviewScore: aiResult.confidence,
-          },
-        });
-      }
-    } catch {
-      await prisma.listing.updateMany({
-        where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
-        data: {
-          status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: ["AI review error"],
-          aiReviewScore: 0,
-        },
-      });
-    }
-  }
+  // Note: edits to ACTIVE listings used to trigger AI re-review automatically
+  // — see git history pre-2026-05-11 for that flow. Removed because it made
+  // every save feel like an unwanted re-publish. AI review now runs only at
+  // explicit publish transitions (publishListingAction below for the Publish
+  // button, or DRAFT/HIDDEN/REJECTED → ACTIVE). Acceptable security trade-off
+  // for early-stage marketplace; photo-swap surveillance is admin-side.
 
   // Publish-on-save: if the user clicked the Publish button on the edit form,
   // route the listing through publishListingAction (AI moderation + activation).
@@ -411,7 +299,7 @@ async function updateListing(
     where: { id: listingId },
     select: { status: true, title: true },
   });
-  const finalStatus = final?.status ?? statusBeforeEdit;
+  const finalStatus = final?.status ?? listing.status;
   const finalTitle = final?.title ?? updatedListing.title;
 
   if (
@@ -486,90 +374,10 @@ async function deletePhotoAction(listingId: string, photoId: string) {
     });
   }
 
-  // Re-trigger AI review if listing is ACTIVE (image removed)
-  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-  if (listing?.status === ListingStatus.ACTIVE) {
-    const pending = await prisma.listing.updateMany({
-      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: listing.updatedAt },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["pending-ai-review"],
-        aiReviewScore: 0,
-      },
-    });
-    if (pending.count === 0) return;
-    const reviewSnapshot = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: { updatedAt: true },
-    });
-    if (!reviewSnapshot) return;
-    try {
-      const currentPhotos = await prisma.photo.findMany({
-        where: { listingId },
-        select: { url: true },
-        orderBy: { sortOrder: "asc" },
-        take: 8,
-      });
-      if (currentPhotos.length === 0) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["missing-photo"], aiReviewScore: 0 },
-        });
-        return;
-      }
-      const seller = await prisma.sellerProfile.findFirst({
-        where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
-      });
-      if (!seller?.chargesEnabled) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.DRAFT },
-        });
-        return;
-      }
-      const { reviewListingWithAI } = await import("@/lib/ai-review");
-      const aiResult = await reviewListingWithAI({
-        sellerId: seller?.id ?? "",
-        title: listing.title,
-        description: listing.description,
-        priceCents: listing.priceCents,
-        category: listing.category ?? null,
-        tags: listing.tags,
-        sellerName: seller?.displayName ?? "Unknown",
-        listingCount: seller?._count.listings ?? 0,
-        imageUrls: currentPhotos.map((p) => p.url),
-      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error", altTexts: [] as string[] }));
-
-      // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-      await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-        });
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET status = 'SOLD_OUT'
-          WHERE id = ${listingId}
-            AND "listingType" = 'IN_STOCK'
-            AND COALESCE("stockQuantity", 0) <= 0
-            AND status = 'ACTIVE'
-        `;
-      } else {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-        });
-      }
-    } catch {
-      await prisma.listing.updateMany({
-        where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-        data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
-      });
-    }
-  }
+  // Note: deleting a photo from an ACTIVE listing used to auto-flip the
+  // listing into PENDING_REVIEW and re-run AI review. Removed 2026-05-11 —
+  // sellers can manage their photos freely without triggering a re-review.
+  // AI review only runs at explicit publish transitions.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
@@ -635,85 +443,9 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
     // preserved original for future re-crops.
   }
 
-  if (existing.listing.status === ListingStatus.ACTIVE) {
-    const pending = await prisma.listing.updateMany({
-      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: existing.listing.updatedAt },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["pending-ai-review"],
-        aiReviewScore: 0,
-      },
-    });
-    if (pending.count === 1) {
-      const reviewSnapshot = await prisma.listing.findUnique({
-        where: { id: listingId },
-        select: { updatedAt: true },
-      });
-      if (reviewSnapshot) {
-        try {
-          const [seller, currentPhotos] = await Promise.all([
-            prisma.sellerProfile.findFirst({
-              where: { listings: { some: { id: listingId } } },
-              select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
-            }),
-            prisma.photo.findMany({
-              where: { listingId },
-              select: { url: true },
-              orderBy: { sortOrder: "asc" },
-              take: 8,
-            }),
-          ]);
-          if (!seller?.chargesEnabled) {
-            await prisma.listing.updateMany({
-              where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-              data: { status: ListingStatus.DRAFT },
-            });
-          } else {
-            const { reviewListingWithAI } = await import("@/lib/ai-review");
-            const aiResult = await reviewListingWithAI({
-              sellerId: seller.id,
-              title: existing.listing.title,
-              description: existing.listing.description,
-              priceCents: existing.listing.priceCents,
-              category: existing.listing.category ?? null,
-              tags: existing.listing.tags,
-              sellerName: seller.displayName,
-              listingCount: seller._count.listings,
-              imageUrls: currentPhotos.map((p) => p.url),
-            }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error", altTexts: [] as string[] }));
-
-            // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-            await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-            if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-              await prisma.listing.updateMany({
-                where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-                data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-              });
-              await prisma.$executeRaw`
-                UPDATE "Listing"
-                SET status = 'SOLD_OUT'
-                WHERE id = ${listingId}
-                  AND "listingType" = 'IN_STOCK'
-                  AND COALESCE("stockQuantity", 0) <= 0
-                  AND status = 'ACTIVE'
-              `;
-            } else {
-              await prisma.listing.updateMany({
-                where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-                data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-              });
-            }
-          }
-        } catch {
-          await prisma.listing.updateMany({
-            where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-            data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
-          });
-        }
-      }
-    }
-  }
+  // Note: replacing a photo on an ACTIVE listing used to auto-flip it into
+  // PENDING_REVIEW and re-run AI review. Removed 2026-05-11 — seller can
+  // re-crop freely. AI review only runs at explicit publish transitions.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);

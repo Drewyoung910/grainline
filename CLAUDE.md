@@ -1726,16 +1726,23 @@ After `prisma.listing.create()`, AI review runs async in a try/catch:
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
 ### Listing edit re-review
-AI re-review triggers on ACTIVE listings when any substantive content changes. Three trigger points:
+**AI re-review does NOT run on routine edits to ACTIVE listings.** Sellers can freely:
 
-1. **Text field edits** (`dashboard/listings/[id]/edit/page.tsx` `updateListing`): title, description, category, or price (>50% change). Low-risk changes (tags, shipping, dimensions) do not trigger.
-2. **Image additions** (`api/listings/[id]/photos/route.ts`): any new photos added to ACTIVE listing triggers re-review with the new image set.
-3. **Image deletions** (`dashboard/listings/[id]/edit/page.tsx` `deletePhoto`): removing a photo from ACTIVE listing triggers re-review with remaining images.
+- Edit text fields (title, description, price, tags, materials, etc.)
+- Add new photos via `AddPhotosButton`
+- Replace photos via `ImageRecropButton` (re-crop)
+- Delete photos
+- Edit variants
 
-All three paths use the same threshold: `!approved || flags.length > 0 || confidence < 0.8` → PENDING_REVIEW. AI errors also send to admin queue. Non-fatal on infrastructure errors (listing stays ACTIVE only if try/catch catches a non-AI error).
+All of these save without flipping the listing into `PENDING_REVIEW`. The listing stays ACTIVE with the new content visible publicly.
 
-- Scope: only ACTIVE listings. Edits to DRAFT, PENDING_REVIEW, REJECTED, HIDDEN, SOLD, SOLD_OUT skip re-review.
-- Cover photo reorder (`setCoverPhoto`) does not trigger re-review (same images, different order — lower risk).
+**AI review runs only at explicit publish transitions:**
+1. New listing first publish via `createListing` server action.
+2. `publishListingAction` (used by the edit-form Publish button, the dashboard Publish/Resubmit buttons, and `seller/[id]/shop` actions) when transitioning DRAFT/HIDDEN/REJECTED → ACTIVE.
+
+Prior to 2026-05-11 the edit flow auto-triggered AI review on substantive text changes, photo adds, photo deletes, and photo replacements. Drew explicitly rejected that UX — every save felt like an unwanted re-submit and the silent status flip looked like a phantom publish to the seller. Removed in commit history. Acceptable security trade-off for early-stage marketplace: photo-swap surveillance is admin-side (admin can flag suspicious listings; `/admin/review` queue still exists for explicit submissions).
+
+If you re-add an auto-review trigger, you MUST also surface a clear UI explanation (toast or banner) to the seller so the status flip isn't silent.
 
 ### Admin review queue (`/admin/review`)
 - Shows all `PENDING_REVIEW` listings ordered oldest-first

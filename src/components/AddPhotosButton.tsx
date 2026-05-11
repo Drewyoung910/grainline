@@ -10,10 +10,6 @@ type AddPhotosResponse = {
   added?: number;
   warning?: string;
   error?: string;
-  /** True when adding photos flipped an ACTIVE listing into re-review.
-      Used to surface a clear explanation instead of letting the status
-      badge silently change. */
-  reviewPending?: boolean;
 };
 
 export default function AddPhotosButton({
@@ -82,18 +78,7 @@ export default function AddPhotosButton({
           emitToast(body.warning, "info");
         } else if ((body.added ?? urls.length) > 0) {
           const added = body.added ?? urls.length;
-          if (body.reviewPending) {
-            // Active listings whose photos change get auto-flipped to
-            // PENDING_REVIEW by the API so the new image set goes through
-            // moderation. Tell the seller that, so the status badge flip
-            // doesn't look like a phantom publish.
-            emitToast(
-              `${added} photo${added === 1 ? "" : "s"} added — your listing is being re-reviewed. It will return to active once approved.`,
-              "info",
-            );
-          } else {
-            emitToast(`${added} photo${added === 1 ? "" : "s"} added.`, "success");
-          }
+          emitToast(`${added} photo${added === 1 ? "" : "s"} added.`, "success");
         } else {
           emitToast("No new photos were added.", "info");
         }
