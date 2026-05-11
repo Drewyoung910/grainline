@@ -368,6 +368,30 @@ async function updateListing(
     }
   }
 
+  // Publish-on-save: if the user clicked the Publish button on the edit form,
+  // route the listing through publishListingAction (AI moderation + activation).
+  // Only publishable statuses get this treatment — ACTIVE/PENDING_REVIEW/SOLD/SOLD_OUT skip.
+  const wantsPublish = formData.get("publish") === "true";
+  if (wantsPublish) {
+    const current = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { status: true },
+    });
+    if (
+      current && (
+        current.status === ListingStatus.DRAFT ||
+        current.status === ListingStatus.HIDDEN ||
+        current.status === ListingStatus.REJECTED
+      )
+    ) {
+      const { publishListingAction } = await import("@/app/seller/[id]/shop/actions");
+      const publishResult = await publishListingAction(listingId);
+      if ("error" in publishResult) {
+        return { ok: false, error: publishResult.error };
+      }
+    }
+  }
+
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
   revalidatePath(`/seller/${listing.sellerId}`);
@@ -376,7 +400,26 @@ async function updateListing(
   revalidatePath("/browse");
   revalidateListingSearchCaches();
 
-  redirect(publicListingPath(listingId, updatedListing.title));
+  // Re-query final status after AI re-review may have transitioned the listing.
+  // Public listing path 404s for DRAFT, HIDDEN, REJECTED, PENDING_REVIEW — must
+  // redirect to the edit page with a saved banner instead of the public URL.
+  const final = await prisma.listing.findUnique({
+    where: { id: listingId },
+    select: { status: true, title: true },
+  });
+  const finalStatus = final?.status ?? statusBeforeEdit;
+  const finalTitle = final?.title ?? updatedListing.title;
+
+  if (
+    finalStatus === ListingStatus.ACTIVE ||
+    finalStatus === ListingStatus.SOLD ||
+    finalStatus === ListingStatus.SOLD_OUT
+  ) {
+    redirect(publicListingPath(listingId, finalTitle));
+  }
+
+  const savedQuery = finalStatus === ListingStatus.PENDING_REVIEW ? "saved=pending" : "saved=1";
+  redirect(`/dashboard/listings/${listingId}/edit?${savedQuery}`);
 }
 
 
@@ -660,8 +703,11 @@ async function saveAltTextsAction(listingId: string, altTexts: Record<string, st
 
 export default async function EditListingPage(props: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[]>>;
 }) {
   const { id } = await props.params;
+  const sp = props.searchParams ? await props.searchParams : {};
+  const savedFlag = typeof sp.saved === "string" ? sp.saved : null;
 
   const { userId } = await auth();
   if (!userId) return notFound();
@@ -674,11 +720,13 @@ export default async function EditListingPage(props: {
         orderBy: { sortOrder: "asc" },
         include: { options: { orderBy: { sortOrder: "asc" } } },
       },
+      seller: { select: { chargesEnabled: true } },
     },
   });
   if (!listing) return notFound();
   if (listing.status === "HIDDEN" && listing.isPrivate) return notFound();
   const editBlockReason = listingEditBlockReason(listing);
+  const chargesEnabled = listing.seller.chargesEnabled;
 
   if (editBlockReason) {
     return (
@@ -697,9 +745,33 @@ export default async function EditListingPage(props: {
 
   const remaining = Math.max(0, 8 - listing.photos.length);
 
+  const canPublishFromEdit =
+    listing.status === "DRAFT" ||
+    listing.status === "HIDDEN" ||
+    listing.status === "REJECTED";
+  const publishDisabledTitle = !chargesEnabled
+    ? "Connect Stripe payouts in Shop Settings before publishing."
+    : undefined;
+
   return (
     <main className="max-w-4xl mx-auto p-8">
       <h1 className="text-2xl font-semibold mb-6">Edit listing</h1>
+
+      {savedFlag === "1" && (
+        <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3">
+          <p className="text-sm font-medium text-green-800">Changes saved.</p>
+        </div>
+      )}
+      {savedFlag === "pending" && (
+        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-medium text-amber-900">
+            Changes saved — your listing is under review.
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            We&apos;ll notify you when it&apos;s back online.
+          </p>
+        </div>
+      )}
 
       {listing.status === "REJECTED" && listing.rejectionReason && (
         <div className="mb-6 rounded-md border border-red-300 bg-red-50 px-4 py-3">
@@ -829,7 +901,37 @@ export default async function EditListingPage(props: {
           <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
-        <SubmitButton>Save changes</SubmitButton>
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+          <SubmitButton
+            name="publish"
+            value="false"
+            pendingLabel="Saving..."
+            className="flex-1 rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-70"
+          >
+            Save changes
+          </SubmitButton>
+          {canPublishFromEdit && (
+            <span className="flex-1" title={publishDisabledTitle}>
+              <SubmitButton
+                name="publish"
+                value="true"
+                disabled={!chargesEnabled}
+                pendingLabel="Publishing..."
+                title={publishDisabledTitle}
+                className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {listing.status === "REJECTED" ? "Publish (Resubmit)" : "Publish"}
+              </SubmitButton>
+            </span>
+          )}
+        </div>
+        {canPublishFromEdit && !chargesEnabled && (
+          <p className="mt-2 text-xs text-amber-800">
+            Connect Stripe payouts in{" "}
+            <Link href="/dashboard/seller" className="underline">Shop Settings</Link>{" "}
+            before publishing.
+          </p>
+        )}
       </ActionForm>
 
       {/* Photos section */}

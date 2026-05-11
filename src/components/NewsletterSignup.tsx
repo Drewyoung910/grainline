@@ -34,7 +34,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
   }
 
   return (
-    <div className="rounded-2xl bg-amber-50 border border-amber-100 px-6 py-8 text-center space-y-4">
+    <div className="rounded-2xl bg-amber-50 px-6 py-8 text-center space-y-4">
       <div>
         <h3 className="text-lg font-semibold text-neutral-900">
           {heading ?? "Get workshop stories in your inbox"}
@@ -45,7 +45,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
       </div>
 
       {status === "success" ? (
-        <div className="rounded-xl bg-white border border-green-200 px-4 py-3 text-green-800 font-medium">
+        <div className="rounded-md border border-green-200 bg-white px-4 py-3 text-green-800 font-medium">
           You&apos;re on the list!
         </div>
       ) : (
@@ -55,7 +55,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
             placeholder="Your name (optional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 flex-1"
+            className="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <input
             type="email"
@@ -63,12 +63,12 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 flex-1"
+            className="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <button
             type="submit"
             disabled={status === "loading"}
-            className="rounded-lg bg-amber-800 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60 shrink-0"
+            className="shrink-0 rounded-md bg-amber-800 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
           >
             {status === "loading" ? "..." : "Subscribe"}
           </button>

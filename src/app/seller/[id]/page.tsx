@@ -555,7 +555,7 @@ export default async function SellerPublicPage({
           <section className="mb-8 card-section">
             <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">Shop Policies</h2>
             {seller.returnPolicy && (
-              <details className="border-b last:border-b-0">
+              <details className="border-b border-neutral-100 last:border-b-0">
                 <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
                   Return Policy
                 </summary>
@@ -565,7 +565,7 @@ export default async function SellerPublicPage({
               </details>
             )}
             {seller.customOrderPolicy && (
-              <details className="border-b last:border-b-0">
+              <details className="border-b border-neutral-100 last:border-b-0">
                 <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
                   Custom Order Policy
                 </summary>
@@ -575,7 +575,7 @@ export default async function SellerPublicPage({
               </details>
             )}
             {seller.shippingPolicy && (
-              <details className="border-b last:border-b-0">
+              <details className="border-b border-neutral-100 last:border-b-0">
                 <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
                   Shipping Policy
                 </summary>
@@ -594,7 +594,7 @@ export default async function SellerPublicPage({
               Frequently Asked Questions
             </h2>
             {seller.faqs.map((faq) => (
-              <details key={faq.id} className="border-b last:border-b-0">
+              <details key={faq.id} className="border-b border-neutral-100 last:border-b-0">
                 <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
                   {faq.question}
                 </summary>

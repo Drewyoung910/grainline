@@ -1,8 +1,24 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 This file is the canonical fix-mode backlog for the later audit rounds. It focuses on findings from Rounds 13-20 and re-review passes that were not already closed in `CLAUDE.md`. Items are grouped by severity and practical fix batch.
+
+## 2026-05-10 — Edit-flow + dashboard polish (Claude direct write — Codex unavailable)
+
+Drew shipped commit 7bd134b (address autofill); reported nine new bugs after testing. Codex was at usage cap until 2026-05-12, so Claude executed the fixes directly per Drew's explicit override (`feedback_codex_unavailable_override`).
+
+1. **[CRITICAL FIXED 2026-05-10] Edit listing redirect 404s for non-public statuses ("got sanded down").** `updateListing` always redirected to `publicListingPath`, but the public listing page returns `notFound()` for DRAFT/HIDDEN/REJECTED/PENDING_REVIEW. Saving a draft, or saving an active listing whose substantive change triggered AI re-review, landed on the 404 page. Fix: `src/app/dashboard/listings/[id]/edit/page.tsx` re-queries the post-edit status and switches the redirect target — public listing path for ACTIVE/SOLD/SOLD_OUT, edit page with `?saved=1` for DRAFT/HIDDEN/REJECTED, edit page with `?saved=pending` for PENDING_REVIEW. Edit page renders a top banner from the saved query param. Documented as "Edit listing redirect behavior".
+2. **[FIXED 2026-05-10] No Publish surface on edit page for DRAFT/HIDDEN/REJECTED.** Edit page form now exposes a Publish button next to Save changes when `listing.status` is DRAFT/HIDDEN/REJECTED. Submits `publish=true` through the same `<ActionForm>`; after standard save (and any ACTIVE re-review), `updateListing` re-reads status and calls `publishListingAction(listingId)` if the listing is still in a publishable state. Disabled when `chargesEnabled` is false. Documented as "Edit-page Publish behavior".
+3. **[FIXED 2026-05-10] No Publish button on dashboard My Listings cards for DRAFT.** Cards already showed Resubmit (REJECTED) and Unhide (HIDDEN) via `ResubmitButton`. Added `<ResubmitButton listingId={l.id} label="Publish" />` for DRAFT in `src/app/dashboard/page.tsx`. PENDING_REVIEW/ACTIVE/SOLD/SOLD_OUT correctly remain without a publish surface. Documented as "Dashboard My Listings publish surface".
+4. **[FIXED 2026-05-10] Dashboard My Listings cards used fixed-height landscape (`h-48 w-full`) instead of the site-wide 4:5 portrait standard.** `src/app/dashboard/page.tsx` thumbnail and placeholder containers are now `aspect-[4/5] w-full`. Matches the WYSIWYG listing photo crop introduced in commit 11dd300.
+5. **[FIXED 2026-05-10] AI alt-text backfill missing from `publishListingAction`.** When a seller saved a listing as DRAFT (no AI review runs on drafts) then published from the dashboard, AI generated alt texts but they were discarded — `src/app/seller/[id]/shop/actions.ts` only used `aiResult.flags`/`confidence`/`reason`. Added the same backfill block used in `createListing`: iterate `aiResult.altTexts`, write to empty `Photo.altText` only, sanitize/truncate via `@/lib/sanitize`. Documented as "AI alt-text backfill consistency".
+6. **[FIXED 2026-05-10] Seller profile Shop Policies and FAQ accordion borders rendered as default-dark `border-b`.** `src/app/seller/[id]/page.tsx` `<details>` rows now use `border-b border-neutral-100 last:border-b-0` matching the design system divider color.
+7. **[FIXED 2026-05-10] Newsletter signup "Get workshop stories" appeared visually boxed-off.** `src/components/NewsletterSignup.tsx` dropped `border border-amber-100` from the wrapper (cream-on-cream outline). Internal name/email inputs migrated from `rounded-lg border` (default-dark border) to `rounded-md border border-neutral-200` with `focus:ring-neutral-300` focus ring per design system. Subscribe button bumped from `rounded-lg` to `rounded-md` to match the rest of the form.
+8. **[FIXED 2026-05-10] Mobile gallery prev/next chevrons were text glyphs (`‹`/`›` with `text-3xl leading-none`) and rendered visually off-center inside their 44×44 circles.** `src/components/ListingGallery.tsx` now uses `<ChevronLeft size={24} />` and `<ChevronRight size={24} />` from `@/components/icons` for the main-photo arrows, and `size={28}` for the lightbox arrows. Centered cleanly via `inline-flex items-center justify-center`. Removed `text-3xl leading-none` since SVGs don't need them.
+9. **[VERIFIED NOT-A-BUG 2026-05-10] Custom-order button "missing" from seller profile / listing detail / messages.** Confirmed in code that all three surfaces have the button gated on `acceptsCustomOrders && meId !== sellerUserId` (or equivalent for messages). Drew was viewing his own profile/listing — gating intentionally hides the button to prevent self-requests. No code change.
+
+Verification: `npm test` 466/466 pass, `npx tsc --noEmit` clean, `npm run lint` clean (existing jsx-ast-utils warnings only), `npm run build` clean, `npm audit --audit-level=moderate` 0 vulnerabilities.
 
 ## Current Live Ledger
 

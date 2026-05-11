@@ -495,18 +495,18 @@ export default async function DashboardPage({
                     <Link href={publicListingPath(l.id, l.title)} className="block">
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb} alt={l.title} className="h-48 w-full object-cover" />
+                        <img src={thumb} alt={l.title} className="aspect-[4/5] w-full object-cover" />
                       ) : (
-                        <div className="h-48 w-full bg-neutral-100" />
+                        <div className="aspect-[4/5] w-full bg-neutral-100" />
                       )}
                     </Link>
                   ) : (
                     <>
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={thumb} alt={l.title} className="h-48 w-full object-cover" />
+                        <img src={thumb} alt={l.title} className="aspect-[4/5] w-full object-cover" />
                       ) : (
-                        <div className="h-48 w-full bg-neutral-100" />
+                        <div className="aspect-[4/5] w-full bg-neutral-100" />
                       )}
                     </>
                   )}
@@ -593,6 +593,8 @@ export default async function DashboardPage({
                             >
                               Hide
                             </InlineActionButton>
+                          ) : l.status === "DRAFT" ? (
+                            <ResubmitButton listingId={l.id} label="Publish" />
                           ) : null}
                         </>
                       )}

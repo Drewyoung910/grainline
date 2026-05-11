@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, type MutableRefObject, type RefObject } from "react";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { ChevronLeft, ChevronRight } from "@/components/icons";
 
 type Photo = { id: string; url: string; altText?: string | null };
 
@@ -164,10 +165,10 @@ export default function ListingGallery({
                   showPreviousPhoto();
                 }
               }}
-              className="absolute left-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-3xl leading-none text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="absolute left-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               style={{ borderRadius: "9999px" }}
             >
-              ‹
+              <ChevronLeft size={24} />
             </button>
             <button
               type="button"
@@ -183,10 +184,10 @@ export default function ListingGallery({
                   showNextPhoto();
                 }
               }}
-              className="absolute right-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-3xl leading-none text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="absolute right-3 top-1/2 z-10 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-sm transition hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               style={{ borderRadius: "9999px" }}
             >
-              ›
+              <ChevronRight size={24} />
             </button>
           </>
         )}
@@ -248,20 +249,20 @@ export default function ListingGallery({
                   e.stopPropagation();
                   setLightboxIndex((i) => (i - 1 + photos.length) % photos.length);
                 }}
-                className="absolute left-[calc(1rem+env(safe-area-inset-left))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-3xl text-white hover:text-neutral-300"
+                className="absolute left-[calc(1rem+env(safe-area-inset-left))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-white hover:text-neutral-300"
                 aria-label="Previous image"
               >
-                ‹
+                <ChevronLeft size={28} />
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setLightboxIndex((i) => (i + 1) % photos.length);
                 }}
-                className="absolute right-[calc(1rem+env(safe-area-inset-right))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-3xl text-white hover:text-neutral-300"
+                className="absolute right-[calc(1rem+env(safe-area-inset-right))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-white hover:text-neutral-300"
                 aria-label="Next image"
               >
-                ›
+                <ChevronRight size={28} />
               </button>
             </>
           )}
