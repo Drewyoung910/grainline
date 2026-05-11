@@ -66,6 +66,22 @@
   overflow: hidden;
 }
 
+/* Warm-fill card — same surface as .card-section but with the #EFEAE0
+   accent fill. Used on dashboard nav buttons so the action grid stands
+   apart from the cream body. */
+.card-warm {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(231, 229, 228, 0.6);
+  background: #EFEAE0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.card-warm:hover {
+  background: #E5DFD2;
+  box-shadow: 0 4px 14px rgba(28, 25, 23, 0.08);
+}
+
 /* Serif display font for hero + section headings */
 .font-display {
   font-family: Georgia, 'Times New Roman', serif;

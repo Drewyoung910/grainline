@@ -433,18 +433,18 @@ export default async function SellerPublicPage({
 
         {/* ── Latest Broadcast ───────────────────────────────────────────── */}
         {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
-          <section className="mb-8 border border-teal-200 bg-teal-50 p-4">
-            <div className="text-xs text-teal-600 font-medium mb-1">
+          <section className="mb-8 card-section p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
               Shop Update ·{" "}
               <LocalDate date={latestBroadcast.sentAt} />
             </div>
-            <p className="text-sm text-neutral-700 whitespace-pre-line">{latestBroadcast.message}</p>
+            <p className="text-sm text-neutral-800 whitespace-pre-line">{latestBroadcast.message}</p>
             {latestBroadcast.imageUrl && (
               <MediaImage
                 src={latestBroadcast.imageUrl}
                 alt="Update"
-                className="mt-3 w-full max-h-48 object-cover"
-                fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100"
+                className="mt-3 w-full max-h-48 object-cover rounded-md"
+                fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100 rounded-md"
               />
             )}
           </section>

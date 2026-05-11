@@ -94,29 +94,29 @@ export default function VacationModeForm({
     : null;
 
   return (
-    <div className="border border-neutral-200 p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-medium">Vacation Mode</h2>
+    <div className="card-section p-6 space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-semibold">Vacation Mode</h2>
           <p className="text-sm text-neutral-500 mt-0.5">
             Pause your shop while you&apos;re away. Your listings will be hidden and new orders blocked.
           </p>
         </div>
-        {/* Toggle switch */}
-        <label className="relative inline-flex items-center cursor-pointer">
+        {/* Toggle switch — neutral-900 when on, neutral-200 when off */}
+        <label className="relative inline-flex items-center cursor-pointer shrink-0">
           <input
             type="checkbox"
             className="sr-only peer"
             checked={enabled || pendingEnable}
             onChange={handleToggleChange}
           />
-          <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:bg-amber-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
+          <div className="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:bg-neutral-900 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:shadow-sm after:transition-all peer-checked:after:translate-x-full" />
         </label>
       </div>
 
-      {/* Warning modal before enabling */}
+      {/* Warning before enabling */}
       {showWarning && (
-        <div className="border border-amber-300 bg-amber-50 p-4 space-y-3">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 space-y-3">
           <p className="text-sm font-medium text-amber-900">Before enabling vacation mode:</p>
           <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
             <li>Your existing orders must still be fulfilled and will not be cancelled automatically.</li>
@@ -126,13 +126,13 @@ export default function VacationModeForm({
           <div className="flex gap-3">
             <button
               onClick={confirmEnable}
-              className="px-4 py-1.5 text-sm bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+              className="rounded-md bg-neutral-900 text-white px-4 py-1.5 text-sm font-medium hover:bg-neutral-800 transition-colors"
             >
               Enable vacation mode
             </button>
             <button
               onClick={cancelEnable}
-              className="px-4 py-1.5 text-sm border border-neutral-300 hover:bg-neutral-50 transition-colors"
+              className="rounded-md border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium hover:bg-neutral-50 transition-colors"
             >
               Cancel
             </button>
@@ -144,7 +144,7 @@ export default function VacationModeForm({
       {enabled && (
         <div className="space-y-4 pt-1">
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
               Return date <span className="text-neutral-500 font-normal">(optional)</span>
             </label>
             <input
@@ -152,14 +152,14 @@ export default function VacationModeForm({
               value={returnDate}
               min={todayInputValue}
               onChange={(e) => setReturnDate(e.target.value)}
-              className="border border-neutral-300 px-3 py-2 text-sm"
+              className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
             />
             {returnDateFormatted && (
               <p className="text-xs text-neutral-500 mt-1">Shown to buyers as: Expected return {returnDateFormatted}</p>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
               Vacation message <span className="text-neutral-500 font-normal">(optional)</span>
             </label>
             <textarea
@@ -168,7 +168,7 @@ export default function VacationModeForm({
               rows={3}
               maxLength={200}
               placeholder="Let buyers know when you'll be back or why you're away. This is shown on your profile page."
-              className="w-full border border-neutral-300 px-3 py-2 text-sm resize-none"
+              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300"
             />
             <p className="text-xs text-neutral-500 text-right">{message.length}/200</p>
           </div>
@@ -178,7 +178,7 @@ export default function VacationModeForm({
       <button
         onClick={handleSave}
         disabled={isPending || showWarning}
-        className="px-4 py-2 text-sm bg-neutral-900 text-white hover:bg-neutral-700 transition-colors disabled:opacity-50"
+        className="rounded-md bg-neutral-900 text-white px-4 py-2 text-sm font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50"
       >
         {isPending ? "Saving…" : "Save vacation settings"}
       </button>

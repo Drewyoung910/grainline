@@ -80,15 +80,17 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   // Preferred carriers
   const preferredCarriers = formData.getAll("preferredCarriers").map(String).filter(Boolean);
 
-  // Default package (cm / g)
-  const defaultPkgLengthCm = toFloat(formData.get("defaultPkgLengthCm"));
-  const defaultPkgWidthCm = toFloat(formData.get("defaultPkgWidthCm"));
-  const defaultPkgHeightCm = toFloat(formData.get("defaultPkgHeightCm"));
+  // Default package — form accepts inches/lb but DB stores cm/g.
+  // Conversions: 1 in = 2.54 cm; 1 lb = 453.592 g.
+  const inToCm = (v: number | null) => (v == null ? null : Math.round(v * 2.54 * 10) / 10);
+  const lbToG = (v: number | null) => (v == null ? null : Math.round(v * 453.592));
+  const defaultPkgLengthCm = inToCm(toFloat(formData.get("defaultPkgLengthIn")));
+  const defaultPkgWidthCm = inToCm(toFloat(formData.get("defaultPkgWidthIn")));
+  const defaultPkgHeightCm = inToCm(toFloat(formData.get("defaultPkgHeightIn")));
   const defaultPkgWeightGrams = (() => {
-    const v = formData.get("defaultPkgWeightGrams");
-    if (v === null || v === undefined || String(v).trim() === "") return null;
-    const n = parseInt(String(v), 10);
-    return Number.isFinite(n) ? n : null;
+    const raw = toFloat(formData.get("defaultPkgWeightLb"));
+    if (raw == null) return null;
+    return lbToG(raw);
   })();
 
   await prisma.sellerProfile.update({
@@ -389,26 +391,71 @@ export default async function SellerSettingsPage({
           <SellerShipFromAddressFields defaults={currentRow ?? {}} />
         </div>
 
-        {/* Default package (cm / g) */}
+        {/* Default package size — inputs in inches/lb; converted to cm/g
+            server-side because Shippo + the DB store metric. */}
         <div className="border-t border-neutral-100 pt-4 space-y-3">
-          <h2 className="text-lg font-semibold font-display">Default package (cm / g)</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <input name="defaultPkgLengthCm" type="number" inputMode="decimal" step="0.1" placeholder="Length (cm)"
-                   autoComplete="off"
-                   defaultValue={currentRow?.defaultPkgLengthCm ?? ""} className={inputClass} />
-            <input name="defaultPkgWidthCm" type="number" inputMode="decimal" step="0.1" placeholder="Width (cm)"
-                   autoComplete="off"
-                   defaultValue={currentRow?.defaultPkgWidthCm ?? ""} className={inputClass} />
-            <input name="defaultPkgHeightCm" type="number" inputMode="decimal" step="0.1" placeholder="Height (cm)"
-                   autoComplete="off"
-                   defaultValue={currentRow?.defaultPkgHeightCm ?? ""} className={inputClass} />
-            <input name="defaultPkgWeightGrams" type="number" inputMode="numeric" step="1" placeholder="Weight (g)"
-                   autoComplete="off"
-                   defaultValue={currentRow?.defaultPkgWeightGrams ?? ""} className={inputClass} />
-          </div>
+          <h2 className="text-lg font-semibold font-display">Default package size</h2>
           <p className="text-xs text-neutral-500">
-            These defaults are used for live carrier quotes when a listing doesn’t specify its own packaged size/weight.
+            Used for live carrier quotes when a listing doesn&apos;t specify its own packaged dimensions and weight.
           </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <input
+              name="defaultPkgLengthIn"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              placeholder="Length (in)"
+              autoComplete="off"
+              defaultValue={
+                currentRow?.defaultPkgLengthCm != null
+                  ? Math.round((currentRow.defaultPkgLengthCm / 2.54) * 10) / 10
+                  : ""
+              }
+              className={inputClass}
+            />
+            <input
+              name="defaultPkgWidthIn"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              placeholder="Width (in)"
+              autoComplete="off"
+              defaultValue={
+                currentRow?.defaultPkgWidthCm != null
+                  ? Math.round((currentRow.defaultPkgWidthCm / 2.54) * 10) / 10
+                  : ""
+              }
+              className={inputClass}
+            />
+            <input
+              name="defaultPkgHeightIn"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              placeholder="Height (in)"
+              autoComplete="off"
+              defaultValue={
+                currentRow?.defaultPkgHeightCm != null
+                  ? Math.round((currentRow.defaultPkgHeightCm / 2.54) * 10) / 10
+                  : ""
+              }
+              className={inputClass}
+            />
+            <input
+              name="defaultPkgWeightLb"
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              placeholder="Weight (lb)"
+              autoComplete="off"
+              defaultValue={
+                currentRow?.defaultPkgWeightGrams != null
+                  ? Math.round((currentRow.defaultPkgWeightGrams / 453.592) * 10) / 10
+                  : ""
+              }
+              className={inputClass}
+            />
+          </div>
         </div>
 
         <button type="submit" className="rounded-md px-4 py-2.5 bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-800">
