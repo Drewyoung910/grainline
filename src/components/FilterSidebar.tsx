@@ -268,7 +268,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
     <>
       {/* ── Desktop sidebar (md+) ── */}
       <aside className="hidden md:block w-52 lg:w-56 shrink-0">
-        <div className="card-section p-4 sticky top-4">
+        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm p-4 sticky top-4">
           {form}
           {tagsSection}
         </div>

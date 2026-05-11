@@ -503,7 +503,11 @@ export default async function DashboardPage({
                   : `${publicListingPath(l.id, l.title)}?preview=1`;
 
               return (
-                <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
+                // Mobile (horizontal scroll): fixed 220px width via w-[220px].
+                // Previously had only min-w-[220px] which let long titles push
+                // the card to fill the available width — visible as "super
+                // wide" cards on mobile. sm+ releases to grid via sm:w-auto.
+                <li key={l.id} className="card-listing w-[220px] flex-none snap-start sm:w-auto">
                   {cardHref ? (
                     <Link href={cardHref} className="block">
                       {thumb ? (
@@ -525,13 +529,13 @@ export default async function DashboardPage({
                   )}
 
                   <div className="p-4 space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <h3 className="font-medium">
+                    <div className="flex items-baseline justify-between gap-2 min-w-0">
+                      <h3 className="font-medium truncate min-w-0 flex-1">
                         {cardHref ? (
                           <Link href={cardHref} className="hover:underline">{l.title}</Link>
                         ) : l.title}
                       </h3>
-                      <span className="text-sm text-neutral-500">
+                      <span className="text-sm text-neutral-500 shrink-0">
                         {(l.priceCents / 100).toLocaleString("en-US", {
                           style: "currency",
                           currency: l.currency,

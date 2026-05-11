@@ -346,7 +346,7 @@ export default function NotificationBell({
           id={dropdownId}
           role="dialog"
           aria-label="Notifications"
-          className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg bg-white shadow-lg overflow-y-auto max-h-[70vh]"
+          className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg border border-neutral-200 bg-white text-neutral-900 shadow-lg overflow-y-auto max-h-[70vh]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">

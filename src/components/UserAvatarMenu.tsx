@@ -91,7 +91,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
           id={menuId}
           role="menu"
           aria-label="Account"
-          className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+          className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white text-neutral-900 shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Header — avatar + name */}
           <div role="presentation" className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">

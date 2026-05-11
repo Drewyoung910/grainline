@@ -233,8 +233,10 @@ export default async function ReviewsSection({
             <Link
               key={k}
               href={sortHref(k, edit)}
-              className={`rounded-full border px-3 py-1 hover:bg-neutral-50 ${
-                active ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+              className={`rounded-full border border-neutral-200 px-3 py-1 transition-colors ${
+                active
+                  ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
+                  : "bg-white hover:bg-neutral-50"
               }`}
               scroll={false}
             >

@@ -931,7 +931,7 @@ function CartPage() {
             </div>
 
             {/* Order summary sidebar */}
-            <div className="lg:w-72 space-y-4">
+            <div className="lg:w-72 rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm p-5 h-fit space-y-4">
               <h3 className="text-sm font-medium text-neutral-900">Order summary</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
