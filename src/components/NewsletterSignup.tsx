@@ -55,7 +55,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
             placeholder="Your name (optional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="flex-1 rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <input
             type="email"
@@ -63,7 +63,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="flex-1 rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <button
             type="submit"

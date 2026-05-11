@@ -38,6 +38,10 @@ export type FeedItem = {
   message?: string;
   broadcastImageUrl?: string | null;
   sentAt?: string;
+  // Whether the viewer has already favorited (listing) / saved (blog).
+  // Used to set the initial state on FavoriteButton / SaveBlogButton in
+  // the feed UI so the heart/bookmark renders filled when applicable.
+  isSaved?: boolean;
 };
 
 export async function GET(req: NextRequest) {
@@ -184,6 +188,28 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  // Build saved-state lookups so the cards can render with the right
+  // heart/bookmark fill. Two parallel queries scoped to just the listing
+  // and blog post ids in this feed page — cheap, indexed lookups.
+  const listingIds = listings.map((l) => l.id);
+  const blogPostIds = blogPosts.map((b) => b.id);
+  const [favorites, savedBlogPosts] = await Promise.all([
+    listingIds.length > 0
+      ? prisma.favorite.findMany({
+          where: { userId: me.id, listingId: { in: listingIds } },
+          select: { listingId: true },
+        })
+      : Promise.resolve([] as { listingId: string }[]),
+    blogPostIds.length > 0
+      ? prisma.savedBlogPost.findMany({
+          where: { userId: me.id, blogPostId: { in: blogPostIds } },
+          select: { blogPostId: true },
+        })
+      : Promise.resolve([] as { blogPostId: string }[]),
+  ]);
+  const favoritedListingIds = new Set(favorites.map((f) => f.listingId));
+  const savedBlogPostIds = new Set(savedBlogPosts.map((s) => s.blogPostId));
+
   const merged: FeedItem[] = [
     ...listings.map((l): FeedItem => ({
       kind: "listing",
@@ -196,6 +222,7 @@ export async function GET(req: NextRequest) {
       sellerName: l.seller.displayName ?? "Maker",
       sellerProfileId: l.sellerId,
       guildLevel: l.seller.guildLevel,
+      isSaved: favoritedListingIds.has(l.id),
     })),
     ...blogPosts.map((b): FeedItem => ({
       kind: "blog",
@@ -209,6 +236,7 @@ export async function GET(req: NextRequest) {
       sellerProfileId: b.sellerProfileId ?? "",
       guildLevel: b.sellerProfile?.guildLevel,
       publishedAt: (b.publishedAt ?? new Date(0)).toISOString(),
+      isSaved: savedBlogPostIds.has(b.id),
     })),
     ...broadcasts.map((br): FeedItem => ({
       kind: "broadcast",

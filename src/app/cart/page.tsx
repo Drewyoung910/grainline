@@ -596,22 +596,42 @@ function CartPage() {
                       </span>
                     )}
 
-                    <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
-                      Qty
-                    </label>
-                    <select
-                      id={quantitySelectId}
-                      className="rounded-md border border-neutral-200 px-2 py-1 text-sm"
-                      value={i.quantity}
-                      onChange={(e) => setQuantity(i.id, Number(e.target.value))}
-                    >
-                      {Array.from({ length: Math.max(1, i.quantity, i.listing.maxQuantity ?? 99) }).map((_, idx) => {
-                        const n = idx + 1;
+                    {(() => {
+                      const maxQty = Math.max(1, i.quantity, i.listing.maxQuantity ?? 99);
+                      // When the listing's max is 1 (MADE_TO_ORDER or a single
+                      // remaining in-stock unit), the dropdown only has one
+                      // option which is confusing. Show a static label instead.
+                      if (maxQty === 1) {
                         return (
-                          <option key={n} value={n}>{n}</option>
+                          <span className="text-xs text-neutral-500 shrink-0">
+                            Qty {i.quantity}
+                            {i.listing.listingType === "MADE_TO_ORDER"
+                              ? " · Made to order"
+                              : " · only one available"}
+                          </span>
                         );
-                      })}
-                    </select>
+                      }
+                      return (
+                        <>
+                          <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
+                            Qty
+                          </label>
+                          <select
+                            id={quantitySelectId}
+                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
+                            value={i.quantity}
+                            onChange={(e) => setQuantity(i.id, Number(e.target.value))}
+                          >
+                            {Array.from({ length: maxQty }).map((_, idx) => {
+                              const n = idx + 1;
+                              return (
+                                <option key={n} value={n}>{n}</option>
+                              );
+                            })}
+                          </select>
+                        </>
+                      );
+                    })()}
 
                     <button
                       type="button"

@@ -128,16 +128,16 @@ export default function Header() {
   }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
-    <header className="bg-[#3F5D3A] text-stone-100 relative z-[50]">
+    <header className="bg-[#D9E2D5] text-neutral-900 relative z-[50]">
       <nav aria-label="Main navigation" className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 flex items-center gap-4 lg:gap-6">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
           {/* Mobile */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden brightness-0 invert" />
+          <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden" />
           {/* Desktop */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block brightness-0 invert" />
+          <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
         </Link>
 
         {/* Search bar — desktop only, fluid width up to ~640px so it has presence
@@ -150,19 +150,19 @@ export default function Header() {
         <div className="ml-auto hidden md:flex items-center gap-4">
           <Link
             href="/browse"
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
           >
             Browse
           </Link>
           <Link
             href="/blog"
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
           >
             Blog
           </Link>
           <Link
             href="/commission"
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
           >
             Commission Room
           </Link>
@@ -176,7 +176,7 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in?redirect_url=/messages"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors"
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
                 aria-label="Messages"
                 title="Messages"
               >
@@ -190,7 +190,7 @@ export default function Header() {
           {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
           <Link
             href="/cart"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors"
+            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
             aria-label="Cart"
             title="Cart"
           >
@@ -207,7 +207,7 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in"
-                className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-stone-100 hover:bg-white/10 hover:text-white transition-colors"
+                className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
               >
                 Sign in
               </Link>
@@ -229,7 +229,7 @@ export default function Header() {
           <button
             onClick={() => setSearchOpen((o) => !o)}
             aria-label={searchOpen ? "Close search" : "Search"}
-            className="inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
@@ -252,7 +252,7 @@ export default function Header() {
             className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
             aria-label="Cart"
           >
-            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors">
+            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
               <ShoppingBag size={20} />
               {cartCount != null && cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
@@ -266,7 +266,7 @@ export default function Header() {
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
-            className="inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             <Menu size={24} />
           </button>

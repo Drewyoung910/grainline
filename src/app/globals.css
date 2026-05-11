@@ -44,11 +44,14 @@
   line-height: 1.1;
 }
 
-/* Listing/product cards */
+/* Listing/product cards — uses the darker cream accent so the card
+   info section stands apart from the cream page bg. Don't switch
+   back to #ffffff; the ListingCard component intentionally relies on
+   this class for the wrapper background. */
 .card-listing {
   border-radius: 0.5rem; /* rounded-lg */
   border: 1px solid rgba(231, 229, 228, 0.6); /* stone-200 @ 60% */
-  background: #ffffff;
+  background: #EFEAE0;
   box-shadow: 0 8px 30px rgba(28, 25, 23, 0.04);
   overflow: hidden;
   transition: box-shadow 0.2s ease;

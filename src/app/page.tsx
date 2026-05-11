@@ -928,7 +928,7 @@ export default async function HomePage() {
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </div>
-                      <div className="p-4 space-y-2 bg-white">
+                      <div className="p-4 space-y-2 bg-[#EFEAE0]">
                         <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>
                         {p.excerpt && (
                           <p className="text-xs text-stone-500 line-clamp-2">{truncateText(p.excerpt, 100)}</p>

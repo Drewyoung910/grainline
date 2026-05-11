@@ -9,7 +9,7 @@ export default function MessageIconLink() {
       href="/messages"
       aria-label="Messages"
       title="Messages"
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
     >
       {/* Envelope icon */}
       <svg
