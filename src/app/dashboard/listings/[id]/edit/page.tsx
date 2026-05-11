@@ -21,6 +21,7 @@ import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -324,7 +325,10 @@ async function updateListing(
         sellerName: seller?.displayName ?? "Unknown",
         listingCount: seller?._count.listings ?? 0,
         imageUrls: photos.map((p) => p.url),
-      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review" }));
+      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review", altTexts: [] as string[] }));
+
+      // Backfill AI-generated alt texts on photos missing seller-provided alt text.
+      await backfillEmptyAltTexts(listingId, aiResult.altTexts);
 
       if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
         const activated = await prisma.listing.updateMany({
@@ -418,8 +422,17 @@ async function updateListing(
     redirect(publicListingPath(listingId, finalTitle));
   }
 
-  const savedQuery = finalStatus === ListingStatus.PENDING_REVIEW ? "saved=pending" : "saved=1";
-  redirect(`/dashboard/listings/${listingId}/edit?${savedQuery}`);
+  // PENDING_REVIEW: redirect to the preview URL so the seller sees how their
+  // listing appears (buyer-perspective). The edit page would block them with
+  // editBlockReason, and the public listing page would 404 — preview is the
+  // right surface to land on right after publishing or after AI auto-hold.
+  if (finalStatus === ListingStatus.PENDING_REVIEW) {
+    redirect(`${publicListingPath(listingId, finalTitle)}?preview=1`);
+  }
+
+  // DRAFT / HIDDEN / REJECTED: stay on the edit page with a saved banner so the
+  // seller can keep editing.
+  redirect(`/dashboard/listings/${listingId}/edit?saved=1`);
 }
 
 
@@ -518,7 +531,10 @@ async function deletePhotoAction(listingId: string, photoId: string) {
         sellerName: seller?.displayName ?? "Unknown",
         listingCount: seller?._count.listings ?? 0,
         imageUrls: currentPhotos.map((p) => p.url),
-      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
+      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error", altTexts: [] as string[] }));
+
+      // Backfill AI-generated alt texts on photos missing seller-provided alt text.
+      await backfillEmptyAltTexts(listingId, aiResult.altTexts);
 
       if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
         await prisma.listing.updateMany({
@@ -636,7 +652,10 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
               sellerName: seller.displayName,
               listingCount: seller._count.listings,
               imageUrls: currentPhotos.map((p) => p.url),
-            }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error" }));
+            }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error", altTexts: [] as string[] }));
+
+            // Backfill AI-generated alt texts on photos missing seller-provided alt text.
+            await backfillEmptyAltTexts(listingId, aiResult.altTexts);
 
             if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
               await prisma.listing.updateMany({
@@ -760,16 +779,6 @@ export default async function EditListingPage(props: {
       {savedFlag === "1" && (
         <div className="mb-6 rounded-md border border-green-200 bg-green-50 px-4 py-3">
           <p className="text-sm font-medium text-green-800">Changes saved.</p>
-        </div>
-      )}
-      {savedFlag === "pending" && (
-        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-medium text-amber-900">
-            Changes saved — your listing is under review.
-          </p>
-          <p className="text-sm text-amber-800 mt-1">
-            We&apos;ll notify you when it&apos;s back online.
-          </p>
         </div>
       )}
 

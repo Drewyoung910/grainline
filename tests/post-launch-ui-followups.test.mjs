@@ -126,13 +126,21 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(wizard, /bg-amber-500 hover:bg-amber-600/);
   });
 
-  it("keeps listing product imagery on one portrait ratio from crop through display", () => {
+  it("displays listing product imagery at 4:5 portrait via CSS without forcing an upload-time crop", () => {
     assert.match(source("src/components/ListingCard.tsx"), /aspect-\[4\/5\]/);
     assert.match(source("src/components/ListingGallery.tsx"), /aspect-\[4\/5\]/);
     assert.doesNotMatch(source("src/components/ListingGallery.tsx"), /h-\[350px\]|h-\[400px\]|h-\[500px\]/);
-    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{4 \/ 5\}/);
-    assert.match(source("src/components/EditPhotoGrid.tsx"), /cropAspect=\{4 \/ 5\}/);
-    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+    // Upload-time crop is intentionally NOT forced on listing photos so the
+    // lightbox can show the original aspect. Cards crop via CSS object-cover.
+    // Match the actual UploadButton element — endpoint immediately followed by
+    // `appearance` (or other non-cropAspect prop) means cropAspect is NOT set.
+    const photoManager = source("src/components/PhotoManager.tsx");
+    assert.match(photoManager, /<UploadButton\s+endpoint="listingImage"\s+appearance/);
+    assert.doesNotMatch(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+    // Re-crop affordances still pass cropAspect={4/5} so sellers can opt in to
+    // 4:5 thumbnail framing on existing photos.
+    assert.match(photoManager, /<ImageRecropButton[\s\S]*?cropAspect=\{4 \/ 5\}/);
+    assert.match(source("src/components/EditPhotoGrid.tsx"), /<ImageRecropButton[\s\S]*?cropAspect=\{4 \/ 5\}/);
   });
 
   it("keeps made-to-order variants from exposing stock checkboxes", () => {
@@ -257,5 +265,65 @@ describe("post-launch UI follow-ups", () => {
     assert.doesNotMatch(source("src/app/admin/flagged/page.tsx"), /No flagged orders/);
     assert.doesNotMatch(source("src/app/dashboard/orders/[id]/page.tsx"), /shipping detail change/);
     assert.doesNotMatch(source("src/app/dashboard/sales/[orderId]/page.tsx"), /Shipping address or rate changed/);
+  });
+
+  it("dashboard listing card click goes to public path for active and to preview URL for non-public statuses", () => {
+    const dashboard = source("src/app/dashboard/page.tsx");
+    // The card link branches on isPublicStatus and appends ?preview=1 for the
+    // owner-preview case so DRAFT/HIDDEN/REJECTED/PENDING_REVIEW don't 404.
+    assert.match(dashboard, /isPublicStatus = l\.status === "ACTIVE" \|\| l\.status === "SOLD" \|\| l\.status === "SOLD_OUT"/);
+    assert.match(dashboard, /\?preview=1`/);
+    assert.match(dashboard, /isArchived\s*\?\s*null/);
+  });
+
+  it("AI alt-text backfill helper exists and is wired into every reviewListingWithAI path", () => {
+    const helper = source("src/lib/photoAltTextBackfill.ts");
+    const publishActions = source("src/app/seller/[id]/shop/actions.ts");
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const newPage = source("src/app/dashboard/listings/new/page.tsx");
+
+    assert.match(helper, /export async function backfillEmptyAltTexts/);
+    assert.match(helper, /altText: cleaned/);
+    assert.match(helper, /\.findMany\(/);
+    assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
+    assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
+    // Edit page has 3 reviewListingWithAI call sites — updateListing,
+    // deletePhotoAction, replacePhotoAction. All three must call the backfill.
+    assert.match(editPage, /import \{ backfillEmptyAltTexts \}/);
+    const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
+    assert.equal(backfillCalls.length, 3, "expected 3 backfill calls in edit page");
+    // Catch returns now include altTexts so TypeScript can union the success
+    // type without a property-missing error.
+    const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];
+    assert.equal(editAltTextsInCatch.length, 3, "expected altTexts in all 3 catch returns");
+    // New listing path was already there — sanity check it still backfills.
+    assert.match(newPage, /aiResult\.altTexts/);
+  });
+
+  it("publish from edit redirects PENDING_REVIEW to preview URL with status-aware banner", () => {
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const listingPage = source("src/app/listing/[id]/page.tsx");
+
+    // updateListing redirect: ACTIVE/SOLD/SOLD_OUT → public, PENDING_REVIEW →
+    // preview URL, everything else → edit page with saved=1.
+    assert.match(editPage, /finalStatus === ListingStatus\.PENDING_REVIEW/);
+    assert.match(editPage, /\$\{publicListingPath\(listingId, finalTitle\)\}\?preview=1/);
+    assert.match(editPage, /\?saved=1/);
+    // saved=pending was the old buggy banner — should be gone now.
+    assert.doesNotMatch(editPage, /saved=pending/);
+    // Preview banner now branches on status so PENDING_REVIEW shows the right
+    // "under review" message instead of the generic preview message.
+    assert.match(listingPage, /listing\.status === "PENDING_REVIEW"/);
+    assert.match(listingPage, /Under review/);
+  });
+
+  it("header uses a wider container and grows the search bar for desktop presence", () => {
+    const header = source("src/components/Header.tsx");
+    assert.match(header, /max-w-\[1600px\]/);
+    assert.match(header, /max-w-\[640px\]/);
+    assert.doesNotMatch(header, /max-w-6xl/);
+    // Search bar still wraps SearchBar inside flex-1 so it grows in available
+    // space within the new max width.
+    assert.match(header, /flex-1 max-w-\[640px\]/);
   });
 });

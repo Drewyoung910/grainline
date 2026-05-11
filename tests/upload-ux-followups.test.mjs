@@ -61,7 +61,7 @@ describe("upload UX follow-ups", () => {
     assert.match(button, /animate-spin/);
   });
 
-  it("opens crop UI for banner, avatar, and listing photo uploads", () => {
+  it("opens crop UI for banner and avatar uploads, leaves listing photos at original aspect", () => {
     const modal = source("src/components/ImageCropModal.tsx");
     assert.match(modal, /MAX_OUTPUT_LONG_EDGE = 2000/);
     assert.match(modal, /canvas\.toBlob\(resolve, "image\/jpeg", 0\.9\)/);
@@ -69,11 +69,20 @@ describe("upload UX follow-ups", () => {
     assert.match(modal, /setZoom\(1\)/);
     assert.match(modal, /setOffset\(\{ x: 0, y: 0 \}\)/);
     assert.match(source("src/components/R2UploadButton.tsx"), /ImageCropModal/);
+    // Banner and avatar always store cropped (the thumbnail IS the only view).
     assert.match(source("src/components/ProfileBannerUploader.tsx"), /cropAspect=\{3 \/ 1\}/);
     assert.match(source("src/components/ProfileAvatarUploader.tsx"), /cropAspect=\{1\}/);
-    assert.match(source("src/components/PhotoManager.tsx"), /cropAspect=\{4 \/ 5\}/);
-    assert.match(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
-    assert.match(source("src/components/ImageUploadField.tsx"), /cropAspect=\{4 \/ 5\}/);
+    // Listing photos no longer force a crop on upload — original aspect is
+    // preserved so the lightbox shows the full image. Cards use object-cover at
+    // aspect-[4/5] to give a consistent grid look.
+    assert.doesNotMatch(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+    // PhotoManager keeps cropAspect on the re-crop button so sellers can opt
+    // into 4:5 framing for an existing photo, but does NOT force it on the
+    // initial UploadButton — endpoint is immediately followed by `appearance`,
+    // not by `cropAspect`.
+    const photoManager = source("src/components/PhotoManager.tsx");
+    assert.match(photoManager, /<UploadButton\s+endpoint="listingImage"\s+appearance/);
+    assert.match(photoManager, /<ImageRecropButton[\s\S]*?cropAspect=\{4 \/ 5\}/);
   });
 
   it("keeps crop ratios aligned with public display surfaces", () => {

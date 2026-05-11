@@ -398,7 +398,9 @@ export default async function ListingPage({
     <div className="bg-[#F7F5F0] min-h-[100svh]">
     {isPreview && (
       <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-sm text-amber-800 text-center">
-        Preview mode — this is how your listing appears to buyers. It is not yet published.
+        {listing.status === "PENDING_REVIEW"
+          ? "Under review — your listing will go live once our team approves it. This is the buyer-facing preview."
+          : "Preview mode — this is how your listing appears to buyers. It is not yet published."}
       </div>
     )}
     <main className="max-w-[1600px] mx-auto overflow-x-hidden px-4 sm:px-6 lg:px-8 pb-16 pt-6">

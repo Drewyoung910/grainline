@@ -32,7 +32,10 @@ export default function AddPhotosButton({
   return (
     <UploadButton
       endpoint="listingImage"
-      cropAspect={4 / 5}
+      // No upload-time crop on listing photos: store the original aspect so the
+      // lightbox shows the full image. Cards/listing detail use object-cover at
+      // aspect-[4/5] for visual consistency. Sellers can use Re-crop later to
+      // control thumbnail framing.
       // Make the button obvious
       appearance={{
         container: "inline-block",

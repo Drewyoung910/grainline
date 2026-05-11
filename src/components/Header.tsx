@@ -129,7 +129,7 @@ export default function Header() {
 
   return (
     <header className="border-b bg-[#F7F5F0] relative z-[50]">
-      <nav aria-label="Main navigation" className="mx-auto max-w-6xl p-4 flex items-center gap-4">
+      <nav aria-label="Main navigation" className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 flex items-center gap-4 lg:gap-6">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
           {/* Mobile */}
@@ -140,8 +140,9 @@ export default function Header() {
           <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
         </Link>
 
-        {/* Search bar — desktop only, always visible */}
-        <span className="hidden md:flex flex-1 max-w-[400px]">
+        {/* Search bar — desktop only, fluid width up to ~640px so it has presence
+            without crowding nav links on smaller desktops. */}
+        <span className="hidden md:flex flex-1 max-w-[640px]">
           <SearchBar />
         </span>
 

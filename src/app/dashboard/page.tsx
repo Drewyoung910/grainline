@@ -488,11 +488,22 @@ export default async function DashboardPage({
             {listings.map((l) => {
               const thumb = l.photos[0]?.url;
               const isArchived = l.status === "HIDDEN" && l.isPrivate;
+              // Card link target depends on public visibility:
+              // ACTIVE/SOLD/SOLD_OUT → public listing page
+              // DRAFT/HIDDEN/REJECTED/PENDING_REVIEW → preview page (?preview=1) so the
+              // owner can see their listing without hitting the public 404.
+              // Archived (HIDDEN + isPrivate) listings are not linkable.
+              const isPublicStatus = l.status === "ACTIVE" || l.status === "SOLD" || l.status === "SOLD_OUT";
+              const cardHref = isArchived
+                ? null
+                : isPublicStatus
+                  ? publicListingPath(l.id, l.title)
+                  : `${publicListingPath(l.id, l.title)}?preview=1`;
 
               return (
                 <li key={l.id} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
-                  {l.status !== "DRAFT" && !isArchived ? (
-                    <Link href={publicListingPath(l.id, l.title)} className="block">
+                  {cardHref ? (
+                    <Link href={cardHref} className="block">
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={thumb} alt={l.title} className="aspect-[4/5] w-full object-cover" />
@@ -514,8 +525,8 @@ export default async function DashboardPage({
                   <div className="p-4 space-y-2">
                     <div className="flex items-baseline justify-between">
                       <h3 className="font-medium">
-                        {l.status !== "DRAFT" && !isArchived ? (
-                          <Link href={publicListingPath(l.id, l.title)} className="hover:underline">{l.title}</Link>
+                        {cardHref ? (
+                          <Link href={cardHref} className="hover:underline">{l.title}</Link>
                         ) : l.title}
                       </h3>
                       <span className="text-sm text-neutral-500">

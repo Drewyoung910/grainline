@@ -108,7 +108,6 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
       {photos.length < max && (
         <UploadButton
           endpoint="listingImage"
-          cropAspect={4 / 5}
           appearance={{
             button:
               "rounded-md bg-neutral-900 px-3 py-2 text-white hover:bg-neutral-800",
@@ -133,6 +132,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
 
       <p className="text-xs text-neutral-500">
         Upload up to {max} photos (8MB each). First photo is the cover.
+        Cards crop to a 4:5 portrait — center your subject. Use Re-crop later if you want to control the framing.
       </p>
 
       {/* Hidden inputs for form submission */}

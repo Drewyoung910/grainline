@@ -14,6 +14,7 @@ import {
   publishListingBlockReason,
   unhideListingBlockReason,
 } from "@/lib/listingActionState";
+import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -228,33 +229,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
 
     // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text.
     // Runs regardless of approval status — alt text content is independent of moderation decision.
-    if (aiResult.altTexts?.length) {
-      try {
-        const allPhotos = await prisma.photo.findMany({
-          where: { listingId: listing.id },
-          orderBy: { sortOrder: "asc" },
-          select: { id: true, altText: true },
-        });
-        const { sanitizeText, truncateText } = await import("@/lib/sanitize");
-        const updates: Array<Promise<unknown>> = [];
-        for (let i = 0; i < Math.min(allPhotos.length, aiResult.altTexts.length); i++) {
-          const aiText = aiResult.altTexts[i];
-          if (aiText && !allPhotos[i].altText) {
-            updates.push(
-              prisma.photo.update({
-                where: { id: allPhotos[i].id },
-                data: { altText: truncateText(sanitizeText(aiText), 200) },
-              })
-            );
-          }
-        }
-        await Promise.all(updates);
-      } catch (e) {
-        if (process.env.NODE_ENV !== "production") {
-          console.error("[ai-alt-text] Backfill failed in publishListingAction:", e instanceof Error ? e.message : e);
-        }
-      }
-    }
+    await backfillEmptyAltTexts(listing.id, aiResult.altTexts);
 
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
