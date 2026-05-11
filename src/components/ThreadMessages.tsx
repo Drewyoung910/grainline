@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Palette, Logs } from "@/components/icons";
+import { MessageCircle, Palette, Logs } from "@/components/icons";
 import {
   parseCommissionInterestMessageBody,
   parseCustomOrderLinkMessageBody,
@@ -184,8 +184,11 @@ export default function ThreadMessages({
         if (messages) apply(messages);
       };
       es.onerror = () => {
+        // SSE errors are noisy (visibility change, network blips, idle drops).
+        // Silently fall back to polling instead of warning the user every time
+        // the stream drops — only terminal polling failures (401/403/429) set
+        // streamError below, and those are real interruptions worth surfacing.
         es.close();
-        setStreamError(messageStreamStatusMessage(0));
         startPolling();
       };
       return () => {
@@ -225,12 +228,25 @@ export default function ThreadMessages({
   return (
     <div
       ref={boxRef}
-      className="md:rounded-xl md:border md:bg-white md:p-4 overflow-y-auto pb-8"
+      className="md:card-section md:p-4 overflow-y-auto pb-8"
       style={{ height: boxHeight }}
     >
       {streamError && (
-        <div role="status" className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div role="status" className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           {streamError}
+        </div>
+      )}
+      {msgs.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700 mb-4">
+            <MessageCircle size={28} />
+          </div>
+          <h3 className="text-base font-medium text-neutral-800 mb-1">
+            {otherUser?.name ? `Say hi to ${otherUser.name}` : "Start the conversation"}
+          </h3>
+          <p className="text-sm text-neutral-500 max-w-xs">
+            Send the first message below. Replies appear here in real time.
+          </p>
         </div>
       )}
       <ul className="space-y-3 pb-4">

@@ -326,4 +326,68 @@ describe("post-launch UI follow-ups", () => {
     // space within the new max width.
     assert.match(header, /flex-1 max-w-\[640px\]/);
   });
+
+  it("ImageCropModal renders through a portal so re-crop pointer events don't bubble into draggable parents", () => {
+    const modal = source("src/components/ImageCropModal.tsx");
+    assert.match(modal, /import \{ createPortal \} from "react-dom"/);
+    assert.match(modal, /createPortal\(modal, document\.body\)/);
+    // Mount guard prevents SSR mismatch — ensures portal only renders client-side.
+    assert.match(modal, /const \[mounted, setMounted\] = React\.useState\(false\)/);
+  });
+
+  it("EditPhotoGrid syncs local state when initialPhotos prop changes after router.refresh()", () => {
+    const grid = source("src/components/EditPhotoGrid.tsx");
+    // After AddPhotosButton calls router.refresh(), the new photo prop must
+    // propagate to local state so the new card renders without a manual reload.
+    // Sync key is composed from id+url so identical re-renders don't loop.
+    assert.match(grid, /photosKey = initialPhotos\.map\(\(p\) => `\$\{p\.id\}:\$\{p\.url\}`\)\.join\("\|"\)/);
+    assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?setPhotos\(initialPhotos\)/);
+    // Alt-text merge keeps in-progress local edits per existing photo id.
+    assert.match(grid, /next\[p\.id\] = prev\[p\.id\] \?\? p\.altText/);
+  });
+
+  it("ThreadMessages silently falls back to polling on SSE error instead of warning the user", () => {
+    const thread = source("src/components/ThreadMessages.tsx");
+    // es.onerror should NOT call setStreamError(messageStreamStatusMessage(0))
+    // because polling fallback handles the gap silently. Terminal polling
+    // failures (401/403/429) still surface the warning at the polling site.
+    assert.doesNotMatch(thread, /es\.onerror = \(\) => \{\s*es\.close\(\);\s*setStreamError\(messageStreamStatusMessage\(0\)\)/);
+    // Polling site still uses isTerminalMessageStreamStatus to decide.
+    assert.match(thread, /isTerminalMessageStreamStatus\(res\.status\)/);
+  });
+
+  it("message thread uses card-section styling and shows a friendly empty state", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+    const thread = source("src/components/ThreadMessages.tsx");
+    // Listing context card uses the design system card-section instead of
+    // bare rounded-lg + border.
+    assert.match(threadPage, /card-section flex items-center gap-3 p-3/);
+    // Thread container uses card-section on md+ instead of bare md:border.
+    assert.match(thread, /md:card-section md:p-4/);
+    // Empty-state visual when there are no messages yet.
+    assert.match(thread, /msgs\.length === 0 &&/);
+    assert.match(thread, /Start the conversation/);
+  });
+
+  it("header icon-only buttons share the hover-circle pattern", () => {
+    const header = source("src/components/Header.tsx");
+    const bell = source("src/components/NotificationBell.tsx");
+    const messageIconLink = source("src/components/MessageIconLink.tsx");
+    // Cart and signed-out message icons in header now use the same hover
+    // circle pattern as MessageIconLink.
+    assert.match(header, /aria-label="Cart"\s+title="Cart"/);
+    assert.match(header, /relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50/);
+    assert.match(messageIconLink, /h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50/);
+    assert.match(bell, /h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50/);
+  });
+
+  it("cart page has skeleton loading and friendly empty-state card", () => {
+    const cart = source("src/app/cart/page.tsx");
+    assert.match(cart, /CartLoadingSkeleton/);
+    assert.match(cart, /animate-pulse/);
+    assert.match(cart, /CartEmptyState/);
+    assert.match(cart, /Browse the workshop/);
+    // Suspense fallback also uses the skeleton, not the plain "Loading…" text.
+    assert.match(cart, /<Suspense fallback=\{<CartLoadingSkeleton \/>}/);
+  });
 });

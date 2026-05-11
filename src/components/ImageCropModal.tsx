@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   file: File;
@@ -19,9 +20,14 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
   const [dragStart, setDragStart] = React.useState<{ pointerId: number; x: number; y: number; ox: number; oy: number } | null>(null);
   const [processing, setProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [mounted, setMounted] = React.useState(false);
   const frameRef = React.useRef<HTMLDivElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const displayScale = getDisplayScale(frameRef.current, naturalSize, zoom);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   React.useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -116,7 +122,12 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
     }
   }
 
-  return (
+  // Render through a portal at document.body so any drag/pointer interaction
+  // inside the modal (zoom slider, image pan) does not bubble into draggable
+  // ancestors (e.g. the <li draggable> photo card in PhotoManager / EditPhotoGrid).
+  if (!mounted) return null;
+
+  const modal = (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 px-4 py-6">
       <div className="w-full max-w-2xl rounded-lg bg-[#F7F5F0] p-4 shadow-xl sm:p-5">
         <div className="mb-4">
@@ -194,6 +205,8 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }
 
 function clamp(value: number, min: number, max: number) {

@@ -45,6 +45,25 @@ export default function EditPhotoGrid({
     return () => reorderAbortRef.current?.abort();
   }, []);
 
+  // Sync local state with the server-rendered prop when it changes
+  // (e.g. AddPhotosButton calls router.refresh() after attaching a new photo).
+  // Compare by id+url+sortOrder so re-renders that pass an identical list
+  // don't loop. Preserve in-progress alt-text edits per existing photo id.
+  const photosKey = initialPhotos.map((p) => `${p.id}:${p.url}`).join("|");
+  useEffect(() => {
+    setPhotos(initialPhotos);
+    setAltTexts((prev) => {
+      const next: Record<string, string> = {};
+      for (const p of initialPhotos) {
+        // Keep the user's unsaved local edit if one exists, otherwise use the
+        // freshly-rendered server value.
+        next[p.id] = prev[p.id] ?? p.altText ?? "";
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photosKey]);
+
   function showToast(message: string, kind: "success" | "error" = "success") {
     setToast({ message, kind });
     setTimeout(() => setToast(null), 1800);

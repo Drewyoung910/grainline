@@ -341,7 +341,7 @@ export default async function ThreadPage({
           {/* Archive / Unarchive */}
           {isParticipant && (
             <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
-              <SubmitButton className="rounded-md border px-3 py-1.5 text-sm hover:bg-neutral-50">
+              <SubmitButton className="rounded-md border border-neutral-200 px-3 py-1.5 text-sm hover:bg-neutral-50">
                 {archivedForMe ? "Unarchive" : "Archive"}
               </SubmitButton>
             </ActionForm>
@@ -358,9 +358,9 @@ export default async function ThreadPage({
       {ctx && (
         <Link
           href={publicListingPath(ctx.id, ctx.title)}
-          className="flex items-center gap-3 rounded-lg border bg-white p-3 hover:bg-neutral-50"
+          className="card-section flex items-center gap-3 p-3 hover:shadow-md transition-shadow"
         >
-          <div className="h-14 w-14 rounded-lg overflow-hidden bg-neutral-100">
+          <div className="h-14 w-14 rounded-md overflow-hidden bg-neutral-100 shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {ctxImg ? <img src={ctxImg} alt="" className="h-full w-full object-cover" /> : null}
           </div>
@@ -373,7 +373,7 @@ export default async function ThreadPage({
               })}
             </div>
           </div>
-          <div className="ml-auto text-sm text-neutral-500">View listing →</div>
+          <div className="ml-auto text-sm text-neutral-500 shrink-0">View listing →</div>
         </Link>
       )}
 

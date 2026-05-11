@@ -167,7 +167,7 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in?redirect_url=/messages"
-                className="text-neutral-800"
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
                 aria-label="Messages"
                 title="Messages"
               >
@@ -181,7 +181,7 @@ export default function Header() {
           {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
           <Link
             href="/cart"
-            className="relative inline-flex items-center justify-center p-1 text-neutral-800"
+            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
             aria-label="Cart"
             title="Cart"
           >
