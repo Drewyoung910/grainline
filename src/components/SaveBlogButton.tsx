@@ -51,7 +51,7 @@ export default function SaveBlogButton({ slug, initialSaved }: Props) {
       disabled={loading}
       title={saved ? "Remove from saved" : "Save post"}
       aria-label={saved ? "Remove from saved" : "Save post"}
-      className="inline-flex items-center justify-center p-1.5 transition-colors disabled:opacity-50"
+      className="inline-flex items-center justify-center p-2 rounded-full hover:bg-black/15 transition-colors disabled:opacity-50"
     >
       {saved ? (
         // Filled bookmark — amber fill with drop shadow so it's visible on any background

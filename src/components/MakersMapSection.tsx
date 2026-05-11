@@ -56,7 +56,7 @@ export default function MakersMapSection({
   };
 
   return (
-    <section className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
+    <section className="rounded-2xl bg-[#F7F5F0] overflow-hidden">
       <div className="p-6 sm:p-8 flex flex-col lg:flex-row gap-6 lg:gap-10">
         <div className="lg:w-[38%]">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>

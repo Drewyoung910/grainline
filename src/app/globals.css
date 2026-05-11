@@ -98,13 +98,19 @@ input, textarea, select {
   font-size: max(16px, 1em);
 }
 
-:where(a, button, input, textarea, select, summary, [tabindex], [contenteditable="true"]):focus-visible {
-  outline: 2px solid #111827 !important;
-  outline-offset: 2px !important;
-}
-
-:where(input, textarea, select):focus-visible {
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35) !important;
+/* Default focus indicator — placed in @layer base so per-component focus
+   classes (focus-visible:outline-none, focus-visible:ring-*, etc.) win.
+   When an input lives inside a rounded pill/round container, opt the input
+   out of its own outline and put the focus ring on the container via
+   `focus-within:` so the visible ring follows the container's border-radius. */
+@layer base {
+  :where(a, button, input, textarea, select, summary, [tabindex], [contenteditable="true"]):focus-visible {
+    outline: 2px solid #111827;
+    outline-offset: 2px;
+  }
+  :where(input, textarea, select):focus-visible {
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35);
+  }
 }
 
 /* Mobile drawer slide-in animation */

@@ -253,7 +253,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               }
             }}
             placeholder="Search handmade goods…"
-            className={`flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
+            className={`flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
             autoComplete="off"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"

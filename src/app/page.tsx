@@ -553,7 +553,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="border-b bg-amber-50">
+      <div className="border-b border-amber-100 bg-amber-50">
         <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
@@ -691,7 +691,7 @@ export default async function HomePage() {
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
+            <div className="rounded-2xl bg-white border border-stone-200/60 overflow-hidden">
               <MediaImage
                 src={featuredMaker.bannerImageUrl}
                 fallbackSrc={featuredMakerFallbackImage}

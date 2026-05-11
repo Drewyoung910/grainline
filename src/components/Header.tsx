@@ -128,16 +128,16 @@ export default function Header() {
   }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
-    <header className="border-b bg-[#F7F5F0] relative z-[50]">
+    <header className="bg-[#3F5D3A] text-stone-100 relative z-[50]">
       <nav aria-label="Main navigation" className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 flex items-center gap-4 lg:gap-6">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
           {/* Mobile */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden" />
+          <img src="/logo-espresso.svg" alt="Grainline" className="h-7 w-auto md:hidden brightness-0 invert" />
           {/* Desktop */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
+          <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block brightness-0 invert" />
         </Link>
 
         {/* Search bar — desktop only, fluid width up to ~640px so it has presence
@@ -148,13 +148,13 @@ export default function Header() {
 
         {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
         <div className="ml-auto hidden md:flex items-center gap-4">
-          <Link href="/browse" className="text-neutral-800">
+          <Link href="/browse" className="text-stone-100 hover:text-white transition-colors">
             Browse
           </Link>
-          <Link href="/blog" className="text-neutral-800">
+          <Link href="/blog" className="text-stone-100 hover:text-white transition-colors">
             Blog
           </Link>
-          <Link href="/commission" className="text-neutral-800">
+          <Link href="/commission" className="text-stone-100 hover:text-white transition-colors">
             Commission Room
           </Link>
 
@@ -167,7 +167,7 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in?redirect_url=/messages"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors"
                 aria-label="Messages"
                 title="Messages"
               >
@@ -181,7 +181,7 @@ export default function Header() {
           {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
           <Link
             href="/cart"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
+            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-stone-100 hover:bg-white/10 transition-colors"
             aria-label="Cart"
             title="Cart"
           >
@@ -196,7 +196,7 @@ export default function Header() {
           <Show
             when="signed-in"
             fallback={
-              <Link href="/sign-in" className="text-neutral-800">
+              <Link href="/sign-in" className="text-stone-100 hover:text-white transition-colors">
                 Sign in
               </Link>
             }
@@ -217,7 +217,7 @@ export default function Header() {
           <button
             onClick={() => setSearchOpen((o) => !o)}
             aria-label={searchOpen ? "Close search" : "Search"}
-            className="inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
@@ -232,7 +232,7 @@ export default function Header() {
           {/* Cart — always visible */}
           <Link
             href="/cart"
-            className="relative inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            className="relative inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
             aria-label="Cart"
           >
             <ShoppingBag size={20} />
@@ -247,7 +247,7 @@ export default function Header() {
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
-            className="inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center p-2 text-stone-100 hover:bg-white/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             <Menu size={24} />
           </button>
@@ -263,7 +263,7 @@ export default function Header() {
             onClick={() => setSearchOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute top-full left-0 right-0 bg-white border-b shadow-sm p-3 z-50 md:hidden animate-slide-down">
+          <div className="absolute top-full left-0 right-0 bg-[#F7F5F0] border-b border-stone-200 shadow-sm p-3 z-50 md:hidden animate-slide-down">
             <SearchBar />
           </div>
         </>

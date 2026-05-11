@@ -67,7 +67,7 @@ export default function TagsInput({
   };
 
   return (
-    <div className="rounded-md border border-neutral-200 px-2 py-2">
+    <div className="rounded-md border border-neutral-200 bg-white px-2 py-2 focus-within:ring-2 focus-within:ring-neutral-300 transition-shadow">
       <div className="flex flex-wrap items-center gap-2">
         {tags.map((t) => (
           <span
@@ -93,7 +93,7 @@ export default function TagsInput({
           onBlur={onBlur}
           onPaste={onPaste}
           placeholder={placeholder}
-          className="min-w-[10ch] flex-1 bg-transparent text-sm outline-none"
+          className="min-w-[10ch] flex-1 bg-transparent text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
         />
       </div>
 

@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 export default function FavoriteButton({
   listingId,
   initialSaved,
-  size = 28,
+  size = 22,
 }: {
   listingId: string;
   initialSaved: boolean;
@@ -65,7 +65,7 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       disabled={isPending}
-      className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full hover:bg-black/15 transition-colors"
+      className="absolute right-2 top-2 z-10 inline-flex items-center justify-center p-2.5 rounded-full hover:bg-black/15 transition-colors"
       style={{ lineHeight: 0 }}
     >
       {/* Heart icon — filled grey background for visibility on all photos */}

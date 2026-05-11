@@ -96,7 +96,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en">
-      <body className="min-h-[100svh] bg-[#F7F5F0] text-neutral-900">
+      <body className="min-h-[100svh] flex flex-col bg-[#F7F5F0] text-neutral-900">
         <a href="#main-content" className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:top-2 focus-visible:left-2 focus-visible:z-[9999] focus-visible:bg-neutral-900 focus-visible:text-white focus-visible:px-4 focus-visible:py-2 focus-visible:rounded-md focus-visible:text-sm">
           Skip to content
         </a>
@@ -104,10 +104,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Suspense fallback={null}>
             <Header />
           </Suspense>
-          <div id="main-content">
+          <div id="main-content" className="flex-1">
           {children}
           </div>
-          <footer className="bg-[#3F5D3A] text-stone-200 mt-16 py-12 px-6 text-center text-xs">
+          <footer className="bg-[#3F5D3A] text-stone-200 py-12 px-6 text-center text-xs">
             <div className="flex justify-center mb-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-espresso.svg" alt="Grainline" className="h-5 w-auto invert opacity-80" />

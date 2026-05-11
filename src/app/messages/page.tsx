@@ -230,12 +230,12 @@ export default async function MessagesPage({
         <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex items-center gap-2 rounded-md border border-neutral-200 px-3 py-1.5 w-full sm:w-auto">
+          <div className="flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-1.5 w-full sm:w-auto focus-within:ring-2 focus-within:ring-neutral-300 transition-shadow">
             <input
               name="q"
               defaultValue={q}
               placeholder="Search messages"
-              className="w-full sm:w-52 bg-transparent text-sm outline-none"
+              className="w-full sm:w-52 bg-transparent text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
             />
             {q ? (
               <Link
