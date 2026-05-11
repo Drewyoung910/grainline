@@ -266,7 +266,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
             type="submit"
             aria-label="Search"
             style={{ borderRadius: 0 }}
-            className={`flex items-center justify-center px-4 rounded-none transition-colors shrink-0 ${variant === "glass" ? "bg-white/20 text-white hover:bg-white/30" : "bg-[#3F5D3A] text-white hover:bg-[#345030]"}`}
+            className={`flex items-center justify-center px-4 rounded-none transition-colors shrink-0 ${variant === "glass" ? "bg-white/20 text-white hover:bg-white/30" : "bg-neutral-900 text-white hover:bg-neutral-800"}`}
           >
             <Search size={16} />
           </button>

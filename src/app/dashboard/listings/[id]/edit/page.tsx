@@ -260,9 +260,11 @@ async function updateListing(
   // button, or DRAFT/HIDDEN/REJECTED → ACTIVE). Acceptable security trade-off
   // for early-stage marketplace; photo-swap surveillance is admin-side.
 
-  // Publish-on-save: if the user clicked the Publish button on the edit form,
-  // route the listing through publishListingAction (AI moderation + activation).
-  // Only publishable statuses get this treatment — ACTIVE/PENDING_REVIEW/SOLD/SOLD_OUT skip.
+  // Publish-on-save: if the user clicked the Publish / Resubmit-for-review
+  // button on the edit form, route the listing through publishListingAction
+  // (AI moderation). This is the ONLY path that triggers re-review on
+  // existing ACTIVE listings — Save alone never re-reviews. PENDING_REVIEW
+  // (already in review) and SOLD/SOLD_OUT (terminal) skip.
   const wantsPublish = formData.get("publish") === "true";
   if (wantsPublish) {
     const current = await prisma.listing.findUnique({
@@ -273,7 +275,8 @@ async function updateListing(
       current && (
         current.status === ListingStatus.DRAFT ||
         current.status === ListingStatus.HIDDEN ||
-        current.status === ListingStatus.REJECTED
+        current.status === ListingStatus.REJECTED ||
+        current.status === ListingStatus.ACTIVE
       )
     ) {
       const { publishListingAction } = await import("@/app/seller/[id]/shop/actions");
@@ -524,10 +527,15 @@ export default async function EditListingPage(props: {
 
   const remaining = Math.max(0, 10 - listing.photos.length);
 
+  // ACTIVE listings can also click Publish — that re-submits the current
+  // (edited) content for AI re-review. Use case: seller edits an active
+  // listing's title/photos/etc, then explicitly resubmits. Save alone no
+  // longer auto-triggers re-review; Publish does.
   const canPublishFromEdit =
     listing.status === "DRAFT" ||
     listing.status === "HIDDEN" ||
-    listing.status === "REJECTED";
+    listing.status === "REJECTED" ||
+    listing.status === "ACTIVE";
   const publishDisabledTitle = !chargesEnabled
     ? "Connect Stripe payouts in Shop Settings before publishing."
     : undefined;
@@ -689,7 +697,11 @@ export default async function EditListingPage(props: {
                 title={publishDisabledTitle}
                 className="w-full rounded-md bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {listing.status === "REJECTED" ? "Publish (Resubmit)" : "Publish"}
+                {listing.status === "REJECTED"
+                  ? "Publish (Resubmit)"
+                  : listing.status === "ACTIVE"
+                    ? "Resubmit for review"
+                    : "Publish"}
               </SubmitButton>
             </span>
           )}

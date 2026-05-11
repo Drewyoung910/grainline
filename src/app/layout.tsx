@@ -104,7 +104,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Suspense fallback={null}>
             <Header />
           </Suspense>
-          <div id="main-content" className="flex-1">
+          <div id="main-content" className="flex-1 bg-[#F7F5F0]">
           {children}
           </div>
           <footer className="bg-[#3F5D3A] text-stone-200 py-12 px-6 text-center text-xs">

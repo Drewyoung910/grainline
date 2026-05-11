@@ -1726,21 +1726,26 @@ After `prisma.listing.create()`, AI review runs async in a try/catch:
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
 ### Listing edit re-review
-**AI re-review does NOT run on routine edits to ACTIVE listings.** Sellers can freely:
+**AI re-review does NOT run on routine "Save changes" or on photo add/delete/replace.** Sellers can freely:
 
-- Edit text fields (title, description, price, tags, materials, etc.)
+- Edit text fields (title, description, price, tags, materials, etc.) and click Save changes
 - Add new photos via `AddPhotosButton`
 - Replace photos via `ImageRecropButton` (re-crop)
 - Delete photos
 - Edit variants
 
-All of these save without flipping the listing into `PENDING_REVIEW`. The listing stays ACTIVE with the new content visible publicly.
+All of these persist without flipping the listing into `PENDING_REVIEW`. The listing stays ACTIVE with the new content visible publicly.
 
-**AI review runs only at explicit publish transitions:**
+**AI review runs only when the seller clicks an explicit Publish / Resubmit button** (the second submit button on the edit form, separate from "Save changes"):
+
 1. New listing first publish via `createListing` server action.
-2. `publishListingAction` (used by the edit-form Publish button, the dashboard Publish/Resubmit buttons, and `seller/[id]/shop` actions) when transitioning DRAFT/HIDDEN/REJECTED → ACTIVE.
+2. `publishListingAction` for any of these source statuses:
+   - DRAFT / HIDDEN / REJECTED → ACTIVE (initial or post-rejection publish)
+   - ACTIVE → AI re-review (seller chose to resubmit edited content for moderation)
 
-Prior to 2026-05-11 the edit flow auto-triggered AI review on substantive text changes, photo adds, photo deletes, and photo replacements. Drew explicitly rejected that UX — every save felt like an unwanted re-submit and the silent status flip looked like a phantom publish to the seller. Removed in commit history. Acceptable security trade-off for early-stage marketplace: photo-swap surveillance is admin-side (admin can flag suspicious listings; `/admin/review` queue still exists for explicit submissions).
+The Publish button is now also shown on ACTIVE listings (labeled "Resubmit for review") so sellers have an explicit path to send edited content back through AI review when they want it. publishListingAction handles ACTIVE source state — re-runs AI and either keeps the listing ACTIVE (if approved) or flips to PENDING_REVIEW (if flagged).
+
+Prior to 2026-05-11 the edit flow auto-triggered AI review on substantive text changes, photo adds, photo deletes, and photo replacements. Drew explicitly rejected that UX — every save felt like an unwanted re-submit and the silent status flip looked like a phantom publish to the seller. Removed.
 
 If you re-add an auto-review trigger, you MUST also surface a clear UI explanation (toast or banner) to the seller so the status flip isn't silent.
 
