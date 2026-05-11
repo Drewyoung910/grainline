@@ -485,7 +485,7 @@ export default async function HomePage() {
       />
 
       {/* ── Hero ───────────────────────────────────��─────────────────────── */}
-      <section className={`relative border-b flex flex-col justify-center min-h-[60vh] ${
+      <section className={`relative flex flex-col justify-center min-h-[60vh] ${
         mosaicPhotos.length >= 12
           ? "bg-[#1C1C1A]"
           : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
@@ -691,7 +691,7 @@ export default async function HomePage() {
               <p className="text-sm text-neutral-500">The people behind the pieces</p>
             </div>
 
-            <div className="rounded-2xl bg-white border border-stone-200/60 overflow-hidden">
+            <div className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
               <MediaImage
                 src={featuredMaker.bannerImageUrl}
                 fallbackSrc={featuredMakerFallbackImage}

@@ -56,7 +56,7 @@ export default function MakersMapSection({
   };
 
   return (
-    <section className="rounded-2xl bg-[#F7F5F0] overflow-hidden">
+    <section className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
       <div className="p-6 sm:p-8 flex flex-col lg:flex-row gap-6 lg:gap-10">
         <div className="lg:w-[38%]">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
@@ -81,7 +81,7 @@ export default function MakersMapSection({
           {geoErr && <div className="mt-2 text-xs text-red-600">{geoErr}</div>}
         </div>
 
-        <div className="flex-1 min-h-[280px] rounded-2xl overflow-hidden bg-[#F7F5F0]">
+        <div className="flex-1 min-h-[280px] rounded-2xl overflow-hidden">
           <AllSellersMap points={points} initialZoom={3} height={280} />
         </div>
       </div>

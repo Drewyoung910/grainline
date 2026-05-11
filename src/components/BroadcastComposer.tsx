@@ -77,7 +77,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
             maxLength={500}
             rows={4}
             placeholder="Share a shop update, new project, or announcement…"
-            className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <p className="text-xs text-neutral-500 text-right mt-0.5">{message.length}/500</p>
         </div>
@@ -108,7 +108,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
         <button
           type="submit"
           disabled={sending || !message.trim()}
-          className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          className="bg-neutral-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-neutral-800 disabled:opacity-50 transition-colors"
         >
           {sending ? "Sending…" : "Send Update"}
         </button>
@@ -122,7 +122,7 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
           <h3 className="text-sm font-medium text-neutral-700">Past updates</h3>
           <ul className="space-y-2">
             {broadcasts.map((b) => (
-              <li key={b.id} className="rounded-lg border p-3 bg-stone-50 text-sm">
+              <li key={b.id} className="rounded-md border border-neutral-200 p-3 bg-white text-sm">
                 <p className="text-neutral-800">{b.message}</p>
                 <p className="text-xs text-neutral-500 mt-1">
                   {new Date(b.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}

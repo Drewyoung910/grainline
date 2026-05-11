@@ -13,11 +13,19 @@
   height: 0;
 }
 
-/* keep the site light and readable */
+/* keep the site light and readable.
+   The html/body bg lives in @layer base so Tailwind utilities (the body
+   classes in src/app/layout.tsx) can override it. The default is the warm
+   cream so pages without an explicit page-bg utility still inherit the
+   correct color. The unlayered `html, body { background: #ffffff }` rule
+   that used to live here silently overrode every body/page bg class and
+   made the site look white sitewide — do NOT bring it back. */
 :root { color-scheme: light; }
-html, body {
-  background: #ffffff;
-  color: #111827; /* neutral-900 */
+@layer base {
+  html, body {
+    background: #F7F5F0;
+    color: #111827; /* neutral-900 */
+  }
 }
 
 /* minimal helpers (optional) */

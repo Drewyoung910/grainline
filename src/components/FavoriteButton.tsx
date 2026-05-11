@@ -68,12 +68,14 @@ export default function FavoriteButton({
       className="absolute right-2 top-2 z-10 inline-flex items-center justify-center p-2.5 rounded-full hover:bg-black/15 transition-colors"
       style={{ lineHeight: 0 }}
     >
-      {/* Heart icon — filled grey background for visibility on all photos */}
+      {/* Heart icon — filled grey background for visibility on all photos.
+          Heart shape is top-heavy (wide bumps, narrow point) so we shift it
+          down 1px to make it look visually centered inside the hover circle. */}
       <svg
         width={size}
         height={size}
         viewBox="0 0 24 24"
-        className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]"
+        className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] translate-y-[1px]"
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Grey heart background for contrast on all photo backgrounds */}
