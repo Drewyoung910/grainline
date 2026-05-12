@@ -2,34 +2,17 @@
 
 Operational notes and strategic direction. CLAUDE.md is the codebase contract (what is built, how it works, what must be preserved). This file is for what hasn't been built yet, why, and in what order. Update at the end of any session that produces strategic decisions.
 
-## Immediate priorities (next 1-2 sessions)
+## Immediate priorities
 
-### Build the two "Why Grainline" landing pages
+### `/why-grainline` and `/why-sell-on-grainline` SHIPPED (2026-05-12)
 
-Two single-scroll landing pages, same visual style as `/seller-handbook`.
+Both landing pages are live.
+- `/why-grainline` (buyer) lives in `src/app/why-grainline/page.tsx`. Sections: hero, handmade-trust problem with two-column comparison, four trust-mechanism cards, badge ladder (Founding/Guild Member/Guild Master with live counts), American-made stat bar with map link, buyer protection step-by-step, espresso final CTA.
+- `/why-sell-on-grainline` (seller) lives in `src/app/why-sell-on-grainline/page.tsx`. Sections: hero, four-platform fee comparison table (Grainline/Etsy/Faire/Amazon Handmade), Etsy take-rate trap deep dive, Founding Maker scarcity counter, what-we-dont-do, what-you-get six-card grid, risk reversal, espresso final CTA. CTA links use Clerk auth state to send signed-in users straight to `/dashboard` and signed-out users to `/sign-up?redirect_url=/dashboard`.
 
-**`/why-grainline`** (buyer-facing recruitment).
-Sections:
-1. Hero: "Real wood. Real workshops. Real people." Maker photo.
-2. The handmade-trust problem (without naming Etsy directly but obvious). Two-column "what you used to get" vs "what you get here".
-3. How we verify: AI moderation, Stripe-verified sellers, Guild badges, no resellers, dispute system.
-4. The badge ladder: Founding Maker, Guild Member, Guild Master.
-5. American-made: every maker is in the US. Many in Texas. Show the map.
-6. Buyer protection: case system, FCBA rights, easy refunds.
-7. CTA: Browse.
+Both are wired into the Shop and Sell footer columns respectively, added to `middleware.ts` `isPublic`, and added to `sitemap.ts` at priority 0.8 monthly. Live `prisma.sellerProfile.count({ where: { isFoundingMaker: true } })` reads power the "X of 250 spots left" counter on the seller page and the "X of 250 granted" pill on the buyer page.
 
-**`/why-sell-on-grainline`** (seller-facing recruitment).
-Sections:
-1. Hero: "Sell handmade. Keep more of it."
-2. Fee comparison table side by side: Grainline 5% / Etsy ~21% effective / Faire 15-25% / Amazon Handmade 15%+. Footnote: shipping is fee-free on Grainline, fee-charged on Etsy.
-3. The Etsy take-rate trap. One paragraph on Offsite Ads.
-4. Founding Maker: 250 spots. Permanent badge. First-mover SEO + reputation lift.
-5. What we don't do: no mandatory ads, no listing fees, no shipping fee skim, no surprise rate changes.
-6. What you get: live shipping rates, Stripe payouts in 2 business days, AI listing review, in-site analytics, custom-order system, blog and newsletter we run for you.
-7. Risk reversal: 5% applies only when you sell. Listing is free.
-8. CTA: Start your shop.
-
-Footer integration: add both links in the Help / About columns.
+Revisit when: catalog hits ~75 listings (refresh stats and screenshots), Etsy fees change (refresh comparison table), or Drew wants to test conversion variants on the seller landing.
 
 ### Reddit launch posts
 

@@ -33,6 +33,8 @@ const isPublic = createRouteMatcher([
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
   "/seller-handbook",     // public seller handbook — SEO/recruitment content
   "/help(.*)",            // public buyer-facing help pages
+  "/why-grainline",       // public buyer recruitment landing
+  "/why-sell-on-grainline", // public seller recruitment landing
   "/cart(.*)",            // anonymous cart page; server cart APIs still enforce auth/account state
   "/accept-terms(.*)",    // full-page terms gate; page redirects signed-out users to sign-in
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance

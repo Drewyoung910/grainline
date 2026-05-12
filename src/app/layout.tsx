@@ -125,6 +125,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <h3 className="font-semibold text-white text-sm mb-3">Shop</h3>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/browse" className="text-stone-300 hover:text-white hover:underline">Browse all</Link></li>
+                    <li><Link href="/why-grainline" className="text-stone-300 hover:text-white hover:underline">Why Grainline</Link></li>
                     <li><Link href="/commission" className="text-stone-300 hover:text-white hover:underline">Commission a piece</Link></li>
                     <li><Link href="/map" className="text-stone-300 hover:text-white hover:underline">Find makers near you</Link></li>
                     <li><Link href="/blog" className="text-stone-300 hover:text-white hover:underline">Stories from the workshop</Link></li>
@@ -135,6 +136,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <nav aria-label="Sell">
                   <h3 className="font-semibold text-white text-sm mb-3">Sell</h3>
                   <ul className="space-y-2 text-xs">
+                    <li><Link href="/why-sell-on-grainline" className="text-stone-300 hover:text-white hover:underline">Why sell on Grainline</Link></li>
                     <li><Link href="/become-a-maker" className="text-stone-300 hover:text-white hover:underline">Become a maker</Link></li>
                     <li><Link href="/seller-handbook" className="text-stone-300 hover:text-white hover:underline">Seller handbook</Link></li>
                     <li><Link href="/seller-handbook#fees" className="text-stone-300 hover:text-white hover:underline">Fees &amp; payouts</Link></li>

@@ -2516,6 +2516,23 @@ The helper is called after every listing transition to ACTIVE for a seller's own
 - The number is permanent and never reassigned (unique index enforces this). If a Founding Maker's seller profile is hard-deleted in the future, the number is NOT recycled — gaps are acceptable.
 - Do not render the badge without the popover. The "first 250" explanation is the only thing that gives the badge meaning to a new buyer.
 
+## Why Grainline Landing Pages (2026-05-12)
+
+Two public recruitment landing pages with full marketing structure (hero, multi-section, espresso CTAs). Distinct from `/become-a-maker` (which is a redirect-only conversion entry) and `/about` (which is a brief overview).
+
+- **`/why-grainline`** (`src/app/why-grainline/page.tsx`) — buyer-facing. Reads `listingCount`, `sellerCount`, and `foundingCount` from the DB on render. Section order: hero, handmade-trust problem with two-column comparison, four trust mechanisms (Stripe verification, AI moderation, Guild badges earned-not-paid, dispute system), badge ladder showing all three tiers with the inline FoundingMakerBadge-style SVG, American-made stat bar with map link, buyer protection 4-step explainer, espresso final CTA to Browse + Commission.
+- **`/why-sell-on-grainline`** (`src/app/why-sell-on-grainline/page.tsx`) — seller-facing. Reads `foundingCount` on render to compute `foundingRemaining = 250 - foundingCount`. Auth-aware: signed-in CTAs go to `/dashboard`, signed-out CTAs go to `/sign-up?redirect_url=/dashboard`. Section order: hero, four-platform fee comparison table (Grainline/Etsy/Faire/Amazon Handmade), Etsy take-rate-trap deep paragraph, Founding Maker scarcity counter, what-we-dont-do four-card grid, what-you-get six-card grid, risk reversal, espresso final CTA.
+
+Both pages use the design system: `bg-gradient-to-b from-amber-50/40 via-white to-white min-h-[100svh]` wrapper, `card-section bg-white` for trust/feature cards, alternating `bg-[#EFEAE0]/40` warm sections, `bg-[#2C1F1A]` espresso final CTA, `font-display` headings, rounded-full CTAs. No em dashes (Drew rule).
+
+Both routes:
+- Added to `src/middleware.ts` `isPublic` matcher.
+- Added to `src/app/sitemap.ts` at priority 0.8 monthly.
+- Wired into footer: `/why-grainline` in the Shop column, `/why-sell-on-grainline` in the Sell column.
+- Have `generateMetadata`-style static metadata with `alternates.canonical`.
+
+Future agents must keep the Founding Maker counter accurate. If the cap is raised above 250, update both pages' copy + the seller-page math (`Math.max(0, 250 - foundingCount)`).
+
 ## Buyer Help Pages (2026-05-11)
 
 The footer Help section now points at buyer-facing pages instead of `/seller-handbook#shipping` and `/seller-handbook#disputes`.
