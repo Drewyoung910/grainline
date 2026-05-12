@@ -236,7 +236,7 @@ export default async function MessagesPage({
         <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex items-center gap-2 rounded-full border-2 border-stone-400 bg-white px-4 py-1.5 w-full sm:w-auto shadow-sm focus-within:ring-2 focus-within:ring-amber-300 focus-within:border-stone-500 transition-shadow">
+          <div className="flex items-center gap-2 rounded-full border-2 border-stone-400 bg-white px-4 py-1.5 w-full sm:w-auto shadow-sm focus-within:border-stone-600 focus-within:shadow-md transition-shadow">
             <input
               name="q"
               defaultValue={q}

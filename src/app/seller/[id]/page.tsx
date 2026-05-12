@@ -16,6 +16,7 @@ import FollowButton from "@/components/FollowButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import SellerGallery from "@/components/SellerGallery";
+import CoverLightbox from "@/components/CoverLightbox";
 import SellerProfileViewTracker from "@/components/SellerProfileViewTracker";
 import ListingCard from "@/components/ListingCard";
 import LocalDate from "@/components/LocalDate";
@@ -438,88 +439,48 @@ export default async function SellerPublicPage({
         {/* ── Main content column ───────────────────────────────────────── */}
         <div className="min-w-0 space-y-10">
 
-          {/* Stat band */}
-          <section className="rounded-2xl bg-[#EFEAE0] px-5 sm:px-8 py-5">
+          {/* Stat band — compact inline row */}
+          <section className="rounded-full bg-[#D9E2D5] px-5 py-2.5 inline-flex flex-wrap items-baseline gap-x-5 gap-y-1 self-start max-w-full">
             {isNewSeller ? (
-              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-sm text-neutral-700">
-                <span>
-                  <span className="font-display text-xl font-bold text-neutral-900">{memberSinceYear}</span>{" "}
-                  member since
+              <>
+                <span className="text-sm text-neutral-800">
+                  <span className="font-semibold">Member since {memberSinceYear}</span>
                 </span>
-                <span className="text-amber-800 italic">Recently joined Grainline</span>
-              </div>
+                <span className="text-xs text-neutral-600 italic">Recently joined Grainline</span>
+              </>
             ) : (
-              <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3 text-sm text-neutral-700">
+              <>
                 {soldCount > 0 && (
-                  <div>
-                    <div className="font-display text-2xl font-bold text-neutral-900 leading-none">
-                      {soldCount.toLocaleString("en-US")}
-                    </div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      {soldCount === 1 ? "piece sold" : "pieces sold"}
-                    </div>
-                  </div>
+                  <span className="text-sm text-neutral-800">
+                    <span className="font-semibold">{soldCount.toLocaleString("en-US")}</span>{" "}
+                    {soldCount === 1 ? "piece sold" : "pieces sold"}
+                  </span>
                 )}
                 {shopRating && shopRating.count > 0 && (
-                  <div>
-                    <div className="font-display text-2xl font-bold text-neutral-900 leading-none flex items-baseline gap-1">
-                      {(Math.round(shopRating.avg * 10) / 10).toFixed(1)}
-                      <span className="text-amber-500 text-xl">★</span>
-                    </div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      from {shopRating.count.toLocaleString("en-US")} {shopRating.count === 1 ? "review" : "reviews"}
-                    </div>
-                  </div>
+                  <span className="text-sm text-neutral-800 flex items-baseline gap-1">
+                    <span className="font-semibold">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
+                    <span className="text-amber-500 text-sm">★</span>
+                    <span className="text-neutral-600">({shopRating.count.toLocaleString("en-US")})</span>
+                  </span>
                 )}
                 {avgShipDays != null && (
-                  <div>
-                    <div className="font-display text-2xl font-bold text-neutral-900 leading-none">
-                      {avgShipDays}
-                    </div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      {avgShipDays === 1 ? "day to ship" : "days to ship"}
-                    </div>
-                  </div>
+                  <span className="text-sm text-neutral-800">
+                    <span className="font-semibold">Ships in {avgShipDays}</span>{" "}
+                    {avgShipDays === 1 ? "day" : "days"}
+                  </span>
                 )}
                 {seller.yearsInBusiness != null && seller.yearsInBusiness > 0 && (
-                  <div>
-                    <div className="font-display text-2xl font-bold text-neutral-900 leading-none">
-                      {seller.yearsInBusiness}
-                    </div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      {seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}
-                    </div>
-                  </div>
+                  <span className="text-sm text-neutral-800">
+                    <span className="font-semibold">{seller.yearsInBusiness}</span>{" "}
+                    {seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}
+                  </span>
                 )}
-                <div>
-                  <div className="font-display text-2xl font-bold text-neutral-900 leading-none">
-                    {memberSinceYear}
-                  </div>
-                  <div className="text-xs text-neutral-500 mt-0.5">member since</div>
-                </div>
-              </div>
+                <span className="text-sm text-neutral-700">Member since {memberSinceYear}</span>
+              </>
             )}
           </section>
 
-          {/* What I make tag chips */}
-          {topTags.length >= 3 && (
-            <section>
-              <div className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mb-3">
-                What I make
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {topTags.map((tag) => (
-                  <Link
-                    key={tag}
-                    href={`${publicSellerShopPath(seller.id, seller.displayName)}?tag=${encodeURIComponent(tag)}`}
-                    className="rounded-full bg-stone-100 hover:bg-stone-200 text-neutral-700 px-3 py-1 text-sm transition-colors"
-                  >
-                    {tag}
-                  </Link>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* Latest broadcast */}
 
           {/* Latest broadcast */}
           {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
@@ -617,10 +578,12 @@ export default async function SellerPublicPage({
             return (
               <section>
                 <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                <div className="max-w-xl transition-transform hover:-translate-y-1 duration-200">
-                  <ClickTracker listingId={fallbackFeatured[0].id}>
-                    <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
-                  </ClickTracker>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="transition-transform hover:-translate-y-1 duration-200">
+                    <ClickTracker listingId={fallbackFeatured[0].id}>
+                      <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
+                    </ClickTracker>
+                  </div>
                 </div>
               </section>
             );
@@ -650,11 +613,10 @@ export default async function SellerPublicPage({
               {seller.workshopImageUrl && (
                 <figure className="lg:order-last">
                   <div className="aspect-[3/2] overflow-hidden rounded-2xl ring-1 ring-neutral-200 shadow-sm">
-                    <MediaImage
+                    <CoverLightbox
                       src={seller.workshopImageUrl}
                       alt={`${seller.displayName} workshop`}
                       className="w-full h-full object-cover"
-                      fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                     />
                   </div>
                   {cityState && (
@@ -889,17 +851,22 @@ export default async function SellerPublicPage({
             </section>
           )}
 
-          {/* More from city */}
+          {/* More from city — small footer link block, bottom-left */}
           {(seller.cityMetro ?? seller.metro) && (() => {
             const m = seller.cityMetro ?? seller.metro!;
             return (
-              <section className="text-center text-sm text-neutral-600 space-y-1">
-                <Link href={`/makers/${m.slug}`} className="text-amber-700 hover:underline block">
-                  More makers in {m.name}, {m.state} →
-                </Link>
-                <Link href={`/browse/${m.slug}`} className="text-amber-700 hover:underline block">
-                  Browse {m.name}, {m.state} listings →
-                </Link>
+              <section className="pt-6 mt-2 border-t border-neutral-200/60">
+                <div className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mb-2">
+                  More from {m.name}, {m.state}
+                </div>
+                <div className="flex flex-col gap-1 text-sm">
+                  <Link href={`/makers/${m.slug}`} className="text-amber-700 hover:underline">
+                    Other makers in {m.name} →
+                  </Link>
+                  <Link href={`/browse/${m.slug}`} className="text-amber-700 hover:underline">
+                    Browse {m.name} listings →
+                  </Link>
+                </div>
               </section>
             );
           })()}
@@ -907,8 +874,10 @@ export default async function SellerPublicPage({
 
         {/* ── Sticky CTA sidebar (lg+ only) ──────────────────────────────── */}
         <aside className="hidden lg:block">
-          <div className="sticky top-6 card-section bg-white p-5 space-y-4">
-            <div className="flex items-center gap-3">
+          <div className="sticky top-6 rounded-lg border border-stone-200/60 bg-white shadow-sm p-5 space-y-4">
+            {/* card-section equivalent without overflow:hidden so the
+                BlockReportButton dropdown can extend beyond the card. */}
+            <div className="flex items-start gap-3">
               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
                 {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -923,18 +892,30 @@ export default async function SellerPublicPage({
                   </div>
                 )}
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <div className="font-display font-semibold text-sm truncate">{seller.displayName}</div>
-                  <GuildBadge level={seller.guildLevel} size={20} />
-                </div>
-                {shopRating && shopRating.count > 0 && (
-                  <div className="text-xs text-neutral-600 flex items-center gap-1">
-                    <span className="text-amber-500">★</span>
-                    <span>{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
-                    <span className="text-neutral-500">({shopRating.count})</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="font-display font-semibold text-sm truncate">{seller.displayName}</div>
+                      <GuildBadge level={seller.guildLevel} size={20} />
+                    </div>
+                    {shopRating && shopRating.count > 0 && (
+                      <div className="text-xs text-neutral-600 flex items-center gap-1 mt-0.5">
+                        <span className="text-amber-500">★</span>
+                        <span>{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
+                        <span className="text-neutral-500">({shopRating.count})</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                  {meId && meId !== seller.userId && (
+                    <BlockReportButton
+                      targetUserId={seller.userId}
+                      targetName={seller.displayName ?? "this maker"}
+                      targetType="SELLER"
+                      targetId={seller.id}
+                    />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -974,18 +955,8 @@ export default async function SellerPublicPage({
                   href={publicSellerShopPath(seller.id, seller.displayName)}
                   className="block text-center text-sm text-neutral-600 underline hover:text-neutral-900 pt-1"
                 >
-                  Visit shop
+                  View all listings
                 </Link>
-                {meId && (
-                  <div className="pt-2 border-t border-neutral-100 flex justify-center">
-                    <BlockReportButton
-                      targetUserId={seller.userId}
-                      targetName={seller.displayName ?? "this maker"}
-                      targetType="SELLER"
-                      targetId={seller.id}
-                    />
-                  </div>
-                )}
               </div>
             ) : (
               <p className="text-xs text-neutral-500 italic">This is your public profile.</p>
