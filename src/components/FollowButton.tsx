@@ -71,8 +71,8 @@ export default function FollowButton({
 
   const base =
     size === "sm"
-      ? "inline-flex items-center gap-1.5 border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60"
-      : "inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60";
+      ? "inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60"
+      : "inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60";
 
   const style = following
     ? `${base} bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-700`

@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
+import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 
 const PAGE_SIZE = 24;
 
@@ -112,23 +113,15 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
         </p>
       </div>
 
-      <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 [&>*]:mb-4 [&>*]:break-inside-avoid">
-        {photos.map((p) => (
-          <Link
-            key={p.id}
-            href={`/listing/${p.review.listingId}#reviews`}
-            className="block overflow-hidden rounded-lg ring-1 ring-neutral-200 transition-transform hover:-translate-y-0.5 duration-200"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={p.url}
-              alt={p.altText ?? `Customer photo of ${p.review.listing?.title ?? "a piece"}`}
-              loading="lazy"
-              className="w-full h-auto object-cover"
-            />
-          </Link>
-        ))}
-      </div>
+      <CustomerPhotosGallery
+        photos={photos.map((p) => ({
+          id: p.id,
+          url: p.url,
+          altText: p.altText,
+          listingId: p.review.listingId,
+          listingTitle: p.review.listing?.title ?? null,
+        }))}
+      />
 
       {totalPages > 1 && (
         <nav className="mt-10 flex items-center justify-center gap-4 text-sm" aria-label="Pagination">

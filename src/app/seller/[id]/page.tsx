@@ -21,6 +21,7 @@ import SellerProfileViewTracker from "@/components/SellerProfileViewTracker";
 import ListingCard from "@/components/ListingCard";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import ExpandableText from "@/components/ExpandableText";
+import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -472,7 +473,6 @@ export default async function SellerPublicPage({
                   sellerUserId={seller.userId}
                   initialFollowing={isFollowing}
                   initialCount={followerCount}
-                  size="sm"
                 />
                 {seller.acceptsCustomOrders && (
                   meId ? (
@@ -711,23 +711,15 @@ export default async function SellerPublicPage({
                   </Link>
                 )}
               </div>
-              <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
-                {customerPhotos.map((p) => (
-                  <Link
-                    key={p.id}
-                    href={`/listing/${p.review.listingId}#reviews`}
-                    className="block overflow-hidden rounded-lg ring-1 ring-neutral-200 transition-transform hover:-translate-y-0.5 duration-200"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={p.url}
-                      alt={p.altText ?? `Customer photo of ${p.review.listing?.title ?? "a piece"}`}
-                      loading="lazy"
-                      className="w-full h-auto object-cover"
-                    />
-                  </Link>
-                ))}
-              </div>
+              <CustomerPhotosGallery
+                photos={customerPhotos.map((p) => ({
+                  id: p.id,
+                  url: p.url,
+                  altText: p.altText,
+                  listingId: p.review.listingId,
+                  listingTitle: p.review.listing?.title ?? null,
+                }))}
+              />
             </section>
           )}
 

@@ -98,16 +98,21 @@ export default function ReviewComposer(props: {
       // After editing: strip ?redit=1, keep other params (e.g., rsort),
       // and jump back to #reviews (same page view, updated content).
       if (editing) {
+        toast("Review updated.", "success");
         const url = new URL(window.location.href);
         url.searchParams.delete("redit");
         url.hash = "reviews";
         router.replace(url.pathname + url.search + url.hash);
-        // Optional: force data refresh after replace if needed
         router.refresh();
         return;
       }
 
-      // After creating: just refresh in place
+      // After creating: clear the form, refresh, confirm.
+      toast("Review posted. Thanks for the feedback!", "success");
+      setComment("");
+      setRatingX2(8);
+      setPhotoUrls([]);
+      photoUrlsRef.current = [];
       router.refresh();
     } catch {
       toast("Could not submit your review. Check your connection and try again.", "error");
@@ -129,7 +134,7 @@ export default function ReviewComposer(props: {
             </div>
           </div>
           <select
-            className="rounded border px-2 py-1 text-sm"
+            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
             value={ratingX2}
             onChange={(e) => setRatingX2(parseInt(e.target.value, 10))}
           >
@@ -147,7 +152,7 @@ export default function ReviewComposer(props: {
         onChange={(e) => setComment(e.target.value)}
         rows={4}
         placeholder="Share details about the item, quality, fit, etc."
-        className="w-full rounded border px-3 py-2"
+        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
       />
 
       {/* Thumbs */}

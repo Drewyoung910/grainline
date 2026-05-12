@@ -599,7 +599,7 @@ export default async function SellerOrderDetailPage({
           {method === "PICKUP" && status === "PENDING" && (
             <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
               <input type="hidden" name="action" value="ready_for_pickup" />
-              <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+              <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
                 Mark ready for pickup
               </button>
             </form>
@@ -608,7 +608,7 @@ export default async function SellerOrderDetailPage({
           {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
             <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
               <input type="hidden" name="action" value="picked_up" />
-              <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+              <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
                 Mark picked up
               </button>
             </form>
@@ -641,7 +641,7 @@ export default async function SellerOrderDetailPage({
                   <div className="flex flex-wrap gap-2">
                     <select
                       name="trackingCarrier"
-                      className="rounded border px-2 py-1 text-sm bg-white"
+                      className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                       defaultValue=""
                     >
                       <option value="" disabled>Carrier</option>
@@ -654,9 +654,9 @@ export default async function SellerOrderDetailPage({
                     <input
                       name="trackingNumber"
                       placeholder="Tracking number"
-                      className="rounded border px-2 py-1 text-sm"
+                      className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                     />
-                    <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+                    <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
                       Mark shipped
                     </button>
                   </div>
@@ -668,7 +668,7 @@ export default async function SellerOrderDetailPage({
           {method === "SHIPPING" && status === "SHIPPED" && (
             <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="flex gap-2">
               <input type="hidden" name="action" value="delivered" />
-              <button className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50">
+              <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
                 Mark delivered
               </button>
             </form>

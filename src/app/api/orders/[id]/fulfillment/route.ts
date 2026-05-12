@@ -293,8 +293,13 @@ export async function POST(
       }
     }
 
+    // Redirect with 303 so the browser converts POST → GET. Falls back to
+    // the request's origin when NEXT_PUBLIC_APP_URL is missing so the redirect
+    // never throws on a missing env var.
+    const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     return NextResponse.redirect(
-      new URL(`/dashboard/sales/${id}`, process.env.NEXT_PUBLIC_APP_URL)
+      new URL(`/dashboard/sales/${id}`, origin),
+      { status: 303 },
     );
   } catch (err) {
     console.error("POST /api/orders/[id]/fulfillment error:", err);
