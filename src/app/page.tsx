@@ -240,7 +240,7 @@ export default async function HomePage() {
     mosaicListings,
     featuredMakerBlock,
   ] = await Promise.all([
-    // New Arrivals: prefer last 30 days, fall back to newest if fewer than 6
+    // New Arrivals: prefer last 30 days, fall back to newest if fewer than 12
     prisma.listing.findMany({
       where: {
         status: ListingStatus.ACTIVE, isPrivate: false,
@@ -249,7 +249,7 @@ export default async function HomePage() {
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       },
       orderBy: { createdAt: "desc" },
-      take: 6,
+      take: 12,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
@@ -265,7 +265,7 @@ export default async function HomePage() {
         },
       },
     }).then(async (results) => {
-      if (results.length >= 6) return results;
+      if (results.length >= 12) return results;
       // Fall back to newest without date filter
       return prisma.listing.findMany({
         where: {
@@ -274,7 +274,7 @@ export default async function HomePage() {
           ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
         },
         orderBy: { createdAt: "desc" },
-        take: 6,
+        take: 12,
         include: {
           photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           seller: {
@@ -294,7 +294,7 @@ export default async function HomePage() {
     prisma.listing.findMany({
       where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
       orderBy: { qualityScore: "desc" },
-      take: 6,
+      take: 12,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
@@ -855,7 +855,7 @@ export default async function HomePage() {
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
-            <Link href="/browse" className="text-sm text-neutral-600 hover:underline">Browse all</Link>
+            <Link href="/browse?sort=newest" className="text-sm text-amber-700 hover:underline">View more →</Link>
           </div>
 
           {fresh.length === 0 ? (
@@ -911,6 +911,7 @@ export default async function HomePage() {
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <Link href="/browse?sort=popular" className="text-sm text-amber-700 hover:underline">View more →</Link>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">

@@ -311,7 +311,7 @@ export default function Header() {
             <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
               <Link
                 href="/"
-                className="flex items-center"
+                className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
                 aria-label="Grainline home"
                 onClick={() => setDrawerOpen(false)}
               >
