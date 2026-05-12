@@ -52,10 +52,10 @@ export default function RecentlyViewed() {
         <div className="flex gap-4 overflow-x-auto pb-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse shrink-0 w-48">
-              <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-neutral-200" />
+              <div className="rounded-2xl overflow-hidden aspect-[4/5] bg-[#EFEAE0]" />
               <div className="mt-2 space-y-1.5 px-0.5">
-                <div className="h-3 bg-neutral-200 rounded w-3/4" />
-                <div className="h-3 bg-neutral-200 rounded w-1/2" />
+                <div className="h-3 bg-[#EFEAE0] rounded w-3/4" />
+                <div className="h-3 bg-[#EFEAE0] rounded w-1/2" />
               </div>
             </div>
           ))}
@@ -75,7 +75,7 @@ export default function RecentlyViewed() {
                       className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
-                    <div className="h-full w-full bg-neutral-200" />
+                    <div className="h-full w-full bg-[#EFEAE0]" />
                   )}
                 </div>
                 <div className="mt-2 px-0.5 space-y-0.5">

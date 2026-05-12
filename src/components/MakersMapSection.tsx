@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 const AllSellersMap = dynamic(() => import("./AllSellersMap"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full bg-stone-100 animate-pulse rounded-2xl" />
+    <div className="w-full h-full bg-[#EFEAE0] animate-pulse rounded-2xl" />
   ),
 });
 

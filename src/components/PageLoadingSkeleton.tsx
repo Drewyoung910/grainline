@@ -3,7 +3,7 @@ type PageLoadingSkeletonProps = {
 };
 
 function Pulse({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded bg-neutral-200 ${className}`} />;
+  return <div className={`animate-pulse rounded bg-[#EFEAE0] ${className}`} />;
 }
 
 export default function PageLoadingSkeleton({ variant = "grid" }: PageLoadingSkeletonProps) {

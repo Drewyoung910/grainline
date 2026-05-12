@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Shield, Hammer, Eye, MessageCircle, MapPin, CheckCircle } from "@/components/icons";
+import GuildBadge from "@/components/GuildBadge";
 
 export const metadata: Metadata = {
   title: "Why Grainline | Real handmade woodworking, not factory imports",
@@ -212,10 +213,8 @@ export default async function WhyGrainlinePage() {
             </p>
           </div>
           <div className="card-section p-6 text-center bg-white">
-            <div className="flex justify-center mb-4">
-              <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-50 text-amber-700 font-display font-bold">
-                GM
-              </span>
+            <div className="flex justify-center mb-4 min-h-[48px] items-center">
+              <GuildBadge level="GUILD_MEMBER" size={48} />
             </div>
             <h3 className="font-display font-semibold text-lg text-neutral-900 mb-1">Guild Member</h3>
             <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold mb-3">Established makers</p>
@@ -225,13 +224,11 @@ export default async function WhyGrainlinePage() {
             </p>
           </div>
           <div className="card-section p-6 text-center bg-white">
-            <div className="flex justify-center mb-4">
-              <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-indigo-50 text-indigo-700 font-display font-bold">
-                GM+
-              </span>
+            <div className="flex justify-center mb-4 min-h-[48px] items-center">
+              <GuildBadge level="GUILD_MASTER" size={48} />
             </div>
             <h3 className="font-display font-semibold text-lg text-neutral-900 mb-1">Guild Master</h3>
-            <p className="text-xs uppercase tracking-wider text-indigo-700 font-semibold mb-3">Top tier, monthly checked</p>
+            <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold mb-3">Top tier, monthly checked</p>
             <p className="text-sm text-neutral-600 leading-relaxed">
               4.5+ star rating, 25+ reviews, 95%+ on-time shipping, 90%+ response rate, no open disputes, 180+
               day account age, $1,000+ in sales. Re-evaluated every month.

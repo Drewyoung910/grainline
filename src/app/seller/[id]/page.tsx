@@ -9,7 +9,7 @@ import DynamicMapCard from "@/components/DynamicMapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer } from "@/components/icons";
+import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer, MapPin } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
@@ -296,11 +296,9 @@ export default async function SellerPublicPage({
       )}
 
       {/* ── Banner ──────────────────────────────────────────────────────────
-          The outer div does NOT have overflow-hidden because the avatar uses
-          translate-y-1/2 to overlap below the banner; clipping the outer
-          would clip the avatar. The banner image lives in an inner wrapper
-          that owns the rounded corners + overflow. */}
-      <div className="relative h-56 sm:aspect-[3/1] sm:h-auto mt-4">
+          Outer div is NOT overflow-hidden because avatar uses translate-y-1/2
+          to overlap below the banner; inner wrapper owns the rounded corners. */}
+      <div className="relative aspect-[3/1] mt-4">
         <div className="absolute inset-0 rounded-2xl overflow-hidden">
           <MediaImage
             src={seller.bannerImageUrl}
@@ -310,8 +308,7 @@ export default async function SellerPublicPage({
             fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
           />
         </div>
-        {/* Avatar: sits at bottom of banner, half-overlapping downward */}
-        <div className="absolute bottom-0 left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
+        <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
           {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -325,105 +322,93 @@ export default async function SellerPublicPage({
         </div>
       </div>
 
-      <div className="px-6 sm:px-8 pb-8">
-        {/* Name row — pt-16 clears the avatar overlap (half of h-24 = 48px + 16px gap) */}
-        <div className="pt-16">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold">{seller.displayName}</h1>
-                <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
-                {seller.isFoundingMaker && (
-                  <FoundingMakerBadge
-                    number={seller.foundingMakerNumber}
-                    showLabel={true}
-                    size={28}
-                  />
-                )}
-              </div>
-              {seller.tagline && (
-                <p className="text-sm text-neutral-600 mt-0.5">{seller.tagline}</p>
-              )}
-              {cityState && (
-                <p className="text-sm text-neutral-500 mt-0.5">{cityState}</p>
-              )}
-              {meId !== seller.userId && (
-                <div className="mt-2 flex items-center gap-2">
-                  <FollowButton
-                    sellerProfileId={seller.id}
-                    sellerUserId={seller.userId}
-                    initialFollowing={isFollowing}
-                    initialCount={followerCount}
-                    size="sm"
-                  />
-                  {meId && (
-                    <BlockReportButton
-                      targetUserId={seller.userId}
-                      targetName={seller.displayName ?? "this maker"}
-                      targetType="SELLER"
-                      targetId={seller.id}
-                    />
-                  )}
-                </div>
+      {/* ── Identity row (post-banner) ───────────────────────────────────── */}
+      <div className="px-2 sm:px-4 pt-16 pb-2">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
+              <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
+              {seller.isFoundingMaker && (
+                <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
               )}
             </div>
-            <Link href="/browse" className="text-sm underline text-neutral-600 shrink-0 mt-1">
-              &larr; Back to Browse
-            </Link>
+            {seller.tagline && (
+              <p className="text-sm text-neutral-600 mt-1 italic">{seller.tagline}</p>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 mt-2">
+              {cityState && (
+                <span className="flex items-center gap-1">
+                  <MapPin size={14} className="shrink-0" />
+                  {cityState}
+                </span>
+              )}
+              {seller.yearsInBusiness != null && (
+                <span>{seller.yearsInBusiness} {seller.yearsInBusiness === 1 ? "year" : "years"} in business</span>
+              )}
+              {shopRating && shopRating.count > 0 && (
+                <span className="flex items-center gap-1">
+                  <StarsInline value={shopRating.avg} />
+                  <span className="font-medium text-neutral-700">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
+                  <span className="text-neutral-500">({shopRating.count})</span>
+                </span>
+              )}
+              {seller.acceptsCustomOrders && (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">Accepting custom orders</span>
+              )}
+              {!seller.acceptingNewOrders && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Not currently taking new orders</span>
+              )}
+            </div>
           </div>
+          <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1">
+            ← Back to Browse
+          </Link>
         </div>
 
-        {/* Meta row: years, rating, availability badges */}
-        <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-600 mb-4">
-          {seller.yearsInBusiness != null && (
-            <span>{seller.yearsInBusiness} {seller.yearsInBusiness === 1 ? "year" : "years"} in business</span>
-          )}
-          {shopRating && shopRating.count > 0 && (
-            <span className="flex items-center gap-1">
-              <StarsInline value={shopRating.avg} />
-              <span className="font-medium text-neutral-700">
-                {(Math.round(shopRating.avg * 10) / 10).toFixed(1)}
-              </span>
-              <span className="text-neutral-500">({shopRating.count})</span>
-            </span>
-          )}
-          {seller.acceptsCustomOrders && (
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-              Accepting custom orders
-            </span>
-          )}
-          {!seller.acceptingNewOrders && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-              Not currently taking new orders
-            </span>
-          )}
-        </div>
-
-        {/* Custom order button */}
-        {seller.acceptsCustomOrders && (
-          <div className="mb-4">
-            {meId && meId !== seller.userId ? (
-              <CustomOrderRequestForm
-                sellerUserId={seller.userId}
-                sellerName={seller.displayName}
-                triggerLabel="Request a Custom Piece"
-                triggerClassName="inline-flex items-center gap-2 rounded-lg bg-amber-800 text-white px-4 py-2 text-sm font-medium hover:bg-amber-700"
+        {/* Action row: follow, message, custom order, report */}
+        {meId !== seller.userId && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <FollowButton
+              sellerProfileId={seller.id}
+              sellerUserId={seller.userId}
+              initialFollowing={isFollowing}
+              initialCount={followerCount}
+              size="sm"
+            />
+            {seller.acceptsCustomOrders && (
+              <>
+                {meId ? (
+                  <CustomOrderRequestForm
+                    sellerUserId={seller.userId}
+                    sellerName={seller.displayName}
+                    triggerLabel="Request a Custom Piece"
+                    triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-medium hover:bg-[#3A2A24]"
+                  />
+                ) : (
+                  <Link
+                    href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                    className="inline-flex items-center gap-2 rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                  >
+                    <Hammer size={15} />
+                    Request a Custom Piece
+                  </Link>
+                )}
+              </>
+            )}
+            {meId && (
+              <BlockReportButton
+                targetUserId={seller.userId}
+                targetName={seller.displayName ?? "this maker"}
+                targetType="SELLER"
+                targetId={seller.id}
               />
-            ) : !meId ? (
-              <Link
-                href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-              >
-                <Hammer size={15} />
-                Request a Custom Piece
-              </Link>
-            ) : null}
+            )}
           </div>
         )}
 
-        {/* Social links */}
         {socialLinks.length > 0 && (
-          <div className="flex flex-wrap gap-3 mb-6">
+          <div className="flex flex-wrap gap-3 mt-3">
             {socialLinks.map(({ label, url, Icon }) => (
               <a
                 key={label}
@@ -431,307 +416,293 @@ export default async function SellerPublicPage({
                 target="_blank"
                 rel="noopener noreferrer"
                 title={label}
-                className="text-neutral-600 hover:text-neutral-900"
+                className="text-neutral-500 hover:text-neutral-900"
               >
                 <Icon size={20} />
               </a>
             ))}
           </div>
         )}
+      </div>
 
-        {/* ── Latest Broadcast ───────────────────────────────────────────── */}
-        {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
-          <section className="mb-8 card-section p-5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-              Shop Update ·{" "}
-              <LocalDate date={latestBroadcast.sentAt} />
-            </div>
-            <p className="text-sm text-neutral-800 whitespace-pre-line">{latestBroadcast.message}</p>
-            {latestBroadcast.imageUrl && (
-              <MediaImage
-                src={latestBroadcast.imageUrl}
-                alt="Update"
-                className="mt-3 w-full max-h-48 object-cover rounded-md"
-                fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100 rounded-md"
-              />
-            )}
-          </section>
-        )}
-
-        {/* ── Featured Listings ──────────────────────────────────────────── */}
-        {featuredListings.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">Featured Work</h2>
-            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-              {featuredListings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="w-[200px] flex-none snap-start md:w-auto">
-                  <ListingCard
-                    listing={{
-                      id: l.id,
-                      title: l.title,
-                      priceCents: l.priceCents,
-                      currency: l.currency,
-                      status: l.status,
-                      listingType: l.listingType,
-                      stockQuantity: l.stockQuantity ?? null,
-                      photoUrl: l.photos[0]?.url ?? null,
-                      photoAltText: l.photos[0]?.altText ?? null,
-                      seller: {
-                        id: seller.id,
-                        displayName: seller.displayName ?? null,
-                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
-                        guildLevel: seller.guildLevel ?? null,
-                        city: seller.city ?? null,
-                        state: seller.state ?? null,
-                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                      },
-                      rating: null,
-                    }}
-                    initialSaved={savedSet.has(l.id)}
-                    variant="grid"
-                  />
-                </ClickTracker>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* ── Story ─────────────────────────────────────────────────────── */}
-        {(seller.storyTitle || seller.storyBody) && (
-          <section className="mb-8 card-section p-6">
-            {seller.storyTitle && (
-              <h2 className="text-lg font-semibold mb-3">{seller.storyTitle}</h2>
-            )}
-            {seller.storyBody && (
-              <p className="text-neutral-700 whitespace-pre-line">
-                {seller.storyBody}
-              </p>
-            )}
-          </section>
-        )}
-
-        {/* ── Bio ───────────────────────────────────────────────────────── */}
-        {seller.bio && !(seller.storyTitle || seller.storyBody) && (
-          <section className="mb-8 card-section p-6">
-            <h2 className="text-lg font-semibold mb-2">About</h2>
-            <p className="text-neutral-700 whitespace-pre-line">{seller.bio}</p>
-          </section>
-        )}
-
-        {/* ── Location / Map ────────────────────────────────────────────── */}
-        {lat != null && lng != null && (
-          <section className="mb-8 card-section p-4 space-y-3">
-            <h2 className="text-lg font-medium">Pickup area</h2>
-            <DynamicMapCard
-              lat={lat}
-              lng={lng}
-              label={cityState || seller.displayName || "Pickup area"}
-              radiusMeters={radiusMeters ?? null}
-              showPinWithRadius={false}
-            />
-            <p className="text-xs text-neutral-600">
-              {radiusMeters
-                ? "Approximate pickup area shown for privacy."
-                : "Exact pickup point shown by seller."}
-            </p>
-          </section>
-        )}
-
-        {/* ── More makers in this city ──────────────────────────────────── */}
-        {(seller.cityMetro ?? seller.metro) && (() => {
-          const m = seller.cityMetro ?? seller.metro!;
-          return (
-            <div className="mb-8 space-y-1">
-              <Link href={`/makers/${m.slug}`} className="text-sm text-neutral-600 hover:underline block">
-                More makers in {m.name}, {m.state} →
-              </Link>
-              <Link href={`/browse/${m.slug}`} className="text-sm text-neutral-600 hover:underline block">
-                Browse {m.name}, {m.state} listings →
-              </Link>
-            </div>
-          );
-        })()}
-
-        {/* ── Workshop Gallery ───────────────────────────────────────────── */}
-        {(seller.workshopImageUrl || (seller.galleryImageUrls && seller.galleryImageUrls.length > 0)) && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
-            <SellerGallery
-              workshopImageUrl={seller.workshopImageUrl}
-              images={seller.galleryImageUrls ?? []}
-              imageAltTexts={seller.galleryAltTexts ?? []}
-            />
-          </section>
-        )}
-
-        {/* ── Shop Policies ──────────────────────────────────────────────── */}
-        {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
-          <section className="mb-8 card-section">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">Shop Policies</h2>
-            {seller.returnPolicy && (
-              <details className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
-                  Return Policy
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {seller.returnPolicy}
-                </p>
-              </details>
-            )}
-            {seller.customOrderPolicy && (
-              <details className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
-                  Custom Order Policy
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {seller.customOrderPolicy}
-                </p>
-              </details>
-            )}
-            {seller.shippingPolicy && (
-              <details className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
-                  Shipping Policy
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {seller.shippingPolicy}
-                </p>
-              </details>
-            )}
-          </section>
-        )}
-
-        {/* ── FAQs ──────────────────────────────────────────────────────── */}
-        {seller.faqs.length > 0 && (
-          <section className="mb-8 card-section">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">
-              Frequently Asked Questions
-            </h2>
-            {seller.faqs.map((faq) => (
-              <details key={faq.id} className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
-                  {faq.question}
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {faq.answer}
-                </p>
-              </details>
-            ))}
-          </section>
-        )}
-
-        {/* ── From the Workshop (blog posts) ──────────────────────────── */}
-        {sellerBlogPosts.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
-            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
-              {sellerBlogPosts.map((p) => (
-                <li key={p.slug} className="card-listing min-w-[200px] flex-none snap-start sm:min-w-0">
-                  <Link href={`/blog/${p.slug}`} className="block">
-                    <div className="h-36 bg-neutral-100 overflow-hidden">
-                      {p.coverImageUrl ? (
-                        <MediaImage
-                          src={p.coverImageUrl}
-                          alt={p.title}
-                          className="w-full h-full object-cover"
-                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
-                      )}
-                    </div>
-                    <div className="p-3 space-y-1">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
-                        {BLOG_TYPE_LABELS[p.type]}
-                      </span>
-                      <div className="font-medium text-sm line-clamp-2 mt-1">{p.title}</div>
-                      {p.excerpt && <p className="text-xs text-neutral-500 line-clamp-2">{p.excerpt}</p>}
-                      {p.publishedAt && (
-                        <div className="text-xs text-neutral-500">
-                          <LocalDate date={p.publishedAt} />
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* ── All Listings ───────────────────────────────────────────────── */}
-        <section>
-          {(() => {
-            const activePublicCount = listings.filter(
-              (l) => l.status === "ACTIVE" && !l.isPrivate
-            ).length;
-            return (
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">All Listings</h2>
-            {activePublicCount > 0 && (
-              <Link
-                href={publicSellerShopPath(seller.id, seller.displayName)}
-                className="text-sm text-neutral-600 underline hover:text-neutral-900"
-              >
-                See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
-              </Link>
-            )}
+      {/* ── Latest Broadcast (full-width banner-style) ─────────────────── */}
+      {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
+        <section className="mb-6 mt-4 mx-2 sm:mx-4 rounded-2xl bg-[#EFEAE0] p-5 sm:p-6">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-2">
+            Shop Update · <LocalDate date={latestBroadcast.sentAt} />
           </div>
+          <p className="text-sm text-neutral-800 whitespace-pre-line">{latestBroadcast.message}</p>
+          {latestBroadcast.imageUrl && (
+            <MediaImage
+              src={latestBroadcast.imageUrl}
+              alt="Update"
+              className="mt-3 w-full max-h-48 object-cover rounded-md"
+              fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100 rounded-md"
+            />
+          )}
+        </section>
+      )}
+
+      {/* ── Two-column body grid ───────────────────────────────────────── */}
+      <div className="px-2 sm:px-4 pb-12 mt-6 grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-6 lg:gap-8">
+
+        {/* ── Sidebar ────────────────────────────────────────────────────── */}
+        <aside className="space-y-5 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-2">
+          {/* About / Story card */}
+          {(seller.bio || seller.storyTitle || seller.storyBody) && (
+            <section className="card-section p-5 bg-white">
+              <h2 className="text-base font-display font-semibold mb-3">
+                {seller.storyTitle || "About"}
+              </h2>
+              {seller.storyBody && (
+                <p className="text-sm text-neutral-700 whitespace-pre-line mb-3 leading-relaxed">
+                  {seller.storyBody}
+                </p>
+              )}
+              {seller.bio && !seller.storyBody && (
+                <p className="text-sm text-neutral-700 whitespace-pre-line leading-relaxed">{seller.bio}</p>
+              )}
+              {seller.bio && seller.storyBody && seller.bio !== seller.storyBody && (
+                <p className="text-sm text-neutral-700 whitespace-pre-line leading-relaxed border-t border-neutral-100 pt-3">
+                  {seller.bio}
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* Pickup map */}
+          {lat != null && lng != null && (
+            <section className="card-section p-4 bg-white space-y-3">
+              <h2 className="text-base font-display font-semibold">Pickup area</h2>
+              <DynamicMapCard
+                lat={lat}
+                lng={lng}
+                label={cityState || seller.displayName || "Pickup area"}
+                radiusMeters={radiusMeters ?? null}
+                showPinWithRadius={false}
+              />
+              <p className="text-xs text-neutral-600">
+                {radiusMeters
+                  ? "Approximate pickup area shown for privacy."
+                  : "Exact pickup point shown by seller."}
+              </p>
+            </section>
+          )}
+
+          {/* Shop Policies accordion */}
+          {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
+            <section className="card-section bg-white">
+              <h2 className="text-base font-display font-semibold px-5 py-3 border-b border-neutral-100">Shop Policies</h2>
+              {seller.returnPolicy && (
+                <details className="border-b border-neutral-100 last:border-b-0">
+                  <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Return Policy</summary>
+                  <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.returnPolicy}</p>
+                </details>
+              )}
+              {seller.customOrderPolicy && (
+                <details className="border-b border-neutral-100 last:border-b-0">
+                  <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Custom Order Policy</summary>
+                  <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.customOrderPolicy}</p>
+                </details>
+              )}
+              {seller.shippingPolicy && (
+                <details className="border-b border-neutral-100 last:border-b-0">
+                  <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Shipping Policy</summary>
+                  <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.shippingPolicy}</p>
+                </details>
+              )}
+            </section>
+          )}
+
+          {/* FAQs accordion */}
+          {seller.faqs.length > 0 && (
+            <section className="card-section bg-white">
+              <h2 className="text-base font-display font-semibold px-5 py-3 border-b border-neutral-100">FAQs</h2>
+              {seller.faqs.map((faq) => (
+                <details key={faq.id} className="border-b border-neutral-100 last:border-b-0">
+                  <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">{faq.question}</summary>
+                  <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{faq.answer}</p>
+                </details>
+              ))}
+            </section>
+          )}
+
+          {/* More makers in this city */}
+          {(seller.cityMetro ?? seller.metro) && (() => {
+            const m = seller.cityMetro ?? seller.metro!;
+            return (
+              <section className="card-section p-5 bg-white space-y-2">
+                <h2 className="text-base font-display font-semibold mb-1">More from {m.name}</h2>
+                <Link href={`/makers/${m.slug}`} className="text-sm text-amber-700 hover:underline block">
+                  Other makers in {m.name}, {m.state} →
+                </Link>
+                <Link href={`/browse/${m.slug}`} className="text-sm text-amber-700 hover:underline block">
+                  Browse {m.name}, {m.state} listings →
+                </Link>
+              </section>
             );
           })()}
-          {listings.length === 0 ? (
-            <div className="card-section p-6 text-neutral-600">
-              No listings yet.
-            </div>
-          ) : (
-            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
-              {listings.slice(0, 8).map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
-                  <ListingCard
-                    listing={{
-                      id: l.id,
-                      title: l.title,
-                      priceCents: l.priceCents,
-                      currency: l.currency,
-                      status: l.status,
-                      listingType: l.listingType,
-                      stockQuantity: l.stockQuantity ?? null,
-                      photoUrl: l.photos[0]?.url ?? null,
-                      photoAltText: l.photos[0]?.altText ?? null,
-                      seller: {
-                        id: seller.id,
-                        displayName: seller.displayName ?? null,
-                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
-                        guildLevel: seller.guildLevel ?? null,
-                        city: seller.city ?? null,
-                        state: seller.state ?? null,
-                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                      },
-                      rating: null,
-                    }}
-                    initialSaved={savedSet.has(l.id)}
-                    variant="grid"
-                  />
-                </ClickTracker>
-              ))}
-            </ul>
+        </aside>
+
+        {/* ── Main column ───────────────────────────────────────────────── */}
+        <div className="space-y-10 min-w-0">
+          {/* Featured Work */}
+          {featuredListings.length > 0 && (
+            <section>
+              <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
+              <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
+                {featuredListings.map((l) => (
+                  <ClickTracker key={l.id} listingId={l.id} className="w-[200px] flex-none snap-start md:w-auto">
+                    <ListingCard
+                      listing={{
+                        id: l.id,
+                        title: l.title,
+                        priceCents: l.priceCents,
+                        currency: l.currency,
+                        status: l.status,
+                        listingType: l.listingType,
+                        stockQuantity: l.stockQuantity ?? null,
+                        photoUrl: l.photos[0]?.url ?? null,
+                        photoAltText: l.photos[0]?.altText ?? null,
+                        seller: {
+                          id: seller.id,
+                          displayName: seller.displayName ?? null,
+                          avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                          guildLevel: seller.guildLevel ?? null,
+                          city: seller.city ?? null,
+                          state: seller.state ?? null,
+                          acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                        },
+                        rating: null,
+                      }}
+                      initialSaved={savedSet.has(l.id)}
+                      variant="grid"
+                    />
+                  </ClickTracker>
+                ))}
+              </ul>
+            </section>
           )}
-          {(() => {
-            const activePublicCount = listings.filter(
-              (l) => l.status === "ACTIVE" && !l.isPrivate
-            ).length;
-            return activePublicCount > 8 ? (
-              <div className="mt-4 text-center">
-                <Link
-                  href={publicSellerShopPath(seller.id, seller.displayName)}
-                  className="inline-block rounded border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
-                >
-                  See all {activePublicCount} pieces →
-                </Link>
-              </div>
-            ) : null;
-          })()}
-        </section>
+
+          {/* All Listings */}
+          <section>
+            {(() => {
+              const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
+              return (
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold">All Listings</h2>
+                  {activePublicCount > 0 && (
+                    <Link
+                      href={publicSellerShopPath(seller.id, seller.displayName)}
+                      className="text-sm text-amber-700 hover:underline"
+                    >
+                      See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
+                    </Link>
+                  )}
+                </div>
+              );
+            })()}
+            {listings.length === 0 ? (
+              <div className="card-section p-6 text-neutral-600 bg-white">No listings yet.</div>
+            ) : (
+              <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
+                {listings.slice(0, 9).map((l) => (
+                  <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
+                    <ListingCard
+                      listing={{
+                        id: l.id,
+                        title: l.title,
+                        priceCents: l.priceCents,
+                        currency: l.currency,
+                        status: l.status,
+                        listingType: l.listingType,
+                        stockQuantity: l.stockQuantity ?? null,
+                        photoUrl: l.photos[0]?.url ?? null,
+                        photoAltText: l.photos[0]?.altText ?? null,
+                        seller: {
+                          id: seller.id,
+                          displayName: seller.displayName ?? null,
+                          avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                          guildLevel: seller.guildLevel ?? null,
+                          city: seller.city ?? null,
+                          state: seller.state ?? null,
+                          acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                        },
+                        rating: null,
+                      }}
+                      initialSaved={savedSet.has(l.id)}
+                      variant="grid"
+                    />
+                  </ClickTracker>
+                ))}
+              </ul>
+            )}
+            {(() => {
+              const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
+              return activePublicCount > 9 ? (
+                <div className="mt-5 text-center">
+                  <Link
+                    href={publicSellerShopPath(seller.id, seller.displayName)}
+                    className="inline-block rounded-md border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
+                  >
+                    See all {activePublicCount} pieces →
+                  </Link>
+                </div>
+              ) : null;
+            })()}
+          </section>
+
+          {/* Workshop Gallery */}
+          {(seller.workshopImageUrl || (seller.galleryImageUrls && seller.galleryImageUrls.length > 0)) && (
+            <section>
+              <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">From the Workshop</h2>
+              <SellerGallery
+                workshopImageUrl={seller.workshopImageUrl}
+                images={seller.galleryImageUrls ?? []}
+                imageAltTexts={seller.galleryAltTexts ?? []}
+              />
+            </section>
+          )}
+
+          {/* Blog posts */}
+          {sellerBlogPosts.length > 0 && (
+            <section>
+              <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Stories from the Workshop</h2>
+              <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+                {sellerBlogPosts.map((p) => (
+                  <li key={p.slug} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0">
+                    <Link href={`/blog/${p.slug}`} className="block">
+                      <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
+                        {p.coverImageUrl ? (
+                          <MediaImage
+                            src={p.coverImageUrl}
+                            alt={p.title}
+                            className="w-full h-full object-cover"
+                            fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
+                        )}
+                      </div>
+                      <div className="p-3 space-y-1">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
+                          {BLOG_TYPE_LABELS[p.type]}
+                        </span>
+                        <div className="font-medium text-sm line-clamp-2 mt-1">{p.title}</div>
+                        {p.excerpt && <p className="text-xs text-neutral-500 line-clamp-2">{p.excerpt}</p>}
+                        {p.publishedAt && (
+                          <div className="text-xs text-neutral-500">
+                            <LocalDate date={p.publishedAt} />
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       </div>
     </main>
   );

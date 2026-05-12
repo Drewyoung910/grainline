@@ -49,10 +49,10 @@ export default function SimilarItems({ listingId }: { listingId: string }) {
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="w-56 flex-none animate-pulse">
-              <div className="aspect-[4/5] bg-neutral-200 rounded-2xl" />
+              <div className="aspect-[4/5] bg-[#EFEAE0] rounded-2xl" />
               <div className="pt-2.5 space-y-1.5">
-                <div className="h-4 bg-neutral-200 rounded w-3/4" />
-                <div className="h-3 bg-neutral-200 rounded w-1/2" />
+                <div className="h-4 bg-[#EFEAE0] rounded w-3/4" />
+                <div className="h-3 bg-[#EFEAE0] rounded w-1/2" />
               </div>
             </div>
           ))}
