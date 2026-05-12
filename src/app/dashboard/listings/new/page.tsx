@@ -12,6 +12,7 @@ import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
+import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
@@ -410,6 +411,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
   });
   if (finalListing?.status === "ACTIVE") {
     revalidateListingSearchCaches();
+    // First active listing might earn this seller the Founding Maker badge.
+    await maybeGrantFoundingMaker(seller.id);
     // Notify followers after the response so listing creation stays responsive.
     after(async () => {
       try {

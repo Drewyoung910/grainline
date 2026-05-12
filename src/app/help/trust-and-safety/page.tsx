@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Trust & Safety | Grainline",
   description:
-    "How Grainline protects buyers — verified makers, secure payments, dispute resolution, and reporting tools.",
+    "How Grainline protects buyers. Verified makers, secure payments, dispute resolution, and reporting tools.",
   alternates: { canonical: "https://thegrainline.com/help/trust-and-safety" },
 };
 
@@ -33,12 +33,12 @@ export default function TrustAndSafetyHelpPage() {
         </p>
         <ul>
           <li>
-            <strong>Guild Member</strong> — established makers with a complete profile, 5+ active
+            <strong>Guild Member</strong>: established makers with a complete profile, 5+ active
             listings, $250+ in completed sales, an account in good standing, and a Grainline staff
             review.
           </li>
           <li>
-            <strong>Guild Master</strong> — top-tier makers with a sustained 4.5+ star rating, 25+
+            <strong>Guild Master</strong>: top-tier makers with a sustained 4.5+ star rating, 25+
             reviews, 95%+ on-time shipping, 90%+ response rate, 180+ day account age, $1,000+ in sales,
             and zero open disputes. Re-checked monthly.
           </li>
@@ -46,7 +46,7 @@ export default function TrustAndSafetyHelpPage() {
 
         <h2>Secure payments</h2>
         <p>
-          All payments are processed by Stripe — the same payment provider that powers Shopify, Lyft,
+          All payments are processed by Stripe, the same payment provider that powers Shopify, Lyft,
           and Target. Grainline never sees or stores your card details. Your information goes
           straight from your browser to Stripe&apos;s servers.
         </p>
@@ -68,7 +68,7 @@ export default function TrustAndSafetyHelpPage() {
 
         <h2>Reporting a problem</h2>
         <p>
-          See something that doesn&apos;t belong — a counterfeit listing, harassment in messages, a
+          See something that doesn&apos;t belong, like a counterfeit listing, harassment in messages, a
           suspicious shop, a fake review, or content that violates our terms? Use the report button on
           any listing, profile, message thread, review, or blog comment. Reports go to our admin team
           for review.

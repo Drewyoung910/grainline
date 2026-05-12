@@ -1,6 +1,6 @@
 // src/app/seller-handbook/page.tsx
 //
-// Public seller handbook — Google-indexable, doubles as the canonical
+// Public seller handbook. Google-indexable, doubles as the canonical
 // reference for makers evaluating Grainline vs Etsy / their own website
 // before signing up. Sections are anchored (id="fees", id="guild", etc.)
 // so footer + dashboard links can deep-link straight to the section.
@@ -8,12 +8,12 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Seller Handbook — Grainline",
+  title: "Seller Handbook | Grainline",
   description:
-    "Everything you need to sell handmade woodworking on Grainline — fees, photos, pricing, shipping, custom orders, Guild verification, and how disputes are handled.",
+    "Everything you need to sell handmade woodworking on Grainline. Fees, photos, pricing, shipping, custom orders, Guild verification, and how disputes are handled.",
   alternates: { canonical: "https://thegrainline.com/seller-handbook" },
   openGraph: {
-    title: "Seller Handbook — Grainline",
+    title: "Seller Handbook | Grainline",
     description:
       "How to sell handmade woodworking on Grainline. Fees, photos, shipping, Guild verification, and trust & safety.",
     url: "https://thegrainline.com/seller-handbook",
@@ -58,14 +58,14 @@ export default function SellerHandbookPage() {
         <section id="getting-started">
           <h2>1. Getting started</h2>
           <p>
-            Grainline is a Texas-based marketplace for makers selling handmade woodworking — furniture, kitchenware,
+            Grainline is a Texas-based marketplace for makers selling handmade woodworking: furniture, kitchenware,
             home goods, custom commissions, and everything between. Before you can publish your first listing
             you need three things:
           </p>
           <ol>
             <li>A Grainline account. Sign up at <Link href="/sign-up">/sign-up</Link>.</li>
             <li>A connected Stripe account. We use Stripe Connect for all payouts. Connect it from{" "}
-              <Link href="/dashboard/seller">Shop Settings</Link> — verification typically clears in 2–3 business days.</li>
+              <Link href="/dashboard/seller">Shop Settings</Link>. Verification typically clears in 2 to 3 business days.</li>
             <li>A shop profile. Add a display name, tagline, a banner photo (3:1, ~12MB max), and an avatar.
               Sellers with complete profiles get up to 3× more views than those without.</li>
           </ol>
@@ -113,7 +113,7 @@ export default function SellerHandbookPage() {
 
           <h3>Meta description</h3>
           <p>
-            Optional but worth it. This is the snippet Google shows under your listing in search results — 160
+            Optional but worth it. This is the snippet Google shows under your listing in search results. 160
             characters max. If you leave it blank, we use the first 160 characters of your description. Writing a
             custom one usually clicks better.
           </p>
@@ -132,14 +132,14 @@ export default function SellerHandbookPage() {
             <li><strong>Detail shots</strong>: joinery, grain, hardware close-ups.</li>
             <li><strong>In-context shot</strong>: the piece in a real space (living room, kitchen, workshop) so buyers can
               visualize scale.</li>
-            <li><strong>Process shots</strong>: a glimpse of you working — milling, sanding, finishing. Adds enormous trust.</li>
+            <li><strong>Process shots</strong>: a glimpse of you working. Milling, sanding, finishing. Adds enormous trust.</li>
           </ul>
 
           <h3>Technical tips</h3>
           <ul>
-            <li>Shoot in daylight if you can — north-facing window is ideal. Overhead workshop fluorescents make wood look orange.</li>
+            <li>Shoot in daylight if you can. A north-facing window is ideal. Overhead workshop fluorescents make wood look orange.</li>
             <li>Aim for 2400px+ on the long edge. Higher resolution helps when buyers zoom on the listing page.</li>
-            <li>Use descriptive filenames (<code>walnut-cutting-board-mineral-oil.jpg</code> beats <code>IMG_4521.jpg</code>) —
+            <li>Use descriptive filenames (<code>walnut-cutting-board-mineral-oil.jpg</code> beats <code>IMG_4521.jpg</code>).
               Google indexes them.</li>
             <li>Don&apos;t use stock photos, illustrations, or logos as listing photos. AI review rejects them.</li>
           </ul>
@@ -170,7 +170,7 @@ export default function SellerHandbookPage() {
           <p>
             What is a similar custom piece going for from a designer or boutique? Match it. If your live-edge walnut
             console would retail for $2,800 at West Elm or a designer studio, charge $2,400 on Grainline. You&apos;re not
-            competing with Wayfair — you&apos;re competing with handmade alternatives.
+            competing with Wayfair. You&apos;re competing with handmade alternatives.
           </p>
 
           <h3>Variants</h3>
@@ -187,8 +187,8 @@ export default function SellerHandbookPage() {
           <ul>
             <li><strong>5% platform fee</strong> on each sale&apos;s subtotal (item price + variant adjustments). Shipping
               and taxes aren&apos;t included in the fee base.</li>
-            <li><strong>Stripe processing</strong>: ~2.9% + $0.30 per transaction. Same as every other major marketplace
-              — this is the unavoidable cost of credit cards.</li>
+            <li><strong>Stripe processing</strong>: ~2.9% + $0.30 per transaction. Same as every other major marketplace,
+              and the unavoidable cost of credit cards.</li>
             <li><strong>$0 listing fees</strong>. List as many pieces as you want. You only pay when you sell.</li>
           </ul>
           <p>
@@ -196,34 +196,34 @@ export default function SellerHandbookPage() {
           </p>
           <ul>
             <li>$0.20 listing fee (paid every 4 months whether it sells or not)</li>
-            <li>6.5% transaction fee — <em>applied to item price <strong>and</strong> shipping</em></li>
-            <li>Payment processing: ~3% + $0.25 — also charged on shipping</li>
+            <li>6.5% transaction fee, <em>applied to item price <strong>and</strong> shipping</em></li>
+            <li>Payment processing: ~3% + $0.25, also charged on shipping</li>
             <li>
-              <strong>Offsite Ads</strong>: a mandatory 12% fee (15% for shops under $10K/yr) on any sale Etsy
+              <strong>Offsite Ads</strong>: a 12% fee (15% for shops under $10K/yr) on any sale Etsy
               attributes to one of their ad partners (Google, Facebook, Bing, Pinterest, Instagram, etc.). It is{" "}
-              <em>mandatory for shops over $10K/yr</em> — you cannot opt out. Etsy charges this on the full order
+              <em>mandatory for shops over $10K/yr</em>, meaning you cannot opt out. Etsy charges this on the full order
               total <strong>including shipping</strong>.
             </li>
             <li>
               <strong>Etsy Ads</strong> (optional, on top of Offsite Ads): a daily budget Etsy spends to promote your
-              listings — sellers commonly report 10%+ of revenue going to ads to stay visible in search.
+              listings. Sellers commonly report 10%+ of revenue going to ads just to stay visible in search.
             </li>
           </ul>
           <p>
             For an established Etsy shop running Offsite Ads + Etsy Ads, the effective take-rate is commonly{" "}
-            <strong>20–30%+</strong> of gross sales — and a meaningful chunk of that is charged on the shipping you
+            <strong>20% to 30%+</strong> of gross sales. A meaningful chunk of that is charged on the shipping you
             collect from the buyer, not just your item price. Grainline&apos;s 5% applies only to the item subtotal.
             No mandatory ads, no shipping markup, no recurring listing fees.
           </p>
           <p>
             Faire takes 15% on first orders from a new buyer (25% on direct-from-store). Amazon Handmade is 15% plus
-            their own ad ecosystem. Grainline&apos;s 5% is a fraction of any of these — by design.
+            their own ad ecosystem. Grainline&apos;s 5% is a fraction of any of these, by design.
           </p>
 
           <h3>Payouts</h3>
           <p>
             Stripe deposits your earnings (sale price minus the 5% Grainline fee, minus Stripe processing) into your
-            connected bank account on a rolling schedule — typically 2 business days after the order is paid. You can
+            connected bank account on a rolling schedule, typically 2 business days after the order is paid. You can
             view your balance and payout history in your Stripe dashboard, linked from{" "}
             <Link href="/dashboard/seller">Shop Settings</Link>.
           </p>
@@ -231,7 +231,7 @@ export default function SellerHandbookPage() {
           <h3>Refunds</h3>
           <p>
             If you issue a refund (or a buyer wins a case), Stripe automatically reverses the corresponding portion of
-            the payout. Refunds don&apos;t cost you Grainline&apos;s 5% — we waive our fee on refunded amounts. Stripe&apos;s
+            the payout. Refunds don&apos;t cost you Grainline&apos;s 5%. We waive our fee on refunded amounts. Stripe&apos;s
             processing fee is non-refundable (their policy, not ours).
           </p>
         </section>
@@ -241,13 +241,13 @@ export default function SellerHandbookPage() {
 
           <h3>Calculated rates (recommended)</h3>
           <p>
-            Enter packaged dimensions and weight on each listing (inches and pounds — we convert internally for the
+            Enter packaged dimensions and weight on each listing (inches and pounds, we convert internally for the
             carriers). Grainline pulls live rates from USPS, UPS, FedEx, and DHL at checkout. Buyers see actual rates
-            for their address, and you can purchase the label directly from your Sales dashboard — the cost is
+            for their address, and you can purchase the label directly from your Sales dashboard. The cost is
             deducted from your payout automatically.
           </p>
           <p>
-            You can also pre-set <strong>default package dimensions</strong> in Shop Settings — used as a fallback for
+            You can also pre-set <strong>default package dimensions</strong> in Shop Settings, used as a fallback for
             listings that don&apos;t specify their own size.
           </p>
 
@@ -270,7 +270,7 @@ export default function SellerHandbookPage() {
           <ul>
             <li>Double-wall corrugated boxes for anything heavier than 5lb.</li>
             <li>Foam corners or air pillows on every edge. Don&apos;t cheap out on void fill.</li>
-            <li>Wrap each piece in glassine or kraft paper before bubble wrap — it protects finished surfaces from sticking.</li>
+            <li>Wrap each piece in glassine or kraft paper before bubble wrap. It protects finished surfaces from sticking.</li>
             <li>For furniture: blanket-wrap + cardboard corners + freight (not USPS). Use Shippo&apos;s LTL options.</li>
             <li>Include a hand-written thank-you card. Drives repeat customers and reviews.</li>
           </ul>
@@ -293,7 +293,7 @@ export default function SellerHandbookPage() {
           <p>
             Buyers post requests at <Link href="/commission">/commission</Link> with budget, timeline, and reference
             photos. As a maker, browse the room, express interest, and message the buyer directly. You can post a
-            custom listing reserved just for them — they buy it through normal checkout once you agree on the spec.
+            custom listing reserved just for them. They buy it through normal checkout once you agree on the spec.
           </p>
 
           <h3>Custom Order Requests on your listings</h3>
@@ -343,7 +343,7 @@ export default function SellerHandbookPage() {
           <p>
             Available only after you&apos;ve been a Guild Member for at least 30 days. Stricter ongoing metrics:
             average rating ≥ 4.5, 25+ reviews, 95%+ on-time shipping, 90%+ message response rate, $1,000+ lifetime
-            sales, no active cases. Re-evaluated monthly — if metrics slip, you get a 30-day warning before
+            sales, no active cases. Re-evaluated monthly. If metrics slip, you get a 30-day warning before
             demotion.
           </p>
           <p>
@@ -363,7 +363,7 @@ export default function SellerHandbookPage() {
           <h3>The case lifecycle</h3>
           <ol>
             <li><strong>Buyer opens a case.</strong> You get 48 hours to respond via the case message thread.</li>
-            <li><strong>You and the buyer talk it out.</strong> Most cases resolve at this stage — partial refund, replacement, etc.</li>
+            <li><strong>You and the buyer talk it out.</strong> Most cases resolve at this stage with a partial refund, replacement, or similar agreement.</li>
             <li><strong>Either party can escalate</strong> to Grainline staff after 48 hours of discussion if you can&apos;t agree.</li>
             <li><strong>Staff resolution.</strong> We review the order, messages, photos, and decide: full refund, partial refund, or dismiss.</li>
           </ol>
@@ -377,19 +377,19 @@ export default function SellerHandbookPage() {
           <h3>Chargebacks</h3>
           <p>
             If a buyer bypasses our case system and disputes the charge directly with their bank, we&apos;ll work with you
-            to respond. Chargebacks cost $15 in fees regardless of outcome — they&apos;re bad for everyone.
+            to respond. Chargebacks cost $15 in fees regardless of outcome. They&apos;re bad for everyone.
           </p>
         </section>
 
         <section id="taxes">
           <h2>10. Taxes</h2>
           <p>
-            Grainline is registered as a <strong>marketplace facilitator</strong> in Texas — we collect and remit
+            Grainline is registered as a <strong>marketplace facilitator</strong> in Texas, so we collect and remit
             state sales tax on all Texas-bound orders. You don&apos;t need to do anything for those orders.
           </p>
           <p>
             For income tax: Stripe issues you a 1099-K if you cross the IRS reporting threshold ($600/year through
-            2026, may change). Save your sales records — you&apos;re responsible for federal income tax on your earnings.
+            2026, may change). Save your sales records. You&apos;re responsible for federal income tax on your earnings.
             Consult a tax professional for anything complicated; we don&apos;t give tax advice.
           </p>
         </section>
@@ -429,7 +429,7 @@ export default function SellerHandbookPage() {
 
       </div>
 
-      {/* CTA — bottom of handbook */}
+      {/* CTA at bottom of handbook */}
       <section className="mt-16 rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-8 text-center">
         <h2 className="font-display text-2xl font-semibold text-neutral-900 mb-3">Ready to start selling?</h2>
         <p className="text-neutral-700 mb-5 max-w-md mx-auto">

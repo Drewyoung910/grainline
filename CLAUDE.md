@@ -2472,23 +2472,32 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 ### Architecture lesson learned
 **Never use render props (children-as-function) in Next.js server components.** Functions cannot cross the server/client serialization boundary. Use self-contained client components with serializable props instead. If a client component needs server-computed data, pass it as props — don't wrap server JSX in a client render prop.
 
-## Founding Maker Badge (2026-05-11)
+## Founding Maker Badge (2026-05-12)
 
-First-250-seller recognition program. Permanent badge granted at the moment a `SellerProfile` is created.
+First-250-seller recognition program. Permanent badge granted on the seller's FIRST public ACTIVE listing (not at signup, so buyer accounts with auto-created `SellerProfile` rows never qualify).
 
 ### Schema additions on `SellerProfile`
 - `isFoundingMaker Boolean @default(false)`
 - `foundingMakerNumber Int?` (1..250, unique-indexed when granted; null otherwise)
 - `foundingMakerAt DateTime?`
-- Migration: `20260511232729_add_founding_maker` — adds the columns, backfills the first 250 existing sellers (ordered by `createdAt` asc, then `id` asc), and creates `SellerProfile_foundingMakerNumber_key` unique index plus `SellerProfile_isFoundingMaker_idx`.
+- Migration `20260511232729_add_founding_maker` adds the columns and creates `SellerProfile_foundingMakerNumber_key` unique index plus `SellerProfile_isFoundingMaker_idx`.
+- Migration `20260511235727_founding_maker_active_listing_backfill` clears the original by-`createdAt` backfill and re-backfills the first 250 sellers ordered by their FIRST public ACTIVE listing's `createdAt`. Sellers with zero public active listings stay at `isFoundingMaker = false`.
 
-### Auto-grant behavior
-`ensureSeller()` wraps the `SellerProfile.create` in a `prisma.$transaction` that:
-1. Counts existing `isFoundingMaker: true` rows.
-2. If count `< 250`, sets `isFoundingMaker: true`, `foundingMakerNumber: count + 1`, `foundingMakerAt: now()`.
-3. Otherwise creates the profile with the founding fields null/false.
+### Grant helper (`src/lib/foundingMaker.ts`)
+`maybeGrantFoundingMaker(sellerProfileId)`:
+1. Returns immediately if the seller already has the badge.
+2. Returns immediately if the seller has zero public ACTIVE listings.
+3. Otherwise opens a transaction: counts current Founding Makers; if `< 250`, runs an `updateMany` with `isFoundingMaker: false` guard to atomically grant the next number.
+4. Idempotent. Wrapped in try/catch so a grant failure never blocks the calling flow.
+5. The `foundingMakerNumber` unique index also enforces no-double-issue at the DB level.
 
-The transaction makes two parallel first-time sellers race-safe (one becomes the next-numbered Founding Maker, the other does not). Once 250 is hit, this branch becomes effectively read-only for new signups.
+### Call sites
+The helper is called after every listing transition to ACTIVE for a seller's own listings:
+- `src/app/dashboard/listings/new/page.tsx` `createListing` — after AI review when `finalListing.status === "ACTIVE"`.
+- `src/app/seller/[id]/shop/actions.ts` `publishListingAction` — after the ACTIVE update success path.
+- `src/app/api/admin/listings/[id]/review/route.ts` — after admin approves a PENDING_REVIEW listing.
+
+`ensureSeller()` no longer touches founding fields. Buyer accounts that get an auto-created `SellerProfile` from visiting `/dashboard` never receive the badge.
 
 ### `FoundingMakerBadge` component (`src/components/FoundingMakerBadge.tsx`)
 - `"use client"` wax-seal-style amber/gold disc with a star center, hydration-safe portal popover.

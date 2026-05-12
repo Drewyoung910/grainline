@@ -31,7 +31,7 @@ export default function ShippingAndReturnsHelpPage() {
         </p>
         <ul>
           <li>
-            <strong>In stock</strong> listings ship within the timeframe the maker sets — usually 1–3
+            <strong>In stock</strong> listings ship within the timeframe the maker sets, usually 1 to 3
             business days.
           </li>
           <li>
@@ -55,7 +55,7 @@ export default function ShippingAndReturnsHelpPage() {
         <h2>Shipping costs</h2>
         <p>
           Shipping is calculated live at checkout based on the piece&apos;s size and weight and your
-          address. We use real carrier rates (USPS, UPS, FedEx, DHL) — no inflated markup. If the maker
+          address. We use real carrier rates (USPS, UPS, FedEx, DHL) with no inflated markup. If the maker
           accepts pickup, you can select pickup at no charge.
         </p>
 
@@ -66,7 +66,7 @@ export default function ShippingAndReturnsHelpPage() {
           piece to have been delivered.
         </p>
         <p>
-          The maker has 48 hours to respond. Most cases are resolved directly between you and the maker —
+          The maker has 48 hours to respond. Most cases are resolved directly between you and the maker:
           full refund, partial refund, or a replacement. If you can&apos;t reach agreement, you can
           escalate the case to Grainline staff for a final decision.
         </p>
@@ -82,13 +82,13 @@ export default function ShippingAndReturnsHelpPage() {
 
         <h2>Returns</h2>
         <p>
-          Each maker sets their own return policy — you&apos;ll find it on every shop&apos;s public
+          Each maker sets their own return policy. You&apos;ll find it on every shop&apos;s public
           profile under &ldquo;Shop Policies.&rdquo; Many handmade and made-to-order pieces are
           non-returnable by default, so check before you buy if returns matter to you.
         </p>
         <p>
           If the piece arrived damaged or wasn&apos;t as described, you don&apos;t need to rely on the
-          maker&apos;s return policy — open a case instead.
+          maker&apos;s return policy. Open a case instead.
         </p>
 
         <h2>Lost or stolen packages</h2>

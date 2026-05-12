@@ -43,24 +43,11 @@ export async function ensureSeller() {
   // 2) Ensure we have a SellerProfile row
   let seller = await prisma.sellerProfile.findUnique({ where: { userId: me.id } });
   if (!seller) {
-    // Atomic "first 250" claim — count + assign in a transaction so two parallel
-    // signups can't both grab #250.
-    seller = await prisma.$transaction(async (tx) => {
-      const foundingCount = await tx.sellerProfile.count({
-        where: { isFoundingMaker: true },
-      });
-      const isFounding = foundingCount < 250;
-      const foundingMakerNumber = isFounding ? foundingCount + 1 : null;
-      const now = isFounding ? new Date() : null;
-      return tx.sellerProfile.create({
-        data: {
-          userId: me.id,
-          displayName: sanitizeUserName(me.name ?? me.email.split("@")[0]) || "Maker",
-          isFoundingMaker: isFounding,
-          foundingMakerNumber,
-          foundingMakerAt: now,
-        },
-      });
+    seller = await prisma.sellerProfile.create({
+      data: {
+        userId: me.id,
+        displayName: sanitizeUserName(me.name ?? me.email.split("@")[0]) || "Maker",
+      },
     });
   }
 

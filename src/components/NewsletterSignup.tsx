@@ -4,7 +4,6 @@ import { readApiErrorMessage } from "@/lib/apiError";
 
 export default function NewsletterSignup({ heading, subheading }: { heading?: string; subheading?: string }) {
   const [email, setEmail] = React.useState("");
-  const [name, setName] = React.useState("");
   const [status, setStatus] = React.useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = React.useState("");
 
@@ -21,7 +20,7 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
       const res = await fetch("/api/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }),
+        body: JSON.stringify({ email: trimmed }),
       });
       if (!res.ok) {
         throw new Error(await readApiErrorMessage(res, "Something went wrong. Please try again."));
@@ -34,38 +33,29 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
   }
 
   return (
-    <div className="rounded-2xl bg-[#EFEAE0] px-6 py-10 sm:px-10 sm:py-12 text-center space-y-5">
+    <div className="rounded-2xl bg-[#EFEAE0] px-6 py-10 sm:px-10 sm:py-12 text-center space-y-5 max-w-2xl mx-auto">
       <div>
         <h3 className="text-xl sm:text-2xl font-semibold text-neutral-900">
           {heading ?? "Get workshop stories in your inbox"}
         </h3>
         <p className="text-sm text-neutral-600 mt-2 max-w-md mx-auto">
-          {subheading ?? "Maker spotlights, build guides, and new pieces — straight to you."}
+          {subheading ?? "Maker spotlights, build guides, and new pieces, straight to you."}
         </p>
       </div>
 
       {status === "success" ? (
-        <div className="rounded-md border border-green-200 bg-white px-4 py-3 text-green-800 font-medium">
+        <div className="rounded-md border border-green-200 bg-white px-4 py-3 text-green-800 font-medium max-w-md mx-auto">
           You&apos;re on the list!
         </div>
       ) : (
-        // Stack on mobile/tablet, row only at md+ so the inputs + button fit
-        // inside the EFEAE0 card without the Subscribe button overflowing.
-        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-2 max-w-md mx-auto">
-          <input
-            type="text"
-            placeholder="Your name (optional)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="flex-1 rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
           <input
             type="email"
             placeholder="your@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="flex-1 rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="flex-1 min-w-0 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <button
             type="submit"
