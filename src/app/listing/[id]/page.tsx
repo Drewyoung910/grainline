@@ -514,12 +514,12 @@ export default async function ListingPage({
                   listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
-                  className="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  className="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                 >
                   <Hammer size={15} />
                   Request Something Similar
@@ -596,12 +596,6 @@ export default async function ListingPage({
             )}
 
             <div className="flex items-center gap-2 flex-wrap">
-              <Link
-                href={sellerHref}
-                className="text-xs rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-1.5 hover:bg-white transition-colors"
-              >
-                Visit Shop
-              </Link>
               {!isOwnListing && sellerUserId && (
                 <FollowButton
                   sellerProfileId={listing.sellerId}
@@ -614,11 +608,17 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="text-xs rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                  className="inline-flex items-center rounded-md bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                 >
                   Message maker
                 </Link>
               )}
+              <Link
+                href={sellerHref}
+                className="inline-flex items-center rounded-md bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+              >
+                Visit Shop
+              </Link>
               {meId && !isOwnListing && sellerUserId && (
                 <BlockReportButton
                   targetUserId={sellerUserId}

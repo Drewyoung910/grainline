@@ -237,3 +237,41 @@ input, textarea, select {
   mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
 }
+
+/* Responsive variants — used by surfaces that switch from horizontal
+   scroll on mobile to a static grid above a breakpoint (seller profile
+   sections). The fade only makes sense while the content is actually
+   scrollable. */
+.scroll-fade-edges-sm {
+  mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
+  transition: mask-image 0.2s ease;
+}
+.scroll-fade-edges-sm[data-scrolled="true"] {
+  mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+}
+@media (min-width: 640px) {
+  .scroll-fade-edges-sm,
+  .scroll-fade-edges-sm[data-scrolled="true"] {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+}
+
+.scroll-fade-edges-lg {
+  mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
+  transition: mask-image 0.2s ease;
+}
+.scroll-fade-edges-lg[data-scrolled="true"] {
+  mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+}
+@media (min-width: 1024px) {
+  .scroll-fade-edges-lg,
+  .scroll-fade-edges-lg[data-scrolled="true"] {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+}

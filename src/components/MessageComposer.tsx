@@ -51,7 +51,7 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="sticky bottom-0 bg-white border-t border-neutral-200 px-3 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]">
+    <div className="sticky bottom-0 bg-white border-t border-neutral-200 sm:rounded-b-2xl px-3 sm:px-4 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.05)]">
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((a) => (
@@ -89,9 +89,9 @@ export default function MessageComposer({
               container: "inline-block align-bottom",
               // Force visible circle + dark icon regardless of inherited styles
               button:
-                "h-11 w-11 rounded-full border border-neutral-300 bg-neutral-100 " +
-                "p-0 flex items-center justify-center hover:bg-neutral-200 " +
-                "focus:outline-none focus:ring-2 focus:ring-neutral-300",
+                "h-10 w-10 rounded-full bg-[#EFEAE0] " +
+                "p-0 flex items-center justify-center hover:bg-[#E3DCCB] " +
+                "focus:outline-none focus:ring-2 focus:ring-stone-300 transition-colors",
               allowedContent: "hidden",
             }}
             content={{
@@ -168,11 +168,11 @@ export default function MessageComposer({
             }
           }}
           placeholder={placeholder}
-          className="w-full resize-none rounded-md border border-neutral-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300 max-h-40 overflow-y-auto"
+          className="w-full resize-none rounded-2xl bg-[#F7F5F0] border border-stone-200 px-4 py-2.5 text-sm focus:outline-none focus:border-stone-400 focus:bg-white max-h-40 overflow-y-auto transition-colors"
         />
 
         {canSend ? (
-          <SubmitButton className="rounded-full bg-black px-3 sm:px-4 py-2 text-white disabled:opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center">
+          <SubmitButton className="rounded-full bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 sm:px-5 py-2 text-white text-sm font-medium disabled:opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors">
             <span className="hidden sm:inline">Send</span>
             <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
@@ -182,7 +182,7 @@ export default function MessageComposer({
           <button
             type="button"
             disabled
-            className="cursor-not-allowed rounded-full bg-black/60 px-3 sm:px-4 py-2 text-white opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center"
+            className="cursor-not-allowed rounded-full bg-[#2C1F1A]/40 px-4 sm:px-5 py-2 text-white text-sm font-medium min-h-[40px] min-w-[40px] flex items-center justify-center"
           >
             <span className="hidden sm:inline">Send</span>
             <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

@@ -706,8 +706,8 @@ export default async function HomePage() {
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>
           <h2 className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
-          {/* Mobile: horizontal scroll; Desktop: 6-col flex */}
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
+          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
               {CATEGORIES.map((c) => (
                 <Link
@@ -727,7 +727,7 @@ export default async function HomePage() {
                 <span className="text-xs font-medium text-neutral-900">Browse all</span>
               </Link>
             </div>
-          </div>
+          </ScrollFadeRow>
         </ScrollSection>
 
         {/* ── Featured Makers ────────────────────────────────────────── */}

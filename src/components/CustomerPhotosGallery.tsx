@@ -63,7 +63,7 @@ export default function CustomerPhotosGallery({ photos }: Props) {
             key={p.id}
             type="button"
             onClick={() => setOpenIndex(i)}
-            className="block w-full overflow-hidden rounded-lg ring-1 ring-neutral-200 transition-transform hover:-translate-y-0.5 duration-200 cursor-zoom-in"
+            className="block w-full overflow-hidden rounded-lg bg-stone-100 transition-transform hover:-translate-y-0.5 duration-200 cursor-zoom-in"
             aria-label={`Open photo${p.listingTitle ? ` of ${p.listingTitle}` : ""}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -71,7 +71,7 @@ export default function CustomerPhotosGallery({ photos }: Props) {
               src={p.url}
               alt={p.altText ?? `Customer photo${p.listingTitle ? ` of ${p.listingTitle}` : ""}`}
               loading="lazy"
-              className="w-full h-auto object-cover"
+              className="block w-full h-auto object-cover"
             />
           </button>
         ))}

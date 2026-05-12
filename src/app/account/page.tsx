@@ -280,8 +280,8 @@ export default async function AccountPage() {
       {/* ── Section 4: My Reviews ── */}
       <section>
         <h2 className="text-xl font-semibold font-display mb-4">My Reviews</h2>
-        <div className="card-section p-4 space-y-2">
-          <p className="text-sm text-neutral-500 mb-1">Reviews you&apos;ve written for items you&apos;ve purchased</p>
+        <div className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-4 space-y-2">
+          <p className="text-sm text-neutral-700 mb-1">Reviews you&apos;ve written for items you&apos;ve purchased</p>
           <Link href="/account/reviews" className="text-sm underline hover:text-neutral-900 block">
             View my reviews →
           </Link>

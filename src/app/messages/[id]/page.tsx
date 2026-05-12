@@ -297,121 +297,118 @@ export default async function ThreadPage({
     isParticipant ? (convo.userAId === me.id ? convo.archivedAAt : convo.archivedBAt) ?? null : null;
 
   return (
-    <main className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
-      {isParticipant && <MarkReadClient id={id} />}
+    <main className="bg-[#F7F5F0] min-h-[100svh]">
+      <div className="max-w-4xl mx-auto px-0 sm:px-6 py-0 sm:py-6">
+        {isParticipant && <MarkReadClient id={id} />}
 
-      {/* Conversation header: avatar + name on the left, ••• menu on the right.
-          Action buttons (Custom Order, Archive) render as a small toolbar
-          below only when there is something to show. */}
-      <header className="space-y-3 pb-3 border-b border-neutral-100">
-        {/* Top row */}
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href={isStaffReviewMode ? "/admin/reports" : "/messages"}
-            className="shrink-0 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-800"
-          >
-            <span aria-hidden="true">←</span>
-            <span className="hidden sm:inline">{isStaffReviewMode ? "Reports" : "Inbox"}</span>
-            <span className="sr-only sm:hidden">{isStaffReviewMode ? "Back to reports" : "Back to inbox"}</span>
-          </Link>
+        {/* Compact chat header — single row with all actions inline. Edge-to-edge
+            on mobile, contained on desktop. */}
+        <header className="sticky top-0 z-10 bg-[#F7F5F0]/95 backdrop-blur-sm border-b border-neutral-200 px-4 sm:px-5 py-3 sm:rounded-t-2xl">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href={isStaffReviewMode ? "/admin/reports" : "/messages"}
+              className="shrink-0 inline-flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900"
+              aria-label={isStaffReviewMode ? "Back to reports" : "Back to inbox"}
+            >
+              <span aria-hidden="true" className="text-base">←</span>
+              <span className="hidden sm:inline">{isStaffReviewMode ? "Reports" : "Inbox"}</span>
+            </Link>
 
-          <div className="h-10 w-10 rounded-full bg-neutral-200 overflow-hidden shrink-0 ring-1 ring-neutral-200 shadow-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+            <div className="h-10 w-10 rounded-full bg-neutral-200 overflow-hidden shrink-0 ring-1 ring-neutral-200 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold truncate text-neutral-900">{participantLabel}</div>
+              {(isStaffReviewMode || archivedForMe) && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  {isStaffReviewMode ? (
+                    <span className="rounded-full bg-blue-100 px-2 py-[2px] text-[11px] text-blue-800 font-medium">
+                      Staff review
+                    </span>
+                  ) : null}
+                  {archivedForMe ? (
+                    <span className="rounded-full bg-[#EFEAE0] px-2 py-[2px] text-[11px] text-neutral-700">
+                      Archived
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* Right-side actions all inline */}
+            <div className="shrink-0 flex items-center gap-1.5">
+              {showCustomOrderButton && other && (
+                <ThreadCustomOrderButton
+                  sellerUserId={other.id}
+                  sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
+                />
+              )}
+              {isParticipant && (
+                <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
+                  <SubmitButton className="rounded-md bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors">
+                    {archivedForMe ? "Unarchive" : "Archive"}
+                  </SubmitButton>
+                </ActionForm>
+              )}
+              {isParticipant && other && other.id !== me.id && (
+                <BlockReportButton
+                  targetUserId={other.id}
+                  targetName={other.name ?? "this user"}
+                  targetType="MESSAGE_THREAD"
+                  targetId={id}
+                />
+              )}
+            </div>
           </div>
+        </header>
 
-          <div className="min-w-0 flex-1">
-            <div className="font-medium truncate text-neutral-900">{participantLabel}</div>
-            {(isStaffReviewMode || archivedForMe) && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                {isStaffReviewMode ? (
-                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-[2px] text-[11px] text-blue-700">
-                    Staff review
-                  </span>
-                ) : null}
-                {archivedForMe ? (
-                  <span className="rounded-full border border-neutral-200 px-2 py-[2px] text-[11px] text-neutral-600">
-                    Archived
-                  </span>
-                ) : null}
+        <div className="px-4 sm:px-5 pt-4 space-y-4">
+          {otherUnavailableReason ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {otherUnavailableReason}
+            </div>
+          ) : null}
+
+          {ctx && (
+            <Link
+              href={publicListingPath(ctx.id, ctx.title)}
+              className="flex items-center gap-3 p-3 rounded-lg bg-white border border-stone-200/60 hover:shadow-md transition-shadow"
+            >
+              <div className="h-14 w-14 rounded-md overflow-hidden bg-neutral-100 shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {ctxImg ? <img src={ctxImg} alt="" className="h-full w-full object-cover" /> : null}
               </div>
-            )}
-          </div>
-
-          {isParticipant && other && other.id !== me.id && (
-            <div className="shrink-0">
-              <BlockReportButton
-                targetUserId={other.id}
-                targetName={other.name ?? "this user"}
-                targetType="MESSAGE_THREAD"
-                targetId={id}
-              />
-            </div>
+              <div className="min-w-0">
+                <div className="truncate font-medium">{ctx.title}</div>
+                <div className="text-sm text-neutral-600">
+                  {(ctx.priceCents / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: ctx.currency ?? "USD",
+                  })}
+                </div>
+              </div>
+              <div className="ml-auto text-sm text-amber-700 shrink-0">View listing →</div>
+            </Link>
           )}
+
+          {/* Scrollable thread */}
+          <ThreadMessages
+            convoId={convo.id}
+            meId={me.id}
+            initial={messages}
+            otherUser={{ imageUrl: other?.imageUrl, avatarImageUrl: otherSellerProfile?.avatarImageUrl, name: other?.name }}
+          />
         </div>
 
-        {/* Action toolbar — only renders when there is at least one action */}
-        {(showCustomOrderButton || isParticipant) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {showCustomOrderButton && other && (
-              <ThreadCustomOrderButton
-                sellerUserId={other.id}
-                sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
-              />
-            )}
-            {isParticipant && (
-              <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
-                <SubmitButton className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors">
-                  {archivedForMe ? "Unarchive" : "Archive"}
-                </SubmitButton>
-              </ActionForm>
-            )}
-          </div>
-        )}
-      </header>
-
-      {otherUnavailableReason ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {otherUnavailableReason}
-        </div>
-      ) : null}
-
-      {ctx && (
-        <Link
-          href={publicListingPath(ctx.id, ctx.title)}
-          className="card-section flex items-center gap-3 p-3 hover:shadow-md transition-shadow"
-        >
-          <div className="h-14 w-14 rounded-md overflow-hidden bg-neutral-100 shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {ctxImg ? <img src={ctxImg} alt="" className="h-full w-full object-cover" /> : null}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate font-medium">{ctx.title}</div>
-            <div className="text-sm text-neutral-600">
-              {(ctx.priceCents / 100).toLocaleString("en-US", {
-                style: "currency",
-                currency: ctx.currency ?? "USD",
-              })}
-            </div>
-          </div>
-          <div className="ml-auto text-sm text-neutral-500 shrink-0">View listing →</div>
-        </Link>
-      )}
-
-      {/* scrollable thread */}
-      <ThreadMessages
-        convoId={convo.id}
-        meId={me.id}
-        initial={messages}
-        otherUser={{ imageUrl: other?.imageUrl, avatarImageUrl: otherSellerProfile?.avatarImageUrl, name: other?.name }}
-      />
-
-      {/* sticky composer */}
-      {isParticipant && !otherUnavailableReason ? (
-        <ActionForm action={sendMessage}>
-          <MessageComposer />
-        </ActionForm>
-      ) : null}
+        {/* Sticky composer at the bottom edge — rounded top on desktop only */}
+        {isParticipant && !otherUnavailableReason ? (
+          <ActionForm action={sendMessage}>
+            <MessageComposer />
+          </ActionForm>
+        ) : null}
+      </div>
     </main>
   );
 }

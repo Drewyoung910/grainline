@@ -458,34 +458,37 @@ export default async function SellerPublicPage({
             <ExpandableText text={seller.bio} clampLines={3} className="max-w-3xl" />
           )}
 
-          {/* Action row */}
+          {/* Action row — Following first (left-most), then Message Maker,
+              Custom Piece, View all listings. All dark cream for a unified
+              secondary-button look. */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {meId !== seller.userId && (
               <>
-                <Link
-                  href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                  className="inline-flex items-center justify-center rounded-md bg-[#2C1F1A] text-white px-5 py-2 text-sm font-semibold hover:bg-[#3A2A24] transition-colors"
-                >
-                  Message Maker
-                </Link>
                 <FollowButton
                   sellerProfileId={seller.id}
                   sellerUserId={seller.userId}
                   initialFollowing={isFollowing}
                   initialCount={followerCount}
+                  variant="cream"
                 />
+                <Link
+                  href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                  className="inline-flex items-center justify-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                >
+                  Message Maker
+                </Link>
                 {seller.acceptsCustomOrders && (
                   meId ? (
                     <CustomOrderRequestForm
                       sellerUserId={seller.userId}
                       sellerName={seller.displayName}
                       triggerLabel="Request a Custom Piece"
-                      triggerClassName="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                      triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     />
                   ) : (
                     <Link
                       href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                      className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                      className="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     >
                       <Hammer size={15} />
                       Request a Custom Piece
@@ -494,7 +497,7 @@ export default async function SellerPublicPage({
                 )}
                 <Link
                   href={publicSellerShopPath(seller.id, seller.displayName)}
-                  className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                  className="inline-flex items-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                 >
                   View all listings
                 </Link>
@@ -594,7 +597,7 @@ export default async function SellerPublicPage({
                     <h2 className="text-xl sm:text-2xl font-display font-semibold">Featured Work</h2>
                   </div>
                   {/* Mobile: horizontal scroll with fade. Desktop: asymmetric 3-col grid. */}
-                  <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 lg:-mx-0 lg:px-0 lg:overflow-visible">
+                  <ScrollFadeRow hideAtBreakpoint="lg" className="overflow-x-auto -mx-4 px-4 lg:-mx-0 lg:px-0 lg:overflow-visible">
                     <ul className="flex gap-4 snap-x snap-mandatory pb-4 lg:grid lg:grid-cols-3 lg:grid-rows-2 lg:gap-5 lg:pb-0">
                       <li className="w-[220px] flex-none snap-start lg:w-auto lg:col-span-2 lg:row-span-2 transition-transform hover:-translate-y-1 duration-200">
                         <ClickTracker listingId={hero.id}>
@@ -620,7 +623,7 @@ export default async function SellerPublicPage({
               return (
                 <section>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                  <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+                  <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
                     <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:pb-0">
                       {fallbackFeatured.map((l) => (
                         <li key={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
@@ -765,7 +768,7 @@ export default async function SellerPublicPage({
             {listings.length === 0 ? (
               <div className="card-section p-6 text-neutral-600 bg-white">No listings yet.</div>
             ) : (
-              <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+              <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
                 <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 sm:gap-6">
                   {listings.slice(0, 9).map((l) => (
                     <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
