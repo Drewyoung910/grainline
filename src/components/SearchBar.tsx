@@ -25,6 +25,12 @@ function browseSearchUrl(query: string): string {
   return normalized ? `/browse?q=${encodeURIComponent(normalized)}` : "/browse";
 }
 
+// Humanize a tag/slug for display only. Storage and search queries still use
+// the raw value with dashes/underscores preserved.
+function humanizeTag(raw: string): string {
+  return raw.replace(/[-_]+/g, " ").trim();
+}
+
 export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -320,7 +326,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
                     </span>
                   )}
                   <span className={option.kind === "blog" ? "truncate text-neutral-700" : ""}>
-                    {option.label}
+                    {option.kind === "tag" ? humanizeTag(option.label) : option.label}
                   </span>
                 </button>
               </li>

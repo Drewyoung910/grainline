@@ -19,6 +19,7 @@ import SellerGallery from "@/components/SellerGallery";
 import CoverLightbox from "@/components/CoverLightbox";
 import SellerProfileViewTracker from "@/components/SellerProfileViewTracker";
 import ListingCard from "@/components/ListingCard";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -382,19 +383,31 @@ export default async function SellerPublicPage({
         </div>
 
         <div className="px-2 sm:px-4 pt-16 pb-2">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
-                <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
-                {seller.isFoundingMaker && (
-                  <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
-                )}
+          {/* Identity + CTAs in a 2-column layout on lg+, single column on
+              mobile. The right column carries the action buttons so the top
+              of the page doesn't feel left-heavy or empty on the right. */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-x-8 gap-y-6 items-start">
+
+            {/* LEFT — identity content */}
+            <div className="min-w-0 space-y-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                  <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
+                  <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
+                  {seller.isFoundingMaker && (
+                    <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
+                  )}
+                </div>
+                <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1 lg:hidden">
+                  ← Back to Browse
+                </Link>
               </div>
+
               {seller.tagline && (
-                <p className="text-base text-neutral-700 mt-1 italic max-w-2xl">{seller.tagline}</p>
+                <p className="text-base text-neutral-700 italic max-w-2xl">{seller.tagline}</p>
               )}
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600 mt-2">
+
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600">
                 {cityState && (
                   <span className="flex items-center gap-1">
                     <MapPin size={14} className="shrink-0" />
@@ -408,132 +421,152 @@ export default async function SellerPublicPage({
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Not currently taking new orders</span>
                 )}
               </div>
-            </div>
-            <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1">
-              ← Back to Browse
-            </Link>
-          </div>
 
-          {/* Action row: Message Maker (primary) + Follow + Custom Order + View
-              all listings + Block/Report. Visible on every viewport so mobile
-              users can take action without a sticky sidebar. */}
-          {meId !== seller.userId && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <Link
-                href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                className="inline-flex items-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-semibold hover:bg-[#3A2A24] transition-colors"
-              >
-                Message Maker
-              </Link>
-              <FollowButton
-                sellerProfileId={seller.id}
-                sellerUserId={seller.userId}
-                initialFollowing={isFollowing}
-                initialCount={followerCount}
-                size="sm"
-              />
-              {seller.acceptsCustomOrders && (
-                meId ? (
-                  <CustomOrderRequestForm
-                    sellerUserId={seller.userId}
-                    sellerName={seller.displayName}
-                    triggerLabel="Request a Custom Piece"
-                    triggerClassName="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-                  />
+              {seller.bio && (
+                <p className="text-sm text-neutral-700 leading-relaxed max-w-2xl line-clamp-3">
+                  {seller.bio}
+                </p>
+              )}
+
+              {/* Stat band — compact inline row */}
+              <div className="rounded-full bg-[#D9E2D5] px-5 py-2 inline-flex flex-wrap items-baseline gap-x-5 gap-y-1 max-w-full">
+                {isNewSeller ? (
+                  <>
+                    <span className="text-sm text-neutral-800">
+                      <span className="font-semibold">Member since {memberSinceYear}</span>
+                    </span>
+                    <span className="text-xs text-neutral-600 italic">Recently joined Grainline</span>
+                  </>
                 ) : (
-                  <Link
-                    href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                    className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-                  >
-                    <Hammer size={15} />
-                    Request a Custom Piece
-                  </Link>
-                )
-              )}
-              <Link
-                href={publicSellerShopPath(seller.id, seller.displayName)}
-                className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-              >
-                View all listings
-              </Link>
-              {meId && (
-                <span className="ml-auto">
-                  <BlockReportButton
-                    targetUserId={seller.userId}
-                    targetName={seller.displayName ?? "this maker"}
-                    targetType="SELLER"
-                    targetId={seller.id}
-                  />
-                </span>
-              )}
-            </div>
-          )}
+                  <>
+                    {soldCount > 0 && (
+                      <span className="text-sm text-neutral-800">
+                        <span className="font-semibold">{soldCount.toLocaleString("en-US")}</span>{" "}
+                        {soldCount === 1 ? "piece sold" : "pieces sold"}
+                      </span>
+                    )}
+                    {shopRating && shopRating.count > 0 && (
+                      <span className="text-sm text-neutral-800 flex items-baseline gap-1">
+                        <span className="font-semibold">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
+                        <span className="text-amber-500 text-sm">★</span>
+                        <span className="text-neutral-600">({shopRating.count.toLocaleString("en-US")})</span>
+                      </span>
+                    )}
+                    {avgShipDays != null && (
+                      <span className="text-sm text-neutral-800">
+                        <span className="font-semibold">Ships in {avgShipDays}</span>{" "}
+                        {avgShipDays === 1 ? "day" : "days"}
+                      </span>
+                    )}
+                    {seller.yearsInBusiness != null && seller.yearsInBusiness > 0 && (
+                      <span className="text-sm text-neutral-800">
+                        <span className="font-semibold">{seller.yearsInBusiness}</span>{" "}
+                        {seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}
+                      </span>
+                    )}
+                    <span className="text-sm text-neutral-700">Member since {memberSinceYear}</span>
+                  </>
+                )}
+              </div>
 
-          {socialLinks.length > 0 && (
-            <div className="flex flex-wrap gap-3 mt-3">
-              {socialLinks.map(({ label, url, Icon }) => (
-                <a
-                  key={label}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={label}
-                  className="text-neutral-500 hover:text-neutral-900"
-                >
-                  <Icon size={20} />
-                </a>
-              ))}
+              {socialLinks.length > 0 && (
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {socialLinks.map(({ label, url, Icon }) => (
+                    <a
+                      key={label}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={label}
+                      className="text-neutral-500 hover:text-neutral-900"
+                    >
+                      <Icon size={20} />
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+
+            {/* RIGHT — action column. Stacks below identity on mobile; sits
+                in the right column on lg+. The ··· menu is anchored to the
+                top-right corner of the column. */}
+            <div className="lg:w-full">
+              {meId !== seller.userId ? (
+                <div className="relative flex flex-wrap gap-2 lg:flex-col lg:gap-2.5">
+                  {/* Back to Browse — desktop only, top of CTA column */}
+                  <Link
+                    href="/browse"
+                    className="hidden lg:flex text-sm text-neutral-600 hover:text-neutral-900 underline self-end mb-1"
+                  >
+                    ← Back to Browse
+                  </Link>
+                  {/* ··· menu sits inline at the end on mobile, absolute top-right on desktop */}
+                  {meId && (
+                    <span className="lg:absolute lg:top-0 lg:right-0 ml-auto lg:ml-0">
+                      <BlockReportButton
+                        targetUserId={seller.userId}
+                        targetName={seller.displayName ?? "this maker"}
+                        targetType="SELLER"
+                        targetId={seller.id}
+                      />
+                    </span>
+                  )}
+                  <Link
+                    href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                    className="inline-flex items-center justify-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 lg:py-2.5 text-sm font-semibold hover:bg-[#3A2A24] transition-colors lg:w-full"
+                  >
+                    Message Maker
+                  </Link>
+                  <FollowButton
+                    sellerProfileId={seller.id}
+                    sellerUserId={seller.userId}
+                    initialFollowing={isFollowing}
+                    initialCount={followerCount}
+                    size="sm"
+                  />
+                  {seller.acceptsCustomOrders && (
+                    meId ? (
+                      <CustomOrderRequestForm
+                        sellerUserId={seller.userId}
+                        sellerName={seller.displayName}
+                        triggerLabel="Request a Custom Piece"
+                        triggerClassName="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 lg:w-full"
+                      />
+                    ) : (
+                      <Link
+                        href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 lg:w-full"
+                      >
+                        <Hammer size={15} />
+                        Request a Custom Piece
+                      </Link>
+                    )
+                  )}
+                  <Link
+                    href={publicSellerShopPath(seller.id, seller.displayName)}
+                    className="inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 lg:w-full"
+                  >
+                    View all listings
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex justify-end lg:justify-start">
+                  <Link
+                    href="/browse"
+                    className="text-sm text-neutral-600 underline hover:text-neutral-900"
+                  >
+                    ← Back to Browse
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ── Body: full-width rhythm ─────────────────────────────────────── */}
       <div className="mt-6 pb-12 px-2 sm:px-4">
         <div className="min-w-0 space-y-10">
-
-          {/* Stat band — compact inline row */}
-          <section className="rounded-full bg-[#D9E2D5] px-5 py-2.5 inline-flex flex-wrap items-baseline gap-x-5 gap-y-1 self-start max-w-full">
-            {isNewSeller ? (
-              <>
-                <span className="text-sm text-neutral-800">
-                  <span className="font-semibold">Member since {memberSinceYear}</span>
-                </span>
-                <span className="text-xs text-neutral-600 italic">Recently joined Grainline</span>
-              </>
-            ) : (
-              <>
-                {soldCount > 0 && (
-                  <span className="text-sm text-neutral-800">
-                    <span className="font-semibold">{soldCount.toLocaleString("en-US")}</span>{" "}
-                    {soldCount === 1 ? "piece sold" : "pieces sold"}
-                  </span>
-                )}
-                {shopRating && shopRating.count > 0 && (
-                  <span className="text-sm text-neutral-800 flex items-baseline gap-1">
-                    <span className="font-semibold">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
-                    <span className="text-amber-500 text-sm">★</span>
-                    <span className="text-neutral-600">({shopRating.count.toLocaleString("en-US")})</span>
-                  </span>
-                )}
-                {avgShipDays != null && (
-                  <span className="text-sm text-neutral-800">
-                    <span className="font-semibold">Ships in {avgShipDays}</span>{" "}
-                    {avgShipDays === 1 ? "day" : "days"}
-                  </span>
-                )}
-                {seller.yearsInBusiness != null && seller.yearsInBusiness > 0 && (
-                  <span className="text-sm text-neutral-800">
-                    <span className="font-semibold">{seller.yearsInBusiness}</span>{" "}
-                    {seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}
-                  </span>
-                )}
-                <span className="text-sm text-neutral-700">Member since {memberSinceYear}</span>
-              </>
-            )}
-          </section>
-
-          {/* Latest broadcast */}
 
           {/* Latest broadcast */}
           {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
@@ -592,23 +625,26 @@ export default async function SellerPublicPage({
                   <div className="flex items-baseline justify-between mb-4">
                     <h2 className="text-xl sm:text-2xl font-display font-semibold">Featured Work</h2>
                   </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-2 gap-4 lg:gap-5">
-                    <div className="lg:col-span-2 lg:row-span-2 transition-transform hover:-translate-y-1 duration-200">
-                      <ClickTracker listingId={hero.id}>
-                        <ListingCard listing={wrap(hero)} initialSaved={savedSet.has(hero.id)} variant="grid" />
-                      </ClickTracker>
-                    </div>
-                    <div className="transition-transform hover:-translate-y-1 duration-200">
-                      <ClickTracker listingId={second.id}>
-                        <ListingCard listing={wrap(second)} initialSaved={savedSet.has(second.id)} variant="grid" />
-                      </ClickTracker>
-                    </div>
-                    <div className="transition-transform hover:-translate-y-1 duration-200">
-                      <ClickTracker listingId={third.id}>
-                        <ListingCard listing={wrap(third)} initialSaved={savedSet.has(third.id)} variant="grid" />
-                      </ClickTracker>
-                    </div>
-                  </div>
+                  {/* Mobile: horizontal scroll with fade. Desktop: asymmetric 3-col grid. */}
+                  <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 lg:-mx-0 lg:px-0 lg:overflow-visible">
+                    <ul className="flex gap-4 snap-x snap-mandatory pb-4 lg:grid lg:grid-cols-3 lg:grid-rows-2 lg:gap-5 lg:pb-0">
+                      <li className="w-[220px] flex-none snap-start lg:w-auto lg:col-span-2 lg:row-span-2 transition-transform hover:-translate-y-1 duration-200">
+                        <ClickTracker listingId={hero.id}>
+                          <ListingCard listing={wrap(hero)} initialSaved={savedSet.has(hero.id)} variant="grid" />
+                        </ClickTracker>
+                      </li>
+                      <li className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
+                        <ClickTracker listingId={second.id}>
+                          <ListingCard listing={wrap(second)} initialSaved={savedSet.has(second.id)} variant="grid" />
+                        </ClickTracker>
+                      </li>
+                      <li className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
+                        <ClickTracker listingId={third.id}>
+                          <ListingCard listing={wrap(third)} initialSaved={savedSet.has(third.id)} variant="grid" />
+                        </ClickTracker>
+                      </li>
+                    </ul>
+                  </ScrollFadeRow>
                 </section>
               );
             }
@@ -616,27 +652,28 @@ export default async function SellerPublicPage({
               return (
                 <section>
                   <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {fallbackFeatured.map((l) => (
-                      <div key={l.id} className="transition-transform hover:-translate-y-1 duration-200">
-                        <ClickTracker listingId={l.id}>
-                          <ListingCard listing={wrap(l)} initialSaved={savedSet.has(l.id)} variant="grid" />
-                        </ClickTracker>
-                      </div>
-                    ))}
-                  </div>
+                  <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+                    <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:pb-0">
+                      {fallbackFeatured.map((l) => (
+                        <li key={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
+                          <ClickTracker listingId={l.id}>
+                            <ListingCard listing={wrap(l)} initialSaved={savedSet.has(l.id)} variant="grid" />
+                          </ClickTracker>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollFadeRow>
                 </section>
               );
             }
+            // 1 listing — small card aligned left, no scroll, no big stretched photo
             return (
               <section>
                 <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="transition-transform hover:-translate-y-1 duration-200">
-                    <ClickTracker listingId={fallbackFeatured[0].id}>
-                      <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
-                    </ClickTracker>
-                  </div>
+                <div className="w-[240px] sm:w-[280px] transition-transform hover:-translate-y-1 duration-200">
+                  <ClickTracker listingId={fallbackFeatured[0].id}>
+                    <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
+                  </ClickTracker>
                 </div>
               </section>
             );
@@ -731,7 +768,7 @@ export default async function SellerPublicPage({
             {(() => {
               const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
               return (
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h2 className="text-xl sm:text-2xl font-display font-semibold">All Listings</h2>
                   {activePublicCount > 0 && (
                     <Link
@@ -744,40 +781,63 @@ export default async function SellerPublicPage({
                 </div>
               );
             })()}
+
+            {/* Tag filter row — pulls top-used tags across the seller's active
+                public listings. Dashes humanized for display only; href keeps
+                the raw tag for the shop filter. */}
+            {topTags.length >= 3 && (
+              <div className="flex flex-wrap items-center gap-2 mb-5">
+                <span className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mr-1">
+                  Filter:
+                </span>
+                {topTags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={`${publicSellerShopPath(seller.id, seller.displayName)}?tag=${encodeURIComponent(tag)}`}
+                    className="rounded-full bg-stone-100 hover:bg-stone-200 text-neutral-700 px-3 py-1 text-xs transition-colors"
+                  >
+                    {tag.replace(/[-_]/g, " ")}
+                  </Link>
+                ))}
+              </div>
+            )}
+
             {listings.length === 0 ? (
               <div className="card-section p-6 text-neutral-600 bg-white">No listings yet.</div>
             ) : (
-              <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
-                {listings.slice(0, 9).map((l) => (
-                  <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
-                    <ListingCard
-                      listing={{
-                        id: l.id,
-                        title: l.title,
-                        priceCents: l.priceCents,
-                        currency: l.currency,
-                        status: l.status,
-                        listingType: l.listingType,
-                        stockQuantity: l.stockQuantity ?? null,
-                        photoUrl: l.photos[0]?.url ?? null,
-                        photoAltText: l.photos[0]?.altText ?? null,
-                        seller: {
-                          id: seller.id,
-                          displayName: seller.displayName ?? null,
-                          avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
-                          guildLevel: seller.guildLevel ?? null,
-                          city: seller.city ?? null,
-                          state: seller.state ?? null,
-                          acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                        },
-                        rating: null,
-                      }}
-                      initialSaved={savedSet.has(l.id)}
-                      variant="grid"
-                    />
-                  </ClickTracker>
-                ))}
-              </ul>
+              <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+                <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 sm:gap-6">
+                  {listings.slice(0, 9).map((l) => (
+                    <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
+                          seller: {
+                            id: seller.id,
+                            displayName: seller.displayName ?? null,
+                            avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                            guildLevel: seller.guildLevel ?? null,
+                            city: seller.city ?? null,
+                            state: seller.state ?? null,
+                            acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                          },
+                          rating: null,
+                        }}
+                        initialSaved={savedSet.has(l.id)}
+                        variant="grid"
+                      />
+                    </ClickTracker>
+                  ))}
+                </ul>
+              </ScrollFadeRow>
             )}
             {(() => {
               const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
@@ -817,7 +877,7 @@ export default async function SellerPublicPage({
                     : `Exact pickup point${cityState ? ` in ${cityState}` : ""}. Pickup available at checkout.`}
                 </p>
               </div>
-              <div className="rounded-2xl overflow-hidden">
+              <div className="rounded-2xl overflow-hidden ring-1 ring-stone-300/70 shadow-sm">
                 <DynamicMapCard
                   lat={lat}
                   lng={lng}
