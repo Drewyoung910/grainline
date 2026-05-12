@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -31,11 +32,16 @@ export default function CustomOrderRequestForm({
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
   const [conversationId, setConversationId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const dialogRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useDialogFocus(open, dialogRef, handleClose);
   useBodyScrollLock(open);
@@ -94,9 +100,9 @@ export default function CustomOrderRequestForm({
         {triggerLabel ?? "Request a Custom Piece"}
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleClose();
           }}
@@ -230,7 +236,8 @@ export default function CustomOrderRequestForm({
               </form>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

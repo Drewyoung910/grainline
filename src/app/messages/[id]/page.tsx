@@ -15,7 +15,7 @@ import Link from "next/link";
 import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { normalizeMessageAttachments } from "@/lib/messageAttachments";
-import { publicListingPath } from "@/lib/publicPaths";
+import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 import { truncateText } from "@/lib/sanitize";
@@ -76,21 +76,31 @@ export default async function ThreadPage({
 
   const other = isParticipant ? (convo.userAId === me.id ? convo.userB : convo.userA) : null;
   const otherUnavailableReason = isParticipant ? messagingUnavailableReason(other) : null;
-  const participantLabel = isStaffReviewMode
-    ? `${convo.userA.name || convo.userA.email || "User"} ↔ ${convo.userB.name || convo.userB.email || "User"}`
-    : other?.name || other?.email || "User";
 
-  // Check if the other participant is a seller accepting custom orders
+  // Check if the other participant is a seller (display name overrides
+  // account name so threads with makers show the shop name, not the
+  // person's legal name).
   const otherSellerProfile = other
     ? await prisma.sellerProfile.findUnique({
         where: { userId: other.id },
-        select: { displayName: true, acceptsCustomOrders: true, avatarImageUrl: true },
+        select: { id: true, displayName: true, acceptsCustomOrders: true, avatarImageUrl: true },
       })
     : null;
+
+  const participantLabel = isStaffReviewMode
+    ? `${convo.userA.name || convo.userA.email || "User"} ↔ ${convo.userB.name || convo.userB.email || "User"}`
+    : otherSellerProfile?.displayName || other?.name || other?.email || "User";
+
   const showCustomOrderButton = !!(isParticipant && otherSellerProfile?.acceptsCustomOrders && !otherUnavailableReason);
 
   // Avatar priority: custom seller avatar first, Clerk imageUrl fallback
   const otherAvatarUrl = otherSellerProfile?.avatarImageUrl ?? other?.imageUrl ?? null;
+
+  // When the other party has a public seller profile, the header avatar +
+  // name link to that shop. Otherwise no link.
+  const sellerProfileHref = otherSellerProfile?.id && otherSellerProfile.displayName
+    ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
+    : null;
 
   const messages = await prisma.message.findMany({
     where: { conversationId: convo.id },
@@ -314,13 +324,33 @@ export default async function ThreadPage({
               <span className="hidden sm:inline">{isStaffReviewMode ? "Reports" : "Inbox"}</span>
             </Link>
 
-            <div className="h-10 w-10 rounded-full bg-neutral-200 overflow-hidden shrink-0 ring-1 ring-neutral-200 shadow-sm">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
-            </div>
+            {sellerProfileHref ? (
+              <Link
+                href={sellerProfileHref}
+                className="h-10 w-10 rounded-full bg-neutral-200 overflow-hidden shrink-0 ring-1 ring-neutral-200 shadow-sm hover:ring-stone-400 transition-shadow"
+                aria-label={`Visit ${participantLabel}'s shop`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+              </Link>
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-neutral-200 overflow-hidden shrink-0 ring-1 ring-neutral-200 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {otherAvatarUrl ? <img src={otherAvatarUrl} alt="" className="h-full w-full object-cover" /> : null}
+              </div>
+            )}
 
             <div className="min-w-0 flex-1">
-              <div className="font-semibold truncate text-neutral-900">{participantLabel}</div>
+              {sellerProfileHref ? (
+                <Link
+                  href={sellerProfileHref}
+                  className="font-semibold truncate text-neutral-900 hover:underline block"
+                >
+                  {participantLabel}
+                </Link>
+              ) : (
+                <div className="font-semibold truncate text-neutral-900">{participantLabel}</div>
+              )}
               {(isStaffReviewMode || archivedForMe) && (
                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                   {isStaffReviewMode ? (
@@ -337,8 +367,10 @@ export default async function ThreadPage({
               )}
             </div>
 
-            {/* Right-side actions all inline */}
-            <div className="shrink-0 flex items-center gap-1.5">
+            {/* Right-side: ··· menu is always on the top row (compact).
+                Custom Order + Archive move to a second row on mobile to avoid
+                crowding the badge area beneath the name. */}
+            <div className="shrink-0 hidden sm:flex items-center gap-1.5">
               {showCustomOrderButton && other && (
                 <ThreadCustomOrderButton
                   sellerUserId={other.id}
@@ -361,7 +393,37 @@ export default async function ThreadPage({
                 />
               )}
             </div>
+            {isParticipant && other && other.id !== me.id && (
+              <div className="shrink-0 sm:hidden">
+                <BlockReportButton
+                  targetUserId={other.id}
+                  targetName={other.name ?? "this user"}
+                  targetType="MESSAGE_THREAD"
+                  targetId={id}
+                />
+              </div>
+            )}
           </div>
+
+          {/* Mobile-only action row: Custom Order + Archive on a second
+              line so they don't crowd the avatar+name+badges area. */}
+          {(showCustomOrderButton || isParticipant) && (
+            <div className="sm:hidden mt-2 flex flex-wrap items-center gap-1.5">
+              {showCustomOrderButton && other && (
+                <ThreadCustomOrderButton
+                  sellerUserId={other.id}
+                  sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
+                />
+              )}
+              {isParticipant && (
+                <ActionForm action={archivedForMe ? unarchiveThread : archiveThread}>
+                  <SubmitButton className="rounded-md bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors">
+                    {archivedForMe ? "Unarchive" : "Archive"}
+                  </SubmitButton>
+                </ActionForm>
+              )}
+            </div>
+          )}
         </header>
 
         <div className="px-4 sm:px-5 pt-4 space-y-4">
