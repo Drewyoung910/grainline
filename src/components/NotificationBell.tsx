@@ -326,14 +326,14 @@ export default function NotificationBell({
     <div className="relative" ref={containerRef}>
       <button
         onClick={handleOpen}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? dropdownId : undefined}
         title="Notifications"
       >
-        <Bell size={20} />
+        <Bell size={22} />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
             {unreadCount > 99 ? "99+" : unreadCount}

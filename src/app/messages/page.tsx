@@ -142,6 +142,24 @@ export default async function MessagesPage({
     unread.map((u) => [u.conversationId, u._count._all]),
   );
 
+  // Prefer the seller's shop display name + custom avatar over Clerk's
+  // imageUrl + legal name whenever the other party is a seller. Fetch all
+  // seller profiles for the conversation partners in one query.
+  const otherUserIds = Array.from(
+    new Set(
+      convos
+        .map((c) => (c.userAId === me.id ? c.userB?.id : c.userA?.id))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const sellerProfiles = otherUserIds.length
+    ? await prisma.sellerProfile.findMany({
+        where: { userId: { in: otherUserIds } },
+        select: { userId: true, displayName: true, avatarImageUrl: true },
+      })
+    : [];
+  const sellerByUserId = new Map(sellerProfiles.map((s) => [s.userId, s]));
+
   // Enrich for rendering — exclude conversations with blocked users
   const enrich = convos.filter((c) => {
     const other = c.userAId === me.id ? c.userB : c.userA;
@@ -152,7 +170,8 @@ export default async function MessagesPage({
     const unreadCount = unreadByConvo.get(c.id) || 0;
     const latestFromMe = latest?.senderId === me.id;
     const ctxThumb = c.contextListing?.photos?.[0]?.url ?? null;
-    return { c, other, latest, unreadCount, latestFromMe, ctxThumb };
+    const seller = sellerByUserId.get(other.id) ?? null;
+    return { c, other, latest, unreadCount, latestFromMe, ctxThumb, seller };
   });
 
   const inboxList = enrich;
@@ -256,7 +275,7 @@ export default async function MessagesPage({
       </div>
 
       {list.length === 0 ? (
-        <div className="card-section p-6 text-neutral-600">
+        <div className="rounded-lg bg-[#EFEAE0] p-6 text-neutral-700">
           {q ? (
             <>
               No results for “<span className="font-medium">{q}</span>”.
@@ -272,9 +291,12 @@ export default async function MessagesPage({
           )}
         </div>
       ) : (
-        <ul className="divide-y divide-neutral-100 card-section">
-          {list.map(({ c, other, latest, unreadCount, ctxThumb }) => {
-            const title = other?.name || other?.email || "User";
+        <ul className="divide-y divide-stone-300/50 rounded-lg bg-[#EFEAE0] overflow-hidden">
+          {list.map(({ c, other, latest, unreadCount, ctxThumb, seller }) => {
+            // Prefer seller display name + avatar when the other party is a
+            // seller. Falls back to Clerk name/imageUrl for buyer-only users.
+            const title = seller?.displayName || other?.name || other?.email || "User";
+            const avatarUrl = seller?.avatarImageUrl || other?.imageUrl || null;
             const snippet = formatSnippet(latest?.body, latest?.kind);
             const hasTime = !!latest;
             const isUnread = unreadCount > 0;
@@ -283,14 +305,14 @@ export default async function MessagesPage({
               <li key={c.id}>
                 <Link
                   href={`/messages/${c.id}`}
-                  className="block px-4 py-3 hover:bg-neutral-50"
+                  className="block px-4 py-3 hover:bg-[#E3DCCB] transition-colors"
                 >
                   <div className="flex items-start gap-3">
                     {/* Avatar */}
-                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200">
-                      {other?.imageUrl ? (
+                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200">
+                      {avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={other.imageUrl} alt="" className="h-full w-full object-cover" />
+                        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
                       ) : null}
                     </div>
 

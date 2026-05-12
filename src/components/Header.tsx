@@ -140,29 +140,29 @@ export default function Header() {
           <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
         </Link>
 
-        {/* Search bar — desktop only, fluid width up to ~640px so it has presence
-            without crowding nav links on smaller desktops. */}
-        <span className="hidden md:flex flex-1 max-w-[640px]">
+        {/* Search bar — desktop only, fluid width with a larger cap so it
+            has real presence in the header. */}
+        <span className="hidden md:flex flex-1 max-w-[820px]">
           <SearchBar />
         </span>
 
         {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
-        <div className="ml-auto hidden md:flex items-center gap-4">
+        <div className="ml-auto hidden md:flex items-center gap-2 lg:gap-3">
           <Link
             href="/browse"
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
           >
             Browse
           </Link>
           <Link
             href="/blog"
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
           >
             Blog
           </Link>
           <Link
             href="/commission"
-            className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
           >
             Commission Room
           </Link>
@@ -176,11 +176,11 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in?redirect_url=/messages"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
                 aria-label="Messages"
                 title="Messages"
               >
-                <MessageCircle size={20} />
+                <MessageCircle size={22} />
               </Link>
             }
           >
@@ -190,11 +190,11 @@ export default function Header() {
           {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
           <Link
             href="/cart"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
             aria-label="Cart"
             title="Cart"
           >
-            <ShoppingBag size={20} />
+            <ShoppingBag size={22} />
             {cartCount != null && cartCount > 0 && (
               <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
                 {cartCount}
@@ -207,7 +207,7 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in"
-                className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+                className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
               >
                 Sign in
               </Link>
