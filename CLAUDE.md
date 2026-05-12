@@ -2516,6 +2516,49 @@ The helper is called after every listing transition to ACTIVE for a seller's own
 - The number is permanent and never reassigned (unique index enforces this). If a Founding Maker's seller profile is hard-deleted in the future, the number is NOT recycled — gaps are acceptable.
 - Do not render the badge without the popover. The "first 250" explanation is the only thing that gives the badge meaning to a new buyer.
 
+## Seller Profile Rhythm Redesign (2026-05-12)
+
+Full restructure of `/seller/[id]` from a single vertical stack into a rhythm-based layout with a sticky right CTA sidebar.
+
+### Outer layout
+- Full-width banner (`aspect-[3/1]`) + identity row (name, badges, tagline, location chips, back link, social link icons).
+- Two-column body grid below the identity row: `lg:grid-cols-[minmax(0,1fr)_280px]` on `lg+`, single column on mobile.
+
+### Main column rhythm (top to bottom)
+1. **Stat band** (`bg-[#EFEAE0]` rounded warm strip): pieces sold, rating + review count, avg ship days (last 30 fulfilled), years crafting, member since year. Individual stats hide when data missing. Brand-new sellers (`soldCount === 0 && reviewCount === 0`) render a compact "Member since {year} · Recently joined Grainline" line instead of the full stat row.
+2. **What I make** tag pills. Top 8 most-used tags across the seller's active public listings, aggregated via `unnest(tags)` raw SQL. Pills link to `${sellerShopPath}?tag={tag}`. Hidden when seller has fewer than 3 distinct tags.
+3. **Latest broadcast** (only if `< 30 days old`). Amber accent card.
+4. **Featured Work** — asymmetric grid: `lg:grid-cols-3 lg:grid-rows-2` with the first card spanning 2 cols × 2 rows when 3+ listings; 2-col equal halves with 2 listings; full-width single hero with 1. Falls back to 3 most recent active listings if seller hasn't curated. Each card has `hover:-translate-y-1`.
+5. **Story | Workshop** two-column at `lg+` (`lg:grid-cols-[1.6fr_1fr]`). Story title + body left, workshop image right with a small "The shop in {city}" caption. Bio appended below story body with a divider when both exist and differ.
+6. **Customer photos** masonry (`columns-2 sm:columns-3 lg:columns-4`). Pulls all `ReviewPhoto` records for the seller's listings via `prisma.reviewPhoto.findMany({ where: { review: { listing: { sellerId } } } })`. Shows 12 most recent. Each photo links to `/listing/{listingId}#reviews`. Section hidden entirely if zero photos. When count > 12, shows "View all customer photos →" linking to `/seller/[id]/customer-photos`.
+7. **All Listings** grid (9 per page on profile, see "all listings" link to `/seller/[id]/shop` for paginated).
+8. **From the Workshop** workshop gallery (if `galleryImageUrls.length > 0`).
+9. **Pickup map | Policies + FAQ** two-column at `lg+`. Map on left, policies + FAQ stacked on right.
+10. **Stories from the Workshop** blog posts (3 most recent published by this seller).
+11. **More from {city}** small link block.
+
+### Sticky CTA sidebar (`lg+` only)
+`sticky top-6` card with: 48px avatar, name + small Guild badge, compact rating, primary "Message Maker" button (espresso), `FollowButton`, conditional "Request a Custom Piece" button (only if `acceptsCustomOrders`), "Visit shop" text link, `BlockReportButton` at bottom inside a separator. Hidden entirely on mobile; mobile users get the identity/CTA buttons inline via the existing identity row.
+
+### `/seller/[id]/customer-photos` page (new)
+- Server component, 24 photos per page, `?page=N` query param.
+- Server-rendered masonry layout matching the profile section.
+- `generateMetadata` with title + canonical.
+- Redirects to seller profile (notFound) if seller has zero review photos.
+- Slug canonicalization: `routeSegmentWithSlug` redirect like the main profile page.
+- Added to `middleware.ts` `isPublic`.
+
+### Schema notes
+No new tables. All data pulled from existing `ReviewPhoto`, `Review`, `Listing`, `OrderItem`, `Order`. Stat band queries (`soldCount`, `recentShipped`) are bounded (last 30 orders) so they don't scale poorly with shop size.
+
+### Empty state rules (preserve)
+- Stat band: stats hide individually when data is missing; brand-new sellers see the compact one-line variant.
+- What I make: hidden when fewer than 3 tags.
+- Customer photos: hidden when 0 photos. Same with the dedicated page (returns notFound).
+- Featured work: falls back to most recent 3 if no curated featured listings.
+- Story / bio / workshop / blog / map / policies: each hides individually when not filled in.
+- Sticky sidebar: always visible (it's the conversion surface) on `lg+`.
+
 ## Why Grainline Landing Pages (2026-05-12)
 
 Two public recruitment landing pages with full marketing structure (hero, multi-section, espresso CTAs). Distinct from `/become-a-maker` (which is a redirect-only conversion entry) and `/about` (which is a brief overview).

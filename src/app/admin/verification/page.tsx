@@ -717,11 +717,42 @@ export default async function AdminVerificationPage() {
     }
   }
 
+  // Currently-featured makers (for the 2-slot homepage spotlight)
+  const now = new Date();
+  const featuredNow = [...memberActive, ...masterActive]
+    .filter((s) => s.featuredUntil != null && s.featuredUntil > now)
+    .sort((a, b) => (b.featuredUntil!.getTime() - a.featuredUntil!.getTime()));
+  const featuredSlotsUsed = Math.min(featuredNow.length, 2);
+
   return (
     <div className="space-y-10">
       <div>
         <h1 className="text-2xl font-bold">Guild Verification</h1>
       </div>
+
+      <section className="card-section p-5 bg-[#EFEAE0]">
+        <div className="text-xs font-semibold uppercase tracking-wider text-amber-800 mb-2">
+          Homepage spotlight ({featuredSlotsUsed} of 2 slots active)
+        </div>
+        {featuredNow.length === 0 ? (
+          <p className="text-sm text-neutral-700">
+            No makers currently featured. The homepage Featured Makers section is falling back to the weekly Guild rotation.
+          </p>
+        ) : (
+          <ul className="space-y-1 text-sm text-neutral-800">
+            {featuredNow.slice(0, 2).map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-3">
+                <span><strong>{s.displayName}</strong> through {s.featuredUntil!.toLocaleDateString("en-US")}</span>
+              </li>
+            ))}
+            {featuredNow.length > 2 && (
+              <li className="text-xs text-amber-900 mt-2 italic">
+                {featuredNow.length - 2} additional maker{featuredNow.length - 2 === 1 ? "" : "s"} marked featured but not visible: only the 2 most recently featured show on the homepage. Unfeature one of the above to free a slot.
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
 
       {/* ── Guild Member Applications ── */}
       <section className="space-y-4">

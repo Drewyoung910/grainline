@@ -73,7 +73,7 @@ export default function MakersMapSection({
             </button>
             <a
               href="/map"
-              className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 transition-colors"
+              className="inline-flex items-center rounded-md border border-stone-300 bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
             >
               Open Makers Map
             </a>

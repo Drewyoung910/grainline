@@ -19,6 +19,7 @@ const isPublic = createRouteMatcher([
   "/seller/map",          // legacy singular map route — redirects to /map
   "/seller/((?!payouts|map)[^/]+)",          // public seller profiles
   "/seller/((?!payouts|map)[^/]+)/shop(.*)", // public seller shops
+  "/seller/((?!payouts|map)[^/]+)/customer-photos(.*)", // public customer photos pages
   "/sellers(.*)",         // sellers directory
   "/makers(.*)",          // city-level makers pages — public
   "/blog(.*)",            // blog — public viewing; writing/commenting handled in API routes

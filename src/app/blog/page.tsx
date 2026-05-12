@@ -268,10 +268,10 @@ export default async function BlogIndexPage({
             <Link
               key={tab.value}
               href={buildHref({ type: tab.value, page: "" })}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-neutral-900 text-white border-neutral-900"
-                  : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                  ? "bg-neutral-900 text-white"
+                  : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
             >
               {tab.label}
@@ -287,10 +287,10 @@ export default async function BlogIndexPage({
               <Link
                 key={s}
                 href={buildHref({ sort: s, page: "" })}
-                className={`text-sm px-2 py-1 rounded border transition-colors ${
+                className={`text-sm px-3 py-1 rounded-full transition-colors ${
                   sort === s
-                    ? "bg-neutral-900 text-white border-neutral-900"
-                    : "border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                    ? "bg-neutral-900 text-white"
+                    : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
                 }`}
               >
                 {s === "relevant" ? "Most Relevant" : s === "newest" ? "Newest" : "A–Z"}

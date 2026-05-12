@@ -183,50 +183,50 @@ export default async function MessagesPage({
         <div className="flex flex-wrap gap-2">
           <Link
             href={withQ("/messages")}
-            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === "inbox"
-                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
-                : "hover:bg-neutral-50"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             Inbox
           </Link>
           <Link
             href={withQ("/messages?tab=unread")}
-            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === "unread"
-                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
-                : "hover:bg-neutral-50"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
-            Unread{" "}
+            Unread
             {unreadTotal > 0 && (
-              <span className="ml-1 rounded-full bg-red-600 px-2 py-[2px] text-xs text-white">
+              <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">
                 {unreadTotal}
               </span>
             )}
           </Link>
           <Link
             href={withQ("/messages?tab=sent")}
-            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === "sent"
-                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
-                : "hover:bg-neutral-50"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
-            Awaiting Reply{" "}
+            Awaiting Reply
             {sentTotal > 0 && (
-              <span className="ml-1 rounded-full bg-neutral-800 px-2 py-[2px] text-xs text-white">
+              <span className={`ml-1.5 rounded-full px-2 py-[1px] text-xs ${tab === "sent" ? "bg-white text-neutral-900" : "bg-neutral-800 text-white"}`}>
                 {sentTotal}
               </span>
             )}
           </Link>
           <Link
             href={withQ("/messages?tab=archived")}
-            className={`rounded-full border border-neutral-200 px-3 py-1 text-sm transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === "archived"
-                ? "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-900"
-                : "hover:bg-neutral-50"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             Archived
@@ -236,7 +236,7 @@ export default async function MessagesPage({
         <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex items-center gap-2 rounded-md border border-neutral-200 bg-white px-3 py-1.5 w-full sm:w-auto focus-within:ring-2 focus-within:ring-neutral-300 transition-shadow">
+          <div className="flex items-center gap-2 rounded-full border-2 border-stone-400 bg-white px-4 py-1.5 w-full sm:w-auto shadow-sm focus-within:ring-2 focus-within:ring-amber-300 focus-within:border-stone-500 transition-shadow">
             <input
               name="q"
               defaultValue={q}

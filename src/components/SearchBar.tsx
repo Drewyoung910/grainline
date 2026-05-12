@@ -239,7 +239,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
       <form onSubmit={handleSubmit}>
-        <div className={`flex items-stretch rounded-full border overflow-hidden focus-within:ring-2 ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:ring-white/30" : "bg-[#EFEAE0] border-stone-300/70 focus-within:ring-neutral-300"}`}>
+        <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:ring-2 focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:ring-white/30" : "bg-white border-stone-400 focus-within:ring-amber-300 focus-within:border-stone-500"}`}>
           <input
             value={value}
             onChange={handleChange}

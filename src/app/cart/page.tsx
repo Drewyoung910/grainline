@@ -24,52 +24,48 @@ import { ShoppingBag } from "@/components/icons";
 
 function CartLoadingSkeleton() {
   return (
-    <div className="bg-[#EFEAE0]/50 min-h-[100svh]">
-      <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
-        <div className="h-8 w-40 rounded-md bg-[#EFEAE0] animate-pulse" />
-        <div className="card-section p-6 space-y-4">
-          <div className="h-6 w-48 rounded-md bg-[#EFEAE0] animate-pulse" />
-          <div className="space-y-3">
-            <div className="flex gap-4">
-              <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-3/4 rounded bg-[#EFEAE0] animate-pulse" />
-                <div className="h-4 w-1/2 rounded bg-[#EFEAE0] animate-pulse" />
-              </div>
+    <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+      <div className="h-8 w-40 rounded-md bg-[#EFEAE0] animate-pulse" />
+      <div className="card-section p-6 space-y-4">
+        <div className="h-6 w-48 rounded-md bg-[#EFEAE0] animate-pulse" />
+        <div className="space-y-3">
+          <div className="flex gap-4">
+            <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-3/4 rounded bg-[#EFEAE0] animate-pulse" />
+              <div className="h-4 w-1/2 rounded bg-[#EFEAE0] animate-pulse" />
             </div>
-            <div className="flex gap-4">
-              <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-2/3 rounded bg-[#EFEAE0] animate-pulse" />
-                <div className="h-4 w-1/3 rounded bg-[#EFEAE0] animate-pulse" />
-              </div>
+          </div>
+          <div className="flex gap-4">
+            <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-2/3 rounded bg-[#EFEAE0] animate-pulse" />
+              <div className="h-4 w-1/3 rounded bg-[#EFEAE0] animate-pulse" />
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
 
 function CartEmptyState({ children, title = "Your cart is empty" }: { children: React.ReactNode; title?: string }) {
   return (
-    <div className="bg-[#EFEAE0]/50 min-h-[100svh]">
-      <main className="mx-auto max-w-2xl p-4 sm:p-8">
-        <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
-        <div className="card-section p-10 text-center bg-white">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700">
-            <ShoppingBag size={28} />
-          </div>
-          <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
-          <p className="text-sm text-neutral-500 max-w-sm mx-auto mb-6">
-            Pieces you save will appear here.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {children}
-          </div>
+    <main className="mx-auto max-w-2xl p-4 sm:p-8">
+      <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
+      <div className="card-section p-10 text-center bg-white">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700">
+          <ShoppingBag size={28} />
         </div>
-      </main>
-    </div>
+        <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
+        <p className="text-sm text-neutral-500 max-w-sm mx-auto mb-6">
+          Pieces you save will appear here.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {children}
+        </div>
+      </div>
+    </main>
   );
 }
 
@@ -777,12 +773,11 @@ function CartPage() {
   }
 
   return (
-    <div className="bg-[#EFEAE0]/50 min-h-[100svh]">
     <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm mb-6">
+      <div className="rounded-full bg-[#EFEAE0] px-4 py-2 inline-flex items-center gap-2 text-sm mb-6">
         {[
           { key: "review", label: "Cart" },
           { key: "address", label: "Address" },
@@ -790,10 +785,10 @@ function CartPage() {
           { key: "payment", label: "Payment" },
         ].map((s, i) => (
           <span key={s.key} className="flex items-center gap-2">
-            {i > 0 && <span className="text-neutral-300">→</span>}
+            {i > 0 && <span className="text-neutral-400">›</span>}
             <span className={
               step === s.key
-                ? "text-neutral-900 font-medium"
+                ? "text-neutral-900 font-semibold"
                 : "text-neutral-500"
             }>
               {s.label}
@@ -910,7 +905,7 @@ function CartPage() {
       {step === "shipping" && shippingAddress && (
         <>
           {/* Address summary */}
-          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
+          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-[#EFEAE0]">
             <p className="text-sm text-neutral-600">
               <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
               {shippingAddress.name}, {shippingAddress.line1},{" "}
@@ -1022,7 +1017,7 @@ function CartPage() {
       {step === "payment" && clientSecrets.length > 0 && (
         <>
           {/* Address summary */}
-          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
+          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-[#EFEAE0]">
             <p className="text-sm text-neutral-600">
               <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
               {shippingAddress?.name}, {shippingAddress?.line1},{" "}
@@ -1070,6 +1065,5 @@ function CartPage() {
         </>
       )}
     </main>
-    </div>
   );
 }
