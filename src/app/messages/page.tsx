@@ -75,6 +75,12 @@ export default async function MessagesPage({
   const where: Prisma.ConversationWhereInput = {
     AND: [
       participationFilter,
+      // Hide empty conversations from the inbox. `/messages/new?to=X` creates
+      // a conversation row up-front (so context/listing attaches atomically),
+      // but if the buyer never sends a message the thread shouldn't appear in
+      // either party's inbox. The thread becomes visible automatically once
+      // someone sends the first message.
+      { messages: { some: {} } },
       q
         ? {
             OR: [

@@ -34,12 +34,12 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
   }
 
   return (
-    <div className="rounded-2xl bg-[#EFEAE0] px-6 py-8 text-center space-y-4">
+    <div className="rounded-2xl bg-[#EFEAE0] px-6 py-10 sm:px-10 sm:py-12 text-center space-y-5">
       <div>
-        <h3 className="text-lg font-semibold text-neutral-900">
+        <h3 className="text-xl sm:text-2xl font-semibold text-neutral-900">
           {heading ?? "Get workshop stories in your inbox"}
         </h3>
-        <p className="text-sm text-neutral-600 mt-1">
+        <p className="text-sm text-neutral-600 mt-2 max-w-md mx-auto">
           {subheading ?? "Maker spotlights, build guides, and new pieces — straight to you."}
         </p>
       </div>
