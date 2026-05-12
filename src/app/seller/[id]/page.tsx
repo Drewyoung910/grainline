@@ -414,6 +414,61 @@ export default async function SellerPublicPage({
             </Link>
           </div>
 
+          {/* Action row: Message Maker (primary) + Follow + Custom Order + View
+              all listings + Block/Report. Visible on every viewport so mobile
+              users can take action without a sticky sidebar. */}
+          {meId !== seller.userId && (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link
+                href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                className="inline-flex items-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 text-sm font-semibold hover:bg-[#3A2A24] transition-colors"
+              >
+                Message Maker
+              </Link>
+              <FollowButton
+                sellerProfileId={seller.id}
+                sellerUserId={seller.userId}
+                initialFollowing={isFollowing}
+                initialCount={followerCount}
+                size="sm"
+              />
+              {seller.acceptsCustomOrders && (
+                meId ? (
+                  <CustomOrderRequestForm
+                    sellerUserId={seller.userId}
+                    sellerName={seller.displayName}
+                    triggerLabel="Request a Custom Piece"
+                    triggerClassName="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                  />
+                ) : (
+                  <Link
+                    href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                    className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                  >
+                    <Hammer size={15} />
+                    Request a Custom Piece
+                  </Link>
+                )
+              )}
+              <Link
+                href={publicSellerShopPath(seller.id, seller.displayName)}
+                className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+              >
+                View all listings
+              </Link>
+              {meId && (
+                <span className="ml-auto">
+                  <BlockReportButton
+                    targetUserId={seller.userId}
+                    targetName={seller.displayName ?? "this maker"}
+                    targetType="SELLER"
+                    targetId={seller.id}
+                  />
+                </span>
+              )}
+            </div>
+          )}
+
           {socialLinks.length > 0 && (
             <div className="flex flex-wrap gap-3 mt-3">
               {socialLinks.map(({ label, url, Icon }) => (
@@ -433,10 +488,8 @@ export default async function SellerPublicPage({
         </div>
       </section>
 
-      {/* ── Two-column body: main rhythm + sticky CTA sidebar ───────────── */}
-      <div className="mt-6 pb-12 px-2 sm:px-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-6 lg:gap-10">
-
-        {/* ── Main content column ───────────────────────────────────────── */}
+      {/* ── Body: full-width rhythm ─────────────────────────────────────── */}
+      <div className="mt-6 pb-12 px-2 sm:px-4">
         <div className="min-w-0 space-y-10">
 
           {/* Stat band — compact inline row */}
@@ -753,64 +806,69 @@ export default async function SellerPublicPage({
             </section>
           )}
 
-          {/* Pickup map | Policies + FAQ two-column */}
-          {(lat != null && lng != null) || seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0 ? (
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {lat != null && lng != null && (
-                <div className="card-section p-4 bg-white space-y-3">
-                  <h2 className="text-lg font-display font-semibold">Pickup area</h2>
-                  <DynamicMapCard
-                    lat={lat}
-                    lng={lng}
-                    label={cityState || seller.displayName || "Pickup area"}
-                    radiusMeters={radiusMeters ?? null}
-                    showPinWithRadius={false}
-                  />
-                  <p className="text-xs text-neutral-600">
-                    {radiusMeters
-                      ? "Approximate pickup area shown for privacy."
-                      : "Exact pickup point shown by seller."}
-                  </p>
-                </div>
-              )}
-              <div className="space-y-4">
-                {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
-                  <div className="card-section bg-white">
-                    <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">Shop Policies</h2>
-                    {seller.returnPolicy && (
-                      <details className="border-b border-neutral-100 last:border-b-0">
-                        <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Return Policy</summary>
-                        <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.returnPolicy}</p>
-                      </details>
-                    )}
-                    {seller.customOrderPolicy && (
-                      <details className="border-b border-neutral-100 last:border-b-0">
-                        <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Custom Order Policy</summary>
-                        <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.customOrderPolicy}</p>
-                      </details>
-                    )}
-                    {seller.shippingPolicy && (
-                      <details className="border-b border-neutral-100 last:border-b-0">
-                        <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Shipping Policy</summary>
-                        <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.shippingPolicy}</p>
-                      </details>
-                    )}
-                  </div>
-                )}
-                {seller.faqs.length > 0 && (
-                  <div className="card-section bg-white">
-                    <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">FAQs</h2>
-                    {seller.faqs.map((faq) => (
-                      <details key={faq.id} className="border-b border-neutral-100 last:border-b-0">
-                        <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">{faq.question}</summary>
-                        <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{faq.answer}</p>
-                      </details>
-                    ))}
-                  </div>
-                )}
+          {/* Pickup area — full-width when set, with a proper heading */}
+          {lat != null && lng != null && (
+            <section>
+              <div className="mb-4">
+                <h2 className="text-xl sm:text-2xl font-display font-semibold">Visit this maker</h2>
+                <p className="text-sm text-neutral-500 mt-1">
+                  {radiusMeters
+                    ? `Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`
+                    : `Exact pickup point${cityState ? ` in ${cityState}` : ""}. Pickup available at checkout.`}
+                </p>
+              </div>
+              <div className="rounded-2xl overflow-hidden">
+                <DynamicMapCard
+                  lat={lat}
+                  lng={lng}
+                  label={cityState || seller.displayName || "Pickup area"}
+                  radiusMeters={radiusMeters ?? null}
+                  showPinWithRadius={false}
+                  className="h-72 sm:h-96 w-full"
+                />
               </div>
             </section>
-          ) : null}
+          )}
+
+          {/* Policies + FAQ two-column */}
+          {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0) && (
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
+                <div className="card-section bg-white">
+                  <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">Shop Policies</h2>
+                  {seller.returnPolicy && (
+                    <details className="border-b border-neutral-100 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Return Policy</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.returnPolicy}</p>
+                    </details>
+                  )}
+                  {seller.customOrderPolicy && (
+                    <details className="border-b border-neutral-100 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Custom Order Policy</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.customOrderPolicy}</p>
+                    </details>
+                  )}
+                  {seller.shippingPolicy && (
+                    <details className="border-b border-neutral-100 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">Shipping Policy</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.shippingPolicy}</p>
+                    </details>
+                  )}
+                </div>
+              )}
+              {seller.faqs.length > 0 && (
+                <div className="card-section bg-white">
+                  <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">FAQs</h2>
+                  {seller.faqs.map((faq) => (
+                    <details key={faq.id} className="border-b border-neutral-100 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">{faq.question}</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{faq.answer}</p>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Blog posts */}
           {sellerBlogPosts.length > 0 && (
@@ -851,20 +909,24 @@ export default async function SellerPublicPage({
             </section>
           )}
 
-          {/* More from city — small footer link block, bottom-left */}
-          {(seller.cityMetro ?? seller.metro) && (() => {
-            const m = seller.cityMetro ?? seller.metro!;
+          {/* More from city — small footer link block, bottom-left. Hidden
+              when the only available metro looks like a county/parish (older
+              auto-created metros may have used Nominatim's county fallback). */}
+          {(() => {
+            const candidate = seller.cityMetro ?? seller.metro;
+            if (!candidate) return null;
+            if (/\b(county|parish)\b/i.test(candidate.name)) return null;
             return (
               <section className="pt-6 mt-2 border-t border-neutral-200/60">
                 <div className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mb-2">
-                  More from {m.name}, {m.state}
+                  More from {candidate.name}, {candidate.state}
                 </div>
                 <div className="flex flex-col gap-1 text-sm">
-                  <Link href={`/makers/${m.slug}`} className="text-amber-700 hover:underline">
-                    Other makers in {m.name} →
+                  <Link href={`/makers/${candidate.slug}`} className="text-amber-700 hover:underline">
+                    Other makers in {candidate.name} →
                   </Link>
-                  <Link href={`/browse/${m.slug}`} className="text-amber-700 hover:underline">
-                    Browse {m.name} listings →
+                  <Link href={`/browse/${candidate.slug}`} className="text-amber-700 hover:underline">
+                    Browse {candidate.name} listings →
                   </Link>
                 </div>
               </section>
@@ -872,97 +934,6 @@ export default async function SellerPublicPage({
           })()}
         </div>
 
-        {/* ── Sticky CTA sidebar (lg+ only) ──────────────────────────────── */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-6 rounded-lg border border-stone-200/60 bg-white shadow-sm p-5 space-y-4">
-            {/* card-section equivalent without overflow:hidden so the
-                BlockReportButton dropdown can extend beyond the card. */}
-            <div className="flex items-start gap-3">
-              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
-                {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={(seller.avatarImageUrl ?? seller.user?.imageUrl)!}
-                    alt={seller.displayName}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold">
-                    {(seller.displayName || "M")[0]?.toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div className="font-display font-semibold text-sm truncate">{seller.displayName}</div>
-                      <GuildBadge level={seller.guildLevel} size={20} />
-                    </div>
-                    {shopRating && shopRating.count > 0 && (
-                      <div className="text-xs text-neutral-600 flex items-center gap-1 mt-0.5">
-                        <span className="text-amber-500">★</span>
-                        <span>{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
-                        <span className="text-neutral-500">({shopRating.count})</span>
-                      </div>
-                    )}
-                  </div>
-                  {meId && meId !== seller.userId && (
-                    <BlockReportButton
-                      targetUserId={seller.userId}
-                      targetName={seller.displayName ?? "this maker"}
-                      targetType="SELLER"
-                      targetId={seller.id}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {meId !== seller.userId ? (
-              <div className="space-y-2">
-                <Link
-                  href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                  className="block w-full text-center rounded-md bg-[#2C1F1A] text-white px-4 py-2.5 text-sm font-semibold hover:bg-[#3A2A24] transition-colors"
-                >
-                  Message Maker
-                </Link>
-                <FollowButton
-                  sellerProfileId={seller.id}
-                  sellerUserId={seller.userId}
-                  initialFollowing={isFollowing}
-                  initialCount={followerCount}
-                  size="sm"
-                />
-                {seller.acceptsCustomOrders && (
-                  meId ? (
-                    <CustomOrderRequestForm
-                      sellerUserId={seller.userId}
-                      sellerName={seller.displayName}
-                      triggerLabel="Request a Custom Piece"
-                      triggerClassName="block w-full text-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-                    />
-                  ) : (
-                    <Link
-                      href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                      className="block w-full text-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-                    >
-                      Request a Custom Piece
-                    </Link>
-                  )
-                )}
-                <Link
-                  href={publicSellerShopPath(seller.id, seller.displayName)}
-                  className="block text-center text-sm text-neutral-600 underline hover:text-neutral-900 pt-1"
-                >
-                  View all listings
-                </Link>
-              </div>
-            ) : (
-              <p className="text-xs text-neutral-500 italic">This is your public profile.</p>
-            )}
-          </div>
-        </aside>
       </div>
     </main>
   );

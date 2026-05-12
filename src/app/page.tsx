@@ -748,17 +748,19 @@ export default async function HomePage() {
                 const rating = sellerRatings.get(maker.id) ?? null;
                 const avatarSrc = maker.avatarImageUrl ?? maker.user?.imageUrl ?? null;
                 return (
-                  <article key={maker.id} className="rounded-2xl bg-[#D9E2D5] overflow-hidden flex flex-col">
-                    {/* Banner with 3:1 aspect, avatar overlaps bottom */}
+                  <article key={maker.id} className="flex flex-col">
+                    {/* Banner with 3:1 aspect, rounded, avatar overlaps bottom */}
                     <div className="relative">
-                      <MediaImage
-                        src={maker.bannerImageUrl}
-                        fallbackSrc={fallbackImage}
-                        alt={`${maker.displayName ?? "Maker"} workshop`}
-                        loading="lazy"
-                        className="aspect-[3/1] w-full object-cover"
-                        fallbackClassName="aspect-[3/1] w-full bg-gradient-to-r from-neutral-800 to-neutral-600"
-                      />
+                      <div className="rounded-2xl overflow-hidden">
+                        <MediaImage
+                          src={maker.bannerImageUrl}
+                          fallbackSrc={fallbackImage}
+                          alt={`${maker.displayName ?? "Maker"} workshop`}
+                          loading="lazy"
+                          className="aspect-[3/1] w-full object-cover"
+                          fallbackClassName="aspect-[3/1] w-full bg-gradient-to-r from-neutral-800 to-neutral-600"
+                        />
+                      </div>
                       <div className="absolute -bottom-10 left-6">
                         {avatarSrc ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -768,10 +770,10 @@ export default async function HomePage() {
                             loading="lazy"
                             width={80}
                             height={80}
-                            className="h-20 w-20 rounded-full object-cover ring-4 ring-[#D9E2D5] shadow-sm bg-white"
+                            className="h-20 w-20 rounded-full object-cover ring-4 ring-[#F7F5F0] shadow-sm bg-white"
                           />
                         ) : (
-                          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-4 ring-[#D9E2D5] shadow-sm">
+                          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-4 ring-[#F7F5F0] shadow-sm">
                             {(maker.displayName || "M")[0]?.toUpperCase()}
                           </div>
                         )}

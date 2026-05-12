@@ -26,7 +26,7 @@ function CartLoadingSkeleton() {
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
       <div className="h-8 w-40 rounded-md bg-[#EFEAE0] animate-pulse" />
-      <div className="card-section p-6 space-y-4">
+      <div className="p-6 space-y-4">
         <div className="h-6 w-48 rounded-md bg-[#EFEAE0] animate-pulse" />
         <div className="space-y-3">
           <div className="flex gap-4">
@@ -53,7 +53,7 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
-      <div className="card-section p-10 text-center bg-white">
+      <div className="p-10 text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700">
           <ShoppingBag size={28} />
         </div>
@@ -526,8 +526,8 @@ function CartPage() {
   // Render seller item list (used in review and shipping steps)
   function renderSellerSections() {
     return groups.map((g) => (
-      <section key={g.sellerId} className="card-section">
-        <header className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+      <section key={g.sellerId}>
+        <header className="flex items-center justify-between border-b border-neutral-200/70 pb-3">
           <div className="text-sm text-neutral-700">
             <span className="text-neutral-500">Maker:</span>{" "}
             <span className="font-medium">{g.sellerName}</span>
@@ -537,7 +537,7 @@ function CartPage() {
           </div>
         </header>
 
-        <ul className="divide-y divide-neutral-100">
+        <ul className="divide-y divide-neutral-200/60">
           {g.items.map((i) => {
             const img = i.listing.photos?.[0]?.url;
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
@@ -546,7 +546,7 @@ function CartPage() {
             const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
-              <li key={i.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={i.id} className="flex items-center gap-3 py-3">
                 {img ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
