@@ -192,10 +192,32 @@ export default function SellerHandbookPage() {
             <li><strong>$0 listing fees</strong>. List as many pieces as you want. You only pay when you sell.</li>
           </ul>
           <p>
-            <strong>How this compares</strong>: Etsy charges $0.20 per listing, 6.5% transaction fee, payment
-            processing on top, and ads fees that can stack to 12–15% effective take-rate. Faire takes 15% on first
-            orders from a new buyer (25% on direct-from-store). Grainline&apos;s 5% is roughly half of what makers see
-            elsewhere.
+            <strong>How this compares to Etsy.</strong> A typical Etsy sale stacks up like this:
+          </p>
+          <ul>
+            <li>$0.20 listing fee (paid every 4 months whether it sells or not)</li>
+            <li>6.5% transaction fee — <em>applied to item price <strong>and</strong> shipping</em></li>
+            <li>Payment processing: ~3% + $0.25 — also charged on shipping</li>
+            <li>
+              <strong>Offsite Ads</strong>: a mandatory 12% fee (15% for shops under $10K/yr) on any sale Etsy
+              attributes to one of their ad partners (Google, Facebook, Bing, Pinterest, Instagram, etc.). It is{" "}
+              <em>mandatory for shops over $10K/yr</em> — you cannot opt out. Etsy charges this on the full order
+              total <strong>including shipping</strong>.
+            </li>
+            <li>
+              <strong>Etsy Ads</strong> (optional, on top of Offsite Ads): a daily budget Etsy spends to promote your
+              listings — sellers commonly report 10%+ of revenue going to ads to stay visible in search.
+            </li>
+          </ul>
+          <p>
+            For an established Etsy shop running Offsite Ads + Etsy Ads, the effective take-rate is commonly{" "}
+            <strong>20–30%+</strong> of gross sales — and a meaningful chunk of that is charged on the shipping you
+            collect from the buyer, not just your item price. Grainline&apos;s 5% applies only to the item subtotal.
+            No mandatory ads, no shipping markup, no recurring listing fees.
+          </p>
+          <p>
+            Faire takes 15% on first orders from a new buyer (25% on direct-from-store). Amazon Handmade is 15% plus
+            their own ad ecosystem. Grainline&apos;s 5% is a fraction of any of these — by design.
           </p>
 
           <h3>Payouts</h3>

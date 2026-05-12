@@ -49,7 +49,9 @@ export default function NewsletterSignup({ heading, subheading }: { heading?: st
           You&apos;re on the list!
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
+        // Stack on mobile/tablet, row only at md+ so the inputs + button fit
+        // inside the EFEAE0 card without the Subscribe button overflowing.
+        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-2 max-w-md mx-auto">
           <input
             type="text"
             placeholder="Your name (optional)"

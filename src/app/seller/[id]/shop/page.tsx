@@ -8,6 +8,7 @@ import { Category } from "@prisma/client";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import GuildBadge from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
@@ -99,6 +100,8 @@ export default async function SellerShopPage({
       vacationMode: true,
       vacationReturnDate: true,
       vacationMessage: true,
+      isFoundingMaker: true,
+      foundingMakerNumber: true,
       user: { select: { imageUrl: true, clerkId: true, banned: true, deletedAt: true } },
     },
   });
@@ -266,6 +269,13 @@ export default async function SellerShopPage({
               {seller.displayName ? `${seller.displayName}'s Shop` : "Shop"}
             </h1>
             <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
+            {seller.isFoundingMaker && (
+              <FoundingMakerBadge
+                number={seller.foundingMakerNumber}
+                showLabel={true}
+                size={26}
+              />
+            )}
           </div>
           {meId !== seller.userId && (
             <div className="mt-1">

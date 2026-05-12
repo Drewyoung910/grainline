@@ -15,6 +15,7 @@ import { CATEGORY_LABELS } from "@/lib/categories";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
 import GuildBadge from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
@@ -552,6 +553,12 @@ export default async function ListingPage({
                     {sellerName}
                   </Link>
                   <GuildBadge level={listing.seller.guildLevel} showLabel={true} size={32} />
+                  {listing.seller.isFoundingMaker && (
+                    <FoundingMakerBadge
+                      number={listing.seller.foundingMakerNumber}
+                      size={22}
+                    />
+                  )}
                 </div>
                 {listing.seller.tagline && (
                   <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>

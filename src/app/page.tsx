@@ -312,8 +312,8 @@ export default async function HomePage() {
     }),
     prisma.listing.findMany({
       where: publicListingWhere(),
-      orderBy: { createdAt: "desc" },
-      take: 16,
+      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }],
+      take: 24,
       select: {
         id: true,
         title: true,
@@ -492,11 +492,23 @@ export default async function HomePage() {
       }`}>
         {mosaicPhotos.length >= 12 && <HeroMosaic photos={mosaicPhotos} />}
         <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
+          <div className="flex justify-center">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider ${
+                mosaicPhotos.length >= 12
+                  ? "bg-white/15 text-white/90 backdrop-blur-sm ring-1 ring-white/30"
+                  : "bg-white text-amber-800 ring-1 ring-amber-200"
+              }`}
+            >
+              <span aria-hidden="true">★</span>
+              Made in the USA · Built in Texas
+            </span>
+          </div>
           <h1 className={`text-display font-display ${mosaicPhotos.length >= 12 ? "text-white" : "text-neutral-900"}`}>
             Buy handmade.<br />Buy local. Buy quality.
           </h1>
           <p className={`text-lg ${mosaicPhotos.length >= 12 ? "text-white/80" : "text-stone-500"}`}>
-            Handmade woodworking pieces from makers across the country.
+            Handmade woodworking from American makers. Real wood, real workshops, real people.
           </p>
 
           <div className="max-w-xl mx-auto [&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60">

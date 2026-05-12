@@ -147,8 +147,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <h3 className="font-semibold text-white text-sm mb-3">Help</h3>
                   <ul className="space-y-2 text-xs">
                     <li><Link href="/support" className="text-stone-300 hover:text-white hover:underline">Contact support</Link></li>
-                    <li><Link href="/seller-handbook#shipping" className="text-stone-300 hover:text-white hover:underline">Shipping &amp; returns</Link></li>
-                    <li><Link href="/seller-handbook#disputes" className="text-stone-300 hover:text-white hover:underline">Trust &amp; safety</Link></li>
+                    <li><Link href="/help/shipping-and-returns" className="text-stone-300 hover:text-white hover:underline">Shipping &amp; returns</Link></li>
+                    <li><Link href="/help/trust-and-safety" className="text-stone-300 hover:text-white hover:underline">Trust &amp; safety</Link></li>
                     <li><Link href="/accessibility" className="text-stone-300 hover:text-white hover:underline">Accessibility</Link></li>
                   </ul>
                 </nav>

@@ -11,6 +11,7 @@ import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
@@ -332,6 +333,13 @@ export default async function SellerPublicPage({
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold">{seller.displayName}</h1>
                 <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
+                {seller.isFoundingMaker && (
+                  <FoundingMakerBadge
+                    number={seller.foundingMakerNumber}
+                    showLabel={true}
+                    size={28}
+                  />
+                )}
               </div>
               {seller.tagline && (
                 <p className="text-sm text-neutral-600 mt-0.5">{seller.tagline}</p>

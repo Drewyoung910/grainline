@@ -2472,6 +2472,50 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 ### Architecture lesson learned
 **Never use render props (children-as-function) in Next.js server components.** Functions cannot cross the server/client serialization boundary. Use self-contained client components with serializable props instead. If a client component needs server-computed data, pass it as props — don't wrap server JSX in a client render prop.
 
+## Founding Maker Badge (2026-05-11)
+
+First-250-seller recognition program. Permanent badge granted at the moment a `SellerProfile` is created.
+
+### Schema additions on `SellerProfile`
+- `isFoundingMaker Boolean @default(false)`
+- `foundingMakerNumber Int?` (1..250, unique-indexed when granted; null otherwise)
+- `foundingMakerAt DateTime?`
+- Migration: `20260511232729_add_founding_maker` — adds the columns, backfills the first 250 existing sellers (ordered by `createdAt` asc, then `id` asc), and creates `SellerProfile_foundingMakerNumber_key` unique index plus `SellerProfile_isFoundingMaker_idx`.
+
+### Auto-grant behavior
+`ensureSeller()` wraps the `SellerProfile.create` in a `prisma.$transaction` that:
+1. Counts existing `isFoundingMaker: true` rows.
+2. If count `< 250`, sets `isFoundingMaker: true`, `foundingMakerNumber: count + 1`, `foundingMakerAt: now()`.
+3. Otherwise creates the profile with the founding fields null/false.
+
+The transaction makes two parallel first-time sellers race-safe (one becomes the next-numbered Founding Maker, the other does not). Once 250 is hit, this branch becomes effectively read-only for new signups.
+
+### `FoundingMakerBadge` component (`src/components/FoundingMakerBadge.tsx`)
+- `"use client"` wax-seal-style amber/gold disc with a star center, hydration-safe portal popover.
+- Props: `number?: number | null`, `showLabel?: boolean` (default false), `size?: number` (default 22).
+- Popover copy: "One of the first 250 makers on Grainline. This badge is permanent and was awarded in recognition of early support for the platform."
+
+### Placement
+- **Seller profile** (`/seller/[id]`): shown next to the `GuildBadge` in the name row with `showLabel={true}`, `size={28}`.
+- **Seller shop** (`/seller/[id]/shop`): shown next to the `GuildBadge` in the shop header with `showLabel={true}`, `size={26}`. Query updated to `select` `isFoundingMaker` and `foundingMakerNumber`.
+- **Listing detail** (`/listing/[id]`): shown next to the seller's `GuildBadge` in the purchase panel seller card with `showLabel={false}`, `size={22}`. The listing query already uses `seller: { include: { ... } }` so the new columns flow through automatically.
+
+### Display rules to preserve
+- Founding Maker is independent of `guildLevel`. A seller can be Founding Maker only, Guild Member only, both, or neither.
+- The number is permanent and never reassigned (unique index enforces this). If a Founding Maker's seller profile is hard-deleted in the future, the number is NOT recycled — gaps are acceptable.
+- Do not render the badge without the popover. The "first 250" explanation is the only thing that gives the badge meaning to a new buyer.
+
+## Buyer Help Pages (2026-05-11)
+
+The footer Help section now points at buyer-facing pages instead of `/seller-handbook#shipping` and `/seller-handbook#disputes`.
+
+- **`/help/shipping-and-returns`** — buyer-focused content: processing vs shipping time, local pickup, shipping cost calculation, cases for damaged/late/wrong orders, refund timing, returns, lost/stolen packages.
+- **`/help/trust-and-safety`** — buyer-focused content: maker verification + Stripe payment auth, Guild badges explained, buyer protection / case flow, reporting tools, blocking, privacy/data, DMCA/IP takedown procedure.
+- Both routes added to `isPublic` in `src/middleware.ts` via `"/help(.*)"`.
+- Both routes added to `sitemap.ts` at priority 0.5 monthly.
+
+The seller-handbook content (`#shipping`, `#disputes`) stays — it's still the source of truth for makers — but it's no longer linked from the buyer-facing footer.
+
 ## Pending Tasks
 
 ### Code Change Safety Rules

@@ -49,6 +49,8 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     { url: `${BASE_URL}/commission`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "daily", priority: 0.7 },
     { url: `${BASE_URL}/about`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.6 },
     { url: `${BASE_URL}/seller-handbook`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${BASE_URL}/help/shipping-and-returns`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/help/trust-and-safety`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/become-a-maker`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE_URL}/terms`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
