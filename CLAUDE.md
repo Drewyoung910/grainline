@@ -4,6 +4,8 @@ A woodworking marketplace built with Next.js, similar to Etsy/Amazon but focused
 
 Completed audit/fix pass history lives in `CLOSED_AUDIT_HISTORY.md`. Keep current architecture, helpers, schema/env notes, and future-agent behavior contracts in this file; move completed audit-pass log sections older than 60 days to the archive instead of accumulating them inline.
 
+Strategic roadmap, recruitment playbooks, referral system phasing, and "things not to do" live in `STRATEGY.md`. CLAUDE.md is the codebase contract; STRATEGY.md is what hasn't been built yet and why. Update STRATEGY.md after any session that produces a strategic decision.
+
 ## Design System
 
 Visual standards for all UI work on this codebase. Do not deviate without explicit instruction.
