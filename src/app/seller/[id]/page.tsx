@@ -20,6 +20,7 @@ import CoverLightbox from "@/components/CoverLightbox";
 import SellerProfileViewTracker from "@/components/SellerProfileViewTracker";
 import ListingCard from "@/components/ListingCard";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
+import ExpandableText from "@/components/ExpandableText";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
@@ -382,184 +383,151 @@ export default async function SellerPublicPage({
           </div>
         </div>
 
-        <div className="px-2 sm:px-4 pt-16 pb-2">
-          {/* Identity + CTAs in a 2-column layout on lg+, single column on
-              mobile. The right column carries the action buttons so the top
-              of the page doesn't feel left-heavy or empty on the right. */}
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-x-8 gap-y-6 items-start">
+        <div className="px-2 sm:px-4 pt-16 pb-2 space-y-4">
+          {/* Top row: name + badges (left), Back to Browse (right). */}
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
+              <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
+              {seller.isFoundingMaker && (
+                <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
+              )}
+            </div>
+            <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1">
+              ← Back to Browse
+            </Link>
+          </div>
 
-            {/* LEFT — identity content */}
-            <div className="min-w-0 space-y-3">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
-                  <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
-                  <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
-                  {seller.isFoundingMaker && (
-                    <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
-                  )}
-                </div>
-                <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1 lg:hidden">
-                  ← Back to Browse
+          {seller.tagline && (
+            <p className="text-base sm:text-lg text-neutral-700 italic max-w-3xl">{seller.tagline}</p>
+          )}
+
+          {/* Inline meta + stats in a single horizontal flow. Etsy-style:
+              location · sold · rating · ship · years · member-since · pills.
+              Saves vertical space and reads as a clean shop summary. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-700">
+            {cityState && (
+              <>
+                <span className="flex items-center gap-1">
+                  <MapPin size={14} className="shrink-0 text-neutral-500" />
+                  {cityState}
+                </span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {!isNewSeller && soldCount > 0 && (
+              <>
+                <span><span className="font-semibold">{soldCount.toLocaleString("en-US")}</span>{" "}{soldCount === 1 ? "piece sold" : "pieces sold"}</span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {shopRating && shopRating.count > 0 && (
+              <>
+                <span className="flex items-baseline gap-1">
+                  <span className="font-semibold">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
+                  <span className="text-amber-500">★</span>
+                  <span className="text-neutral-500">({shopRating.count.toLocaleString("en-US")})</span>
+                </span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {avgShipDays != null && (
+              <>
+                <span><span className="font-semibold">Ships in {avgShipDays}</span>{" "}{avgShipDays === 1 ? "day" : "days"}</span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {seller.yearsInBusiness != null && seller.yearsInBusiness > 0 && (
+              <>
+                <span><span className="font-semibold">{seller.yearsInBusiness}</span>{" "}{seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}</span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            <span className="text-neutral-600">Member since {memberSinceYear}</span>
+            {seller.acceptsCustomOrders && (
+              <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 font-medium">Accepting custom orders</span>
+            )}
+            {!seller.acceptingNewOrders && (
+              <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 font-medium">Not currently taking new orders</span>
+            )}
+          </div>
+
+          {/* Bio with expand */}
+          {seller.bio && (
+            <ExpandableText text={seller.bio} clampLines={3} className="max-w-3xl" />
+          )}
+
+          {/* Action row */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {meId !== seller.userId && (
+              <>
+                <Link
+                  href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                  className="inline-flex items-center justify-center rounded-md bg-[#2C1F1A] text-white px-5 py-2 text-sm font-semibold hover:bg-[#3A2A24] transition-colors"
+                >
+                  Message Maker
                 </Link>
-              </div>
-
-              {seller.tagline && (
-                <p className="text-base text-neutral-700 italic max-w-2xl">{seller.tagline}</p>
-              )}
-
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-600">
-                {cityState && (
-                  <span className="flex items-center gap-1">
-                    <MapPin size={14} className="shrink-0" />
-                    {cityState}
-                  </span>
-                )}
+                <FollowButton
+                  sellerProfileId={seller.id}
+                  sellerUserId={seller.userId}
+                  initialFollowing={isFollowing}
+                  initialCount={followerCount}
+                  size="sm"
+                />
                 {seller.acceptsCustomOrders && (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">Accepting custom orders</span>
-                )}
-                {!seller.acceptingNewOrders && (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Not currently taking new orders</span>
-                )}
-              </div>
-
-              {seller.bio && (
-                <p className="text-sm text-neutral-700 leading-relaxed max-w-2xl line-clamp-3">
-                  {seller.bio}
-                </p>
-              )}
-
-              {/* Stat band — compact inline row */}
-              <div className="rounded-full bg-[#D9E2D5] px-5 py-2 inline-flex flex-wrap items-baseline gap-x-5 gap-y-1 max-w-full">
-                {isNewSeller ? (
-                  <>
-                    <span className="text-sm text-neutral-800">
-                      <span className="font-semibold">Member since {memberSinceYear}</span>
-                    </span>
-                    <span className="text-xs text-neutral-600 italic">Recently joined Grainline</span>
-                  </>
-                ) : (
-                  <>
-                    {soldCount > 0 && (
-                      <span className="text-sm text-neutral-800">
-                        <span className="font-semibold">{soldCount.toLocaleString("en-US")}</span>{" "}
-                        {soldCount === 1 ? "piece sold" : "pieces sold"}
-                      </span>
-                    )}
-                    {shopRating && shopRating.count > 0 && (
-                      <span className="text-sm text-neutral-800 flex items-baseline gap-1">
-                        <span className="font-semibold">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
-                        <span className="text-amber-500 text-sm">★</span>
-                        <span className="text-neutral-600">({shopRating.count.toLocaleString("en-US")})</span>
-                      </span>
-                    )}
-                    {avgShipDays != null && (
-                      <span className="text-sm text-neutral-800">
-                        <span className="font-semibold">Ships in {avgShipDays}</span>{" "}
-                        {avgShipDays === 1 ? "day" : "days"}
-                      </span>
-                    )}
-                    {seller.yearsInBusiness != null && seller.yearsInBusiness > 0 && (
-                      <span className="text-sm text-neutral-800">
-                        <span className="font-semibold">{seller.yearsInBusiness}</span>{" "}
-                        {seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}
-                      </span>
-                    )}
-                    <span className="text-sm text-neutral-700">Member since {memberSinceYear}</span>
-                  </>
-                )}
-              </div>
-
-              {socialLinks.length > 0 && (
-                <div className="flex flex-wrap gap-3 pt-1">
-                  {socialLinks.map(({ label, url, Icon }) => (
-                    <a
-                      key={label}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={label}
-                      className="text-neutral-500 hover:text-neutral-900"
+                  meId ? (
+                    <CustomOrderRequestForm
+                      sellerUserId={seller.userId}
+                      sellerName={seller.displayName}
+                      triggerLabel="Request a Custom Piece"
+                      triggerClassName="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                    />
+                  ) : (
+                    <Link
+                      href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                      className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
                     >
-                      <Icon size={20} />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
+                      <Hammer size={15} />
+                      Request a Custom Piece
+                    </Link>
+                  )
+                )}
+                <Link
+                  href={publicSellerShopPath(seller.id, seller.displayName)}
+                  className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                >
+                  View all listings
+                </Link>
+              </>
+            )}
 
-            {/* RIGHT — action column. Stacks below identity on mobile; sits
-                in the right column on lg+. The ··· menu is anchored to the
-                top-right corner of the column. */}
-            <div className="lg:w-full">
-              {meId !== seller.userId ? (
-                <div className="relative flex flex-wrap gap-2 lg:flex-col lg:gap-2.5">
-                  {/* Back to Browse — desktop only, top of CTA column */}
-                  <Link
-                    href="/browse"
-                    className="hidden lg:flex text-sm text-neutral-600 hover:text-neutral-900 underline self-end mb-1"
+            {socialLinks.length > 0 && (
+              <div className="flex flex-wrap gap-3 items-center ml-1">
+                {socialLinks.map(({ label, url, Icon }) => (
+                  <a
+                    key={label}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={label}
+                    className="text-neutral-500 hover:text-neutral-900"
                   >
-                    ← Back to Browse
-                  </Link>
-                  {/* ··· menu sits inline at the end on mobile, absolute top-right on desktop */}
-                  {meId && (
-                    <span className="lg:absolute lg:top-0 lg:right-0 ml-auto lg:ml-0">
-                      <BlockReportButton
-                        targetUserId={seller.userId}
-                        targetName={seller.displayName ?? "this maker"}
-                        targetType="SELLER"
-                        targetId={seller.id}
-                      />
-                    </span>
-                  )}
-                  <Link
-                    href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                    className="inline-flex items-center justify-center rounded-md bg-[#2C1F1A] text-white px-4 py-2 lg:py-2.5 text-sm font-semibold hover:bg-[#3A2A24] transition-colors lg:w-full"
-                  >
-                    Message Maker
-                  </Link>
-                  <FollowButton
-                    sellerProfileId={seller.id}
-                    sellerUserId={seller.userId}
-                    initialFollowing={isFollowing}
-                    initialCount={followerCount}
-                    size="sm"
-                  />
-                  {seller.acceptsCustomOrders && (
-                    meId ? (
-                      <CustomOrderRequestForm
-                        sellerUserId={seller.userId}
-                        sellerName={seller.displayName}
-                        triggerLabel="Request a Custom Piece"
-                        triggerClassName="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 lg:w-full"
-                      />
-                    ) : (
-                      <Link
-                        href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                        className="inline-flex items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 lg:w-full"
-                      >
-                        <Hammer size={15} />
-                        Request a Custom Piece
-                      </Link>
-                    )
-                  )}
-                  <Link
-                    href={publicSellerShopPath(seller.id, seller.displayName)}
-                    className="inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 lg:w-full"
-                  >
-                    View all listings
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex justify-end lg:justify-start">
-                  <Link
-                    href="/browse"
-                    className="text-sm text-neutral-600 underline hover:text-neutral-900"
-                  >
-                    ← Back to Browse
-                  </Link>
-                </div>
-              )}
-            </div>
+                    <Icon size={20} />
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {meId && meId !== seller.userId && (
+              <span className="ml-auto">
+                <BlockReportButton
+                  targetUserId={seller.userId}
+                  targetName={seller.displayName ?? "this maker"}
+                  targetType="SELLER"
+                  targetId={seller.id}
+                />
+              </span>
+            )}
           </div>
         </div>
       </section>
@@ -782,11 +750,11 @@ export default async function SellerPublicPage({
               );
             })()}
 
-            {/* Tag filter row — pulls top-used tags across the seller's active
-                public listings. Dashes humanized for display only; href keeps
-                the raw tag for the shop filter. */}
+            {/* Tag filter row — desktop only. Mobile has limited horizontal
+                space and the filter chips were adding visual noise; on mobile
+                the user can filter from the dedicated shop page. */}
             {topTags.length >= 3 && (
-              <div className="flex flex-wrap items-center gap-2 mb-5">
+              <div className="hidden sm:flex flex-wrap items-center gap-2 mb-5">
                 <span className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mr-1">
                   Filter:
                 </span>
