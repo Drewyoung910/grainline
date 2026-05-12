@@ -31,6 +31,7 @@ const isPublic = createRouteMatcher([
   "/about",               // About page — public
   "/support",             // Support request form — no auth needed
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
+  "/seller-handbook",     // public seller handbook — SEO/recruitment content
   "/cart(.*)",            // anonymous cart page; server cart APIs still enforce auth/account state
   "/accept-terms(.*)",    // full-page terms gate; page redirects signed-out users to sign-in
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance
