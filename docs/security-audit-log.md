@@ -252,6 +252,13 @@ Spot checks completed in this pass:
   - Blog delete action was tightened to check suspended/deleted account state inside the server action before deleting author-owned posts.
   - Result: no verified IDOR found; defense-in-depth account-state fix applied to the delete server action.
 
+- `src/app/admin/actions.ts`, `src/app/admin/support/actions.ts`, `src/app/admin/blog/page.tsx`, `src/app/admin/broadcasts/page.tsx`, and `src/app/admin/verification/page.tsx`
+  - Middleware already enforces signed-in admin role checks and signed Admin PIN checks for admin APIs and server-action POSTs.
+  - Server actions also re-check staff authority before mutation. During this pass, admin order/support/blog/broadcast action helpers were tightened to select and reject suspended/deleted staff accounts inside the action itself, matching the stronger `admin/verification/page.tsx` helper.
+  - Guild approval/rejection/revocation/reinstatement/feature actions use status or state preconditions and log `AdminAuditLog` entries.
+  - Blog moderation and broadcast deletion actions are admin/staff-only and log admin actions; no private user self-service path calls these actions.
+  - Result: no verified IDOR found; defense-in-depth suspended/deleted staff guard added for consistency.
+
 Out-of-scope verified issue found during this pass:
 
 - Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.

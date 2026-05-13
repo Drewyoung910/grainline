@@ -15,9 +15,14 @@ async function requireAdmin() {
   if (!userId) throw new Error("Unauthorized");
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, banned: true, deletedAt: true },
   });
-  if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) {
+  if (
+    !user ||
+    user.banned ||
+    user.deletedAt ||
+    (user.role !== "EMPLOYEE" && user.role !== "ADMIN")
+  ) {
     throw new Error("Forbidden");
   }
   return user;

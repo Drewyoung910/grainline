@@ -12,8 +12,11 @@ async function deleteBroadcast(formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const user = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true, role: true } });
-  if (!user || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, role: true, banned: true, deletedAt: true },
+  });
+  if (!user || user.banned || user.deletedAt || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
   const id = String(formData.get("id") ?? "");
   if (id) {
