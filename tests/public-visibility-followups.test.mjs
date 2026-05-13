@@ -31,14 +31,22 @@ describe("public visibility follow-ups", () => {
     assert.deepEqual(savedListingFavoriteWhere("user_1", ["seller_2"]), {
       userId: "user_1",
       listing: {
-        status: { in: ["ACTIVE", "SOLD_OUT"] },
-        isPrivate: false,
-        sellerId: { notIn: ["seller_2"] },
-        seller: {
-          chargesEnabled: true,
-          vacationMode: false,
-          user: { banned: false, deletedAt: null },
-        },
+        AND: [
+          {
+            status: { in: ["ACTIVE", "SOLD_OUT"] },
+            isPrivate: false,
+            seller: {
+              chargesEnabled: true,
+              OR: [
+                { stripeAccountVersion: null },
+                { stripeAccountVersion: "v2" },
+              ],
+              vacationMode: false,
+              user: { banned: false, deletedAt: null },
+            },
+          },
+          { sellerId: { notIn: ["seller_2"] } },
+        ],
       },
     });
   });
