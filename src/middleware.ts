@@ -31,6 +31,8 @@ const isPublic = createRouteMatcher([
   "/monitoring",          // Sentry client-event tunnel — no Clerk session
   "/about",               // About page — public
   "/support",             // Support request form — no auth needed
+  "/security",            // Security disclosure policy — no auth needed
+  "/.well-known/security.txt", // Security disclosure metadata — no auth needed
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
   "/seller-handbook",     // public seller handbook — SEO/recruitment content
   "/help(.*)",            // public buyer-facing help pages
@@ -85,6 +87,8 @@ const isTermsAcceptanceAllowed = createRouteMatcher([
   "/accessibility",
   "/unsubscribe",
   "/support",
+  "/security",
+  "/.well-known/security.txt",
   "/not-available",
   "/monitoring",
   "/banned",
@@ -110,6 +114,8 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/accessibility",
   "/unsubscribe",
   "/support",
+  "/security",
+  "/.well-known/security.txt",
   "/not-available",
   "/monitoring",
   "/api/clerk/webhook",
@@ -183,7 +189,12 @@ function isGeoAllowedApiPath(pathname: string): boolean {
 }
 
 function isGeoAllowedPagePath(pathname: string): boolean {
-  return pathname === "/support" || pathname === "/legal/data-request";
+  return (
+    pathname === "/support" ||
+    pathname === "/security" ||
+    pathname === "/.well-known/security.txt" ||
+    pathname === "/legal/data-request"
+  );
 }
 
 function isCronPath(pathname: string): boolean {

@@ -61,7 +61,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Sentry: production project receiving errors and source maps.
 - UptimeRobot: monitoring `https://thegrainline.com/api/health`.
 - GitHub: branch protection on `main`, required CI, Dependabot alerts/updates, secret scanning/push protection where available, and CodeQL/code scanning where available.
-- Security disclosure: `security@thegrainline.com`, `/security`, and `/.well-known/security.txt` are live or explicitly deferred with an owner/date.
+- Security disclosure: `/security` and `/.well-known/security.txt` are live; `security@thegrainline.com` mailbox routing verified.
 
 ## Database And Deploy
 

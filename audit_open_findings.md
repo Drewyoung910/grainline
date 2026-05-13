@@ -3778,6 +3778,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 135. **[HARDENED 2026-05-13] Blank-target links now have a rel boundary** — several admin/dashboard Next `<Link target="_blank">` entries opened internal review surfaces in a new tab without an explicit `rel`. Modern browsers generally imply `noopener`, but the codebase now makes the boundary explicit on all blank-target links. Source guardrail: `tests/link-security.test.mjs`.
 
+136. **[HARDENED 2026-05-13] Public vulnerability disclosure channel added** — Grainline now exposes `/security` and `/.well-known/security.txt` so security researchers have a clear reporting channel and RFC 9116 metadata. Both routes are middleware-public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt; launch ops still must verify `security@thegrainline.com` mailbox routing. Source guardrail: `tests/security-disclosure.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

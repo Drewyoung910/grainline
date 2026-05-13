@@ -55,6 +55,12 @@ Controls to copy before or near launch:
 - Add incident-response appendices for breach-notification clocks and vendor security contact paths.
 - Consider a public transparency report later. Etsy has long used transparency reporting as a marketplace trust signal; Grainline already has the underlying case/report/admin-audit data.
 
+Implemented 2026-05-13:
+
+- Public disclosure page: `/security`.
+- RFC 9116 metadata: `/.well-known/security.txt`.
+- Both routes are middleware-public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt. Keep `security@thegrainline.com` mailbox routing verified before launch.
+
 Controls to design, not rush:
 
 - RLS on high-risk private tables. It is useful defense in depth, but Prisma plus pooled connections require careful request context and bypass-role design.
