@@ -72,7 +72,13 @@ If a Prisma migration has already been applied in production, do not rename its 
 ## Operational Docs
 
 - `CLAUDE.md` is the canonical project knowledge base for agents and implementation history.
+- `docs/architecture.md` is the short human onboarding map for future engineers.
+- `docs/security-hardening-plan.md` defines the adversarial security audit process and RLS stance.
+- `docs/security-audit-log.md` tracks the current hardening pass and verified/non-finding spot checks.
+- `docs/maintainability-plan.md` defines the stabilization, review, and bug-resistance plan.
+- `docs/legal-risk-register.md` tracks product/legal risks for attorney review.
 - `docs/launch-checklist.md` covers launch-critical vendor/env/smoke-test steps.
+- `docs/runbook.md` covers production incident response, rollback, webhook recovery, restore drills, and secret rotation.
 - `.env.example` lists required and optional environment variables.
 
 ## Current Launch Notes

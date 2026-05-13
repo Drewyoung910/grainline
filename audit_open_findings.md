@@ -1,6 +1,16 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
+
+## 2026-05-13 — Security hardening + maintainability planning
+
+Drew asked for a concrete plan to harden Grainline against AI-assisted attacker discovery, avoid false confidence from AI audits, and make the codebase maintainable by a future team without rewriting it.
+
+1. **[DOCUMENTED 2026-05-13] Human architecture map added.** `docs/architecture.md` now summarizes product shape, stack, source layout, request/auth boundaries, core lifecycles, operational references, and engineering rules of thumb. This is the first-read onboarding document for future developers; `CLAUDE.md` remains the detailed behavior-contract log.
+2. **[DOCUMENTED 2026-05-13] Security hardening process added.** `docs/security-hardening-plan.md` defines evidence requirements, anti-false-confidence rules, IDOR/authz audit scope, payment/webhook audit scope, upload/XSS audit scope, abuse/cost-control audit scope, privacy/account-lifecycle audit scope, and a targeted RLS feasibility phase. Current stance: app-layer auth is the production model today; RLS should be evaluated deliberately after route/action authorization is verified.
+3. **[DOCUMENTED 2026-05-13] Maintainability and bug-resistance plan added.** `docs/maintainability-plan.md` records that the codebase needs stabilization, not a rewrite, and defines merge discipline, AI-assisted development rules, refactor priorities, and team handoff standards.
+4. **[DOCUMENTED 2026-05-13] Legal risk register added.** `docs/legal-risk-register.md` tracks counsel-facing risk areas: Terms/Privacy/clickwrap, marketplace payments, sales tax, seller disclosures/INFORM, consumer protection, privacy/retention, UGC/IP/DMCA, accessibility, email/marketing, geo/sanctions, and insurance. It is explicitly not legal advice.
+5. **[STARTED 2026-05-13] Authorization/IDOR audit log added.** `docs/security-audit-log.md` records the route/action inventory and first spot checks. Initial spot checks found no verified IDOR in review edit/delete, seller order fulfillment, commission detail/close, or case mark-resolved paths; remaining dynamic private routes still need the same treatment.
 
 ## 2026-05-12 — Codex resumed: Claude-change audit + launch polish
 
