@@ -4,7 +4,6 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import AddPhotosButton from "@/components/AddPhotosButton";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import EditPhotoGrid from "@/components/EditPhotoGrid";
@@ -61,6 +60,78 @@ function normalizeVariantGroupsForCompare(
           inStock: option.inStock,
         })),
     }));
+}
+
+type ExistingPhotoForManifest = {
+  id: string;
+  url: string;
+  originalUrl: string | null;
+  altText: string | null;
+};
+
+type PhotoManifestItem = {
+  id: string | null;
+  url: string;
+  originalUrl: string | null;
+  altText: string | null;
+};
+
+function parsePhotoManifestField(
+  value: FormDataEntryValue | null,
+  existingPhotos: ExistingPhotoForManifest[],
+): { ok: true; photos: PhotoManifestItem[] } | { ok: false; error: string } {
+  if (typeof value !== "string" || value.trim() === "") {
+    return {
+      ok: true,
+      photos: existingPhotos.map((photo) => ({
+        id: photo.id,
+        url: photo.url,
+        originalUrl: photo.originalUrl,
+        altText: photo.altText,
+      })),
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return { ok: false, error: "Invalid photo data. Refresh and try again." };
+  }
+  if (!Array.isArray(parsed)) {
+    return { ok: false, error: "Invalid photo data. Refresh and try again." };
+  }
+  if (parsed.length > 10) {
+    return { ok: false, error: "Listings can have up to 10 photos." };
+  }
+
+  const existingById = new Map(existingPhotos.map((photo) => [photo.id, photo]));
+  const photos: PhotoManifestItem[] = [];
+  for (const raw of parsed) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return { ok: false, error: "Invalid photo data. Refresh and try again." };
+    }
+    const item = raw as Record<string, unknown>;
+    const rawId = typeof item.id === "string" && item.id.trim() ? item.id.trim() : null;
+    const existingPhoto = rawId ? existingById.get(rawId) : null;
+    if (rawId && !existingPhoto) {
+      return { ok: false, error: "Invalid photo data. Refresh and try again." };
+    }
+    const url = typeof item.url === "string" ? item.url.trim() : "";
+    if (!url || !isFirstPartyMediaUrl(url)) {
+      return { ok: false, error: "Invalid photo URL. Use uploaded Grainline images only." };
+    }
+    const rawOriginalUrl = typeof item.originalUrl === "string" ? item.originalUrl.trim() : "";
+    const originalUrl = existingPhoto
+      ? existingPhoto.originalUrl ?? existingPhoto.url
+      : rawOriginalUrl && isFirstPartyMediaUrl(rawOriginalUrl)
+        ? rawOriginalUrl
+        : url;
+    const altText = truncateText(sanitizeText(String(item.altText ?? "").trim()), 200) || null;
+    photos.push({ id: rawId, url, originalUrl, altText });
+  }
+
+  return { ok: true, photos };
 }
 
 async function updateListing(
@@ -169,6 +240,7 @@ async function updateListing(
   const listing = await prisma.listing.findFirst({
     where: { id: listingId, seller: { user: { clerkId: userId } } },
     include: {
+      photos: { orderBy: { sortOrder: "asc" } },
       variantGroups: {
         orderBy: { sortOrder: "asc" },
         include: { options: { orderBy: { sortOrder: "asc" } } },
@@ -178,6 +250,39 @@ async function updateListing(
   if (!listing) return { ok: false, error: "Not allowed" };
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
+
+  const photoManifest = parsePhotoManifestField(formData.get("photoManifestJson"), listing.photos);
+  if (!photoManifest.ok) return { ok: false, error: photoManifest.error };
+  if (photoManifest.photos.length === 0) {
+    return { ok: false, error: "Add at least one listing photo before saving." };
+  }
+  const nextPhotosById = new Map(
+    photoManifest.photos
+      .filter((photo): photo is PhotoManifestItem & { id: string } => Boolean(photo.id))
+      .map((photo) => [photo.id, photo]),
+  );
+  const retainedUrls = new Set(
+    photoManifest.photos.flatMap((photo) => [photo.url, photo.originalUrl].filter((url): url is string => Boolean(url))),
+  );
+  const r2CleanupUrls = new Set<string>();
+  for (const existingPhoto of listing.photos) {
+    const nextPhoto = nextPhotosById.get(existingPhoto.id);
+    if (!nextPhoto) {
+      if (!retainedUrls.has(existingPhoto.url)) r2CleanupUrls.add(existingPhoto.url);
+      if (existingPhoto.originalUrl && existingPhoto.originalUrl !== existingPhoto.url && !retainedUrls.has(existingPhoto.originalUrl)) {
+        r2CleanupUrls.add(existingPhoto.originalUrl);
+      }
+      continue;
+    }
+    if (
+      nextPhoto.url !== existingPhoto.url &&
+      existingPhoto.originalUrl &&
+      existingPhoto.originalUrl !== existingPhoto.url &&
+      !retainedUrls.has(existingPhoto.url)
+    ) {
+      r2CleanupUrls.add(existingPhoto.url);
+    }
+  }
 
   // Detect price/variant changes for priceVersion bump and to flag this
   // save as a content edit that should go through AI re-review.
@@ -253,12 +358,46 @@ async function updateListing(
       });
     }
 
+    const retainedPhotoIds = photoManifest.photos
+      .map((photo) => photo.id)
+      .filter((id): id is string => Boolean(id));
+    await tx.photo.deleteMany({
+      where: retainedPhotoIds.length
+        ? { listingId, id: { notIn: retainedPhotoIds } }
+        : { listingId },
+    });
+    for (let index = 0; index < photoManifest.photos.length; index++) {
+      const photo = photoManifest.photos[index];
+      if (photo.id) {
+        await tx.photo.updateMany({
+          where: { id: photo.id, listingId },
+          data: {
+            url: photo.url,
+            originalUrl: photo.originalUrl ?? photo.url,
+            altText: photo.altText,
+            sortOrder: index,
+          },
+        });
+      } else {
+        await tx.photo.create({
+          data: {
+            listingId,
+            url: photo.url,
+            originalUrl: photo.originalUrl ?? photo.url,
+            altText: photo.altText,
+            sortOrder: index,
+          },
+        });
+      }
+    }
+
     return updated;
   });
 
   // Save on an ACTIVE listing routes edited text/price/variant/photo content
-  // through AI re-review. AddPhotosButton only attaches photos and refreshes the
-  // edit page; it must not kick the seller into review before they press Save.
+  // through AI re-review. Photo changes are staged in the edit form and are
+  // committed here, so upload/re-crop/reorder/delete cannot kick the seller
+  // into review before they press Save.
   // - If AI approves: listing stays ACTIVE, new content is live.
   // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
   //   stays on the edit page (?saved=pending banner) instead of being
@@ -376,6 +515,14 @@ async function updateListing(
   revalidatePath("/browse");
   revalidateListingSearchCaches();
 
+  await Promise.all(
+    Array.from(r2CleanupUrls).map((url) =>
+      deleteR2ObjectByUrl(url).catch((error) => {
+        console.error("[listing photo save] R2 cleanup failed:", error);
+      }),
+    ),
+  );
+
   // Re-query final status after AI re-review may have transitioned the listing.
   // Public listing path 404s for DRAFT, HIDDEN, REJECTED, PENDING_REVIEW — must
   // redirect to the edit page with a saved banner instead of the public URL.
@@ -405,160 +552,6 @@ async function updateListing(
   // DRAFT / HIDDEN / REJECTED: stay on the edit page with a saved banner so the
   // seller can keep editing.
   redirect(`/dashboard/listings/${listingId}/edit?saved=1`);
-}
-
-
-async function reorderPhotos(listingId: string, photoIds: string[]) {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return;
-
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, seller: { user: { clerkId: userId } } },
-  });
-  if (!listing) return;
-  if (listingEditBlockReason(listing)) return;
-
-  await Promise.all(
-    photoIds.map((id, i) =>
-      prisma.photo.updateMany({ where: { id, listingId }, data: { sortOrder: i } })
-    )
-  );
-
-  revalidatePath(`/dashboard/listings/${listingId}/edit`);
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${listing.sellerId}`);
-  revalidatePath(`/seller/${listing.sellerId}/shop`);
-  revalidatePath("/browse");
-  revalidatePath("/dashboard");
-}
-
-async function deletePhotoAction(listingId: string, photoId: string) {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return;
-
-  const ok = await prisma.photo.findFirst({
-    where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
-    select: { url: true, originalUrl: true, listing: { select: { status: true, isPrivate: true, rejectionReason: true, updatedAt: true, sellerId: true } } },
-  });
-  if (!ok) return;
-  if (listingEditBlockReason(ok.listing)) return;
-
-  await prisma.photo.delete({ where: { id: photoId } });
-  await deleteR2ObjectByUrl(ok.url).catch((error) => {
-    console.error("[listing photo delete] R2 delete failed:", error);
-  });
-  // Also clean up the preserved pre-crop source if it's a different
-  // object than `url` (e.g. the photo had been re-cropped at least once,
-  // so url and originalUrl point to different R2 objects).
-  if (ok.originalUrl && ok.originalUrl !== ok.url) {
-    await deleteR2ObjectByUrl(ok.originalUrl).catch((error) => {
-      console.error("[listing photo delete] R2 original delete failed:", error);
-    });
-  }
-
-  // Photo edits do not trigger a re-review on their own. ACTIVE listings run
-  // AI review when the seller explicitly presses Save.
-
-  revalidatePath(`/dashboard/listings/${listingId}/edit`);
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${ok.listing.sellerId}`);
-  revalidatePath(`/seller/${ok.listing.sellerId}/shop`);
-  revalidatePath("/dashboard");
-}
-
-async function replacePhotoAction(listingId: string, photoId: string, url: string) {
-  "use server";
-  const { userId } = await auth();
-  if (!userId || !isFirstPartyMediaUrl(url)) return;
-
-  const existing = await prisma.photo.findFirst({
-    where: { id: photoId, listingId, listing: { seller: { user: { clerkId: userId } } } },
-    select: {
-      url: true,
-      originalUrl: true,
-      listing: {
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          priceCents: true,
-          category: true,
-          tags: true,
-          status: true,
-          isPrivate: true,
-          rejectionReason: true,
-          updatedAt: true,
-          sellerId: true,
-        },
-      },
-    },
-  });
-  if (!existing) return;
-  if (listingEditBlockReason(existing.listing)) return;
-
-  // Re-crop preserves the pre-crop source:
-  //   - If originalUrl is already populated (this isn't the first re-crop),
-  //     keep it untouched so future re-crops can still zoom out to the
-  //     original frame, and only delete the previously-displayed `url`
-  //     object from R2.
-  //   - If originalUrl is null (legacy photo or first re-crop under the
-  //     new field), lazily backfill it to the current `url` BEFORE we
-  //     overwrite `url` with the new cropped version. The current url
-  //     becomes the preserved original (do NOT delete it from R2). Future
-  //     re-crops will fetch this preserved original as the source.
-  if (existing.originalUrl) {
-    await prisma.photo.updateMany({
-      where: { id: photoId, listingId },
-      data: { url },
-    });
-    await deleteR2ObjectByUrl(existing.url).catch((error) => {
-      console.error("[listing photo replace] R2 delete failed:", error);
-    });
-  } else {
-    await prisma.photo.updateMany({
-      where: { id: photoId, listingId },
-      data: { url, originalUrl: existing.url },
-    });
-    // Intentionally NOT deleting existing.url from R2 — it becomes the
-    // preserved original for future re-crops.
-  }
-
-  // Photo edits do not trigger a re-review on their own. ACTIVE listings run
-  // AI review when the seller explicitly presses Save.
-
-  revalidatePath(`/dashboard/listings/${listingId}/edit`);
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${existing.listing.sellerId}`);
-  revalidatePath(`/seller/${existing.listing.sellerId}/shop`);
-  revalidatePath("/browse");
-  revalidatePath("/dashboard");
-}
-
-async function saveAltTextsAction(listingId: string, altTexts: Record<string, string>) {
-  "use server";
-  const { userId } = await auth();
-  if (!userId) return;
-
-  const listing = await prisma.listing.findFirst({
-    where: { id: listingId, seller: { user: { clerkId: userId } } },
-  });
-  if (!listing) return;
-  if (listingEditBlockReason(listing)) return;
-
-  for (const [photoId, text] of Object.entries(altTexts)) {
-    const altText = truncateText(sanitizeText(text.trim()), 200) || null;
-    await prisma.photo.updateMany({
-      where: { id: photoId, listingId },
-      data: { altText },
-    });
-  }
-
-  revalidatePath(`/dashboard/listings/${listingId}/edit`);
-  revalidatePath(`/listing/${listingId}`);
-  revalidatePath(`/seller/${listing.sellerId}`);
-  revalidatePath(`/seller/${listing.sellerId}/shop`);
 }
 
 export default async function EditListingPage(props: {
@@ -602,8 +595,6 @@ export default async function EditListingPage(props: {
       </main>
     );
   }
-
-  const remaining = Math.max(0, 10 - listing.photos.length);
 
   // Publish button is shown on not-yet-public statuses only — for ACTIVE
   // listings the Save flow already runs AI re-review on edits, so no
@@ -760,6 +751,21 @@ export default async function EditListingPage(props: {
           </p>
         </div>
 
+        {/* Photos section — changes are staged in the form and saved together
+            with the rest of the listing so ACTIVE edits hit AI review at the
+            explicit Save boundary. */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Photos</h2>
+          <p className="text-xs text-neutral-500">
+            Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
+          </p>
+
+          <EditPhotoGrid
+            photos={listing.photos.map((p) => ({ id: p.id, url: p.url, originalUrl: p.originalUrl, altText: p.altText }))}
+            maxPhotos={10}
+          />
+        </section>
+
         <div className="flex flex-col gap-3 pt-2 sm:flex-row">
           <SubmitButton
             name="publish"
@@ -792,26 +798,6 @@ export default async function EditListingPage(props: {
           </p>
         )}
       </ActionForm>
-
-      {/* Photos section */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Photos</h2>
-          <AddPhotosButton listingId={id} remaining={remaining} />
-        </div>
-        <p className="text-xs text-neutral-500">
-          Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
-        </p>
-
-        <EditPhotoGrid
-          photos={listing.photos.map((p) => ({ id: p.id, url: p.url, originalUrl: p.originalUrl, altText: p.altText }))}
-          listingId={id}
-          onReorder={reorderPhotos.bind(null, id)}
-          onDelete={deletePhotoAction.bind(null, id)}
-          onReplace={replacePhotoAction.bind(null, id)}
-          onSaveAltTexts={saveAltTextsAction.bind(null, id)}
-        />
-      </section>
     </main>
   );
 }

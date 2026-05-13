@@ -75,7 +75,7 @@ describe("upload UX follow-ups", () => {
     // Listing photos no longer force a crop on upload — original aspect is
     // preserved so the lightbox shows the full image. Cards use object-cover at
     // aspect-[4/5] to give a consistent grid look.
-    assert.doesNotMatch(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+    assert.doesNotMatch(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /AddPhotosButton/);
     // PhotoManager keeps cropAspect on the re-crop button so sellers can opt
     // into 4:5 framing for an existing photo, but does NOT force it on the
     // initial UploadButton — endpoint is immediately followed by `appearance`,
@@ -109,7 +109,7 @@ describe("upload UX follow-ups", () => {
     assert.match(source("src/components/ImageRecropButton.tsx"), /fileFromUrl/);
     assert.match(source("src/components/EditPhotoGrid.tsx"), /label="Re-crop"/);
     assert.match(source("src/components/PhotoManager.tsx"), /label="Re-crop"/);
-    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /replacePhotoAction/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /photoManifestJson/);
   });
 
   it("does not swallow uploader errors at known upload call sites", () => {
@@ -119,7 +119,7 @@ describe("upload UX follow-ups", () => {
       "src/components/ProfileWorkshopUploader.tsx",
       "src/components/GalleryUploader.tsx",
       "src/components/PhotoManager.tsx",
-      "src/components/AddPhotosButton.tsx",
+      "src/components/EditPhotoGrid.tsx",
       "src/components/ReviewComposer.tsx",
       "src/components/MessageComposer.tsx",
       "src/components/BlogPostForm.tsx",

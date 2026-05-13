@@ -34,7 +34,11 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     assert.match(source("src/components/BroadcastComposer.tsx"), /const controller = new AbortController\(\)/);
     assert.match(source("src/components/BroadcastComposer.tsx"), /return \(\) => controller\.abort\(\)/);
     assert.match(source("src/components/ThreadMessages.tsx"), /pollController\?\.abort\(\)/);
-    assert.match(source("src/components/EditPhotoGrid.tsx"), /reorderAbortRef\.current\?\.abort\(\)/);
+    const editPhotoGrid = source("src/components/EditPhotoGrid.tsx");
+    assert.match(editPhotoGrid, /name="photoManifestJson"/);
+    assert.match(editPhotoGrid, /Photo changes are staged until you press Save/);
+    assert.doesNotMatch(editPhotoGrid, /fetch\(`/);
+    assert.doesNotMatch(editPhotoGrid, /onReorder/);
   });
 
   it("keeps minor UI and config cleanup from drifting back", () => {

@@ -206,7 +206,7 @@ Spot checks completed in this pass:
 
 Out-of-scope verified issue found during this pass:
 
-- Existing-listing photo edits are not fully save-gated. `AddPhotosButton` calls `/api/listings/[id]/photos`, which persists `Photo` rows immediately and revalidates public pages; `EditPhotoGrid` reorder/delete/re-crop/alt-text actions also mutate immediately. This is not an authorization bypass because ownership checks are present, but it contradicts the intended "listing edits commit on Save, then AI review runs" behavior. Promoted to `audit_open_findings.md`.
+- Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.
 
 Open work:
 

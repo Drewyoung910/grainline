@@ -3734,7 +3734,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 114. **[FIXED 2026-05-05] `src/app/dashboard/listings/custom/page.tsx` still imports old `ImagesUploader` instead of `PhotoManager`** — Custom listings now use the shared `PhotoManager` create flow, parse `imageUrlsJson` / `imageAltTextsJson`, persist seller-provided alt text, and backfill blank photo alt text from AI review output.
 
-115. **[UPDATED 2026-05-13] `src/components/AddPhotosButton.tsx` only used on edit page — three uploaders for three surfaces** — The obsolete `ImagesUploader` surface was deleted, so create/custom listing flows share `PhotoManager`. `AddPhotosButton` remains intentionally separate for existing-listing photo attachment because it calls the listing photo API and handles warnings/errors. The previous note claiming this path "triggers moderation re-review" is stale; current save-boundary behavior is tracked as #125.
+115. **[UPDATED 2026-05-13] old edit-listing photo attachment surface retired** — The obsolete `ImagesUploader` surface was deleted, so create/custom listing flows share `PhotoManager`. Existing-listing photo attachment no longer uses a separate immediate API/button path; `EditPhotoGrid` stages photo changes inside the edit form and `updateListing()` commits them on Save. See #125.
 
 116. **[FIXED 2026-04-30] `COMMISSION_ROOM_ENABLED = true` flag** — Header now renders the Commission Room links directly and no longer carries a dead always-true feature flag.
 
@@ -3754,7 +3754,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 124. **[FIXED/VERIFIED 2026-04-30] `safeImgUrl()` allows any HTTPS URL** — current `safeImgUrl()` requires `isR2PublicUrl()` before rendering email images, restricting images to configured first-party media origins.
 
-125. **[VERIFIED 2026-05-13] Existing-listing photo edits are not fully save-gated** — `src/components/AddPhotosButton.tsx` uploads files and immediately calls `/api/listings/[id]/photos`; `src/app/api/listings/[id]/photos/route.ts` persists `Photo` rows and revalidates `/listing/${listingId}` before the seller presses Save. `EditPhotoGrid` reorder/delete/re-crop/alt-text actions also mutate immediately through server actions in `src/app/dashboard/listings/[id]/edit/page.tsx`. This is not an IDOR because ownership checks are present, but it violates the intended behavior that ACTIVE listing edits commit only when the seller presses Save and then run AI review. **Fix:** move existing-listing photo management inside the edit form or stage photo changes client-side/draft-side, commit them in `updateListing()`, and run AI review only at the explicit Save boundary. Add regression coverage that adding/reordering/deleting/re-cropping photos on an ACTIVE listing does not change persisted photos until Save.
+125. **[FIXED 2026-05-13] Existing-listing photo edits were not fully save-gated** — `EditPhotoGrid` now stages upload/reorder/delete/re-crop/alt-text edits client-side and submits `photoManifestJson` inside the main listing edit form. `updateListing()` persists the full photo manifest inside the Save path, then runs ACTIVE listing AI review on the saved photo set. The old `/api/listings/[id]/photos` immediate mutation route now returns HTTP 410 so stale clients cannot bypass the Save boundary. Regression coverage verifies no immediate `Photo` create/update/delete path remains outside Save.
 
 ## Recommended fix order for Codex
 

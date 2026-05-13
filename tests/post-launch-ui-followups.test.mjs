@@ -135,7 +135,7 @@ describe("post-launch UI follow-ups", () => {
     // `appearance` (or other non-cropAspect prop) means cropAspect is NOT set.
     const photoManager = source("src/components/PhotoManager.tsx");
     assert.match(photoManager, /<UploadButton\s+endpoint="listingImage"\s+appearance/);
-    assert.doesNotMatch(source("src/components/AddPhotosButton.tsx"), /cropAspect=\{4 \/ 5\}/);
+    assert.doesNotMatch(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /AddPhotosButton/);
     // Re-crop affordances still pass cropAspect={4/5} so sellers can opt in to
     // 4:5 thumbnail framing on existing photos.
     assert.match(photoManager, /<ImageRecropButton[\s\S]*?cropAspect=\{4 \/ 5\}/);
@@ -282,7 +282,6 @@ describe("post-launch UI follow-ups", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const newPage = source("src/app/dashboard/listings/new/page.tsx");
     const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
-    const addPhotosButton = source("src/components/AddPhotosButton.tsx");
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
     assert.match(helper, /altText: cleaned/);
@@ -290,15 +289,19 @@ describe("post-launch UI follow-ups", () => {
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
     assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
     // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
-    // AddPhotosButton must not kick a seller into review before they press Save.
+    // The old immediate photo API is disabled so uploads/re-crops/reorders
+    // cannot kick a seller into review before they press Save.
     assert.match(editPage, /backfillEmptyAltTexts/);
     const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
     assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
+    assert.match(editPage, /photoManifestJson/);
+    assert.match(editPage, /tx\.photo\.create/);
+    assert.match(editPage, /tx\.photo\.updateMany/);
     assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
     assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
     assert.doesNotMatch(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
-    assert.doesNotMatch(addPhotosButton, /body\.status === "PENDING_REVIEW"/);
-    assert.doesNotMatch(addPhotosButton, /router\.push\(`\/listing\/\$\{listingId\}\?preview=1`\)/);
+    assert.doesNotMatch(addPhotosRoute, /prisma\.photo\.createMany/);
+    assert.match(addPhotosRoute, /status: 410/);
     // Catch returns now include altTexts so TypeScript can union the success
     // type without a property-missing error.
     const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];
@@ -342,13 +345,18 @@ describe("post-launch UI follow-ups", () => {
     assert.match(modal, /const \[mounted, setMounted\] = React\.useState\(false\)/);
   });
 
-  it("EditPhotoGrid syncs local state when initialPhotos prop changes after router.refresh()", () => {
+  it("EditPhotoGrid stages photo changes in the listing form until Save", () => {
     const grid = source("src/components/EditPhotoGrid.tsx");
-    // After AddPhotosButton calls router.refresh(), the new photo prop must
-    // propagate to local state so the new card renders without a manual reload.
-    // Sync key is composed from id+url so identical re-renders don't loop.
+    // Photo interactions stay client-side until the parent edit form submits
+    // photoManifestJson to updateListing.
     assert.match(grid, /photosKey = initialPhotos\.map\(\(p\) => `\$\{p\.id\}:\$\{p\.url\}`\)\.join\("\|"\)/);
     assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?setPhotos\(initialPhotos\)/);
+    assert.match(grid, /name="photoManifestJson"/);
+    assert.match(grid, /Photo changes are staged until you press Save/);
+    assert.doesNotMatch(grid, /onReorder/);
+    assert.doesNotMatch(grid, /onDelete/);
+    assert.doesNotMatch(grid, /onReplace/);
+    assert.doesNotMatch(grid, /onSaveAltTexts/);
     // Alt-text merge keeps in-progress local edits per existing photo id.
     assert.match(grid, /next\[p\.id\] = prev\[p\.id\] \?\? p\.altText/);
   });

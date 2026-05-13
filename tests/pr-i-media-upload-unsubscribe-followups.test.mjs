@@ -10,7 +10,6 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
   it("uses first-party media validation for new write paths while preserving legacy display validation", () => {
     const writePathFiles = [
       "src/app/api/seller/broadcast/route.ts",
-      "src/app/api/listings/[id]/photos/route.ts",
       "src/app/api/reviews/route.ts",
       "src/app/api/reviews/[id]/route.ts",
       "src/app/api/commission/route.ts",

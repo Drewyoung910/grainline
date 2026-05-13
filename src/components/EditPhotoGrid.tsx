@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef, useTransition } from "react";
+import { useEffect, useState, useRef } from "react";
 import ImageRecropButton from "@/components/ImageRecropButton";
+import UploadButton from "@/components/R2UploadButton";
+import { emitToast } from "@/components/Toast";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 type Photo = {
   id: string;
@@ -18,43 +21,30 @@ type Photo = {
 
 export default function EditPhotoGrid({
   photos: initialPhotos,
-  onReorder,
-  onDelete,
-  onReplace,
-  onSaveAltTexts,
+  maxPhotos = 10,
 }: {
   photos: Photo[];
-  listingId: string;
-  onReorder: (photoIds: string[]) => Promise<void>;
-  onDelete: (photoId: string) => Promise<void>;
-  onReplace: (photoId: string, url: string) => Promise<void>;
-  onSaveAltTexts: (data: Record<string, string>) => Promise<void>;
+  maxPhotos?: number;
 }) {
   const [photos, setPhotos] = useState(initialPhotos);
   const [altTexts, setAltTexts] = useState<Record<string, string>>(
     Object.fromEntries(initialPhotos.map((p) => [p.id, p.altText ?? ""]))
   );
-  const [saving, startSaving] = useTransition();
-  const [toast, setToast] = useState<{ message: string; kind: "success" | "error" } | null>(null);
   const [altModalIdx, setAltModalIdx] = useState<number | null>(null);
   const altDialogRef = useRef<HTMLDivElement>(null);
 
   // Drag state
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
-  const reorderAbortRef = useRef<AbortController | null>(null);
   const altModalOpen = altModalIdx !== null && !!photos[altModalIdx];
 
   useDialogFocus(altModalOpen, altDialogRef, () => setAltModalIdx(null));
   useBodyScrollLock(altModalOpen);
-  useEffect(() => {
-    return () => reorderAbortRef.current?.abort();
-  }, []);
 
   // Sync local state with the server-rendered prop when it changes
-  // (e.g. AddPhotosButton calls router.refresh() after attaching a new photo).
-  // Compare by id+url+sortOrder so re-renders that pass an identical list
-  // don't loop. Preserve in-progress alt-text edits per existing photo id.
+  // (e.g. Save redirects/revalidates). Compare by id+url so identical
+  // re-renders don't loop. Preserve in-progress alt-text edits per existing
+  // photo id.
   const photosKey = initialPhotos.map((p) => `${p.id}:${p.url}`).join("|");
   useEffect(() => {
     setPhotos(initialPhotos);
@@ -69,11 +59,6 @@ export default function EditPhotoGrid({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photosKey]);
-
-  function showToast(message: string, kind: "success" | "error" = "success") {
-    setToast({ message, kind });
-    setTimeout(() => setToast(null), 1800);
-  }
 
   function handleDragStart(e: React.DragEvent, idx: number) {
     dragItem.current = idx;
@@ -96,112 +81,91 @@ export default function EditPhotoGrid({
     dragOverItem.current = null;
     if (from === null || to === null || from === to) return;
 
-    const previousPhotos = photos;
     const newPhotos = [...photos];
     const [dragged] = newPhotos.splice(from, 1);
     newPhotos.splice(to, 0, dragged);
     setPhotos(newPhotos);
-
-    startSaving(() => {
-      reorderAbortRef.current?.abort();
-      const controller = new AbortController();
-      reorderAbortRef.current = controller;
-      void onReorder(newPhotos.map((p) => p.id))
-        .then(() => {
-          if (!controller.signal.aborted) showToast("Reordered");
-        })
-        .catch(() => {
-          if (controller.signal.aborted) return;
-          setPhotos(previousPhotos);
-          showToast("Couldn't reorder photos.", "error");
-        })
-        .finally(() => {
-          if (reorderAbortRef.current === controller) reorderAbortRef.current = null;
-        });
-    });
   }
 
   function movePhoto(from: number, to: number) {
-    const previousPhotos = photos;
     const newPhotos = [...photos];
     const [moved] = newPhotos.splice(from, 1);
     newPhotos.splice(to, 0, moved);
     setPhotos(newPhotos);
-
-    startSaving(() => {
-      reorderAbortRef.current?.abort();
-      const controller = new AbortController();
-      reorderAbortRef.current = controller;
-      void onReorder(newPhotos.map((p) => p.id))
-        .then(() => {
-          if (!controller.signal.aborted) showToast("Reordered");
-        })
-        .catch(() => {
-          if (controller.signal.aborted) return;
-          setPhotos(previousPhotos);
-          showToast("Couldn't reorder photos.", "error");
-        })
-        .finally(() => {
-          if (reorderAbortRef.current === controller) reorderAbortRef.current = null;
-        });
-    });
   }
 
   function handleDelete(idx: number) {
-    const photo = photos[idx];
-    if (!photo) return;
-    const previousPhotos = photos;
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
-    startSaving(() => {
-      void onDelete(photo.id)
-        .then(() => showToast("Removed"))
-        .catch(() => {
-          setPhotos(previousPhotos);
-          showToast("Couldn't remove photo.", "error");
-        });
-    });
   }
 
   function handleReplace(idx: number, url: string) {
     const photo = photos[idx];
     if (!photo) return;
-    const previousPhotos = photos;
-    setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, url } : p));
-    startSaving(() => {
-      void onReplace(photo.id, url)
-        .then(() => showToast("Photo crop updated"))
-        .catch(() => {
-          setPhotos(previousPhotos);
-          showToast("Couldn't update the photo crop.", "error");
-        });
-    });
-  }
-
-  function saveAltTexts() {
-    startSaving(() => {
-      void onSaveAltTexts(altTexts)
-        .then(() => showToast("Alt texts saved"))
-        .catch(() => showToast("Couldn't save alt texts.", "error"));
-    });
+    setPhotos((prev) => prev.map((p, i) => i === idx ? { ...p, url, originalUrl: p.originalUrl ?? p.url } : p));
   }
 
   return (
     <div className="space-y-4">
-      {toast && (
-        <div
-          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-md px-3 py-2 text-sm text-white shadow ${
-            toast.kind === "error" ? "bg-red-600" : "bg-green-600"
-          }`}
-        >
-          {toast.message}
-        </div>
+      <input
+        type="hidden"
+        name="photoManifestJson"
+        value={JSON.stringify(photos.map((photo, index) => ({
+          id: photo.id.startsWith("new:") ? null : photo.id,
+          url: photo.url,
+          originalUrl: photo.originalUrl ?? photo.url,
+          altText: altTexts[photo.id] ?? "",
+          sortOrder: index,
+        })))}
+      />
+
+      {photos.length < maxPhotos && (
+        <UploadButton
+          endpoint="listingImage"
+          appearance={{
+            container: "inline-block",
+            button:
+              "rounded-md bg-neutral-900 text-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-300",
+            allowedContent: "hidden",
+          }}
+          content={{
+            button({ ready }) {
+              return ready ? "Add photos" : "Connecting...";
+            },
+          }}
+          onClientUploadComplete={(files) => {
+            const urls = uploadedFileUrls(files);
+            if (urls.length === 0) {
+              emitToast("Upload finished, but no usable photo URLs were returned.", "error");
+              return;
+            }
+            setPhotos((prev) => {
+              const openSlots = Math.max(0, maxPhotos - prev.length);
+              const nextUrls = urls.slice(0, openSlots);
+              if (nextUrls.length < urls.length) {
+                emitToast(`Only ${openSlots} photo${openSlots === 1 ? "" : "s"} can be added.`, "info");
+              }
+              return [
+                ...prev,
+                ...nextUrls.map((url, index) => ({
+                  id: `new:${Date.now()}:${index}:${url}`,
+                  url,
+                  originalUrl: url,
+                  altText: "",
+                })),
+              ];
+            });
+          }}
+          onUploadError={(e) => emitToast(e.message, "error")}
+        />
       )}
 
       {photos.length === 0 ? (
         <p className="text-sm text-neutral-500">No photos yet.</p>
       ) : (
         <>
-          <p className="text-xs text-neutral-500">Drag photos to reorder. First photo is the cover.</p>
+          <p className="text-xs text-neutral-500">
+            Drag photos to reorder. First photo is the cover. Photo changes are staged until you press Save.
+          </p>
           <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {photos.map((p, idx) => (
               <li
@@ -302,15 +266,6 @@ export default function EditPhotoGrid({
               </li>
             ))}
           </ul>
-
-          <button
-            type="button"
-            onClick={saveAltTexts}
-            disabled={saving}
-            className="rounded-md px-4 py-2 bg-neutral-900 text-white text-sm hover:bg-neutral-800 disabled:opacity-50"
-          >
-            {saving ? "Saving\u2026" : "Save alt texts"}
-          </button>
         </>
       )}
 
