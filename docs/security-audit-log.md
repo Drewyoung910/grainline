@@ -311,6 +311,7 @@ Follow-up fix from this pass:
 - **Fixed 2026-05-13:** blog markdown no longer renders arbitrary remote images. Rendering now goes through `src/lib/blogMarkdown.ts`, which keeps the existing `sanitize-html` XSS boundary, drops user-supplied `target`/`rel` attributes, permits only `https`/`mailto` schemes, caps markdown before parsing, and removes `<img>` tags unless the URL passes `isR2PublicUrl()`. Regression coverage lives in `tests/blog-markdown-sanitization.test.mjs`.
 - **Fixed 2026-05-13:** all audited `target="_blank"` links in app/components now carry an explicit `rel` boundary. Regression coverage lives in `tests/link-security.test.mjs`.
 - **Fixed 2026-05-13:** public vulnerability disclosure is now live at `/security` and `/.well-known/security.txt`. Both routes are public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt; launch ops must verify `security@thegrainline.com` mailbox routing before public launch. Regression coverage lives in `tests/security-disclosure.test.mjs`.
+- **Fixed 2026-05-13:** CSP report handling now sanitizes Sentry payloads and tags checkout/cart document violations with `checkout_surface=true`. This preserves payment-page monitoring evidence without sending checkout query strings or external blocked-URL paths to Sentry tags/extra. Regression coverage lives in `tests/csp-report-sanitization.test.mjs`.
 
 Open work:
 

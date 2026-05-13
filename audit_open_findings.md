@@ -3780,6 +3780,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 136. **[HARDENED 2026-05-13] Public vulnerability disclosure channel added** — Grainline now exposes `/security` and `/.well-known/security.txt` so security researchers have a clear reporting channel and RFC 9116 metadata. Both routes are middleware-public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt; launch ops still must verify `security@thegrainline.com` mailbox routing. Source guardrail: `tests/security-disclosure.test.mjs`.
 
+137. **[HARDENED 2026-05-13] CSP reports now separate checkout-surface monitoring without leaking query strings** — `/api/csp-report` previously forwarded raw CSP reports to Sentry extra data and did not distinguish checkout/cart script or frame violations from the rest of the site. Reports now sanitize document/referrer URLs, reduce blocked/source URLs to origins or CSP keywords, and tag cart/checkout reports as `checkout_surface=true` for payment-page monitoring evidence. Source guardrail: `tests/csp-report-sanitization.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

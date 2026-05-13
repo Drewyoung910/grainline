@@ -60,6 +60,7 @@ Implemented 2026-05-13:
 - Public disclosure page: `/security`.
 - RFC 9116 metadata: `/.well-known/security.txt`.
 - Both routes are middleware-public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt. Keep `security@thegrainline.com` mailbox routing verified before launch.
+- CSP reports are sanitized through `src/lib/cspReport.ts`; cart/checkout document violations are tagged with `checkout_surface=true` in Sentry for payment-page monitoring evidence without retaining checkout query strings.
 
 Controls to design, not rush:
 

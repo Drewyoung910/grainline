@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
+import {
+  cspReportDirective,
+  cspReportDocumentPath,
+  cspReportSentryTags,
+  sanitizeCspReportForSentry,
+  type CspReportLike,
+} from "@/lib/cspReport";
 import { cspReportRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
 
 export async function POST(request: NextRequest) {
@@ -9,34 +16,30 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   try {
     const body = JSON.parse(rawBody);
-    const report = body["csp-report"] || body;
+    const report = (body["csp-report"] || body) as CspReportLike;
+    const directive = cspReportDirective(report);
+    const tags = cspReportSentryTags(report);
 
     Sentry.addBreadcrumb({
       category: "csp-violation",
-      message: `CSP violation: ${report["violated-directive"]}`,
+      message: `CSP violation: ${directive}`,
       data: {
         blockedUri: report["blocked-uri"],
         violatedDirective: report["violated-directive"],
-        documentUri: report["document-uri"],
+        documentPath: cspReportDocumentPath(report),
         effectiveDirective: report["effective-directive"],
+        checkoutSurface: tags.checkout_surface,
       },
       level: "warning",
     });
 
-    const directive =
-      report["effective-directive"] || report["violated-directive"] || "";
     if (directive.includes("script") || directive.includes("frame")) {
       Sentry.captureEvent({
         message: `CSP violation: ${directive}`,
         level: "warning",
         fingerprint: ["csp-violation", directive],
-        extra: report,
-        tags: {
-          source: "csp_report",
-          event_kind: "security_policy",
-          csp_violation: directive,
-          blocked_uri: report["blocked-uri"],
-        },
+        extra: { report: sanitizeCspReportForSentry(report) },
+        tags,
       });
     }
 
