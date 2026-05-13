@@ -227,6 +227,8 @@ Checklist:
 
 ## Phase 6: RLS Feasibility
 
+Detailed design lives in `docs/rls-feasibility-plan.md`. That document is the source of truth for RLS staging, role separation, transaction-local request context, candidate-table ordering, and rollback requirements.
+
 Candidate tables for targeted RLS evaluation:
 
 - `User`

@@ -123,7 +123,7 @@ Spot checks completed in this pass:
 - `src/middleware.ts`
   - No DB row-level security policies were found in the migration/schema grep pass.
   - Application-layer middleware enforces signed-in redirects for non-public routes, suspended account blocks, terms acceptance, admin role checks, admin PIN checks for admin APIs/server-action POSTs, cron bearer auth, and geo restrictions.
-  - Result: RLS is not currently implemented; application-layer authorization remains the launch-critical control plane.
+  - Result: RLS is not currently implemented; application-layer authorization remains the launch-critical control plane. RLS rollout planning is documented in `docs/rls-feasibility-plan.md`; do not enable broad production policies before the staged prototype proves role separation and transaction-local request context.
 
 - `src/app/api/cases/[id]/messages/route.ts`
   - Requires auth, local user, rate limit, participant or staff role, valid case status, and available counterparty account state.
@@ -296,7 +296,7 @@ Results:
 Hardening notes:
 
 - Grainline still handles sensitive business data even though Stripe handles raw card data: user accounts, addresses, orders, messages, upload content, seller payout state, refund state, admin tools, and webhook-derived payment state.
-- RLS is not currently enabled as a broad database policy layer. Current protection is Clerk middleware plus route/action-level ownership predicates. Targeted RLS or lower-privilege database roles should be evaluated in a dedicated pass after route predicates are fully inventoried.
+- RLS is not currently enabled as a broad database policy layer. Current protection is Clerk middleware plus route/action-level ownership predicates. Targeted RLS or lower-privilege database roles should follow `docs/rls-feasibility-plan.md` after route predicates are fully inventoried.
 - Open checkout sessions remain valid for their short Stripe expiry window after some listing-level seller actions unless those actions explicitly expire sessions. This is not logged as a verified bug yet because checkout sessions reserve stock and represent a buyer already in payment flow, but future hardening can decide whether listing archive/unpublish/seller vacation should also expire open sessions.
 
 Follow-up fix from this pass:
