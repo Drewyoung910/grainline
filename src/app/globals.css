@@ -227,7 +227,11 @@ input, textarea, select {
   }
 }
 
-/* Horizontal scroll fade edges — right always visible, left only when scrolled */
+/* Horizontal scroll fade edges — fades signal scrollable content.
+   Left fade appears only when scrolled away from the start.
+   Right fade appears only when there's more content to the right.
+   At the end of the scroll, the right fade disappears so the last
+   item is fully visible. */
 .scroll-fade-edges {
   mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
@@ -236,6 +240,16 @@ input, textarea, select {
 .scroll-fade-edges[data-scrolled="true"] {
   mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
+}
+.scroll-fade-edges[data-end="true"] {
+  mask-image: linear-gradient(to right, transparent, black 32px, black);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black);
+}
+/* When the content fits and never scrolls, data-end is true and data-scrolled
+   is not — keep the left edge fully visible too (no fades at all). */
+.scroll-fade-edges[data-end="true"]:not([data-scrolled="true"]) {
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 
 /* Responsive variants — used by surfaces that switch from horizontal
@@ -251,9 +265,18 @@ input, textarea, select {
   mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
 }
+.scroll-fade-edges-sm[data-end="true"] {
+  mask-image: linear-gradient(to right, transparent, black 32px, black);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black);
+}
+.scroll-fade-edges-sm[data-end="true"]:not([data-scrolled="true"]) {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
 @media (min-width: 640px) {
   .scroll-fade-edges-sm,
-  .scroll-fade-edges-sm[data-scrolled="true"] {
+  .scroll-fade-edges-sm[data-scrolled="true"],
+  .scroll-fade-edges-sm[data-end="true"] {
     mask-image: none;
     -webkit-mask-image: none;
   }
@@ -268,9 +291,18 @@ input, textarea, select {
   mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 32px), transparent);
 }
+.scroll-fade-edges-lg[data-end="true"] {
+  mask-image: linear-gradient(to right, transparent, black 32px, black);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 32px, black);
+}
+.scroll-fade-edges-lg[data-end="true"]:not([data-scrolled="true"]) {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
 @media (min-width: 1024px) {
   .scroll-fade-edges-lg,
-  .scroll-fade-edges-lg[data-scrolled="true"] {
+  .scroll-fade-edges-lg[data-scrolled="true"],
+  .scroll-fade-edges-lg[data-end="true"] {
     mask-image: none;
     -webkit-mask-image: none;
   }

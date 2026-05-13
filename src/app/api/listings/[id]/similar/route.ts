@@ -106,18 +106,36 @@ export async function GET(
       return { ...r, totalScore };
     });
 
-    // Sort by total score descending, then keep at most one result per seller so
-    // a single shop cannot dominate the carousel.
+    // Sort by total score descending, then do a two-pass selection so the
+    // carousel prefers variety but doesn't end up nearly empty when the
+    // marketplace has very few sellers. Pass 1: at most one result per
+    // seller. Pass 2: backfill remaining slots from the same scored pool
+    // (still capped to 2 per seller total so one shop can't dominate).
     scored.sort((a, b) => b.totalScore - a.totalScore);
-    const seenSellerIds = new Set<string>();
-    const deduped: typeof scored = [];
+    const TARGET = 12;
+    const PER_SELLER_CAP = 2;
+    const perSellerCount = new Map<string, number>();
+    const picked = new Set<string>();
+    const results: typeof scored = [];
+    // Pass 1: one per seller
     for (const row of scored) {
-      if (seenSellerIds.has(row.sellerId)) continue;
-      seenSellerIds.add(row.sellerId);
-      deduped.push(row);
-      if (deduped.length >= 12) break;
+      if ((perSellerCount.get(row.sellerId) ?? 0) >= 1) continue;
+      perSellerCount.set(row.sellerId, 1);
+      picked.add(row.id);
+      results.push(row);
+      if (results.length >= TARGET) break;
     }
-    const results = deduped;
+    // Pass 2: backfill up to PER_SELLER_CAP per seller
+    if (results.length < TARGET) {
+      for (const row of scored) {
+        if (picked.has(row.id)) continue;
+        if ((perSellerCount.get(row.sellerId) ?? 0) >= PER_SELLER_CAP) continue;
+        perSellerCount.set(row.sellerId, (perSellerCount.get(row.sellerId) ?? 0) + 1);
+        picked.add(row.id);
+        results.push(row);
+        if (results.length >= TARGET) break;
+      }
+    }
 
     return NextResponse.json({
       listings: results.map((r) => ({

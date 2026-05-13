@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
 type Props = {
   children: React.ReactNode;
@@ -22,15 +22,39 @@ export default function ScrollFadeRow({
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const handleScroll = useCallback(() => {
+  const updateEdgeState = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    // Left fade: only when scrolled away from the start.
     if (el.scrollLeft > 0) {
       el.setAttribute("data-scrolled", "true");
     } else {
       el.removeAttribute("data-scrolled");
     }
+    // Right fade: hide when at end. 2px tolerance handles subpixel
+    // rounding from device pixel ratios and zoom.
+    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+    if (atEnd) {
+      el.setAttribute("data-end", "true");
+    } else {
+      el.removeAttribute("data-end");
+    }
   }, []);
+
+  // Recheck end state when children change size (e.g. after async load
+  // populates the row) — without this the row stays in "scrollable" mode
+  // even if all children now fit.
+  useEffect(() => {
+    updateEdgeState();
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => updateEdgeState());
+    ro.observe(el);
+    for (const child of Array.from(el.children)) {
+      ro.observe(child);
+    }
+    return () => ro.disconnect();
+  }, [updateEdgeState]);
 
   // Back-compat: mobileOnly === "sm" hide breakpoint.
   const breakpoint = hideAtBreakpoint ?? (mobileOnly ? "sm" : undefined);
@@ -43,7 +67,7 @@ export default function ScrollFadeRow({
   return (
     <div
       ref={ref}
-      onScroll={handleScroll}
+      onScroll={updateEdgeState}
       className={`${fadeClass} ${className}`}
     >
       {children}

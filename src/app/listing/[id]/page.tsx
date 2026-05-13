@@ -514,12 +514,12 @@ export default async function ListingPage({
                   listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
-                  className="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                  className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
                 >
                   <Hammer size={15} />
                   Request Something Similar
@@ -608,14 +608,14 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="inline-flex items-center rounded-md bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                  className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
                 >
                   Message maker
                 </Link>
               )}
               <Link
                 href={sellerHref}
-                className="inline-flex items-center rounded-md bg-[#EFEAE0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
               >
                 Visit Shop
               </Link>
@@ -814,6 +814,7 @@ export default async function ListingPage({
       <section id="reviews">
         <ReviewsSection
           listingId={listingId}
+          listingTitle={listing.title}
           meId={meId}
           sellerUserId={canReplyClerkId}
           initialSort={sortKey}
