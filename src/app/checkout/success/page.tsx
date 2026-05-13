@@ -38,14 +38,14 @@ export default async function CheckoutSuccessPage({
 
   let s: Awaited<ReturnType<typeof stripe.checkout.sessions.retrieve>>;
   try {
-    s = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ["payment_intent.charges.data", "shipping_cost.shipping_rate"],
-    });
+    s = await stripe.checkout.sessions.retrieve(sessionId);
   } catch {
     redirect("/cart");
   }
 
   if (s.payment_status !== "paid") redirect("/cart");
+  const sessionMetadata = (s.metadata ?? {}) as Record<string, string | undefined>;
+  if (!sessionMetadata.buyerId || sessionMetadata.buyerId !== me.id) redirect("/cart");
 
   if (sessionIds.length > 1) {
     const orders = await prisma.order.findMany({
@@ -209,278 +209,25 @@ export default async function CheckoutSuccessPage({
   });
 
   if (!order) {
-    const meta = (s.metadata ?? {}) as Record<string, string | undefined>;
-    const isEmbeddedCheckout = meta.taxRetainedAtCreation === "true";
-    const buyerId = meta.buyerId;
-    if (!buyerId) redirect("/cart");
-    if (buyerId !== me.id) redirect("/cart");
-
-    // Stripe snapshots
-    const currency: string = (s.currency || "usd").toLowerCase();
-    const itemsSubtotalCents: number = s.amount_subtotal ?? 0;
-    const shippingAmountCents: number = s.shipping_cost?.amount_subtotal ?? 0;
-    const shippingTitle: string | undefined =
-      (s.shipping_cost?.shipping_rate as { display_name?: string })?.display_name || undefined;
-    const taxAmountCents: number = s.total_details?.amount_tax ?? 0;
-
-    const buyerEmail: string | undefined = s.customer_details?.email || undefined;
-    const buyerName: string | undefined = s.customer_details?.name || undefined;
-
-    const addr = {
-      line1: meta.quotedToLine1 ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.line1 ?? null,
-      line2: meta.quotedToLine2 ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.line2 ?? null,
-      city: meta.quotedToCity ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.city ?? null,
-      state: meta.quotedToState ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.state ?? null,
-      postal_code: meta.quotedToPostalCode ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.postal_code ?? null,
-      country: meta.quotedToCountry ?? (s as { shipping_details?: { address?: Record<string, string | null> } }).shipping_details?.address?.country ?? null,
-    };
-    const shipToLine1 = addr.line1;
-    const shipToLine2 = addr.line2;
-    const shipToCity = addr.city;
-    const shipToState = addr.state;
-    const shipToPostalCode = addr.postal_code;
-    const shipToCountry = addr.country;
-
-    const pi = typeof s.payment_intent === "string" ? null : (s.payment_intent as { id?: string; charges?: { data?: { id?: string; application_fee?: string | { id?: string }; transfer?: string | { id?: string } }[] } });
-    const paymentIntentId =
-      typeof s.payment_intent === "string" ? s.payment_intent : pi?.id ?? null;
-    const charge = pi?.charges?.data?.[0] ?? null;
-    const stripeChargeId = charge?.id ?? null;
-    const stripeApplicationFeeId =
-      (typeof charge?.application_fee === "string"
-        ? charge.application_fee
-        : charge?.application_fee?.id) ?? null;
-    const stripeTransferId =
-      (typeof charge?.transfer === "string"
-        ? charge.transfer
-        : charge?.transfer?.id) ?? null;
-
-    const cartId = meta.cartId;
-    const sellerIdFromMeta = meta.sellerId;
-
-    if (!isEmbeddedCheckout) {
-      // Hosted checkout: webhook may not have fired yet.
-      // Fallback order creation with P2002 safety catch.
-      if (cartId) {
-        try {
-          order = await prisma.$transaction(async (tx) => {
-            const cart = await tx.cart.findUnique({
-              where: { id: cartId },
+    // The webhook is the only order writer. The success page
+    // only re-queries after verifying Stripe says this paid
+    // session belongs to the signed-in buyer.
+    order = await prisma.order.findFirst({
+      where: { stripeSessionId: sessionId, buyerId: me.id },
+      include: {
+        items: {
+          include: {
+            listing: {
               include: {
-                items: {
-                  include: { listing: true },
-                  where: sellerIdFromMeta ? { listing: { sellerId: sellerIdFromMeta } } : undefined,
-                },
-              },
-            });
-
-            if (!cart || cart.items.length === 0) return null;
-
-            const created = await tx.order.create({
-              data: {
-                buyerId,
-                paidAt: new Date(),
-                stripeSessionId: sessionId,
-
-                currency,
-                itemsSubtotalCents,
-                shippingTitle,
-                shippingAmountCents,
-                taxAmountCents,
-
-                buyerEmail,
-                buyerName,
-                shipToLine1,
-                shipToLine2,
-                shipToCity,
-                shipToState,
-                shipToPostalCode,
-                shipToCountry,
-
-                quotedToName: meta.quotedToName ?? null,
-                quotedToPhone: meta.quotedToPhone ?? null,
-
-                stripePaymentIntentId: paymentIntentId,
-                stripeChargeId,
-                stripeApplicationFeeId,
-                stripeTransferId,
-              },
-            });
-
-            for (const it of cart.items) {
-              await tx.orderItem.create({
-                data: {
-                  orderId: created.id,
-                  listingId: it.listingId,
-                  quantity: it.quantity,
-                  priceCents: it.priceCents,
-                },
-              });
-            }
-
-            await tx.cartItem.deleteMany({
-              where: sellerIdFromMeta ? { cartId, listing: { sellerId: sellerIdFromMeta } } : { cartId },
-            });
-
-            return tx.order.findUnique({
-              where: { id: created.id },
-              include: {
-                items: {
-                  include: {
-                    listing: {
-                      include: {
-                        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                        seller: { select: { displayName: true } },
-                      },
-                    },
-                  },
-                },
-                buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-              },
-            });
-          });
-
-          if (!order) redirect("/dashboard/orders");
-        } catch (e: unknown) {
-          if (
-            e && typeof e === "object" && "code" in e &&
-            (e as { code: string }).code === "P2002"
-          ) {
-            // Webhook created the order between our check and create
-            // Re-query it
-            order = await prisma.order.findFirst({
-              where: { stripeSessionId: sessionId, buyerId: me.id },
-              include: {
-                items: {
-                  include: {
-                    listing: {
-                      include: {
-                        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                        seller: { select: { displayName: true } },
-                      },
-                    },
-                  },
-                },
-                buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-              },
-            });
-            if (!order) redirect("/dashboard/orders");
-          } else {
-            throw e;
-          }
-        }
-      } else if (meta.listingId) {
-        const listingId = meta.listingId;
-        const quantity = Math.max(1, Number(meta.quantity || 1));
-        const priceCentsFromMeta = meta.priceCents ? Number(meta.priceCents) : null;
-
-        const price =
-          priceCentsFromMeta ??
-          (await prisma.listing.findUnique({
-            where: { id: listingId },
-            select: { priceCents: true },
-          }))?.priceCents ??
-          0;
-
-        try {
-          order = await prisma.order.create({
-            data: {
-              buyerId,
-              paidAt: new Date(),
-              stripeSessionId: sessionId,
-
-              currency,
-              itemsSubtotalCents,
-              shippingTitle,
-              shippingAmountCents,
-              taxAmountCents,
-
-              buyerEmail,
-              buyerName,
-              shipToLine1,
-              shipToLine2,
-              shipToCity,
-              shipToState,
-              shipToPostalCode,
-              shipToCountry,
-
-              quotedToName: meta.quotedToName ?? null,
-              quotedToPhone: meta.quotedToPhone ?? null,
-
-              stripePaymentIntentId: paymentIntentId,
-              stripeChargeId,
-              stripeApplicationFeeId,
-              stripeTransferId,
-
-              items: { create: [{ listingId, quantity, priceCents: price }] },
-            },
-            include: {
-              items: {
-                include: {
-                  listing: {
-                    include: {
-                      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                      seller: { select: { displayName: true } },
-                    },
-                  },
-                },
-              },
-              buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-            },
-          });
-        } catch (e: unknown) {
-          if (
-            e && typeof e === "object" && "code" in e &&
-            (e as { code: string }).code === "P2002"
-          ) {
-            // Webhook created the order between our check and create
-            // Re-query it
-            order = await prisma.order.findFirst({
-              where: { stripeSessionId: sessionId, buyerId: me.id },
-              include: {
-                items: {
-                  include: {
-                    listing: {
-                      include: {
-                        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                        seller: { select: { displayName: true } },
-                      },
-                    },
-                  },
-                },
-                buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-              },
-            });
-            if (!order) redirect("/dashboard/orders");
-          } else {
-            throw e;
-          }
-        }
-      } else {
-        redirect("/dashboard/orders");
-      }
-    } else {
-      // Embedded checkout: webhook creates the order.
-      // Single re-query — webhook is often fast enough
-      // that it fires during page load.
-      // Do NOT call order.create (webhook owns this).
-      order = await prisma.order.findFirst({
-        where: { stripeSessionId: sessionId, buyerId: me.id },
-        include: {
-          items: {
-            include: {
-              listing: {
-                include: {
-                  photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                  seller: { select: { displayName: true } },
-                },
+                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+                seller: { select: { displayName: true } },
               },
             },
           },
-          buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
         },
-      });
-    }
+        buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
+      },
+    });
   }
 
   if (!order) {

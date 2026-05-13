@@ -3772,6 +3772,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 132. **[HARDENED 2026-05-13] Dashboard blog delete action now checks account state inside the action** — blog create/edit already blocked banned/deleted accounts in the server action. The dashboard blog delete action only resolved the Clerk user to a local `User.id` before deleting author-owned posts. Middleware should block suspended accounts before this point, so this was defense in depth rather than a confirmed bypass. The action now selects and checks `banned`/`deletedAt` before deleting. Source guardrail: `tests/blog-action-guardrails.test.mjs`.
 
+133. **[HARDENED 2026-05-13] Checkout success page no longer creates orders** — `/checkout/success` still carried legacy hosted-checkout fallback `order.create` paths even though the active checkout routes are embedded Checkout Sessions and the Stripe webhook is the authoritative order writer. This was a latent trust-boundary risk because a success page can read mutable cart/listing state after payment and can race the webhook. The page now verifies paid Stripe session ownership through `metadata.buyerId` and then only reads buyer-scoped orders; missing orders render the existing processing message. Source guardrail: `tests/checkout-success-state.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

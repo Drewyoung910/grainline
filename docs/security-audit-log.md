@@ -291,7 +291,7 @@ Results:
 - Legacy Stripe snapshot webhooks and Connect v2 thin webhooks use separate routes and separate signing secrets. Both routes reject missing/invalid signatures, stale events, and duplicate event IDs through `stripeWebhookEvent` state.
 - Upload image route processes images server-side through `sharp`, strips metadata, enforces endpoint-specific size/type/count rules, requires seller profile for seller-only endpoints, and deletes objects when post-upload public availability checks fail.
 - Direct presign route rejects all image MIME types so images cannot bypass processing/metadata stripping. Direct uploads require signed verification tokens, user-scoped keys, matching object size, and matching content type before callers can treat the object as accepted.
-- Result: no verified payment/webhook/upload vulnerability found in this spot check.
+- Result: payment/webhook/upload controls were broadly sound, with one legacy checkout-success trust-boundary hardening item found and fixed below.
 
 Hardening notes:
 
@@ -307,6 +307,7 @@ Follow-up fix from this pass:
 - **Fixed 2026-05-13:** dashboard blog delete action now checks banned/deleted account state inside the server action before deleting an author-owned post. Regression coverage lives in `tests/blog-action-guardrails.test.mjs`.
 - **Fixed 2026-05-13:** user report target validation now requires reporter access. Reports can still target public content, but orders/messages/threads require reporter participation and blog targets require public visibility, preventing report submission from acting as a private-object oracle. Regression coverage lives in `tests/user-report-target-access.test.mjs`.
 - **Fixed 2026-05-13:** review helpful votes now require the review's listing to pass `canViewListingDetail()` for the voter. This prevents hidden/private listing reviews from being manipulated by direct review ID. Regression coverage lives in `tests/review-vote-visibility.test.mjs`.
+- **Fixed 2026-05-13:** checkout success no longer writes orders. The old legacy hosted-checkout fallback `order.create` paths were removed because no active hosted checkout route remains and the success page should not derive paid orders from mutable post-payment cart/listing state. `/checkout/success` now verifies `metadata.buyerId` against the signed-in user and only reads buyer-scoped orders; the Stripe webhook remains the sole order writer. Regression coverage lives in `tests/checkout-success-state.test.mjs`.
 
 Open work:
 

@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { describe, it } from "node:test";
 
 const {
   CHECKOUT_SUCCESS_SESSION_LIMIT,
   checkoutSuccessSessionIds,
 } = await import("../src/lib/checkoutSuccessState.ts");
+
+const checkoutSuccessSource = fs.readFileSync(
+  new URL("../src/app/checkout/success/page.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("checkout success session parsing", () => {
   it("dedupes comma-separated checkout session ids while preserving order", () => {
@@ -43,5 +49,13 @@ describe("checkout success session parsing", () => {
 
     assert.equal(result.sessionIds.length, CHECKOUT_SUCCESS_SESSION_LIMIT);
     assert.equal(result.truncatedCount, 2);
+  });
+
+  it("keeps the success page read-only after Stripe payment", () => {
+    assert.doesNotMatch(checkoutSuccessSource, /\b(?:prisma|tx)\.order\.create\s*\(/);
+    assert.doesNotMatch(checkoutSuccessSource, /prisma\.\$transaction/);
+    assert.match(checkoutSuccessSource, /webhook is the only order writer/);
+    assert.match(checkoutSuccessSource, /sessionMetadata\.buyerId/);
+    assert.match(checkoutSuccessSource, /buyerId: me\.id/);
   });
 });
