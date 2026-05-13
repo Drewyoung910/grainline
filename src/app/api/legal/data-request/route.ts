@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { sendRenderedEmail } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { dataRequestRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 import {
   normalizeSupportRequest,
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   if (!normalized.ok) return NextResponse.json({ error: normalized.error }, { status: 400 });
 
   const slaDueAt = supportRequestSlaDueAt();
+  const emailHash = hashEmailForTelemetry(normalized.request.email);
   let record: { id: string; slaDueAt: Date };
   try {
     record = await prisma.supportRequest.create({
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "data_request_create" },
-      extra: { topic: normalized.request.topic, email: normalized.request.email },
+      extra: { topic: normalized.request.topic, emailHash },
     });
     return NextResponse.json({ error: "Data request could not be saved. Please email legal@thegrainline.com." }, { status: 503 });
   }
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
     });
     Sentry.captureException(error, {
       tags: { source: "data_request" },
-      extra: { supportRequestId: record.id, topic: normalized.request.topic, email: normalized.request.email },
+      extra: { supportRequestId: record.id, topic: normalized.request.topic, emailHash },
     });
   }
 

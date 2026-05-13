@@ -221,7 +221,7 @@ Checklist:
 - Deleted users cannot continue sessions.
 - Deletion leaves no half-deleted local/Stripe state.
 - Exports include intended data and audit the request.
-- PII is not sent to Sentry except explicitly permitted identifiers.
+- PII is not sent to Sentry except explicitly permitted identifiers. Email correlation uses deterministic hashes through `hashEmailForTelemetry()` rather than raw addresses in Sentry extras/tags/contexts.
 - Legal/support requests remain available to users who cannot sign in.
 - Retention jobs are idempotent and reversible enough for incident triage.
 

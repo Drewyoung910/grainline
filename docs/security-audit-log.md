@@ -329,6 +329,31 @@ Follow-up fix from this pass:
 - **Documented 2026-05-13:** checkout/payment-page browser script inventory is recorded in `docs/checkout-script-inventory.md`. It documents the Stripe Embedded Checkout path, Clerk/Sentry runtime presence, no direct `next/script` usage on checkout surfaces, and a change-control rule for future checkout scripts. Regression coverage lives in `tests/checkout-script-inventory.test.mjs`.
 - **Fixed 2026-05-13:** seller vacation mode and listing availability transitions now proactively expire matching open Stripe Checkout Sessions and run idempotent stock restoration after successful expiration. This prevents buyers from completing stale sessions after a seller/listing becomes unavailable, while keeping webhook payment-completion revalidation/refund logic as the final backstop. Regression coverage lives in `tests/checkout-session-expiry.test.mjs`.
 
+## 2026-05-13 public form/privacy telemetry spot check
+
+Scope:
+
+- `src/app/api/account/accept-terms/route.ts`
+- `src/app/api/legal/data-request/route.ts`
+- `src/app/api/support/route.ts`
+- `src/app/api/newsletter/route.ts`
+- `src/app/api/email/unsubscribe/route.ts`
+- `src/lib/supportRequest.ts`
+- `src/lib/emailSuppression.ts`
+- `src/lib/unsubscribe.ts`
+
+Results:
+
+- Terms acceptance is authenticated, rate limited, scoped to the current local user, and pins the current terms version.
+- Legal/data-request and support forms are intentionally public, IP-rate-limited, Zod/sanitizer-backed through `supportRequest.ts`, persisted before email delivery, and return a request ID/SLA timestamp without exposing private account data.
+- Newsletter subscription normalizes email, checks suppression state before upsert, and does not expose subscriber rows.
+- Unsubscribe uses signed tokens; GET renders confirmation only and POST performs the mutation.
+- Email suppression continues to fail closed for invalid email input and throws on persistence failure so callers do not treat a failed suppression lookup/write as safe.
+
+Follow-up fix from this pass:
+
+- **Fixed 2026-05-13:** support/data-request routes and email suppression failures no longer send raw email addresses to Sentry `extra` payloads. They now use `hashEmailForTelemetry()` for deterministic non-raw correlation when needed. Regression coverage lives in `tests/privacy-telemetry.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

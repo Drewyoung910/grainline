@@ -3787,6 +3787,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 138. **[DOCUMENTED 2026-05-13] Checkout script inventory added for PCI/payment-page change control** — `docs/checkout-script-inventory.md` records the current checkout browser-code surface: first-party Next chunks, Stripe.js/Embedded Checkout, Clerk runtime, and Sentry runtime. It also records that no direct `next/script` usage exists on checkout surfaces and requires inventory/CSP/test updates before future third-party checkout scripts merge. Source guardrail: `tests/checkout-script-inventory.test.mjs`.
 
+139. **[HARDENED 2026-05-13] Public-form and email-suppression Sentry telemetry no longer includes raw email addresses** — support/data-request route failures and email suppression failures now use `hashEmailForTelemetry()` for deterministic correlation instead of putting normalized email addresses into Sentry `extra` data. This preserves debugging signal without sending raw public-form or suppression emails to the error tracker. Source guardrail: `tests/privacy-telemetry.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

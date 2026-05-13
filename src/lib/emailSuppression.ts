@@ -1,6 +1,7 @@
 import { EmailSuppressionReason, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 
 export function normalizeEmailAddress(email: string | null | undefined): string | null {
   const normalized = email?.trim().normalize("NFC").toLowerCase();
@@ -56,7 +57,7 @@ export async function suppressEmail(opts: {
   } catch (err) {
     Sentry.captureException(err, {
       tags: { source: "email_suppression" },
-      extra: { email, reason: opts.reason, source: opts.source, eventId: opts.eventId },
+      extra: { emailHash: hashEmailForTelemetry(email), reason: opts.reason, source: opts.source, eventId: opts.eventId },
     });
     throw err;
   }
