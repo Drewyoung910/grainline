@@ -234,7 +234,7 @@ export default function ListingPurchasePanel({
               offersGiftWrapping,
               giftWrappingPriceCents,
             }}
-            className="w-full rounded-md bg-white px-4 py-3 text-sm font-medium text-neutral-900 min-h-[48px] ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
+            className="w-full rounded-md bg-[#F7F5F0] px-4 py-3 text-sm font-medium text-neutral-900 min-h-[48px] hover:bg-white transition-colors"
           />
         </div>
       )}

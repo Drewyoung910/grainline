@@ -12,7 +12,7 @@ import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
-import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { z } from "zod";
 
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
       type: "NEW_REVIEW",
       title: `${reviewerName} left you a ${stars}-star review`,
       body: listing.title,
-      link: publicSellerPath(listing.seller.id, listing.seller.displayName),
+      link: `${publicListingPath(listingId, listing.title)}#reviews`,
       dedupScope: created.id,
     });
 

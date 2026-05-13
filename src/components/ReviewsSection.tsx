@@ -78,14 +78,15 @@ export default async function ReviewsSection({
   const avg = agg._avg.ratingX2 ? agg._avg.ratingX2 / 2 : null;
   const avgQuarter = avg != null ? quarterRound(avg) : null;
 
-  // Gating: has the viewer bought this listing? (for Helpful)
-  let viewerBought = false;
+  // Is the viewer the seller of this listing? (sellers can't mark their
+  // own listing's reviews helpful — would let them boost their best ones.)
+  let viewerIsSeller = false;
   if (meId) {
-    const has = await prisma.order.findFirst({
-      where: { buyerId: meId, items: { some: { listingId } }, paidAt: { not: null } },
-      select: { id: true },
+    const listingRow = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { seller: { select: { userId: true } } },
     });
-    viewerBought = !!has;
+    viewerIsSeller = listingRow?.seller.userId === meId;
   }
 
   // Viewer's review (full)
@@ -346,7 +347,8 @@ export default async function ReviewsSection({
                           reviewId={r.id}
                           initialCount={r.helpfulCount}
                           initiallyVoted={votedReviewIds.has(r.id)}
-                          canVote={!!meId && viewerBought}
+                          canVote={!!meId && !viewerIsSeller && meId !== r.reviewer.id}
+                          signedIn={!!meId}
                         />
                         {!r.sellerReply && sellerUserId && (
                           <div className="ml-auto">

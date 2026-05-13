@@ -231,7 +231,37 @@ input, textarea, select {
    Left fade appears only when scrolled away from the start.
    Right fade appears only when there's more content to the right.
    At the end of the scroll, the right fade disappears so the last
-   item is fully visible. */
+   item is fully visible. A trailing pseudo-element on the inner
+   flex container adds symmetric scroll-end inset so the last card
+   doesn't sit flush against the right edge. */
+
+.scroll-fade-edges > *::after,
+.scroll-fade-edges-sm > *::after,
+.scroll-fade-edges-lg > *::after {
+  content: "";
+  display: block;
+  flex: 0 0 1rem;
+  width: 1rem;
+  align-self: stretch;
+}
+@media (min-width: 640px) {
+  .scroll-fade-edges > *::after {
+    flex-basis: 2rem;
+    width: 2rem;
+  }
+  /* At responsive grid breakpoints the row stops scrolling and the
+     inner ul switches from flex to grid — the spacer would become
+     an empty grid cell, so hide it. */
+  .scroll-fade-edges-sm > *::after {
+    display: none;
+  }
+}
+@media (min-width: 1024px) {
+  .scroll-fade-edges-lg > *::after {
+    display: none;
+  }
+}
+
 .scroll-fade-edges {
   mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);
   -webkit-mask-image: linear-gradient(to right, black, black calc(100% - 32px), transparent);

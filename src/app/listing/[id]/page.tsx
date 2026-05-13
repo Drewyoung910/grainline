@@ -514,12 +514,12 @@ export default async function ListingPage({
                   listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
+                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
-                  className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
                 >
                   <Hammer size={15} />
                   Request Something Similar
@@ -608,14 +608,14 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
+                  className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
                 >
                   Message maker
                 </Link>
               )}
               <Link
                 href={sellerHref}
-                className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 ring-1 ring-stone-200/60 hover:bg-neutral-50 transition-colors"
+                className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
               >
                 Visit Shop
               </Link>
@@ -743,34 +743,32 @@ export default async function ListingPage({
 
       {/* ── Shop Policies ──────────────────────────────────────────────────── */}
       {(listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
-        <section className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] p-6 mb-10">
-          <h2 className="font-semibold font-display text-neutral-900 mb-3">Shop Policies</h2>
-          <div className="space-y-0">
-            {listing.seller.returnPolicy && (
-              <details className="border-b border-[#F7F5F0] last:border-0">
-                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
-                  Returns & Exchanges
-                </summary>
-                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.returnPolicy}</p>
-              </details>
-            )}
-            {listing.seller.shippingPolicy && (
-              <details className="border-b border-[#F7F5F0] last:border-0">
-                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
-                  Shipping
-                </summary>
-                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.shippingPolicy}</p>
-              </details>
-            )}
-            {listing.seller.customOrderPolicy && (
-              <details className="border-b border-[#F7F5F0] last:border-0">
-                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
-                  Custom Orders
-                </summary>
-                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.customOrderPolicy}</p>
-              </details>
-            )}
-          </div>
+        <section className="card-section bg-white mb-10 max-w-2xl">
+          <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">Shop Policies</h2>
+          {listing.seller.returnPolicy && (
+            <details className="border-b border-neutral-100 last:border-b-0">
+              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
+                Return Policy
+              </summary>
+              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.returnPolicy}</p>
+            </details>
+          )}
+          {listing.seller.shippingPolicy && (
+            <details className="border-b border-neutral-100 last:border-b-0">
+              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
+                Shipping Policy
+              </summary>
+              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.shippingPolicy}</p>
+            </details>
+          )}
+          {listing.seller.customOrderPolicy && (
+            <details className="border-b border-neutral-100 last:border-b-0">
+              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
+                Custom Order Policy
+              </summary>
+              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.customOrderPolicy}</p>
+            </details>
+          )}
         </section>
       )}
 

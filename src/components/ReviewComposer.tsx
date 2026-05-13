@@ -53,7 +53,7 @@ export default function ReviewComposer(props: {
   // If user cannot create AND not editing, just show the info box.
   if (creating && (!canReview || hasReview)) {
     return (
-      <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-sm text-neutral-700">
+      <div className="card-section px-4 py-3 text-sm text-neutral-600">
         You can post a review within 90 days of a completed purchase.
       </div>
     );
@@ -161,17 +161,15 @@ export default function ReviewComposer(props: {
           {photoUrls.map((url, i) => (
             <div key={url + i} className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className="h-16 w-16 rounded-lg object-cover border" />
+              <img src={url} alt="" className="h-16 w-16 rounded-lg object-cover ring-1 ring-stone-200" />
               <button
                 type="button"
                 title="Remove"
                 aria-label="Remove photo"
                 onClick={() => setPhotoUrls(photoUrls.filter((u) => u !== url))}
-                className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center rounded-full text-white"
+                className="absolute -top-2 -right-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/80 text-white text-sm shadow-sm hover:bg-black transition-colors"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/80 text-base">
-                  ×
-                </span>
+                ×
               </button>
             </div>
           ))}
@@ -198,11 +196,11 @@ export default function ReviewComposer(props: {
         onUploadError={(e: Error) => toast(e?.message || "Upload failed", "error")}
         appearance={{
           button:
-            "inline-flex items-center gap-2 rounded-full px-3 py-1 bg-black text-white hover:bg-neutral-800",
+            "inline-flex items-center gap-2 rounded-full bg-[#EFEAE0] hover:bg-[#E3DCCB] text-neutral-800 px-3 py-1.5 text-xs font-medium transition-colors",
           allowedContent: "text-xs text-neutral-500",
         }}
         content={{
-          button: <span>＋ Add photos</span>,
+          button: <span>+ Add photos</span>,
           allowedContent: <>Images up to 8MB, max 6</>,
         }}
       />
@@ -214,7 +212,7 @@ export default function ReviewComposer(props: {
       <div className="pt-1">
         <button
           type="submit"
-          className="rounded-full bg-black px-4 py-2 text-white hover:bg-neutral-800"
+          className="inline-flex items-center rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] text-white px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
           disabled={submitting || (editing && existing?.locked)}
           title={editing && existing?.locked ? "This review is locked" : undefined}
         >

@@ -34,14 +34,10 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   if (review.reviewerId === me.id) {
     return NextResponse.json({ error: "Cannot vote own review" }, { status: 400 });
   }
-
-  // Optional gate: only buyers of this listing can vote (helpful)
-  const hasBought = await prisma.orderItem.findFirst({
-    where: { listingId: review.listingId, order: { buyerId: me.id, paidAt: { not: null } } },
-    select: { id: true },
-  });
-  if (!hasBought) {
-    return NextResponse.json({ error: "Only buyers can vote" }, { status: 403 });
+  // Don't allow the seller to vote helpful on reviews of their own listing
+  // (would let sellers boost their best reviews).
+  if (review.listing.seller.userId === me.id) {
+    return NextResponse.json({ error: "Cannot vote on your own listing" }, { status: 400 });
   }
 
   let updated: { helpfulCount: number; voted: boolean };

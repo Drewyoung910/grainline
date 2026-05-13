@@ -9,11 +9,16 @@ export function HelpfulButton({
   initialCount,
   initiallyVoted,
   canVote,
+  signedIn,
 }: {
   reviewId: string;
   initialCount: number;
   initiallyVoted: boolean;
+  /** Eligible to vote (signed in, not the seller, not the reviewer). */
   canVote: boolean;
+  /** Whether the viewer is signed in at all. Signed-out viewers click to
+   * sign-in instead of getting a silently-disabled button. */
+  signedIn: boolean;
 }) {
   const [count, setCount] = React.useState(initialCount);
   const [voted, setVoted] = React.useState(initiallyVoted);
@@ -21,7 +26,14 @@ export function HelpfulButton({
   const { toast } = useToast();
 
   async function toggle() {
-    if (!canVote || loading) return;
+    if (loading) return;
+    if (!signedIn) {
+      if (typeof window !== "undefined" && window.location) {
+        window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname + window.location.hash)}`;
+      }
+      return;
+    }
+    if (!canVote) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/reviews/${reviewId}/vote`, { method: "POST" });
@@ -37,17 +49,26 @@ export function HelpfulButton({
     }
   }
 
+  const disabled = signedIn && !canVote;
+  const titleText = !signedIn
+    ? "Sign in to mark helpful"
+    : !canVote
+    ? "You can't vote on this review"
+    : voted
+    ? "Marked helpful"
+    : "Mark helpful";
+
   return (
     <button
       type="button"
       onClick={toggle}
-      disabled={!canVote || loading}
+      disabled={disabled || loading}
       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
         voted
           ? "bg-neutral-900 text-white hover:bg-neutral-700"
           : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
       }`}
-      title={canVote ? (voted ? "Marked helpful" : "Mark helpful") : "Only buyers can vote"}
+      title={titleText}
     >
       <svg
         className="h-3.5 w-3.5"
