@@ -99,8 +99,9 @@ export async function POST(
     });
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
 
-    const myItems = order.items.filter((it) => it.listing.sellerId === seller.id);
-    if (myItems.length === 0) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    const allItemsBelongToSeller = order.items.length > 0 && order.items.every((it) => it.listing.sellerId === seller.id);
+    if (!allItemsBelongToSeller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    const myItems = order.items;
 
     const staleLocksReleased = await releaseStaleRefundLocks(orderId);
     const orderForRefundState = {

@@ -3760,6 +3760,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 127. **[FIXED 2026-05-13] Cart quantity updates missed the shared acceptingNewOrders guard** — `/api/cart/update` already rechecked active listing state, private reservations, seller Stripe readiness, vacation, and banned/deleted account state before increasing quantity, but it did not call `sellerOrderBlockReason()`. Existing checkout routes would still block payment, so impact was a server-side parity/UX gap rather than a completed-order bypass. The update route now selects `acceptingNewOrders` and `stripeAccountVersion`, calls the shared seller orderability helper, and has a source guardrail in `tests/order-state-followups.test.mjs`.
 
+128. **[FIXED 2026-05-13] Seller order mutation routes authorized on partial order ownership** — refund, fulfillment, and label-purchase routes checked whether the acting seller owned any item in an order. Grainline creates one-seller orders, so this was not reachable through normal checkout, but a malformed mixed-seller order would have let one seller refund, fulfill, or buy a label for the whole order. Those routes now require every `OrderItem` to belong to the acting seller, with source guardrails in `tests/order-seller-route-ownership.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

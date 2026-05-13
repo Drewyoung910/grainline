@@ -58,8 +58,8 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   });
   if (!order) return null;
 
-  const ownsAny = order.items.some((it) => it.listing.sellerId === seller.id);
-  return ownsAny ? { order, seller } : null;
+  const ownsEntireOrder = order.items.length > 0 && order.items.every((it) => it.listing.sellerId === seller.id);
+  return ownsEntireOrder ? { order, seller } : null;
 }
 
 export async function POST(
