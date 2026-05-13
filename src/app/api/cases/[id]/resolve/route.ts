@@ -281,12 +281,22 @@ export async function POST(
             reviewNeeded: true,
             reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} succeeded, but case resolution DB work failed. Manual reconciliation required.`,
           },
-        }).catch(() => {});
+        }).catch((reviewUpdateError) => {
+          Sentry.captureException(reviewUpdateError, {
+            tags: { source: "case_refund_orphaned_review_update_failed" },
+            extra: { caseId: id, orderId: caseRecord.orderId, stripeRefundId, stripeRefundIds },
+          });
+        });
       } else if (refunding) {
         await prisma.order.updateMany({
           where: { id: caseRecord.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: { sellerRefundId: null, sellerRefundLockedAt: null },
-        }).catch(() => {});
+        }).catch((lockReleaseError) => {
+          Sentry.captureException(lockReleaseError, {
+            tags: { source: "case_refund_lock_release_failed" },
+            extra: { caseId: id, orderId: caseRecord.orderId },
+          });
+        });
       }
       if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_CONFLICT") {
         return NextResponse.json(
@@ -329,7 +339,13 @@ export async function POST(
           });
         }
       }
-    } catch { /* non-fatal */ }
+    } catch (emailError) {
+      Sentry.captureException(emailError, {
+        level: "warning",
+        tags: { source: "case_resolved_email" },
+        extra: { caseId: id, orderId: caseRecord.orderId, resolution },
+      });
+    }
 
     // Audit log
     try {
@@ -342,7 +358,13 @@ export async function POST(
         reason: `${resolution}${persistedRefundAmountCents ? ` ($${(persistedRefundAmountCents / 100).toFixed(2)})` : ""}`,
         metadata: { resolution, refundAmountCents: persistedRefundAmountCents, stripeRefundId },
       });
-    } catch { /* non-fatal */ }
+    } catch (auditError) {
+      Sentry.captureException(auditError, {
+        level: "warning",
+        tags: { source: "case_resolve_audit_log" },
+        extra: { caseId: id, orderId: caseRecord.orderId, resolution },
+      });
+    }
 
     return NextResponse.json(updatedCase);
   } catch (err) {

@@ -1,6 +1,7 @@
 // src/app/api/cases/[id]/messages/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -150,7 +151,13 @@ export async function POST(
             messageSnippet: messageBody,
           });
         }
-      } catch { /* non-fatal */ }
+      } catch (emailError) {
+        Sentry.captureException(emailError, {
+          level: "warning",
+          tags: { source: "case_staff_message_email" },
+          extra: { caseId: id, orderId: caseRecord.orderId },
+        });
+      }
     } else {
       // Buyer or seller message — notify the other party
       const recipientId = me.id === caseRecord.buyerId ? caseRecord.sellerId : caseRecord.buyerId;
@@ -184,7 +191,13 @@ export async function POST(
               });
             }
           }
-        } catch { /* non-fatal */ }
+        } catch (emailError) {
+          Sentry.captureException(emailError, {
+            level: "warning",
+            tags: { source: "case_party_message_email" },
+            extra: { caseId: id, orderId: caseRecord.orderId, recipientId },
+          });
+        }
       }
     }
 

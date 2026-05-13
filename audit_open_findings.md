@@ -3793,6 +3793,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 141. **[HARDENED 2026-05-13] Message thread archive actions and custom-order email side effects tightened** — message list/read/stream routes were already participant-scoped, and custom-order requests already blocked self-targeting, blocked users, unavailable sellers, invalid listing context, and disconnected payout state. This pass added route-local account-state checks to message archive/unarchive server actions and replaced the custom-order request email silent catch with Sentry evidence keyed by safe conversation/user IDs. Source guardrail: `tests/custom-order-admin-thread-followups.test.mjs`.
 
+142. **[HARDENED 2026-05-13] Case/dispute routes audited; silent non-blocking side effects now leave Sentry evidence** — case create/message/escalate/mark-resolved/resolve routes were ownership/rate-limit/state-precondition sound in this pass. The hardening fix replaced silent case message/resolution email catches, case-resolution audit-log catch, refund-lock release catch, and orphaned-refund remediation catch with Sentry captures keyed by bounded case/order/refund IDs. Source guardrail: `tests/case-observability-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

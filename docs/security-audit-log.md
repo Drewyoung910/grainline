@@ -399,6 +399,28 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** message thread archive/unarchive server actions now reject banned/deleted local accounts inside the action before mutating conversation archive state, and custom-order request email failures now emit Sentry evidence instead of being swallowed by a silent non-fatal catch. Regression coverage lives in `tests/custom-order-admin-thread-followups.test.mjs`.
 
+## 2026-05-13 case/dispute route spot check
+
+Scope:
+
+- `src/app/api/cases/route.ts`
+- `src/app/api/cases/[id]/messages/route.ts`
+- `src/app/api/cases/[id]/escalate/route.ts`
+- `src/app/api/cases/[id]/mark-resolved/route.ts`
+- `src/app/api/cases/[id]/resolve/route.ts`
+
+Results:
+
+- Case creation is buyer-only for the order, blocks duplicate cases and already-refunded orders, respects shipment/estimated-delivery timing unless seller unavailability/review-needed state applies, rate-limits creation, and logs the buyer action.
+- Case messages require buyer/seller participation or staff role, block closed statuses, reject unavailable counterparties for party-to-party messages, and use a status precondition in the transaction before creating the message.
+- Escalation is cron/staff-only for bulk escalation and participant/staff/cron-scoped for single cases. Participant escalation respects the unlock time unless the counterparty account is unavailable.
+- Mark-resolved requires buyer/seller participation and uses one atomic SQL update scoped by case ID, actor participation, and active status.
+- Staff case resolution is staff-only, rate-limited, uses refund locks and stale-lock release, blocks duplicate refund/dispute ledger state, caps partial refunds, records Stripe-orphaned refund evidence, and uses a status precondition before persisting resolution.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** case message email side effects, case-resolved email side effects, case-resolution audit logging, refund-lock release failure, and orphaned-refund review-note remediation failures now emit Sentry evidence instead of silent `catch {}` / empty `.catch()` blocks. Regression coverage lives in `tests/case-observability-followups.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
