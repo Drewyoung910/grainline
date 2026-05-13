@@ -16,6 +16,7 @@ import {
 } from "@/lib/listingActionState";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
+import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -43,6 +44,16 @@ function revalidateListingSurfaces(listingId: string, sellerId: string) {
   revalidatePath(`/listing/${listingId}`);
   revalidatePath("/dashboard");
   revalidatePath("/browse");
+}
+
+function queueCheckoutSessionExpiryForListing(listingId: string, sellerId: string, source: string) {
+  after(() =>
+    expireOpenCheckoutSessionsForListing({
+      listingId,
+      sellerId,
+      source,
+    }),
+  );
 }
 
 function shouldNotifyFollowersOnActivation(listing: { status: ListingStatus; updatedAt: Date }) {
@@ -106,6 +117,7 @@ export async function hideListingAction(listingId: string) {
   });
   if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
+  queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_hide");
   revalidateListingSurfaces(listingId, listing.sellerId);
   return { ok: true };
 }
@@ -135,6 +147,7 @@ export async function markSoldAction(listingId: string) {
   });
   if (result.count === 0) return;
   await syncThreshold(listing.sellerId);
+  queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_mark_sold");
   revalidateListingSurfaces(listingId, listing.sellerId);
 }
 
@@ -160,6 +173,7 @@ export async function deleteListingAction(listingId: string) {
   if (sp && activeCount < 5 && !sp.listingsBelowThresholdSince) {
     await prisma.sellerProfile.update({ where: { id: listing.sellerId }, data: { listingsBelowThresholdSince: new Date() } });
   }
+  queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_archive");
   revalidateListingSurfaces(listingId, listing.sellerId);
   return { ok: true };
 }
@@ -262,6 +276,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         reason: aiResult.reason,
         metadata: { flags: aiResult.flags, confidence: aiResult.confidence },
       });
+      queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_ai_hold");
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "PENDING_REVIEW" };
     } else {

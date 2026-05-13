@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { z } from "zod";
 import { rateLimitResponse, safeRateLimit, vacationRatelimit } from "@/lib/ratelimit";
+import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -41,6 +42,16 @@ export async function POST(req: Request) {
       where: { id: seller.id },
       data: { vacationMode, vacationReturnDate, vacationMessage },
     });
+
+    if (vacationMode) {
+      after(() =>
+        expireOpenCheckoutSessionsForSeller({
+          sellerId: seller.id,
+          stripeAccountId: seller.stripeAccountId,
+          source: "seller_vacation",
+        }),
+      );
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err) {

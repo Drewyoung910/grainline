@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
 import EditPhotoGrid from "@/components/EditPhotoGrid";
@@ -20,11 +21,22 @@ import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 type SaveResult = { ok: boolean; error?: string };
+
+function queueCheckoutSessionExpiryForListing(listingId: string, sellerId: string, source: string) {
+  after(() =>
+    expireOpenCheckoutSessionsForListing({
+      listingId,
+      sellerId,
+      source,
+    }),
+  );
+}
 
 const toFloat = (v: unknown) => {
   const s = typeof v === "string" ? v.trim() : v;
@@ -441,7 +453,7 @@ async function updateListing(
         const shouldHold =
           !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
         if (shouldHold) {
-          await prisma.listing.updateMany({
+          const holdResult = await prisma.listing.updateMany({
             where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
             data: {
               status: ListingStatus.PENDING_REVIEW,
@@ -449,6 +461,9 @@ async function updateListing(
               aiReviewScore: aiResult.confidence,
             },
           });
+          if (holdResult.count > 0) {
+            queueCheckoutSessionExpiryForListing(listingId, seller.id, "listing_edit_ai_hold");
+          }
         } else {
           // Stays ACTIVE; refresh AI metadata to reflect this review pass.
           await prisma.listing.updateMany({
@@ -461,16 +476,19 @@ async function updateListing(
         }
       } else {
         // Seller lost chargesEnabled mid-edit: send the listing to draft.
-        await prisma.listing.updateMany({
+        const draftResult = await prisma.listing.updateMany({
           where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
           data: { status: ListingStatus.DRAFT },
         });
+        if (draftResult.count > 0 && seller) {
+          queueCheckoutSessionExpiryForListing(listingId, seller.id, "listing_edit_seller_disconnected");
+        }
       }
     } catch (err) {
       console.error("[listing-update] AI re-review failed:", err);
       // AI infrastructure error — flip to PENDING_REVIEW conservatively so
       // staff can review the new content.
-      await prisma.listing.updateMany({
+      const pendingResult = await prisma.listing.updateMany({
         where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
         data: {
           status: ListingStatus.PENDING_REVIEW,
@@ -478,6 +496,9 @@ async function updateListing(
           aiReviewScore: 0,
         },
       });
+      if (pendingResult.count > 0) {
+        queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_edit_ai_error");
+      }
     }
   }
 

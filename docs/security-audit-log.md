@@ -297,7 +297,7 @@ Hardening notes:
 
 - Grainline still handles sensitive business data even though Stripe handles raw card data: user accounts, addresses, orders, messages, upload content, seller payout state, refund state, admin tools, and webhook-derived payment state.
 - RLS is not currently enabled as a broad database policy layer. Current protection is Clerk middleware plus route/action-level ownership predicates. Targeted RLS or lower-privilege database roles should follow `docs/rls-feasibility-plan.md` after route predicates are fully inventoried.
-- Open checkout sessions remain valid for their short Stripe expiry window after some listing-level seller actions unless those actions explicitly expire sessions. This is not logged as a verified bug yet because checkout sessions reserve stock and represent a buyer already in payment flow, but future hardening can decide whether listing archive/unpublish/seller vacation should also expire open sessions.
+- Open checkout sessions are proactively expired when a seller enters vacation mode or an active listing leaves buyer availability through hide, mark-sold, archive, AI hold, disconnected-seller draft, or AI-error hold paths. Successful proactive expiration also calls the idempotent stock-restore helper; the Stripe webhook still revalidates buyer/seller/listing state at payment completion and refunds blocked checkouts as the backstop.
 
 Follow-up fix from this pass:
 
@@ -313,6 +313,7 @@ Follow-up fix from this pass:
 - **Fixed 2026-05-13:** public vulnerability disclosure is now live at `/security` and `/.well-known/security.txt`. Both routes are public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt; launch ops must verify `security@thegrainline.com` mailbox routing before public launch. Regression coverage lives in `tests/security-disclosure.test.mjs`.
 - **Fixed 2026-05-13:** CSP report handling now sanitizes Sentry payloads and tags checkout/cart document violations with `checkout_surface=true`. This preserves payment-page monitoring evidence without sending checkout query strings or external blocked-URL paths to Sentry tags/extra. Regression coverage lives in `tests/csp-report-sanitization.test.mjs`.
 - **Documented 2026-05-13:** checkout/payment-page browser script inventory is recorded in `docs/checkout-script-inventory.md`. It documents the Stripe Embedded Checkout path, Clerk/Sentry runtime presence, no direct `next/script` usage on checkout surfaces, and a change-control rule for future checkout scripts. Regression coverage lives in `tests/checkout-script-inventory.test.mjs`.
+- **Fixed 2026-05-13:** seller vacation mode and listing availability transitions now proactively expire matching open Stripe Checkout Sessions and run idempotent stock restoration after successful expiration. This prevents buyers from completing stale sessions after a seller/listing becomes unavailable, while keeping webhook payment-completion revalidation/refund logic as the final backstop. Regression coverage lives in `tests/checkout-session-expiry.test.mjs`.
 
 Open work:
 
