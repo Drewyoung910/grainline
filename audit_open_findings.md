@@ -3797,6 +3797,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 143. **[HARDENED 2026-05-13] Reviews/reports/block/follow routes audited; side-effect observability tightened** — review create/edit/delete/reply/vote, user block/report, follow, and favorite routes were ownership/rate-limit/state-predicate sound in this pass. The hardening fix added Sentry evidence for review rating-summary refresh failures, review notification email failures, review-photo R2 cleanup failures, listing-report notification failures, favorite upsert/notification failures, and block follow-cleanup failures, using only safe internal IDs or media hostnames. Source guardrail: `tests/review-report-observability.test.mjs`.
 
+144. **[HARDENED 2026-05-13] Commission/custom-work routes audited; side-effect observability tightened** — commission create/read/close/fulfill/interest and expiry cron paths were ownership/rate-limit/state-predicate sound in this pass. The hardening fix added Sentry evidence for non-blocking geo assignment, close/fulfill notifications, and interest-created message/notification side effects, and removed an unused buyer email select from the interest route. Source guardrail: `tests/commission-observability-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

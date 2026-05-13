@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
@@ -64,7 +65,7 @@ export async function POST(
       budgetMinCents: true,
       budgetMaxCents: true,
       timeline: true,
-      buyer: { select: { id: true, name: true, email: true, banned: true, deletedAt: true } },
+      buyer: { select: { id: true, name: true, banned: true, deletedAt: true } },
     },
   });
   if (!commissionRequest) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -197,7 +198,19 @@ export async function POST(
           dedupScope: id,
         }),
       ]);
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "commission_interest_side_effects" },
+        extra: {
+          commissionRequestId: id,
+          conversationId: finalConversationId,
+          sellerProfileId: sellerProfile.id,
+          sellerUserId: me.id,
+          buyerId: commissionRequest.buyerId,
+        },
+      });
+    }
   });
 
   return NextResponse.json({ conversationId: finalConversationId, alreadyInterested: false });

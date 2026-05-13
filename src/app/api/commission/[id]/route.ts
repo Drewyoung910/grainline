@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { CommissionStatus } from "@prisma/client";
 import { createNotification } from "@/lib/notifications";
@@ -169,7 +170,17 @@ export async function PATCH(
             dedupScope: id,
           }),
       );
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "commission_status_notification" },
+        extra: {
+          commissionRequestId: id,
+          status,
+          interestedSellerCount: request.interests.length,
+        },
+      });
+    }
   });
 
   return NextResponse.json(updated);

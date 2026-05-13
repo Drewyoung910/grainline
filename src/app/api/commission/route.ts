@@ -1,6 +1,7 @@
 // src/app/api/commission/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { Category } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
@@ -183,6 +184,11 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error("[geo-metro] Failed to assign metro to commission:", e);
+      Sentry.captureException(e, {
+        level: "warning",
+        tags: { source: "commission_geo_assignment" },
+        extra: { commissionRequestId: request.id },
+      });
     }
   }
 

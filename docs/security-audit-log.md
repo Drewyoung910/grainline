@@ -448,6 +448,31 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** review rating-summary/email failures, review-photo R2 cleanup failures, listing-report notification failures, favorite upsert/notification failures, and block follow-cleanup failures now emit Sentry evidence using safe internal IDs or media hostnames. Raw emails, comments, report details, full media URLs, and address-like values are intentionally excluded. Regression coverage lives in `tests/review-report-observability.test.mjs`.
 
+## 2026-05-13 commission/custom-work route spot check
+
+Scope:
+
+- `src/app/api/commission/route.ts`
+- `src/app/api/commission/[id]/route.ts`
+- `src/app/api/commission/[id]/interest/route.ts`
+- `src/app/api/cron/commission-expire/route.ts`
+- `src/app/commission/[param]/page.tsx`
+- `src/app/commission/new/page.tsx`
+- `src/lib/commissionState.ts`
+- `src/lib/commissionExpiry.ts`
+
+Results:
+
+- Public commission reads use `openCommissionWhere()`/`commissionIsExpired()` so closed, expired, banned-buyer, or deleted-buyer requests are hidden from public board/detail surfaces.
+- Commission creation is signed-in, rate-limited, banned/deleted-account blocked, Zod-backed, budget-capped, first-party-reference-image constrained, and applies a separate IP limiter when reference images are included.
+- Commission close/fulfill is buyer-owner-only and uses `openCommissionMutationWhere()` inside the write predicate so stale reads cannot mutate terminal, expired, or inactive-buyer requests.
+- Commission interest creation is seller-only, requires connected non-vacation sellers, blocks own-request interest, mutual blocks, duplicate interest, closed/expired requests, and uses a transaction with the shared open-request write predicate before creating the conversation/interest and updating counts.
+- The commission expiry cron is cron-authenticated, bounded by batch/concurrency limits, idempotently updates only still-open rows, and captures per-record failures through Sentry.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** commission geo-assignment failures, close/fulfill notification failures, and interest-created message/notification failures now emit Sentry evidence with safe commission/conversation/user/seller-profile IDs. The interest route no longer selects the buyer email address because it is not needed for the side effects. Regression coverage lives in `tests/commission-observability-followups.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
