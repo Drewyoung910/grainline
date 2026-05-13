@@ -46,8 +46,170 @@ Spot checks completed in this pass:
   - Final SQL update repeats participant and status predicates atomically.
   - Result: no verified IDOR found.
 
+- `src/app/api/orders/[id]/refund/route.ts`
+  - Requires auth, local user, non-suspended account, seller profile, and at least one order item owned by that seller.
+  - Refund lock uses `sellerRefundId` sentinel plus ledger checks before Stripe refund.
+  - Current checkout trace shows orders are seller-scoped: `/api/cart/checkout-seller` signs `sellerId` into Stripe metadata and the webhook filters cart items by that `sellerId` before `Order` creation.
+  - Result: no verified IDOR found in the inspected seller-refund route.
+  - Invariant to preserve: buyer checkout must continue creating one order per seller. If future code creates mixed-seller orders, seller order routes using "owns any item" must be tightened first.
+
+- `src/app/api/orders/[id]/label/route.ts`
+  - Requires auth, local user, non-suspended account, seller profile, and at least one order item owned by that seller.
+  - Blocks purchased labels, refunded orders, active cases, pickup orders, and terminal fulfillment states.
+  - Rate selection is constrained to the order's stored rate or an unexpired quote set.
+  - Result: no verified IDOR found in the inspected label-purchase route under the seller-scoped order invariant.
+
+- `src/app/api/cases/[id]/resolve/route.ts`
+  - Requires auth and local user.
+  - Requires `EMPLOYEE` or `ADMIN` role before case resolution.
+  - Refund lock and final case update repeat status preconditions and record orphaned Stripe-refund states for manual reconciliation.
+  - Result: no verified IDOR found in the inspected admin case-resolution route.
+
+- `src/app/messages/[id]/page.tsx`
+  - Requires auth and local user.
+  - Non-staff users must be conversation participants.
+  - Staff access is limited to unresolved reported threads.
+  - `sendMessage` rechecks participant membership, account availability, block state, and first-party attachment URLs before creating a message.
+  - Result: no verified IDOR found in the inspected page/action path.
+
+- `src/app/api/messages/[id]/list/route.ts`
+  - Requires auth and local user.
+  - Requires requester to be a conversation participant before listing messages.
+  - Result: no verified IDOR found.
+
+- `src/app/api/messages/[id]/read/route.ts`
+  - Requires auth and local user.
+  - Requires requester to be a conversation participant before marking only that user's received messages as read.
+  - Result: no verified IDOR found.
+
+- `src/app/api/messages/[id]/stream/route.ts`
+  - Requires auth and local user.
+  - Requires requester to be a conversation participant before opening the SSE poll stream.
+  - Result: no verified IDOR found.
+
+- `src/app/api/messages/custom-order-request/route.ts`
+  - Requires auth, local user, non-suspended account, rate limit, no self-message, and no block in either direction.
+  - Requires target user to be an active seller accepting custom and new orders with connected payouts.
+  - Optional listing context is accepted only when it belongs to that seller and is active/public.
+  - Result: no verified IDOR found.
+
+- `src/app/api/account/export/route.ts`
+  - Uses `ensureUser()` and account export rate limiting.
+  - Export queries are scoped to the current user by `user.id`, owned seller profile, buyer orders, seller-owned order items, sent/received messages, cases as buyer/seller, and current user's saved/followed records.
+  - Audit logging is required before returning the JSON download.
+  - Result: no verified IDOR found.
+
+- `src/app/api/account/delete/route.ts`
+  - Requires auth and `ensureUser()`.
+  - Pending-sale/case blockers are scoped to the current user before deletion.
+  - `anonymizeUserAccount()` is called with the current user's database ID.
+  - Result: no verified IDOR found in the route wrapper.
+
+- `src/app/dashboard/seller/page.tsx`
+  - Seller settings server action requires auth and `ensureSeller()`.
+  - Updates target the current seller profile ID only.
+  - Result: no verified IDOR found in the inspected action path.
+
+- `src/app/dashboard/profile/page.tsx`
+  - Profile update, FAQ add/delete, avatar removal, and featured-listing toggle actions require auth and `ensureSeller()` or the current user.
+  - Featured-listing toggle verifies the listing belongs to the current seller before updating the seller profile.
+  - Result: no verified IDOR found in the inspected action path.
+
+- `src/app/api/dev/make-order/route.ts`
+  - Dev fixture route is disabled unless `NODE_ENV !== "production"`, `VERCEL_ENV` is absent, and `ENABLE_DEV_MAKE_ORDER === "true"`.
+  - Requires auth and non-suspended local user even when enabled.
+  - Result: no verified production exposure found.
+
+- `src/middleware.ts`
+  - No DB row-level security policies were found in the migration/schema grep pass.
+  - Application-layer middleware enforces signed-in redirects for non-public routes, suspended account blocks, terms acceptance, admin role checks, admin PIN checks for admin APIs/server-action POSTs, cron bearer auth, and geo restrictions.
+  - Result: RLS is not currently implemented; application-layer authorization remains the launch-critical control plane.
+
+- `src/app/api/cases/[id]/messages/route.ts`
+  - Requires auth, local user, rate limit, participant or staff role, valid case status, and available counterparty account state.
+  - Status transition is guarded with an atomic `updateMany` status precondition before message creation.
+  - Result: no verified IDOR found.
+
+- `src/app/api/cases/[id]/escalate/route.ts`
+  - Accepts CRON secret or authenticated local user.
+  - Bulk escalation is staff/cron only.
+  - Single escalation requires staff/cron or buyer/seller participation plus unlock-time/counterparty availability rules.
+  - Result: no verified IDOR found.
+
+- `src/app/api/notifications/[id]/read/route.ts`
+  - Requires auth and local user.
+  - `updateMany` scopes notification mutation to `{ id, userId: me.id }`.
+  - Result: no verified IDOR found.
+
+- `src/app/api/search/saved/route.ts`
+  - POST/GET/DELETE require auth/local user and are scoped to `userId: me.id`.
+  - DELETE uses `deleteMany({ id, userId: me.id })`.
+  - Result: no verified IDOR found.
+
+- `src/app/api/users/[id]/block/route.ts`
+  - Requires auth/local user, blocks self-block, and writes/deletes only rows with `blockerId: me.id`.
+  - Result: no verified IDOR found.
+
+- `src/app/api/users/[id]/report/route.ts`
+  - Requires auth/local user and rate limit.
+  - Validates the reported user exists and target IDs are associated with the reported user before creating a report.
+  - Result: no verified IDOR found, but privacy/abuse pass should revisit whether reporters must also have access to private targets such as orders or message threads.
+
+- `src/app/api/follow/[sellerId]/route.ts`
+  - Public GET uses `visibleSellerProfileWhere`.
+  - POST requires auth/local user, visible seller, no self-follow, and no block in either direction.
+  - DELETE removes only the current user's follow row.
+  - Result: no verified IDOR found.
+
+- `src/app/api/shipping/quote/route.ts`
+  - Requires auth/local user.
+  - Cart mode verifies explicit `cartId` belongs to the current user and filters seller-scoped carts before quote signing.
+  - Single mode repeats checkout availability checks for active/private/self-purchase/seller-state/stock.
+  - Signed rates include context ID, buyer ID, and buyer postal code.
+  - Result: no verified IDOR found.
+
+- `src/app/api/admin/listings/[id]/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check requires `ADMIN` role before removing a listing.
+  - Result: no verified IDOR found.
+
+- `src/app/api/admin/listings/[id]/review/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check allows `ADMIN` or `EMPLOYEE`.
+  - Approve/reject mutations are status-guarded to `PENDING_REVIEW`.
+  - Result: no verified IDOR found.
+
+- `src/app/api/admin/users/[id]/ban/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check requires `ADMIN`, blocks self-ban, and blocks banning admin accounts.
+  - Result: no verified IDOR found.
+
+- `src/app/api/admin/audit/[id]/undo/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check requires `ADMIN`; undo policy is delegated to `undoAdminAction()`.
+  - Result: no verified IDOR found in the route wrapper.
+
+- `src/app/api/admin/email/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check requires `ADMIN`, validates recipient, checks suppression, and logs the admin action.
+  - Result: no verified IDOR found.
+
+- `src/app/api/admin/reports/[id]/resolve/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check allows `ADMIN` or `EMPLOYEE`.
+  - Result: no verified IDOR found. Later robustness pass can make the missing-report path return a controlled 404 instead of relying on Prisma's throw.
+
+- `src/app/api/admin/reviews/[id]/route.ts`
+  - Middleware enforces staff role plus admin PIN for admin API calls.
+  - Route-local check requires `ADMIN` before review deletion.
+  - Result: no verified IDOR found.
+
+Out-of-scope verified issue found during this pass:
+
+- Existing-listing photo edits are not fully save-gated. `AddPhotosButton` calls `/api/listings/[id]/photos`, which persists `Photo` rows immediately and revalidates public pages; `EditPhotoGrid` reorder/delete/re-crop/alt-text actions also mutate immediately. This is not an authorization bypass because ownership checks are present, but it contradicts the intended "listing edits commit on Save, then AI review runs" behavior. Promoted to `audit_open_findings.md`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
-- Prioritize messages, orders/refunds/labels, cases/resolve, account deletion/export, seller settings, listing edit/create, favorites/saved searches, and admin actions.
+- Prioritize listing edit/create photo save-boundary fix, admin actions, reviews/review replies/votes, verification/guild routes, blog write routes, upload routes, and webhook replay/idempotency.
 - Add regression tests for each verified issue before or with the fix.
