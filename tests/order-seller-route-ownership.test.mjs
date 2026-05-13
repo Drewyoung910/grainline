@@ -26,4 +26,28 @@ describe("seller order mutation ownership guardrails", () => {
       );
     }
   });
+
+  it("keeps seller order read surfaces on whole-order ownership", () => {
+    for (const path of [
+      "src/app/api/seller/analytics/recent-sales/route.ts",
+      "src/app/dashboard/sales/page.tsx",
+      "src/app/api/account/export/route.ts",
+      "src/app/account/page.tsx",
+      "src/app/seller/[id]/page.tsx",
+      "src/lib/accountDeletion.ts",
+      "src/lib/ban.ts",
+    ]) {
+      const text = source(path);
+      assert.match(
+        text,
+        /some:\s*{\s*listing:\s*{\s*sellerId:/,
+        `${path} must require at least one seller-owned item`,
+      );
+      assert.match(
+        text,
+        /every:\s*{\s*listing:\s*{\s*sellerId:/,
+        `${path} must require every order item to belong to the seller before exposing seller-order data`,
+      );
+    }
+  });
 });

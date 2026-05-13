@@ -204,6 +204,49 @@ Spot checks completed in this pass:
   - Route-local check requires `ADMIN` before review deletion.
   - Result: no verified IDOR found.
 
+- `src/app/api/reviews/route.ts`
+  - Requires auth/local user, account availability, review rate limit, no self-review, and active seller account state.
+  - Review creation requires a paid delivered/picked-up order item for the current buyer and listing inside the review window.
+  - Review photos are limited to first-party media URLs.
+  - Result: no verified IDOR found.
+
+- `src/app/api/reviews/[id]/reply/route.ts`
+  - Requires auth and rate limit.
+  - The review is loaded through its listing and seller; only the seller owner's Clerk user can reply.
+  - Suspended/deleted seller accounts are blocked and only one seller reply is allowed.
+  - Result: no verified IDOR found.
+
+- `src/app/api/blog/[slug]/comments/route.ts`
+  - Public GET uses `publicBlogPostWhere()` and returns only approved comments from active users.
+  - POST requires auth/local user, active account state, comment rate limit, public post visibility, and parent comment membership in the same post before creating an unapproved comment.
+  - Result: no verified IDOR found.
+
+- `src/app/api/blog/[slug]/save/route.ts`
+  - GET returns a safe false state for unauthenticated or unavailable accounts.
+  - POST/DELETE require auth/local user, account availability, rate limit, and public post visibility; saves are scoped to the current user's `SavedBlogPost` row.
+  - Result: no verified IDOR found.
+
+- `src/app/api/verification/apply/route.ts`
+  - Requires `ensureSeller()` and account availability.
+  - Server recomputes eligibility from seller-owned active public listings, delivered/picked-up sales, account age, and unresolved long-running cases.
+  - Application upsert is scoped to the current seller profile.
+  - Result: no verified IDOR found.
+
+- `src/app/api/seller/broadcast/route.ts`
+  - Requires auth/local user, active seller profile, connected payouts, non-vacation shop, weekly rate limit, and first-party optional image URL.
+  - GET/POST operate only on the current seller profile; notification fan-out targets followers of that seller only.
+  - Result: no verified IDOR found.
+
+- `src/app/api/seller/vacation/route.ts`
+  - Requires auth, vacation-mode rate limit, and `ensureSeller()`.
+  - Mutation targets only the current seller profile.
+  - Result: no verified IDOR found.
+
+- `src/app/api/seller/analytics/route.ts` and `src/app/api/seller/analytics/recent-sales/route.ts`
+  - Require auth/local user and current seller profile before returning analytics.
+  - Analytics are seller-scoped through the current seller ID. Recent-sales read surface was hardened to require whole-order ownership, not partial item ownership, before returning whole-order totals.
+  - Result: no verified live IDOR found; defense-in-depth fix applied for malformed mixed-seller order resilience.
+
 Out-of-scope verified issue found during this pass:
 
 - Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.
@@ -243,6 +286,7 @@ Follow-up fix from this pass:
 
 - **Fixed 2026-05-13:** cart checkout webhook finalization no longer trusts mutable live `CartItem` rows after payment. Stripe's immutable paid `line_items` are now the source of truth for `OrderItem` creation, live cart rows are only optional enrichment for variant labels, and the transaction revalidates seller vacation/orderability plus listing active/private-reservation state before order side effects. Regression coverage lives in `tests/stripe-webhook-cart-finalization.test.mjs` and `tests/stripe-webhook-state.test.mjs`.
 - **Fixed 2026-05-13:** seller order mutation routes now require whole-order ownership. Refund, fulfillment, and label-purchase routes no longer authorize on "seller owns any item" because that would be unsafe if a malformed mixed-seller order ever existed. Regression coverage lives in `tests/order-seller-route-ownership.test.mjs`.
+- **Fixed 2026-05-13:** seller order read surfaces now match the whole-order ownership rule. Recent-sales analytics, seller sales page, account seller stats, account export, seller profile processing-time stats, account deletion blockers, and ban blockers require `items.some` and `items.every` for the same seller before exposing or acting on seller-order data. Regression coverage lives in `tests/order-seller-route-ownership.test.mjs`.
 - **Fixed 2026-05-13:** user report target validation now requires reporter access. Reports can still target public content, but orders/messages/threads require reporter participation and blog targets require public visibility, preventing report submission from acting as a private-object oracle. Regression coverage lives in `tests/user-report-target-access.test.mjs`.
 - **Fixed 2026-05-13:** review helpful votes now require the review's listing to pass `canViewListingDetail()` for the voter. This prevents hidden/private listing reviews from being manipulated by direct review ID. Regression coverage lives in `tests/review-vote-visibility.test.mjs`.
 

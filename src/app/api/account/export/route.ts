@@ -152,7 +152,12 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     }),
     sellerProfile
       ? prisma.order.findMany({
-          where: { items: { some: { listing: { sellerId: sellerProfile.id } } } },
+          where: {
+            items: {
+              some: { listing: { sellerId: sellerProfile.id } },
+              every: { listing: { sellerId: sellerProfile.id } },
+            },
+          },
           orderBy: { createdAt: "desc" },
           select: {
             id: true,

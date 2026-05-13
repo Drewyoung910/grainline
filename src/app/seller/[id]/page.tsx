@@ -217,7 +217,10 @@ export default async function SellerPublicPage({
       where: {
         paidAt: { not: null },
         shippedAt: { not: null },
-        items: { some: { listing: { sellerId: seller.id } } },
+        items: {
+          some: { listing: { sellerId: seller.id } },
+          every: { listing: { sellerId: seller.id } },
+        },
       },
       orderBy: { shippedAt: "desc" },
       take: 30,

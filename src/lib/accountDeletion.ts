@@ -309,7 +309,10 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
             fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
             sellerRefundId: null,
             paymentEvents: { none: blockingRefundLedgerWhere() },
-            items: { some: { listing: { sellerId: seller.id } } },
+            items: {
+              some: { listing: { sellerId: seller.id } },
+              every: { listing: { sellerId: seller.id } },
+            },
           },
         })
       : Promise.resolve(0),

@@ -3767,6 +3767,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 130. **[FIXED 2026-05-13] Review helpful votes were not gated by listing visibility** — `/api/reviews/[id]/vote` blocked the reviewer and seller from voting, but any authenticated user with a review ID could toggle helpful votes even if the underlying listing was private, hidden, or attached to a seller who no longer passed public visibility. The route now loads the listing visibility fields and requires `canViewListingDetail()` before toggling votes. Source guardrail: `tests/review-vote-visibility.test.mjs`.
 
+131. **[HARDENED 2026-05-13] Seller order read surfaces matched mutation ownership semantics** — seller order mutation routes already require whole-order ownership. Read-side surfaces still used the older `items.some(listing.sellerId)` pattern in recent-sales analytics, dashboard sales, account seller stats, account export, seller profile processing-time stats, account deletion blockers, and ban blockers. Under the current checkout invariant this was not a live leak, but a malformed mixed-seller order could expose whole-order totals or buyer/order state to a partial seller. These surfaces now require both `items.some` and `items.every` for the acting seller. Source guardrail: `tests/order-seller-route-ownership.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

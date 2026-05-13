@@ -101,7 +101,10 @@ export default async function AccountPage() {
   if (sellerProfile) {
     completedOrderCount = await prisma.order.count({
       where: {
-        items: { some: { listing: { sellerId: sellerProfile.id } } },
+        items: {
+          some: { listing: { sellerId: sellerProfile.id } },
+          every: { listing: { sellerId: sellerProfile.id } },
+        },
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
       },
     });

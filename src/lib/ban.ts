@@ -113,7 +113,10 @@ export async function banUser({ userId, adminId, reason }: {
             fulfillmentStatus: { in: [...OPEN_SELLER_ORDER_STATUSES] },
             sellerRefundId: null,
             paymentEvents: { none: blockingRefundLedgerWhere() },
-            items: { some: { listing: { sellerId: sellerProfile.id } } },
+            items: {
+              some: { listing: { sellerId: sellerProfile.id } },
+              every: { listing: { sellerId: sellerProfile.id } },
+            },
           },
           select: {
             id: true,

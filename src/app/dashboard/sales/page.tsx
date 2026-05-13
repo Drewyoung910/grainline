@@ -92,7 +92,12 @@ export default async function SalesPage({
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const skip = (page - 1) * PAGE_SIZE;
 
-  const where = { items: { some: { listing: { sellerId: seller.id } } } } as const;
+  const where = {
+    items: {
+      some: { listing: { sellerId: seller.id } },
+      every: { listing: { sellerId: seller.id } },
+    },
+  } as const;
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({

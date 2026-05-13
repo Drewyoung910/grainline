@@ -34,7 +34,10 @@ export async function GET() {
 
     const sales = await prisma.order.findMany({
       where: {
-        items: { some: { listing: { sellerId: sellerProfile.id } } },
+        items: {
+          some: { listing: { sellerId: sellerProfile.id } },
+          every: { listing: { sellerId: sellerProfile.id } },
+        },
         paidAt: { not: null },
       },
       orderBy: { createdAt: "desc" },
