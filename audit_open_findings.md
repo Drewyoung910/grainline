@@ -11,7 +11,7 @@ Drew reported regressions after Claude's direct-write pass and asked Codex to re
 3. **[FIXED 2026-05-12] Horizontal scroll fades had too much end dead space.** `scroll-fade-edges` now uses symmetric 16px mask fades instead of 32px so the ending fade better matches row start padding. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
 4. **[FIXED 2026-05-12] Homepage maker map was too zoomed in on mobile.** `AllSellersMap` now supports `mobileInitialZoom`; the homepage `MakersMapSection` uses `2.05` on narrow viewports when no explicit map center is provided, so the initial mobile view shows the full US instead of only central states. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
 5. **[SECURITY FIXED 2026-05-12] `npm audit` found high-severity Next.js advisories against the locked `next@16.2.4`.** Ran `npm audit fix`, which updated the lockfile to `next@16.2.6` plus matching `@next/*` packages. Post-fix audit reports 0 vulnerabilities.
-6. **[MEDIUM CONTENT-INTEGRITY FIXED 2026-05-12] Active-listing photo additions could bypass AI review.** `POST /api/listings/[id]/photos` could attach newly uploaded images directly to an already-public ACTIVE listing, and the edit page did not require the seller to click Save afterward. New public photos pass the dedicated `listingPhotoAiRatelimit`, hold the listing in `PENDING_REVIEW`, run `reviewListingWithAI`, backfill AI alt text, and restore ACTIVE only after approval; failures stay under review and disconnected sellers revert to DRAFT. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
+6. **[CORRECTED 2026-05-13] Active-listing photo-add review overcorrection reverted.** The 2026-05-12 direct review path moved ACTIVE listings into `PENDING_REVIEW` as soon as a seller added a photo, kicked the seller to preview, and bypassed the expected "edit first, then Save" workflow. `POST /api/listings/[id]/photos` now attaches photos and refreshes the edit page only. ACTIVE listing moderation remains tied to the seller explicitly pressing Save in `updateListing`, which reviews the current text, price, variants, and photo set and backfills missing alt text from that Save-time AI result. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
 7. **[MEDIUM PUBLIC-VISIBILITY FIXED 2026-05-12] Older public surfaces drifted from shared listing/seller visibility helpers.** Homepage fallback makers, saved-listing favorites, metro browse pages, maker pages, maps, footer metro links, sitemap seller/customer-photo routes, popular tags, blog search/tag raw SQL, similar listings, site metrics, quality scoring, and `/messages/new` listing context were still hand-rolling visibility and could miss the `stripeAccountVersion IN (null, "v2")` rule or helper semantics. Public surfaces now use `publicListingWhere()`, `publicListingDetailWhere()`, `visibleSellerProfileWhere()`, `activeSellerProfileWhere()`, or raw-SQL equivalents; the stale homepage `featuredMakerWhere` reference was removed. Regression coverage: `tests/verified-audit-followups.test.mjs` and `tests/public-visibility-followups.test.mjs`.
 
 ## 2026-05-10 (evening) — Re-crop drag, edit-page refresh, SSE warning, message + cart polish (Claude direct write — Codex unavailable)
@@ -299,7 +299,7 @@ Latest launch-readiness pass on 2026-05-08 closed the signed-out middleware/cart
 
 - **R18 notification dedup "missing" finding withdrawn.** Current code implements notification dedup through `notificationDedupKey()` and the `Notification` unique constraint. The accurate behavior is per-UTC-day stable action/link dedup, with optional source/action scope for same-link notifications, not a rolling 24-hour dedup window.
 - **Engagement integrity pass completed.** Notification dedup now supports scoped source/action keys and applies them to follower, favorite, review, broadcast, and commission notifications. Commission interest counts are read from live `CommissionInterest` rows instead of trusting the denormalized counter, and duplicate interest races now return the existing conversation.
-- **R16 AI fail-open findings are fixed.** Listing edit and photo-add AI review failures now leave listings in `PENDING_REVIEW`.
+- **R16 AI fail-open finding status.** Listing edit Save review failures leave ACTIVE edits in `PENDING_REVIEW`. The later direct photo-add review path was removed because it interrupted the seller edit workflow; Save is the AI-review boundary.
 - **Reviews/blog/commission claims re-verified clean.** Round 19 found no actionable bugs in those surfaces.
 - **Round 19 adds 20 new items**: 2 critical, 3 high, 6 medium, and 9 low. Highest leverage item is the Stripe fee/accounting mismatch between code and product/legal docs.
 
@@ -996,9 +996,9 @@ Latest launch-readiness pass on 2026-05-08 closed the signed-out middleware/cart
 - Reconcile period window definitions in metrics. **Current state: Fixed for Guild metrics; calendar-month period windows and period-scoped active cases are now used.**
 - R2 media validation previously accepted arbitrary legacy `*.r2.dev` URLs. **Current state: Fixed.** Write-path validation now accepts only configured Grainline R2/CDN origins and explicitly listed legacy origins; CSP no longer uses wildcard R2 media/connect sources.
 - GIF/video/PDF uploads may retain metadata; current state rejects GIF uploads and strips JPEG/PNG/WebP metadata, while video/PDF metadata retention remains disclosed/product-accepted.
-- Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification. **Current state: Fixed.** Active-listing photo additions now require the shared listing mutation limiter plus a dedicated `listingPhotoAiRatelimit` before triggering AI re-review/alt-text work.
+- Photo upload route lacks a dedicated rate limit around OpenAI alt-text/review cost amplification. **Current state: Superseded 2026-05-13.** `POST /api/listings/[id]/photos` no longer performs AI review or AI alt-text generation; it uses the shared listing mutation limiter and Save remains the AI-review boundary for ACTIVE listings.
 - [FIXED 2026-04-26] Presigned upload route now validates endpoint-specific MIME types and matching file extensions before issuing an R2 signed URL.
-- [FIXED 2026-04-26] Photo-add AI review invariant is documented: new uploads are reviewed directly, while edit/delete/full-listing re-review uses the buyer-visible sorted photo set.
+- [SUPERSEDED 2026-05-13] Photo-add AI review invariant: direct photo-add review was removed because it interrupted seller edits. Save-time full-listing review uses the buyer-visible sorted photo set.
 - [FIXED 2026-04-26] Blog post featured listings are re-filtered at render time through `publicListingWhere()` and seller ownership is re-verified for seller-authored posts.
 - [FIXED 2026-04-26] Featured maker queries are cached through `unstable_cache`.
 - [FIXED 2026-04-26] Onboarding step navigation uses guarded `advanceStep`, step 4 persists progression, and the skip-Stripe path shows an explicit `chargesEnabled` warning.
@@ -1277,7 +1277,7 @@ The most actionable NEW items (not already covered by C1-C18 / H1-H45 above) are
 - **File:** `api/listings/[id]/photos/route.ts:141`
 - **Bug:** Triggers full AI review on every photo add. No daily/per-listing cap.
 - **Fix:** cap re-reviews at 5/listing/day via Redis counter.
-- **Current state:** Fixed with an account-level AI photo-review limiter. Active listing photo additions require `listingPhotoAiRatelimit` before AI review/alt-text work.
+- **Current state:** Superseded 2026-05-13. Active listing photo additions no longer run AI review/alt-text work directly; the shared listing mutation limiter covers attachment and Save remains the AI-review boundary.
 
 #### H55. [FIXED 2026-04-29] Image URL handed to OpenAI without sandbox (SSRF)
 - **Bug:** `imageUrls` flow into OpenAI as `image_url`. URL is directly fetched by OpenAI.
@@ -2784,7 +2784,7 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 
 6. **[FIXED/VERIFIED 2026-04-30] AI alt text can contain RTL/zero-width injection** — AI alt text now flows through `sanitizeAIAltText()`, which strips bidi and zero-width controls, HTML-like tags, `javascript:`/`data:` protocol text, event-handler text, and control characters before persistence.
 
-7. **[FIXED 2026-04-30] Cost amplification via re-review** — Active-listing photo uploads now check `listingPhotoAiRatelimit` before accepting uploads that trigger AI re-review, adding a separate AI-review throttle beyond the generic listing mutation limit.
+7. **[SUPERSEDED 2026-05-13] Cost amplification via re-review** — Active-listing photo uploads no longer trigger AI re-review directly. They use the shared listing mutation limiter; Save-time listing review remains the only AI review path for ACTIVE listing edits.
 
 8. **[FIXED/VERIFIED 2026-04-30] Image URL handed to OpenAI without sandbox** — AI review image URLs now pass through `filterAIReviewImageUrls(..., isR2PublicUrl)`, so only configured first-party/trusted R2/CDN media URLs are handed to OpenAI.
 
@@ -3164,14 +3164,14 @@ Codebase consistently follows: `auth()` → resolve `me` from DB → query/mutat
 - `ai-review.ts:23-31` returns `approved:false` when key missing (CLAUDE.md says approved:true) — actually safer; CLAUDE.md is stale.
 - `photos/route.ts:91` redundant seller query (ownership already verified at :36) — minor cleanup.
 - **[FIXED 2026-04-30] photos/route.ts:115 AI re-review uses only NEW photos** — Photo re-review now sends a merged review set with newly added URLs first and existing listing photos as context, capped to four images.
-- **[FIXED 2026-04-30] No rate limit on `photos/route.ts` separate from `listingMutationRatelimit`** — Active-listing photo uploads now enforce `listingPhotoAiRatelimit` before triggering AI review.
+- **[SUPERSEDED 2026-05-13] No rate limit on `photos/route.ts` separate from `listingMutationRatelimit`** — Photo uploads no longer trigger AI review, so the generic listing mutation limiter is the relevant guard.
 - `presign/route.ts:107` `ext = filename.split(".").pop() ?? "bin"` — no allowlist. Could presign `.html`. Mitigated by ALLOWED_TYPES content-type check but key ext is decorative. Normalize per contentType.
 - `new/page.tsx:200` always uses PENDING_REVIEW initial then promotes to ACTIVE. Correct fail-closed pattern.
 
 ✅ **VERIFIED Image/Photo/AI claims**
-Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{random}.{ext}`; cache headers `public, max-age=31536000, immutable`; size+count caps server-side (8MB×8 etc); isR2PublicUrl multi-origin allowlist; gpt-4o-mini temp 0.1 max_tokens 500; shouldHold logic correct; duplicate detection 2+ in 24h auto-reject pre-OpenAI; re-review fail-closed on edit (verified at edit/page.tsx:323-332 — R16 finding now fixed!) AND photo add (photos/route.ts:137-142 — R16 finding now fixed!); re-review on text edits + price>50%; AI alt text backfill seller-wins; cover reorder no re-review; OpenAI key server-only; PhotoManager hidden inputs (imageUrlsJson + imageAltTextsJson); UploadThing fully removed.
+Browser→R2 direct via 5-min presign; R2 key format `{endpoint}/{userId}/{ts}-{random}.{ext}`; cache headers `public, max-age=31536000, immutable`; size+count caps server-side (8MB×8 etc); isR2PublicUrl multi-origin allowlist; gpt-4o-mini temp 0.1 max_tokens 500; shouldHold logic correct; duplicate detection 2+ in 24h auto-reject pre-OpenAI; re-review fail-closed on edit (verified at edit/page.tsx — ACTIVE listing Save is the review boundary); re-review on text edits + price>50% + current photo set at Save; AI alt text backfill seller-wins; cover reorder no re-review; OpenAI key server-only; PhotoManager hidden inputs (imageUrlsJson + imageAltTextsJson); UploadThing fully removed.
 
-**🎉 R16 fail-open AI re-review bugs ARE FIXED.** Codex closed both edit and photo-add re-review fail-closed branches between R16 and R19.
+**R16 fail-open AI re-review status:** edit/save review is fail-closed. The direct photo-add review path was later removed because it interrupted the seller edit workflow; Save is the AI-review boundary.
 
 ---
 

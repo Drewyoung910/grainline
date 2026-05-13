@@ -196,10 +196,10 @@ export default function ListingGallery({
             "click to enlarge" copy. Top-left so it doesn't collide with
             the favorite heart (top-right). */}
         <div
-          className="absolute left-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm pointer-events-none"
+          className="absolute left-3.5 top-3.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm pointer-events-none"
           aria-hidden="true"
         >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
           </svg>
         </div>

@@ -195,6 +195,7 @@ describe("post-launch UI follow-ups", () => {
     assert.match(gallery, /event\.preventDefault\(\)/);
     assert.match(gallery, /aria-label="Previous photo"/);
     assert.match(gallery, /aria-label="Next photo"/);
+    assert.match(gallery, /left-3\.5 top-3\.5 inline-flex h-9 w-9/);
   });
 
   it("keeps listing detail constrained on narrow mobile viewports", () => {
@@ -289,16 +290,15 @@ describe("post-launch UI follow-ups", () => {
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
     assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
     // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
-    // New public photo uploads run their own review pass in the photo route.
+    // AddPhotosButton must not kick a seller into review before they press Save.
     assert.match(editPage, /backfillEmptyAltTexts/);
     const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
     assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
-    assert.match(addPhotosRoute, /reviewListingWithAI/);
-    assert.match(addPhotosRoute, /listingPhotoAiRatelimit/);
-    assert.match(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
-    assert.match(addPhotosRoute, /backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/);
-    assert.match(addPhotosButton, /body\.status === "PENDING_REVIEW"/);
-    assert.match(addPhotosButton, /router\.push\(`\/listing\/\$\{listingId\}\?preview=1`\)/);
+    assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
+    assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
+    assert.doesNotMatch(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
+    assert.doesNotMatch(addPhotosButton, /body\.status === "PENDING_REVIEW"/);
+    assert.doesNotMatch(addPhotosButton, /router\.push\(`\/listing\/\$\{listingId\}\?preview=1`\)/);
     // Catch returns now include altTexts so TypeScript can union the success
     // type without a property-missing error.
     const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];

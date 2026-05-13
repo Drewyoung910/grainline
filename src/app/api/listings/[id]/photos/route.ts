@@ -4,14 +4,11 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import {
-  listingPhotoAiRatelimit,
   listingMutationRatelimit,
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
-import { sanitizeText, truncateText } from "@/lib/sanitize";
-import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { ListingStatus } from "@prisma/client";
 import { z } from "zod";
 
@@ -69,12 +66,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (clean.length === 0) {
     return NextResponse.json({ added: 0 });
   }
-  if (listing.status === ListingStatus.ACTIVE) {
-    const aiLimit = await safeRateLimit(listingPhotoAiRatelimit, userId);
-    if (!aiLimit.success) {
-      return rateLimitResponse(aiLimit.reset, "Too many photo review attempts. Try again later.");
-    }
-  }
 
   const addResult = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Listing" WHERE id = ${listingId} FOR UPDATE`;
@@ -88,14 +79,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       },
       select: { status: true, isPrivate: true },
     });
-    if (!currentListing) return { urls: [], error: "not-found" as const, reviewRequired: false };
+    if (!currentListing) return { urls: [], error: "not-found" as const };
     if (currentListing.status === ListingStatus.HIDDEN && currentListing.isPrivate) {
-      return { urls: [], error: "archived" as const, reviewRequired: false };
+      return { urls: [], error: "archived" as const };
     }
 
     const photoCount = await tx.photo.count({ where: { listingId } });
     const urls = clean.slice(0, Math.max(0, 10 - photoCount));
-    if (urls.length === 0) return { urls, error: "full" as const, reviewRequired: false };
+    if (urls.length === 0) return { urls, error: "full" as const };
 
     await tx.photo.createMany({
       data: urls.map((url, i) => ({
@@ -108,11 +99,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         sortOrder: photoCount + i,
       })),
     });
-    return {
-      urls,
-      error: null,
-      reviewRequired: currentListing.status === ListingStatus.ACTIVE,
-    };
+    return { urls, error: null };
   });
 
   if (addResult.error === "not-found") return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -124,135 +111,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const toAdd = addResult.urls;
 
-  let finalStatus: ListingStatus | null = null;
-
-  // New public photos on ACTIVE listings must go through the same content
-  // review gate as publish/save. Otherwise a seller could publish a clean
-  // listing and then attach unreviewed public images through this endpoint.
-  if (addResult.reviewRequired) {
-    const held = await prisma.listing.updateMany({
-      where: { id: listingId, status: ListingStatus.ACTIVE },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["Photo review in progress"],
-        aiReviewScore: 0,
-      },
-    });
-
-    if (held.count > 0) {
-      finalStatus = ListingStatus.PENDING_REVIEW;
-      try {
-        const reviewTarget = await prisma.listing.findUnique({
-          where: { id: listingId },
-          select: {
-            title: true,
-            description: true,
-            priceCents: true,
-            category: true,
-            tags: true,
-            sellerId: true,
-            seller: {
-              select: {
-                id: true,
-                displayName: true,
-                chargesEnabled: true,
-                _count: { select: { listings: true } },
-              },
-            },
-            photos: {
-              orderBy: { sortOrder: "asc" },
-              take: 10,
-              select: { url: true },
-            },
-          },
-        });
-
-        if (!reviewTarget?.seller.chargesEnabled) {
-          await prisma.listing.updateMany({
-            where: { id: listingId, status: ListingStatus.PENDING_REVIEW },
-            data: { status: ListingStatus.DRAFT },
-          });
-          finalStatus = ListingStatus.DRAFT;
-        } else {
-          const { reviewListingWithAI } = await import("@/lib/ai-review");
-          const aiResult = await reviewListingWithAI({
-            sellerId: reviewTarget.seller.id,
-            title: reviewTarget.title,
-            description: reviewTarget.description,
-            priceCents: reviewTarget.priceCents,
-            category: reviewTarget.category ?? null,
-            tags: reviewTarget.tags,
-            sellerName: reviewTarget.seller.displayName,
-            listingCount: reviewTarget.seller._count.listings,
-            imageUrls: reviewTarget.photos.map((p) => p.url),
-          }).catch(() => ({
-            approved: false,
-            flags: ["AI review error"] as string[],
-            confidence: 0,
-            reason: "AI error",
-            altTexts: [] as string[],
-          }));
-
-          const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
-          await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-          const shouldHold =
-            !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
-          await prisma.listing.updateMany({
-            where: { id: listingId, status: ListingStatus.PENDING_REVIEW },
-            data: shouldHold
-              ? {
-                  aiReviewFlags: aiResult.flags,
-                  aiReviewScore: aiResult.confidence,
-                }
-              : {
-                  status: ListingStatus.ACTIVE,
-                  aiReviewFlags: aiResult.flags,
-                  aiReviewScore: aiResult.confidence,
-                },
-          });
-          finalStatus = shouldHold ? ListingStatus.PENDING_REVIEW : ListingStatus.ACTIVE;
-        }
-      } catch (error) {
-        console.error("[listing photo add] AI re-review failed:", error);
-        await prisma.listing.updateMany({
-          where: { id: listingId, status: ListingStatus.PENDING_REVIEW },
-          data: {
-            aiReviewFlags: ["AI review error"],
-            aiReviewScore: 0,
-          },
-        });
-        finalStatus = ListingStatus.PENDING_REVIEW;
-      }
-    }
-  }
-
-  // Generate alt text for newly-added photos when the seller didn't provide
-  // their own. Cheap fire-and-forget — non-blocking on errors.
-  try {
-    const { generateAltText } = await import("@/lib/ai-review");
-    const newPhotos = await prisma.photo.findMany({
-      where: { listingId, altText: null, url: { in: toAdd } },
-      select: { id: true, url: true },
-    });
-    for (const p of newPhotos) {
-      const alt = await generateAltText(p.url);
-      if (alt) {
-        const altText = truncateText(sanitizeText(alt), 200);
-        if (altText) {
-          await prisma.photo.update({ where: { id: p.id }, data: { altText } });
-        }
-      }
-    }
-  } catch { /* non-fatal */ }
-
   // Revalidate pages that show these photos
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
   revalidatePath(`/seller/${listing.sellerId}`);
   revalidatePath(`/seller/${listing.sellerId}/shop`);
-  if (finalStatus) revalidateListingSearchCaches();
 
-  return NextResponse.json({ added: toAdd.length, status: finalStatus });
+  return NextResponse.json({ added: toAdd.length });
 }

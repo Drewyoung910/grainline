@@ -256,10 +256,9 @@ async function updateListing(
     return updated;
   });
 
-  // Save on an ACTIVE listing routes edited text/price/variant content through
-  // AI re-review. AddPhotosButton runs its own review pass after attaching new
-  // public photos so sellers cannot silently bypass review by uploading images
-  // and skipping Save.
+  // Save on an ACTIVE listing routes edited text/price/variant/photo content
+  // through AI re-review. AddPhotosButton only attaches photos and refreshes the
+  // edit page; it must not kick the seller into review before they press Save.
   // - If AI approves: listing stays ACTIVE, new content is live.
   // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
   //   stays on the edit page (?saved=pending banner) instead of being
@@ -459,9 +458,8 @@ async function deletePhotoAction(listingId: string, photoId: string) {
     });
   }
 
-  // Deleting a photo from an ACTIVE listing does not add new public content, so
-  // it does not trigger a re-review. New photo uploads are reviewed in
-  // `POST /api/listings/[id]/photos`.
+  // Photo edits do not trigger a re-review on their own. ACTIVE listings run
+  // AI review when the seller explicitly presses Save.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
@@ -527,9 +525,8 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
     // preserved original for future re-crops.
   }
 
-  // Re-cropping a photo preserves the same source image, so it does not trigger
-  // a re-review. Brand-new public photo uploads are reviewed in
-  // `POST /api/listings/[id]/photos`.
+  // Photo edits do not trigger a re-review on their own. ACTIVE listings run
+  // AI review when the seller explicitly presses Save.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
