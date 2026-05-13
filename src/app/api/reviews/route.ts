@@ -1,6 +1,7 @@
 // src/app/api/reviews/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -174,6 +175,11 @@ export async function POST(req: NextRequest) {
       await refreshSellerRatingSummary(listing.seller.id);
     } catch (error) {
       console.error("Failed to refresh seller rating summary after review create:", error);
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "review_rating_summary_refresh" },
+        extra: { reviewId: created.id, listingId, sellerId: listing.seller.id },
+      });
     }
   }
   if (listing?.seller.userId && !listing.seller.user.banned && !listing.seller.user.deletedAt) {
@@ -208,6 +214,11 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error("Failed to send review notification email:", e);
+      Sentry.captureException(e, {
+        level: "warning",
+        tags: { source: "review_notification_email" },
+        extra: { reviewId: created.id, listingId, sellerUserId: listing.seller.userId },
+      });
     }
   }
 

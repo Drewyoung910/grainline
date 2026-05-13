@@ -1,6 +1,7 @@
 // src/app/api/favorites/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -65,6 +66,10 @@ export async function POST(req: Request) {
       listingId,
       dbUserId: me.id,
     });
+    Sentry.captureException(e, {
+      tags: { source: "favorite_upsert" },
+      extra: { listingId, dbUserId: me.id },
+    });
     return NextResponse.json({ error: "DB error" }, { status: 500 });
   }
 
@@ -84,6 +89,11 @@ export async function POST(req: Request) {
     }
   } catch (e) {
     console.error("POST /api/favorites notification error (non-fatal):", (e as Error).message);
+    Sentry.captureException(e, {
+      level: "warning",
+      tags: { source: "favorite_notification" },
+      extra: { listingId, dbUserId: me.id, sellerUserId: listing.seller.userId },
+    });
   }
 
   return NextResponse.json({ ok: true });

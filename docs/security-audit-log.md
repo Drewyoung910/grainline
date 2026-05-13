@@ -421,6 +421,33 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** case message email side effects, case-resolved email side effects, case-resolution audit logging, refund-lock release failure, and orphaned-refund review-note remediation failures now emit Sentry evidence instead of silent `catch {}` / empty `.catch()` blocks. Regression coverage lives in `tests/case-observability-followups.test.mjs`.
 
+## 2026-05-13 reviews/reports/block/follow route spot check
+
+Scope:
+
+- `src/app/api/reviews/route.ts`
+- `src/app/api/reviews/[id]/route.ts`
+- `src/app/api/reviews/[id]/reply/route.ts`
+- `src/app/api/reviews/[id]/vote/route.ts`
+- `src/app/api/users/[id]/block/route.ts`
+- `src/app/api/users/[id]/report/route.ts`
+- `src/app/api/follow/[sellerId]/route.ts`
+- `src/app/api/favorites/route.ts`
+- `src/app/api/favorites/[listingId]/route.ts`
+
+Results:
+
+- Review creation is authenticated, rate-limited, blocks self-review and banned/deleted target sellers, requires a paid delivered/picked-up order within the review window, rejects refunded order contexts, caps first-party review photos, and persists review/photo rows in a transaction.
+- Review edit/delete is owner-only, rejects banned/deleted local accounts, respects seller-reply and 90-day edit locks, caps first-party replacement photos, and keeps rating-summary refresh/photo cleanup outside the primary mutation.
+- Seller replies are restricted to the listing owner seller account and blocked for banned/deleted seller users.
+- Review helpful votes require the review's listing to pass `canViewListingDetail()` for the voter and block reviewer/seller self-votes.
+- User block/report routes are signed-in, account-state checked, rate-limited, self-action blocked, and target-aware. Reports require reporter access to private targets instead of acting as a private-object oracle.
+- Follow/favorite routes scope mutations to the signed-in user, use public/visible listing and seller predicates, block self-actions where applicable, and treat owner notifications as non-blocking side effects.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** review rating-summary/email failures, review-photo R2 cleanup failures, listing-report notification failures, favorite upsert/notification failures, and block follow-cleanup failures now emit Sentry evidence using safe internal IDs or media hostnames. Raw emails, comments, report details, full media URLs, and address-like values are intentionally excluded. Regression coverage lives in `tests/review-report-observability.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

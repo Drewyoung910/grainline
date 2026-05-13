@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -208,7 +209,13 @@ export async function POST(
       title: "Listing report received",
       body: "A report about one of your listings was received and will be reviewed by Grainline staff.",
       link: `/dashboard/listings/${body.targetId}/edit`,
-    }).catch(() => {});
+    }).catch((notificationError) => {
+      Sentry.captureException(notificationError, {
+        level: "warning",
+        tags: { source: "user_report_listing_notification" },
+        extra: { reporterId: me.id, reportedId, targetId: body.targetId },
+      });
+    });
   }
 
   return NextResponse.json({ ok: true });

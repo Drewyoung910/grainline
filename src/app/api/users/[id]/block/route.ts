@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -54,6 +55,11 @@ export async function POST(
     }
   } catch (error) {
     console.error("Failed to remove follow rows after block:", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "block_follow_cleanup" },
+      extra: { blockerId: me.id, blockedId },
+    });
   }
 
   return NextResponse.json({ ok: true, blocked: true });

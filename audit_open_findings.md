@@ -3795,6 +3795,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 142. **[HARDENED 2026-05-13] Case/dispute routes audited; silent non-blocking side effects now leave Sentry evidence** — case create/message/escalate/mark-resolved/resolve routes were ownership/rate-limit/state-precondition sound in this pass. The hardening fix replaced silent case message/resolution email catches, case-resolution audit-log catch, refund-lock release catch, and orphaned-refund remediation catch with Sentry captures keyed by bounded case/order/refund IDs. Source guardrail: `tests/case-observability-followups.test.mjs`.
 
+143. **[HARDENED 2026-05-13] Reviews/reports/block/follow routes audited; side-effect observability tightened** — review create/edit/delete/reply/vote, user block/report, follow, and favorite routes were ownership/rate-limit/state-predicate sound in this pass. The hardening fix added Sentry evidence for review rating-summary refresh failures, review notification email failures, review-photo R2 cleanup failures, listing-report notification failures, favorite upsert/notification failures, and block follow-cleanup failures, using only safe internal IDs or media hostnames. Source guardrail: `tests/review-report-observability.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

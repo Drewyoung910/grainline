@@ -1,6 +1,7 @@
 // src/app/api/reviews/[id]/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -21,6 +22,45 @@ const ReviewPatchSchema = z.object({
   photos: ReviewPhotoUrlsSchema,
   photoUrls: ReviewPhotoUrlsSchema,
 });
+
+function mediaUrlHost(url: string) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "invalid-url";
+  }
+}
+
+function captureReviewPhotoCleanupFailures({
+  results,
+  photos,
+  reviewId,
+  source,
+}: {
+  results: PromiseSettledResult<boolean>[];
+  photos: { url: string }[];
+  reviewId: string;
+  source: string;
+}) {
+  results.forEach((result, index) => {
+    const host = mediaUrlHost(photos[index]?.url ?? "");
+    if (result.status === "rejected") {
+      Sentry.captureException(result.reason, {
+        level: "warning",
+        tags: { source },
+        extra: { reviewId, host },
+      });
+      return;
+    }
+    if (result.value === false) {
+      Sentry.captureMessage("Review photo cleanup skipped non-R2 media", {
+        level: "warning",
+        tags: { source, host },
+        extra: { reviewId },
+      });
+    }
+  });
+}
 
 export async function PATCH(
   req: Request,
@@ -100,14 +140,26 @@ export async function PATCH(
     await refreshSellerRatingSummary(r.listing.sellerId);
   } catch (error) {
     console.error("Failed to refresh seller rating summary after review edit:", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "review_rating_summary_refresh" },
+      extra: { reviewId: id, listingId: r.listingId, sellerId: r.listing.sellerId },
+    });
   }
 
   const retainedUrls = new Set(photos);
-  await mapWithConcurrency(
-    oldPhotos.filter((photo) => !retainedUrls.has(photo.url)),
+  const removedPhotos = oldPhotos.filter((photo) => !retainedUrls.has(photo.url));
+  const cleanupResults = await mapWithConcurrency(
+    removedPhotos,
     5,
     (photo) => deleteR2ObjectByUrl(photo.url),
   );
+  captureReviewPhotoCleanupFailures({
+    results: cleanupResults,
+    photos: removedPhotos,
+    reviewId: id,
+    source: "review_photo_cleanup_edit",
+  });
 
   // revalidate listing page
   revalidatePath(`/listing/${r.listingId}`);
@@ -155,8 +207,19 @@ export async function DELETE(
     await refreshSellerRatingSummary(review.listing.sellerId);
   } catch (error) {
     console.error("Failed to refresh seller rating summary after review delete:", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "review_rating_summary_refresh" },
+      extra: { reviewId: id, listingId: review.listingId, sellerId: review.listing.sellerId },
+    });
   }
-  await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
+  const cleanupResults = await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
+  captureReviewPhotoCleanupFailures({
+    results: cleanupResults,
+    photos,
+    reviewId: id,
+    source: "review_photo_cleanup_delete",
+  });
 
   revalidatePath(`/listing/${review.listingId}`);
   revalidatePath("/account/reviews");
