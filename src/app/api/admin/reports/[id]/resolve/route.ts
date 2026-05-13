@@ -12,9 +12,9 @@ export async function POST(
 
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, banned: true, deletedAt: true },
   });
-  if (!admin || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) {
+  if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

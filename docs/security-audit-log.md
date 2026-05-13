@@ -259,6 +259,11 @@ Spot checks completed in this pass:
   - Blog moderation and broadcast deletion actions are admin/staff-only and log admin actions; no private user self-service path calls these actions.
   - Result: no verified IDOR found; defense-in-depth suspended/deleted staff guard added for consistency.
 
+- Admin pages/APIs local role gates
+  - `src/app/admin/audit/page.tsx`, `src/app/admin/support/page.tsx`, `src/app/admin/review/page.tsx`, `src/app/admin/users/page.tsx`, `src/app/admin/reports/page.tsx`, and `src/app/admin/reviews/page.tsx` now select and reject suspended/deleted staff accounts in their local page-level role checks.
+  - `src/app/api/admin/listings/[id]/route.ts`, `src/app/api/admin/listings/[id]/review/route.ts`, `src/app/api/admin/users/[id]/ban/route.ts`, `src/app/api/admin/audit/[id]/undo/route.ts`, `src/app/api/admin/email/route.ts`, `src/app/api/admin/reports/[id]/resolve/route.ts`, `src/app/api/admin/reviews/[id]/route.ts`, and `src/app/api/admin/verify-pin/route.ts` now do the same at the route-local API gate.
+  - Result: no verified IDOR found; local admin gates now consistently reject suspended/deleted staff even if middleware/layout assumptions change.
+
 Out-of-scope verified issue found during this pass:
 
 - Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.

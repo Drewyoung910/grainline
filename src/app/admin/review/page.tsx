@@ -15,9 +15,9 @@ export default async function AdminReviewPage() {
 
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { role: true },
+    select: { role: true, banned: true, deletedAt: true },
   });
-  if (!admin || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
+  if (!admin || admin.banned || admin.deletedAt || (admin.role !== "ADMIN" && admin.role !== "EMPLOYEE")) redirect("/");
 
   const listings = await prisma.listing.findMany({
     where: { status: "PENDING_REVIEW" },

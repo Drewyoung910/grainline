@@ -33,9 +33,9 @@ export default async function AdminAuditPage({
 
   const admin = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { role: true },
+    select: { role: true, banned: true, deletedAt: true },
   });
-  if (!admin || admin.role !== "ADMIN") redirect("/");
+  if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") redirect("/");
 
   const { page: pageStr, action: actionParam } = await searchParams;
   const page = Math.max(1, parseInt(pageStr ?? "1", 10));

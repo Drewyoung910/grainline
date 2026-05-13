@@ -11,7 +11,7 @@ const BanSchema = z.object({
 async function getAdmin(clerkId: string) {
   return prisma.user.findUnique({
     where: { clerkId },
-    select: { id: true, role: true }
+    select: { id: true, role: true, banned: true, deletedAt: true }
   })
 }
 
@@ -22,7 +22,7 @@ export async function POST(
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = await getAdmin(userId)
-  if (!admin || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
   let body
   try {
@@ -55,7 +55,7 @@ export async function DELETE(
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = await getAdmin(userId)
-  if (!admin || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { id } = await params
   let unbanBody
   try {
