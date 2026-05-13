@@ -16,6 +16,36 @@ This runbook covers the minimum operational steps for production incidents, depl
 
 Every incident note should include: start time, affected surface, current deploy SHA, primary request IDs, customer-visible impact, mitigation, owner, and follow-up issue.
 
+## Security Incident Addendum
+
+Use this section when an incident may involve unauthorized access, account takeover, payment abuse, credential exposure, private-message/order/address exposure, malware/script injection, or vendor compromise.
+
+Immediate containment checklist:
+
+1. Preserve evidence before deleting or rotating anything: deploy SHA, request IDs, Sentry issue IDs, provider event IDs, suspicious IPs/user IDs, affected routes, webhook event IDs, and relevant database row IDs.
+2. Stop active exploitation with the narrowest control available: route flag, rate-limit block, Cloudflare rule, feature flag, or forward hotfix.
+3. Rotate only the secrets that plausibly entered the blast radius. Broad secret rotation during an incident can create secondary outages.
+4. Check Stripe, Clerk, Cloudflare, Vercel, Neon, Resend, Shippo, Sentry, Upstash, and GitHub dashboards for matching events.
+5. Decide whether user notification, regulator notice, card-brand/acquirer notice, vendor escalation, or law-enforcement preservation is required. This decision needs counsel when personal data, payment state, or credentials may be involved.
+
+Breach-notification clocks are jurisdiction-specific and change over time. Maintain a counsel-reviewed appendix outside this runbook with current state/federal deadlines, affected-data thresholds, and notice templates. Do not rely on AI-generated legal deadlines without counsel verification.
+
+Vendor contact tree to maintain before launch:
+
+- Stripe support/security and Stripe account manager path if available.
+- Clerk support/security.
+- Vercel support.
+- Neon support.
+- Cloudflare support/security.
+- Resend support/security.
+- Shippo support/security.
+- Sentry support.
+- Upstash support.
+- Domain registrar support.
+- GitHub support/security.
+
+Every contact entry should include: console URL, support URL/email, account owner, MFA recovery path, emergency notes, and last-verified date.
+
 ## Deploy Rollback
 
 1. Identify the last known-good deployment in Vercel.

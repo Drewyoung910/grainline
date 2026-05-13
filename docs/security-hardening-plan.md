@@ -22,6 +22,46 @@ Grainline currently relies on application-layer authorization, not database Row 
 
 RLS is a possible defense-in-depth project, not an emergency switch. With Prisma and pooled Neon connections, RLS must be designed around connection roles/session context. A broad last-minute RLS rollout could break production or create false security. The recommended path is targeted RLS feasibility after the application-layer authorization audit is complete.
 
+## External Marketplace Benchmarks
+
+This section records the public, source-backed controls used by mature marketplaces and commerce platforms. It is a benchmark, not a requirement list. Grainline should copy the controls that reduce real risk at this stage, and defer controls that create launch friction without proportional benefit.
+
+Sources reviewed 2026-05-13:
+
+- Etsy requires two-factor authentication during shop opening and supports authenticator app, SMS, or phone verification: https://help.etsy.com/hc/en-us/articles/115015672808
+- Etsy uses Persona for seller identity verification and government-ID/selfie checks: https://help.etsy.com/hc/en-us/articles/22504854625815-Identity-Verification-with-Persona-on-Etsy
+- Etsy documents INFORM Consumers Act seller-info collection and disclosure thresholds: https://help.etsy.com/hc/en-us/articles/14553858116759-Etsy-Asked-Me-to-Confirm-My-Seller-Info
+- FTC INFORM guidance confirms high-volume marketplace seller collection/verification/disclosure duties: https://www.ftc.gov/business-guidance/resources/what-third-party-sellers-need-know-about-inform-consumers-act
+- Etsy Purchase Protection may cover eligible refunds up to $250 and depends on seller standards such as shipping, tracking, policies, and response time: https://help.etsy.com/hc/en-us/articles/5850122619287-What-is-Etsy-s-Purchase-Protection-for-Sellers
+- Etsy publishes a security-bug reporting process and requires proof-of-concept/impact details: https://help.etsy.com/hc/en-us/articles/115015650468-Reporting-Security-Bugs
+- Shopify publishes PCI compliance evidence, including annual PCI AoC and quarterly ASV scan attestations: https://www.shopify.com/legal/compliance/reports
+- Stripe Checkout qualifies for the lightest PCI validation path, SAQ A, because card data is collected in Stripe-hosted fields/iframes: https://stripe.com/en-th/guides/pci-compliance
+- Stripe requires Stripe.js to be loaded directly from `https://js.stripe.com` and not bundled/self-hosted to remain PCI compliant: https://docs.stripe.com/payments/accept-a-payment
+- PostgreSQL Row Level Security restricts returned or modified rows through table policies, but table owners and `BYPASSRLS` roles can bypass it: https://www.postgresql.org/docs/current/ddl-rowsecurity.html
+- Cloudflare Bot Fight Mode is a free domain-wide bot mitigation toggle, but it cannot be customized or skipped with WAF custom rules: https://developers.cloudflare.com/bots/get-started/free/
+- GitHub security features include Dependabot, secret scanning/push protection, and CodeQL/code scanning depending on repository visibility and plan: https://docs.github.com/en/code-security/getting-started/github-security-features
+- RFC 9116 defines `/.well-known/security.txt` with required `Contact` and `Expires` fields: https://www.rfc-editor.org/rfc/rfc9116
+
+Controls to copy before or near launch:
+
+- Require hardware MFA for Grainline owner/admin credentials at Stripe, Vercel, GitHub, Clerk, Neon, Cloudflare, Resend, Sentry, Shippo, OpenAI, and domain registrar accounts.
+- Require seller MFA before or immediately after a seller completes payout onboarding. Etsy requires 2FA at shop opening; Grainline should match that trust boundary before public seller activity scales.
+- Publish a vulnerability disclosure channel: `security@thegrainline.com`, `/security`, and `/.well-known/security.txt`.
+- Complete Stripe PCI SAQ A self-attestation and keep evidence with launch records.
+- Maintain a checkout-page third-party script inventory and monitor checkout security headers/CSP. Do not blindly add SRI to Stripe.js; Stripe requires direct loading from `js.stripe.com`, and the correct PCI v4 approach is inventory, authorization, integrity/change monitoring, CSP, and evidence.
+- Turn on GitHub repository protections that are available for the repo plan: branch protection, required CI, Dependabot alerts/updates, secret scanning, push protection where available, and CodeQL/code scanning where available.
+- Turn on Cloudflare baseline protections deliberately: WAF managed rules, Bot Fight Mode or Super Bot Fight Mode, rate limiting for high-risk paths, and Security Events review. Bot Fight Mode can challenge API/monitoring/provider traffic and cannot be skipped, so verify Stripe, Clerk, Resend, Shippo, Vercel, and uptime checks after enabling.
+- Run and record SSL Labs, securityheaders.com, HSTS preload, and Cloudflare TLS settings evidence.
+- Add incident-response appendices for breach-notification clocks and vendor security contact paths.
+- Consider a public transparency report later. Etsy has long used transparency reporting as a marketplace trust signal; Grainline already has the underlying case/report/admin-audit data.
+
+Controls to design, not rush:
+
+- RLS on high-risk private tables. It is useful defense in depth, but Prisma plus pooled connections require careful request context and bypass-role design.
+- Platform-funded buyer purchase protection. Etsy uses it as a trust product, but Grainline must decide refund-pool economics, seller eligibility, and legal wording first.
+- Third-party identity verification for higher-trust seller programs. Stripe Identity or a comparable IDV provider fits naturally before Guild Member approval, but it adds biometric/privacy/legal obligations.
+- Paid penetration testing or managed VDP. Do after known launch blockers are closed so the tester is not spending time on issues we already know.
+
 ## Anti-False-Confidence Rules
 
 Every security finding must include:
@@ -92,6 +132,26 @@ Checklist:
 - Staff/admin refund and case resolution paths are atomic.
 
 Runtime evidence is required for major Stripe/Shippo changes.
+
+## PCI And Payment-Page Controls
+
+Current checkout architecture:
+
+- Grainline uses Stripe Checkout/embedded Checkout and does not collect raw card numbers in Grainline forms or store raw card data in the database.
+- Stripe documentation maps Checkout/Elements to SAQ A for Level 2-4 merchants because card data is collected in Stripe-hosted iframes/fields.
+- Stripe.js must remain loaded from `https://js.stripe.com`; do not self-host, bundle, or pin it in a way that conflicts with Stripe's compliance guidance.
+
+Required operational controls before live card volume:
+
+- Complete Stripe Dashboard PCI SAQ A and store the completion date/evidence in launch records.
+- Inventory scripts that execute on cart/checkout/payment pages: source, owner, business justification, and whether the script is required for payment, auth, monitoring, fraud prevention, or UI.
+- Monitor payment-page security-impacting headers and script changes. For launch, the minimum acceptable implementation is strict CSP plus `/api/csp-report`, Sentry alerting on checkout-page script/frame violations, and a documented weekly review. A dedicated PCI v4 client-side monitoring vendor can be evaluated later if volume or acquirer requirements demand it.
+- Keep checkout CSP as narrow as possible. Add providers only with a source-backed need and a regression test or manual checkout smoke.
+- Record Stripe's PCI responsibilities and Grainline's remaining responsibilities in the launch checklist.
+
+Explicit anti-pattern:
+
+- Do not add Subresource Integrity to Stripe.js unless Stripe officially supports the exact versioned URL and update behavior being used. A stale or incorrect SRI hash can break checkout and can create false confidence because Stripe's script is intentionally delivered from Stripe's domain for compliance and fraud-detection updates.
 
 ## Phase 3: Upload, Media, XSS, And Content Audit
 
@@ -175,11 +235,24 @@ Candidate tables for targeted RLS evaluation:
 
 Questions before implementation:
 
-- Can runtime connections reliably set authenticated user context for every request?
-- Can Prisma pooled connections avoid leaking context between requests?
-- Which tables benefit from RLS without breaking admin/staff/cron/webhook paths?
-- Can tests exercise both app-layer and DB-layer denial?
+- Can runtime connections reliably set authenticated user context for every request without leaking it through pooled connections?
+- Can Prisma queries that need RLS be wrapped in transaction-local context, for example `set_config('app.user_id', ..., true)`, without breaking normal helpers?
+- Which tables benefit from RLS without breaking admin/staff/cron/webhook/public-read paths?
+- Which dedicated database roles are needed: runtime app, migration owner, admin/cron/webhook bypass, read-only reporting?
+- Which policies need `SELECT`, `INSERT`, `UPDATE`, and `DELETE` separation instead of a broad `ALL` policy?
+- Can tests prove both app-layer and DB-layer denial by attempting direct queries under the runtime role?
 - What is the rollback plan if RLS blocks production traffic?
+
+Implementation sequence:
+
+1. Inventory every private table and its owner model. Record owner columns, participant columns, staff/admin exceptions, and public visibility exceptions.
+2. Split runtime and migration privileges. The runtime role should not own tables if RLS is meant to protect runtime queries; table owners usually bypass RLS unless forced.
+3. Prototype on a staging clone with one low-blast-radius table such as `Notification` or `SavedSearch`.
+4. Add policy tests that run as the restricted runtime role and verify cross-user rows are invisible or unmodifiable.
+5. Add helper tests proving request context is transaction-local and cleared after the query.
+6. Expand to messages/cases/orders only after the prototype survives real route tests.
+7. Keep admin, cron, and webhook bypass paths explicit and audited.
+8. Do not enable RLS on public marketplace discovery tables until public visibility helper behavior has a separate design. Public listings and seller profiles have mixed public/private semantics that are easier to break.
 
 Until those are answered, strengthen app-layer authorization and add regression tests first.
 
