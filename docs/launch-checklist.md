@@ -48,7 +48,7 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Stripe: live webhook endpoint registered at `https://thegrainline.com/api/stripe/webhook` with at least `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `checkout.session.async_payment_failed`, `account.updated`, `account.application.deauthorized`, `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`, and `payout.failed`.
 - Stripe: `thegrainline.com` registered for Apple Pay/payment method domains.
 - Stripe: PCI SAQ A completed and evidence retained with launch records.
-- Stripe/payment pages: checkout-page script inventory completed; CSP reports from checkout pages verified in Sentry.
+- Stripe/payment pages: checkout-page script inventory completed in `docs/checkout-script-inventory.md`; CSP reports from checkout pages verified in Sentry.
 - Resend: sending domain verified.
 - Resend/DNS: SPF, DKIM, and DMARC policy verified. Move DMARC to `p=reject` only after monitoring shows legitimate mail is aligned.
 - Resend: webhook endpoint registered at `https://thegrainline.com/api/resend/webhook` with bounce, complaint, delivery delayed, failed, and suppressed events enabled; `RESEND_WEBHOOK_SECRET` configured in production.

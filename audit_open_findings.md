@@ -3782,6 +3782,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 137. **[HARDENED 2026-05-13] CSP reports now separate checkout-surface monitoring without leaking query strings** — `/api/csp-report` previously forwarded raw CSP reports to Sentry extra data and did not distinguish checkout/cart script or frame violations from the rest of the site. Reports now sanitize document/referrer URLs, reduce blocked/source URLs to origins or CSP keywords, and tag cart/checkout reports as `checkout_surface=true` for payment-page monitoring evidence. Source guardrail: `tests/csp-report-sanitization.test.mjs`.
 
+138. **[DOCUMENTED 2026-05-13] Checkout script inventory added for PCI/payment-page change control** — `docs/checkout-script-inventory.md` records the current checkout browser-code surface: first-party Next chunks, Stripe.js/Embedded Checkout, Clerk runtime, and Sentry runtime. It also records that no direct `next/script` usage exists on checkout surfaces and requires inventory/CSP/test updates before future third-party checkout scripts merge. Source guardrail: `tests/checkout-script-inventory.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

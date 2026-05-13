@@ -151,7 +151,7 @@ Current checkout architecture:
 Required operational controls before live card volume:
 
 - Complete Stripe Dashboard PCI SAQ A and store the completion date/evidence in launch records.
-- Inventory scripts that execute on cart/checkout/payment pages: source, owner, business justification, and whether the script is required for payment, auth, monitoring, fraud prevention, or UI.
+- Inventory scripts that execute on cart/checkout/payment pages: source, owner, business justification, and whether the script is required for payment, auth, monitoring, fraud prevention, or UI. Current launch inventory lives in `docs/checkout-script-inventory.md`.
 - Monitor payment-page security-impacting headers and script changes. For launch, the minimum acceptable implementation is strict CSP plus `/api/csp-report`, Sentry alerting on checkout-page script/frame violations, and a documented weekly review. A dedicated PCI v4 client-side monitoring vendor can be evaluated later if volume or acquirer requirements demand it.
 - Keep checkout CSP as narrow as possible. Add providers only with a source-backed need and a regression test or manual checkout smoke.
 - Record Stripe's PCI responsibilities and Grainline's remaining responsibilities in the launch checklist.

@@ -312,6 +312,7 @@ Follow-up fix from this pass:
 - **Fixed 2026-05-13:** all audited `target="_blank"` links in app/components now carry an explicit `rel` boundary. Regression coverage lives in `tests/link-security.test.mjs`.
 - **Fixed 2026-05-13:** public vulnerability disclosure is now live at `/security` and `/.well-known/security.txt`. Both routes are public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt; launch ops must verify `security@thegrainline.com` mailbox routing before public launch. Regression coverage lives in `tests/security-disclosure.test.mjs`.
 - **Fixed 2026-05-13:** CSP report handling now sanitizes Sentry payloads and tags checkout/cart document violations with `checkout_surface=true`. This preserves payment-page monitoring evidence without sending checkout query strings or external blocked-URL paths to Sentry tags/extra. Regression coverage lives in `tests/csp-report-sanitization.test.mjs`.
+- **Documented 2026-05-13:** checkout/payment-page browser script inventory is recorded in `docs/checkout-script-inventory.md`. It documents the Stripe Embedded Checkout path, Clerk/Sentry runtime presence, no direct `next/script` usage on checkout surfaces, and a change-control rule for future checkout scripts. Regression coverage lives in `tests/checkout-script-inventory.test.mjs`.
 
 Open work:
 
