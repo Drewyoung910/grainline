@@ -264,6 +264,20 @@ Spot checks completed in this pass:
   - `src/app/api/admin/listings/[id]/route.ts`, `src/app/api/admin/listings/[id]/review/route.ts`, `src/app/api/admin/users/[id]/ban/route.ts`, `src/app/api/admin/audit/[id]/undo/route.ts`, `src/app/api/admin/email/route.ts`, `src/app/api/admin/reports/[id]/resolve/route.ts`, `src/app/api/admin/reviews/[id]/route.ts`, and `src/app/api/admin/verify-pin/route.ts` now do the same at the route-local API gate.
   - Result: no verified IDOR found; local admin gates now consistently reject suspended/deleted staff even if middleware/layout assumptions change.
 
+- Account/cart/notification/favorite route batch
+  - `src/app/api/account/feed/route.ts` requires auth/local user, blocks suspended/deleted accounts through `ensureUserByClerkId()`, reads followed sellers from `followerId: me.id`, removes blocked sellers, and applies active seller/listing/blog visibility predicates before returning feed items.
+  - `src/app/api/account/shipping-address/route.ts` requires auth/local user and reads/writes only the current `User.id`.
+  - `src/app/api/account/notifications/preferences/route.ts` requires auth/local user, validates the preference key against `VALID_PREFERENCE_KEYS`, and updates only the current user's JSON preferences.
+  - `src/app/api/notifications/route.ts`, `src/app/api/notifications/[id]/read/route.ts`, and `src/app/api/notifications/read-all/route.ts` scope notification reads/mutations to the current user ID.
+  - `src/app/api/cart/route.ts`, `src/app/api/cart/add/route.ts`, and `src/app/api/cart/update/route.ts` require auth/local user and read/mutate only the current user's cart. Add/update routes re-check listing availability, seller account state, self-purchase, private reservation, variant selection, and made-to-order quantity constraints.
+  - `src/app/api/favorites/route.ts` and `src/app/api/favorites/[listingId]/route.ts` require auth/local user and create/delete only the current user's favorite rows; favorite creation uses public listing-detail visibility and blocks self-favorites.
+  - `src/app/api/listings/[id]/notify/route.ts` requires auth/local user, uses public listing-detail visibility, and creates/deletes only the current user's stock notification row.
+  - `src/app/api/listings/[id]/stock/route.ts` requires auth/local seller ownership before patching stock. The stock route intentionally does not proactively expire open Checkout Sessions when a seller sets stock to zero: Stripe expired-session webhooks restore reserved stock, so expiring in that path would fight the seller's explicit zero-stock action. Payment completion still revalidates listing status and refunds blocked stale checkouts.
+  - `src/app/api/listings/[id]/photos/route.ts` is intentionally retired with HTTP 410 so listing edit photo changes stay staged until Save.
+  - `src/app/api/listings/[id]/view/route.ts`, `src/app/api/listings/[id]/click/route.ts`, `src/app/api/listings/recently-viewed/route.ts`, and `src/app/api/listings/[id]/similar/route.ts` use public visibility predicates, bot/rate-limit guards where applicable, and avoid exposing private listing rows.
+  - `src/app/api/me/route.ts` returns only current-session account/seller summary fields and rejects suspended/deleted signed-in users through `ensureUserByClerkId()`.
+  - Result: no verified IDOR found in this inspected route batch.
+
 Out-of-scope verified issue found during this pass:
 
 - Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.
@@ -318,5 +332,5 @@ Follow-up fix from this pass:
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
-- Prioritize remaining admin actions, reviews/review replies/votes, verification/guild routes, blog write routes, and a dedicated checkout-session-expiry policy review for seller/listing availability changes.
+- Prioritize remaining unaudited account/support/legal/newsletter/Stripe Connect/account-lifecycle routes and any server-action files not yet represented above.
 - Add regression tests for each verified issue before or with the fix.
