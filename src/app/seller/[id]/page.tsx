@@ -552,11 +552,11 @@ export default async function SellerPublicPage({
 
         {/* ── Shop Policies ──────────────────────────────────────────────── */}
         {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
-          <section className="mb-8 card-section">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">Shop Policies</h2>
+          <section className="mb-8 overflow-hidden rounded-lg border border-neutral-200 bg-[#EDE8DC] shadow-sm">
+            <h2 className="border-b border-neutral-200 px-6 py-4 text-lg font-semibold">Shop Policies</h2>
             {seller.returnPolicy && (
-              <details className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
+              <details className="border-b border-neutral-200 last:border-b-0">
+                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
                   Return Policy
                 </summary>
                 <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
@@ -565,8 +565,8 @@ export default async function SellerPublicPage({
               </details>
             )}
             {seller.customOrderPolicy && (
-              <details className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
+              <details className="border-b border-neutral-200 last:border-b-0">
+                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
                   Custom Order Policy
                 </summary>
                 <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
@@ -575,8 +575,8 @@ export default async function SellerPublicPage({
               </details>
             )}
             {seller.shippingPolicy && (
-              <details className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
+              <details className="border-b border-neutral-200 last:border-b-0">
+                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
                   Shipping Policy
                 </summary>
                 <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
@@ -589,13 +589,13 @@ export default async function SellerPublicPage({
 
         {/* ── FAQs ──────────────────────────────────────────────────────── */}
         {seller.faqs.length > 0 && (
-          <section className="mb-8 card-section">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b border-neutral-100">
+          <section className="mb-8 overflow-hidden rounded-lg border border-neutral-200 bg-[#EDE8DC] shadow-sm">
+            <h2 className="border-b border-neutral-200 px-6 py-4 text-lg font-semibold">
               Frequently Asked Questions
             </h2>
             {seller.faqs.map((faq) => (
-              <details key={faq.id} className="border-b border-neutral-100 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 font-medium text-sm hover:bg-neutral-50">
+              <details key={faq.id} className="border-b border-neutral-200 last:border-b-0">
+                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
                   {faq.question}
                 </summary>
                 <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">

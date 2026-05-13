@@ -20,6 +20,7 @@ type Props = {
   points: Point[];
   initialCenter?: { lat: number; lng: number } | null;
   initialZoom?: number;
+  mobileInitialZoom?: number;
   height?: number;
 };
 
@@ -27,6 +28,7 @@ export default function AllSellersMap({
   points,
   initialCenter,
   initialZoom = 3,
+  mobileInitialZoom,
   height = 520,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,6 +45,11 @@ export default function AllSellersMap({
     const center: [number, number] = initialCenter
       ? [initialCenter.lng, initialCenter.lat]
       : [-96, 38];
+    const isNarrowViewport = window.matchMedia("(max-width: 640px)").matches;
+    const resolvedInitialZoom =
+      !initialCenter && isNarrowViewport && mobileInitialZoom != null
+        ? mobileInitialZoom
+        : initialZoom;
 
     let map: maplibregl.Map;
     try {
@@ -50,7 +57,7 @@ export default function AllSellersMap({
         container: containerRef.current,
         style: "https://tiles.openfreemap.org/styles/liberty",
         center,
-        zoom: initialZoom,
+        zoom: resolvedInitialZoom,
       });
     } catch {
       setMapUnavailable(true);
@@ -197,7 +204,7 @@ export default function AllSellersMap({
       markers.forEach(m => m.remove());
       map.remove();
     };
-  }, [points, initialCenter, initialZoom]);
+  }, [points, initialCenter, initialZoom, mobileInitialZoom]);
 
   if (mapUnavailable) {
     return (

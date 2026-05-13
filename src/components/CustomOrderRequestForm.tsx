@@ -96,7 +96,7 @@ export default function CustomOrderRequestForm({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleClose();
           }}
@@ -107,14 +107,14 @@ export default function CustomOrderRequestForm({
             aria-modal="true"
             aria-labelledby="custom-order-dialog-title"
             tabIndex={-1}
-            className="w-full max-w-lg rounded-2xl bg-white shadow-xl overflow-hidden"
+            className="max-h-[calc(100svh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg border border-neutral-200 bg-[#F7F5F0] shadow-2xl"
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
-              <h2 id="custom-order-dialog-title" className="text-lg font-semibold">Request a Custom Piece</h2>
+            <div className="flex items-center justify-between border-b border-neutral-200 bg-[#EDE8DC] px-6 py-4">
+              <h2 id="custom-order-dialog-title" className="font-display text-xl font-semibold text-neutral-900">Request a Custom Piece</h2>
               <button
                 type="button"
                 onClick={handleClose}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center text-2xl leading-none text-neutral-500 hover:text-neutral-900"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-[#F7F5F0] text-2xl leading-none text-neutral-500 hover:text-neutral-900"
                 aria-label="Close"
               >
                 ×
@@ -122,8 +122,8 @@ export default function CustomOrderRequestForm({
             </div>
 
             {success ? (
-              <div className="p-6 space-y-4 text-center">
-                <h3 className="text-lg font-semibold">Request sent!</h3>
+              <div className="space-y-4 p-6 text-center">
+                <h3 className="font-display text-xl font-semibold">Request sent!</h3>
                 <p className="text-sm text-neutral-600">
                   Your custom order request has been sent to {sellerName}. Check your messages for
                   their reply.
@@ -133,7 +133,7 @@ export default function CustomOrderRequestForm({
                     <button
                       type="button"
                       onClick={() => router.push(`/messages/${conversationId}`)}
-                      className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+                      className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
                     >
                       View Conversation
                     </button>
@@ -141,23 +141,23 @@ export default function CustomOrderRequestForm({
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                    className="rounded-md border border-neutral-200 bg-[#EDE8DC] px-4 py-2 text-sm font-medium hover:bg-[#E7DFD1]"
                   >
                     Close
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4 p-6">
                 {listingTitle && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <div className="rounded-md border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
                     Requesting something similar to:{" "}
                     <span className="font-medium">{listingTitle}</span>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     What would you like made? <span className="text-red-500">*</span>
                   </label>
                   <textarea
@@ -166,12 +166,12 @@ export default function CustomOrderRequestForm({
                     maxLength={500}
                     rows={4}
                     placeholder="Describe what you'd like — wood type, style, purpose…"
-                    className="w-full resize-none rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">
                     Any specific dimensions or size requirements?
                   </label>
                   <input
@@ -179,27 +179,27 @@ export default function CustomOrderRequestForm({
                     type="text"
                     maxLength={200}
                     placeholder='e.g. 24" wide × 12" deep × 30" tall'
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Your budget in USD</label>
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">Your budget in USD</label>
                   <input
                     name="budget"
                     type="text"
                     inputMode="decimal"
                     pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
                     placeholder="e.g. 250"
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">When do you need it?</label>
+                  <label className="mb-1 block text-sm font-medium text-neutral-700">When do you need it?</label>
                   <select
                     name="timeline"
-                    className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
                   >
                     {TIMELINE_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -211,18 +211,18 @@ export default function CustomOrderRequestForm({
 
                 {error && <p className="text-sm text-red-600">{error}</p>}
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+                    className="flex-1 rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50"
                   >
                     {submitting ? "Sending…" : "Send Custom Order Request"}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+                    className="rounded-md border border-neutral-200 bg-[#EDE8DC] px-4 py-2.5 text-sm font-medium hover:bg-[#E7DFD1]"
                   >
                     Cancel
                   </button>

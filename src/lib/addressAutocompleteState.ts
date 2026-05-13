@@ -25,7 +25,6 @@ export type NominatimPlace = {
     town?: string;
     village?: string;
     municipality?: string;
-    hamlet?: string;
     suburb?: string;
     neighbourhood?: string;
     city_district?: string;
@@ -36,37 +35,8 @@ export type NominatimPlace = {
   };
 };
 
-function normalizeLocality(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase();
-}
-
 function firstNonEmpty(...values: Array<string | null | undefined>) {
   return values.find((value) => value?.trim())?.trim() ?? "";
-}
-
-export function cityFromDisplayName(displayName?: string, rejectedLocalities: Array<string | null | undefined> = []): string {
-  if (!displayName) return "";
-  const parts = displayName
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length < 4) return "";
-
-  const cityCandidates = parts
-    .slice(0, -3)
-    .filter((part) => part && !/\bcounty\b/i.test(part));
-
-  const candidate = cityCandidates[cityCandidates.length - 1] ?? "";
-  if (!candidate) return "";
-  const normalizedCandidate = normalizeLocality(candidate);
-  if (rejectedLocalities.map(normalizeLocality).filter(Boolean).includes(normalizedCandidate)) {
-    return "";
-  }
-  const streetAddressPattern = /\b(st|street|rd|road|ave|avenue|dr|drive|ln|lane|blvd|boulevard|way|ct|court|cir|circle|trl|trail|hwy|highway)\b/i;
-  if (cityCandidates.length === 1 && (/\d/.test(candidate) || streetAddressPattern.test(candidate))) {
-    return "";
-  }
-  return candidate;
 }
 
 export function formatAddressLabel({
@@ -96,9 +66,7 @@ export function placeToAddress(place: NominatimPlace): AddressAutocompleteResult
   const address = place.address ?? {};
   const street = address.road ?? address.pedestrian ?? address.footway ?? address.cycleway ?? "";
   const line1 = [address.house_number, street].filter(Boolean).join(" ").trim();
-  const city =
-    firstNonEmpty(address.city, address.town, address.village, address.municipality, address.hamlet) ||
-    cityFromDisplayName(place.display_name, [address.suburb, address.neighbourhood, address.city_district]);
+  const city = firstNonEmpty(address.city, address.town, address.village, address.municipality);
   const lat = Number.parseFloat(place.lat ?? "");
   const lng = Number.parseFloat(place.lon ?? "");
   const state = normalizeUsState(address.state);

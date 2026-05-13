@@ -1,6 +1,16 @@
 # Grainline Open Audit Findings
 
-Last updated: 2026-05-10
+Last updated: 2026-05-12
+
+## 2026-05-12 — Codex resumed: Claude-change audit + launch polish
+
+Drew reported regressions after Claude's direct-write pass and asked Codex to re-audit the current code before taking the reins again.
+
+1. **[FIXED 2026-05-12] Checkout address autocomplete could still write a neighborhood-like value into City.** The prior "display name fallback" was too clever for checkout/shipping data: Nominatim can include neighborhood/suburb chunks when no real city is present. `placeToAddress()` now populates city only from official city-like fields (`city`, `town`, `village`, `municipality`) and never from county, suburb, neighbourhood, city district, hamlet, or parsed `display_name`. If Nominatim cannot provide a trustworthy city, Grainline leaves City blank for manual entry rather than saving the wrong locality. Regression coverage: `tests/address-autocomplete-state.test.mjs`, `tests/post-launch-ui-followups.test.mjs`.
+2. **[FIXED 2026-05-12] Dark-cream surface polish drifted across reviews, seller policies, custom orders, and messages.** The review eligibility notice, seller-profile Shop Policies/FAQ panels, custom-order modal shell, message listing-context card, and message composer shell now use the darker cream `#EDE8DC`; inputs/composer controls inside the darker shell use body cream `#F7F5F0` or white for separation. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
+3. **[FIXED 2026-05-12] Horizontal scroll fades had too much end dead space.** `scroll-fade-edges` now uses symmetric 16px mask fades instead of 32px so the ending fade better matches row start padding. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
+4. **[FIXED 2026-05-12] Homepage maker map was too zoomed in on mobile.** `AllSellersMap` now supports `mobileInitialZoom`; the homepage `MakersMapSection` uses `2.05` on narrow viewports when no explicit map center is provided, so the initial mobile view shows the full US instead of only central states. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
+5. **[SECURITY FIXED 2026-05-12] `npm audit` found high-severity Next.js advisories against the locked `next@16.2.4`.** Ran `npm audit fix`, which updated the lockfile to `next@16.2.6` plus matching `@next/*` packages. Post-fix audit reports 0 vulnerabilities.
 
 ## 2026-05-10 (evening) — Re-crop drag, edit-page refresh, SSE warning, message + cart polish (Claude direct write — Codex unavailable)
 
@@ -57,7 +67,7 @@ Latest launch-readiness pass on 2026-05-08 closed the signed-out middleware/cart
 
 2026-05-09 address/mobile listing detail follow-up:
 
-1. **[LOW-MEDIUM UX FIXED 2026-05-09; CORRECTED 2026-05-09] Checkout/seller address autocomplete could leave city blank or fill a neighborhood as city for common US Nominatim results.** Address parsing now uses official locality fields only (`city`, `town`, `village`, `municipality`, `hamlet`) and then parses the display name as a final fallback while explicitly rejecting county, suburb, neighbourhood, and city-district values as checkout/shipping city. Selecting a suggestion clears the search box, overwrites stale destination fields, and shows a "add city or ZIP" hint when no matches return. Regression coverage: `tests/address-autocomplete-state.test.mjs`, `tests/post-launch-ui-followups.test.mjs`.
+1. **[LOW-MEDIUM UX FIXED 2026-05-09; CORRECTED 2026-05-12] Checkout/seller address autocomplete could leave city blank or fill a neighborhood as city for common US Nominatim results.** Address parsing now uses official city-like fields only (`city`, `town`, `village`, `municipality`). It does not use county, suburb, neighbourhood, city district, hamlet, or parsed `display_name` chunks as checkout/shipping city because those can write the wrong locality. Selecting a suggestion clears the search box, overwrites stale destination fields, and shows a "add city or ZIP" hint when no matches return. Regression coverage: `tests/address-autocomplete-state.test.mjs`, `tests/post-launch-ui-followups.test.mjs`.
 2. **[LOW-MEDIUM MOBILE UX FIXED 2026-05-09] Listing gallery swipes could still pull the page vertically.** `ListingGallery` now uses native passive-false `touchmove` listeners to lock horizontal gestures once horizontal movement dominates, while keeping visible previous/next controls. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
 3. **[LOW MOBILE UI FIXED 2026-05-09] Listing detail purchase content could defensively overflow narrow screens.** The listing detail grid, gallery/purchase columns, purchase panel, and variant chips now enforce `min-w-0`, wrapping, break-word, and `overflow-x-hidden` guards. This closes the likely mobile-width culprit; reopen with a screenshot if a different element is still wider than the viewport. Regression coverage: `tests/post-launch-ui-followups.test.mjs`.
 

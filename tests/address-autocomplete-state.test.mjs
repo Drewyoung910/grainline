@@ -10,42 +10,30 @@ describe("address autocomplete state behavior", () => {
     assert.match(text, /address\.town/);
     assert.match(text, /address\.village/);
     assert.match(text, /address\.municipality/);
-    assert.match(text, /address\.hamlet/);
     assert.doesNotMatch(text, /address\.city \?\?.*address\.county/s);
     assert.doesNotMatch(text, /address\.city \?\?.*address\.suburb/s);
     assert.doesNotMatch(text, /address\.city \?\?.*address\.neighbourhood/s);
     assert.doesNotMatch(text, /address\.city \?\?.*address\.city_district/s);
+    assert.doesNotMatch(text, /firstNonEmpty\([^)]*address\.hamlet/s);
   });
 
-  it("uses display-name parsing as the final city fallback and strips county labels", () => {
-    assert.match(text, /function cityFromDisplayName/);
-    assert.match(text, /slice\(0, -3\)/);
-    assert.match(text, /!\/\\bcounty\\b\/i\.test\(part\)/);
-    assert.match(text, /streetAddressPattern/);
-    assert.match(text, /cityFromDisplayName\(place\.display_name, \[address\.suburb, address\.neighbourhood, address\.city_district\]\)/);
+  it("formats labels from display names without using display-name chunks as checkout city", () => {
+    assert.doesNotMatch(text, /function cityFromDisplayName/);
+    assert.doesNotMatch(text, /cityFromDisplayName\(place\.display_name/);
     assert.match(text, /filter\(\(part\) => part && !\/\\bcounty\\b\/i\.test\(part\)\)/);
   });
 
-  it("rejects known sublocalities and street fragments during display-name parsing", () => {
-    assert.match(text, /rejectedLocalities\.map\(normalizeLocality\)\.filter\(Boolean\)\.includes\(normalizedCandidate\)/);
-    assert.match(text, /return "";/);
-    assert.match(text, /cityCandidates\.length === 1 && \(\/\\d\/\.test\(candidate\) \|\| streetAddressPattern\.test\(candidate\)\)/);
-  });
-
-  it("passes suburb, neighbourhood, and city district only as rejected display-name candidates", () => {
-    assert.match(
-      text,
-      /cityFromDisplayName\(place\.display_name, \[address\.suburb, address\.neighbourhood, address\.city_district\]\)/,
-    );
+  it("never promotes sublocalities into the checkout city field", () => {
     assert.doesNotMatch(text, /firstNonEmpty\([^)]*address\.suburb/s);
     assert.doesNotMatch(text, /firstNonEmpty\([^)]*address\.neighbourhood/s);
     assert.doesNotMatch(text, /firstNonEmpty\([^)]*address\.city_district/s);
+    assert.doesNotMatch(text, /firstNonEmpty\([^)]*address\.hamlet/s);
   });
 
   it("keeps official locality fields for non-city municipalities", () => {
     assert.match(
       text,
-      /firstNonEmpty\(address\.city, address\.town, address\.village, address\.municipality, address\.hamlet\)/,
+      /firstNonEmpty\(address\.city, address\.town, address\.village, address\.municipality\)/,
     );
   });
 });

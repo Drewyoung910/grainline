@@ -358,9 +358,9 @@ export default async function ThreadPage({
       {ctx && (
         <Link
           href={publicListingPath(ctx.id, ctx.title)}
-          className="card-section flex items-center gap-3 p-3 hover:shadow-md transition-shadow"
+          className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-[#EDE8DC] p-3 shadow-sm transition-shadow hover:shadow-md"
         >
-          <div className="h-14 w-14 rounded-md overflow-hidden bg-neutral-100 shrink-0">
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-[#F7F5F0]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {ctxImg ? <img src={ctxImg} alt="" className="h-full w-full object-cover" /> : null}
           </div>
@@ -373,7 +373,7 @@ export default async function ThreadPage({
               })}
             </div>
           </div>
-          <div className="ml-auto text-sm text-neutral-500 shrink-0">View listing →</div>
+          <div className="ml-auto shrink-0 text-sm text-amber-800">View listing →</div>
         </Link>
       )}
 

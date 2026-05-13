@@ -82,7 +82,7 @@ export default function MakersMapSection({
         </div>
 
         <div className="flex-1 min-h-[280px] rounded-2xl overflow-hidden">
-          <AllSellersMap points={points} initialZoom={3} height={280} />
+          <AllSellersMap points={points} initialZoom={3} mobileInitialZoom={2.05} height={280} />
         </div>
       </div>
     </section>

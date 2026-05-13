@@ -54,13 +54,12 @@ describe("post-launch UI follow-ups", () => {
     assert.match(source("src/components/SellerShipFromAddressFields.tsx"), /setCity\(address\.city\)/);
     assert.doesNotMatch(source("src/components/SellerShipFromAddressFields.tsx"), /if \(address\.city\)/);
     const state = source("src/lib/addressAutocompleteState.ts");
-    assert.match(state, /address\.hamlet/);
-    assert.match(state, /cityFromDisplayName/);
+    assert.doesNotMatch(state, /cityFromDisplayName/);
     assert.doesNotMatch(state, /address\.city \?\?.*address\.county/s);
     assert.doesNotMatch(state, /address\.city \?\?.*address\.suburb/s);
     assert.doesNotMatch(state, /address\.city \?\?.*address\.neighbourhood/s);
     assert.doesNotMatch(state, /address\.city \?\?.*address\.city_district/s);
-    assert.match(state, /cityFromDisplayName\(place\.display_name, \[address\.suburb, address\.neighbourhood, address\.city_district\]\)/);
+    assert.doesNotMatch(state, /firstNonEmpty\([^)]*address\.hamlet/s);
     assert.match(state, /formatAddressLabel/);
   });
 
@@ -359,14 +358,37 @@ describe("post-launch UI follow-ups", () => {
   it("message thread uses card-section styling and shows a friendly empty state", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const thread = source("src/components/ThreadMessages.tsx");
-    // Listing context card uses the design system card-section instead of
-    // bare rounded-lg + border.
-    assert.match(threadPage, /card-section flex items-center gap-3 p-3/);
+    // Listing context card uses the darker cream surface to separate the
+    // thread chrome from the body cream page background.
+    assert.match(threadPage, /bg-\[#EDE8DC\] p-3/);
     // Thread container uses card-section on md+ instead of bare md:border.
     assert.match(thread, /md:card-section md:p-4/);
     // Empty-state visual when there are no messages yet.
     assert.match(thread, /msgs\.length === 0 &&/);
     assert.match(thread, /Start the conversation/);
+  });
+
+  it("keeps launch polish surfaces on the dark cream system color", () => {
+    const reviews = source("src/components/ReviewComposer.tsx");
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const customOrder = source("src/components/CustomOrderRequestForm.tsx");
+    const composer = source("src/components/MessageComposer.tsx");
+    const mapSection = source("src/components/MakersMapSection.tsx");
+    const map = source("src/components/AllSellersMap.tsx");
+    const globals = source("src/app/globals.css");
+
+    assert.match(reviews, /bg-\[#EDE8DC\]/);
+    assert.match(sellerPage, /bg-\[#EDE8DC\][\s\S]*?Shop Policies/);
+    assert.match(sellerPage, /bg-\[#EDE8DC\][\s\S]*?Frequently Asked Questions/);
+    assert.match(customOrder, /bg-\[#F7F5F0\]/);
+    assert.match(customOrder, /bg-\[#EDE8DC\]/);
+    assert.match(composer, /bg-\[#EDE8DC\]/);
+    assert.match(composer, /bg-\[#F7F5F0\]/);
+    assert.match(mapSection, /mobileInitialZoom=\{2\.05\}/);
+    assert.match(map, /matchMedia\("\(max-width: 640px\)"\)/);
+    assert.match(map, /resolvedInitialZoom/);
+    assert.match(globals, /calc\(100% - 16px\)/);
+    assert.doesNotMatch(globals, /calc\(100% - 32px\)/);
   });
 
   it("header icon-only buttons share the hover-circle pattern", () => {
