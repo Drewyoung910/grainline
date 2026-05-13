@@ -577,6 +577,7 @@ export default async function DashboardPage({
                               href={`${publicListingPath(l.id, l.title)}?preview=1`}
                               className="text-xs rounded border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
                               target="_blank"
+                              rel="noopener noreferrer"
                             >
                               Preview →
                             </Link>

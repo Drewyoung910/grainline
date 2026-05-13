@@ -3,8 +3,6 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
-import { marked } from "marked";
-import sanitizeHtml from "sanitize-html";
 import type { Metadata } from "next";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import NewsletterSignup from "@/components/NewsletterSignup";
@@ -18,8 +16,8 @@ import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import BlockReportButton from "@/components/BlockReportButton";
 import { safeJsonLd } from "@/lib/json-ld";
+import { renderBlogMarkdown } from "@/lib/blogMarkdown";
 
-const MAX_RENDERED_MARKDOWN_CHARS = 200_000;
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { extractBlogVideoEmbed } from "@/lib/blogVideo";
@@ -122,23 +120,7 @@ export default async function BlogPostPage({
     }
   }
 
-  // Render markdown body
-  const rawHtml = marked.parse(post.body.slice(0, MAX_RENDERED_MARKDOWN_CHARS)) as string;
-  const htmlBody = sanitizeHtml(rawHtml, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
-      'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'hr', 'del', 'sup', 'sub', 'table', 'thead',
-      'tbody', 'tr', 'th', 'td', 'pre', 'code',
-    ]),
-    allowedAttributes: {
-      ...sanitizeHtml.defaults.allowedAttributes,
-      img: ['src', 'alt', 'width', 'height'],
-      a: ['href', 'target', 'rel'],
-      code: ['class'],
-      pre: ['class'],
-    },
-    allowedSchemes: ['http', 'https', 'mailto'],
-  });
+  const htmlBody = renderBlogMarkdown(post.body);
 
   // Featured listings
   let featuredListings: Array<{

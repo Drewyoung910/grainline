@@ -158,22 +158,22 @@ export default async function AdminReportsPage() {
                 {r.targetType && r.targetId && (
                   <div>
                     {r.targetType === "LISTING" && (
-                      <Link href={listingPathMap.get(r.targetId) ?? `/listing/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View listing →</Link>
+                      <Link href={listingPathMap.get(r.targetId) ?? `/listing/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View listing →</Link>
                     )}
                     {r.targetType === "SELLER" && (
-                      <Link href={sellerPathMap.get(r.targetId) ?? `/seller/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View seller →</Link>
+                      <Link href={sellerPathMap.get(r.targetId) ?? `/seller/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View seller →</Link>
                     )}
                     {r.targetType === "MESSAGE_THREAD" && (
-                      <Link href={`/messages/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View thread →</Link>
+                      <Link href={`/messages/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View thread →</Link>
                     )}
                     {r.targetType === "BLOG_POST" && (
-                      <Link href={`/blog/${r.targetId}`} target="_blank" className="text-xs text-blue-600 hover:underline">View post →</Link>
+                      <Link href={`/blog/${r.targetId}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View post →</Link>
                     )}
                     {r.targetType === "REVIEW" && reviewListingMap.has(r.targetId) && (
-                      <Link href={`${publicListingPath(reviewListingMap.get(r.targetId)!.id, reviewListingMap.get(r.targetId)!.title)}#reviews`} target="_blank" className="text-xs text-blue-600 hover:underline">View review →</Link>
+                      <Link href={`${publicListingPath(reviewListingMap.get(r.targetId)!.id, reviewListingMap.get(r.targetId)!.title)}#reviews`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View review →</Link>
                     )}
                     {r.targetType === "BLOG_COMMENT" && blogCommentSlugMap.has(r.targetId) && (
-                      <Link href={`/blog/${blogCommentSlugMap.get(r.targetId)}`} target="_blank" className="text-xs text-blue-600 hover:underline">View blog post →</Link>
+                      <Link href={`/blog/${blogCommentSlugMap.get(r.targetId)}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View blog post →</Link>
                     )}
                   </div>
                 )}

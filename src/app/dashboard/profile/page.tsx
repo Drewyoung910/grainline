@@ -326,6 +326,7 @@ export default async function ProfilePage({
         <Link
           href={publicSellerPath(seller.id, seller.displayName)}
           target="_blank"
+          rel="noopener noreferrer"
           className="rounded-md border border-neutral-200 px-3 py-2 text-sm text-neutral-600 hover:bg-white"
         >
           View public profile

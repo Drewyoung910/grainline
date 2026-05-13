@@ -274,7 +274,7 @@ export default function MarkdownToolbar({
                 toast(
                   error instanceof Error
                     ? error.message
-                    : "Image upload failed. The file may be too large (max 4MB).",
+                    : "Image upload failed. Check the file size and format, then try again.",
                   "error",
                 );
               }

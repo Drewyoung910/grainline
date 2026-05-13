@@ -3774,6 +3774,10 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 133. **[HARDENED 2026-05-13] Checkout success page no longer creates orders** — `/checkout/success` still carried legacy hosted-checkout fallback `order.create` paths even though the active checkout routes are embedded Checkout Sessions and the Stripe webhook is the authoritative order writer. This was a latent trust-boundary risk because a success page can read mutable cart/listing state after payment and can race the webhook. The page now verifies paid Stripe session ownership through `metadata.buyerId` and then only reads buyer-scoped orders; missing orders render the existing processing message. Source guardrail: `tests/checkout-success-state.test.mjs`.
 
+134. **[HARDENED 2026-05-13] Blog markdown images allowed arbitrary remote tracking URLs** — blog body rendering sanitized executable HTML, but manually typed markdown could still render arbitrary `http`/`https` image URLs. That is a privacy/content-integrity risk because external images can track readers and bypass Grainline's upload processing. Blog markdown rendering is now centralized in `src/lib/blogMarkdown.ts`; it removes images whose `src` is not a Grainline/legacy media URL, allows only `https`/`mailto` schemes, strips user-supplied `target`/`rel`, and caps markdown before parsing. Source guardrail: `tests/blog-markdown-sanitization.test.mjs`.
+
+135. **[HARDENED 2026-05-13] Blank-target links now have a rel boundary** — several admin/dashboard Next `<Link target="_blank">` entries opened internal review surfaces in a new tab without an explicit `rel`. Modern browsers generally imply `noopener`, but the codebase now makes the boundary explicit on all blank-target links. Source guardrail: `tests/link-security.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

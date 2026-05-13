@@ -76,6 +76,7 @@ export default async function AdminReviewPage() {
                       <Link
                         href={publicListingPath(listing.id, listing.title)}
                         target="_blank"
+                        rel="noopener noreferrer"
                         className="font-semibold hover:underline"
                       >
                         {listing.title}
@@ -116,6 +117,7 @@ export default async function AdminReviewPage() {
                   <Link
                     href={publicListingPath(listing.id, listing.title)}
                     target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sm text-neutral-500 underline hover:text-neutral-900"
                   >
                     Preview →

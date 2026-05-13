@@ -105,6 +105,7 @@ export default async function DashboardBlogPage() {
                     href={`/blog/${p.slug}`}
                     className="text-xs rounded border px-2 py-1 hover:bg-neutral-50"
                     target="_blank"
+                    rel="noopener noreferrer"
                   >
                     View
                   </Link>

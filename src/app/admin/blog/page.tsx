@@ -147,7 +147,7 @@ export default async function AdminBlogPage() {
                   <div className="text-xs text-neutral-500">
                     <span className="font-medium text-neutral-700">{c.author.name ?? c.author.email}</span>
                     {" on "}
-                    <Link href={`/blog/${c.post.slug}`} target="_blank" className="underline">
+                    <Link href={`/blog/${c.post.slug}`} target="_blank" rel="noopener noreferrer" className="underline">
                       {c.post.title}
                     </Link>
                     {" · "}
@@ -204,7 +204,7 @@ export default async function AdminBlogPage() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {p.status === "PUBLISHED" && (
-                    <Link href={`/blog/${p.slug}`} target="_blank" className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
+                    <Link href={`/blog/${p.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs rounded border px-2 py-1 hover:bg-neutral-50">
                       View
                     </Link>
                   )}

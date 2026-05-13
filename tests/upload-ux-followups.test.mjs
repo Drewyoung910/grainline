@@ -47,6 +47,7 @@ describe("upload UX follow-ups", () => {
     assert.match(imageRoute, /uploadTooManyFilesMessage/);
     assert.doesNotMatch(imageRoute, /File too large/);
     assert.doesNotMatch(imageRoute, /File type not allowed/);
+    assert.doesNotMatch(source("src/components/MarkdownToolbar.tsx"), /max 4MB/);
   });
 
   it("prevalidates before upload and reports progress with XMLHttpRequest", () => {
