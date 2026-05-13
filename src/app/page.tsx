@@ -62,59 +62,98 @@ function makerWeekIndex(count: number) {
   return Math.floor(monday.getTime() / (7 * 24 * 60 * 60 * 1000)) % count;
 }
 
-const getFeaturedMaker = unstable_cache(async (): Promise<FeaturedMaker | null> => {
+const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
   const now = new Date();
-  const curated = await prisma.sellerProfile.findFirst({
-    where: {
-      ...featuredMakerWhere,
-      featuredUntil: { gt: now },
-    },
-    include: featuredMakerInclude,
-  });
-  if (curated) return curated;
+  const picked: FeaturedMaker[] = [];
+  const seen = new Set<string>();
 
-  const guildWhere = {
-    ...featuredMakerWhere,
-    guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-  } satisfies Prisma.SellerProfileWhereInput;
-  const guildCount = await prisma.sellerProfile.count({ where: guildWhere });
-  if (guildCount > 0) {
-    const weekly = await prisma.sellerProfile.findFirst({
-      where: guildWhere,
-      orderBy: { id: "asc" },
-      skip: makerWeekIndex(guildCount),
-      include: featuredMakerInclude,
-    });
-    if (weekly) return weekly;
+  function add(maker: FeaturedMaker | null) {
+    if (!maker || seen.has(maker.id) || picked.length >= 2) return;
+    picked.push(maker);
+    seen.add(maker.id);
   }
 
-  const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
-    SELECT sp.id AS "sellerId"
-    FROM "SellerProfile" sp
-    JOIN "User" u ON u.id = sp."userId"
-    LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
-    WHERE sp."chargesEnabled" = true
-      AND sp."vacationMode" = false
-      AND u.banned = false
-      AND u."deletedAt" IS NULL
-      AND EXISTS (
-        SELECT 1
-        FROM "Listing" l
-        WHERE l."sellerId" = sp.id
-          AND l.status = 'ACTIVE'
-          AND l."isPrivate" = false
-      )
-    ORDER BY COALESCE(srs."reviewCount", 0) DESC
-    LIMIT 1
-  `;
-  const topSellerId = topReviewedRows[0]?.sellerId;
-  if (!topSellerId) return null;
-
-  return prisma.sellerProfile.findFirst({
-    where: { ...featuredMakerWhere, id: topSellerId },
+  // Tier 1: admin-featured (featuredUntil > now)
+  const curated = await prisma.sellerProfile.findMany({
+    where: { ...featuredMakerWhere, featuredUntil: { gt: now } },
+    orderBy: { featuredUntil: "desc" },
     include: featuredMakerInclude,
+    take: 2,
   });
-}, ["home-featured-maker"], { revalidate: 3600, tags: ["home-featured-maker"] });
+  for (const m of curated) add(m);
+
+  // Tier 2: weekly Guild rotation (deterministic, fills remaining slots)
+  if (picked.length < 2) {
+    const guildWhere = {
+      ...featuredMakerWhere,
+      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
+      ...(seen.size > 0 ? { id: { notIn: [...seen] } } : {}),
+    } satisfies Prisma.SellerProfileWhereInput;
+    const guildCount = await prisma.sellerProfile.count({ where: guildWhere });
+    if (guildCount > 0) {
+      const startIdx = makerWeekIndex(guildCount);
+      const need = 2 - picked.length;
+      // Pull up to (need * 2) so we have room if some collide with already-seen
+      const weekly = await prisma.sellerProfile.findMany({
+        where: guildWhere,
+        orderBy: { id: "asc" },
+        skip: startIdx,
+        take: need,
+        include: featuredMakerInclude,
+      });
+      for (const m of weekly) add(m);
+      // Wrap-around if skip was near the end
+      if (picked.length < 2 && weekly.length < need) {
+        const wrap = await prisma.sellerProfile.findMany({
+          where: guildWhere,
+          orderBy: { id: "asc" },
+          take: 2 - picked.length,
+          include: featuredMakerInclude,
+        });
+        for (const m of wrap) add(m);
+      }
+    }
+  }
+
+  // Tier 3: top-reviewed fallback
+  if (picked.length < 2) {
+    const topReviewedRows = await prisma.$queryRaw<{ sellerId: string }[]>`
+      SELECT sp.id AS "sellerId"
+      FROM "SellerProfile" sp
+      JOIN "User" u ON u.id = sp."userId"
+      LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
+      WHERE sp."chargesEnabled" = true
+        AND sp."vacationMode" = false
+        AND u.banned = false
+        AND u."deletedAt" IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM "Listing" l
+          WHERE l."sellerId" = sp.id
+            AND l.status = 'ACTIVE'
+            AND l."isPrivate" = false
+        )
+      ORDER BY COALESCE(srs."reviewCount", 0) DESC
+      LIMIT 4
+    `;
+    const candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
+    if (candidateIds.length > 0) {
+      const candidates = await prisma.sellerProfile.findMany({
+        where: { ...featuredMakerWhere, id: { in: candidateIds } },
+        include: featuredMakerInclude,
+      });
+      // Preserve the SQL ordering
+      const byId = new Map(candidates.map((c) => [c.id, c]));
+      for (const id of candidateIds) {
+        if (picked.length >= 2) break;
+        const m = byId.get(id);
+        if (m) add(m);
+      }
+    }
+  }
+
+  return picked;
+}, ["home-featured-makers-v2"], { revalidate: 3600, tags: ["home-featured-maker"] });
 
 const featuredListingSelect = {
   id: true,
@@ -125,46 +164,50 @@ const featuredListingSelect = {
 
 type FeaturedListing = Prisma.ListingGetPayload<{ select: typeof featuredListingSelect }>;
 
-async function getFeaturedMakerBlock(): Promise<{
-  featuredMaker: FeaturedMaker | null;
-  featuredListings: FeaturedListing[];
-}> {
-  const featuredMaker = await getFeaturedMaker();
-  if (!featuredMaker) return { featuredMaker: null, featuredListings: [] };
+type FeaturedMakerWithListings = {
+  maker: FeaturedMaker;
+  listings: FeaturedListing[];
+};
 
-  let featuredListings: FeaturedListing[] = [];
-  if (featuredMaker.featuredListingIds.length > 0) {
-    featuredListings = await prisma.listing.findMany({
-      where: {
-        id: { in: featuredMaker.featuredListingIds },
-        sellerId: featuredMaker.id,
-        status: "ACTIVE",
-        isPrivate: false,
-        photos: { some: {} },
-      },
-      select: featuredListingSelect,
-      take: 3,
-    });
-  }
+async function getFeaturedMakerBlock(): Promise<FeaturedMakerWithListings[]> {
+  const makers = await getFeaturedMakers();
+  if (makers.length === 0) return [];
 
-  if (featuredListings.length < 3) {
-    const existingIds = featuredListings.map((listing) => listing.id);
-    const more = await prisma.listing.findMany({
-      where: {
-        sellerId: featuredMaker.id,
-        status: "ACTIVE",
-        isPrivate: false,
-        photos: { some: {} },
-        ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}),
-      },
-      orderBy: { updatedAt: "desc" },
-      select: featuredListingSelect,
-      take: 3 - featuredListings.length,
-    });
-    featuredListings = [...featuredListings, ...more];
-  }
-
-  return { featuredMaker, featuredListings };
+  return Promise.all(
+    makers.map(async (maker) => {
+      let listings: FeaturedListing[] = [];
+      if (maker.featuredListingIds.length > 0) {
+        listings = await prisma.listing.findMany({
+          where: {
+            id: { in: maker.featuredListingIds },
+            sellerId: maker.id,
+            status: "ACTIVE",
+            isPrivate: false,
+            photos: { some: {} },
+          },
+          select: featuredListingSelect,
+          take: 3,
+        });
+      }
+      if (listings.length < 3) {
+        const existingIds = listings.map((l) => l.id);
+        const more = await prisma.listing.findMany({
+          where: {
+            sellerId: maker.id,
+            status: "ACTIVE",
+            isPrivate: false,
+            photos: { some: {} },
+            ...(existingIds.length > 0 ? { id: { notIn: existingIds } } : {}),
+          },
+          orderBy: { updatedAt: "desc" },
+          select: featuredListingSelect,
+          take: 3 - listings.length,
+        });
+        listings = [...listings, ...more];
+      }
+      return { maker, listings };
+    })
+  );
 }
 
 const CATEGORIES = [
@@ -197,7 +240,7 @@ export default async function HomePage() {
     mosaicListings,
     featuredMakerBlock,
   ] = await Promise.all([
-    // New Arrivals: prefer last 30 days, fall back to newest if fewer than 6
+    // New Arrivals: prefer last 30 days, fall back to newest if fewer than 12
     prisma.listing.findMany({
       where: {
         status: ListingStatus.ACTIVE, isPrivate: false,
@@ -206,7 +249,7 @@ export default async function HomePage() {
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
       },
       orderBy: { createdAt: "desc" },
-      take: 6,
+      take: 12,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
@@ -222,7 +265,7 @@ export default async function HomePage() {
         },
       },
     }).then(async (results) => {
-      if (results.length >= 6) return results;
+      if (results.length >= 12) return results;
       // Fall back to newest without date filter
       return prisma.listing.findMany({
         where: {
@@ -231,7 +274,7 @@ export default async function HomePage() {
           ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
         },
         orderBy: { createdAt: "desc" },
-        take: 6,
+        take: 12,
         include: {
           photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
           seller: {
@@ -251,7 +294,7 @@ export default async function HomePage() {
     prisma.listing.findMany({
       where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
       orderBy: { qualityScore: "desc" },
-      take: 6,
+      take: 12,
       include: {
         photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
         seller: {
@@ -312,8 +355,8 @@ export default async function HomePage() {
     }),
     prisma.listing.findMany({
       where: publicListingWhere(),
-      orderBy: { createdAt: "desc" },
-      take: 16,
+      orderBy: [{ qualityScore: "desc" }, { createdAt: "desc" }],
+      take: 24,
       select: {
         id: true,
         title: true,
@@ -329,7 +372,7 @@ export default async function HomePage() {
 
   const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;
   const trendingTags = trendingTagsRaw;
-  const { featuredMaker, featuredListings } = featuredMakerBlock;
+  const featuredMakers = featuredMakerBlock;
 
   const mosaicPhotos: { url: string; listingId: string; title: string }[] = mosaicListings
     .filter(l => l.photos.length > 0)
@@ -347,13 +390,13 @@ export default async function HomePage() {
     }))
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
-  const featuredMakerFallbackImage = featuredMaker
-    ? featuredListings[0]?.photos[0]?.url ??
-      featuredMaker.workshopImageUrl ??
-      featuredMaker.avatarImageUrl ??
-      featuredMaker.user?.imageUrl ??
-      null
-    : null;
+  const featuredMakerFallbackImages = featuredMakers.map(({ maker, listings }) =>
+    listings[0]?.photos[0]?.url ??
+    maker.workshopImageUrl ??
+    maker.avatarImageUrl ??
+    maker.user?.imageUrl ??
+    null
+  );
 
   let saved = new Set<string>();
   let savedBlogSlugs = new Set<string>();
@@ -436,11 +479,10 @@ export default async function HomePage() {
     new Set([
       ...fresh.map((f) => f.sellerId),
       ...topSaved.map((t) => t.sellerId),
-      ...(featuredMaker ? [featuredMaker.id] : []),
+      ...featuredMakers.map(({ maker }) => maker.id),
     ])
   );
   const sellerRatings = await getSellerRatingMap(sellerIds);
-  const featuredRating = featuredMaker ? (sellerRatings.get(featuredMaker.id) ?? null) : null;
 
   // Maker of the Week pill dates — aligned to Monday–Sunday calendar week
   const nowForPill = new Date();
@@ -485,19 +527,28 @@ export default async function HomePage() {
       />
 
       {/* ── Hero ───────────────────────────────────��─────────────────────── */}
-      <section className={`relative border-b flex flex-col justify-center min-h-[60vh] ${
+      <section className={`relative flex flex-col justify-center min-h-[60vh] ${
         mosaicPhotos.length >= 12
           ? "bg-[#1C1C1A]"
           : "bg-gradient-to-br from-amber-100 via-amber-50 to-stone-50"
       }`}>
         {mosaicPhotos.length >= 12 && <HeroMosaic photos={mosaicPhotos} />}
         <div className="relative z-20 max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center space-y-6 w-full">
+          <div className="flex justify-center">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-wider ${
+                mosaicPhotos.length >= 12
+                  ? "bg-white/15 text-white/90 backdrop-blur-sm ring-1 ring-white/30"
+                  : "bg-white text-amber-800 ring-1 ring-amber-200"
+              }`}
+            >
+              <span aria-hidden="true">★</span>
+              Made in the USA · Built in Texas
+            </span>
+          </div>
           <h1 className={`text-display font-display ${mosaicPhotos.length >= 12 ? "text-white" : "text-neutral-900"}`}>
             Buy handmade.<br />Buy local. Buy quality.
           </h1>
-          <p className={`text-lg ${mosaicPhotos.length >= 12 ? "text-white/80" : "text-stone-500"}`}>
-            Handmade woodworking pieces from makers across the country.
-          </p>
 
           <div className="max-w-xl mx-auto [&_input]:bg-white/20 [&_input]:backdrop-blur-sm [&_input]:border-white/30 [&_input]:text-white [&_input]:placeholder-white/60">
             <Suspense>
@@ -553,42 +604,38 @@ export default async function HomePage() {
       </section>
 
       {/* ── Stats bar ────────────────────────────────────────────────────── */}
-      <div className="border-b bg-amber-50">
+      <div className="bg-[#D9E2D5]">
         <ScrollSection className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap justify-center gap-x-8 gap-y-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{activeListingsCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">pieces listed</span>
+            <span className="text-sm text-neutral-700">pieces listed</span>
           </div>
-          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{sellersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">active makers</span>
+            <span className="text-sm text-neutral-700">active makers</span>
           </div>
-          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{membersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">members</span>
+            <span className="text-sm text-neutral-700">members</span>
           </div>
-          <span className="text-amber-300 self-center hidden sm:block">·</span>
+          <span className="text-[#3F5D3A]/40 self-center hidden sm:block">·</span>
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl font-bold text-neutral-900">{ordersCount.toLocaleString("en-US")}</span>
-            <span className="text-sm text-stone-500">orders fulfilled</span>
+            <span className="text-sm text-neutral-700">orders fulfilled</span>
           </div>
         </ScrollSection>
       </div>
 
       {/* ── Find Makers Near You ──────────────────────────────────────────── */}
       <ScrollSection className="py-12">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-          <h2 className="text-2xl sm:text-3xl font-bold font-display text-neutral-900">Find Makers Near You</h2>
-          <p className="text-neutral-500 mt-1">Discover woodworkers in your neighborhood</p>
-        </div>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <MakersMapSection
             points={mapPoints}
-            heading="Explore the map"
-            subheading="Pin your location to find makers nearby — or browse the full map."
-            headingClassName="font-display"
+            heading="Find Makers Near You"
+            subheading="Share your location to see makers in your area, or browse the full national map."
+            headingClassName="font-display text-2xl sm:text-3xl font-bold text-neutral-900"
           />
         </div>
       </ScrollSection>
@@ -659,138 +706,147 @@ export default async function HomePage() {
         {/* ── Shop by Category ─────────────────────────────────────────────── */}
         <ScrollSection>
           <h2 className="text-xl font-semibold font-display mb-5">Shop by Category</h2>
-          {/* Mobile: horizontal scroll; Desktop: 6-col flex */}
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          {/* Mobile: horizontal scroll with fade; Desktop: 9-col grid (no fade) */}
+          <ScrollFadeRow hideAtBreakpoint="sm" className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             <div className="flex sm:grid sm:grid-cols-9 gap-3" style={{ minWidth: 480 }}>
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
                   href={`/browse?category=${c.key}`}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-amber-50 p-4 sm:p-5 text-center hover:bg-amber-100 transition-colors flex-none w-28 sm:w-auto"
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#D9E2D5] p-4 sm:p-5 text-center hover:bg-[#C7D4C2] transition-colors flex-none w-28 sm:w-auto"
                 >
-                  <c.Icon size={28} className="text-amber-700" />
-                  <span className="text-xs font-medium text-neutral-800">{c.label}</span>
+                  <c.Icon size={28} className="text-neutral-900" />
+                  <span className="text-xs font-medium text-neutral-900">{c.label}</span>
                 </Link>
               ))}
               <Link
                 href="/browse"
-                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-amber-50 p-4 sm:p-5 text-center hover:bg-amber-100 transition-colors flex-none w-28 sm:w-auto"
+                className="flex flex-col items-center justify-center gap-2 rounded-xl bg-[#D9E2D5] p-4 sm:p-5 text-center hover:bg-[#C7D4C2] transition-colors flex-none w-28 sm:w-auto"
               >
-                <span className="text-2xl text-amber-700">→</span>
-                <span className="text-xs font-medium text-neutral-800">Browse all</span>
+                <span className="text-2xl text-neutral-900">→</span>
+                <span className="text-xs font-medium text-neutral-900">Browse all</span>
               </Link>
             </div>
-          </div>
+          </ScrollFadeRow>
         </ScrollSection>
 
-        {/* ── Meet a Maker ─────────────────────────────────────────────────── */}
-        {featuredMaker && (
+        {/* ── Featured Makers ────────────────────────────────────────── */}
+        {featuredMakers.length > 0 && (
           <ScrollSection>
-            <div className="mb-5 space-y-0.5">
-              <h2 className="text-xl font-semibold font-display">Meet a Maker</h2>
-              <p className="text-sm text-neutral-500">The people behind the pieces</p>
+            <div className="mb-5 flex items-end justify-between gap-4 flex-wrap">
+              <div className="space-y-0.5">
+                <h2 className="text-xl font-semibold font-display">
+                  {featuredMakers.length > 1 ? "Featured Makers" : "Meet a Maker"}
+                </h2>
+                <p className="text-sm text-neutral-500">The people behind the pieces, {weekStart} to {weekEnd}</p>
+              </div>
             </div>
 
-            <div className="rounded-2xl bg-stone-50 overflow-hidden">
-              <MediaImage
-                src={featuredMaker.bannerImageUrl}
-                fallbackSrc={featuredMakerFallbackImage}
-                alt={`${featuredMaker.displayName ?? "Maker"} workshop`}
-                loading="lazy"
-                className="h-48 w-full object-cover"
-                fallbackClassName="h-48 w-full bg-gradient-to-r from-neutral-800 to-neutral-600"
-              />
-              <div className={`p-6 sm:p-8 ${featuredListings.length > 0 ? "lg:grid lg:grid-cols-2 lg:gap-8" : ""} flex flex-col gap-6`}>
-                {/* Left column — maker info */}
-                <div className="flex flex-col sm:flex-row gap-6 items-start">
-                  <div className="shrink-0">
-                    {(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={(featuredMaker.avatarImageUrl ?? featuredMaker.user?.imageUrl)!}
-                        alt={featuredMaker.displayName ?? ""}
-                        loading="lazy"
-                        width={80}
-                        height={80}
-                        className="h-20 w-20 rounded-full object-cover ring-1 ring-neutral-200 shadow-sm"
-                      />
-                    ) : (
-                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-1 ring-neutral-200 shadow-sm">
-                        {(featuredMaker.displayName || "M")[0]?.toUpperCase()}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {featuredMakers.map(({ maker, listings }, idx) => {
+                const fallbackImage = featuredMakerFallbackImages[idx];
+                const rating = sellerRatings.get(maker.id) ?? null;
+                const avatarSrc = maker.avatarImageUrl ?? maker.user?.imageUrl ?? null;
+                return (
+                  <article key={maker.id} className="flex flex-col">
+                    {/* Banner with 3:1 aspect, rounded, avatar overlaps bottom */}
+                    <div className="relative">
+                      <div className="rounded-2xl overflow-hidden">
+                        <MediaImage
+                          src={maker.bannerImageUrl}
+                          fallbackSrc={fallbackImage}
+                          alt={`${maker.displayName ?? "Maker"} workshop`}
+                          loading="lazy"
+                          className="aspect-[3/1] w-full object-cover"
+                          fallbackClassName="aspect-[3/1] w-full bg-gradient-to-r from-neutral-800 to-neutral-600"
+                        />
                       </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full mb-1">
-                      Maker of the Week · {weekStart} – {weekEnd}
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-lg font-semibold">{featuredMaker.displayName}</span>
-                      <GuildBadge level={featuredMaker.guildLevel as import("@/components/GuildBadge").GuildLevelValue} showLabel={true} size={32} />
-                    </div>
-
-                    {featuredMaker.tagline && (
-                      <p className="text-sm text-neutral-600 italic border-l-2 border-amber-300 pl-3">&ldquo;{featuredMaker.tagline}&rdquo;</p>
-                    )}
-
-                    {(featuredMaker.city || featuredMaker.state) && (
-                      <p className="text-xs text-neutral-500 flex items-center gap-1">
-                        <MapPin size={12} className="shrink-0" />
-                        {[featuredMaker.city, featuredMaker.state].filter(Boolean).join(", ")}
-                      </p>
-                    )}
-
-                    {featuredRating && featuredRating.count > 0 && (
-                      <div className="flex items-center gap-1.5 text-xs text-neutral-600">
-                        <StarsInline value={featuredRating.avg} />
-                        <span>{(Math.round(featuredRating.avg * 10) / 10).toFixed(1)}</span>
-                        <span className="text-neutral-500">({featuredRating.count} reviews)</span>
-                      </div>
-                    )}
-
-                    {featuredMaker.bio && (
-                      <p className="text-sm text-neutral-600 line-clamp-2">
-                        {truncateTextWithEllipsis(featuredMaker.bio, 120)}
-                      </p>
-                    )}
-
-                    <div className="pt-1">
-                      <Link
-                        href={publicSellerPath(featuredMaker.id, featuredMaker.displayName)}
-                        className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-xs font-medium text-white hover:bg-[#3A2A24] transition-colors"
-                      >
-                        Visit Their Workshop →
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right column — featured listings grid */}
-                {featuredListings.length > 0 && (
-                  <div className="grid grid-cols-3 gap-3 self-start">
-                    {featuredListings.map((fl) => (
-                      <Link key={fl.id} href={publicListingPath(fl.id, fl.title)} className="block group">
-                        <div className="aspect-[4/5] overflow-hidden rounded-xl">
-                          <MediaImage
-                            src={fl.photos[0]?.url ?? null}
-                            alt={fl.photos[0]?.altText ?? fl.title}
+                      <div className="absolute -bottom-10 left-6">
+                        {avatarSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={avatarSrc}
+                            alt={maker.displayName ?? ""}
                             loading="lazy"
-                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            fallbackClassName="h-full w-full bg-stone-100"
+                            width={80}
+                            height={80}
+                            className="h-20 w-20 rounded-full object-cover ring-4 ring-[#F7F5F0] shadow-sm bg-white"
                           />
-                        </div>
-                        <div className="pt-2">
-                          <div className="font-medium text-xs text-neutral-900 line-clamp-1">{fl.title}</div>
-                          <div className="text-xs text-neutral-600">
-                            ${(fl.priceCents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-4 ring-[#F7F5F0] shadow-sm">
+                            {(maker.displayName || "M")[0]?.toUpperCase()}
                           </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="px-6 pt-14 pb-6 flex-1 flex flex-col">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold">{maker.displayName}</h3>
+                        <GuildBadge
+                          level={maker.guildLevel as import("@/components/GuildBadge").GuildLevelValue}
+                          size={28}
+                        />
+                      </div>
+
+                      {maker.tagline && (
+                        <p className="text-sm text-neutral-700 italic border-l-2 border-amber-300 pl-3 mb-3">
+                          &ldquo;{maker.tagline}&rdquo;
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600 mb-3">
+                        {(maker.city || maker.state) && (
+                          <span className="flex items-center gap-1">
+                            <MapPin size={12} className="shrink-0" />
+                            {[maker.city, maker.state].filter(Boolean).join(", ")}
+                          </span>
+                        )}
+                        {rating && rating.count > 0 && (
+                          <span className="flex items-center gap-1">
+                            <StarsInline value={rating.avg} />
+                            <span>{(Math.round(rating.avg * 10) / 10).toFixed(1)}</span>
+                            <span className="text-neutral-500">({rating.count})</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {maker.bio && (
+                        <p className="text-sm text-neutral-700 line-clamp-2 mb-4">
+                          {truncateTextWithEllipsis(maker.bio, 140)}
+                        </p>
+                      )}
+
+                      {listings.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                          {listings.slice(0, 3).map((fl) => (
+                            <Link key={fl.id} href={publicListingPath(fl.id, fl.title)} className="block group">
+                              <div className="aspect-square overflow-hidden rounded-lg bg-white">
+                                <MediaImage
+                                  src={fl.photos[0]?.url ?? null}
+                                  alt={fl.photos[0]?.altText ?? fl.title}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  fallbackClassName="h-full w-full bg-stone-100"
+                                />
+                              </div>
+                            </Link>
+                          ))}
                         </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      )}
+
+                      <div className="mt-auto">
+                        <Link
+                          href={publicSellerPath(maker.id, maker.displayName)}
+                          className="inline-flex items-center rounded-md bg-[#2C1F1A] px-4 py-2 text-xs font-medium text-white hover:bg-[#3A2A24] transition-colors"
+                        >
+                          Visit Their Workshop →
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </ScrollSection>
         )}
@@ -799,7 +855,7 @@ export default async function HomePage() {
         <ScrollSection>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold font-display">New Arrivals</h2>
-            <Link href="/browse" className="text-sm text-neutral-600 hover:underline">Browse all</Link>
+            <Link href="/browse?sort=newest" className="text-sm text-amber-700 hover:underline">View more →</Link>
           </div>
 
           {fresh.length === 0 ? (
@@ -811,7 +867,7 @@ export default async function HomePage() {
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {fresh.map((l) => {
                   return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
                         listing={{
                           id: l.id,
@@ -855,13 +911,14 @@ export default async function HomePage() {
           <ScrollSection>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold font-display">Top Picks</h2>
+              <Link href="/browse?sort=popular" className="text-sm text-amber-700 hover:underline">View more →</Link>
             </div>
 
             <ScrollFadeRow className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0">
               <ul className="flex gap-4 snap-x snap-mandatory pb-0" style={{ width: "max-content" }}>
                 {topSaved.map((l) => {
                   return (
-                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-56">
+                    <ClickTracker key={l.id} listingId={l.id} className="snap-start flex-none w-44 sm:w-48">
                       <ListingCard
                         listing={{
                           id: l.id,
@@ -928,7 +985,7 @@ export default async function HomePage() {
                           fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
                         />
                       </div>
-                      <div className="p-4 space-y-2 bg-white">
+                      <div className="p-4 space-y-2 bg-[#EFEAE0]">
                         <h3 className="font-medium text-sm text-neutral-900 line-clamp-2">{p.title}</h3>
                         {p.excerpt && (
                           <p className="text-xs text-stone-500 line-clamp-2">{truncateText(p.excerpt, 100)}</p>
@@ -959,7 +1016,7 @@ export default async function HomePage() {
       </div>
 
       {/* ── Newsletter ───────────────────────────────────────────────────── */}
-      <ScrollSection className="border-t border-neutral-100 bg-amber-50">
+      <ScrollSection className="bg-[#F7F5F0]">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16">
           <NewsletterSignup
             heading="Get workshop stories in your inbox"

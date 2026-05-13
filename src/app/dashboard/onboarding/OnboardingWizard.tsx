@@ -456,7 +456,7 @@ export default function OnboardingWizard({
                   name="acceptsCustomOrders"
                   type="checkbox"
                   defaultChecked={acceptsCustomOrders}
-                  className="h-4 w-4"
+                  className="h-5 w-5 rounded border-neutral-300 accent-neutral-900"
                 />
                 <label htmlFor="acceptsCustomOrders" className="text-sm font-medium">
                   I accept custom orders

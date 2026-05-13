@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   targetUserId: string;
@@ -17,30 +18,62 @@ const REPORT_REASONS = [
   { value: "OTHER", label: "Other" },
 ];
 
+const MENU_WIDTH = 224; // matches w-56
+const MENU_MARGIN = 8;
+
 export default function BlockReportButton({ targetUserId, targetName, initialBlocked = false, targetType, targetId }: Props) {
   const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
   const [view, setView] = useState<"menu" | "report">("menu");
   const [blocked, setBlocked] = useState(initialBlocked);
   const [reportReason, setReportReason] = useState("SPAM");
   const [reportDetails, setReportDetails] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   async function readApiError(res: Response, fallback: string) {
     const data = await res.json().catch(() => null) as { error?: string } | null;
     return data?.error || fallback;
   }
 
+  // Position the menu relative to the trigger but clamped inside the
+  // viewport so it never gets cut off (especially on mobile where the
+  // trigger sits at the right edge of a parent container).
+  function recomputeMenuPos() {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportW = window.innerWidth;
+    // Prefer right-aligning under the trigger, then clamp to viewport.
+    let left = rect.right - MENU_WIDTH;
+    left = Math.max(MENU_MARGIN, Math.min(left, viewportW - MENU_WIDTH - MENU_MARGIN));
+    const top = rect.bottom + MENU_MARGIN;
+    setMenuPos({ top, left });
+  }
+
   function handleOpen() {
     setError(null);
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setOpenUpward(rect.bottom > window.innerHeight - 200);
-    }
+    recomputeMenuPos();
     setOpen(true);
   }
+
+  // Reposition on scroll/resize while open.
+  useEffect(() => {
+    if (!open) return;
+    const onWindow = () => recomputeMenuPos();
+    window.addEventListener("scroll", onWindow, { passive: true, capture: true });
+    window.addEventListener("resize", onWindow);
+    return () => {
+      window.removeEventListener("scroll", onWindow, { capture: true } as EventListenerOptions);
+      window.removeEventListener("resize", onWindow);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +130,7 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
     : `Report ${targetName}`;
 
   return (
-    <div className="relative">
+    <>
       <button
         ref={triggerRef}
         onClick={open ? () => { setOpen(false); setView("menu"); } : handleOpen}
@@ -109,10 +142,24 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
         •••
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setView("menu"); }} />
-          <div role="menu" className={`absolute right-0 z-50 bg-white border border-neutral-200 rounded-lg shadow-lg w-48 py-1 ${openUpward ? "bottom-full mb-1" : "top-full mt-1"}`}>
+          <div
+            className="fixed inset-0 z-[9998]"
+            onClick={() => { setOpen(false); setView("menu"); }}
+          />
+          <div
+            role="menu"
+            style={{
+              position: "fixed",
+              top: menuPos?.top ?? 0,
+              left: menuPos?.left ?? 0,
+              width: MENU_WIDTH,
+              maxHeight: `calc(100vh - ${(menuPos?.top ?? 0) + MENU_MARGIN}px)`,
+              transform: menuPos ? undefined : "translate(-200vw,-200vw)",
+            }}
+            className="z-[9999] bg-white border border-neutral-200 rounded-lg shadow-lg py-1 overflow-y-auto"
+          >
             {view === "menu" ? (
               <>
                 <button
@@ -174,8 +221,9 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
               </div>
             )}
           </div>
-        </>
+        </>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }

@@ -12,6 +12,7 @@ import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
+import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import CharCounter, { InputCharCounter } from "@/components/CharCounter";
@@ -69,7 +70,23 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrls(imageUrls, 8);
+  imageUrls = filterFirstPartyMediaUrls(imageUrls, 10);
+
+  // Original (pre-crop) URLs from PhotoManager. Aligned by index with
+  // imageUrls. For new uploads these equal imageUrls (no crop applied
+  // before upload). They diverge once the seller re-crops on the edit
+  // page — re-crop writes a new cropped url and preserves the original
+  // here. We validate the same way as imageUrls (must be first-party
+  // media URLs) so a tampered hidden field can't inject foreign URLs.
+  let imageOriginalUrls: string[] = [];
+  const originalJson = formData.get("imageOriginalUrlsJson");
+  const imageOriginalUrlsResult = parseJsonArrayField(originalJson);
+  if (imageOriginalUrlsResult.ok) {
+    imageOriginalUrls = imageOriginalUrlsResult.value.filter((value): value is string => typeof value === "string" && value !== "");
+  } else {
+    console.warn("[listing-create] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
+  }
+  imageOriginalUrls = filterFirstPartyMediaUrls(imageOriginalUrls, 10);
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];
@@ -205,6 +222,12 @@ async function createListing(_prevState: unknown, formData: FormData) {
       status: saveAsDraft ? ListingStatus.DRAFT : ListingStatus.PENDING_REVIEW,
       photos: { create: imageUrls.map((url, i) => ({
         url,
+        // originalUrl is paired with `url` by index. If the form didn't send
+        // a paired value (legacy client, length mismatch), default to `url`
+        // since uploads currently don't crop — `url` IS the original at
+        // creation time. Re-crop on the edit page is what causes them to
+        // diverge later.
+        originalUrl: imageOriginalUrls[i] ?? url,
         sortOrder: i,
         altText: imageAltTexts[i] ? truncateText(sanitizeText(imageAltTexts[i].trim()), 200) || null : null,
       })) },
@@ -388,6 +411,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
   });
   if (finalListing?.status === "ACTIVE") {
     revalidateListingSearchCaches();
+    // First active listing might earn this seller the Founding Maker badge.
+    await maybeGrantFoundingMaker(seller.id);
     // Notify followers after the response so listing creation stays responsive.
     after(async () => {
       try {
@@ -401,7 +426,15 @@ async function createListing(_prevState: unknown, formData: FormData) {
     });
   }
 
-  redirect(publicListingPath(created.id, created.title));
+  // Final redirect: the public listing page 404s for non-ACTIVE statuses, so
+  // pick the right destination from the post-AI-review status. PENDING_REVIEW
+  // listings go to the preview URL (same UX as the edit flow) so the seller
+  // sees their work in a buyer-perspective preview with an "under review"
+  // banner instead of the "page got sanded down" 404.
+  if (finalListing?.status === "ACTIVE") {
+    redirect(publicListingPath(created.id, created.title));
+  }
+  redirect(`${publicListingPath(created.id, created.title)}?preview=1`);
 }
 
 export default async function NewListingPage({
@@ -474,7 +507,7 @@ export default async function NewListingPage({
           <input
             name="materials"
             placeholder="e.g. walnut, maple, brass hardware"
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
         </div>
@@ -486,23 +519,23 @@ export default async function NewListingPage({
           </label>
           <div className="grid grid-cols-3 gap-3">
             <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+              placeholder="Length" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+              placeholder="Width" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
-              placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+              placeholder="Height" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
           </div>
           <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Price (USD)</label>
-          <input name="price" type="text" inputMode="decimal" pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"} required className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          <input name="price" type="text" inputMode="decimal" pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"} required className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
         </div>
 
         <div>
           <label className="block text-sm mb-1">Photos</label>
-          <PhotoManager max={8} />
+          <PhotoManager max={10} />
           <p className="mt-1 text-xs text-neutral-500">
             Tip: descriptive filenames (e.g. <span className="font-mono">walnut-cutting-board.jpg</span>) improve search visibility.
           </p>
@@ -520,19 +553,19 @@ export default async function NewListingPage({
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
               <div className="mb-1">Length (in)</div>
-              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 24" />
+              <input name="pkgLengthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 24" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Width (in)</div>
-              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 12" />
+              <input name="pkgWidthIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 12" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Height (in)</div>
-              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 8" />
+              <input name="pkgHeightIn" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 8" />
             </label>
             <label className="text-sm">
               <div className="mb-1">Weight (lb)</div>
-              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" placeholder="e.g. 5.5" />
+              <input name="pkgWeightLb" type="number" inputMode="decimal" step="0.1" min="0" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" placeholder="e.g. 5.5" />
             </label>
           </div>
           <p className="mt-2 text-xs text-neutral-500">

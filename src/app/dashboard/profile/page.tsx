@@ -179,6 +179,9 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
 
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
+  // Homepage Meet a Maker spotlight may render this seller's banner/avatar/bio,
+  // so refresh the homepage cache when any of those fields change.
+  revalidatePath("/");
 
   if (duplicate) {
     redirect("/dashboard/profile?warning=duplicate-name");

@@ -200,7 +200,28 @@ export default function AllSellersMap({
     });
     map.on("moveend", updateMarkers);
 
+    // Watch the container for size changes and force the map to resize.
+    // This fixes the "blank map on first paint" race where the container's
+    // layout isn't fully settled when Maplibre initializes.
+    const ro = new ResizeObserver(() => {
+      try { map.resize(); } catch { /* map may be already removed */ }
+    });
+    if (containerRef.current) ro.observe(containerRef.current);
+
+    // Also kick the map after the next frame and again after a beat, so even
+    // if ResizeObserver doesn't fire (no size change), the canvas gets a
+    // forced re-render after parent layout finishes.
+    const raf = requestAnimationFrame(() => {
+      try { map.resize(); } catch { /* ignore */ }
+    });
+    const settle = setTimeout(() => {
+      try { map.resize(); } catch { /* ignore */ }
+    }, 250);
+
     return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+      clearTimeout(settle);
       markers.forEach(m => m.remove());
       map.remove();
     };

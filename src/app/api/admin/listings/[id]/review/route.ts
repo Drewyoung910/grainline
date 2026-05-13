@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
+import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
 import { revalidateListingSearchCaches } from '@/lib/searchCache'
@@ -65,6 +66,8 @@ export async function PATCH(
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
+    // First active listing for this seller might earn the Founding Maker badge.
+    await maybeGrantFoundingMaker(listing.sellerId)
     await logAdminAction({
       adminId: admin.id,
       action: 'APPROVE_LISTING',

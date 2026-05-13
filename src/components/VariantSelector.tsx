@@ -76,8 +76,8 @@ export default function VariantSelector({
                     isSelected
                       ? "border-neutral-900 bg-neutral-900 text-white"
                       : opt.inStock
-                        ? "border-neutral-200 text-neutral-700 hover:border-neutral-400"
-                        : "border-neutral-100 text-neutral-300 cursor-not-allowed line-through"
+                        ? "border-neutral-200 bg-[#F7F5F0] text-neutral-700 hover:border-neutral-400 hover:bg-white"
+                        : "border-neutral-100 bg-[#F7F5F0] text-neutral-300 cursor-not-allowed line-through"
                   }`}
                 >
                   {opt.label}

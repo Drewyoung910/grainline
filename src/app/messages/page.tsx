@@ -75,6 +75,12 @@ export default async function MessagesPage({
   const where: Prisma.ConversationWhereInput = {
     AND: [
       participationFilter,
+      // Hide empty conversations from the inbox. `/messages/new?to=X` creates
+      // a conversation row up-front (so context/listing attaches atomically),
+      // but if the buyer never sends a message the thread shouldn't appear in
+      // either party's inbox. The thread becomes visible automatically once
+      // someone sends the first message.
+      { messages: { some: {} } },
       q
         ? {
             OR: [
@@ -136,6 +142,24 @@ export default async function MessagesPage({
     unread.map((u) => [u.conversationId, u._count._all]),
   );
 
+  // Prefer the seller's shop display name + custom avatar over Clerk's
+  // imageUrl + legal name whenever the other party is a seller. Fetch all
+  // seller profiles for the conversation partners in one query.
+  const otherUserIds = Array.from(
+    new Set(
+      convos
+        .map((c) => (c.userAId === me.id ? c.userB?.id : c.userA?.id))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const sellerProfiles = otherUserIds.length
+    ? await prisma.sellerProfile.findMany({
+        where: { userId: { in: otherUserIds } },
+        select: { userId: true, displayName: true, avatarImageUrl: true },
+      })
+    : [];
+  const sellerByUserId = new Map(sellerProfiles.map((s) => [s.userId, s]));
+
   // Enrich for rendering — exclude conversations with blocked users
   const enrich = convos.filter((c) => {
     const other = c.userAId === me.id ? c.userB : c.userA;
@@ -146,7 +170,8 @@ export default async function MessagesPage({
     const unreadCount = unreadByConvo.get(c.id) || 0;
     const latestFromMe = latest?.senderId === me.id;
     const ctxThumb = c.contextListing?.photos?.[0]?.url ?? null;
-    return { c, other, latest, unreadCount, latestFromMe, ctxThumb };
+    const seller = sellerByUserId.get(other.id) ?? null;
+    return { c, other, latest, unreadCount, latestFromMe, ctxThumb, seller };
   });
 
   const inboxList = enrich;
@@ -177,42 +202,50 @@ export default async function MessagesPage({
         <div className="flex flex-wrap gap-2">
           <Link
             href={withQ("/messages")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "inbox" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === "inbox"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             Inbox
           </Link>
           <Link
             href={withQ("/messages?tab=unread")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "unread" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === "unread"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
-            Unread{" "}
+            Unread
             {unreadTotal > 0 && (
-              <span className="ml-1 rounded-full bg-red-600 px-2 py-[2px] text-xs text-white">
+              <span className="ml-1.5 rounded-full bg-red-600 px-2 py-[1px] text-xs text-white">
                 {unreadTotal}
               </span>
             )}
           </Link>
           <Link
             href={withQ("/messages?tab=sent")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "sent" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === "sent"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
-            Awaiting Reply{" "}
+            Awaiting Reply
             {sentTotal > 0 && (
-              <span className="ml-1 rounded-full bg-neutral-800 px-2 py-[2px] text-xs text-white">
+              <span className={`ml-1.5 rounded-full px-2 py-[1px] text-xs ${tab === "sent" ? "bg-white text-neutral-900" : "bg-neutral-800 text-white"}`}>
                 {sentTotal}
               </span>
             )}
           </Link>
           <Link
             href={withQ("/messages?tab=archived")}
-            className={`rounded-full border px-3 py-1 text-sm hover:bg-neutral-50 ${
-              tab === "archived" ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === "archived"
+                ? "bg-neutral-900 text-white"
+                : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
             }`}
           >
             Archived
@@ -222,12 +255,12 @@ export default async function MessagesPage({
         <form method="get" className="w-full sm:w-auto sm:ml-auto flex items-center gap-2">
           {/* keep current tab when searching */}
           {tab !== "inbox" && <input type="hidden" name="tab" value={tab} />}
-          <div className="flex items-center gap-2 rounded-md border border-neutral-200 px-3 py-1.5 w-full sm:w-auto">
+          <div className="flex items-center gap-2 rounded-full border-2 border-stone-400 bg-white px-4 py-1.5 w-full sm:w-auto shadow-sm focus-within:border-stone-600 focus-within:shadow-md transition-shadow">
             <input
               name="q"
               defaultValue={q}
               placeholder="Search messages"
-              className="w-full sm:w-52 bg-transparent text-sm outline-none"
+              className="w-full sm:w-52 bg-transparent text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:shadow-none"
             />
             {q ? (
               <Link
@@ -242,7 +275,7 @@ export default async function MessagesPage({
       </div>
 
       {list.length === 0 ? (
-        <div className="card-section p-6 text-neutral-600">
+        <div className="rounded-lg bg-[#EFEAE0] p-6 text-neutral-700">
           {q ? (
             <>
               No results for “<span className="font-medium">{q}</span>”.
@@ -258,9 +291,12 @@ export default async function MessagesPage({
           )}
         </div>
       ) : (
-        <ul className="divide-y divide-neutral-100 card-section">
-          {list.map(({ c, other, latest, unreadCount, ctxThumb }) => {
-            const title = other?.name || other?.email || "User";
+        <ul className="divide-y divide-stone-300/50 rounded-lg bg-[#EFEAE0] overflow-hidden">
+          {list.map(({ c, other, latest, unreadCount, ctxThumb, seller }) => {
+            // Prefer seller display name + avatar when the other party is a
+            // seller. Falls back to Clerk name/imageUrl for buyer-only users.
+            const title = seller?.displayName || other?.name || other?.email || "User";
+            const avatarUrl = seller?.avatarImageUrl || other?.imageUrl || null;
             const snippet = formatSnippet(latest?.body, latest?.kind);
             const hasTime = !!latest;
             const isUnread = unreadCount > 0;
@@ -269,14 +305,14 @@ export default async function MessagesPage({
               <li key={c.id}>
                 <Link
                   href={`/messages/${c.id}`}
-                  className="block px-4 py-3 hover:bg-neutral-50"
+                  className="block px-4 py-3 hover:bg-[#E3DCCB] transition-colors"
                 >
                   <div className="flex items-start gap-3">
                     {/* Avatar */}
-                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200">
-                      {other?.imageUrl ? (
+                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200">
+                      {avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={other.imageUrl} alt="" className="h-full w-full object-cover" />
+                        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
                       ) : null}
                     </div>
 

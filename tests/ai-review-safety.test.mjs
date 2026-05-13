@@ -38,8 +38,8 @@ describe("AI review safety helpers", () => {
   });
 
   it("caps AI review images at the listing photo limit", () => {
-    const urls = Array.from({ length: 9 }, (_, i) => `https://media.example.com/grain/listings/${i}.jpg`);
-    assert.equal(filterAIReviewImageUrls(urls, () => true).length, 8);
+    const urls = Array.from({ length: 11 }, (_, i) => `https://media.example.com/grain/listings/${i}.jpg`);
+    assert.equal(filterAIReviewImageUrls(urls, () => true).length, 10);
   });
 
   it("sanitizes generated alt text before persistence", () => {

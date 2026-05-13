@@ -204,7 +204,7 @@ describe("post-launch UI follow-ups", () => {
 
     assert.match(listingPage, /overflow-x-hidden/);
     assert.match(listingPage, /grid min-w-0/);
-    assert.match(listingPage, /card-section min-w-0 overflow-x-hidden/);
+    assert.match(listingPage, /min-w-0 overflow-x-hidden/);
     assert.match(purchasePanel, /min-w-0 space-y-4 overflow-x-hidden/);
     assert.match(variantSelector, /flex min-w-0 flex-wrap gap-2/);
     assert.match(variantSelector, /max-w-full whitespace-normal break-words/);
@@ -286,15 +286,15 @@ describe("post-launch UI follow-ups", () => {
     assert.match(helper, /\.findMany\(/);
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
     assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
-    // Edit page has 3 reviewListingWithAI call sites — updateListing,
-    // deletePhotoAction, replacePhotoAction. All three must call the backfill.
-    assert.match(editPage, /import \{ backfillEmptyAltTexts \}/);
+    // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
+    // Photo add/delete/re-crop alone no longer flips status or runs review.
+    assert.match(editPage, /backfillEmptyAltTexts/);
     const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
-    assert.equal(backfillCalls.length, 3, "expected 3 backfill calls in edit page");
+    assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
     // Catch returns now include altTexts so TypeScript can union the success
     // type without a property-missing error.
     const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];
-    assert.equal(editAltTextsInCatch.length, 3, "expected altTexts in all 3 catch returns");
+    assert.equal(editAltTextsInCatch.length, 1, "expected altTexts in the Save/review catch return");
     // New listing path was already there — sanity check it still backfills.
     assert.match(newPage, /aiResult\.altTexts/);
   });
@@ -308,8 +308,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(editPage, /finalStatus === ListingStatus\.PENDING_REVIEW/);
     assert.match(editPage, /\$\{publicListingPath\(listingId, finalTitle\)\}\?preview=1/);
     assert.match(editPage, /\?saved=1/);
-    // saved=pending was the old buggy banner — should be gone now.
-    assert.doesNotMatch(editPage, /saved=pending/);
+    // saved=pending can remain in historical comments, but no redirect should use it.
+    assert.doesNotMatch(editPage, /redirect\([^)]*saved=pending/);
     // Preview banner now branches on status so PENDING_REVIEW shows the right
     // "under review" message instead of the generic preview message.
     assert.match(listingPage, /listing\.status === "PENDING_REVIEW"/);
@@ -319,11 +319,11 @@ describe("post-launch UI follow-ups", () => {
   it("header uses a wider container and grows the search bar for desktop presence", () => {
     const header = source("src/components/Header.tsx");
     assert.match(header, /max-w-\[1600px\]/);
-    assert.match(header, /max-w-\[640px\]/);
+    assert.match(header, /max-w-\[820px\]/);
     assert.doesNotMatch(header, /max-w-6xl/);
     // Search bar still wraps SearchBar inside flex-1 so it grows in available
     // space within the new max width.
-    assert.match(header, /flex-1 max-w-\[640px\]/);
+    assert.match(header, /flex-1 max-w-\[820px\]/);
   });
 
   it("ImageCropModal renders through a portal so re-crop pointer events don't bubble into draggable parents", () => {
@@ -360,7 +360,7 @@ describe("post-launch UI follow-ups", () => {
     const thread = source("src/components/ThreadMessages.tsx");
     // Listing context card uses the darker cream surface to separate the
     // thread chrome from the body cream page background.
-    assert.match(threadPage, /bg-\[#EDE8DC\] p-3/);
+    assert.match(threadPage, /bg-\[#EFEAE0\][\s\S]*?p-3/);
     // Thread container uses card-section on md+ instead of bare md:border.
     assert.match(thread, /md:card-section md:p-4/);
     // Empty-state visual when there are no messages yet.
@@ -377,12 +377,12 @@ describe("post-launch UI follow-ups", () => {
     const map = source("src/components/AllSellersMap.tsx");
     const globals = source("src/app/globals.css");
 
-    assert.match(reviews, /bg-\[#EDE8DC\]/);
-    assert.match(sellerPage, /bg-\[#EDE8DC\][\s\S]*?Shop Policies/);
-    assert.match(sellerPage, /bg-\[#EDE8DC\][\s\S]*?Frequently Asked Questions/);
+    assert.match(reviews, /bg-\[#EFEAE0\]/);
+    assert.match(sellerPage, /bg-\[#EFEAE0\][\s\S]*?Shop Policies/);
+    assert.match(sellerPage, /bg-\[#EFEAE0\][\s\S]*?FAQs/);
     assert.match(customOrder, /bg-\[#F7F5F0\]/);
-    assert.match(customOrder, /bg-\[#EDE8DC\]/);
-    assert.match(composer, /bg-\[#EDE8DC\]/);
+    assert.match(customOrder, /bg-\[#EFEAE0\]/);
+    assert.match(composer, /bg-\[#EFEAE0\]/);
     assert.match(composer, /bg-\[#F7F5F0\]/);
     assert.match(mapSection, /mobileInitialZoom=\{2\.05\}/);
     assert.match(map, /matchMedia\("\(max-width: 640px\)"\)/);
@@ -398,9 +398,9 @@ describe("post-launch UI follow-ups", () => {
     // Cart and signed-out message icons in header now use the same hover
     // circle pattern as MessageIconLink.
     assert.match(header, /aria-label="Cart"\s+title="Cart"/);
-    assert.match(header, /relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50/);
-    assert.match(messageIconLink, /h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50/);
-    assert.match(bell, /h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50/);
+    assert.match(header, /relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(messageIconLink, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
+    assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
   });
 
   it("cart page has skeleton loading and friendly empty-state card", () => {
@@ -411,5 +411,26 @@ describe("post-launch UI follow-ups", () => {
     assert.match(cart, /Browse the workshop/);
     // Suspense fallback also uses the skeleton, not the plain "Loading…" text.
     assert.match(cart, /<Suspense fallback=\{<CartLoadingSkeleton \/>}/);
+  });
+
+  it("keeps customer-photo galleries scoped to publicly viewable listing detail pages", () => {
+    const sellerPage = source("src/app/seller/[id]/page.tsx");
+    const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
+    const sitemap = source("src/app/sitemap.ts");
+
+    assert.match(sellerPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.match(customerPhotosPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
+    assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
+    assert.match(sitemap, /publicListingDetailWhere\(\{\s*reviews: \{ some: \{ photos: \{ some: \{\} \} \} \},\s*\}\)/s);
+    assert.match(sitemap, /\.\.\.customerPhotoRoutes/);
+  });
+
+  it("grants Founding Maker numbers from max+1 with retry instead of reusing count gaps", () => {
+    const founding = source("src/lib/foundingMaker.ts");
+
+    assert.match(founding, /_max: \{ foundingMakerNumber: true \}/);
+    assert.match(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS = 3/);
+    assert.match(founding, /isUniqueConstraintError\(err\)/);
+    assert.doesNotMatch(founding, /currentCount \+ 1/);
   });
 });

@@ -15,6 +15,7 @@ import { CATEGORY_LABELS } from "@/lib/categories";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import SimilarItems from "@/components/SimilarItems";
 import GuildBadge from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import { safeJsonLd } from "@/lib/json-ld";
 import ListingGallery from "@/components/ListingGallery";
@@ -446,7 +447,7 @@ export default async function ListingPage({
         </div>
 
         {/* Right: purchase panel */}
-        <div className="card-section min-w-0 overflow-x-hidden bg-white p-6 space-y-4">
+        <div className="rounded-lg border border-stone-200/60 shadow-sm min-w-0 overflow-x-hidden bg-[#EFEAE0] p-6 space-y-4">
           <h1 className="text-2xl font-bold text-neutral-900 leading-snug">{listing.title}</h1>
 
           {/* Private listing banners */}
@@ -513,12 +514,12 @@ export default async function ListingPage({
                   listingId={listingId}
                   listingTitle={listing.title}
                   triggerLabel="Request Something Similar"
-                  triggerClassName="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
                 />
               ) : (
                 <Link
                   href={`/sign-in?redirect_url=${encodeURIComponent(publicListingPath(listing.id, listing.title))}`}
-                  className="inline-flex items-center gap-2 border border-neutral-200 px-3 py-1.5 text-sm font-medium hover:bg-neutral-100"
+                  className="inline-flex items-center gap-2 rounded-md bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
                 >
                   <Hammer size={15} />
                   Request Something Similar
@@ -552,6 +553,12 @@ export default async function ListingPage({
                     {sellerName}
                   </Link>
                   <GuildBadge level={listing.seller.guildLevel} showLabel={true} size={32} />
+                  {listing.seller.isFoundingMaker && (
+                    <FoundingMakerBadge
+                      number={listing.seller.foundingMakerNumber}
+                      size={22}
+                    />
+                  )}
                 </div>
                 {listing.seller.tagline && (
                   <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{listing.seller.tagline}</p>
@@ -589,12 +596,6 @@ export default async function ListingPage({
             )}
 
             <div className="flex items-center gap-2 flex-wrap">
-              <Link
-                href={sellerHref}
-                className="text-xs rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
-              >
-                Visit Shop
-              </Link>
               {!isOwnListing && sellerUserId && (
                 <FollowButton
                   sellerProfileId={listing.sellerId}
@@ -607,11 +608,17 @@ export default async function ListingPage({
               {sellerUserId && !hideMessage && (
                 <Link
                   href={signedInMessageHref}
-                  className="text-xs rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-50 transition-colors"
+                  className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
                 >
                   Message maker
                 </Link>
               )}
+              <Link
+                href={sellerHref}
+                className="inline-flex items-center rounded-md bg-[#F7F5F0] px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white transition-colors"
+              >
+                Visit Shop
+              </Link>
               {meId && !isOwnListing && sellerUserId && (
                 <BlockReportButton
                   targetUserId={sellerUserId}
@@ -630,7 +637,7 @@ export default async function ListingPage({
                 <Link
                   key={t}
                   href={`/browse?tag=${encodeURIComponent(t.toLowerCase())}`}
-                  className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[11px] text-neutral-600 hover:bg-neutral-100 transition-colors"
+                  className="rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-1 text-[11px] text-neutral-600 hover:bg-white transition-colors"
                 >
                   #{t}
                 </Link>
@@ -736,34 +743,32 @@ export default async function ListingPage({
 
       {/* ── Shop Policies ──────────────────────────────────────────────────── */}
       {(listing.seller.returnPolicy || listing.seller.shippingPolicy || listing.seller.customOrderPolicy) && (
-        <section className="card-section p-6 mb-10">
-          <h2 className="font-semibold font-display text-neutral-900 mb-3">Shop Policies</h2>
-          <div className="space-y-0">
-            {listing.seller.returnPolicy && (
-              <details className="border-b border-neutral-100 last:border-0">
-                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
-                  Returns & Exchanges
-                </summary>
-                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.returnPolicy}</p>
-              </details>
-            )}
-            {listing.seller.shippingPolicy && (
-              <details className="border-b border-neutral-100 last:border-0">
-                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
-                  Shipping
-                </summary>
-                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.shippingPolicy}</p>
-              </details>
-            )}
-            {listing.seller.customOrderPolicy && (
-              <details className="border-b border-neutral-100 last:border-0">
-                <summary className="cursor-pointer py-3 text-sm font-medium text-neutral-800">
-                  Custom Orders
-                </summary>
-                <p className="pb-3 text-sm text-neutral-600 leading-relaxed">{listing.seller.customOrderPolicy}</p>
-              </details>
-            )}
-          </div>
+        <section className="card-section bg-white mb-10 max-w-2xl">
+          <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-neutral-100">Shop Policies</h2>
+          {listing.seller.returnPolicy && (
+            <details className="border-b border-neutral-100 last:border-b-0">
+              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
+                Return Policy
+              </summary>
+              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.returnPolicy}</p>
+            </details>
+          )}
+          {listing.seller.shippingPolicy && (
+            <details className="border-b border-neutral-100 last:border-b-0">
+              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
+                Shipping Policy
+              </summary>
+              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.shippingPolicy}</p>
+            </details>
+          )}
+          {listing.seller.customOrderPolicy && (
+            <details className="border-b border-neutral-100 last:border-b-0">
+              <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-neutral-50">
+                Custom Order Policy
+              </summary>
+              <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{listing.seller.customOrderPolicy}</p>
+            </details>
+          )}
         </section>
       )}
 
@@ -807,6 +812,7 @@ export default async function ListingPage({
       <section id="reviews">
         <ReviewsSection
           listingId={listingId}
+          listingTitle={listing.title}
           meId={meId}
           sellerUserId={canReplyClerkId}
           initialSort={sortKey}

@@ -83,11 +83,18 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoResul
     // Nominatim returns country_code as lowercase ISO two-letter
     if (addr.country_code !== "us") return null;
 
-    const city: string =
-      addr.city || addr.town || addr.village || addr.hamlet || addr.county || "";
+    // Real localities only. Do not fall back to county or other sublocality
+    // names like suburb/neighbourhood/city_district — those produce labels
+    // like "DeWitt County, Texas" which are confusing for buyers and SEO.
+    const cityRaw: string =
+      addr.city || addr.town || addr.village || addr.hamlet || addr.municipality || "";
     const stateName: string = addr.state || "";
 
-    if (!city || !stateName) return null;
+    if (!cityRaw || !stateName) return null;
+    // Defensive: reject anything that's clearly a county or admin-only label.
+    const looksLikeCounty = /\bcounty\b/i.test(cityRaw) || /\bparish\b/i.test(cityRaw);
+    if (looksLikeCounty) return null;
+    const city = cityRaw;
 
     const stateCode = STATE_CODES[stateName];
     if (!stateCode) return null;

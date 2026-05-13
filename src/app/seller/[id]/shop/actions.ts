@@ -15,6 +15,7 @@ import {
   unhideListingBlockReason,
 } from "@/lib/listingActionState";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
+import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -206,7 +207,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       where: { listingId: listing.id },
       select: { url: true },
       orderBy: { sortOrder: "asc" },
-      take: 8,
+      take: 10,
     });
 
     const aiResult = await reviewListingWithAI({
@@ -293,6 +294,8 @@ export async function publishListingAction(listingId: string): Promise<{ status:
           AND status = 'ACTIVE'
       `;
       await syncThreshold(listing.sellerId);
+      // First active listing for this seller might earn the Founding Maker badge.
+      await maybeGrantFoundingMaker(listing.sellerId);
       if (shouldNotifyFollowers) {
         queueFollowerFanoutForActiveListing(listing);
       }

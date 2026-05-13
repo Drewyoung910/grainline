@@ -5,6 +5,7 @@ import { HelpfulButton, SellerReplyForm } from "@/components/ReviewItemClient";
 import Link from "next/link";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import BlockReportButton from "@/components/BlockReportButton";
+import { publicListingPath } from "@/lib/publicPaths";
 
 function quarterRound(n: number) {
   return Math.min(5, Math.max(0, Math.round(n * 4) / 4));
@@ -48,6 +49,7 @@ function reviewerInitials(reviewer: ReviewAuthorDisplay) {
 
 export default async function ReviewsSection({
   listingId,
+  listingTitle,
   meId,
   sellerUserId,              // Clerk user id (validated again in API)
   initialSort = "top",
@@ -55,13 +57,16 @@ export default async function ReviewsSection({
   blockedUserIds,
 }: {
   listingId: string;
+  listingTitle?: string | null;
   meId: string | null;
   sellerUserId: string | null;
   initialSort?: "top" | "new" | "rating" | "photos";
   edit?: boolean;
   blockedUserIds?: string[];
 }) {
-  const basePath = `/listing/${listingId}`;
+  // Use the slug-canonical path so click navigation doesn't get
+  // permanentRedirected (which strips query params + drops the sort).
+  const basePath = publicListingPath(listingId, listingTitle ?? null);
   const sort = initialSort;
 
   // Aggregate
@@ -73,14 +78,15 @@ export default async function ReviewsSection({
   const avg = agg._avg.ratingX2 ? agg._avg.ratingX2 / 2 : null;
   const avgQuarter = avg != null ? quarterRound(avg) : null;
 
-  // Gating: has the viewer bought this listing? (for Helpful)
-  let viewerBought = false;
+  // Is the viewer the seller of this listing? (sellers can't mark their
+  // own listing's reviews helpful — would let them boost their best ones.)
+  let viewerIsSeller = false;
   if (meId) {
-    const has = await prisma.order.findFirst({
-      where: { buyerId: meId, items: { some: { listingId } }, paidAt: { not: null } },
-      select: { id: true },
+    const listingRow = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { seller: { select: { userId: true } } },
     });
-    viewerBought = !!has;
+    viewerIsSeller = listingRow?.seller.userId === meId;
   }
 
   // Viewer's review (full)
@@ -114,6 +120,29 @@ export default async function ReviewsSection({
     },
   });
   const others = mine ? all.filter((r) => r.id !== mine.id) : all;
+
+  // Look up which of these reviews the current viewer has already marked
+  // helpful, so the like button can render in its correct initial state
+  // instead of always reading as "not voted yet".
+  let votedReviewIds = new Set<string>();
+  if (meId && others.length > 0) {
+    const votes = await prisma.reviewVote.findMany({
+      where: { userId: meId, reviewId: { in: others.map((r) => r.id) } },
+      select: { reviewId: true },
+    });
+    votedReviewIds = new Set(votes.map((v) => v.reviewId));
+  }
+
+  // Fetch the seller profile once so the reply card can show the seller's
+  // display name + avatar (much clearer than a generic "Seller reply" label).
+  const sellerProfile = sellerUserId
+    ? await prisma.sellerProfile.findFirst({
+        where: { user: { clerkId: sellerUserId } },
+        select: { id: true, displayName: true, avatarImageUrl: true, user: { select: { imageUrl: true } } },
+      })
+    : null;
+  const sellerName = sellerProfile?.displayName ?? "Maker";
+  const sellerAvatarUrl = sellerProfile?.avatarImageUrl ?? sellerProfile?.user?.imageUrl ?? null;
 
   const sorted = others.slice().sort((a, b) => {
     switch (sort) {
@@ -198,11 +227,13 @@ export default async function ReviewsSection({
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                   <Stars value={mine.ratingX2 / 2} />
                   <span className="text-neutral-700">{(mine.ratingX2 / 2).toFixed(1)}</span>
                   {mine.verified && (
-                    <span className="ml-2 rounded-full border px-2 py-0.5 text-[11px]">Verified purchase</span>
+                    <span className="whitespace-nowrap rounded-full bg-[#EFEAE0] px-3 py-1 text-[11px] font-medium text-neutral-700">
+                      Verified purchase
+                    </span>
                   )}
                   <span className="ml-auto text-xs text-neutral-500">
                     {new Date(mine.createdAt).toLocaleDateString("en-US")}
@@ -225,16 +256,20 @@ export default async function ReviewsSection({
         <ReviewComposer listingId={listingId} canReview={canCreate} hasReview={false} />
       )}
 
-      {/* Sort pills */}
-      <div className="flex items-center gap-2 text-sm">
+      {/* Sort pills — flex-wrap allows wrapping on narrow viewports without
+          stretching individual pills to two lines. whitespace-nowrap keeps
+          each label on one line so all pills are the same height. */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         {(["top", "new", "rating", "photos"] as const).map((k) => {
           const active = sort === k;
           return (
             <Link
               key={k}
               href={sortHref(k, edit)}
-              className={`rounded-full border px-3 py-1 hover:bg-neutral-50 ${
-                active ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""
+              className={`whitespace-nowrap rounded-full px-3 py-1 font-medium transition-colors ${
+                active
+                  ? "bg-neutral-900 text-white hover:bg-neutral-700"
+                  : "bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]"
               }`}
               scroll={false}
             >
@@ -252,7 +287,7 @@ export default async function ReviewsSection({
 
       {/* Others */}
       {sorted.length === 0 ? (
-        <div className="card-section px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
+        <div className="rounded-lg border border-stone-200/60 shadow-sm bg-[#EFEAE0] px-4 py-3 text-neutral-600">No reviews yet — be the first to share your experience.</div>
       ) : (
         <ul className="space-y-4">
           {sorted.map((r) => {
@@ -272,11 +307,14 @@ export default async function ReviewsSection({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span className="font-medium text-neutral-800 truncate max-w-[140px]">{displayName}</span>
                       <Stars value={stars} />
                       <span className="text-neutral-700">{stars.toFixed(1)}</span>
                       {r.verified && (
-                        <span className="ml-2 rounded-full border px-2 py-0.5 text-[11px]">Verified purchase</span>
+                        <span className="whitespace-nowrap rounded-full bg-[#EFEAE0] px-3 py-1 text-[11px] font-medium text-neutral-700">
+                          Verified purchase
+                        </span>
                       )}
                       <span className="ml-auto flex items-center gap-1">
                         <span className="text-xs text-neutral-500">
@@ -303,27 +341,40 @@ export default async function ReviewsSection({
                       </div>
                     )}
 
-                    <div className="mt-3 flex items-center gap-3">
-                      <HelpfulButton
-                        reviewId={r.id}
-                        initialCount={r.helpfulCount}
-                        initiallyVoted={false}
-                        canVote={!!meId && viewerBought}
-                      />
-
-                      {r.sellerReply ? (
-                        <div className="ml-auto w-full">
-                          <div className="mt-2 rounded-lg border bg-neutral-50 p-3 text-sm">
-                            <div className="mb-1 text-xs text-neutral-500">Seller reply</div>
-                            <div>{r.sellerReply}</div>
-                            <div className="mt-1 text-[11px] text-neutral-500">
-                              {r.sellerReplyAt ? new Date(r.sellerReplyAt).toLocaleString("en-US") : ""}
-                            </div>
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <HelpfulButton
+                          reviewId={r.id}
+                          initialCount={r.helpfulCount}
+                          initiallyVoted={votedReviewIds.has(r.id)}
+                          canVote={!!meId && !viewerIsSeller && meId !== r.reviewer.id}
+                          signedIn={!!meId}
+                        />
+                        {!r.sellerReply && sellerUserId && (
+                          <div className="ml-auto">
+                            <SellerReplyForm reviewId={r.id} canReply={!!sellerUserId} />
                           </div>
-                        </div>
-                      ) : (
-                        <div className="ml-auto">
-                          <SellerReplyForm reviewId={r.id} canReply={!!sellerUserId} />
+                        )}
+                      </div>
+
+                      {r.sellerReply && (
+                        <div className="rounded-lg bg-[#EFEAE0] p-3 text-sm">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <div className="h-6 w-6 rounded-full bg-white overflow-hidden ring-1 ring-stone-200 shrink-0">
+                              {sellerAvatarUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={sellerAvatarUrl} alt="" className="h-full w-full object-cover" />
+                              ) : null}
+                            </div>
+                            <span className="font-semibold text-xs text-neutral-900">{sellerName}</span>
+                            <span className="text-[11px] text-neutral-500">replied</span>
+                            {r.sellerReplyAt && (
+                              <span className="ml-auto text-[11px] text-neutral-500">
+                                {new Date(r.sellerReplyAt).toLocaleDateString("en-US")}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-neutral-800 whitespace-pre-wrap break-words">{r.sellerReply}</p>
                         </div>
                       )}
                     </div>

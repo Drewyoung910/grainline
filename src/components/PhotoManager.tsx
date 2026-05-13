@@ -10,6 +10,11 @@ import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 type ManagedPhoto = {
   url: string;
+  // Pre-crop source preserved so re-crop can zoom back out to the full
+  // original frame instead of treating the currently-displayed (possibly
+  // already-cropped) `url` as the source. Set to the upload URL when a
+  // new photo is added; only `url` changes during re-crop.
+  originalUrl: string;
   altText: string;
 };
 
@@ -120,6 +125,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
           onClientUploadComplete={(files) => {
             const newPhotos: ManagedPhoto[] = uploadedFileUrls(files).map((url) => ({
               url,
+              originalUrl: url, // upload IS the original (no crop applied yet)
               altText: "",
             }));
             setPhotos((prev) =>
@@ -131,7 +137,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
       )}
 
       <p className="text-xs text-neutral-500">
-        Upload up to {max} photos (8MB each). First photo is the cover.
+        Upload up to {max} photos (12MB each). First photo is the cover.
         Cards crop to a 4:5 portrait — center your subject. Use Re-crop later if you want to control the framing.
       </p>
 
@@ -140,6 +146,11 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
         type="hidden"
         name="imageUrlsJson"
         value={JSON.stringify(photos.map((p) => p.url))}
+      />
+      <input
+        type="hidden"
+        name="imageOriginalUrlsJson"
+        value={JSON.stringify(photos.map((p) => p.originalUrl))}
       />
       <input
         type="hidden"
@@ -218,6 +229,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
                 <div className="flex items-center gap-1">
                   <ImageRecropButton
                     imageUrl={photo.url}
+                    originalImageUrl={photo.originalUrl}
                     endpoint="listingImage"
                     cropAspect={4 / 5}
                     filename={`listing-photo-${i + 1}.jpg`}
@@ -281,7 +293,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"
               maxLength={200}
               rows={3}
-              className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm placeholder:text-neutral-500"
+              className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-300"
             />
             <p className="text-xs text-neutral-500">
               Improves visibility in Google Image Search. If left blank, AI will generate alt text automatically.

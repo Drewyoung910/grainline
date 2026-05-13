@@ -24,7 +24,7 @@ export default function AddPhotosButton({
   if (remaining <= 0) {
     return (
       <p className="text-xs text-gray-500">
-        You’ve reached the max (8 photos). Remove one to add more.
+        You&rsquo;ve reached the max (10 photos). Remove one to add more.
       </p>
     );
   }

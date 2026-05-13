@@ -9,18 +9,23 @@ import DynamicMapCard from "@/components/DynamicMapCard";
 import CustomOrderRequestForm from "@/components/CustomOrderRequestForm";
 import ClickTracker from "@/components/ClickTracker";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
-import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer } from "@/components/icons";
+import { Instagram, Facebook, Pinterest, TikTok, Globe, Hammer, MapPin } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
+import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import SellerGallery from "@/components/SellerGallery";
+import CoverLightbox from "@/components/CoverLightbox";
 import SellerProfileViewTracker from "@/components/SellerProfileViewTracker";
 import ListingCard from "@/components/ListingCard";
+import ScrollFadeRow from "@/components/ScrollFadeRow";
+import ExpandableText from "@/components/ExpandableText";
+import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -84,18 +89,6 @@ export async function generateMetadata({
     },
     alternates: { canonical: `https://thegrainline.com${publicSellerPath(sellerId, name)}` },
   };
-}
-
-function StarsInline({ value }: { value: number }) {
-  const pct = Math.max(0, Math.min(100, (value / 5) * 100));
-  return (
-    <span className="relative leading-none inline-block align-middle" aria-hidden>
-      <span className="text-neutral-300">★★★★★</span>
-      <span className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
-        <span className="text-amber-500">★★★★★</span>
-      </span>
-    </span>
-  );
 }
 
 export default async function SellerPublicPage({
@@ -213,6 +206,65 @@ export default async function SellerPublicPage({
   const sellerRatingMap = await getSellerRatingMap([seller.id]);
   const shopRating = sellerRatingMap.get(seller.id) ?? null;
 
+  // ── Stat band data ─────────────────────────────────────────────────────────
+  const [soldCount, recentShipped, tagRows, customerPhotos, customerPhotoTotal] = await Promise.all([
+    prisma.orderItem.count({
+      where: { listing: { sellerId: seller.id }, order: { paidAt: { not: null } } },
+    }),
+    prisma.order.findMany({
+      where: {
+        paidAt: { not: null },
+        shippedAt: { not: null },
+        items: { some: { listing: { sellerId: seller.id } } },
+      },
+      orderBy: { shippedAt: "desc" },
+      take: 30,
+      select: { paidAt: true, shippedAt: true },
+    }),
+    prisma.$queryRaw<{ tag: string; count: bigint }[]>`
+      SELECT tag, COUNT(*) AS count
+      FROM "Listing" l, unnest(l.tags) AS tag
+      WHERE l."sellerId" = ${seller.id}
+        AND l.status = 'ACTIVE'
+        AND l."isPrivate" = false
+      GROUP BY tag
+      ORDER BY COUNT(*) DESC
+      LIMIT 8
+    `,
+    prisma.reviewPhoto.findMany({
+      where: { review: { listing: publicListingDetailWhere({ sellerId: seller.id }) } },
+      orderBy: { review: { createdAt: "desc" } },
+      take: 12,
+      select: {
+        id: true,
+        url: true,
+        altText: true,
+        review: { select: { listingId: true, reviewerId: true, listing: { select: { title: true } } } },
+      },
+    }),
+    prisma.reviewPhoto.count({
+      where: { review: { listing: publicListingDetailWhere({ sellerId: seller.id }) } },
+    }),
+  ]);
+
+  const avgShipDays = recentShipped.length >= 3
+    ? Math.max(
+        1,
+        Math.round(
+          recentShipped.reduce(
+            (sum, o) => sum + (o.shippedAt!.getTime() - o.paidAt!.getTime()) / (24 * 60 * 60 * 1000),
+            0,
+          ) / recentShipped.length,
+        ),
+      )
+    : null;
+
+  const topTags = tagRows.map((r) => r.tag);
+  const memberSinceYear = seller.createdAt.getFullYear();
+  const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
+
+  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewerId)).size;
+
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
   const hasStructuredAddress = Boolean(cityState);
   const businessLd: Record<string, unknown> = {
@@ -294,430 +346,605 @@ export default async function SellerPublicPage({
         </div>
       )}
 
-      {/* ── Banner ────────────────────────────────────────────────────────── */}
-      <div className="relative h-56 sm:aspect-[3/1] sm:h-auto">
-        <MediaImage
-          src={seller.bannerImageUrl}
-          alt={`${seller.displayName} banner`}
-          fetchPriority="high"
-          className="w-full h-full object-cover"
-          fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
-        />
-        {/* Avatar: sits at bottom of banner, half-overlapping downward */}
-        <div className="absolute bottom-0 left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
-          {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={(seller.avatarImageUrl ?? seller.user?.imageUrl)!}
-              alt={seller.displayName}
-              className="h-full w-full object-cover"
+      {/* ── Hero: banner + identity ─────────────────────────────────────── */}
+      <section className="mt-4">
+        <div className="relative aspect-[3/1]">
+          <div className="absolute inset-0 rounded-2xl overflow-hidden">
+            <MediaImage
+              src={seller.bannerImageUrl}
+              alt={`${seller.displayName} banner`}
+              fetchPriority="high"
+              className="w-full h-full object-cover"
+              fallbackClassName="w-full h-full bg-gradient-to-r from-neutral-800 to-neutral-600"
             />
-          ) : (
-            <div className="h-full w-full bg-neutral-300" />
-          )}
+          </div>
+          <div className="absolute bottom-0 left-6 sm:left-8 h-24 w-24 translate-y-1/2 overflow-hidden rounded-full bg-white ring-4 ring-neutral-200 shadow-sm">
+            {seller.avatarImageUrl ?? seller.user?.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={(seller.avatarImageUrl ?? seller.user?.imageUrl)!}
+                alt={seller.displayName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-neutral-300" />
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="px-6 sm:px-8 pb-8">
-        {/* Name row — pt-16 clears the avatar overlap (half of h-24 = 48px + 16px gap) */}
-        <div className="pt-16">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold">{seller.displayName}</h1>
-                <GuildBadge level={seller.guildLevel} showLabel={true} size={36} />
-              </div>
-              {seller.tagline && (
-                <p className="text-sm text-neutral-600 mt-0.5">{seller.tagline}</p>
+        <div className="px-2 sm:px-4 pt-16 pb-2 space-y-4">
+          {/* Top row: name + badges (left), Back to Browse (right). */}
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold font-display">{seller.displayName}</h1>
+              <GuildBadge level={seller.guildLevel} showLabel={true} size={32} />
+              {seller.isFoundingMaker && (
+                <FoundingMakerBadge number={seller.foundingMakerNumber} showLabel={true} size={26} />
               )}
-              {cityState && (
-                <p className="text-sm text-neutral-500 mt-0.5">{cityState}</p>
-              )}
-              {meId !== seller.userId && (
-                <div className="mt-2 flex items-center gap-2">
-                  <FollowButton
-                    sellerProfileId={seller.id}
-                    sellerUserId={seller.userId}
-                    initialFollowing={isFollowing}
-                    initialCount={followerCount}
-                    size="sm"
-                  />
-                  {meId && (
-                    <BlockReportButton
-                      targetUserId={seller.userId}
-                      targetName={seller.displayName ?? "this maker"}
-                      targetType="SELLER"
-                      targetId={seller.id}
+            </div>
+            <Link href="/browse" className="text-sm text-neutral-600 underline shrink-0 mt-1">
+              ← Back to Browse
+            </Link>
+          </div>
+
+          {seller.tagline && (
+            <p className="text-base sm:text-lg text-neutral-700 italic max-w-3xl">{seller.tagline}</p>
+          )}
+
+          {/* Inline meta + stats in a single horizontal flow. Etsy-style:
+              location · sold · rating · ship · years · member-since · pills.
+              Saves vertical space and reads as a clean shop summary. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-neutral-700">
+            {cityState && (
+              <>
+                <span className="flex items-center gap-1">
+                  <MapPin size={14} className="shrink-0 text-neutral-500" />
+                  {cityState}
+                </span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {!isNewSeller && soldCount > 0 && (
+              <>
+                <span><span className="font-semibold">{soldCount.toLocaleString("en-US")}</span>{" "}{soldCount === 1 ? "piece sold" : "pieces sold"}</span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {shopRating && shopRating.count > 0 && (
+              <>
+                <span className="flex items-baseline gap-1">
+                  <span className="font-semibold">{(Math.round(shopRating.avg * 10) / 10).toFixed(1)}</span>
+                  <span className="text-amber-500">★</span>
+                  <span className="text-neutral-500">({shopRating.count.toLocaleString("en-US")})</span>
+                </span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {avgShipDays != null && (
+              <>
+                <span><span className="font-semibold">Ships in {avgShipDays}</span>{" "}{avgShipDays === 1 ? "day" : "days"}</span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            {seller.yearsInBusiness != null && seller.yearsInBusiness > 0 && (
+              <>
+                <span><span className="font-semibold">{seller.yearsInBusiness}</span>{" "}{seller.yearsInBusiness === 1 ? "year crafting" : "years crafting"}</span>
+                <span className="text-neutral-300" aria-hidden="true">·</span>
+              </>
+            )}
+            <span className="text-neutral-600">Member since {memberSinceYear}</span>
+            {seller.acceptsCustomOrders && (
+              <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800 font-medium">Accepting custom orders</span>
+            )}
+            {!seller.acceptingNewOrders && (
+              <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800 font-medium">Not currently taking new orders</span>
+            )}
+          </div>
+
+          {/* Bio with expand */}
+          {seller.bio && (
+            <ExpandableText text={seller.bio} clampLines={3} className="max-w-3xl" />
+          )}
+
+          {/* Action row — Following first (left-most), then Message Maker,
+              Custom Piece, View all listings. All dark cream for a unified
+              secondary-button look. */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {meId !== seller.userId && (
+              <>
+                <FollowButton
+                  sellerProfileId={seller.id}
+                  sellerUserId={seller.userId}
+                  initialFollowing={isFollowing}
+                  initialCount={followerCount}
+                  variant="cream"
+                />
+                <Link
+                  href={meId ? `/messages/new?to=${seller.userId}` : `/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                  className="inline-flex items-center justify-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                >
+                  Message Maker
+                </Link>
+                {seller.acceptsCustomOrders && (
+                  meId ? (
+                    <CustomOrderRequestForm
+                      sellerUserId={seller.userId}
+                      sellerName={seller.displayName}
+                      triggerLabel="Request a Custom Piece"
+                      triggerClassName="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
                     />
+                  ) : (
+                    <Link
+                      href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
+                      className="inline-flex items-center gap-2 rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                    >
+                      <Hammer size={15} />
+                      Request a Custom Piece
+                    </Link>
+                  )
+                )}
+                <Link
+                  href={publicSellerShopPath(seller.id, seller.displayName)}
+                  className="inline-flex items-center rounded-md bg-[#EFEAE0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-[#E3DCCB] transition-colors"
+                >
+                  View all listings
+                </Link>
+              </>
+            )}
+
+            {socialLinks.length > 0 && (
+              <div className="flex flex-wrap gap-3 items-center ml-1">
+                {socialLinks.map(({ label, url, Icon }) => (
+                  <a
+                    key={label}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={label}
+                    className="text-neutral-500 hover:text-neutral-900"
+                  >
+                    <Icon size={20} />
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {meId && meId !== seller.userId && (
+              <span className="ml-auto">
+                <BlockReportButton
+                  targetUserId={seller.userId}
+                  targetName={seller.displayName ?? "this maker"}
+                  targetType="SELLER"
+                  targetId={seller.id}
+                />
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Body: full-width rhythm ─────────────────────────────────────── */}
+      <div className="mt-6 pb-12 px-2 sm:px-4">
+        <div className="min-w-0 space-y-10">
+
+          {/* Latest broadcast */}
+          {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
+            <section className="rounded-2xl bg-amber-50 border border-amber-100 p-5 sm:p-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-2">
+                Shop update · <LocalDate date={latestBroadcast.sentAt} />
+              </div>
+              <p className="text-sm text-neutral-800 whitespace-pre-line">{latestBroadcast.message}</p>
+              {latestBroadcast.imageUrl && (
+                <MediaImage
+                  src={latestBroadcast.imageUrl}
+                  alt="Update"
+                  className="mt-3 w-full max-h-48 object-cover rounded-md"
+                  fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100 rounded-md"
+                />
+              )}
+            </section>
+          )}
+
+          {/* Featured Work: asymmetric grid */}
+          {(() => {
+            // Use seller-curated featured listings if set; otherwise fall back to
+            // most recent 3 active listings so the section always renders for
+            // established sellers.
+            const fallbackFeatured =
+              featuredListings.length > 0
+                ? featuredListings
+                : listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).slice(0, 3);
+            if (fallbackFeatured.length === 0) return null;
+            const sellerChip = {
+              id: seller.id,
+              displayName: seller.displayName ?? null,
+              avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+              guildLevel: seller.guildLevel ?? null,
+              city: seller.city ?? null,
+              state: seller.state ?? null,
+              acceptingNewOrders: seller.acceptingNewOrders ?? null,
+            };
+            const wrap = (l: (typeof listings)[number]) => ({
+              id: l.id,
+              title: l.title,
+              priceCents: l.priceCents,
+              currency: l.currency,
+              status: l.status,
+              listingType: l.listingType,
+              stockQuantity: l.stockQuantity ?? null,
+              photoUrl: l.photos[0]?.url ?? null,
+              photoAltText: l.photos[0]?.altText ?? null,
+              seller: sellerChip,
+              rating: null,
+            });
+            if (fallbackFeatured.length >= 3) {
+              const [hero, second, third] = fallbackFeatured;
+              return (
+                <section>
+                  <div className="flex items-baseline justify-between mb-4">
+                    <h2 className="text-xl sm:text-2xl font-display font-semibold">Featured Work</h2>
+                  </div>
+                  {/* Mobile: horizontal scroll with fade. Desktop: asymmetric 3-col grid. */}
+                  <ScrollFadeRow hideAtBreakpoint="lg" className="overflow-x-auto -mx-4 px-4 lg:-mx-0 lg:px-0 lg:overflow-visible">
+                    <ul className="flex gap-4 snap-x snap-mandatory pb-4 lg:grid lg:grid-cols-3 lg:grid-rows-2 lg:gap-5 lg:pb-0">
+                      <li className="w-[220px] flex-none snap-start lg:w-auto lg:col-span-2 lg:row-span-2 transition-transform hover:-translate-y-1 duration-200">
+                        <ClickTracker listingId={hero.id}>
+                          <ListingCard listing={wrap(hero)} initialSaved={savedSet.has(hero.id)} variant="grid" />
+                        </ClickTracker>
+                      </li>
+                      <li className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
+                        <ClickTracker listingId={second.id}>
+                          <ListingCard listing={wrap(second)} initialSaved={savedSet.has(second.id)} variant="grid" />
+                        </ClickTracker>
+                      </li>
+                      <li className="w-[220px] flex-none snap-start lg:w-auto transition-transform hover:-translate-y-1 duration-200">
+                        <ClickTracker listingId={third.id}>
+                          <ListingCard listing={wrap(third)} initialSaved={savedSet.has(third.id)} variant="grid" />
+                        </ClickTracker>
+                      </li>
+                    </ul>
+                  </ScrollFadeRow>
+                </section>
+              );
+            }
+            if (fallbackFeatured.length === 2) {
+              return (
+                <section>
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
+                  <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+                    <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:gap-5 sm:pb-0">
+                      {fallbackFeatured.map((l) => (
+                        <li key={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
+                          <ClickTracker listingId={l.id}>
+                            <ListingCard listing={wrap(l)} initialSaved={savedSet.has(l.id)} variant="grid" />
+                          </ClickTracker>
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollFadeRow>
+                </section>
+              );
+            }
+            // 1 listing — small card aligned left, no scroll, no big stretched photo
+            return (
+              <section>
+                <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Featured Work</h2>
+                <div className="w-[240px] sm:w-[280px] transition-transform hover:-translate-y-1 duration-200">
+                  <ClickTracker listingId={fallbackFeatured[0].id}>
+                    <ListingCard listing={wrap(fallbackFeatured[0])} initialSaved={savedSet.has(fallbackFeatured[0].id)} variant="grid" />
+                  </ClickTracker>
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* Story | Workshop two-column */}
+          {(seller.storyTitle || seller.storyBody || seller.bio || seller.workshopImageUrl) && (
+            <section className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-6 lg:gap-10 items-start">
+              {(seller.storyTitle || seller.storyBody || seller.bio) && (
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold mb-3">
+                    {seller.storyTitle || "About"}
+                  </h2>
+                  {seller.storyBody && (
+                    <p className="text-neutral-700 whitespace-pre-line leading-relaxed">{seller.storyBody}</p>
+                  )}
+                  {seller.bio && !seller.storyBody && (
+                    <p className="text-neutral-700 whitespace-pre-line leading-relaxed">{seller.bio}</p>
+                  )}
+                  {seller.bio && seller.storyBody && seller.bio !== seller.storyBody && (
+                    <p className="text-neutral-700 whitespace-pre-line leading-relaxed mt-4 pt-4 border-t border-neutral-100">
+                      {seller.bio}
+                    </p>
                   )}
                 </div>
               )}
-            </div>
-            <Link href="/browse" className="text-sm underline text-neutral-600 shrink-0 mt-1">
-              &larr; Back to Browse
-            </Link>
-          </div>
-        </div>
-
-        {/* Meta row: years, rating, availability badges */}
-        <div className="flex flex-wrap items-center gap-3 text-sm text-neutral-600 mb-4">
-          {seller.yearsInBusiness != null && (
-            <span>{seller.yearsInBusiness} {seller.yearsInBusiness === 1 ? "year" : "years"} in business</span>
+              {seller.workshopImageUrl && (
+                <figure className="lg:order-last">
+                  <div className="aspect-[3/2] overflow-hidden rounded-2xl ring-1 ring-neutral-200 shadow-sm">
+                    <CoverLightbox
+                      src={seller.workshopImageUrl}
+                      alt={`${seller.displayName} workshop`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  {cityState && (
+                    <figcaption className="text-xs text-neutral-500 mt-2 italic">
+                      The shop in {cityState}
+                    </figcaption>
+                  )}
+                </figure>
+              )}
+            </section>
           )}
-          {shopRating && shopRating.count > 0 && (
-            <span className="flex items-center gap-1">
-              <StarsInline value={shopRating.avg} />
-              <span className="font-medium text-neutral-700">
-                {(Math.round(shopRating.avg * 10) / 10).toFixed(1)}
-              </span>
-              <span className="text-neutral-500">({shopRating.count})</span>
-            </span>
-          )}
-          {seller.acceptsCustomOrders && (
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-              Accepting custom orders
-            </span>
-          )}
-          {!seller.acceptingNewOrders && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-              Not currently taking new orders
-            </span>
-          )}
-        </div>
 
-        {/* Custom order button */}
-        {seller.acceptsCustomOrders && (
-          <div className="mb-4">
-            {meId && meId !== seller.userId ? (
-              <CustomOrderRequestForm
-                sellerUserId={seller.userId}
-                sellerName={seller.displayName}
-                triggerLabel="Request a Custom Piece"
-                triggerClassName="inline-flex items-center gap-2 rounded-lg bg-amber-800 text-white px-4 py-2 text-sm font-medium hover:bg-amber-700"
-              />
-            ) : !meId ? (
-              <Link
-                href={`/sign-in?redirect_url=${encodeURIComponent(publicSellerPath(seller.id, seller.displayName))}`}
-                className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-              >
-                <Hammer size={15} />
-                Request a Custom Piece
-              </Link>
-            ) : null}
-          </div>
-        )}
-
-        {/* Social links */}
-        {socialLinks.length > 0 && (
-          <div className="flex flex-wrap gap-3 mb-6">
-            {socialLinks.map(({ label, url, Icon }) => (
-              <a
-                key={label}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={label}
-                className="text-neutral-600 hover:text-neutral-900"
-              >
-                <Icon size={20} />
-              </a>
-            ))}
-          </div>
-        )}
-
-        {/* ── Latest Broadcast ───────────────────────────────────────────── */}
-        {latestBroadcast && broadcastAgeDays !== null && broadcastAgeDays < 30 && (
-          <section className="mb-8 border border-teal-200 bg-teal-50 p-4">
-            <div className="text-xs text-teal-600 font-medium mb-1">
-              Shop Update ·{" "}
-              <LocalDate date={latestBroadcast.sentAt} />
-            </div>
-            <p className="text-sm text-neutral-700 whitespace-pre-line">{latestBroadcast.message}</p>
-            {latestBroadcast.imageUrl && (
-              <MediaImage
-                src={latestBroadcast.imageUrl}
-                alt="Update"
-                className="mt-3 w-full max-h-48 object-cover"
-                fallbackClassName="mt-3 h-32 w-full bg-gradient-to-br from-amber-50 to-stone-100"
-              />
-            )}
-          </section>
-        )}
-
-        {/* ── Featured Listings ──────────────────────────────────────────── */}
-        {featuredListings.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">Featured Work</h2>
-            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-              {featuredListings.map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="w-[200px] flex-none snap-start md:w-auto">
-                  <ListingCard
-                    listing={{
-                      id: l.id,
-                      title: l.title,
-                      priceCents: l.priceCents,
-                      currency: l.currency,
-                      status: l.status,
-                      listingType: l.listingType,
-                      stockQuantity: l.stockQuantity ?? null,
-                      photoUrl: l.photos[0]?.url ?? null,
-                      photoAltText: l.photos[0]?.altText ?? null,
-                      seller: {
-                        id: seller.id,
-                        displayName: seller.displayName ?? null,
-                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
-                        guildLevel: seller.guildLevel ?? null,
-                        city: seller.city ?? null,
-                        state: seller.state ?? null,
-                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                      },
-                      rating: null,
-                    }}
-                    initialSaved={savedSet.has(l.id)}
-                    variant="grid"
-                  />
-                </ClickTracker>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* ── Story ─────────────────────────────────────────────────────── */}
-        {(seller.storyTitle || seller.storyBody) && (
-          <section className="mb-8 card-section p-6">
-            {seller.storyTitle && (
-              <h2 className="text-lg font-semibold mb-3">{seller.storyTitle}</h2>
-            )}
-            {seller.storyBody && (
-              <p className="text-neutral-700 whitespace-pre-line">
-                {seller.storyBody}
-              </p>
-            )}
-          </section>
-        )}
-
-        {/* ── Bio ───────────────────────────────────────────────────────── */}
-        {seller.bio && !(seller.storyTitle || seller.storyBody) && (
-          <section className="mb-8 card-section p-6">
-            <h2 className="text-lg font-semibold mb-2">About</h2>
-            <p className="text-neutral-700 whitespace-pre-line">{seller.bio}</p>
-          </section>
-        )}
-
-        {/* ── Location / Map ────────────────────────────────────────────── */}
-        {lat != null && lng != null && (
-          <section className="mb-8 card-section p-4 space-y-3">
-            <h2 className="text-lg font-medium">Pickup area</h2>
-            <DynamicMapCard
-              lat={lat}
-              lng={lng}
-              label={cityState || seller.displayName || "Pickup area"}
-              radiusMeters={radiusMeters ?? null}
-              showPinWithRadius={false}
-            />
-            <p className="text-xs text-neutral-600">
-              {radiusMeters
-                ? "Approximate pickup area shown for privacy."
-                : "Exact pickup point shown by seller."}
-            </p>
-          </section>
-        )}
-
-        {/* ── More makers in this city ──────────────────────────────────── */}
-        {(seller.cityMetro ?? seller.metro) && (() => {
-          const m = seller.cityMetro ?? seller.metro!;
-          return (
-            <div className="mb-8 space-y-1">
-              <Link href={`/makers/${m.slug}`} className="text-sm text-neutral-600 hover:underline block">
-                More makers in {m.name}, {m.state} →
-              </Link>
-              <Link href={`/browse/${m.slug}`} className="text-sm text-neutral-600 hover:underline block">
-                Browse {m.name}, {m.state} listings →
-              </Link>
-            </div>
-          );
-        })()}
-
-        {/* ── Workshop Gallery ───────────────────────────────────────────── */}
-        {(seller.workshopImageUrl || (seller.galleryImageUrls && seller.galleryImageUrls.length > 0)) && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
-            <SellerGallery
-              workshopImageUrl={seller.workshopImageUrl}
-              images={seller.galleryImageUrls ?? []}
-              imageAltTexts={seller.galleryAltTexts ?? []}
-            />
-          </section>
-        )}
-
-        {/* ── Shop Policies ──────────────────────────────────────────────── */}
-        {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
-          <section className="mb-8 overflow-hidden rounded-lg border border-neutral-200 bg-[#EDE8DC] shadow-sm">
-            <h2 className="border-b border-neutral-200 px-6 py-4 text-lg font-semibold">Shop Policies</h2>
-            {seller.returnPolicy && (
-              <details className="border-b border-neutral-200 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
-                  Return Policy
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {seller.returnPolicy}
-                </p>
-              </details>
-            )}
-            {seller.customOrderPolicy && (
-              <details className="border-b border-neutral-200 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
-                  Custom Order Policy
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {seller.customOrderPolicy}
-                </p>
-              </details>
-            )}
-            {seller.shippingPolicy && (
-              <details className="border-b border-neutral-200 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
-                  Shipping Policy
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {seller.shippingPolicy}
-                </p>
-              </details>
-            )}
-          </section>
-        )}
-
-        {/* ── FAQs ──────────────────────────────────────────────────────── */}
-        {seller.faqs.length > 0 && (
-          <section className="mb-8 overflow-hidden rounded-lg border border-neutral-200 bg-[#EDE8DC] shadow-sm">
-            <h2 className="border-b border-neutral-200 px-6 py-4 text-lg font-semibold">
-              Frequently Asked Questions
-            </h2>
-            {seller.faqs.map((faq) => (
-              <details key={faq.id} className="border-b border-neutral-200 last:border-b-0">
-                <summary className="cursor-pointer px-6 py-3 text-sm font-medium hover:bg-[#E7DFD1]">
-                  {faq.question}
-                </summary>
-                <p className="px-6 pb-4 text-sm text-neutral-700 whitespace-pre-line">
-                  {faq.answer}
-                </p>
-              </details>
-            ))}
-          </section>
-        )}
-
-        {/* ── From the Workshop (blog posts) ──────────────────────────── */}
-        {sellerBlogPosts.length > 0 && (
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">From the Workshop</h2>
-            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
-              {sellerBlogPosts.map((p) => (
-                <li key={p.slug} className="card-listing min-w-[200px] flex-none snap-start sm:min-w-0">
-                  <Link href={`/blog/${p.slug}`} className="block">
-                    <div className="h-36 bg-neutral-100 overflow-hidden">
-                      {p.coverImageUrl ? (
-                        <MediaImage
-                          src={p.coverImageUrl}
-                          alt={p.title}
-                          className="w-full h-full object-cover"
-                          fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
+          {/* Customer photos masonry */}
+          {customerPhotos.length > 0 && (
+            <section>
+              <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold">Customer photos</h2>
+                  {customerPhotoTotal > 0 && (
+                    <p className="text-sm text-neutral-500 mt-1">
+                      {customerPhotoTotal.toLocaleString("en-US")} {customerPhotoTotal === 1 ? "photo" : "photos"}
+                      {customerPhotoReviewerCount > 0 && (
+                        <> from {customerPhotoReviewerCount.toLocaleString("en-US")} {customerPhotoReviewerCount === 1 ? "buyer" : "buyers"}</>
                       )}
-                    </div>
-                    <div className="p-3 space-y-1">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
-                        {BLOG_TYPE_LABELS[p.type]}
-                      </span>
-                      <div className="font-medium text-sm line-clamp-2 mt-1">{p.title}</div>
-                      {p.excerpt && <p className="text-xs text-neutral-500 line-clamp-2">{p.excerpt}</p>}
-                      {p.publishedAt && (
-                        <div className="text-xs text-neutral-500">
-                          <LocalDate date={p.publishedAt} />
-                        </div>
-                      )}
-                    </div>
+                    </p>
+                  )}
+                </div>
+                {customerPhotoTotal > 12 && (
+                  <Link
+                    href={`/seller/${seller.id}/customer-photos`}
+                    className="text-sm text-amber-700 hover:underline"
+                  >
+                    View all customer photos →
                   </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+                )}
+              </div>
+              <CustomerPhotosGallery
+                photos={customerPhotos.map((p) => ({
+                  id: p.id,
+                  url: p.url,
+                  altText: p.altText,
+                  listingId: p.review.listingId,
+                  listingTitle: p.review.listing?.title ?? null,
+                }))}
+              />
+            </section>
+          )}
 
-        {/* ── All Listings ───────────────────────────────────────────────── */}
-        <section>
-          {(() => {
-            const activePublicCount = listings.filter(
-              (l) => l.status === "ACTIVE" && !l.isPrivate
-            ).length;
-            return (
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">All Listings</h2>
-            {activePublicCount > 0 && (
-              <Link
-                href={publicSellerShopPath(seller.id, seller.displayName)}
-                className="text-sm text-neutral-600 underline hover:text-neutral-900"
-              >
-                See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
-              </Link>
+          {/* All Listings */}
+          <section>
+            {(() => {
+              const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
+              return (
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold">All Listings</h2>
+                  {activePublicCount > 0 && (
+                    <Link
+                      href={publicSellerShopPath(seller.id, seller.displayName)}
+                      className="text-sm text-amber-700 hover:underline"
+                    >
+                      See all {activePublicCount} {activePublicCount === 1 ? "piece" : "pieces"} →
+                    </Link>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Tag filter row — desktop only. Mobile has limited horizontal
+                space and the filter chips were adding visual noise; on mobile
+                the user can filter from the dedicated shop page. */}
+            {topTags.length >= 3 && (
+              <div className="hidden sm:flex flex-wrap items-center gap-2 mb-5">
+                <span className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mr-1">
+                  Filter:
+                </span>
+                {topTags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={`${publicSellerShopPath(seller.id, seller.displayName)}?tag=${encodeURIComponent(tag)}`}
+                    className="rounded-full bg-stone-100 hover:bg-stone-200 text-neutral-700 px-3 py-1 text-xs transition-colors"
+                  >
+                    {tag.replace(/[-_]/g, " ")}
+                  </Link>
+                ))}
+              </div>
             )}
-          </div>
+
+            {listings.length === 0 ? (
+              <div className="card-section p-6 text-neutral-600 bg-white">No listings yet.</div>
+            ) : (
+              <ScrollFadeRow mobileOnly className="overflow-x-auto -mx-4 px-4 sm:-mx-0 sm:px-0 sm:overflow-visible">
+                <ul className="flex gap-4 snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:pb-0 md:grid-cols-3 sm:gap-6">
+                  {listings.slice(0, 9).map((l) => (
+                    <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto transition-transform hover:-translate-y-1 duration-200">
+                      <ListingCard
+                        listing={{
+                          id: l.id,
+                          title: l.title,
+                          priceCents: l.priceCents,
+                          currency: l.currency,
+                          status: l.status,
+                          listingType: l.listingType,
+                          stockQuantity: l.stockQuantity ?? null,
+                          photoUrl: l.photos[0]?.url ?? null,
+                          photoAltText: l.photos[0]?.altText ?? null,
+                          seller: {
+                            id: seller.id,
+                            displayName: seller.displayName ?? null,
+                            avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
+                            guildLevel: seller.guildLevel ?? null,
+                            city: seller.city ?? null,
+                            state: seller.state ?? null,
+                            acceptingNewOrders: seller.acceptingNewOrders ?? null,
+                          },
+                          rating: null,
+                        }}
+                        initialSaved={savedSet.has(l.id)}
+                        variant="grid"
+                      />
+                    </ClickTracker>
+                  ))}
+                </ul>
+              </ScrollFadeRow>
+            )}
+            {(() => {
+              const activePublicCount = listings.filter((l) => l.status === "ACTIVE" && !l.isPrivate).length;
+              return activePublicCount > 9 ? (
+                <div className="mt-5 text-center">
+                  <Link
+                    href={publicSellerShopPath(seller.id, seller.displayName)}
+                    className="inline-block rounded-md border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
+                  >
+                    See all {activePublicCount} pieces →
+                  </Link>
+                </div>
+              ) : null;
+            })()}
+          </section>
+
+          {/* Workshop gallery (full width, separate from story workshop photo) */}
+          {seller.galleryImageUrls && seller.galleryImageUrls.length > 0 && (
+            <section>
+              <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">From the Workshop</h2>
+              <SellerGallery
+                workshopImageUrl={null}
+                images={seller.galleryImageUrls}
+                imageAltTexts={seller.galleryAltTexts ?? []}
+              />
+            </section>
+          )}
+
+          {/* Pickup area — full-width when set, with a proper heading */}
+          {lat != null && lng != null && (
+            <section>
+              <div className="mb-4">
+                <h2 className="text-xl sm:text-2xl font-display font-semibold">Visit this maker</h2>
+                <p className="text-sm text-neutral-500 mt-1">
+                  {radiusMeters
+                    ? `Approximate area${cityState ? ` near ${cityState}` : ""}. Exact pickup details shared after purchase.`
+                    : `Exact pickup point${cityState ? ` in ${cityState}` : ""}. Pickup available at checkout.`}
+                </p>
+              </div>
+              <div className="rounded-2xl overflow-hidden ring-1 ring-stone-300/70 shadow-sm">
+                <DynamicMapCard
+                  lat={lat}
+                  lng={lng}
+                  label={cityState || seller.displayName || "Pickup area"}
+                  radiusMeters={radiusMeters ?? null}
+                  showPinWithRadius={false}
+                  className="h-72 sm:h-96 w-full"
+                />
+              </div>
+            </section>
+          )}
+
+          {/* Policies + FAQ two-column */}
+          {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy || seller.faqs.length > 0) && (
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {(seller.returnPolicy || seller.customOrderPolicy || seller.shippingPolicy) && (
+                <div className="overflow-hidden rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm">
+                  <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-stone-200/60">Shop Policies</h2>
+                  {seller.returnPolicy && (
+                    <details className="border-b border-stone-200/60 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Return Policy</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.returnPolicy}</p>
+                    </details>
+                  )}
+                  {seller.customOrderPolicy && (
+                    <details className="border-b border-stone-200/60 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Custom Order Policy</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.customOrderPolicy}</p>
+                    </details>
+                  )}
+                  {seller.shippingPolicy && (
+                    <details className="border-b border-stone-200/60 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">Shipping Policy</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{seller.shippingPolicy}</p>
+                    </details>
+                  )}
+                </div>
+              )}
+              {seller.faqs.length > 0 && (
+                <div className="overflow-hidden rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm">
+                  <h2 className="text-lg font-display font-semibold px-5 py-3 border-b border-stone-200/60">FAQs</h2>
+                  {seller.faqs.map((faq) => (
+                    <details key={faq.id} className="border-b border-stone-200/60 last:border-b-0">
+                      <summary className="cursor-pointer px-5 py-3 font-medium text-sm hover:bg-[#E3DCCB]">{faq.question}</summary>
+                      <p className="px-5 pb-4 text-sm text-neutral-700 whitespace-pre-line">{faq.answer}</p>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Blog posts */}
+          {sellerBlogPosts.length > 0 && (
+            <section>
+              <h2 className="text-xl sm:text-2xl font-display font-semibold mb-4">Stories from the Workshop</h2>
+              <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+                {sellerBlogPosts.map((p) => (
+                  <li key={p.slug} className="card-listing min-w-[220px] flex-none snap-start sm:min-w-0 transition-transform hover:-translate-y-1 duration-200">
+                    <Link href={`/blog/${p.slug}`} className="block">
+                      <div className="aspect-[16/9] bg-neutral-100 overflow-hidden">
+                        {p.coverImageUrl ? (
+                          <MediaImage
+                            src={p.coverImageUrl}
+                            alt={p.title}
+                            className="w-full h-full object-cover"
+                            fallbackClassName="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-amber-50 to-stone-100" />
+                        )}
+                      </div>
+                      <div className="p-3 space-y-1">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BLOG_TYPE_COLORS[p.type]}`}>
+                          {BLOG_TYPE_LABELS[p.type]}
+                        </span>
+                        <div className="font-medium text-sm line-clamp-2 mt-1">{p.title}</div>
+                        {p.excerpt && <p className="text-xs text-neutral-500 line-clamp-2">{p.excerpt}</p>}
+                        {p.publishedAt && (
+                          <div className="text-xs text-neutral-500">
+                            <LocalDate date={p.publishedAt} />
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* More from city — small footer link block, bottom-left. Hidden
+              when the only available metro looks like a county/parish (older
+              auto-created metros may have used Nominatim's county fallback). */}
+          {(() => {
+            const candidate = seller.cityMetro ?? seller.metro;
+            if (!candidate) return null;
+            if (/\b(county|parish)\b/i.test(candidate.name)) return null;
+            return (
+              <section className="pt-6 mt-2 border-t border-neutral-200/60">
+                <div className="text-xs uppercase tracking-wider text-neutral-500 font-semibold mb-2">
+                  More from {candidate.name}, {candidate.state}
+                </div>
+                <div className="flex flex-col gap-1 text-sm">
+                  <Link href={`/makers/${candidate.slug}`} className="text-amber-700 hover:underline">
+                    Other makers in {candidate.name} →
+                  </Link>
+                  <Link href={`/browse/${candidate.slug}`} className="text-amber-700 hover:underline">
+                    Browse {candidate.name} listings →
+                  </Link>
+                </div>
+              </section>
             );
           })()}
-          {listings.length === 0 ? (
-            <div className="card-section p-6 text-neutral-600">
-              No listings yet.
-            </div>
-          ) : (
-            <ul className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 md:grid-cols-3 sm:gap-6">
-              {listings.slice(0, 8).map((l) => (
-                <ClickTracker key={l.id} listingId={l.id} className="w-[220px] flex-none snap-start sm:w-auto">
-                  <ListingCard
-                    listing={{
-                      id: l.id,
-                      title: l.title,
-                      priceCents: l.priceCents,
-                      currency: l.currency,
-                      status: l.status,
-                      listingType: l.listingType,
-                      stockQuantity: l.stockQuantity ?? null,
-                      photoUrl: l.photos[0]?.url ?? null,
-                      photoAltText: l.photos[0]?.altText ?? null,
-                      seller: {
-                        id: seller.id,
-                        displayName: seller.displayName ?? null,
-                        avatarImageUrl: seller.avatarImageUrl ?? seller.user?.imageUrl ?? null,
-                        guildLevel: seller.guildLevel ?? null,
-                        city: seller.city ?? null,
-                        state: seller.state ?? null,
-                        acceptingNewOrders: seller.acceptingNewOrders ?? null,
-                      },
-                      rating: null,
-                    }}
-                    initialSaved={savedSet.has(l.id)}
-                    variant="grid"
-                  />
-                </ClickTracker>
-              ))}
-            </ul>
-          )}
-          {(() => {
-            const activePublicCount = listings.filter(
-              (l) => l.status === "ACTIVE" && !l.isPrivate
-            ).length;
-            return activePublicCount > 8 ? (
-              <div className="mt-4 text-center">
-                <Link
-                  href={publicSellerShopPath(seller.id, seller.displayName)}
-                  className="inline-block rounded border border-neutral-300 px-5 py-2 text-sm font-medium hover:bg-neutral-50"
-                >
-                  See all {activePublicCount} pieces →
-                </Link>
-              </div>
-            ) : null;
-          })()}
-        </section>
+        </div>
+
       </div>
     </main>
   );

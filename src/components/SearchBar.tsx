@@ -25,6 +25,12 @@ function browseSearchUrl(query: string): string {
   return normalized ? `/browse?q=${encodeURIComponent(normalized)}` : "/browse";
 }
 
+// Humanize a tag/slug for display only. Storage and search queries still use
+// the raw value with dashes/underscores preserved.
+function humanizeTag(raw: string): string {
+  return raw.replace(/[-_]+/g, " ").trim();
+}
+
 export default function SearchBar({ variant = "default" }: { variant?: "default" | "glass" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -239,7 +245,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   return (
     <div ref={containerRef} className="relative ml-auto mr-auto w-full max-w-lg">
       <form onSubmit={handleSubmit}>
-        <div className={`flex items-stretch rounded-full border overflow-hidden focus-within:ring-2 ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:ring-white/30" : "bg-white border-neutral-200 focus-within:ring-neutral-300"}`}>
+        <div className={`flex items-stretch rounded-full border-2 overflow-hidden shadow-sm transition-shadow focus-within:shadow-md ${variant === "glass" ? "bg-white/15 backdrop-blur-sm border-white/40 focus-within:border-white/70" : "bg-white border-stone-400 focus-within:border-stone-600"}`}>
           <input
             value={value}
             onChange={handleChange}
@@ -253,7 +259,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
               }
             }}
             placeholder="Search handmade goods…"
-            className={`flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
+            className={`flex-1 pl-4 pr-2 py-2 bg-transparent focus:outline-none focus-visible:outline-none focus-visible:shadow-none ${variant === "glass" ? "text-white placeholder:text-white/60" : "text-neutral-900 placeholder:text-neutral-500"}`}
             autoComplete="off"
             maxLength={MAX_SEARCH_QUERY_LENGTH}
             role="combobox"
@@ -277,7 +283,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         <ul
           id={SEARCH_LISTBOX_ID}
           role="listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-white shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900 shadow-lg"
         >
           {options.map((option, index) => (
             <React.Fragment key={option.key}>
@@ -320,7 +326,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
                     </span>
                   )}
                   <span className={option.kind === "blog" ? "truncate text-neutral-700" : ""}>
-                    {option.label}
+                    {option.kind === "tag" ? humanizeTag(option.label) : option.label}
                   </span>
                 </button>
               </li>

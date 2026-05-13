@@ -17,7 +17,7 @@ describe("R65 observability guardrails", () => {
     for (const [routePath, sourceTag, route] of routes) {
       const text = source(routePath);
       assert.match(text, /import \* as Sentry from "@sentry\/nextjs"/);
-      assert.match(text, new RegExp(`Sentry\\.captureException\\(err, \\{ tags: \\{ source: "${sourceTag}", route: "${route}" \\} \\}\\)`));
+      assert.match(text, new RegExp(`Sentry\\.captureException\\(err, \\{[\\s\\S]*source: "${sourceTag}",[\\s\\S]*route: "${route}"`));
     }
   });
 

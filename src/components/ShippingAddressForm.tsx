@@ -116,7 +116,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           autoComplete="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
         />
         {errors.name && <p className="text-sm text-red-600 mt-1">{errors.name}</p>}
       </div>
@@ -142,7 +142,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           autoComplete="address-line1"
           value={line1}
           onChange={(e) => setLine1(e.target.value)}
-          className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
         />
         {errors.line1 && <p className="text-sm text-red-600 mt-1">{errors.line1}</p>}
       </div>
@@ -157,7 +157,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           value={line2}
           onChange={(e) => setLine2(e.target.value)}
           placeholder="Apt, suite, etc."
-          className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
         />
       </div>
 
@@ -171,7 +171,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             autoComplete="address-level2"
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
           />
           {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
         </div>
@@ -182,7 +182,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             autoComplete="address-level1"
             value={state}
             onChange={(e) => setState(e.target.value)}
-            className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
           >
             <option value="">Select...</option>
             {US_STATES.map((s) => (
@@ -204,7 +204,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
               const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
               setPostalCode(digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits);
             }}
-            className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
           />
           {errors.postalCode && <p className="text-sm text-red-600 mt-1">{errors.postalCode}</p>}
         </div>
@@ -220,7 +220,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="555-123-4567"
-          className="w-full rounded-md border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
         />
       </div>
 

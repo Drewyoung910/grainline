@@ -504,9 +504,9 @@ export default async function BrowsePage({
   const Pager = () => (
     <nav className="flex items-center gap-2 text-sm">
       {clampedPage > 1 ? (
-        <Link href={makePageHref(clampedPage - 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">← Prev</Link>
+        <Link href={makePageHref(clampedPage - 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">← Prev</Link>
       ) : (
-        <span className="rounded border px-3 py-1 text-neutral-500">← Prev</span>
+        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-400 cursor-not-allowed">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -514,9 +514,9 @@ export default async function BrowsePage({
         </span>
       )}
       {clampedPage < totalPages ? (
-        <Link href={makePageHref(clampedPage + 1)} className="rounded border px-3 py-1 hover:bg-neutral-50">Next →</Link>
+        <Link href={makePageHref(clampedPage + 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">Next →</Link>
       ) : (
-        <span className="rounded border px-3 py-1 text-neutral-500">Next →</span>
+        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-400 cursor-not-allowed">Next →</span>
       )}
     </nav>
   );
@@ -667,16 +667,16 @@ export default async function BrowsePage({
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* View toggle */}
-              <div className="flex rounded border overflow-hidden text-sm">
+              <div className="flex rounded-md border border-neutral-200 bg-white overflow-hidden text-sm">
                 <Link
                   href={viewToggleHref("grid")}
-                  className={`px-3 py-1.5 ${view === "grid" ? "bg-neutral-900 text-white" : "hover:bg-neutral-50"}`}
+                  className={`px-3 py-1.5 transition-colors ${view === "grid" ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
                 >
                   Grid
                 </Link>
                 <Link
                   href={viewToggleHref("list")}
-                  className={`px-3 py-1.5 ${view === "list" ? "bg-neutral-900 text-white" : "hover:bg-neutral-50"}`}
+                  className={`px-3 py-1.5 transition-colors ${view === "list" ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-50"}`}
                 >
                   List
                 </Link>
@@ -689,7 +689,7 @@ export default async function BrowsePage({
 
           {/* Listings */}
           {view === "grid" ? (
-            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
+            <ul className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 sm:gap-x-4 sm:gap-y-8">
               {listings.map((l) => (
                 <GridCard key={l.id} l={l} />
               ))}

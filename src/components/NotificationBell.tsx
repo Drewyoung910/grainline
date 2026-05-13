@@ -326,16 +326,16 @@ export default function NotificationBell({
     <div className="relative" ref={containerRef}>
       <button
         onClick={handleOpen}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? dropdownId : undefined}
         title="Notifications"
       >
-        <Bell size={20} />
+        <Bell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
+          <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -346,7 +346,7 @@ export default function NotificationBell({
           id={dropdownId}
           role="dialog"
           aria-label="Notifications"
-          className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg bg-white shadow-lg overflow-y-auto max-h-[70vh]"
+          className="fixed inset-x-4 top-14 md:absolute md:inset-x-auto md:right-0 md:top-8 z-50 min-w-[300px] max-w-[calc(100vw-2rem)] md:w-80 rounded-lg border border-neutral-200 bg-white text-neutral-900 shadow-lg overflow-y-auto max-h-[70vh]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">

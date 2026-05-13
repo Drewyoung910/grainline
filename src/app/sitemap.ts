@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
 import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { publicListingWhere } from "@/lib/listingVisibility";
+import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
 import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 
@@ -48,18 +48,39 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     { url: `${BASE_URL}/browse`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "daily", priority: 0.9 },
     { url: `${BASE_URL}/commission`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "daily", priority: 0.7 },
     { url: `${BASE_URL}/about`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${BASE_URL}/seller-handbook`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${BASE_URL}/why-grainline`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/why-sell-on-grainline`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/help/shipping-and-returns`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/help/trust-and-safety`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/become-a-maker`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.6 },
     { url: `${BASE_URL}/terms`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.3 },
     { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },
   ];
 
-  const [sellers, blogPosts, openCommissions] = await Promise.all([
+  const [sellers, sellersWithCustomerPhotos, blogPosts, openCommissions] = await Promise.all([
     prisma.sellerProfile.findMany({
       where: {
         chargesEnabled: true,
         vacationMode: false,
         user: { banned: false, deletedAt: null },
         listings: { some: publicListingWhere() },
+      },
+      select: { id: true, displayName: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: SITEMAP_ENTRY_LIMIT,
+    }),
+    prisma.sellerProfile.findMany({
+      where: {
+        chargesEnabled: true,
+        vacationMode: false,
+        user: { banned: false, deletedAt: null },
+        listings: {
+          some: publicListingDetailWhere({
+            reviews: { some: { photos: { some: {} } } },
+          }),
+        },
       },
       select: { id: true, displayName: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
@@ -180,6 +201,13 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     },
   ]);
 
+  const customerPhotoRoutes: MetadataRoute.Sitemap = sellersWithCustomerPhotos.map((s) => ({
+    url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}/customer-photos`,
+    lastModified: s.updatedAt,
+    changeFrequency: "weekly",
+    priority: 0.4,
+  }));
+
   const blogRoutes: MetadataRoute.Sitemap = blogPosts.map((p) => ({
     url: `${BASE_URL}/blog/${p.slug}`,
     lastModified: p.updatedAt,
@@ -255,6 +283,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     ...blogIndexRoute,
     ...blogTypeRoutes,
     ...sellerRoutes,
+    ...customerPhotoRoutes,
     ...blogRoutes,
     ...commissionRoutes,
     ...metroRoutes,

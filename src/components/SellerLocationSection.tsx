@@ -53,7 +53,7 @@ export default function SellerLocationSection({
           checked={mapOptIn}
           onChange={(e) => setMapOptIn(e.target.checked)}
           disabled={hasRadius}
-          className="disabled:opacity-40 disabled:cursor-not-allowed"
+          className="h-5 w-5 rounded border-neutral-300 accent-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed"
         />
         <label
           htmlFor="publicMapOptIn"

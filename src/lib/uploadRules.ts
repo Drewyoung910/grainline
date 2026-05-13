@@ -30,18 +30,18 @@ export const DIRECT_UPLOAD_ENDPOINTS = [
 ] as const satisfies readonly UploadEndpoint[];
 
 export const UPLOAD_MAX_SIZES: Record<UploadEndpoint, number> = {
-  listingImage: 8 * 1024 * 1024,
+  listingImage: 12 * 1024 * 1024,
   messageImage: 8 * 1024 * 1024,
   messageFile: 8 * 1024 * 1024,
   messageAny: 8 * 1024 * 1024,
   reviewPhoto: 8 * 1024 * 1024,
   listingVideo: 128 * 1024 * 1024,
-  bannerImage: 8 * 1024 * 1024,
-  galleryImage: 4 * 1024 * 1024,
+  bannerImage: 15 * 1024 * 1024,
+  galleryImage: 8 * 1024 * 1024,
 };
 
 export const UPLOAD_MAX_COUNTS: Record<UploadEndpoint, number> = {
-  listingImage: 8,
+  listingImage: 10,
   messageImage: 6,
   messageFile: 4,
   messageAny: 6,

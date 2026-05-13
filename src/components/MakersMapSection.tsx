@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 const AllSellersMap = dynamic(() => import("./AllSellersMap"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full bg-stone-100 animate-pulse rounded-2xl" />
+    <div className="w-full h-full bg-[#EFEAE0] animate-pulse rounded-2xl" />
   ),
 });
 
@@ -56,7 +56,7 @@ export default function MakersMapSection({
   };
 
   return (
-    <section className="rounded-2xl bg-stone-50 overflow-hidden">
+    <section className="rounded-2xl bg-[#EFEAE0] overflow-hidden">
       <div className="p-6 sm:p-8 flex flex-col lg:flex-row gap-6 lg:gap-10">
         <div className="lg:w-[38%]">
           <h2 className={`text-2xl font-semibold ${headingClassName ?? ""}`}>{heading ?? "Find local artisans near you"}</h2>
@@ -73,7 +73,7 @@ export default function MakersMapSection({
             </button>
             <a
               href="/map"
-              className="inline-flex items-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 transition-colors"
+              className="inline-flex items-center rounded-md border border-stone-300 bg-[#F7F5F0] px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-white transition-colors"
             >
               Open Makers Map
             </a>

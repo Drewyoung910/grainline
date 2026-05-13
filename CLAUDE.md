@@ -4,6 +4,8 @@ A woodworking marketplace built with Next.js, similar to Etsy/Amazon but focused
 
 Completed audit/fix pass history lives in `CLOSED_AUDIT_HISTORY.md`. Keep current architecture, helpers, schema/env notes, and future-agent behavior contracts in this file; move completed audit-pass log sections older than 60 days to the archive instead of accumulating them inline.
 
+Strategic roadmap, recruitment playbooks, referral system phasing, and "things not to do" live in `STRATEGY.md`. CLAUDE.md is the codebase contract; STRATEGY.md is what hasn't been built yet and why. Update STRATEGY.md after any session that produces a strategic decision.
+
 ## Design System
 
 Visual standards for all UI work on this codebase. Do not deviate without explicit instruction.
@@ -1726,16 +1728,20 @@ After `prisma.listing.create()`, AI review runs async in a try/catch:
 Dashboard shows amber "Under Review" badge + top-of-section banner when any listings are pending.
 
 ### Listing edit re-review
-AI re-review triggers on ACTIVE listings when any substantive content changes. Three trigger points:
+**On ACTIVE listings: Save changes IS the action that runs AI re-review.** Photo upload / delete / re-crop alone never run review — those just modify the listing's photo set. AI review runs when the seller commits the edit via Save.
 
-1. **Text field edits** (`dashboard/listings/[id]/edit/page.tsx` `updateListing`): title, description, category, or price (>50% change). Low-risk changes (tags, shipping, dimensions) do not trigger.
-2. **Image additions** (`api/listings/[id]/photos/route.ts`): any new photos added to ACTIVE listing triggers re-review with the new image set.
-3. **Image deletions** (`dashboard/listings/[id]/edit/page.tsx` `deletePhoto`): removing a photo from ACTIVE listing triggers re-review with remaining images.
+Critical UX rule Drew has corrected the implementation on twice already (read this before changing):
 
-All three paths use the same threshold: `!approved || flags.length > 0 || confidence < 0.8` → PENDING_REVIEW. AI errors also send to admin queue. Non-fatal on infrastructure errors (listing stays ACTIVE only if try/catch catches a non-AI error).
+- Photos uploaded via `AddPhotosButton` go straight to the listing's photo set without flipping status or running AI review. The seller stays on the edit page.
+- Photo re-crop via `ImageRecropButton` → `replacePhotoAction` swaps `url` (and lazily backfills `originalUrl`). No status flip. No AI review.
+- Photo delete via `deletePhotoAction` removes the photo. No status flip. No AI review.
+- **Save changes on the edit form (`updateListing`)** persists the text + variants AND, if the listing's pre-edit status was ACTIVE, runs `reviewListingWithAI` on the full current content (title, description, price, category, tags, all current photo URLs). AI approves → listing stays ACTIVE with updated `aiReviewFlags` and `aiReviewScore`. AI flags or errors → flips to PENDING_REVIEW so staff can review. Either way the redirect lands cleanly (see "Edit listing redirect behavior").
 
-- Scope: only ACTIVE listings. Edits to DRAFT, PENDING_REVIEW, REJECTED, HIDDEN, SOLD, SOLD_OUT skip re-review.
-- Cover photo reorder (`setCoverPhoto`) does not trigger re-review (same images, different order — lower risk).
+**Do not** make Save bypass review on ACTIVE — that would let sellers swap clean approved photos for arbitrary content without any moderation. **Do not** auto-flip status on photo upload — that's the "kick-out" bug Drew has explicitly flagged multiple times. **Do not** add a separate Publish/Resubmit button on ACTIVE listings — Save covers it, and having both buttons would imply Save bypasses review.
+
+For not-yet-public statuses (DRAFT / HIDDEN / REJECTED) the edit form keeps a separate Publish button which routes through `publishListingAction` (the same AI review pipeline, but it also handles the status transition to ACTIVE on approval).
+
+New listing first publish runs through `createListing` → `reviewListingWithAI` per the original flow.
 
 ### Admin review queue (`/admin/review`)
 - Shows all `PENDING_REVIEW` listings ordered oldest-first
@@ -2467,6 +2473,120 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 ### Architecture lesson learned
 **Never use render props (children-as-function) in Next.js server components.** Functions cannot cross the server/client serialization boundary. Use self-contained client components with serializable props instead. If a client component needs server-computed data, pass it as props — don't wrap server JSX in a client render prop.
+
+## Founding Maker Badge (2026-05-12)
+
+First-250-seller recognition program. Permanent badge granted on the seller's FIRST public ACTIVE listing (not at signup, so buyer accounts with auto-created `SellerProfile` rows never qualify).
+
+### Schema additions on `SellerProfile`
+- `isFoundingMaker Boolean @default(false)`
+- `foundingMakerNumber Int?` (1..250, unique-indexed when granted; null otherwise)
+- `foundingMakerAt DateTime?`
+- Migration `20260511232729_add_founding_maker` adds the columns and creates `SellerProfile_foundingMakerNumber_key` unique index plus `SellerProfile_isFoundingMaker_idx`.
+- Migration `20260511235727_founding_maker_active_listing_backfill` clears the original by-`createdAt` backfill and re-backfills the first 250 sellers ordered by their FIRST public ACTIVE listing's `createdAt`. Sellers with zero public active listings stay at `isFoundingMaker = false`.
+
+### Grant helper (`src/lib/foundingMaker.ts`)
+`maybeGrantFoundingMaker(sellerProfileId)`:
+1. Returns immediately if the seller already has the badge.
+2. Returns immediately if the seller has zero public ACTIVE listings.
+3. Otherwise opens a transaction: reads the current max `foundingMakerNumber`, assigns `max + 1` while `<= 250`, and runs an `updateMany` with `isFoundingMaker: false` guard.
+4. Retries unique-index collisions from concurrent grants up to three times. Numbers are never reused after gaps/deletions because the helper uses the current max number, not `count + 1`.
+5. Idempotent. Wrapped in try/catch so a grant failure never blocks the calling flow.
+6. The `foundingMakerNumber` unique index also enforces no-double-issue at the DB level.
+
+### Call sites
+The helper is called after every listing transition to ACTIVE for a seller's own listings:
+- `src/app/dashboard/listings/new/page.tsx` `createListing` — after AI review when `finalListing.status === "ACTIVE"`.
+- `src/app/seller/[id]/shop/actions.ts` `publishListingAction` — after the ACTIVE update success path.
+- `src/app/api/admin/listings/[id]/review/route.ts` — after admin approves a PENDING_REVIEW listing.
+
+`ensureSeller()` no longer touches founding fields. Buyer accounts that get an auto-created `SellerProfile` from visiting `/dashboard` never receive the badge.
+
+### `FoundingMakerBadge` component (`src/components/FoundingMakerBadge.tsx`)
+- `"use client"` wax-seal-style amber/gold disc with a star center, hydration-safe portal popover.
+- Props: `number?: number | null`, `showLabel?: boolean` (default false), `size?: number` (default 22).
+- Popover copy: "One of the first 250 makers on Grainline. This badge is permanent and was awarded in recognition of early support for the platform."
+
+### Placement
+- **Seller profile** (`/seller/[id]`): shown next to the `GuildBadge` in the name row with `showLabel={true}`, `size={28}`.
+- **Seller shop** (`/seller/[id]/shop`): shown next to the `GuildBadge` in the shop header with `showLabel={true}`, `size={26}`. Query updated to `select` `isFoundingMaker` and `foundingMakerNumber`.
+- **Listing detail** (`/listing/[id]`): shown next to the seller's `GuildBadge` in the purchase panel seller card with `showLabel={false}`, `size={22}`. The listing query already uses `seller: { include: { ... } }` so the new columns flow through automatically.
+
+### Display rules to preserve
+- Founding Maker is independent of `guildLevel`. A seller can be Founding Maker only, Guild Member only, both, or neither.
+- The number is permanent and never reassigned (unique index enforces this). If a Founding Maker's seller profile is hard-deleted in the future, the number is NOT recycled — gaps are acceptable.
+- Do not render the badge without the popover. The "first 250" explanation is the only thing that gives the badge meaning to a new buyer.
+
+## Seller Profile Rhythm Redesign (2026-05-12)
+
+Full restructure of `/seller/[id]` from a single vertical stack into a rhythm-based layout with a sticky right CTA sidebar.
+
+### Outer layout
+- Full-width banner (`aspect-[3/1]`) + identity row (name, badges, tagline, location chips, back link, social link icons).
+- Two-column body grid below the identity row: `lg:grid-cols-[minmax(0,1fr)_280px]` on `lg+`, single column on mobile.
+
+### Main column rhythm (top to bottom)
+1. **Stat band** (`bg-[#EFEAE0]` rounded warm strip): pieces sold, rating + review count, avg ship days (last 30 fulfilled), years crafting, member since year. Individual stats hide when data missing. Brand-new sellers (`soldCount === 0 && reviewCount === 0`) render a compact "Member since {year} · Recently joined Grainline" line instead of the full stat row.
+2. **What I make** tag pills. Top 8 most-used tags across the seller's active public listings, aggregated via `unnest(tags)` raw SQL. Pills link to `${sellerShopPath}?tag={tag}`. Hidden when seller has fewer than 3 distinct tags.
+3. **Latest broadcast** (only if `< 30 days old`). Amber accent card.
+4. **Featured Work** — asymmetric grid: `lg:grid-cols-3 lg:grid-rows-2` with the first card spanning 2 cols × 2 rows when 3+ listings; 2-col equal halves with 2 listings; full-width single hero with 1. Falls back to 3 most recent active listings if seller hasn't curated. Each card has `hover:-translate-y-1`.
+5. **Story | Workshop** two-column at `lg+` (`lg:grid-cols-[1.6fr_1fr]`). Story title + body left, workshop image right with a small "The shop in {city}" caption. Bio appended below story body with a divider when both exist and differ.
+6. **Customer photos** masonry (`columns-2 sm:columns-3 lg:columns-4`). Pulls all `ReviewPhoto` records for the seller's listings via `prisma.reviewPhoto.findMany({ where: { review: { listing: { sellerId } } } })`. Shows 12 most recent. Each photo links to `/listing/{listingId}#reviews`. Section hidden entirely if zero photos. When count > 12, shows "View all customer photos →" linking to `/seller/[id]/customer-photos`.
+7. **All Listings** grid (9 per page on profile, see "all listings" link to `/seller/[id]/shop` for paginated).
+8. **From the Workshop** workshop gallery (if `galleryImageUrls.length > 0`).
+9. **Pickup map | Policies + FAQ** two-column at `lg+`. Map on left, policies + FAQ stacked on right.
+10. **Stories from the Workshop** blog posts (3 most recent published by this seller).
+11. **More from {city}** small link block.
+
+### Sticky CTA sidebar (`lg+` only)
+`sticky top-6` card with: 48px avatar, name + small Guild badge, compact rating, primary "Message Maker" button (espresso), `FollowButton`, conditional "Request a Custom Piece" button (only if `acceptsCustomOrders`), "Visit shop" text link, `BlockReportButton` at bottom inside a separator. Hidden entirely on mobile; mobile users get the identity/CTA buttons inline via the existing identity row.
+
+### `/seller/[id]/customer-photos` page (new)
+- Server component, 24 photos per page, `?page=N` query param.
+- Server-rendered masonry layout matching the profile section.
+- `generateMetadata` with title + canonical.
+- Redirects to seller profile (notFound) if seller has zero review photos.
+- Slug canonicalization: `routeSegmentWithSlug` redirect like the main profile page.
+- Added to `middleware.ts` `isPublic`.
+
+### Schema notes
+No new tables. All data pulled from existing `ReviewPhoto`, `Review`, `Listing`, `OrderItem`, `Order`. Stat band queries (`soldCount`, `recentShipped`) are bounded (last 30 orders) so they don't scale poorly with shop size.
+
+### Empty state rules (preserve)
+- Stat band: stats hide individually when data is missing; brand-new sellers see the compact one-line variant.
+- What I make: hidden when fewer than 3 tags.
+- Customer photos: hidden when 0 photos. Same with the dedicated page (returns notFound).
+- Featured work: falls back to most recent 3 if no curated featured listings.
+- Story / bio / workshop / blog / map / policies: each hides individually when not filled in.
+- Sticky sidebar: always visible (it's the conversion surface) on `lg+`.
+
+## Why Grainline Landing Pages (2026-05-12)
+
+Two public recruitment landing pages with full marketing structure (hero, multi-section, espresso CTAs). Distinct from `/become-a-maker` (which is a redirect-only conversion entry) and `/about` (which is a brief overview).
+
+- **`/why-grainline`** (`src/app/why-grainline/page.tsx`) — buyer-facing. Reads `listingCount`, `sellerCount`, and `foundingCount` from the DB on render. Section order: hero, handmade-trust problem with two-column comparison, four trust mechanisms (Stripe verification, AI moderation, Guild badges earned-not-paid, dispute system), badge ladder showing all three tiers with the inline FoundingMakerBadge-style SVG, American-made stat bar with map link, buyer protection 4-step explainer, espresso final CTA to Browse + Commission.
+- **`/why-sell-on-grainline`** (`src/app/why-sell-on-grainline/page.tsx`) — seller-facing. Reads `foundingCount` on render to compute `foundingRemaining = 250 - foundingCount`. Auth-aware: signed-in CTAs go to `/dashboard`, signed-out CTAs go to `/sign-up?redirect_url=/dashboard`. Section order: hero, four-platform fee comparison table (Grainline/Etsy/Faire/Amazon Handmade), Etsy take-rate-trap deep paragraph, Founding Maker scarcity counter, what-we-dont-do four-card grid, what-you-get six-card grid, risk reversal, espresso final CTA.
+
+Both pages use the design system: `bg-gradient-to-b from-amber-50/40 via-white to-white min-h-[100svh]` wrapper, `card-section bg-white` for trust/feature cards, alternating `bg-[#EFEAE0]/40` warm sections, `bg-[#2C1F1A]` espresso final CTA, `font-display` headings, rounded-full CTAs. No em dashes (Drew rule).
+
+Both routes:
+- Added to `src/middleware.ts` `isPublic` matcher.
+- Added to `src/app/sitemap.ts` at priority 0.8 monthly.
+- Wired into footer: `/why-grainline` in the Shop column, `/why-sell-on-grainline` in the Sell column.
+- Have `generateMetadata`-style static metadata with `alternates.canonical`.
+
+Future agents must keep the Founding Maker counter accurate. If the cap is raised above 250, update both pages' copy + the seller-page math (`Math.max(0, 250 - foundingCount)`).
+
+## Buyer Help Pages (2026-05-11)
+
+The footer Help section now points at buyer-facing pages instead of `/seller-handbook#shipping` and `/seller-handbook#disputes`.
+
+- **`/help/shipping-and-returns`** — buyer-focused content: processing vs shipping time, local pickup, shipping cost calculation, cases for damaged/late/wrong orders, refund timing, returns, lost/stolen packages.
+- **`/help/trust-and-safety`** — buyer-focused content: maker verification + Stripe payment auth, Guild badges explained, buyer protection / case flow, reporting tools, blocking, privacy/data, DMCA/IP takedown procedure.
+- Both routes added to `isPublic` in `src/middleware.ts` via `"/help(.*)"`.
+- Both routes added to `sitemap.ts` at priority 0.5 monthly.
+
+The seller-handbook content (`#shipping`, `#disputes`) stays — it's still the source of truth for makers — but it's no longer linked from the buyer-facing footer.
 
 ## Pending Tasks
 
@@ -3945,10 +4065,10 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Listing publish gating behavior**: disconnected sellers may save drafts, but the new-listing Publish button stays disabled until `chargesEnabled === true`; the server action still returns an inline `PUBLISH_REQUIRES_STRIPE_MESSAGE` instead of redirecting so rejected publish attempts do not clear the form. Do not reintroduce `/dashboard/listings/new?error=stripe` redirects for this guard.
 - **Edit listing redirect behavior**: `updateListing` redirects based on the post-edit listing status, never blindly to `publicListingPath`. ACTIVE/SOLD/SOLD_OUT redirect to the public listing page; PENDING_REVIEW redirects to `/listing/[id]?preview=1` so the seller sees their listing in buyer-perspective preview (the edit page would block them via `editBlockReason` and the public path 404s); DRAFT/HIDDEN/REJECTED redirect to `/dashboard/listings/[id]/edit?saved=1`. The preview banner is status-aware — for PENDING_REVIEW it reads "Under review — your listing will go live once our team approves it. This is the buyer-facing preview"; otherwise it shows the generic "Preview mode — this is how your listing appears to buyers. It is not yet published" message.
 - **Dashboard My Listings card link behavior**: card thumbnail/title links target `publicListingPath` for ACTIVE/SOLD/SOLD_OUT and `${publicListingPath}?preview=1` for DRAFT/HIDDEN/REJECTED/PENDING_REVIEW so the owner can click any of their cards without hitting the public 404. Archived listings (`status === "HIDDEN" && isPrivate`) are not linkable.
-- **AI alt-text backfill helper**: `src/lib/photoAltTextBackfill.ts` exports `backfillEmptyAltTexts(listingId, altTexts)`. It writes to photos with empty `altText` only — never overwrites seller-provided alt text — and pairs `altTexts[i]` with `photos[i]` in `sortOrder` ascending. Failures are non-fatal and logged in non-production. Every server path that calls `reviewListingWithAI` must call this helper to backfill: `dashboard/listings/new/page.tsx createListing`, `seller/[id]/shop/actions.ts publishListingAction`, `dashboard/listings/[id]/edit/page.tsx updateListing`, `dashboard/listings/[id]/edit/page.tsx deletePhotoAction`, `dashboard/listings/[id]/edit/page.tsx replacePhotoAction`. AI-call catch returns must include `altTexts: [] as string[]` so the union type carries `altTexts` and TypeScript allows the helper call.
-- **Listing photo upload-time crop behavior**: `PhotoManager` (new listing) and `AddPhotosButton` (edit listing) intentionally do NOT pass `cropAspect` to `R2UploadButton` — uploaded listing photos preserve their original aspect ratio so the lightbox can show the full image (`max-w-full max-h-[85vh] object-contain`). Cards (`ListingCard.tsx`) and the listing detail main photo (`ListingGallery.tsx`) display via `aspect-[4/5] object-cover` so the grid layout stays consistent. Sellers who want explicit thumbnail framing can use the `ImageRecropButton` "Re-crop" affordance in `PhotoManager` and `EditPhotoGrid`, which keeps `cropAspect={4/5}` and replaces the stored photo with the cropped version (the original is lost on re-crop). Banner, avatar, and workshop uploads keep their force-crop behavior because for those surfaces the thumbnail IS the only view.
-- **Header layout behavior**: header `<nav>` uses `max-w-[1600px]` matching the body content width — not the previous `max-w-6xl` — so the header has the same visual reach as the page below. The search bar wrapper uses `flex-1 max-w-[640px]` so it grows fluidly between the logo and right-side nav up to a sensible cap.
-- **Header icon button hover behavior**: every icon-only `<button>` or `<Link>` in the desktop header uses the same hover affordance — `relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50`. Applies to the message envelope (signed-in `MessageIconLink` and signed-out fallback), the cart `ShoppingBag`, and `NotificationBell`. Notification/cart badges position using `-right-1.5 -top-1.5` / `-right-1 -top-1` so they sit on the icon edge inside the 36px hover circle. Do not let icon-only header controls drift away from this pattern.
+- **AI alt-text backfill helper**: `src/lib/photoAltTextBackfill.ts` exports `backfillEmptyAltTexts(listingId, altTexts)`. It writes to photos with empty `altText` only — never overwrites seller-provided alt text — and pairs `altTexts[i]` with `photos[i]` in `sortOrder` ascending. Failures are non-fatal and logged in non-production. Every server path that calls `reviewListingWithAI` must call this helper to backfill. Currently wired on `dashboard/listings/new/page.tsx createListing`, `seller/[id]/shop/actions.ts publishListingAction`, and `dashboard/listings/[id]/edit/page.tsx updateListing`. `deletePhotoAction` and `replacePhotoAction` intentionally do not run AI review; Save is the review trigger for ACTIVE listing edits.
+- **Listing photo upload-time crop behavior**: `PhotoManager` (new listing) and `AddPhotosButton` (edit listing) intentionally do NOT pass `cropAspect` to `R2UploadButton` — uploaded listing photos preserve their original aspect ratio so the lightbox can show the full image (`max-w-full max-h-[85vh] object-contain`). Cards (`ListingCard.tsx`) and the listing detail main photo (`ListingGallery.tsx`) display via `aspect-[4/5] object-cover` so the grid layout stays consistent. Sellers who want explicit thumbnail framing can use the `ImageRecropButton` "Re-crop" affordance in `PhotoManager` and `EditPhotoGrid`, which keeps `cropAspect={4/5}` and replaces the displayed `Photo.url` with the cropped version while preserving `Photo.originalUrl` for future re-crops. Banner, avatar, and workshop uploads keep their force-crop behavior because for those surfaces the thumbnail IS the only view.
+- **Header layout behavior**: header `<nav>` uses `max-w-[1600px]` matching the body content width — not the previous `max-w-6xl` — so the header has the same visual reach as the page below. The search bar wrapper uses `flex-1 max-w-[820px]` so it grows fluidly between the logo and right-side nav up to a strong desktop presence.
+- **Header icon button hover behavior**: every icon-only `<button>` or `<Link>` in the desktop header uses the same hover affordance — `relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10`. Applies to the message envelope (signed-in `MessageIconLink` and signed-out fallback), the cart `ShoppingBag`, and `NotificationBell`. Notification/cart badges position on the icon edge inside the 40px hover circle. Do not let icon-only header controls drift away from this pattern.
 - **ImageCropModal portal behavior**: `ImageCropModal` renders through `createPortal(modal, document.body)` after a client-mount guard so any pointer/drag interaction inside the modal (zoom slider, image pan) does not bubble into draggable ancestors. The modal opens above any `<li draggable>` photo card in `PhotoManager` and `EditPhotoGrid` without dragging the card around. Do not move the modal back to inline rendering.
 - **EditPhotoGrid prop sync behavior**: `EditPhotoGrid` keeps `photos` and `altTexts` in local state for optimistic interactions, and syncs them with the `initialPhotos` prop via a `useEffect` keyed on `${id}:${url}` per photo. This makes `AddPhotosButton`'s `router.refresh()` show the new card immediately instead of waiting for a manual page reload. Alt-text merge keeps in-progress local edits per existing photo id; only newly-arriving photos take the server value.
 - **Message stream fallback behavior**: `ThreadMessages` opens an `EventSource` for live updates and falls back to 3-second polling on stream error. Stream errors are noisy (visibility change, network blips, idle drops), so `es.onerror` does NOT call `setStreamError` — polling carries messages silently. Only TERMINAL polling failures (401/403/429) surface the user-visible warning via `messageStreamStatusMessage(res.status)`. Do not re-add the SSE-error warning, it fires too often and confuses users when polling is working fine.
@@ -3963,7 +4083,8 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Image recrop behavior**: existing banner, avatar, workshop, gallery, new-listing photos, and edit-listing photos expose "Adjust crop" / "Re-crop" controls through `ImageRecropButton`. Profile recrops update the form's hidden URL and still require the profile form save. New-listing recrops update hidden `imageUrlsJson` before submit. Edit-listing recrops replace the `Photo.url` through `replacePhotoAction`; if the listing is active, the replacement goes through the existing AI review/PENDING_REVIEW flow because the image bytes changed.
 - **Workshop gallery behavior**: `GalleryUploader` supports upload, crop adjust, remove, alt text per item, drag-to-reorder, and arrow-button reordering for touch/accessibility. Alt text persists as `SellerProfile.galleryAltTexts String[]` parallel to `galleryImageUrls`; `galleryAltTexts[i]` describes `galleryImageUrls[i]`. Public `SellerGallery` uses these strings as image `alt` attributes for accessibility and SEO, but alt text is not rendered as visible buyer-facing copy.
 - **Single-slot upload behavior**: single-image surfaces (`ProfileBannerUploader`, `ProfileAvatarUploader`, `ProfileWorkshopUploader`, `BlogPostForm` cover, and `ImageUploadField`) pass `allowMultiple={false}` even when they reuse a multi-capable endpoint such as `galleryImage`; do not rely only on endpoint heuristics for single-slot UI.
-- **Avatar visibility behavior**: avatars on light surfaces need a visible neutral boundary. Use `ring-1 ring-neutral-200 shadow-sm` for normal avatars; the seller banner-overlap avatar may use `ring-4 ring-neutral-200 shadow-sm`. Do not use white rings/borders for avatar boundaries on white cards. Avatar trigger buttons must also set `style={{ borderRadius: "9999px" }}` because the global `button` border-radius rule can override Tailwind `rounded-full` on button elements.
+- **Avatar visibility behavior**: avatars on light surfaces need a visible neutral boundary. Use `ring-1 ring-neutral-200 shadow-sm` for normal avatars; the seller banner-overlap avatar may use `ring-4 ring-neutral-200 shadow-sm`. Do not use white rings/borders for avatar boundaries on white cards. The legacy `style={{ borderRadius: "9999px" }}` inline workaround on avatar trigger buttons is no longer required — see "Global button border-radius behavior" below.
+- **Global button border-radius behavior**: the global `button { border-radius: 0.375rem }` rule in `globals.css` is wrapped in `@layer base` so Tailwind utilities in `@layer utilities` (`.rounded-full`, `.rounded-lg`, `.rounded-none`, etc.) win on `<button>` elements without needing inline-style hacks. Do not move the rule back out of `@layer base`. New code that needs a non-default radius on a button should just use the Tailwind utility (`className="rounded-full"`); legacy inline `style={{ borderRadius }}` overrides in `UserAvatarMenu`, `SearchBar`, etc. are kept for now but can be cleaned up incrementally.
 - **Variant editor MADE_TO_ORDER behavior**: `ListingTypeVariantSection` owns shared listing-type state for `ListingTypeFields` and `VariantEditor`. When the listing is `MADE_TO_ORDER`, `VariantEditor` hides per-option "In stock" checkboxes and serializes `inStock: true` for all options. In-stock listings keep per-option stock toggles.
 - **Variant price input behavior**: variant price adjustments keep raw text drafts while focused and parse/format to cents on blur or submit. Do not reintroduce `.toFixed(2)` formatting on every keystroke because it causes cursor jumps and dropped digits.
 - **Listing form Enter/error behavior**: listing create/edit forms pass `preventEnterSubmit preserveOnError` to `ActionForm`. Enter in text/number inputs must not publish/save; textareas still accept Enter. On server validation errors, `ActionForm` restores submitted field values so user work is not cleared.
@@ -3972,10 +4093,10 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Mobile listing detail constraints**: listing detail keeps `min-w-0` on grid columns, `overflow-x-hidden` on the main/purchase-panel wrappers, flex-wrap on variant rows, and `max-w-full whitespace-normal break-words` on variant chips so long options or image controls cannot widen the mobile viewport.
 - **Seller onboarding entry behavior**: `/become-a-maker` is the public discovery route for seller onboarding. Signed-out users redirect to `/sign-up?redirect_url=/dashboard`; signed-in users redirect to `/dashboard`, where `ensureSeller()` creates/loads the seller profile and sends incomplete sellers to onboarding. Keep the footer link, desktop avatar-menu "Start Selling", mobile drawer "Start Selling", and non-seller `/account` CTA visible so seller onboarding is not only discoverable by manually typing `/dashboard`.
 - **Onboarding visual behavior**: `/dashboard/onboarding` uses the site warm page background, `card-section` surfaces, `font-display` headings, rounded-md action controls, and a visible final-summary Stripe reconnect CTA. Keep future wizard edits aligned with the Grainline design tokens instead of falling back to generic gray hard-corner panels.
-- **Site background behavior**: header, homepage, browse, and listing-detail page backgrounds use solid `bg-[#F7F5F0]` warm cream rather than page-wide amber gradients. Photos, cards, and selective `bg-amber-50/30` accent sections provide the visual rhythm; do not reintroduce full-page or header amber gradients.
-- **Cream surface hierarchy behavior**: body/page background stays warm cream `#F7F5F0`; darker cream `#EDE8DC` is reserved for secondary chrome and support panels such as seller-profile policies/FAQ, message-thread context/composer shells, and non-action review notices. Inputs and composer controls inside those darker panels should usually return to body cream `#F7F5F0` or white so controls remain legible instead of blending into the shell.
-- **Horizontal scroll fade behavior**: `scroll-fade-edges` uses 16px left/right mask fades so the end fade does not create more visual dead space than the row's starting padding. Keep fade width symmetric unless the scroll container padding changes.
-- **Homepage maker map behavior**: the homepage `MakersMapSection` passes `mobileInitialZoom={2.05}` into `AllSellersMap` so the initial mobile viewport shows the continental US instead of only the central states. The mobile zoom override applies only when no explicit `initialCenter` is provided; user-location or full map flows keep their requested center/zoom.
+- **Site background behavior**: every page inherits `bg-[#F7F5F0]` warm cream from the `<body>` element in `src/app/layout.tsx` AND from the `html, body { background: #F7F5F0 }` base rule in `globals.css`. The body is `flex flex-col min-h-[100svh]` and the `<div id="main-content">` is `flex-1` so the footer always sticks to the bottom of the viewport even when page content is short — don't break this flex chain by adding intermediate wrappers without `flex-1`. Do not override the page bg to `bg-white` on `<main>` elements; cards and `card-section` panels already provide the white surface where needed. **Never** put an unlayered `html, body { background: ... }` rule in `globals.css` — unlayered CSS beats Tailwind's `@layer utilities` and silently overrides every `<body className="bg-...">` class. The current rule is wrapped in `@layer base` precisely to avoid that trap; if you change the default page bg, change it there.
+- **Warm color palette behavior**: site has two cream tones plus a brand accent — body cream `#F7F5F0`, darker accent `#EFEAE0` (`.section-warm` helper) for inset cards/panels that should sit one step darker than body, and brand color forest green `#3F5D3A` (ties into the Guild Member wreath palette, not an invented color). The header and footer both use `bg-[#3F5D3A]` with `text-stone-100` body text and `hover:text-white` links; the espresso logo uses `brightness-0 invert` in the header and `invert opacity-80` in the footer to read light on the green. Icon buttons inside the header use `text-stone-100 hover:bg-white/10 rounded-full` for the circular hover affordance. Currently `MakersMapSection` and the homepage Meet a Maker card both use `#EFEAE0` to give the home page some warm tonal variety against the cream body; the map widget inside the section does NOT need its own bg because the whole section is one color. Do not promote `#EFEAE0` to body bg — it is the section accent only. Do not invent additional warm/green tones; pick from `#F7F5F0`, `#EFEAE0`, `#3F5D3A`, or the existing amber-50 / amber-100 utilities.
+- **Focus indicator behavior**: the global `:focus-visible` outline + amber box-shadow rules live inside `@layer base` in `globals.css` **without** `!important`. Per-component focus utilities (`focus-visible:outline-none`, `focus-visible:shadow-none`, `focus-within:ring-*`) win because Tailwind utilities are in a later layer. When an input lives inside a rounded pill/round container (e.g. `SearchBar`, messages search input, `TagsInput`), put the focus ring on the container via `focus-within:ring-2` and add `focus-visible:outline-none focus-visible:shadow-none` to the inner input so the visible ring follows the container's border-radius instead of drawing a rectangle inside a pill.
+- **FavoriteButton hover affordance**: the heart button uses `inline-flex items-center justify-center p-2.5 rounded-full hover:bg-black/15 transition-colors` with `right-2 top-2` positioning. Padding-based sizing (not fixed `h-11 w-11`) makes the hover circle hug the heart symmetrically. Default heart `size={22}` keeps the visible button ~42×42 so the circle isn't an oversized halo around a small heart. `SaveBlogButton` uses the same `p-2 rounded-full hover:bg-black/15` pattern.
 - **Audit-only follow-up queue**: the 2026-05-06 extended audit-only sweep reopened 10 verified follow-ups in `audit_open_findings.md` after the prior mechanical queue hit zero. They were closed in the follow-up route/docs pass. A later 2026-05-06 order-state/case-resolution follow-up closed the verified `acceptingNewOrders`, case-resolution race/refund amount, shipping quote parity, cart-add concurrency, admin UI error, and checkout-seller token logging findings. Stripe Connect v2 modernization remains deferred as a separate architecture branch. Treat the audit file as the source of truth before assuming the queue is empty, and do not duplicate its per-finding detail here.
 - **Seller order-availability behavior**: `SellerProfile.acceptingNewOrders === false` is a hard server-side purchase blocker, not just a badge. Cart add, buy-now checkout, seller cart checkout, shipping quotes, and custom-order requests should call `sellerOrderBlockReason()` / `sellerOrderBlockMessage()` before mutating cart state, requesting Shippo rates, or creating Stripe sessions. Listing detail should hide purchase controls when the same state says the seller is blocked.
 - **Cart add concurrency behavior**: signed-in cart creation uses `cart.upsert`, and existing cart item quantity increments use an `updateMany` guard against the 99-item cap. Do not reintroduce find-then-create cart creation or read-then-increment quantity checks.

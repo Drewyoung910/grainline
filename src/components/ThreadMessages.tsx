@@ -114,9 +114,29 @@ export default function ThreadMessages({
     requestAnimationFrame(() => scrollToBottom(false));
   }, [convoId, initial]);
 
-  // Scroll to bottom after a message is sent (waits for DOM render)
+  // Scroll to bottom after a message is sent. Also fire an immediate fetch
+  // so the sent message appears within a few hundred ms instead of waiting
+  // for the next 3s poll or SSE push.
   React.useEffect(() => {
-    const onOk = () => {
+    const onOk = async () => {
+      try {
+        const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
+        if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
+        const res = await fetch(u.toString(), { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const fresh: Msg[] = Array.isArray(data?.messages) ? data.messages : [];
+        if (fresh.length) {
+          setMsgs((prev) => {
+            const seen = new Set(prev.map((m) => m.id));
+            const merged = [...prev, ...fresh.filter((m) => !seen.has(m.id))];
+            lastTsRef.current = new Date(merged[merged.length - 1].createdAt).getTime();
+            return merged;
+          });
+        }
+      } catch {
+        // Polling will catch up on the next tick.
+      }
       setTimeout(() => {
         const el = boxRef.current;
         if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
@@ -124,7 +144,7 @@ export default function ThreadMessages({
     };
     document.addEventListener("actionform:ok", onOk);
     return () => document.removeEventListener("actionform:ok", onOk);
-  }, []);
+  }, [convoId]);
 
   React.useEffect(() => {
     let closed = false;
@@ -389,10 +409,10 @@ export default function ThreadMessages({
           // Attachment bubbles are always light for readability
           const isAttachment = file || isImage || isPdf;
           const bubbleClass = isAttachment
-            ? "bg-white text-neutral-900 border"
+            ? "bg-white text-neutral-900 border border-stone-200/60"
             : mine
-            ? "bg-black text-white"
-            : "bg-neutral-100";
+            ? "bg-[#2C1F1A] text-white"
+            : "bg-[#EFEAE0] text-neutral-900";
 
           let bubble: React.ReactNode;
 

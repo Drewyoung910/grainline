@@ -19,6 +19,7 @@ const isPublic = createRouteMatcher([
   "/seller/map",          // legacy singular map route — redirects to /map
   "/seller/((?!payouts|map)[^/]+)",          // public seller profiles
   "/seller/((?!payouts|map)[^/]+)/shop(.*)", // public seller shops
+  "/seller/((?!payouts|map)[^/]+)/customer-photos(.*)", // public customer photos pages
   "/sellers(.*)",         // sellers directory
   "/makers(.*)",          // city-level makers pages — public
   "/blog(.*)",            // blog — public viewing; writing/commenting handled in API routes
@@ -31,6 +32,10 @@ const isPublic = createRouteMatcher([
   "/about",               // About page — public
   "/support",             // Support request form — no auth needed
   "/become-a-maker",      // public entry that redirects signed-in makers to dashboard and signed-out users to sign-up
+  "/seller-handbook",     // public seller handbook — SEO/recruitment content
+  "/help(.*)",            // public buyer-facing help pages
+  "/why-grainline",       // public buyer recruitment landing
+  "/why-sell-on-grainline", // public seller recruitment landing
   "/cart(.*)",            // anonymous cart page; server cart APIs still enforce auth/account state
   "/accept-terms(.*)",    // full-page terms gate; page redirects signed-out users to sign-in
   "/unsubscribe",         // Email unsubscribe landing — CAN-SPAM compliance

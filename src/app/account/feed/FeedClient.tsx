@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { FeedItem } from "@/app/api/account/feed/route";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import FavoriteButton from "@/components/FavoriteButton";
+import SaveBlogButton from "@/components/SaveBlogButton";
 
 export default function FeedClient() {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -167,23 +169,28 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <Link href={listingHref} className="block">
-          {item.imageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
-          )}
-          <div className="p-4 bg-white">
-            <p className="font-medium text-neutral-900">{item.title}</p>
-            {item.priceCents != null && (
-              <p className="text-sm text-neutral-600 mt-1">
-                {(item.priceCents / 100).toLocaleString("en-US", {
-                  style: "currency",
-                  currency: item.currency ?? "USD",
-                })}
-              </p>
+        <div className="relative">
+          <Link href={listingHref} className="block">
+            {item.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.imageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
-          </div>
-        </Link>
+            <div className="p-4">
+              <p className="font-medium text-neutral-900">{item.title}</p>
+              {item.priceCents != null && (
+                <p className="text-sm text-neutral-600 mt-1">
+                  {(item.priceCents / 100).toLocaleString("en-US", {
+                    style: "currency",
+                    currency: item.currency ?? "USD",
+                  })}
+                </p>
+              )}
+            </div>
+          </Link>
+          {item.id && (
+            <FavoriteButton listingId={item.id} initialSaved={!!item.isSaved} />
+          )}
+        </div>
       </div>
     );
   }
@@ -200,18 +207,25 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Link>
           <span className="text-xs text-neutral-300 ml-auto">{timeAgo(item.date)}</span>
         </div>
-        <Link href={`/blog/${item.slug}`} className="block">
-          {item.coverImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
-          )}
-          <div className="p-4 bg-white">
-            <p className="font-medium text-neutral-900">{item.title}</p>
-            {item.excerpt && (
-              <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{item.excerpt}</p>
+        <div className="relative">
+          <Link href={`/blog/${item.slug}`} className="block">
+            {item.coverImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.coverImageUrl} alt={item.title ?? ""} loading="lazy" className="w-full aspect-[4/3] object-cover" />
             )}
-          </div>
-        </Link>
+            <div className="p-4">
+              <p className="font-medium text-neutral-900">{item.title}</p>
+              {item.excerpt && (
+                <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{item.excerpt}</p>
+              )}
+            </div>
+          </Link>
+          {item.slug && (
+            <div className="absolute top-2 right-2 z-10">
+              <SaveBlogButton slug={item.slug} initialSaved={!!item.isSaved} />
+            </div>
+          )}
+        </div>
       </div>
     );
   }

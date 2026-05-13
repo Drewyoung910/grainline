@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 export default function FavoriteButton({
   listingId,
   initialSaved,
-  size = 28,
+  size = 22,
 }: {
   listingId: string;
   initialSaved: boolean;
@@ -65,15 +65,17 @@ export default function FavoriteButton({
       title={saved ? "Saved" : "Save"}
       onClick={toggle}
       disabled={isPending}
-      className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center"
+      className="absolute right-0.5 top-0.5 z-10 inline-flex items-center justify-center p-1.5 rounded-full hover:bg-black/15 transition-colors"
       style={{ lineHeight: 0 }}
     >
-      {/* Heart icon — filled grey background for visibility on all photos */}
+      {/* Heart icon — filled grey background for visibility on all photos.
+          Heart shape is top-heavy (wide bumps, narrow point) so we shift it
+          down 1px to make it look visually centered inside the hover circle. */}
       <svg
         width={size}
         height={size}
         viewBox="0 0 24 24"
-        className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)]"
+        className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] translate-y-[1px]"
         xmlns="http://www.w3.org/2000/svg"
       >
         {/* Grey heart background for contrast on all photo backgrounds */}

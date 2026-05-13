@@ -10,6 +10,9 @@ type Props = {
   initialFollowing: boolean;
   initialCount: number;
   size?: "sm" | "md";
+  /** "default" = white bordered (legacy). "cream" = dark-cream secondary
+   * matching the rest of the action-row button family. */
+  variant?: "default" | "cream";
 };
 
 export default function FollowButton({
@@ -18,6 +21,7 @@ export default function FollowButton({
   initialFollowing,
   initialCount,
   size = "md",
+  variant = "default",
 }: Props) {
   const router = useRouter();
   const [following, setFollowing] = React.useState(initialFollowing);
@@ -71,12 +75,20 @@ export default function FollowButton({
 
   const base =
     size === "sm"
-      ? "inline-flex items-center gap-1.5 border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60"
-      : "inline-flex items-center gap-2 border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60";
+      ? "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60"
+      : "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60";
 
-  const style = following
-    ? `${base} bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-700`
-    : `${base} bg-white text-neutral-800 border-neutral-300 hover:bg-neutral-50`;
+  let style: string;
+  if (variant === "cream") {
+    style = following
+      ? `${base} bg-neutral-900 text-white hover:bg-neutral-700`
+      : `${base} bg-[#EFEAE0] text-neutral-800 hover:bg-[#E3DCCB]`;
+  } else {
+    // default variant — preserve legacy white-bordered look used in other surfaces
+    style = following
+      ? `${base} border border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-700`
+      : `${base} border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50`;
+  }
 
   return (
     <button onClick={toggle} disabled={loading} className={style}>

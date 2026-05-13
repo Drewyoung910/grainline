@@ -128,7 +128,7 @@ export default function Header() {
   }, [isLoggedIn, loadAnonymousCartCount, loadCartCount]);
 
   return (
-    <header className="border-b bg-[#F7F5F0] relative z-[50]">
+    <header className="bg-[#F7F5F0] text-neutral-900 border-b border-stone-200 relative z-[50]">
       <nav aria-label="Main navigation" className="mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 flex items-center gap-4 lg:gap-6">
         {/* Logo */}
         <Link href="/" className="shrink-0 flex items-center min-h-[44px]" aria-label="Grainline home">
@@ -140,21 +140,30 @@ export default function Header() {
           <img src="/logo-espresso.svg" alt="Grainline" className="h-8 w-auto hidden md:block" />
         </Link>
 
-        {/* Search bar — desktop only, fluid width up to ~640px so it has presence
-            without crowding nav links on smaller desktops. */}
-        <span className="hidden md:flex flex-1 max-w-[640px]">
+        {/* Search bar — desktop only, fluid width with a larger cap so it
+            has real presence in the header. */}
+        <span className="hidden md:flex flex-1 max-w-[820px]">
           <SearchBar />
         </span>
 
         {/* ── Desktop nav (md+) ────────────────────────────────────────── */}
-        <div className="ml-auto hidden md:flex items-center gap-4">
-          <Link href="/browse" className="text-neutral-800">
+        <div className="ml-auto hidden md:flex items-center gap-2 lg:gap-3">
+          <Link
+            href="/browse"
+            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+          >
             Browse
           </Link>
-          <Link href="/blog" className="text-neutral-800">
+          <Link
+            href="/blog"
+            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+          >
             Blog
           </Link>
-          <Link href="/commission" className="text-neutral-800">
+          <Link
+            href="/commission"
+            className="inline-flex items-center px-3 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+          >
             Commission Room
           </Link>
 
@@ -167,11 +176,11 @@ export default function Header() {
             fallback={
               <Link
                 href="/sign-in?redirect_url=/messages"
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
                 aria-label="Messages"
                 title="Messages"
               >
-                <MessageCircle size={20} />
+                <MessageCircle size={22} />
               </Link>
             }
           >
@@ -181,13 +190,13 @@ export default function Header() {
           {/* Cart — always visible; signed-out users see sign-in prompt on /cart */}
           <Link
             href="/cart"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-800 hover:bg-neutral-50"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors"
             aria-label="Cart"
             title="Cart"
           >
-            <ShoppingBag size={20} />
+            <ShoppingBag size={22} />
             {cartCount != null && cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-red-600 px-1.5 text-[11px] font-medium leading-5 text-white text-center">
+              <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
                 {cartCount}
               </span>
             )}
@@ -196,7 +205,10 @@ export default function Header() {
           <Show
             when="signed-in"
             fallback={
-              <Link href="/sign-in" className="text-neutral-800">
+              <Link
+                href="/sign-in"
+                className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium text-neutral-900 hover:bg-black/10 hover:text-black transition-colors"
+              >
                 Sign in
               </Link>
             }
@@ -217,7 +229,7 @@ export default function Header() {
           <button
             onClick={() => setSearchOpen((o) => !o)}
             aria-label={searchOpen ? "Close search" : "Search"}
-            className="inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
@@ -229,25 +241,32 @@ export default function Header() {
             </span>
           </Show>
 
-          {/* Cart — always visible */}
+          {/* Cart — always visible. Two-layer structure mirrors
+              NotificationBell + MessageIconLink: outer Link is the 44×44
+              tap target, inner span is the 36×36 visible hover circle.
+              Badge is positioned -top-1 -right-1 on the inner span (NOT
+              the outer Link) so all three mobile badges sit at the same
+              vertical position in the header row. */}
           <Link
             href="/cart"
-            className="relative inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px]"
             aria-label="Cart"
           >
-            <ShoppingBag size={20} />
-            {cartCount != null && cartCount > 0 && (
-              <span className="absolute right-1 top-1 min-w-[16px] rounded-full bg-red-600 px-1 text-[10px] font-medium leading-4 text-white text-center">
-                {cartCount}
-              </span>
-            )}
+            <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-900 hover:bg-black/10 transition-colors">
+              <ShoppingBag size={20} />
+              {cartCount != null && cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-medium leading-none text-white">
+                  {cartCount}
+                </span>
+              )}
+            </span>
           </Link>
 
           {/* Hamburger */}
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
-            className="inline-flex items-center justify-center p-2 text-neutral-800 min-h-[44px] min-w-[44px]"
+            className="inline-flex items-center justify-center p-2 text-neutral-900 hover:bg-black/10 rounded-full min-h-[44px] min-w-[44px]"
           >
             <Menu size={24} />
           </button>
@@ -263,7 +282,7 @@ export default function Header() {
             onClick={() => setSearchOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute top-full left-0 right-0 bg-white border-b shadow-sm p-3 z-50 md:hidden animate-slide-down">
+          <div className="absolute top-full left-0 right-0 bg-[#F7F5F0] border-b border-stone-200 shadow-sm p-3 z-50 md:hidden animate-slide-down">
             <SearchBar />
           </div>
         </>
@@ -292,7 +311,7 @@ export default function Header() {
             <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
               <Link
                 href="/"
-                className="flex items-center"
+                className="flex items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
                 aria-label="Grainline home"
                 onClick={() => setDrawerOpen(false)}
               >

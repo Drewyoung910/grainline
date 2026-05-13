@@ -50,7 +50,11 @@ export function filterAIReviewImageUrls(
   urls: string[] | undefined,
   isAllowedUrl: (url: string) => boolean,
 ): string[] {
-  return (urls ?? []).filter((url) => isAllowedUrl(url)).slice(0, 8);
+  // Cap matches the per-listing photo limit in `uploadRules.ts`
+  // (`listingImage` UPLOAD_MAX_COUNTS = 10). Bumped 8 → 10 when the
+  // photo cap was raised so AI review sees every photo and generates
+  // alt text for the full set.
+  return (urls ?? []).filter((url) => isAllowedUrl(url)).slice(0, 10);
 }
 
 export function normalizeDuplicateListingTitle(title: string) {

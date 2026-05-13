@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -31,11 +32,16 @@ export default function CustomOrderRequestForm({
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
   const [conversationId, setConversationId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const dialogRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useDialogFocus(open, dialogRef, handleClose);
   useBodyScrollLock(open);
@@ -94,9 +100,9 @@ export default function CustomOrderRequestForm({
         {triggerLabel ?? "Request a Custom Piece"}
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4 py-4"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) handleClose();
           }}
@@ -107,14 +113,14 @@ export default function CustomOrderRequestForm({
             aria-modal="true"
             aria-labelledby="custom-order-dialog-title"
             tabIndex={-1}
-            className="max-h-[calc(100svh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg border border-neutral-200 bg-[#F7F5F0] shadow-2xl"
+            className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-[#F7F5F0] shadow-xl overflow-hidden"
           >
-            <div className="flex items-center justify-between border-b border-neutral-200 bg-[#EDE8DC] px-6 py-4">
-              <h2 id="custom-order-dialog-title" className="font-display text-xl font-semibold text-neutral-900">Request a Custom Piece</h2>
+            <div className="flex shrink-0 items-center justify-between px-5 py-3 border-b border-stone-200/60 bg-[#EFEAE0]">
+              <h2 id="custom-order-dialog-title" className="text-base font-semibold">Request a Custom Piece</h2>
               <button
                 type="button"
                 onClick={handleClose}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-[#F7F5F0] text-2xl leading-none text-neutral-500 hover:text-neutral-900"
+                className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-full text-xl leading-none text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
                 aria-label="Close"
               >
                 ×
@@ -122,107 +128,109 @@ export default function CustomOrderRequestForm({
             </div>
 
             {success ? (
-              <div className="space-y-4 p-6 text-center">
-                <h3 className="font-display text-xl font-semibold">Request sent!</h3>
+              <div className="p-5 space-y-3 text-center overflow-y-auto">
+                <h3 className="text-base font-semibold">Request sent!</h3>
                 <p className="text-sm text-neutral-600">
-                  Your custom order request has been sent to {sellerName}. Check your messages for
-                  their reply.
+                  Your custom order request has been sent to {sellerName}. Check your messages for their reply.
                 </p>
-                <div className="flex gap-3 justify-center pt-2">
+                <div className="flex gap-2 justify-center pt-1">
                   {conversationId && (
                     <button
                       type="button"
                       onClick={() => router.push(`/messages/${conversationId}`)}
-                      className="rounded-md bg-[#2C1F1A] px-4 py-2 text-sm font-medium text-white hover:bg-[#3A2A24]"
+                      className="rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors"
                     >
-                      View Conversation
+                      View conversation
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md border border-neutral-200 bg-[#EDE8DC] px-4 py-2 text-sm font-medium hover:bg-[#E7DFD1]"
+                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
                   >
                     Close
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4 p-6">
-                {listingTitle && (
-                  <div className="rounded-md border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
-                    Requesting something similar to:{" "}
-                    <span className="font-medium">{listingTitle}</span>
+              <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                  {listingTitle && (
+                    <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      Requesting something similar to:{" "}
+                      <span className="font-medium">{listingTitle}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      What would you like made? <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      name="description"
+                      required
+                      maxLength={500}
+                      rows={3}
+                      placeholder="Describe what you'd like — wood type, style, purpose…"
+                      className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    />
                   </div>
-                )}
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-neutral-700">
-                    What would you like made? <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    name="description"
-                    required
-                    maxLength={500}
-                    rows={4}
-                    placeholder="Describe what you'd like — wood type, style, purpose…"
-                    className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
-                  />
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-700 mb-1">
+                      Dimensions or size
+                    </label>
+                    <input
+                      name="dimensions"
+                      type="text"
+                      maxLength={200}
+                      placeholder='e.g. 24" × 12" × 30"'
+                      className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-700 mb-1">Budget USD</label>
+                      <input
+                        name="budget"
+                        type="text"
+                        inputMode="decimal"
+                        pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
+                        placeholder="e.g. 250"
+                        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-700 mb-1">Timeline</label>
+                      <select
+                        name="timeline"
+                        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                      >
+                        {TIMELINE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {error && <p className="text-sm text-red-600">{error}</p>}
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-neutral-700">
-                    Any specific dimensions or size requirements?
-                  </label>
-                  <input
-                    name="dimensions"
-                    type="text"
-                    maxLength={200}
-                    placeholder='e.g. 24" wide × 12" deep × 30" tall'
-                    className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-neutral-700">Your budget in USD</label>
-                  <input
-                    name="budget"
-                    type="text"
-                    inputMode="decimal"
-                    pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
-                    placeholder="e.g. 250"
-                    className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-neutral-700">When do you need it?</label>
-                  <select
-                    name="timeline"
-                    className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
-                  >
-                    {TIMELINE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {error && <p className="text-sm text-red-600">{error}</p>}
-
-                <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                <div className="shrink-0 flex gap-2 border-t border-stone-200/60 bg-[#EFEAE0] px-5 py-3">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 rounded-md bg-[#2C1F1A] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#3A2A24] disabled:opacity-50"
+                    className="flex-1 rounded-md bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 py-2 text-sm font-semibold text-white transition-colors disabled:opacity-50"
                   >
-                    {submitting ? "Sending…" : "Send Custom Order Request"}
+                    {submitting ? "Sending…" : "Send request"}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-md border border-neutral-200 bg-[#EDE8DC] px-4 py-2.5 text-sm font-medium hover:bg-[#E7DFD1]"
+                    className="rounded-md bg-[#EFEAE0] hover:bg-[#E3DCCB] px-4 py-2 text-sm font-medium text-neutral-800 transition-colors"
                   >
                     Cancel
                   </button>
@@ -230,7 +238,8 @@ export default function CustomOrderRequestForm({
               </form>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

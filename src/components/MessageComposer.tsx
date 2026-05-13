@@ -51,7 +51,7 @@ export default function MessageComposer({
   }
 
   return (
-    <div className="sticky bottom-0 rounded-lg border border-neutral-200 bg-[#EDE8DC] px-3 pt-3 shadow-sm [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))]">
+    <div className="sticky bottom-0 sm:bottom-6 bg-[#EFEAE0] border-t border-neutral-200 sm:border sm:border-stone-200/70 sm:rounded-2xl sm:mt-3 px-3 sm:px-4 pt-3 [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_8px_-4px_rgba(0,0,0,0.05)] sm:shadow-md">
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((a) => (
@@ -70,7 +70,7 @@ export default function MessageComposer({
                   type="button"
                   aria-label="Remove file"
                   onClick={() => removeAttachment(a.id)}
-                  className="relative flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#E7DFD1] after:absolute after:-inset-2"
+                  className="relative rounded-full h-6 w-6 flex items-center justify-center hover:bg-neutral-100 after:absolute after:-inset-2"
                 >
                   ✕
                 </button>
@@ -89,9 +89,9 @@ export default function MessageComposer({
               container: "inline-block align-bottom",
               // Force visible circle + dark icon regardless of inherited styles
               button:
-                "h-11 w-11 rounded-full border border-neutral-200 bg-[#F7F5F0] " +
-                "p-0 flex items-center justify-center hover:bg-[#E7DFD1] " +
-                "focus:outline-none focus:ring-2 focus:ring-neutral-300",
+                "h-10 w-10 rounded-full bg-[#F7F5F0] " +
+                "p-0 flex items-center justify-center hover:bg-white " +
+                "focus:outline-none focus:ring-2 focus:ring-stone-300 transition-colors",
               allowedContent: "hidden",
             }}
             content={{
@@ -168,11 +168,14 @@ export default function MessageComposer({
             }
           }}
           placeholder={placeholder}
-          className="max-h-40 w-full resize-none overflow-y-auto rounded-md border border-neutral-200 bg-[#F7F5F0] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className="w-full resize-none rounded-2xl bg-[#F7F5F0] border-2 border-stone-300 px-4 py-2.5 text-sm focus:outline-none focus:border-stone-600 focus-visible:outline-none focus-visible:shadow-none max-h-40 overflow-y-auto transition-colors"
         />
 
         {canSend ? (
-          <SubmitButton className="flex min-h-[40px] min-w-[40px] items-center justify-center rounded-full bg-[#2C1F1A] px-3 py-2 text-white disabled:opacity-50 sm:px-4">
+          <SubmitButton
+            pendingLabel="Sending…"
+            className="rounded-full bg-[#2C1F1A] hover:bg-[#3A2A24] px-4 sm:px-5 py-2 text-white text-sm font-medium disabled:opacity-50 min-h-[40px] min-w-[40px] flex items-center justify-center transition-colors"
+          >
             <span className="hidden sm:inline">Send</span>
             <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
@@ -182,7 +185,7 @@ export default function MessageComposer({
           <button
             type="button"
             disabled
-            className="flex min-h-[40px] min-w-[40px] cursor-not-allowed items-center justify-center rounded-full border border-neutral-200 bg-[#F7F5F0] px-3 py-2 text-neutral-500 opacity-80 sm:px-4"
+            className="cursor-not-allowed rounded-full bg-[#2C1F1A]/40 px-4 sm:px-5 py-2 text-white text-sm font-medium min-h-[40px] min-w-[40px] flex items-center justify-center"
           >
             <span className="hidden sm:inline">Send</span>
             <svg className="sm:hidden h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

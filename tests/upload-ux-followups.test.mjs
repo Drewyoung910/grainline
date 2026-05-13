@@ -10,11 +10,11 @@ describe("upload UX follow-ups", () => {
   it("keeps upload limits and user-facing validation messages centralized", async () => {
     const rules = await import("../src/lib/uploadRules.ts");
 
-    assert.equal(rules.UPLOAD_MAX_SIZES.bannerImage, 8 * 1024 * 1024);
-    assert.equal(rules.uploadMaxSizeMb("bannerImage"), "8");
+    assert.equal(rules.UPLOAD_MAX_SIZES.bannerImage, 15 * 1024 * 1024);
+    assert.equal(rules.uploadMaxSizeMb("bannerImage"), "15");
     assert.match(
       rules.uploadTooLargeMessage("bannerImage", 12.4 * 1024 * 1024),
-      /Shop banner must be under 8 MB\. Your file is 12\.4 MB/,
+      /Shop banner must be under 15 MB\. Your file is 12\.4 MB/,
     );
     assert.match(
       rules.uploadTypeMessage("bannerImage", "image/heic"),
@@ -25,8 +25,8 @@ describe("upload UX follow-ups", () => {
       /Use \.mov, \.qt\./,
     );
     assert.throws(
-      () => rules.validateUploadFile("bannerImage", { size: 9 * 1024 * 1024, type: "image/jpeg" }, 0),
-      /Shop banner must be under 8 MB/,
+      () => rules.validateUploadFile("bannerImage", { size: 16 * 1024 * 1024, type: "image/jpeg" }, 0),
+      /Shop banner must be under 15 MB/,
     );
   });
 
@@ -63,8 +63,8 @@ describe("upload UX follow-ups", () => {
 
   it("opens crop UI for banner and avatar uploads, leaves listing photos at original aspect", () => {
     const modal = source("src/components/ImageCropModal.tsx");
-    assert.match(modal, /MAX_OUTPUT_LONG_EDGE = 2000/);
-    assert.match(modal, /canvas\.toBlob\(resolve, "image\/jpeg", 0\.9\)/);
+    assert.match(modal, /MAX_OUTPUT_LONG_EDGE = 2400/);
+    assert.match(modal, /canvas\.toBlob\(resolve, "image\/jpeg", 0\.95\)/);
     assert.match(modal, /setProcessing\(false\)/);
     assert.match(modal, /setZoom\(1\)/);
     assert.match(modal, /setOffset\(\{ x: 0, y: 0 \}\)/);
@@ -86,7 +86,7 @@ describe("upload UX follow-ups", () => {
   });
 
   it("keeps crop ratios aligned with public display surfaces", () => {
-    assert.match(source("src/app/seller/[id]/page.tsx"), /sm:aspect-\[3\/1\]/);
+    assert.match(source("src/app/seller/[id]/page.tsx"), /aspect-\[3\/1\]/);
     assert.match(source("src/components/ProfileBannerUploader.tsx"), /aspect-\[3\/1\]/);
     assert.match(source("src/components/SellerGallery.tsx"), /aspect-\[3\/2\]/);
     assert.match(source("src/components/ProfileWorkshopUploader.tsx"), /cropAspect=\{3 \/ 2\}/);

@@ -21,7 +21,6 @@ import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
-import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -180,26 +179,9 @@ async function updateListing(
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  // Check if substantive content changed (triggers AI re-review for ACTIVE listings)
-  const titleChanged = title !== listing.title;
-  const descChanged = description !== listing.description;
-  const categoryChanged = (category ?? null) !== (listing.category ?? null);
-  const tagsChanged = JSON.stringify([...tags].sort()) !== JSON.stringify([...listing.tags].sort());
-  const materialsChanged = JSON.stringify([...materials].sort()) !== JSON.stringify([...listing.materials].sort());
-  const metaDescriptionChanged = metaDescription !== listing.metaDescription;
-  const productDimsChanged =
-    productLengthIn !== listing.productLengthIn ||
-    productWidthIn !== listing.productWidthIn ||
-    productHeightIn !== listing.productHeightIn;
-  const listingTypeChanged = listingType !== listing.listingType;
-  const stockChanged = stockQuantity !== listing.stockQuantity;
-  const shippingChanged =
-    shipsWithinDays !== listing.shipsWithinDays ||
-    processingTimeMinDays !== listing.processingTimeMinDays ||
-    processingTimeMaxDays !== listing.processingTimeMaxDays;
-  const priceRatio = listing.priceCents > 0 ? Math.abs(priceCents - listing.priceCents) / listing.priceCents : 0;
+  // Detect price/variant changes for priceVersion bump and to flag this
+  // save as a content edit that should go through AI re-review.
   const priceValueChanged = priceCents !== listing.priceCents;
-  const priceChanged = priceRatio > 0.5; // >50% price change
   const previousVariantGroups = normalizeVariantGroupsForCompare(listing.variantGroups);
   const nextVariantGroups = normalizeVariantGroupsForCompare(
     variantGroups.map((group, groupIndex) => ({
@@ -214,23 +196,12 @@ async function updateListing(
     }))
   );
   const variantsChanged = JSON.stringify(previousVariantGroups) !== JSON.stringify(nextVariantGroups);
-  const substantiveChange =
-    titleChanged ||
-    descChanged ||
-    categoryChanged ||
-    tagsChanged ||
-    materialsChanged ||
-    metaDescriptionChanged ||
-    productDimsChanged ||
-    listingTypeChanged ||
-    stockChanged ||
-    shippingChanged ||
-    priceChanged ||
-    variantsChanged;
-  // Use the pre-edit status for the review trigger. Later AI state transitions
-  // are guarded by the updatedAt value from this write plus PENDING_REVIEW.
-  const statusBeforeEdit = listing.status;
-  const requiresReview = statusBeforeEdit === ListingStatus.ACTIVE && substantiveChange;
+  // Save on an ACTIVE listing triggers AI re-review of the new content.
+  // Photo upload alone does NOT (that was the original "kick-out" bug —
+  // photos route used to flip status mid-edit). The seller controls
+  // when review runs by clicking Save. Bypassing review by skipping
+  // Save isn't possible because Save is the only way to commit edits.
+  const wasActive = listing.status === ListingStatus.ACTIVE;
 
   const updatedListing = await prisma.$transaction(async (tx) => {
     const updated = await tx.listing.update({
@@ -256,11 +227,6 @@ async function updateListing(
         shipsWithinDays,
         processingTimeMinDays,
         processingTimeMaxDays,
-        ...(requiresReview ? {
-          status: ListingStatus.PENDING_REVIEW,
-          aiReviewFlags: ["pending-ai-review"],
-          aiReviewScore: 0,
-        } : {}),
       },
       select: { title: true, updatedAt: true },
     });
@@ -290,79 +256,85 @@ async function updateListing(
     return updated;
   });
 
-  // Re-trigger AI review if ACTIVE listing had substantive content changes
-  if (requiresReview) {
+  // Save on an ACTIVE listing routes the new content through AI re-review.
+  // - Photo upload via AddPhotosButton no longer flips status mid-edit (that
+  //   was the original "kick-out" bug).
+  // - Save is now the only path that triggers re-review on existing ACTIVE
+  //   listings — so sellers cannot silently bypass review by editing.
+  // - If AI approves: listing stays ACTIVE, new content is live.
+  // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
+  //   stays on the edit page (?saved=pending banner) instead of being
+  //   redirected to a 404'd public listing path.
+  if (wasActive) {
     try {
       const seller = await prisma.sellerProfile.findFirst({
         where: { listings: { some: { id: listingId } } },
         select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
       });
-      // If seller lost chargesEnabled, revert listing to DRAFT
-      if (!seller?.chargesEnabled) {
+      if (seller?.chargesEnabled) {
+        const photos = await prisma.photo.findMany({
+          where: { listingId },
+          select: { url: true },
+          orderBy: { sortOrder: "asc" },
+          take: 10,
+        });
+        const { reviewListingWithAI } = await import("@/lib/ai-review");
+        const aiResult = await reviewListingWithAI({
+          sellerId: seller.id,
+          title,
+          description,
+          priceCents,
+          category: category ?? null,
+          tags,
+          sellerName: seller.displayName,
+          listingCount: seller._count.listings,
+          imageUrls: photos.map((p) => p.url),
+        }).catch(() => ({
+          approved: false,
+          flags: ["AI review error"] as string[],
+          confidence: 0,
+          reason: "AI error",
+          altTexts: [] as string[],
+        }));
+
+        // Backfill AI-generated alt texts on photos missing seller-provided alt text.
+        const { backfillEmptyAltTexts } = await import("@/lib/photoAltTextBackfill");
+        await backfillEmptyAltTexts(listingId, aiResult.altTexts);
+
+        const shouldHold =
+          !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
+        if (shouldHold) {
+          await prisma.listing.updateMany({
+            where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            data: {
+              status: ListingStatus.PENDING_REVIEW,
+              aiReviewFlags: aiResult.flags,
+              aiReviewScore: aiResult.confidence,
+            },
+          });
+        } else {
+          // Stays ACTIVE; refresh AI metadata to reflect this review pass.
+          await prisma.listing.updateMany({
+            where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            data: {
+              aiReviewFlags: aiResult.flags,
+              aiReviewScore: aiResult.confidence,
+            },
+          });
+        }
+      } else {
+        // Seller lost chargesEnabled mid-edit: send the listing to draft.
         await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
+          where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
           data: { status: ListingStatus.DRAFT },
         });
-        return {
-          ok: false,
-          error: "Stripe disconnected — listing moved to draft. Reconnect Stripe to publish.",
-        };
       }
-      const photos = await prisma.photo.findMany({
-        where: { listingId },
-        select: { url: true },
-        orderBy: { sortOrder: "asc" },
-        take: 8,
-      });
-      const { reviewListingWithAI } = await import("@/lib/ai-review");
-      const aiResult = await reviewListingWithAI({
-        sellerId: seller?.id ?? "",
-        title,
-        description,
-        priceCents,
-        category: category ?? null,
-        tags,
-        sellerName: seller?.displayName ?? "Unknown",
-        listingCount: seller?._count.listings ?? 0,
-        imageUrls: photos.map((p) => p.url),
-      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error — sending to admin review", altTexts: [] as string[] }));
-
-      // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-      await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        const activated = await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: {
-            status: ListingStatus.ACTIVE,
-            aiReviewFlags: aiResult.flags,
-            aiReviewScore: aiResult.confidence,
-          },
-        });
-        if (activated.count === 0) {
-          return { ok: false, error: "Listing state changed during review. Refresh and try again." };
-        }
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET status = 'SOLD_OUT'
-          WHERE id = ${listingId}
-            AND "listingType" = 'IN_STOCK'
-            AND COALESCE("stockQuantity", 0) <= 0
-            AND status = 'ACTIVE'
-        `;
-      } else {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: {
-            status: ListingStatus.PENDING_REVIEW,
-            aiReviewFlags: aiResult.flags,
-            aiReviewScore: aiResult.confidence,
-          },
-        });
-      }
-    } catch {
+    } catch (err) {
+      console.error("[listing-update] AI re-review failed:", err);
+      // AI infrastructure error — flip to PENDING_REVIEW conservatively so
+      // staff can review the new content.
       await prisma.listing.updateMany({
-        where: { id: listingId, updatedAt: updatedListing.updatedAt, status: ListingStatus.PENDING_REVIEW },
+        where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
         data: {
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: ["AI review error"],
@@ -372,9 +344,11 @@ async function updateListing(
     }
   }
 
-  // Publish-on-save: if the user clicked the Publish button on the edit form,
-  // route the listing through publishListingAction (AI moderation + activation).
-  // Only publishable statuses get this treatment — ACTIVE/PENDING_REVIEW/SOLD/SOLD_OUT skip.
+  // Publish-on-save: if the user clicked the Publish button on the edit form
+  // (only shown for DRAFT/HIDDEN/REJECTED — these are not-yet-public statuses
+  // that need the publish flow to transition to ACTIVE). For ACTIVE source
+  // listings the Save branch above already runs AI re-review, so no Publish
+  // button is shown on ACTIVE.
   const wantsPublish = formData.get("publish") === "true";
   if (wantsPublish) {
     const current = await prisma.listing.findUnique({
@@ -411,7 +385,7 @@ async function updateListing(
     where: { id: listingId },
     select: { status: true, title: true },
   });
-  const finalStatus = final?.status ?? statusBeforeEdit;
+  const finalStatus = final?.status ?? listing.status;
   const finalTitle = final?.title ?? updatedListing.title;
 
   if (
@@ -468,7 +442,7 @@ async function deletePhotoAction(listingId: string, photoId: string) {
 
   const ok = await prisma.photo.findFirst({
     where: { id: photoId, listing: { seller: { user: { clerkId: userId } } } },
-    select: { url: true, listing: { select: { status: true, isPrivate: true, rejectionReason: true, updatedAt: true, sellerId: true } } },
+    select: { url: true, originalUrl: true, listing: { select: { status: true, isPrivate: true, rejectionReason: true, updatedAt: true, sellerId: true } } },
   });
   if (!ok) return;
   if (listingEditBlockReason(ok.listing)) return;
@@ -477,91 +451,19 @@ async function deletePhotoAction(listingId: string, photoId: string) {
   await deleteR2ObjectByUrl(ok.url).catch((error) => {
     console.error("[listing photo delete] R2 delete failed:", error);
   });
-
-  // Re-trigger AI review if listing is ACTIVE (image removed)
-  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-  if (listing?.status === ListingStatus.ACTIVE) {
-    const pending = await prisma.listing.updateMany({
-      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: listing.updatedAt },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["pending-ai-review"],
-        aiReviewScore: 0,
-      },
+  // Also clean up the preserved pre-crop source if it's a different
+  // object than `url` (e.g. the photo had been re-cropped at least once,
+  // so url and originalUrl point to different R2 objects).
+  if (ok.originalUrl && ok.originalUrl !== ok.url) {
+    await deleteR2ObjectByUrl(ok.originalUrl).catch((error) => {
+      console.error("[listing photo delete] R2 original delete failed:", error);
     });
-    if (pending.count === 0) return;
-    const reviewSnapshot = await prisma.listing.findUnique({
-      where: { id: listingId },
-      select: { updatedAt: true },
-    });
-    if (!reviewSnapshot) return;
-    try {
-      const currentPhotos = await prisma.photo.findMany({
-        where: { listingId },
-        select: { url: true },
-        orderBy: { sortOrder: "asc" },
-        take: 8,
-      });
-      if (currentPhotos.length === 0) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["missing-photo"], aiReviewScore: 0 },
-        });
-        return;
-      }
-      const seller = await prisma.sellerProfile.findFirst({
-        where: { listings: { some: { id: listingId } } },
-        select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
-      });
-      if (!seller?.chargesEnabled) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.DRAFT },
-        });
-        return;
-      }
-      const { reviewListingWithAI } = await import("@/lib/ai-review");
-      const aiResult = await reviewListingWithAI({
-        sellerId: seller?.id ?? "",
-        title: listing.title,
-        description: listing.description,
-        priceCents: listing.priceCents,
-        category: listing.category ?? null,
-        tags: listing.tags,
-        sellerName: seller?.displayName ?? "Unknown",
-        listingCount: seller?._count.listings ?? 0,
-        imageUrls: currentPhotos.map((p) => p.url),
-      }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error", altTexts: [] as string[] }));
-
-      // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-      await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-      if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-        });
-        await prisma.$executeRaw`
-          UPDATE "Listing"
-          SET status = 'SOLD_OUT'
-          WHERE id = ${listingId}
-            AND "listingType" = 'IN_STOCK'
-            AND COALESCE("stockQuantity", 0) <= 0
-            AND status = 'ACTIVE'
-        `;
-      } else {
-        await prisma.listing.updateMany({
-          where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-          data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-        });
-      }
-    } catch {
-      await prisma.listing.updateMany({
-        where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-        data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
-      });
-    }
   }
+
+  // Note: deleting a photo from an ACTIVE listing used to auto-flip the
+  // listing into PENDING_REVIEW and re-run AI review. Removed 2026-05-11 —
+  // sellers can manage their photos freely without triggering a re-review.
+  // AI review only runs at explicit publish transitions.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
@@ -579,6 +481,7 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
     where: { id: photoId, listingId, listing: { seller: { user: { clerkId: userId } } } },
     select: {
       url: true,
+      originalUrl: true,
       listing: {
         select: {
           id: true,
@@ -599,93 +502,36 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
   if (!existing) return;
   if (listingEditBlockReason(existing.listing)) return;
 
-  await prisma.photo.updateMany({
-    where: { id: photoId, listingId },
-    data: { url },
-  });
-  await deleteR2ObjectByUrl(existing.url).catch((error) => {
-    console.error("[listing photo replace] R2 delete failed:", error);
-  });
-
-  if (existing.listing.status === ListingStatus.ACTIVE) {
-    const pending = await prisma.listing.updateMany({
-      where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: existing.listing.updatedAt },
-      data: {
-        status: ListingStatus.PENDING_REVIEW,
-        aiReviewFlags: ["pending-ai-review"],
-        aiReviewScore: 0,
-      },
+  // Re-crop preserves the pre-crop source:
+  //   - If originalUrl is already populated (this isn't the first re-crop),
+  //     keep it untouched so future re-crops can still zoom out to the
+  //     original frame, and only delete the previously-displayed `url`
+  //     object from R2.
+  //   - If originalUrl is null (legacy photo or first re-crop under the
+  //     new field), lazily backfill it to the current `url` BEFORE we
+  //     overwrite `url` with the new cropped version. The current url
+  //     becomes the preserved original (do NOT delete it from R2). Future
+  //     re-crops will fetch this preserved original as the source.
+  if (existing.originalUrl) {
+    await prisma.photo.updateMany({
+      where: { id: photoId, listingId },
+      data: { url },
     });
-    if (pending.count === 1) {
-      const reviewSnapshot = await prisma.listing.findUnique({
-        where: { id: listingId },
-        select: { updatedAt: true },
-      });
-      if (reviewSnapshot) {
-        try {
-          const [seller, currentPhotos] = await Promise.all([
-            prisma.sellerProfile.findFirst({
-              where: { listings: { some: { id: listingId } } },
-              select: { id: true, displayName: true, chargesEnabled: true, _count: { select: { listings: true } } },
-            }),
-            prisma.photo.findMany({
-              where: { listingId },
-              select: { url: true },
-              orderBy: { sortOrder: "asc" },
-              take: 8,
-            }),
-          ]);
-          if (!seller?.chargesEnabled) {
-            await prisma.listing.updateMany({
-              where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-              data: { status: ListingStatus.DRAFT },
-            });
-          } else {
-            const { reviewListingWithAI } = await import("@/lib/ai-review");
-            const aiResult = await reviewListingWithAI({
-              sellerId: seller.id,
-              title: existing.listing.title,
-              description: existing.listing.description,
-              priceCents: existing.listing.priceCents,
-              category: existing.listing.category ?? null,
-              tags: existing.listing.tags,
-              sellerName: seller.displayName,
-              listingCount: seller._count.listings,
-              imageUrls: currentPhotos.map((p) => p.url),
-            }).catch(() => ({ approved: false, flags: ["AI review error"] as string[], confidence: 0, reason: "AI error", altTexts: [] as string[] }));
-
-            // Backfill AI-generated alt texts on photos missing seller-provided alt text.
-            await backfillEmptyAltTexts(listingId, aiResult.altTexts);
-
-            if (aiResult.approved && aiResult.flags.length === 0 && aiResult.confidence >= 0.8) {
-              await prisma.listing.updateMany({
-                where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-                data: { status: ListingStatus.ACTIVE, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-              });
-              await prisma.$executeRaw`
-                UPDATE "Listing"
-                SET status = 'SOLD_OUT'
-                WHERE id = ${listingId}
-                  AND "listingType" = 'IN_STOCK'
-                  AND COALESCE("stockQuantity", 0) <= 0
-                  AND status = 'ACTIVE'
-              `;
-            } else {
-              await prisma.listing.updateMany({
-                where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-                data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: aiResult.flags, aiReviewScore: aiResult.confidence },
-              });
-            }
-          }
-        } catch {
-          await prisma.listing.updateMany({
-            where: { id: listingId, updatedAt: reviewSnapshot.updatedAt, status: ListingStatus.PENDING_REVIEW },
-            data: { status: ListingStatus.PENDING_REVIEW, aiReviewFlags: ["AI review error"], aiReviewScore: 0 },
-          });
-        }
-      }
-    }
+    await deleteR2ObjectByUrl(existing.url).catch((error) => {
+      console.error("[listing photo replace] R2 delete failed:", error);
+    });
+  } else {
+    await prisma.photo.updateMany({
+      where: { id: photoId, listingId },
+      data: { url, originalUrl: existing.url },
+    });
+    // Intentionally NOT deleting existing.url from R2 — it becomes the
+    // preserved original for future re-crops.
   }
+
+  // Note: replacing a photo on an ACTIVE listing used to auto-flip it into
+  // PENDING_REVIEW and re-run AI review. Removed 2026-05-11 — seller can
+  // re-crop freely. AI review only runs at explicit publish transitions.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
@@ -762,8 +608,12 @@ export default async function EditListingPage(props: {
     );
   }
 
-  const remaining = Math.max(0, 8 - listing.photos.length);
+  const remaining = Math.max(0, 10 - listing.photos.length);
 
+  // Publish button is shown on not-yet-public statuses only — for ACTIVE
+  // listings the Save flow already runs AI re-review on edits, so no
+  // separate Publish/Resubmit button is needed (and shouldn't be visible —
+  // having one would imply Save bypasses review, which it does not).
   const canPublishFromEdit =
     listing.status === "DRAFT" ||
     listing.status === "HIDDEN" ||
@@ -798,9 +648,65 @@ export default async function EditListingPage(props: {
       )}
 
       <ActionForm action={updateListing.bind(null, id)} className="space-y-4 mb-10" preventEnterSubmit preserveOnError>
+        {/* Section order intentionally mirrors the create-listing page:
+            Title → Description → Meta → Materials → Product dimensions →
+            Price → Tags → Listing type/variants → Packaged dimensions.
+            Keep these in lockstep so the create and edit flows feel like
+            the same form. */}
         <div>
           <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
           <InputCharCounter name="title" maxLength={100} defaultValue={listing.title} required />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
+          <CharCounter name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Meta description
+            <span className="text-neutral-500 ml-1 font-normal">
+              — helps your listing rank in search results
+            </span>
+          </label>
+          <CharCounter
+            name="metaDescription"
+            maxLength={160}
+            rows={2}
+            defaultValue={listing.metaDescription ?? ""}
+            placeholder="Briefly describe your piece for Google search results (160 chars max)"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Materials used</label>
+          <input
+            name="materials"
+            defaultValue={(listing.materials ?? []).join(", ")}
+            placeholder="e.g. walnut, maple, brass hardware"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          />
+          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">
+            Product dimensions (inches)
+            <span className="text-neutral-500 ml-1 font-normal">optional</span>
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
+              defaultValue={listing.productLengthIn ?? ""}
+              placeholder="Length" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+            <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
+              defaultValue={listing.productWidthIn ?? ""}
+              placeholder="Width" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+            <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
+              defaultValue={listing.productHeightIn ?? ""}
+              placeholder="Height" className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
+          </div>
+          <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div>
@@ -812,7 +718,7 @@ export default async function EditListingPage(props: {
             pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
             defaultValue={(listing.priceCents / 100).toFixed(2)}
             required
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+            className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
         </div>
 
@@ -845,69 +751,18 @@ export default async function EditListingPage(props: {
           <label className="block text-sm font-medium text-neutral-700 mb-2">Packaged dimensions (cm / g)</label>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input name="packagedLengthCm" type="number" inputMode="decimal" step="0.1" placeholder="Length (cm)"
-                   defaultValue={listing.packagedLengthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedLengthCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="packagedWidthCm" type="number" inputMode="decimal" step="0.1" placeholder="Width (cm)"
-                   defaultValue={listing.packagedWidthCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedWidthCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="packagedHeightCm" type="number" inputMode="decimal" step="0.1" placeholder="Height (cm)"
-                   defaultValue={listing.packagedHeightCm ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedHeightCm ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
             <input name="packagedWeightGrams" type="number" inputMode="numeric" step="1" placeholder="Weight (g)"
-                   defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
+                   defaultValue={listing.packagedWeightGrams ?? ""} className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300" />
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             These should be the finished, ready-to-ship package size/weight per unit.
             If left blank, your seller default package will be used.
           </p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
-          <CharCounter name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Meta description
-            <span className="text-neutral-500 ml-1 font-normal">
-              — helps your listing rank in search results
-            </span>
-          </label>
-          <CharCounter
-            name="metaDescription"
-            maxLength={160}
-            rows={2}
-            defaultValue={listing.metaDescription ?? ""}
-            placeholder="Briefly describe your piece for Google search results (160 chars max)"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Materials used</label>
-          <input
-            name="materials"
-            defaultValue={(listing.materials ?? []).join(", ")}
-            placeholder="e.g. walnut, maple, brass hardware"
-            className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
-          />
-          <p className="text-xs text-neutral-500 mt-1">Comma-separated. Helps buyers find your piece.</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Product dimensions (inches)
-            <span className="text-neutral-500 ml-1 font-normal">optional</span>
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            <input name="productLengthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              defaultValue={listing.productLengthIn ?? ""}
-              placeholder="Length" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="productWidthIn" type="number" inputMode="decimal" step="0.1" min="0"
-              defaultValue={listing.productWidthIn ?? ""}
-              placeholder="Width" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-            <input name="productHeightIn" type="number" inputMode="decimal" step="0.1" min="0"
-              defaultValue={listing.productHeightIn ?? ""}
-              placeholder="Height" className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm" />
-          </div>
-          <p className="text-xs text-neutral-500 mt-1">The actual product size, not the shipping package.</p>
         </div>
 
         <div className="flex flex-col gap-3 pt-2 sm:flex-row">
@@ -954,7 +809,7 @@ export default async function EditListingPage(props: {
         </p>
 
         <EditPhotoGrid
-          photos={listing.photos.map((p) => ({ id: p.id, url: p.url, altText: p.altText }))}
+          photos={listing.photos.map((p) => ({ id: p.id, url: p.url, originalUrl: p.originalUrl, altText: p.altText }))}
           listingId={id}
           onReorder={reorderPhotos.bind(null, id)}
           onDelete={deletePhotoAction.bind(null, id)}

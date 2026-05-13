@@ -25,22 +25,22 @@ import { ShoppingBag } from "@/components/icons";
 function CartLoadingSkeleton() {
   return (
     <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
-      <div className="h-8 w-40 rounded-md bg-neutral-200 animate-pulse" />
-      <div className="card-section p-6 space-y-4">
-        <div className="h-6 w-48 rounded-md bg-neutral-200 animate-pulse" />
+      <div className="h-8 w-40 rounded-md bg-[#EFEAE0] animate-pulse" />
+      <div className="p-6 space-y-4">
+        <div className="h-6 w-48 rounded-md bg-[#EFEAE0] animate-pulse" />
         <div className="space-y-3">
           <div className="flex gap-4">
-            <div className="h-20 w-20 rounded-md bg-neutral-200 animate-pulse shrink-0" />
+            <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 w-3/4 rounded bg-neutral-200 animate-pulse" />
-              <div className="h-4 w-1/2 rounded bg-neutral-200 animate-pulse" />
+              <div className="h-4 w-3/4 rounded bg-[#EFEAE0] animate-pulse" />
+              <div className="h-4 w-1/2 rounded bg-[#EFEAE0] animate-pulse" />
             </div>
           </div>
           <div className="flex gap-4">
-            <div className="h-20 w-20 rounded-md bg-neutral-200 animate-pulse shrink-0" />
+            <div className="h-20 w-20 rounded-md bg-[#EFEAE0] animate-pulse shrink-0" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 w-2/3 rounded bg-neutral-200 animate-pulse" />
-              <div className="h-4 w-1/3 rounded bg-neutral-200 animate-pulse" />
+              <div className="h-4 w-2/3 rounded bg-[#EFEAE0] animate-pulse" />
+              <div className="h-4 w-1/3 rounded bg-[#EFEAE0] animate-pulse" />
             </div>
           </div>
         </div>
@@ -53,13 +53,13 @@ function CartEmptyState({ children, title = "Your cart is empty" }: { children: 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-8">
       <h1 className="font-display text-2xl font-semibold mb-6">Your cart</h1>
-      <div className="card-section p-10 text-center">
+      <div className="p-10 text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-700">
           <ShoppingBag size={28} />
         </div>
         <h2 className="text-lg font-medium text-neutral-900 mb-2">{title}</h2>
         <p className="text-sm text-neutral-500 max-w-sm mx-auto mb-6">
-          Browse handmade pieces from makers across the country and add what you love.
+          Pieces you save will appear here.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {children}
@@ -526,8 +526,8 @@ function CartPage() {
   // Render seller item list (used in review and shipping steps)
   function renderSellerSections() {
     return groups.map((g) => (
-      <section key={g.sellerId} className="card-section">
-        <header className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+      <section key={g.sellerId}>
+        <header className="flex items-center justify-between border-b border-neutral-200/70 pb-3">
           <div className="text-sm text-neutral-700">
             <span className="text-neutral-500">Maker:</span>{" "}
             <span className="font-medium">{g.sellerName}</span>
@@ -537,7 +537,7 @@ function CartPage() {
           </div>
         </header>
 
-        <ul className="divide-y divide-neutral-100">
+        <ul className="divide-y divide-neutral-200/60">
           {g.items.map((i) => {
             const img = i.listing.photos?.[0]?.url;
             const unitPriceCents = i.livePriceCents ?? i.priceCents;
@@ -546,7 +546,7 @@ function CartPage() {
             const quantitySelectId = `cart-quantity-${i.id}`;
 
             return (
-              <li key={i.id} className="flex items-center gap-3 px-4 py-3">
+              <li key={i.id} className="flex items-center gap-3 py-3">
                 {img ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={img} alt="" className="h-16 w-16 rounded object-cover" />
@@ -596,22 +596,42 @@ function CartPage() {
                       </span>
                     )}
 
-                    <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
-                      Qty
-                    </label>
-                    <select
-                      id={quantitySelectId}
-                      className="rounded-md border border-neutral-200 px-2 py-1 text-sm"
-                      value={i.quantity}
-                      onChange={(e) => setQuantity(i.id, Number(e.target.value))}
-                    >
-                      {Array.from({ length: Math.max(1, i.quantity, i.listing.maxQuantity ?? 99) }).map((_, idx) => {
-                        const n = idx + 1;
+                    {(() => {
+                      const maxQty = Math.max(1, i.quantity, i.listing.maxQuantity ?? 99);
+                      // When the listing's max is 1 (MADE_TO_ORDER or a single
+                      // remaining in-stock unit), the dropdown only has one
+                      // option which is confusing. Show a static label instead.
+                      if (maxQty === 1) {
                         return (
-                          <option key={n} value={n}>{n}</option>
+                          <span className="text-xs text-neutral-500 shrink-0">
+                            Qty {i.quantity}
+                            {i.listing.listingType === "MADE_TO_ORDER"
+                              ? " · Made to order"
+                              : " · only one available"}
+                          </span>
                         );
-                      })}
-                    </select>
+                      }
+                      return (
+                        <>
+                          <label htmlFor={quantitySelectId} className="text-xs text-neutral-500 shrink-0">
+                            Qty
+                          </label>
+                          <select
+                            id={quantitySelectId}
+                            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
+                            value={i.quantity}
+                            onChange={(e) => setQuantity(i.id, Number(e.target.value))}
+                          >
+                            {Array.from({ length: maxQty }).map((_, idx) => {
+                              const n = idx + 1;
+                              return (
+                                <option key={n} value={n}>{n}</option>
+                              );
+                            })}
+                          </select>
+                        </>
+                      );
+                    })()}
 
                     <button
                       type="button"
@@ -753,11 +773,11 @@ function CartPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-8 space-y-6">
-      <h1 className="text-2xl font-semibold">Your cart</h1>
+    <main className="mx-auto max-w-3xl p-4 sm:p-8 space-y-6">
+      <h1 className="font-display text-2xl font-semibold">Your cart</h1>
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 text-sm mb-6">
+      <div className="rounded-full bg-[#EFEAE0] px-4 py-2 inline-flex items-center gap-2 text-sm mb-6">
         {[
           { key: "review", label: "Cart" },
           { key: "address", label: "Address" },
@@ -765,10 +785,10 @@ function CartPage() {
           { key: "payment", label: "Payment" },
         ].map((s, i) => (
           <span key={s.key} className="flex items-center gap-2">
-            {i > 0 && <span className="text-neutral-300">→</span>}
+            {i > 0 && <span className="text-neutral-400">›</span>}
             <span className={
               step === s.key
-                ? "text-neutral-900 font-medium"
+                ? "text-neutral-900 font-semibold"
                 : "text-neutral-500"
             }>
               {s.label}
@@ -885,7 +905,7 @@ function CartPage() {
       {step === "shipping" && shippingAddress && (
         <>
           {/* Address summary */}
-          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
+          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-[#EFEAE0]">
             <p className="text-sm text-neutral-600">
               <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
               {shippingAddress.name}, {shippingAddress.line1},{" "}
@@ -931,7 +951,7 @@ function CartPage() {
             </div>
 
             {/* Order summary sidebar */}
-            <div className="lg:w-72 space-y-4">
+            <div className="lg:w-72 rounded-lg border border-stone-200/60 bg-[#EFEAE0] shadow-sm p-5 h-fit space-y-4">
               <h3 className="text-sm font-medium text-neutral-900">Order summary</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -997,7 +1017,7 @@ function CartPage() {
       {step === "payment" && clientSecrets.length > 0 && (
         <>
           {/* Address summary */}
-          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-stone-50 border border-neutral-200">
+          <div className="flex items-center justify-between gap-4 mb-6 p-3 rounded-md bg-[#EFEAE0]">
             <p className="text-sm text-neutral-600">
               <span className="font-medium text-neutral-900">Delivering to:</span>{" "}
               {shippingAddress?.name}, {shippingAddress?.line1},{" "}

@@ -1,0 +1,19 @@
+-- Drop the legacy unique index that pre-dates variant support.
+--
+-- Background: when the 2026-04-23 listing-variants migration replaced the
+-- 2-column @@unique([cartId, listingId]) with the 3-column
+-- @@unique([cartId, listingId, variantKey]), the DROP CONSTRAINT IF EXISTS
+-- statement silently did nothing on production. Prisma generates UNIQUE
+-- INDEXes (not named CONSTRAINTs) for @@unique blocks in older schema
+-- generations, so the IF-EXISTS check found no constraint to drop and
+-- moved on. The new 3-column index was added alongside the legacy 2-column
+-- index, leaving BOTH in place.
+--
+-- Effect: buyers who selected variants, added to cart, then changed variants
+-- and tried to add again hit P2002 because the legacy (cartId, listingId)
+-- index still enforced one-row-per-listing. The Sentry error
+-- `19b422ed5a0b4b61898e689a3b0e1795` traces back to this.
+--
+-- Fix: drop the legacy index. The 3-column index already exists and
+-- continues to enforce the intended uniqueness.
+DROP INDEX IF EXISTS "CartItem_cartId_listingId_key";

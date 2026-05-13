@@ -41,13 +41,15 @@ export async function GET(
     });
     if (!listing) return NextResponse.json({ listings: [] });
 
-    const { category, tags, priceCents, title } = listing;
+    const { category, tags, priceCents, title, sellerId } = listing;
 
     // Wide price range to get enough candidates
     const minPrice = Math.floor(priceCents * 0.1);
     const maxPrice = Math.ceil(priceCents * 10);
 
-    // Get up to 20 candidates via raw SQL with tag overlap + category match scoring
+    // Get up to 24 candidates via raw SQL with tag overlap + category match scoring.
+    // Exclude the same seller because "More from this maker" already covers
+    // same-seller items above the "You might also like" carousel.
     const rows = await prisma.$queryRaw<SimilarRow[]>`
       SELECT
         l.id,
@@ -74,6 +76,7 @@ export async function GET(
       JOIN "SellerProfile" sp ON sp.id = l."sellerId"
       WHERE
         l.id != ${id}
+        AND l."sellerId" != ${sellerId}
         AND l.status = 'ACTIVE'
         AND l."isPrivate" = false
         AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
@@ -89,7 +92,7 @@ export async function GET(
         (l.category = ${category ?? "OTHER"}::"Category") DESC,
         COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) DESC,
         ABS(l."priceCents" - ${priceCents}) ASC
-      LIMIT 20
+      LIMIT 24
     `;
 
     // Score each candidate with weighted similarity
@@ -106,18 +109,13 @@ export async function GET(
       return { ...r, totalScore };
     });
 
-    // Sort by total score descending, then keep at most one result per seller so
-    // a single shop cannot dominate the carousel.
+    // Sort by total score descending and take the top TARGET. At launch the
+    // marketplace is small enough that per-seller dedup leaves the carousel
+    // half-empty; "More from this maker" already covers same-seller items
+    // above this section, so allowing duplicates here is fine.
     scored.sort((a, b) => b.totalScore - a.totalScore);
-    const seenSellerIds = new Set<string>();
-    const deduped: typeof scored = [];
-    for (const row of scored) {
-      if (seenSellerIds.has(row.sellerId)) continue;
-      seenSellerIds.add(row.sellerId);
-      deduped.push(row);
-      if (deduped.length >= 12) break;
-    }
-    const results = deduped;
+    const TARGET = 12;
+    const results = scored.slice(0, TARGET);
 
     return NextResponse.json({
       listings: results.map((r) => ({

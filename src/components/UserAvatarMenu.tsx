@@ -67,7 +67,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-neutral-200 shadow-sm"
+        className="block h-8 w-8 cursor-pointer overflow-hidden rounded-full bg-transparent p-0 ring-1 ring-neutral-200 hover:ring-2 hover:ring-white shadow-sm hover:shadow-md transition-all"
         style={{ borderRadius: "9999px" }}
         aria-label="Account menu"
         aria-expanded={open}
@@ -91,7 +91,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
           id={menuId}
           role="menu"
           aria-label="Account"
-          className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+          className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white text-neutral-900 shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Header — avatar + name */}
           <div role="presentation" className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">

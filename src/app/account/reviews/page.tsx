@@ -43,7 +43,7 @@ export default async function MyReviewsPage() {
       ) : (
         <div className="space-y-4">
           {reviews.map((r) => (
-            <div key={r.id} className="card-section p-4 flex gap-4">
+            <div key={r.id} className="rounded-lg border border-stone-200/60 bg-[#EFEAE0] p-4 flex gap-4">
               {r.listing.photos[0]?.url && (
                 <Link href={publicListingPath(r.listing.id, r.listing.title)} className="shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -34,7 +34,7 @@ export default function ListingTypeFields({
         <select
           name="category"
           defaultValue={category ?? ""}
-          className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+          className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
         >
           <option value="">-- Select a category --</option>
           {CATEGORY_VALUES.map((v) => (
@@ -54,8 +54,8 @@ export default function ListingTypeFields({
             onClick={() => changeType("MADE_TO_ORDER")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "MADE_TO_ORDER"
-                ? "border-neutral-900 bg-neutral-50 text-neutral-900"
-                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                ? "border-neutral-900 bg-neutral-900 text-white"
+                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
             Made to Order
@@ -65,8 +65,8 @@ export default function ListingTypeFields({
             onClick={() => changeType("IN_STOCK")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "IN_STOCK"
-                ? "border-neutral-900 bg-neutral-50 text-neutral-900"
-                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                ? "border-neutral-900 bg-neutral-900 text-white"
+                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
             }`}
           >
             In Stock
@@ -89,7 +89,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="1"
                 defaultValue={minDays ?? ""}
-                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />
             </label>
             <label className="text-sm">
@@ -102,7 +102,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="7"
                 defaultValue={maxDays ?? ""}
-                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />
             </label>
           </div>
@@ -125,7 +125,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="1"
                 defaultValue={stockQuantity ?? 1}
-                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />
             </label>
             <label className="text-sm">
@@ -138,7 +138,7 @@ export default function ListingTypeFields({
                 min="1"
                 placeholder="3"
                 defaultValue={shipsWithinDays ?? ""}
-                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-neutral-200 bg-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
               />
             </label>
           </div>
