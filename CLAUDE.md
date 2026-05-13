@@ -2443,7 +2443,7 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 
 ### Cart
 - `POST /api/cart/add` accepts `selectedVariantOptionIds[]`; validates exactly one option per variant group, rejects duplicates/invalid/out-of-stock options, calculates adjusted price; uses `variantKey` (sorted option IDs joined by comma) for unique constraint
-- `POST /api/cart/update` rewritten to use `cartItemId` (supports multiple cart items for same listing with different variants); falls back to `listingId` for backward compat
+- `POST /api/cart/update` rewritten to use `cartItemId` (supports multiple cart items for same listing with different variants); falls back to `listingId` for backward compat. Quantity increases re-check live listing state, private reservation ownership, seller Stripe readiness, and the shared `sellerOrderBlockReason()` helper before mutating.
 - `GET /api/cart` returns `variantLabels[]` per item (resolved from option IDs to "Group: Label" strings)
 - Cart page shows variant labels below item title
 

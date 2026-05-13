@@ -30,6 +30,12 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(cartAdd, /sellerOrderBlockReason\(listing\.seller\)/);
     assert.match(cartAdd, /sellerOrderBlockMessage\(sellerBlockReason\)/);
 
+    const cartUpdate = source("src/app/api/cart/update/route.ts");
+    assert.match(cartUpdate, /acceptingNewOrders: true/);
+    assert.match(cartUpdate, /stripeAccountVersion: true/);
+    assert.match(cartUpdate, /sellerOrderBlockReason\(listing\.seller\)/);
+    assert.match(cartUpdate, /sellerOrderBlockMessage\(sellerBlockReason\)/);
+
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     assert.match(singleCheckout, /acceptingNewOrders: true/);
     assert.match(singleCheckout, /stripeAccountVersion: true/);

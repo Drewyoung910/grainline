@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -65,7 +66,10 @@ export async function POST(req: Request) {
           seller: {
             select: {
               chargesEnabled: true,
+              stripeAccountId: true,
               vacationMode: true,
+              acceptingNewOrders: true,
+              stripeAccountVersion: true,
               user: { select: { banned: true, deletedAt: true } },
             },
           },
@@ -79,11 +83,15 @@ export async function POST(req: Request) {
       }
       if (
         !listing.seller.chargesEnabled ||
-        listing.seller.vacationMode ||
+        !listing.seller.stripeAccountId ||
         listing.seller.user.banned ||
         listing.seller.user.deletedAt
       ) {
         return NextResponse.json({ error: "This seller is not currently accepting orders." }, { status: 400 });
+      }
+      const sellerBlockReason = sellerOrderBlockReason(listing.seller);
+      if (sellerBlockReason) {
+        return NextResponse.json({ error: sellerOrderBlockMessage(sellerBlockReason) }, { status: 400 });
       }
       if (listing?.listingType === "MADE_TO_ORDER" && quantity > 1) {
         return NextResponse.json(

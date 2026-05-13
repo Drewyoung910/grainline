@@ -3758,6 +3758,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 126. **[FIXED 2026-05-13] Stripe cart checkout webhook trusted mutable live cart rows after payment** — the cart webhook built `OrderItem` rows by looping over `cart.items`, even though those rows can change after a buyer opens Stripe Checkout and before `checkout.session.completed` arrives. This could silently skip a paid order if the cart was emptied, or include an unpaid cart item if the cart was changed after session creation. The webhook now builds order items from Stripe's immutable paid `line_items`, uses live cart rows only for optional variant-label enrichment, and transaction-revalidates seller vacation/orderability plus listing active/private-reservation state before order side effects. Regression coverage guards against reintroducing `for (const it of cart.items)` in order creation and verifies finalization revalidation includes seller/listing state.
 
+127. **[FIXED 2026-05-13] Cart quantity updates missed the shared acceptingNewOrders guard** — `/api/cart/update` already rechecked active listing state, private reservations, seller Stripe readiness, vacation, and banned/deleted account state before increasing quantity, but it did not call `sellerOrderBlockReason()`. Existing checkout routes would still block payment, so impact was a server-side parity/UX gap rather than a completed-order bypass. The update route now selects `acceptingNewOrders` and `stripeAccountVersion`, calls the shared seller orderability helper, and has a source guardrail in `tests/order-state-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
