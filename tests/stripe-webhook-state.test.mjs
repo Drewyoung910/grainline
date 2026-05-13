@@ -9,6 +9,7 @@ const {
   checkoutPriceDriftState,
   disputeCaseAction,
   invalidCheckoutBuyerReason,
+  invalidCheckoutListingReason,
   invalidCheckoutSellerReason,
   isLikelyThinStripeEventObject,
   isStaleStripeEvent,
@@ -150,7 +151,26 @@ describe("Stripe webhook state helpers", () => {
     );
     assert.match(invalidCheckoutSellerReason(seller({ chargesEnabled: false })), /disabled/);
     assert.match(invalidCheckoutSellerReason(seller({ stripeAccountId: null })), /disconnected/);
+    assert.match(invalidCheckoutSellerReason(seller({ vacationMode: true })), /vacation mode/);
+    assert.match(invalidCheckoutSellerReason(seller({ acceptingNewOrders: false })), /stopped accepting/);
     assert.equal(invalidCheckoutSellerReason(seller()), null);
+  });
+
+  it("explains why a completed checkout listing is no longer eligible", () => {
+    const listing = {
+      id: "listing_1",
+      status: "ACTIVE",
+      isPrivate: false,
+      reservedForUserId: null,
+    };
+    assert.match(invalidCheckoutListingReason(null, "buyer_1"), /could not be verified/);
+    assert.match(invalidCheckoutListingReason({ ...listing, status: "SOLD_OUT" }, "buyer_1"), /no longer active/);
+    assert.match(
+      invalidCheckoutListingReason({ ...listing, isPrivate: true, reservedForUserId: "buyer_2" }, "buyer_1"),
+      /reservation changed/,
+    );
+    assert.equal(invalidCheckoutListingReason({ ...listing, isPrivate: true, reservedForUserId: "buyer_1" }, "buyer_1"), null);
+    assert.equal(invalidCheckoutListingReason(listing, "buyer_1"), null);
   });
 
   it("explains why a completed checkout buyer is no longer eligible", () => {
@@ -168,6 +188,7 @@ describe("Stripe webhook state helpers", () => {
       checkoutInvalidReasonState({
         buyer: { id: "buyer_1", banned: false, deletedAt: null },
         sellers: [seller({ chargesEnabled: false }), seller({ id: "seller_2", userId: "user_2" })],
+        listings: [{ id: "listing_1", status: "ACTIVE", isPrivate: false, reservedForUserId: null }],
       }),
       {
         reason: "Seller Stripe account was disabled before payment completion.",
@@ -179,9 +200,10 @@ describe("Stripe webhook state helpers", () => {
       checkoutInvalidReasonState({
         buyer: { id: "buyer_1", banned: true, deletedAt: null },
         sellers: [seller()],
+        listings: [{ id: "listing_1", status: "SOLD_OUT", isPrivate: false, reservedForUserId: null }],
       }),
       {
-        reason: "Buyer account was suspended before payment completion.",
+        reason: "Buyer account was suspended before payment completion. Listing was no longer active before payment completion.",
         buyerUserId: null,
         sellerUserIds: [],
       },

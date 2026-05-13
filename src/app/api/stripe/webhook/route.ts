@@ -733,9 +733,7 @@ export async function POST(req: Request) {
         // The live cart may have been modified between session creation and webhook.
         const stripeLineItems: CheckoutLineItem[] = (s as { line_items?: { data?: CheckoutLineItem[] } }).line_items?.data ?? [];
         type PaidItem = { listingId: string; cartItemId?: string; variantKey?: string; quantity: number; priceCents: number };
-        const paidByCartItemId = new Map<string, PaidItem>();
-        const paidByListingVariant = new Map<string, PaidItem[]>();
-        const paidByListing = new Map<string, PaidItem[]>();
+        const paidItems: PaidItem[] = [];
         for (const li of stripeLineItems) {
           const prod = typeof li.price?.product === "object" ? li.price?.product : null;
           const lid = prod?.metadata?.listingId;
@@ -747,14 +745,7 @@ export async function POST(req: Request) {
               quantity: li.quantity,
               priceCents: li.price?.unit_amount ?? 0,
             };
-            if (paid.cartItemId) paidByCartItemId.set(paid.cartItemId, paid);
-            const variantKey = `${paid.listingId}:${paid.variantKey ?? ""}`;
-            const variantArr = paidByListingVariant.get(variantKey) ?? [];
-            variantArr.push(paid);
-            paidByListingVariant.set(variantKey, variantArr);
-            const listingArr = paidByListing.get(paid.listingId) ?? [];
-            listingArr.push(paid);
-            paidByListing.set(paid.listingId, listingArr);
+            paidItems.push(paid);
           }
         }
 
@@ -786,17 +777,98 @@ export async function POST(req: Request) {
           },
         });
 
-        if (!cart || cart.items.length === 0) {
+        if (paidItems.length === 0) {
+          Sentry.captureMessage("Paid cart checkout had no recoverable listing line items", {
+            level: "error",
+            tags: { source: "stripe_webhook_cart_paid_items_missing" },
+            extra: { stripeSessionId: sessionId, cartId, sellerIdFromMeta },
+          });
           await releaseCheckoutLock(checkoutLockKey, sessionId);
-          return NextResponse.json({ ok: true });
+          throw new Error("Paid cart checkout had no recoverable listing line items");
+        }
+
+        const cartItems = cart?.items ?? [];
+        const cartItemById = new Map(cartItems.map((item) => [item.id, item]));
+        const cartItemsByListingVariant = new Map<string, typeof cartItems>();
+        const cartItemsByListing = new Map<string, typeof cartItems>();
+        for (const item of cartItems) {
+          const listingVariantKey = `${item.listingId}:${item.variantKey ?? ""}`;
+          const variantItems = cartItemsByListingVariant.get(listingVariantKey) ?? [];
+          variantItems.push(item);
+          cartItemsByListingVariant.set(listingVariantKey, variantItems);
+          const listingItems = cartItemsByListing.get(item.listingId) ?? [];
+          listingItems.push(item);
+          cartItemsByListing.set(item.listingId, listingItems);
+        }
+
+        const paidListingIds = [...new Set(paidItems.map((item) => item.listingId))];
+        const paidListings = await prisma.listing.findMany({
+          where: { id: { in: paidListingIds } },
+          include: {
+            photos: { orderBy: { sortOrder: "asc" as const }, select: { url: true } },
+            seller: {
+              select: {
+                id: true,
+                userId: true,
+                displayName: true,
+                chargesEnabled: true,
+                stripeAccountId: true,
+                vacationMode: true,
+                acceptingNewOrders: true,
+                user: { select: { id: true, banned: true, deletedAt: true } },
+              },
+            },
+            variantGroups: { include: { options: true } },
+          },
+        });
+        const paidListingById = new Map(paidListings.map((listing) => [listing.id, listing]));
+        const usedCartItemIds = new Set<string>();
+        const takeCartItem = (paid: PaidItem) => {
+          if (paid.cartItemId) {
+            const cartItem = cartItemById.get(paid.cartItemId);
+            if (cartItem && !usedCartItemIds.has(cartItem.id)) {
+              usedCartItemIds.add(cartItem.id);
+              return cartItem;
+            }
+          }
+          const variantItems = cartItemsByListingVariant.get(`${paid.listingId}:${paid.variantKey ?? ""}`) ?? [];
+          const variantItem = variantItems.find((item) => !usedCartItemIds.has(item.id));
+          if (variantItem) {
+            usedCartItemIds.add(variantItem.id);
+            return variantItem;
+          }
+          const listingItems = cartItemsByListing.get(paid.listingId) ?? [];
+          const listingItem = listingItems.find((item) => !usedCartItemIds.has(item.id));
+          if (listingItem) {
+            usedCartItemIds.add(listingItem.id);
+            return listingItem;
+          }
+          return null;
+        };
+        const checkoutItems = paidItems
+          .map((paid) => {
+            const cartItem = takeCartItem(paid);
+            const listing = cartItem?.listing ?? paidListingById.get(paid.listingId);
+            return listing ? { paid, cartItem, listing } : null;
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+
+        if (checkoutItems.length === 0) {
+          Sentry.captureMessage("Paid cart checkout could not resolve any listing records", {
+            level: "error",
+            tags: { source: "stripe_webhook_cart_listings_missing" },
+            extra: { stripeSessionId: sessionId, cartId, sellerIdFromMeta, paidListingIds },
+          });
+          await releaseCheckoutLock(checkoutLockKey, sessionId);
+          throw new Error("Paid cart checkout could not resolve listing records");
         }
 
         const maxProcessingDaysCart = Math.max(
           3,
-          ...cart.items.map((it) =>
-            it.listing.listingType === "IN_STOCK"
-              ? (it.listing.shipsWithinDays ?? 1)
-              : (it.listing.processingTimeMaxDays ?? 0)
+          ...checkoutItems.map((item) =>
+            item.listing.listingType === "IN_STOCK"
+              ? (item.listing.shipsWithinDays ?? 1)
+              : (item.listing.processingTimeMaxDays ?? 0)
           )
         );
         const { processingDeadline: cartProcessingDeadline, estimatedDeliveryDate: cartEstDelivery } =
@@ -811,7 +883,8 @@ export async function POST(req: Request) {
           });
           if (existingOrder) return null;
 
-          const cartSellerIds = [...new Set(cart.items.map((item) => item.listing.sellerId))];
+          const cartSellerIds = [...new Set(checkoutItems.map((item) => item.listing.sellerId))];
+          const cartListingIds = [...new Set(checkoutItems.map((item) => item.listing.id))];
           await lockUserRowsForUpdate(tx, [buyerId]);
           await lockSellerProfileRowsForUpdate(tx, cartSellerIds);
           const cartSellerUserRefs = await tx.sellerProfile.findMany({
@@ -833,13 +906,22 @@ export async function POST(req: Request) {
               userId: true,
               chargesEnabled: true,
               stripeAccountId: true,
+              vacationMode: true,
+              acceptingNewOrders: true,
               user: { select: { id: true, banned: true, deletedAt: true } },
             },
           });
+          const transactionListings = await tx.listing.findMany({
+            where: { id: { in: cartListingIds } },
+            select: { id: true, status: true, isPrivate: true, reservedForUserId: true },
+          });
           const transactionSellerById = new Map(transactionSellers.map((seller) => [seller.id, seller]));
+          const transactionListingById = new Map(transactionListings.map((listing) => [listing.id, listing]));
           const cartInvalidState = checkoutInvalidReasonState({
             buyer: transactionBuyer,
             sellers: cartSellerIds.map((sellerId) => transactionSellerById.get(sellerId)),
+            listings: cartListingIds.map((listingId) => transactionListingById.get(listingId)),
+            buyerUserId: buyerId,
           });
 
           const order = await tx.order.create({
@@ -903,23 +985,15 @@ export async function POST(req: Request) {
             },
           });
 
-          for (const it of cart.items) {
-            // Use Stripe's immutable line_items as authoritative source for
-            // quantity and price. Falls back to cart data only if the listing
-            // wasn't found in Stripe's line items (e.g. gift wrapping line item
-            // doesn't have a listingId).
-            const listingVariantKey = `${it.listingId}:${it.variantKey ?? ""}`;
-            const paid =
-              paidByCartItemId.get(it.id) ??
-              paidByListingVariant.get(listingVariantKey)?.shift() ??
-              paidByListing.get(it.listingId)?.shift();
-            const orderQuantity = paid?.quantity ?? it.quantity;
-            const orderPriceCents = paid?.priceCents ?? it.priceCents;
+          for (const checkoutItem of checkoutItems) {
+            const { paid, cartItem, listing } = checkoutItem;
+            const orderQuantity = paid.quantity;
+            const orderPriceCents = paid.priceCents;
             const priceDrift = checkoutPriceDriftState({
-              stripeUnitAmountCents: paid?.priceCents ?? null,
-              expectedUnitAmountCents: it.priceCents,
-              checkoutPriceVersion: it.priceVersion,
-              currentPriceVersion: it.listing.priceVersion,
+              stripeUnitAmountCents: paid.priceCents,
+              expectedUnitAmountCents: cartItem?.priceCents ?? listing.priceCents,
+              checkoutPriceVersion: cartItem?.priceVersion ?? null,
+              currentPriceVersion: listing.priceVersion,
             });
             if (priceDrift) {
               Sentry.captureMessage("Stripe checkout line price drift detected", {
@@ -928,8 +1002,8 @@ export async function POST(req: Request) {
                 extra: {
                   stripeSessionId: sessionId,
                   cartId,
-                  cartItemId: it.id,
-                  listingId: it.listingId,
+                  cartItemId: cartItem?.id ?? paid.cartItemId ?? null,
+                  listingId: paid.listingId,
                   ...priceDrift,
                 },
               });
@@ -937,9 +1011,9 @@ export async function POST(req: Request) {
 
             // Resolve variant selections from cart item option IDs
             const variantSnapshot: { groupName: string; optionLabel: string; priceAdjustCents: number }[] = [];
-            if (it.selectedVariantOptionIds?.length) {
-              for (const optId of it.selectedVariantOptionIds) {
-                for (const g of (it.listing.variantGroups ?? [])) {
+            if (cartItem?.selectedVariantOptionIds?.length) {
+              for (const optId of cartItem.selectedVariantOptionIds) {
+                for (const g of (listing.variantGroups ?? [])) {
                   const opt = (g.options ?? []).find((o: { id: string }) => o.id === optId);
                   if (opt) {
                     variantSnapshot.push({
@@ -955,17 +1029,17 @@ export async function POST(req: Request) {
             await tx.orderItem.create({
               data: {
                 orderId: order.id,
-                listingId: it.listingId,
+                listingId: paid.listingId,
                 quantity: orderQuantity,
                 priceCents: orderPriceCents,
                 listingSnapshot: {
-                  title: it.listing.title,
-                  description: it.listing.description ?? "",
-                  priceCents: it.listing.priceCents,
-                  imageUrls: it.listing.photos?.map((p: { url: string }) => p.url) ?? [],
-                  category: it.listing.category ?? null,
-                  tags: it.listing.tags ?? [],
-                  sellerName: it.listing.seller?.displayName ?? "",
+                  title: listing.title,
+                  description: listing.description ?? "",
+                  priceCents: listing.priceCents,
+                  imageUrls: listing.photos?.map((p: { url: string }) => p.url) ?? [],
+                  category: listing.category ?? null,
+                  tags: listing.tags ?? [],
+                  sellerName: listing.seller?.displayName ?? "",
                   capturedAt: new Date().toISOString(),
                 },
                 selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
@@ -974,11 +1048,11 @@ export async function POST(req: Request) {
 
             // Stock was already decremented at checkout time (reservation).
             // Just check if we need to mark SOLD_OUT.
-            if (it.listing.listingType === "IN_STOCK") {
+            if (listing.listingType === "IN_STOCK") {
               await tx.$executeRaw`
                 UPDATE "Listing"
                 SET status = 'SOLD_OUT'
-                WHERE id = ${it.listingId}
+                WHERE id = ${paid.listingId}
                   AND "stockQuantity" <= 0
                   AND status = 'ACTIVE'
               `;
@@ -1048,6 +1122,8 @@ export async function POST(req: Request) {
                 displayName: true,
                 chargesEnabled: true,
                 stripeAccountId: true,
+                vacationMode: true,
+                acceptingNewOrders: true,
                 user: { select: { id: true, banned: true, deletedAt: true } },
               },
             },
@@ -1133,12 +1209,18 @@ export async function POST(req: Request) {
           const transactionListing = await tx.listing.findUnique({
             where: { id: listingId },
             select: {
+              id: true,
+              status: true,
+              isPrivate: true,
+              reservedForUserId: true,
               seller: {
                 select: {
                   id: true,
                   userId: true,
                   chargesEnabled: true,
                   stripeAccountId: true,
+                  vacationMode: true,
+                  acceptingNewOrders: true,
                   user: { select: { id: true, banned: true, deletedAt: true } },
                 },
               },
@@ -1147,6 +1229,8 @@ export async function POST(req: Request) {
           const singleInvalidState = checkoutInvalidReasonState({
             buyer: transactionBuyer,
             sellers: [transactionListing?.seller],
+            listings: [transactionListing],
+            buyerUserId: buyerId,
           });
 
           const order = await tx.order.create({

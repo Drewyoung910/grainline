@@ -239,6 +239,10 @@ Hardening notes:
 - RLS is not currently enabled as a broad database policy layer. Current protection is Clerk middleware plus route/action-level ownership predicates. Targeted RLS or lower-privilege database roles should be evaluated in a dedicated pass after route predicates are fully inventoried.
 - Open checkout sessions remain valid for their short Stripe expiry window after some listing-level seller actions unless those actions explicitly expire sessions. This is not logged as a verified bug yet because checkout sessions reserve stock and represent a buyer already in payment flow, but future hardening can decide whether listing archive/unpublish/seller vacation should also expire open sessions.
 
+Follow-up fix from this pass:
+
+- **Fixed 2026-05-13:** cart checkout webhook finalization no longer trusts mutable live `CartItem` rows after payment. Stripe's immutable paid `line_items` are now the source of truth for `OrderItem` creation, live cart rows are only optional enrichment for variant labels, and the transaction revalidates seller vacation/orderability plus listing active/private-reservation state before order side effects. Regression coverage lives in `tests/stripe-webhook-cart-finalization.test.mjs` and `tests/stripe-webhook-state.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

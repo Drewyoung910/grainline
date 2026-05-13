@@ -23,6 +23,8 @@ export type CheckoutSellerState = {
   userId: string;
   chargesEnabled: boolean;
   stripeAccountId: string | null;
+  vacationMode?: boolean | null;
+  acceptingNewOrders?: boolean | null;
   user: { id: string; banned: boolean; deletedAt: Date | null } | null;
 };
 
@@ -30,6 +32,13 @@ export type CheckoutBuyerState = {
   id: string;
   banned: boolean;
   deletedAt: Date | null;
+} | null;
+
+export type CheckoutListingState = {
+  id: string;
+  status: string;
+  isPrivate: boolean;
+  reservedForUserId: string | null;
 } | null;
 
 export type CheckoutInvalidReasonState = {
@@ -269,6 +278,8 @@ export function invalidCheckoutSellerReason(seller: CheckoutSellerState | null |
   if (seller.user?.deletedAt) return "Seller account was deleted before payment completion.";
   if (!seller.chargesEnabled) return "Seller Stripe account was disabled before payment completion.";
   if (!seller.stripeAccountId) return "Seller Stripe account was disconnected before payment completion.";
+  if (seller.vacationMode) return "Seller entered vacation mode before payment completion.";
+  if (seller.acceptingNewOrders === false) return "Seller stopped accepting new orders before payment completion.";
   return null;
 }
 
@@ -279,9 +290,23 @@ export function invalidCheckoutBuyerReason(buyer: CheckoutBuyerState | undefined
   return null;
 }
 
+export function invalidCheckoutListingReason(
+  listing: CheckoutListingState | undefined,
+  buyerUserId: string | null | undefined,
+): string | null {
+  if (!listing) return "Listing could not be verified at payment completion.";
+  if (listing.status !== "ACTIVE") return "Listing was no longer active before payment completion.";
+  if (listing.isPrivate && listing.reservedForUserId !== buyerUserId) {
+    return "Listing reservation changed before payment completion.";
+  }
+  return null;
+}
+
 export function checkoutInvalidReasonState(input: {
   buyer: CheckoutBuyerState | undefined;
   sellers: Array<CheckoutSellerState | null | undefined>;
+  listings?: Array<CheckoutListingState | undefined>;
+  buyerUserId?: string | null;
 }): CheckoutInvalidReasonState {
   const buyerReason = invalidCheckoutBuyerReason(input.buyer);
   const invalidSellers = new Map<string, { reason: string; sellerUserId: string }>();
@@ -294,13 +319,22 @@ export function checkoutInvalidReasonState(input: {
       sellerUserId: seller?.userId ?? "",
     });
   }
+  const invalidListings = new Map<string, string>();
+  const effectiveBuyerUserId = buyerReason ? null : input.buyer?.id ?? input.buyerUserId ?? null;
+  for (let index = 0; index < (input.listings ?? []).length; index += 1) {
+    const listing = input.listings?.[index];
+    const reason = invalidCheckoutListingReason(listing, effectiveBuyerUserId);
+    if (!reason) continue;
+    invalidListings.set(listing?.id ?? `missing:${index}`, reason);
+  }
 
   return {
     reason: [
       buyerReason,
       ...[...invalidSellers.values()].map((value) => value.reason),
+      ...invalidListings.values(),
     ].filter(Boolean).join(" "),
-    buyerUserId: buyerReason ? null : input.buyer?.id ?? null,
+    buyerUserId: effectiveBuyerUserId,
     sellerUserIds: [...invalidSellers.values()]
       .map((value) => value.sellerUserId)
       .filter(Boolean),

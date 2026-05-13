@@ -3756,6 +3756,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 125. **[FIXED 2026-05-13] Existing-listing photo edits were not fully save-gated** — `EditPhotoGrid` now stages upload/reorder/delete/re-crop/alt-text edits client-side and submits `photoManifestJson` inside the main listing edit form. `updateListing()` persists the full photo manifest inside the Save path, then runs ACTIVE listing AI review on the saved photo set. The old `/api/listings/[id]/photos` immediate mutation route now returns HTTP 410 so stale clients cannot bypass the Save boundary. Regression coverage verifies no immediate `Photo` create/update/delete path remains outside Save.
 
+126. **[FIXED 2026-05-13] Stripe cart checkout webhook trusted mutable live cart rows after payment** — the cart webhook built `OrderItem` rows by looping over `cart.items`, even though those rows can change after a buyer opens Stripe Checkout and before `checkout.session.completed` arrives. This could silently skip a paid order if the cart was emptied, or include an unpaid cart item if the cart was changed after session creation. The webhook now builds order items from Stripe's immutable paid `line_items`, uses live cart rows only for optional variant-label enrichment, and transaction-revalidates seller vacation/orderability plus listing active/private-reservation state before order side effects. Regression coverage guards against reintroducing `for (const it of cart.items)` in order creation and verifies finalization revalidation includes seller/listing state.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

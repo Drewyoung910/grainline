@@ -2452,8 +2452,9 @@ Full variant system allowing sellers to add custom option groups (like Etsy "Var
 - Checkout-seller route recalculates current server-side variant-adjusted prices from live listing + selected options at checkout. It does not trust stale `CartItem.priceCents`.
 
 ### Webhook
-- Cart path: Stripe line-item metadata includes `cartItemId` and `variantKey`; webhook matches paid line items by `cartItemId`, then `listingId+variantKey`, then listing-only as a legacy fallback. Resolves `it.selectedVariantOptionIds` against `it.listing.variantGroups → options` to build `selectedVariants` snapshot on OrderItem.
-- Single (buy-now) path: parses `selectedVariants` from Stripe session metadata onto OrderItem
+- Cart path: Stripe line-item metadata includes `listingId`, `cartItemId`, and `variantKey`. The webhook treats Stripe's paid `line_items` as the authoritative source of which order items were actually charged; it may use the live `CartItem` row only to enrich variant labels. Do **not** loop over live `cart.items` when creating `OrderItem` rows, because the buyer can change or clear a cart after Checkout opens and before Stripe completes payment.
+- Cart path finalization revalidates buyer state, seller state (`chargesEnabled`, `stripeAccountId`, `vacationMode`, `acceptingNewOrders`, banned/deleted user), and listing state (`ACTIVE`, private reservation still belongs to the buyer) inside the transaction before order side effects. If a paid session no longer passes those checks, the order is flagged for staff review and the blocked-checkout refund path runs.
+- Single (buy-now) path: parses `selectedVariants` from Stripe session metadata onto OrderItem and performs the same transaction-time seller/listing eligibility revalidation before order side effects.
 
 ### Order display
 - Buyer order detail (`dashboard/orders/[id]`): shows "Group: Option · Group: Option" below item title when `selectedVariants` exists
