@@ -116,6 +116,8 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(source("src/app/api/stripe/connect/login-link/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /createLoginLink\(seller\.stripeAccountId\)/);
     assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /isSupportedStripeConnectAccountVersion\(seller\.stripeAccountVersion\)/);
+    assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /ensureUserByClerkId\(userId\)/);
+    assert.match(source("src/app/api/stripe/connect/dashboard/route.ts"), /accountAccessErrorResponse\(err\)/);
 
     const webhook = source("src/app/api/stripe/webhook/route.ts");
     assert.match(webhook, /event\.type === "account\.updated"/);

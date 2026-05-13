@@ -3789,6 +3789,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 139. **[HARDENED 2026-05-13] Public-form and email-suppression Sentry telemetry no longer includes raw email addresses** — support/data-request route failures and email suppression failures now use `hashEmailForTelemetry()` for deterministic correlation instead of putting normalized email addresses into Sentry `extra` data. This preserves debugging signal without sending raw public-form or suppression emails to the error tracker. Source guardrail: `tests/privacy-telemetry.test.mjs`.
 
+140. **[HARDENED 2026-05-13] Legacy Stripe Connect dashboard-link route now enforces local account state inside the route** — `/api/stripe/connect/dashboard` already required Clerk auth and seller ownership, but unlike the newer Connect create/status/login-link routes it did not call `ensureUserByClerkId()` and `accountAccessErrorResponse()` locally before issuing a Stripe dashboard login link. The route now matches the newer routes so banned/deleted local accounts cannot rely on middleware assumptions for a Stripe dashboard-link surface. Source guardrail: `tests/stripe-connect-v2.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

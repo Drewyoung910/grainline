@@ -354,6 +354,27 @@ Follow-up fix from this pass:
 
 - **Fixed 2026-05-13:** support/data-request routes and email suppression failures no longer send raw email addresses to Sentry `extra` payloads. They now use `hashEmailForTelemetry()` for deterministic non-raw correlation when needed. Regression coverage lives in `tests/privacy-telemetry.test.mjs`.
 
+## 2026-05-13 Stripe Connect/account-lifecycle route spot check
+
+Scope:
+
+- `src/app/api/stripe/connect/create/route.ts`
+- `src/app/api/stripe/connect/status/route.ts`
+- `src/app/api/stripe/connect/login-link/route.ts`
+- `src/app/api/stripe/connect/dashboard/route.ts`
+- `src/app/api/account/delete/route.ts`
+- `src/lib/accountDeletion.ts`
+
+Results:
+
+- Connect account creation uses the Accounts v2 raw endpoint, idempotent creation keys, safe internal return URLs, supported-version checks, and current-user seller ownership.
+- Connect status/login-link routes require a signed-in local user, apply account-state checks, and scope reads/writes to the current seller profile.
+- Account deletion checks open obligations before deleting the Clerk user, rejects connected Stripe accounts before local anonymization, uses the 30-second local deletion transaction, explicitly disables seller orderability, and logs partial-failure reconciliation evidence.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** the older `/api/stripe/connect/dashboard` route now matches the newer Connect routes by resolving `ensureUserByClerkId()` and passing `accountAccessErrorResponse()` before issuing a Stripe dashboard login link. This prevents the route from relying only on middleware for banned/deleted local-account state. Regression coverage lives in `tests/stripe-connect-v2.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
