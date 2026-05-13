@@ -208,8 +208,39 @@ Out-of-scope verified issue found during this pass:
 
 - Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.
 
+## 2026-05-13 payment/webhook/upload spot check
+
+Scope:
+
+- `src/app/api/cart/checkout/single/route.ts`
+- `src/app/api/cart/checkout-seller/route.ts`
+- `src/app/api/stripe/webhook/route.ts`
+- `src/app/api/stripe/webhook/v2/route.ts`
+- `src/app/api/upload/image/route.ts`
+- `src/app/api/upload/presign/route.ts`
+- `src/app/api/upload/verify/route.ts`
+- `src/lib/urlValidation.ts`
+- `src/lib/checkoutSessionLock.ts`
+- `src/lib/checkoutStockRestore.ts`
+
+Results:
+
+- Checkout uses Stripe-hosted embedded Checkout Sessions with `transfer_data.amount` rather than collecting card data directly. This keeps raw card handling out of Grainline's database and app code.
+- Checkout routes re-check authentication/local account state, seller orderability, private listing access, self-purchase, signed shipping-rate tokens, variant selections, minimum seller-transfer math, and atomic stock reservation before creating a Stripe session.
+- Checkout locks use Redis payload hashes and session IDs to prevent duplicate sessions from silently diverging. Stock restoration is wired for expired/failed sessions and guarded by transaction-level advisory locks plus idempotency records.
+- Legacy Stripe snapshot webhooks and Connect v2 thin webhooks use separate routes and separate signing secrets. Both routes reject missing/invalid signatures, stale events, and duplicate event IDs through `stripeWebhookEvent` state.
+- Upload image route processes images server-side through `sharp`, strips metadata, enforces endpoint-specific size/type/count rules, requires seller profile for seller-only endpoints, and deletes objects when post-upload public availability checks fail.
+- Direct presign route rejects all image MIME types so images cannot bypass processing/metadata stripping. Direct uploads require signed verification tokens, user-scoped keys, matching object size, and matching content type before callers can treat the object as accepted.
+- Result: no verified payment/webhook/upload vulnerability found in this spot check.
+
+Hardening notes:
+
+- Grainline still handles sensitive business data even though Stripe handles raw card data: user accounts, addresses, orders, messages, upload content, seller payout state, refund state, admin tools, and webhook-derived payment state.
+- RLS is not currently enabled as a broad database policy layer. Current protection is Clerk middleware plus route/action-level ownership predicates. Targeted RLS or lower-privilege database roles should be evaluated in a dedicated pass after route predicates are fully inventoried.
+- Open checkout sessions remain valid for their short Stripe expiry window after some listing-level seller actions unless those actions explicitly expire sessions. This is not logged as a verified bug yet because checkout sessions reserve stock and represent a buyer already in payment flow, but future hardening can decide whether listing archive/unpublish/seller vacation should also expire open sessions.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
-- Prioritize listing edit/create photo save-boundary fix, admin actions, reviews/review replies/votes, verification/guild routes, blog write routes, upload routes, and webhook replay/idempotency.
+- Prioritize remaining admin actions, reviews/review replies/votes, verification/guild routes, blog write routes, and a dedicated checkout-session-expiry policy review for seller/listing availability changes.
 - Add regression tests for each verified issue before or with the fix.
