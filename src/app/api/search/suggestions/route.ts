@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { ListingStatus } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { searchRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 import { auth } from "@clerk/nextjs/server";
@@ -13,6 +12,8 @@ import {
   LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY,
   normalizeSearchSuggestionQuery,
 } from "@/lib/searchSuggestionState";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimitOpen(searchRatelimit, getIP(req));
@@ -45,13 +46,10 @@ export async function GET(req: NextRequest) {
   const [listings, sellers, fuzzyRows] = await Promise.all([
     // Exact title prefix / substring matches
     prisma.listing.findMany({
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
-        seller: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } },
+      where: publicListingWhere({
         title: { contains: q, mode: "insensitive" },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-      },
+      }),
       select: { title: true },
       take: 4,
       orderBy: { createdAt: "desc" },
@@ -59,14 +57,11 @@ export async function GET(req: NextRequest) {
 
     // Seller name matches
     prisma.sellerProfile.findMany({
-      where: {
+      where: activeSellerProfileWhere({
         displayName: { contains: q, mode: "insensitive" },
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
-        listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } },
+        listings: { some: publicListingWhere() },
         ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      },
+      }),
       select: { displayName: true },
       take: 2,
     }),
@@ -82,6 +77,7 @@ export async function GET(req: NextRequest) {
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
             AND sp."vacationMode" = false
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND u.banned = false
             AND u."deletedAt" IS NULL
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
@@ -97,6 +93,7 @@ export async function GET(req: NextRequest) {
           WHERE l.status = 'ACTIVE' AND l."isPrivate" = false
             AND sp."chargesEnabled" = true
             AND sp."vacationMode" = false
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND u.banned = false
             AND u."deletedAt" IS NULL
             AND similarity(l.title, ${q}) > ${LISTING_FUZZY_SUGGESTION_MIN_SIMILARITY}
@@ -129,6 +126,7 @@ export async function GET(req: NextRequest) {
             OR (
               sp."chargesEnabled" = true
               AND sp."vacationMode" = false
+              AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
               AND seller_user.banned = false
               AND seller_user."deletedAt" IS NULL
             )
@@ -152,6 +150,7 @@ export async function GET(req: NextRequest) {
             OR (
               sp."chargesEnabled" = true
               AND sp."vacationMode" = false
+              AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
               AND seller_user.banned = false
               AND seller_user."deletedAt" IS NULL
             )

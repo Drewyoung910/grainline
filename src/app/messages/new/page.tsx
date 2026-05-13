@@ -60,6 +60,7 @@ export default async function NewConversationPage({
         seller: {
           select: {
             chargesEnabled: true,
+            stripeAccountVersion: true,
             vacationMode: true,
             user: { select: { id: true, banned: true, deletedAt: true } },
           },

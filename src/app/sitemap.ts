@@ -5,6 +5,7 @@ import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
 
@@ -61,27 +62,21 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
 
   const [sellers, sellersWithCustomerPhotos, blogPosts, openCommissions] = await Promise.all([
     prisma.sellerProfile.findMany({
-      where: {
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
+      where: activeSellerProfileWhere({
         listings: { some: publicListingWhere() },
-      },
+      }),
       select: { id: true, displayName: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,
     }),
     prisma.sellerProfile.findMany({
-      where: {
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
+      where: activeSellerProfileWhere({
         listings: {
           some: publicListingDetailWhere({
             reviews: { some: { photos: { some: {} } } },
           }),
         },
-      },
+      }),
       select: { id: true, displayName: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
       take: SITEMAP_ENTRY_LIMIT,
@@ -111,8 +106,8 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
         OR: [
           { listings: { some: publicListingWhere() } },
           { listingCityMetros: { some: publicListingWhere() } },
-          { sellerProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } } },
-          { sellerCityProfiles: { some: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } } },
+          { sellerProfiles: { some: activeSellerProfileWhere() } },
+          { sellerCityProfiles: { some: activeSellerProfileWhere() } },
         ],
       },
       select: { slug: true, updatedAt: true, parentMetroId: true },

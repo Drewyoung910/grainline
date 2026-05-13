@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedUserIdsFor } from "@/lib/blocks";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
+import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import CustomerPhotosGallery from "@/components/CustomerPhotosGallery";
 
@@ -18,14 +19,11 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: { displayName: true, chargesEnabled: true, user: { select: { banned: true, deletedAt: true } } },
+  const seller = await prisma.sellerProfile.findFirst({
+    where: visibleSellerProfileWhere({ id: sellerId }),
+    select: { displayName: true },
   });
   if (!seller) return {};
-  if (!seller.chargesEnabled || seller.user?.banned || seller.user?.deletedAt) {
-    return { robots: { index: false, follow: false } };
-  }
   const name = seller.displayName ?? "Maker";
   return {
     title: `Customer photos from ${name} | Grainline`,
@@ -45,7 +43,6 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     select: {
       id: true,
       displayName: true,
-      chargesEnabled: true,
       user: { select: { id: true, banned: true, deletedAt: true, clerkId: true } },
     },
   });
@@ -59,7 +56,12 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
     meId = me?.id ?? null;
   }
   const isOwner = !!userId && seller.user?.clerkId === userId;
-  if (!isOwner && !seller.chargesEnabled) return notFound();
+  if (!isOwner) {
+    const isVisibleSeller = await prisma.sellerProfile.count({
+      where: visibleSellerProfileWhere({ id: seller.id }),
+    });
+    if (!isVisibleSeller) return notFound();
+  }
 
   const blockedUserIds = await getBlockedUserIdsFor(meId);
   if (seller.user?.id && blockedUserIds.has(seller.user.id)) {

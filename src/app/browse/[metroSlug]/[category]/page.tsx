@@ -6,13 +6,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
-import { ListingStatus, Category } from "@prisma/client";
+import { Category } from "@prisma/client";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
+import { publicListingWhere } from "@/lib/listingVisibility";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -31,12 +32,10 @@ export async function generateStaticParams() {
     const isMajor = !metro.parentMetroId;
     const groups = await prisma.listing.groupBy({
       by: ["category"],
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
+      where: publicListingWhere({
         category: { not: null },
         ...(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
-      },
+      }),
       _count: { _all: true },
     });
     for (const g of groups) {
@@ -113,14 +112,11 @@ export default async function BrowseMetroCategoryPage({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const listingWhere = {
-    status: ListingStatus.ACTIVE,
-    isPrivate: false,
+  const listingWhere = publicListingWhere({
     category: categoryKey as Category,
-    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-  };
+  });
 
   let savedSet = new Set<string>();
   if (meDbId) {

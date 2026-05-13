@@ -14,6 +14,7 @@ import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 
 const PAGE_SIZE = 20;
@@ -43,19 +44,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
+  const seller = await prisma.sellerProfile.findFirst({
+    where: visibleSellerProfileWhere({ id: sellerId }),
     select: {
       displayName: true,
-      chargesEnabled: true,
-      vacationMode: true,
-      user: { select: { banned: true, deletedAt: true } },
     },
   });
   if (!seller) return {};
-  if (!seller.chargesEnabled || seller.vacationMode || seller.user?.banned || seller.user?.deletedAt) {
-    return { robots: { index: false, follow: false } };
-  }
   const name = seller.displayName ?? "Maker";
   return {
     title: { absolute: `${name}'s Shop — Grainline` },
@@ -118,7 +113,17 @@ export default async function SellerShopPage({
   }
 
   const isOwner = !!userId && seller.user?.clerkId === userId;
-  if (!isOwner && (!seller.chargesEnabled || seller.user?.banned || seller.user?.deletedAt)) {
+  if (seller.user?.banned || seller.user?.deletedAt) {
+    return notFound();
+  }
+  if (!isOwner) {
+    const isVisibleSeller = await prisma.sellerProfile.count({
+      where: visibleSellerProfileWhere({ id: seller.id }),
+    });
+    if (!isVisibleSeller) return notFound();
+  }
+
+  if (isOwner && (seller.user?.banned || seller.user?.deletedAt)) {
     return notFound();
   }
 

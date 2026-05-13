@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
           bp."sellerProfileId" IS NULL
           OR (
             sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND sp."vacationMode" = false
             AND seller_user.banned = false
             AND seller_user."deletedAt" IS NULL
@@ -60,6 +62,7 @@ export async function GET(req: NextRequest) {
           bp."sellerProfileId" IS NULL
           OR (
             sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND sp."vacationMode" = false
             AND seller_user.banned = false
             AND seller_user."deletedAt" IS NULL
@@ -71,12 +74,9 @@ export async function GET(req: NextRequest) {
 
     // Author / seller display name matches
     prisma.sellerProfile.findMany({
-      where: {
+      where: activeSellerProfileWhere({
         displayName: { contains: q, mode: "insensitive" },
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
-      },
+      }),
       select: { id: true, displayName: true },
       take: 3,
     }),

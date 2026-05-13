@@ -1,6 +1,7 @@
 // src/app/sellers/map/page.tsx
 import { prisma } from "@/lib/db";
 import SellersMap from "@/components/SellersMap";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,7 @@ export default async function SellersMapPage() {
       lat: { not: null },
       lng: { not: null },
       publicMapOptIn: true,
-      chargesEnabled: true,
-      vacationMode: false,
-      user: { banned: false, deletedAt: null },
+      ...activeSellerProfileWhere(),
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }], // exact pins only
     },
     select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },

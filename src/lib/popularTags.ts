@@ -12,6 +12,7 @@ export const getPopularListingTags = unstable_cache(
       WHERE l.status = 'ACTIVE'
         AND l."isPrivate" = false
         AND sp."chargesEnabled" = true
+        AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
         AND sp."vacationMode" = false
         AND u.banned = false
         AND u."deletedAt" IS NULL

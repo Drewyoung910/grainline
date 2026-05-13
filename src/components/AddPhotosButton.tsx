@@ -8,6 +8,7 @@ import { uploadedFileUrls } from "@/lib/uploadedFileUrl";
 
 type AddPhotosResponse = {
   added?: number;
+  status?: "ACTIVE" | "PENDING_REVIEW" | "DRAFT";
   warning?: string;
   error?: string;
 };
@@ -71,6 +72,18 @@ export default function AddPhotosButton({
         const body = await res.json().catch(() => ({} as AddPhotosResponse)) as AddPhotosResponse;
         if (!res.ok) {
           emitToast(body.error ?? "Photos uploaded, but they could not be attached to the listing.", "error");
+          return;
+        }
+
+        if (body.status === "PENDING_REVIEW") {
+          emitToast("Photos added. Your listing is under review before it goes live.", "info");
+          router.push(`/listing/${listingId}?preview=1`);
+          return;
+        }
+
+        if (body.status === "DRAFT") {
+          emitToast("Photos added, but reconnect Stripe payouts before publishing.", "error");
+          router.refresh();
           return;
         }
 

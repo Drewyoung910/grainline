@@ -6,6 +6,8 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const viewport: Viewport = {
   themeColor: "#1C1917",
@@ -67,24 +69,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       OR: [
         {
           listings: {
-            some: {
-              status: "ACTIVE",
-              isPrivate: false,
-              seller: {
-                chargesEnabled: true,
-                vacationMode: false,
-                user: { banned: false, deletedAt: null },
-              },
-            },
+            some: publicListingWhere(),
           },
         },
         {
           sellerProfiles: {
-            some: {
-              chargesEnabled: true,
-              vacationMode: false,
-              user: { banned: false, deletedAt: null },
-            },
+            some: activeSellerProfileWhere(),
           },
         },
       ],

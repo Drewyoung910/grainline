@@ -5,6 +5,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import type { Metadata } from "next";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const metadata: Metadata = {
   title: "Find Local Woodworkers Near You | Grainline Makers Map",
@@ -64,20 +65,12 @@ export default async function AllSellersMapPage({
       OR: [
         {
           sellerProfiles: {
-            some: {
-              chargesEnabled: true,
-              vacationMode: false,
-              user: { banned: false, deletedAt: null },
-            },
+            some: activeSellerProfileWhere(),
           },
         },
         {
           sellerCityProfiles: {
-            some: {
-              chargesEnabled: true,
-              vacationMode: false,
-              user: { banned: false, deletedAt: null },
-            },
+            some: activeSellerProfileWhere(),
           },
         },
       ],
@@ -99,9 +92,7 @@ export default async function AllSellersMapPage({
   const sellers = await prisma.sellerProfile.findMany({
     where: {
       publicMapOptIn: true,
-      chargesEnabled: true,
-      vacationMode: false,
-      user: { banned: false, deletedAt: null },
+      ...activeSellerProfileWhere(),
       lat: { not: null },
       lng: { not: null },
       OR: [{ radiusMeters: null }, { radiusMeters: 0 }],

@@ -1,7 +1,7 @@
 // src/app/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { ListingStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { unstable_cache } from "next/cache";
 import { Suspense } from "react";
@@ -22,6 +22,8 @@ import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -44,12 +46,6 @@ const featuredMakerInclude = {
 } satisfies Prisma.SellerProfileInclude;
 
 type FeaturedMaker = Prisma.SellerProfileGetPayload<{ include: typeof featuredMakerInclude }>;
-
-const featuredMakerWhere = {
-  chargesEnabled: true,
-  vacationMode: false,
-  user: { banned: false, deletedAt: null },
-} satisfies Prisma.SellerProfileWhereInput;
 
 function makerWeekIndex(count: number) {
   if (count <= 0) return 0;
@@ -75,7 +71,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
 
   // Tier 1: admin-featured (featuredUntil > now)
   const curated = await prisma.sellerProfile.findMany({
-    where: { ...featuredMakerWhere, featuredUntil: { gt: now } },
+    where: activeSellerProfileWhere({ featuredUntil: { gt: now } }),
     orderBy: { featuredUntil: "desc" },
     include: featuredMakerInclude,
     take: 2,
@@ -84,11 +80,10 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
 
   // Tier 2: weekly Guild rotation (deterministic, fills remaining slots)
   if (picked.length < 2) {
-    const guildWhere = {
-      ...featuredMakerWhere,
+    const guildWhere = activeSellerProfileWhere({
       guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
       ...(seen.size > 0 ? { id: { notIn: [...seen] } } : {}),
-    } satisfies Prisma.SellerProfileWhereInput;
+    });
     const guildCount = await prisma.sellerProfile.count({ where: guildWhere });
     if (guildCount > 0) {
       const startIdx = makerWeekIndex(guildCount);
@@ -123,6 +118,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
       JOIN "User" u ON u.id = sp."userId"
       LEFT JOIN "SellerRatingSummary" srs ON srs."sellerProfileId" = sp.id
       WHERE sp."chargesEnabled" = true
+        AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
         AND sp."vacationMode" = false
         AND u.banned = false
         AND u."deletedAt" IS NULL
@@ -139,7 +135,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
     const candidateIds = topReviewedRows.map((r) => r.sellerId).filter((id) => !seen.has(id));
     if (candidateIds.length > 0) {
       const candidates = await prisma.sellerProfile.findMany({
-        where: { ...featuredMakerWhere, id: { in: candidateIds } },
+        where: activeSellerProfileWhere({ id: { in: candidateIds } }),
         include: featuredMakerInclude,
       });
       // Preserve the SQL ordering
@@ -242,12 +238,10 @@ export default async function HomePage() {
   ] = await Promise.all([
     // New Arrivals: prefer last 30 days, fall back to newest if fewer than 12
     prisma.listing.findMany({
-      where: {
-        status: ListingStatus.ACTIVE, isPrivate: false,
+      where: publicListingWhere({
         createdAt: { gte: new Date(Date.now() - 30 * 86400000) },
-        seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
         ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-      },
+      }),
       orderBy: { createdAt: "desc" },
       take: 12,
       include: {
@@ -268,11 +262,9 @@ export default async function HomePage() {
       if (results.length >= 12) return results;
       // Fall back to newest without date filter
       return prisma.listing.findMany({
-        where: {
-          status: ListingStatus.ACTIVE, isPrivate: false,
-          seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
+        where: publicListingWhere({
           ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-        },
+        }),
         orderBy: { createdAt: "desc" },
         take: 12,
         include: {
@@ -292,7 +284,10 @@ export default async function HomePage() {
       });
     }),
     prisma.listing.findMany({
-      where: { status: ListingStatus.ACTIVE, isPrivate: false, qualityScore: { gt: 0 }, seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } }, ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}) },
+      where: publicListingWhere({
+        qualityScore: { gt: 0 },
+        ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
+      }),
       orderBy: { qualityScore: "desc" },
       take: 12,
       include: {
@@ -312,23 +307,22 @@ export default async function HomePage() {
       },
     }),
     prisma.sellerProfile.findMany({
-      where: {
+      where: activeSellerProfileWhere({
         publicMapOptIn: true,
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
         lat: { not: null },
         lng: { not: null },
         OR: [{ radiusMeters: null }, { radiusMeters: 0 }],
         ...(blockedSellerIds.length > 0 ? { id: { notIn: blockedSellerIds } } : {}),
-      },
+      }),
       select: { id: true, displayName: true, city: true, state: true, lat: true, lng: true },
       take: 200,
     }),
     getPopularListingTags(5),
     Promise.all([
       prisma.listing.count({ where: publicListingWhere() }),
-      prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null }, listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } } } }),
+      prisma.sellerProfile.count({
+        where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
+      }),
       prisma.order.count({
         where: {
           paidAt: { not: null },
@@ -436,7 +430,10 @@ export default async function HomePage() {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const [recentListings, recentPosts] = await Promise.all([
         prisma.listing.findMany({
-          where: { sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "ACTIVE", isPrivate: false, createdAt: { gte: cutoff }, seller: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } },
+          where: publicListingWhere({
+            sellerId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) },
+            createdAt: { gte: cutoff },
+          }),
           orderBy: { createdAt: "desc" },
           take: 6,
           select: {
@@ -446,7 +443,10 @@ export default async function HomePage() {
           },
         }),
         prisma.blogPost.findMany({
-          where: { sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) }, status: "PUBLISHED", publishedAt: { gte: cutoff }, author: { banned: false, deletedAt: null }, sellerProfile: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null } } },
+          where: publicBlogPostWhere({
+            sellerProfileId: { in: followedIds, ...(blockedSellerIds.length > 0 ? { notIn: blockedSellerIds } : {}) },
+            publishedAt: { gte: cutoff },
+          }),
           orderBy: { publishedAt: "desc" },
           take: 6,
           select: {

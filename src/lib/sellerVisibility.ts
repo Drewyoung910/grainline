@@ -12,28 +12,30 @@ function supportedStripeAccountVersionWhere() {
 }
 
 export function visibleSellerProfileWhere(extra: Prisma.SellerProfileWhereInput = {}): Prisma.SellerProfileWhereInput {
+  const parts: Prisma.SellerProfileWhereInput[] = [
+    {
+      chargesEnabled: true,
+      ...supportedStripeAccountVersionWhere(),
+      user: { banned: false, deletedAt: null },
+    },
+  ];
+  if (Object.keys(extra).length > 0) parts.push(extra);
   return {
-    AND: [
-      {
-        chargesEnabled: true,
-        ...supportedStripeAccountVersionWhere(),
-        user: { banned: false, deletedAt: null },
-      },
-      extra,
-    ],
+    AND: parts,
   };
 }
 
 export function activeSellerProfileWhere(extra: Prisma.SellerProfileWhereInput = {}): Prisma.SellerProfileWhereInput {
+  const parts: Prisma.SellerProfileWhereInput[] = [
+    {
+      chargesEnabled: true,
+      ...supportedStripeAccountVersionWhere(),
+      vacationMode: false,
+      user: { banned: false, deletedAt: null },
+    },
+  ];
+  if (Object.keys(extra).length > 0) parts.push(extra);
   return {
-    AND: [
-      {
-        chargesEnabled: true,
-        ...supportedStripeAccountVersionWhere(),
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
-      },
-      extra,
-    ],
+    AND: parts,
   };
 }

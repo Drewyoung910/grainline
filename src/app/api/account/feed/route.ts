@@ -14,6 +14,7 @@ import {
   type AccountFeedKind,
 } from "@/lib/accountFeedCursor";
 import { accountFeedRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -79,11 +80,7 @@ export async function GET(req: NextRequest) {
   const sellerIds = blockedSellerIds.length > 0
     ? rawSellerIds.filter((id) => !blockedSellerIdSet.has(id))
     : rawSellerIds;
-  const followedSellerVisibility = {
-    chargesEnabled: true,
-    vacationMode: false,
-    user: { banned: false, deletedAt: null },
-  };
+  const followedSellerVisibility = activeSellerProfileWhere();
 
   if (sellerIds.length === 0) {
     const message =

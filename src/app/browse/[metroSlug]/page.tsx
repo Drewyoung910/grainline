@@ -7,13 +7,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
-import { ListingStatus } from "@prisma/client";
 import { CATEGORY_LABELS } from "@/lib/categories";
 import ClickTracker from "@/components/ClickTracker";
 import ListingCard from "@/components/ListingCard";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicListingPath } from "@/lib/publicPaths";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -25,10 +26,10 @@ export async function generateStaticParams() {
     where: {
       isActive: true,
       OR: [
-        { listings: { some: { status: ListingStatus.ACTIVE } } },
-        { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
-        { sellerProfiles: { some: { chargesEnabled: true } } },
-        { sellerCityProfiles: { some: { chargesEnabled: true } } },
+        { listings: { some: publicListingWhere() } },
+        { listingCityMetros: { some: publicListingWhere() } },
+        { sellerProfiles: { some: activeSellerProfileWhere() } },
+        { sellerCityProfiles: { some: activeSellerProfileWhere() } },
       ],
     },
     select: { slug: true },
@@ -47,7 +48,7 @@ export async function generateMetadata({
   const { metroSlug } = await params;
   const metro = await prisma.metro.findUnique({
     where: { slug: metroSlug },
-    select: { name: true, state: true, parentMetroId: true },
+    select: { id: true, name: true, state: true, parentMetroId: true },
   });
   if (!metro) return {};
 
@@ -57,17 +58,10 @@ export async function generateMetadata({
   // Count listings and sellers for description
   const [listingCount, sellerCount] = await Promise.all([
     prisma.listing.count({
-      where: {
-        status: ListingStatus.ACTIVE,
-        isPrivate: false,
-        ...(isMajor ? { metroId: (await prisma.metro.findUnique({ where: { slug: metroSlug }, select: { id: true } }))?.id } : { cityMetroId: (await prisma.metro.findUnique({ where: { slug: metroSlug }, select: { id: true } }))?.id }),
-      },
+      where: publicListingWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
     }),
     prisma.sellerProfile.count({
-      where: {
-        chargesEnabled: true,
-        ...(isMajor ? { metroId: (await prisma.metro.findUnique({ where: { slug: metroSlug }, select: { id: true } }))?.id } : { cityMetroId: (await prisma.metro.findUnique({ where: { slug: metroSlug }, select: { id: true } }))?.id }),
-      },
+      where: activeSellerProfileWhere(isMajor ? { metroId: metro.id } : { cityMetroId: metro.id }),
     }),
   ]);
 
@@ -119,13 +113,10 @@ export default async function BrowseMetroPage({
   }
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(meDbId);
 
-  const listingWhere = {
-    status: ListingStatus.ACTIVE,
-    isPrivate: false,
-    seller: { vacationMode: false, chargesEnabled: true, user: { banned: false, deletedAt: null } },
+  const listingWhere = publicListingWhere({
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
     ...(blockedSellerIds.length > 0 ? { sellerId: { notIn: blockedSellerIds } } : {}),
-  };
+  });
 
   let savedSet = new Set<string>();
   if (meDbId) {
@@ -165,9 +156,7 @@ export default async function BrowseMetroPage({
     prisma.listing.count({ where: listingWhere }),
     prisma.sellerProfile.count({
       where: {
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
+        ...activeSellerProfileWhere(),
         ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
       },
     }),
@@ -194,8 +183,8 @@ export default async function BrowseMetroPage({
           id: { in: nearbyIds },
           isActive: true,
           OR: [
-            { listings: { some: { status: ListingStatus.ACTIVE } } },
-            { listingCityMetros: { some: { status: ListingStatus.ACTIVE } } },
+            { listings: { some: publicListingWhere() } },
+            { listingCityMetros: { some: publicListingWhere() } },
           ],
         },
         select: { id: true, slug: true, name: true },

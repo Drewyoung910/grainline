@@ -82,6 +82,7 @@ export async function GET(
         AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
         AND sp."vacationMode" = false
         AND sp."chargesEnabled" = true
+        AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
         AND EXISTS (
           SELECT 1 FROM "User" u
           WHERE u.id = sp."userId"

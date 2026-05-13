@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const metadata: Metadata = {
   title: "About Grainline",
@@ -14,8 +16,10 @@ export default async function AboutPage() {
   const makerLink = userId ? "/dashboard" : "/sign-up";
 
   const [listingCount, sellerCount, memberCount] = await Promise.all([
-    prisma.listing.count({ where: { status: "ACTIVE", isPrivate: false } }),
-    prisma.sellerProfile.count({ where: { chargesEnabled: true, vacationMode: false, user: { banned: false, deletedAt: null }, listings: { some: { status: "ACTIVE", isPrivate: false } } } }),
+    prisma.listing.count({ where: publicListingWhere() }),
+    prisma.sellerProfile.count({
+      where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
+    }),
     prisma.user.count({ where: { banned: false } }),
   ]);
 

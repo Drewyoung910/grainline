@@ -3,6 +3,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Shield, Hammer, Eye, MessageCircle, MapPin, CheckCircle } from "@/components/icons";
 import GuildBadge from "@/components/GuildBadge";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export const metadata: Metadata = {
   title: "Why Grainline | Real handmade woodworking, not factory imports",
@@ -13,14 +15,9 @@ export const metadata: Metadata = {
 
 export default async function WhyGrainlinePage() {
   const [listingCount, sellerCount, foundingCount] = await Promise.all([
-    prisma.listing.count({ where: { status: "ACTIVE", isPrivate: false } }),
+    prisma.listing.count({ where: publicListingWhere() }),
     prisma.sellerProfile.count({
-      where: {
-        chargesEnabled: true,
-        vacationMode: false,
-        user: { banned: false, deletedAt: null },
-        listings: { some: { status: "ACTIVE", isPrivate: false } },
-      },
+      where: activeSellerProfileWhere({ listings: { some: publicListingWhere() } }),
     }),
     prisma.sellerProfile.count({ where: { isFoundingMaker: true } }),
   ]);

@@ -5,11 +5,12 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ListingStatus } from "@prisma/client";
 import GuildBadge from "@/components/GuildBadge";
 import type { GuildLevelValue } from "@/components/GuildBadge";
 import { safeJsonLd } from "@/lib/json-ld";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { publicListingWhere } from "@/lib/listingVisibility";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 const BASE_URL = "https://thegrainline.com";
 
@@ -21,8 +22,8 @@ export async function generateStaticParams() {
     where: {
       isActive: true,
       OR: [
-        { sellerProfiles: { some: { chargesEnabled: true } } },
-        { sellerCityProfiles: { some: { chargesEnabled: true } } },
+        { sellerProfiles: { some: activeSellerProfileWhere() } },
+        { sellerCityProfiles: { some: activeSellerProfileWhere() } },
       ],
     },
     select: { slug: true },
@@ -85,13 +86,10 @@ export default async function MakersMetroPage({
   const isMajorMetro = !metro.parentMetroId;
   const cityName = `${metro.name}, ${metro.state}`;
 
-  const sellerWhere = {
-    chargesEnabled: true,
-    vacationMode: false,
-    user: { banned: false, deletedAt: null },
-    listings: { some: { status: ListingStatus.ACTIVE, isPrivate: false } },
+  const sellerWhere = activeSellerProfileWhere({
+    listings: { some: publicListingWhere() },
     ...(isMajorMetro ? { metroId: metro.id } : { cityMetroId: metro.id }),
-  };
+  });
 
   const sellers = await prisma.sellerProfile.findMany({
     where: sellerWhere,
@@ -109,14 +107,14 @@ export default async function MakersMetroPage({
       isVerifiedMaker: true,
       user: { select: { imageUrl: true } },
       listings: {
-        where: { status: ListingStatus.ACTIVE, isPrivate: false },
+        where: publicListingWhere(),
         take: 1,
         orderBy: { createdAt: "desc" },
         select: { photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } } },
       },
       _count: {
         select: {
-          listings: { where: { status: ListingStatus.ACTIVE, isPrivate: false } },
+          listings: { where: publicListingWhere() },
           followers: true,
         },
       },
@@ -137,8 +135,8 @@ export default async function MakersMetroPage({
           id: { in: nearbyIds },
           isActive: true,
           OR: [
-            { sellerProfiles: { some: { chargesEnabled: true } } },
-            { sellerCityProfiles: { some: { chargesEnabled: true } } },
+            { sellerProfiles: { some: activeSellerProfileWhere() } },
+            { sellerCityProfiles: { some: activeSellerProfileWhere() } },
           ],
         },
         select: { id: true, slug: true, name: true },

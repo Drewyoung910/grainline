@@ -26,6 +26,7 @@ import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
+import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -37,22 +38,18 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
+  const seller = await prisma.sellerProfile.findFirst({
+    where: visibleSellerProfileWhere({ id: sellerId }),
     select: {
       displayName: true,
       bio: true,
       tagline: true,
       bannerImageUrl: true,
       avatarImageUrl: true,
-      chargesEnabled: true,
       user: { select: { imageUrl: true, banned: true, deletedAt: true } },
     },
   });
   if (!seller) return {};
-  if (!seller.chargesEnabled || seller.user?.banned || seller.user?.deletedAt) {
-    return { robots: { index: false, follow: false } };
-  }
 
   const name = seller.displayName ?? "Maker";
   const title = `${name} — Handmade Woodworking on Grainline`;
@@ -120,7 +117,12 @@ export default async function SellerPublicPage({
     meId = me?.id ?? null;
   }
   const isOwner = !!userId && seller.user?.clerkId === userId;
-  if (!isOwner && !seller.chargesEnabled) return notFound();
+  if (!isOwner) {
+    const isVisibleSeller = await prisma.sellerProfile.count({
+      where: visibleSellerProfileWhere({ id: seller.id }),
+    });
+    if (!isVisibleSeller) return notFound();
+  }
 
   // Block check — return 404 if the viewer has blocked or been blocked by the seller
   const blockedUserIds = await getBlockedUserIdsFor(meId);

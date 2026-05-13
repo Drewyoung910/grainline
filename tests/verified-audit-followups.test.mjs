@@ -136,8 +136,48 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(text, /LEFT JOIN "User" seller_user ON seller_user\.id = sp\."userId"/);
     assert.match(text, /sp\."chargesEnabled" = true/);
     assert.match(text, /sp\."vacationMode" = false/);
+    assert.match(text, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
     assert.match(text, /seller_user\.banned = false/);
     assert.match(text, /bp\."sellerProfileId" != ALL\(\$\{blockedSellerIds\}\)/);
+  });
+
+  it("keeps public marketplace surfaces on shared visibility predicates", () => {
+    const publicSurfacePaths = [
+      "src/app/page.tsx",
+      "src/app/about/page.tsx",
+      "src/app/browse/[metroSlug]/page.tsx",
+      "src/app/browse/[metroSlug]/[category]/page.tsx",
+      "src/app/makers/[metroSlug]/page.tsx",
+      "src/app/map/page.tsx",
+      "src/app/sellers/map/page.tsx",
+      "src/app/layout.tsx",
+      "src/app/sitemap.ts",
+      "src/app/why-grainline/page.tsx",
+    ];
+    for (const path of publicSurfacePaths) {
+      const text = source(path);
+      assert.doesNotMatch(text, /chargesEnabled: true,\s*vacationMode: false,\s*user: \{ banned: false, deletedAt: null \}/, `${path} should use seller visibility helpers`);
+      assert.doesNotMatch(text, /seller: \{ vacationMode: false, chargesEnabled: true/, `${path} should use listing visibility helpers`);
+    }
+
+    const rawSqlPaths = [
+      "src/app/page.tsx",
+      "src/app/blog/page.tsx",
+      "src/app/api/blog/search/route.ts",
+      "src/app/api/blog/search/suggestions/route.ts",
+      "src/app/api/listings/[id]/similar/route.ts",
+      "src/app/api/search/suggestions/route.ts",
+      "src/lib/popularTags.ts",
+      "src/lib/popularBlogTags.ts",
+      "src/lib/site-metrics-snapshot.ts",
+      "src/lib/quality-score.ts",
+    ];
+    for (const path of rawSqlPaths) {
+      assert.match(source(path), /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/, `${path} should keep legacy-null/v2 visibility`);
+    }
+    assert.doesNotMatch(source("src/app/page.tsx"), /featuredMakerWhere/);
+    assert.match(source("src/lib/conversationStartState.ts"), /listing\.seller\.stripeAccountVersion == null \|\| listing\.seller\.stripeAccountVersion === "v2"/);
+    assert.match(source("src/app/messages/new/page.tsx"), /stripeAccountVersion: true/);
   });
 
   it("documents current notification polling once instead of stale fixed intervals", () => {

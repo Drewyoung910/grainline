@@ -13,6 +13,7 @@ export type ConversationContextListingState = {
   reservedForUserId?: string | null;
   seller: {
     chargesEnabled: boolean;
+    stripeAccountVersion?: string | null;
     vacationMode?: boolean | null;
     user?: {
       id?: string | null;
@@ -25,6 +26,7 @@ export type ConversationContextListingState = {
 function hasActiveSeller(listing: Exclude<ConversationContextListingState, null | undefined>) {
   return (
     listing.seller.chargesEnabled &&
+    (listing.seller.stripeAccountVersion == null || listing.seller.stripeAccountVersion === "v2") &&
     !listing.seller.vacationMode &&
     !listing.seller.user?.banned &&
     !listing.seller.user?.deletedAt

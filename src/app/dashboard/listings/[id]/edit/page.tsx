@@ -256,11 +256,10 @@ async function updateListing(
     return updated;
   });
 
-  // Save on an ACTIVE listing routes the new content through AI re-review.
-  // - Photo upload via AddPhotosButton no longer flips status mid-edit (that
-  //   was the original "kick-out" bug).
-  // - Save is now the only path that triggers re-review on existing ACTIVE
-  //   listings — so sellers cannot silently bypass review by editing.
+  // Save on an ACTIVE listing routes edited text/price/variant content through
+  // AI re-review. AddPhotosButton runs its own review pass after attaching new
+  // public photos so sellers cannot silently bypass review by uploading images
+  // and skipping Save.
   // - If AI approves: listing stays ACTIVE, new content is live.
   // - If AI flags or errors: listing flips to PENDING_REVIEW. The seller
   //   stays on the edit page (?saved=pending banner) instead of being
@@ -460,10 +459,9 @@ async function deletePhotoAction(listingId: string, photoId: string) {
     });
   }
 
-  // Note: deleting a photo from an ACTIVE listing used to auto-flip the
-  // listing into PENDING_REVIEW and re-run AI review. Removed 2026-05-11 —
-  // sellers can manage their photos freely without triggering a re-review.
-  // AI review only runs at explicit publish transitions.
+  // Deleting a photo from an ACTIVE listing does not add new public content, so
+  // it does not trigger a re-review. New photo uploads are reviewed in
+  // `POST /api/listings/[id]/photos`.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);
@@ -529,9 +527,9 @@ async function replacePhotoAction(listingId: string, photoId: string, url: strin
     // preserved original for future re-crops.
   }
 
-  // Note: replacing a photo on an ACTIVE listing used to auto-flip it into
-  // PENDING_REVIEW and re-run AI review. Removed 2026-05-11 — seller can
-  // re-crop freely. AI review only runs at explicit publish transitions.
+  // Re-cropping a photo preserves the same source image, so it does not trigger
+  // a re-review. Brand-new public photo uploads are reviewed in
+  // `POST /api/listings/[id]/photos`.
 
   revalidatePath(`/dashboard/listings/${listingId}/edit`);
   revalidatePath(`/listing/${listingId}`);

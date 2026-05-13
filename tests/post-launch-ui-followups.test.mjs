@@ -280,6 +280,8 @@ describe("post-launch UI follow-ups", () => {
     const publishActions = source("src/app/seller/[id]/shop/actions.ts");
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const newPage = source("src/app/dashboard/listings/new/page.tsx");
+    const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
+    const addPhotosButton = source("src/components/AddPhotosButton.tsx");
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
     assert.match(helper, /altText: cleaned/);
@@ -287,10 +289,16 @@ describe("post-launch UI follow-ups", () => {
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
     assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);
     // Edit page intentionally runs AI re-review on Save for ACTIVE listings.
-    // Photo add/delete/re-crop alone no longer flips status or runs review.
+    // New public photo uploads run their own review pass in the photo route.
     assert.match(editPage, /backfillEmptyAltTexts/);
     const backfillCalls = editPage.match(/backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/g) ?? [];
     assert.equal(backfillCalls.length, 1, "expected the Save/review path to backfill alt text once");
+    assert.match(addPhotosRoute, /reviewListingWithAI/);
+    assert.match(addPhotosRoute, /listingPhotoAiRatelimit/);
+    assert.match(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
+    assert.match(addPhotosRoute, /backfillEmptyAltTexts\(listingId, aiResult\.altTexts\)/);
+    assert.match(addPhotosButton, /body\.status === "PENDING_REVIEW"/);
+    assert.match(addPhotosButton, /router\.push\(`\/listing\/\$\{listingId\}\?preview=1`\)/);
     // Catch returns now include altTexts so TypeScript can union the success
     // type without a property-missing error.
     const editAltTextsInCatch = editPage.match(/altTexts: \[\] as string\[\]/g) ?? [];

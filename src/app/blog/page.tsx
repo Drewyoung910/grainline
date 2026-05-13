@@ -107,6 +107,7 @@ export default async function BlogIndexPage({
           "BlogPost"."sellerProfileId" IS NULL
           OR (
             sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND sp."vacationMode" = false
             AND seller_user.banned = false
             AND seller_user."deletedAt" IS NULL
@@ -177,6 +178,7 @@ export default async function BlogIndexPage({
           bp."sellerProfileId" IS NULL
           OR (
             sp."chargesEnabled" = true
+            AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
             AND sp."vacationMode" = false
             AND seller_user.banned = false
             AND seller_user."deletedAt" IS NULL
