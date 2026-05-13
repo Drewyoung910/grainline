@@ -247,6 +247,11 @@ Spot checks completed in this pass:
   - Analytics are seller-scoped through the current seller ID. Recent-sales read surface was hardened to require whole-order ownership, not partial item ownership, before returning whole-order totals.
   - Result: no verified live IDOR found; defense-in-depth fix applied for malformed mixed-seller order resilience.
 
+- `src/app/dashboard/blog/new/page.tsx`, `src/app/dashboard/blog/[id]/edit/page.tsx`, and `src/app/dashboard/blog/page.tsx`
+  - Blog create/edit actions require auth, local user, active account state, author ownership, staff-only post types where applicable, first-party cover URLs, normalized video URLs, and seller-owned featured listings for maker posts.
+  - Blog delete action was tightened to check suspended/deleted account state inside the server action before deleting author-owned posts.
+  - Result: no verified IDOR found; defense-in-depth account-state fix applied to the delete server action.
+
 Out-of-scope verified issue found during this pass:
 
 - Existing-listing photo edits were not fully save-gated. This was not an authorization bypass because ownership checks were present, but it contradicted the intended "listing edits commit on Save, then AI review runs" behavior. Fixed after promotion to `audit_open_findings.md`: `EditPhotoGrid` now stages `photoManifestJson`, `updateListing()` commits the manifest, and the old immediate photo API returns HTTP 410.
@@ -287,6 +292,7 @@ Follow-up fix from this pass:
 - **Fixed 2026-05-13:** cart checkout webhook finalization no longer trusts mutable live `CartItem` rows after payment. Stripe's immutable paid `line_items` are now the source of truth for `OrderItem` creation, live cart rows are only optional enrichment for variant labels, and the transaction revalidates seller vacation/orderability plus listing active/private-reservation state before order side effects. Regression coverage lives in `tests/stripe-webhook-cart-finalization.test.mjs` and `tests/stripe-webhook-state.test.mjs`.
 - **Fixed 2026-05-13:** seller order mutation routes now require whole-order ownership. Refund, fulfillment, and label-purchase routes no longer authorize on "seller owns any item" because that would be unsafe if a malformed mixed-seller order ever existed. Regression coverage lives in `tests/order-seller-route-ownership.test.mjs`.
 - **Fixed 2026-05-13:** seller order read surfaces now match the whole-order ownership rule. Recent-sales analytics, seller sales page, account seller stats, account export, seller profile processing-time stats, account deletion blockers, and ban blockers require `items.some` and `items.every` for the same seller before exposing or acting on seller-order data. Regression coverage lives in `tests/order-seller-route-ownership.test.mjs`.
+- **Fixed 2026-05-13:** dashboard blog delete action now checks banned/deleted account state inside the server action before deleting an author-owned post. Regression coverage lives in `tests/blog-action-guardrails.test.mjs`.
 - **Fixed 2026-05-13:** user report target validation now requires reporter access. Reports can still target public content, but orders/messages/threads require reporter participation and blog targets require public visibility, preventing report submission from acting as a private-object oracle. Regression coverage lives in `tests/user-report-target-access.test.mjs`.
 - **Fixed 2026-05-13:** review helpful votes now require the review's listing to pass `canViewListingDetail()` for the voter. This prevents hidden/private listing reviews from being manipulated by direct review ID. Regression coverage lives in `tests/review-vote-visibility.test.mjs`.
 

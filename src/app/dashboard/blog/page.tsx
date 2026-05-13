@@ -14,8 +14,12 @@ async function deletePost(postId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) redirect("/sign-in");
+  if (me.banned || me.deletedAt) return;
 
   const post = await prisma.blogPost.findUnique({ where: { id: postId }, select: { authorId: true } });
   if (!post || post.authorId !== me.id) return;

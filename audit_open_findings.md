@@ -3769,6 +3769,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 131. **[HARDENED 2026-05-13] Seller order read surfaces matched mutation ownership semantics** — seller order mutation routes already require whole-order ownership. Read-side surfaces still used the older `items.some(listing.sellerId)` pattern in recent-sales analytics, dashboard sales, account seller stats, account export, seller profile processing-time stats, account deletion blockers, and ban blockers. Under the current checkout invariant this was not a live leak, but a malformed mixed-seller order could expose whole-order totals or buyer/order state to a partial seller. These surfaces now require both `items.some` and `items.every` for the acting seller. Source guardrail: `tests/order-seller-route-ownership.test.mjs`.
 
+132. **[HARDENED 2026-05-13] Dashboard blog delete action now checks account state inside the action** — blog create/edit already blocked banned/deleted accounts in the server action. The dashboard blog delete action only resolved the Clerk user to a local `User.id` before deleting author-owned posts. Middleware should block suspended accounts before this point, so this was defense in depth rather than a confirmed bypass. The action now selects and checks `banned`/`deletedAt` before deleting. Source guardrail: `tests/blog-action-guardrails.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
