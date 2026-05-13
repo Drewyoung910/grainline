@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, reviewVoteRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { canViewListingDetail } from "@/lib/listingVisibility";
 
 export async function POST(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params; // review id
@@ -26,9 +27,32 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
   const review = await prisma.review.findUnique({
     where: { id },
-    include: { listing: { select: { id: true, seller: { select: { userId: true } } } } },
+    select: {
+      reviewerId: true,
+      helpfulCount: true,
+      listing: {
+        select: {
+          id: true,
+          status: true,
+          isPrivate: true,
+          reservedForUserId: true,
+          seller: {
+            select: {
+              userId: true,
+              chargesEnabled: true,
+              stripeAccountVersion: true,
+              vacationMode: true,
+              user: { select: { id: true, clerkId: true, banned: true, deletedAt: true } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!canViewListingDetail(review.listing, { dbUserId: me.id })) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   // Don't allow voting on your own review
   if (review.reviewerId === me.id) {

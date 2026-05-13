@@ -3764,6 +3764,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 129. **[FIXED 2026-05-13] User report targets could be validated without reporter access** — `/api/users/[id]/report` verified that optional `targetId` belonged to the reported user, but private targets such as orders, messages, and message threads did not also require the reporter to be a party to that target. With a known private ID, the response could act as an existence/access oracle and create staff noise. The route now requires reporter access for private targets, public/reserved access for listing/review targets, and public blog visibility for blog targets. Source guardrail: `tests/user-report-target-access.test.mjs`.
 
+130. **[FIXED 2026-05-13] Review helpful votes were not gated by listing visibility** — `/api/reviews/[id]/vote` blocked the reviewer and seller from voting, but any authenticated user with a review ID could toggle helpful votes even if the underlying listing was private, hidden, or attached to a seller who no longer passed public visibility. The route now loads the listing visibility fields and requires `canViewListingDetail()` before toggling votes. Source guardrail: `tests/review-vote-visibility.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
