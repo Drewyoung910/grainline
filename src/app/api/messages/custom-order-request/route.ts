@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import * as Sentry from "@sentry/nextjs";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -222,7 +223,12 @@ export async function POST(req: Request) {
         });
       }
     }
-  } catch { /* non-fatal */ }
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: "custom_order_request_email" },
+      extra: { conversationId: convo.id, buyerId: me.id, sellerUserId },
+    });
+  }
 
   return NextResponse.json({ conversationId: convo.id });
 }

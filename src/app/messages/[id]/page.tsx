@@ -256,8 +256,12 @@ export default async function ThreadPage({
     "use server";
     const { userId } = await auth();
     if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
-    const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+    const me = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, banned: true, deletedAt: true },
+    });
     if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
+    if (me.banned || me.deletedAt) return { ok: false };
 
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
@@ -280,8 +284,12 @@ export default async function ThreadPage({
     "use server";
     const { userId } = await auth();
     if (!userId) redirect(`/sign-in?redirect_url=/messages/${id}`);
-    const me = await prisma.user.findUnique({ where: { clerkId: userId } });
+    const me = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, banned: true, deletedAt: true },
+    });
     if (!me) redirect(`/sign-in?redirect_url=/messages/${id}`);
+    if (me.banned || me.deletedAt) return { ok: false };
 
     const c = await prisma.conversation.findFirst({
       where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },

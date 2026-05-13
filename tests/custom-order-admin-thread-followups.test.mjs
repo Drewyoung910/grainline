@@ -32,4 +32,16 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(threadPage, /isParticipant && !otherUnavailableReason/);
     assert.match(threadPage, /Staff review/);
   });
+
+  it("keeps message thread side effects observable and account-state guarded", () => {
+    const customOrderRoute = source("src/app/api/messages/custom-order-request/route.ts");
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(customOrderRoute, /Sentry\.captureException\(error, \{/);
+    assert.match(customOrderRoute, /source: "custom_order_request_email"/);
+    assert.doesNotMatch(customOrderRoute, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
+
+    assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
+    assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);
+  });
 });

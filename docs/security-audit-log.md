@@ -375,6 +375,30 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** the older `/api/stripe/connect/dashboard` route now matches the newer Connect routes by resolving `ensureUserByClerkId()` and passing `accountAccessErrorResponse()` before issuing a Stripe dashboard login link. This prevents the route from relying only on middleware for banned/deleted local-account state. Regression coverage lives in `tests/stripe-connect-v2.test.mjs`.
 
+## 2026-05-13 messaging/custom-order route spot check
+
+Scope:
+
+- `src/app/api/messages/[id]/list/route.ts`
+- `src/app/api/messages/[id]/read/route.ts`
+- `src/app/api/messages/[id]/stream/route.ts`
+- `src/app/api/messages/custom-order-request/route.ts`
+- `src/app/api/messages/unread-count/route.ts`
+- `src/app/messages/new/page.tsx`
+- `src/app/messages/[id]/page.tsx`
+
+Results:
+
+- Message list/read/stream routes resolve the signed-in local user, reject suspended/deleted accounts, require current-user conversation participation, and only then return or mutate message state.
+- Staff reported-thread review remains page-only and read-only for non-participants; live polling and read marking remain participant-scoped.
+- New conversation creation blocks self-conversations, unavailable recipients, mutual blocks, and private listing contexts that are not visible to the two participants.
+- Custom-order requests block self-targeting, mutual blocks, unavailable sellers, sellers not accepting custom/new orders, disconnected payout state, invalid listing context, invalid budget values, and use race-safe canonical conversation creation.
+- Unread-count is current-user scoped and returns a safe zero for signed-out users.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** message thread archive/unarchive server actions now reject banned/deleted local accounts inside the action before mutating conversation archive state, and custom-order request email failures now emit Sentry evidence instead of being swallowed by a silent non-fatal catch. Regression coverage lives in `tests/custom-order-admin-thread-followups.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

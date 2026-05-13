@@ -3791,6 +3791,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 140. **[HARDENED 2026-05-13] Legacy Stripe Connect dashboard-link route now enforces local account state inside the route** — `/api/stripe/connect/dashboard` already required Clerk auth and seller ownership, but unlike the newer Connect create/status/login-link routes it did not call `ensureUserByClerkId()` and `accountAccessErrorResponse()` locally before issuing a Stripe dashboard login link. The route now matches the newer routes so banned/deleted local accounts cannot rely on middleware assumptions for a Stripe dashboard-link surface. Source guardrail: `tests/stripe-connect-v2.test.mjs`.
 
+141. **[HARDENED 2026-05-13] Message thread archive actions and custom-order email side effects tightened** — message list/read/stream routes were already participant-scoped, and custom-order requests already blocked self-targeting, blocked users, unavailable sellers, invalid listing context, and disconnected payout state. This pass added route-local account-state checks to message archive/unarchive server actions and replaced the custom-order request email silent catch with Sentry evidence keyed by safe conversation/user IDs. Source guardrail: `tests/custom-order-admin-thread-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
