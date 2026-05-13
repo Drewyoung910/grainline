@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
+import { canViewListingDetail } from "@/lib/listingVisibility";
+import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { z } from "zod";
 import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -68,46 +70,129 @@ export async function POST(
 
   if (body.targetType && body.targetId) {
     let exists = false;
+    let reporterCanAccess = false;
     switch (body.targetType) {
       case "USER":
         exists = body.targetId === reportedId;
+        reporterCanAccess = exists;
         break;
       case "LISTING":
-        exists = await prisma.listing.count({ where: { id: body.targetId, seller: { userId: reportedId } } }) > 0;
+        {
+          const listing = await prisma.listing.findUnique({
+            where: { id: body.targetId },
+            select: {
+              id: true,
+              status: true,
+              isPrivate: true,
+              reservedForUserId: true,
+              seller: {
+                select: {
+                  userId: true,
+                  chargesEnabled: true,
+                  stripeAccountVersion: true,
+                  vacationMode: true,
+                  user: { select: { id: true, clerkId: true, banned: true, deletedAt: true } },
+                },
+              },
+            },
+          });
+          exists = listing?.seller.userId === reportedId;
+          reporterCanAccess = !!listing && exists && canViewListingDetail(listing, { dbUserId: me.id });
+        }
         break;
       case "ORDER":
-        exists = await prisma.order.count({ where: { id: body.targetId, OR: [{ buyerId: reportedId }, { items: { some: { listing: { seller: { userId: reportedId } } } } }] } }) > 0;
-        break;
-      case "MESSAGE":
-        exists = await prisma.message.count({ where: { id: body.targetId, OR: [{ senderId: reportedId }, { recipientId: reportedId }] } }) > 0;
-        break;
-      case "MESSAGE_THREAD":
-        exists = await prisma.conversation.count({
-          where: { id: body.targetId, OR: [{ userAId: reportedId }, { userBId: reportedId }] },
-        }) > 0;
-        break;
-      case "BLOG_POST":
-        exists = await prisma.blogPost.count({ where: { id: body.targetId, authorId: reportedId } }) > 0;
-        break;
-      case "BLOG_COMMENT":
-        exists = await prisma.blogComment.count({ where: { id: body.targetId, authorId: reportedId } }) > 0;
-        break;
-      case "REVIEW":
-        exists = await prisma.review.count({
+        exists = await prisma.order.count({
           where: {
             id: body.targetId,
-            OR: [
-              { reviewerId: reportedId },
-              { listing: { seller: { userId: reportedId } } },
+            OR: [{ buyerId: reportedId }, { items: { some: { listing: { seller: { userId: reportedId } } } } }],
+            AND: [
+              {
+                OR: [
+                  { buyerId: me.id },
+                  { items: { some: { listing: { seller: { userId: me.id } } } } },
+                ],
+              },
             ],
           },
         }) > 0;
+        reporterCanAccess = exists;
+        break;
+      case "MESSAGE":
+        exists = await prisma.message.count({
+          where: {
+            id: body.targetId,
+            OR: [{ senderId: reportedId }, { recipientId: reportedId }],
+            conversation: { OR: [{ userAId: me.id }, { userBId: me.id }] },
+          },
+        }) > 0;
+        reporterCanAccess = exists;
+        break;
+      case "MESSAGE_THREAD":
+        exists = await prisma.conversation.count({
+          where: {
+            id: body.targetId,
+            OR: [{ userAId: reportedId }, { userBId: reportedId }],
+            AND: [{ OR: [{ userAId: me.id }, { userBId: me.id }] }],
+          },
+        }) > 0;
+        reporterCanAccess = exists;
+        break;
+      case "BLOG_POST":
+        exists = await prisma.blogPost.count({
+          where: publicBlogPostWhere({ id: body.targetId, authorId: reportedId }),
+        }) > 0;
+        reporterCanAccess = exists;
+        break;
+      case "BLOG_COMMENT":
+        exists = await prisma.blogComment.count({
+          where: {
+            id: body.targetId,
+            authorId: reportedId,
+            approved: true,
+            post: publicBlogPostWhere(),
+          },
+        }) > 0;
+        reporterCanAccess = exists;
+        break;
+      case "REVIEW":
+        {
+          const review = await prisma.review.findUnique({
+            where: { id: body.targetId },
+            select: {
+              reviewerId: true,
+              listing: {
+                select: {
+                  id: true,
+                  status: true,
+                  isPrivate: true,
+                  reservedForUserId: true,
+                  seller: {
+                    select: {
+                      userId: true,
+                      chargesEnabled: true,
+                      stripeAccountVersion: true,
+                      vacationMode: true,
+                      user: { select: { id: true, clerkId: true, banned: true, deletedAt: true } },
+                    },
+                  },
+                },
+              },
+            },
+          });
+          exists = !!review && (review.reviewerId === reportedId || review.listing.seller.userId === reportedId);
+          reporterCanAccess = !!review && exists && (
+            review.reviewerId === me.id ||
+            review.listing.seller.userId === me.id ||
+            canViewListingDetail(review.listing, { dbUserId: me.id })
+          );
+        }
         break;
       case "COMMISSION_REQUEST":
         exists = await prisma.commissionRequest.count({ where: { id: body.targetId, buyerId: reportedId } }) > 0;
+        reporterCanAccess = exists;
         break;
     }
-    if (!exists) {
+    if (!exists || !reporterCanAccess) {
       return NextResponse.json({ error: "Invalid report target" }, { status: 400 });
     }
   }

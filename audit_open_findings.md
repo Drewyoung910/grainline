@@ -3762,6 +3762,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 128. **[FIXED 2026-05-13] Seller order mutation routes authorized on partial order ownership** — refund, fulfillment, and label-purchase routes checked whether the acting seller owned any item in an order. Grainline creates one-seller orders, so this was not reachable through normal checkout, but a malformed mixed-seller order would have let one seller refund, fulfill, or buy a label for the whole order. Those routes now require every `OrderItem` to belong to the acting seller, with source guardrails in `tests/order-seller-route-ownership.test.mjs`.
 
+129. **[FIXED 2026-05-13] User report targets could be validated without reporter access** — `/api/users/[id]/report` verified that optional `targetId` belonged to the reported user, but private targets such as orders, messages, and message threads did not also require the reporter to be a party to that target. With a known private ID, the response could act as an existence/access oracle and create staff noise. The route now requires reporter access for private targets, public/reserved access for listing/review targets, and public blog visibility for blog targets. Source guardrail: `tests/user-report-target-access.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
