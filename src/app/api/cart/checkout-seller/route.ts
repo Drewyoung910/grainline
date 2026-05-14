@@ -54,7 +54,7 @@ export const preferredRegion = "iad1";
 
 export async function POST(req: Request) {
   // Track stock reservations for rollback on error
-  const reservedItems: { listingId: string; quantity: number }[] = [];
+  const reservedItems: { listingId: string; sellerId: string; quantity: number }[] = [];
   let checkoutLockKeyValue: string | null = null;
   let checkoutLockAcquired = false;
 
@@ -445,6 +445,9 @@ export async function POST(req: Request) {
           UPDATE "Listing"
           SET "stockQuantity" = "stockQuantity" - ${it.quantity}
           WHERE id = ${it.listing.id}
+            AND "sellerId" = ${it.listing.sellerId}
+            AND status = 'ACTIVE'
+            AND "listingType" = 'IN_STOCK'
             AND "stockQuantity" >= ${it.quantity}
         `;
         if (reserved === 0) {
@@ -454,6 +457,7 @@ export async function POST(req: Request) {
               UPDATE "Listing"
               SET "stockQuantity" = "stockQuantity" + ${r.quantity}
               WHERE id = ${r.listingId}
+                AND "sellerId" = ${r.sellerId}
                 AND "listingType" = 'IN_STOCK'
             `.catch((restoreError) => {
               Sentry.captureException(restoreError, {
@@ -469,7 +473,7 @@ export async function POST(req: Request) {
             { status: 400 },
           );
         }
-        reservedItems.push({ listingId: it.listing.id, quantity: it.quantity });
+        reservedItems.push({ listingId: it.listing.id, sellerId: it.listing.sellerId, quantity: it.quantity });
       }
     }
 
@@ -589,6 +593,7 @@ export async function POST(req: Request) {
         UPDATE "Listing"
         SET "stockQuantity" = "stockQuantity" + ${r.quantity}
         WHERE id = ${r.listingId}
+          AND "sellerId" = ${r.sellerId}
           AND "listingType" = 'IN_STOCK'
       `.catch((restoreError) => {
         Sentry.captureException(restoreError, {

@@ -753,3 +753,20 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** manual listing stock updates now keep the verified seller profile in the final SQL `UPDATE` predicate instead of mutating by listing id alone, and back-in-stock fanout failures now emit Sentry evidence instead of a silent catch. Regression coverage lives in `tests/seller-ops-hardening.test.mjs`.
 - **Hardened 2026-05-13:** seller listing server actions now carry the verified seller id into follow-up status mutations after publish, create, custom-listing creation, and ACTIVE edit re-review. This is a defense-in-depth IDOR guard: the actions already verify ownership before mutation, and the final status/SOLD_OUT updates now repeat the same seller boundary.
+
+## 2026-05-13 checkout/payment boundary audit
+
+Scope started:
+
+- Stripe Checkout creation routes (`/api/cart/checkout/single`, `/api/cart/checkout-seller`)
+- Checkout rollback, checkout locks, Stripe webhook signature/idempotency handling, and Stripe Connect v2 thin webhook handling.
+
+Results so far:
+
+- Checkout creation routes authenticate through Clerk, rate-limit before Stripe calls, reject unsupported seller account states, verify signed shipping-rate tokens, use Stripe Checkout/embedded card collection, and return only Stripe Checkout `client_secret` values created server-side.
+- Checkout locks are payload-hash scoped and session-bound before release; rollback requires the Stripe session metadata `buyerId` to match the signed-in buyer before expiring/restoring a session.
+- Legacy Stripe snapshot webhooks and Connect v2 thin webhooks use separate routes, secrets, verification methods, stale-event rejection, and a shared idempotency ledger.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** checkout stock reservation SQL now repeats live listing availability in the atomic reservation update (`sellerId`, `status = ACTIVE`, `listingType = IN_STOCK`, and sufficient stock). Restore paths carry the captured seller id as well. This closes the read-to-reserve gap where a seller could hide/sell a listing after checkout preflight but before stock decrement. Regression coverage lives in `tests/order-state-followups.test.mjs`.

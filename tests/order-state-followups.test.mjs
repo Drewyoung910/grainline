@@ -72,6 +72,18 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /quantity: \{ increment: quantity \}/);
   });
 
+  it("keeps checkout stock reservation tied to live active listing ownership", () => {
+    const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
+    const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+
+    assert.match(singleCheckout, /WHERE id = \$\{listing\.id\}\s+AND "sellerId" = \$\{listing\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{body\.quantity\}/);
+    assert.match(singleCheckout, /AND "sellerId" = \$\{reservedSellerId\}/);
+
+    assert.match(sellerCheckout, /WHERE id = \$\{it\.listing\.id\}\s+AND "sellerId" = \$\{it\.listing\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{it\.quantity\}/);
+    assert.match(sellerCheckout, /reservedItems\.push\(\{ listingId: it\.listing\.id, sellerId: it\.listing\.sellerId, quantity: it\.quantity \}\)/);
+    assert.match(sellerCheckout, /AND "sellerId" = \$\{r\.sellerId\}/);
+  });
+
   it("keeps staff case resolution atomic and persists computed full-refund amounts", () => {
     const text = source("src/app/api/cases/[id]/resolve/route.ts");
     assert.match(text, /persistedRefundAmountCents = refunding \? refundAmountForOrder : null/);

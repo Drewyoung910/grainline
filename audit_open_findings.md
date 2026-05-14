@@ -3824,6 +3824,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 153. **[HARDENED 2026-05-13] Server-action listing state follow-up mutations now repeat seller ownership** — listing create, custom listing create, seller publish/mark-available, and ACTIVE edit re-review actions already resolve the acting seller before changing state. This follow-up carries that seller id into the final SOLD_OUT/status update predicates so forged action posts and future refactors have the same defense-in-depth boundary at the mutation line. Source guardrail: `tests/seller-ops-hardening.test.mjs`.
 
+154. **[HARDENED 2026-05-13] Checkout stock reservation now repeats live listing eligibility atomically** — checkout preflight already rejected inactive/private/unorderable listings, but the final in-stock reservation SQL only checked listing id plus quantity. A seller could hide/sell a listing in the read-to-reserve gap and still let checkout create a Stripe session, relying on the webhook refund backstop later. Single-listing and seller-cart checkout reservations now require seller id, `status = ACTIVE`, `listingType = IN_STOCK`, and sufficient stock in the atomic decrement; best-effort restore paths also carry seller id. Source guardrail: `tests/order-state-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**
