@@ -3816,6 +3816,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 149. **[HARDENED 2026-05-13] Static API footgun sweep found one unrate-limited authenticated mutation** — empty-catch scans were clean and the public support/newsletter/CSP/view/click routes remain intentionally public with rate-limit or telemetry boundaries. `POST /api/verification/apply` was authenticated and upsert-safe, but it mutated MakerVerification review state and ran eligibility aggregate queries without a route limiter. It now uses fail-closed `verificationApplyRatelimit` keyed by the current user before body parsing/eligibility work. Source guardrail: `tests/guild-listing-edit-followups.test.mjs`.
 
+150. **[HARDENED 2026-05-13] Seller listing republish AI-review fail-closed path lacked full Sentry evidence** — listing create already captured AI-review failures and error-marking failures. The seller shop publish/mark-available path also failed closed to `PENDING_REVIEW`, but AI provider/backfill/admin-log failures and follow-up pending-review write failures were not captured with the same fidelity. The republish path now captures `listing_publish_ai_review`, `listing_publish_ai_review_followup`, and `listing_publish_ai_error_mark_failed` with bounded listing/seller IDs. Source guardrail: `tests/server-action-hardening.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

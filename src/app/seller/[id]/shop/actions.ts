@@ -240,13 +240,20 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       sellerName: sellerInfo?.displayName ?? "Unknown",
       listingCount,
       imageUrls: photos.map((p) => p.url),
-    }).catch(() => ({
-      approved: false,
-      flags: ["AI review error"],
-      confidence: 0,
-      reason: "AI error — sending to admin review",
-      altTexts: [] as string[],
-    }));
+    }).catch((error) => {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "listing_publish_ai_review" },
+        extra: { listingId: listing.id, sellerProfileId: listing.sellerId },
+      });
+      return {
+        approved: false,
+        flags: ["AI review error"],
+        confidence: 0,
+        reason: "AI error — sending to admin review",
+        altTexts: [] as string[],
+      };
+    });
 
     // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text.
     // Runs regardless of approval status — alt text content is independent of moderation decision.
@@ -323,7 +330,12 @@ export async function publishListingAction(listingId: string): Promise<{ status:
       revalidateListingSurfaces(listingId, listing.sellerId);
       return { status: "ACTIVE" };
     }
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "listing_publish_ai_review_followup" },
+      extra: { listingId, sellerProfileId: listing.sellerId },
+    });
     // Fail closed: AI review error → send to admin review (not ACTIVE)
     const updateResult = await prisma.listing.updateMany({
       where: {
@@ -339,6 +351,13 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         aiReviewScore: 0,
         rejectionReason: null,
       },
+    }).catch((updateError) => {
+      Sentry.captureException(updateError, {
+        level: "error",
+        tags: { source: "listing_publish_ai_error_mark_failed" },
+        extra: { listingId, sellerProfileId: listing.sellerId },
+      });
+      return { count: 0 };
     });
     if (updateResult.count === 0) {
       return { error: "Listing state changed; refresh and try again." };

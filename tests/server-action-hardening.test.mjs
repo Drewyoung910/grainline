@@ -33,6 +33,9 @@ describe("server action hardening guardrails", () => {
     assert.match(shopActions, /source: "listing_activation_follower_fanout"/);
     assert.match(shopActions, /listingId: listing\.id/);
     assert.match(shopActions, /sellerProfileId: listing\.sellerId/);
+    assert.match(shopActions, /source: "listing_publish_ai_review"/);
+    assert.match(shopActions, /source: "listing_publish_ai_review_followup"/);
+    assert.match(shopActions, /source: "listing_publish_ai_error_mark_failed"/);
 
     assert.match(createPage, /source: "listing_create_ai_review"/);
     assert.match(createPage, /source: "listing_create_ai_error_mark_failed"/);

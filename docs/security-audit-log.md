@@ -717,12 +717,15 @@ Scope:
 Results:
 
 - No empty `catch {}` blocks remain under `src`.
+- The only `$queryRawUnsafe` usage is the commission Near Me page. It uses constant SQL fragments selected from booleans, positional parameters for all variable values, and category allowlisting before the raw SQL path.
 - Public support, legal data-request, newsletter, CSP-report, listing-view, and listing-click routes are intentionally public and rate-limited or telemetry-only.
 - `POST /api/verification/apply` was authenticated through `ensureSeller()` and state-safe through a single `MakerVerification` upsert, but it lacked a route-level limiter despite mutating review state and running eligibility aggregate queries.
+- Seller listing publish/mark-available actions already fail closed to `PENDING_REVIEW` when AI review cannot approve, but the republish path still had less observability than the create-listing path.
 
 Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** `POST /api/verification/apply` now uses fail-closed `verificationApplyRatelimit` keyed by the current user before parsing the application body or running eligibility queries. Regression coverage lives in `tests/guild-listing-edit-followups.test.mjs`.
+- **Hardened 2026-05-13:** seller listing publish/mark-available AI-review failures and error-marking follow-up failures now emit Sentry evidence with bounded listing/seller IDs, matching the create-listing fail-closed observability pattern. Regression coverage lives in `tests/server-action-hardening.test.mjs`.
 
 Open work:
 
