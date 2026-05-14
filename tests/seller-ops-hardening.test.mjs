@@ -69,4 +69,13 @@ describe("seller operational route hardening", () => {
     assert.match(recentSales, /every: \{ listing: \{ sellerId: sellerProfile\.id \} \}/);
     assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
   });
+
+  it("keeps listing stock updates owner-scoped in the final mutation", () => {
+    const route = source("src/app/api/listings/[id]/stock/route.ts");
+
+    assert.match(route, /where: \{ id, seller: \{ userId: me\.id \} \}/);
+    assert.match(route, /AND "sellerId" = \$\{listing\.seller\.id\}/);
+    assert.match(route, /source: "stock_back_in_stock_fanout"/);
+    assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
 });

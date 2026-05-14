@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -123,6 +124,7 @@ export async function PATCH(
         END,
         "updatedAt" = NOW()
       WHERE id = ${id}
+        AND "sellerId" = ${listing.seller.id}
       RETURNING id, title, "stockQuantity", status::text AS status
     `;
     const updated = updatedRows[0];
@@ -221,7 +223,13 @@ export async function PATCH(
 
             if (claimedSubscribers.length < BACK_IN_STOCK_CLAIM_BATCH_SIZE) return;
           }
-        } catch { /* non-fatal */ }
+        } catch (error) {
+          Sentry.captureException(error, {
+            level: "warning",
+            tags: { source: "stock_back_in_stock_fanout" },
+            extra: { listingId: id, sellerProfileId: listing.seller.id },
+          });
+        }
       });
     }
 

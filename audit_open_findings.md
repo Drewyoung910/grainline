@@ -3820,6 +3820,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 151. **[HARDENED 2026-05-13] Follow-up mutating-route sweep closed remaining ordinary rate-limit gaps** — static scan found six authenticated/admin mutations without an explicit route limiter: account deletion, notification preference writes, favorite removal, commission close/fulfilled transitions, admin review deletion, and admin user ban/unban. They now use fail-closed `accountDeletionRatelimit`, `notificationPreferenceRatelimit`, `saveRatelimit`, `commissionStatusRatelimit`, and `adminActionRatelimit` respectively. Signed webhooks are intentionally excluded because signature verification plus idempotency is their boundary, and the dev make-order fixture remains local-only/non-Vercel. Source guardrail: `tests/mutation-rate-limit-sweep.test.mjs`.
 
+152. **[HARDENED 2026-05-13] Dynamic-route IDOR pass tightened listing stock final mutation and observability** — order, case, message, review, follow/block/report, and listing telemetry dynamic routes were inspected for route-local ownership/staff/public-visibility predicates. No cross-account read/write exploit was verified. The stock patch route already performed a seller ownership read first; this pass also keeps `sellerId` in the final raw SQL update predicate and replaces the silent back-in-stock fanout catch with Sentry evidence. Source guardrail: `tests/seller-ops-hardening.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

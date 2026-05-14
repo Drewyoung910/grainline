@@ -733,3 +733,22 @@ Open work:
 - Continue route-by-route audit for the remaining dynamic private routes.
 - Prioritize remaining unaudited account/support/legal/newsletter/Stripe Connect/account-lifecycle routes and any server-action files not yet represented above.
 - Add regression tests for each verified issue before or with the fix.
+
+## 2026-05-13 dynamic route ownership / IDOR audit
+
+Scope started:
+
+- Dynamic API routes under `src/app/api/**/[param]/route.ts`
+- High-impact private groups: order fulfillment/label/refund, case actions/messages/resolution, messages, review edit/reply/vote, follows/blocks/reports, and listing stock updates.
+
+Results so far:
+
+- Order fulfillment, label purchase, and seller refund routes resolve the acting seller and require every order item to belong to that seller before mutation. Payment/refund/label state transitions also use atomic conflict guards after authorization.
+- Case routes require either staff/admin/cron authority where intended or buyer/seller party membership before state changes. Mark-resolved keeps the party predicate in the SQL mutation.
+- Message list/read/stream routes require conversation participant membership before reads or read-state writes.
+- Review edit/delete/reply/vote routes require reviewer ownership, seller ownership, or public listing visibility as appropriate.
+- Follow, block, report, stock-notification, and listing telemetry routes use current-user ownership or shared public visibility predicates.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** manual listing stock updates now keep the verified seller profile in the final SQL `UPDATE` predicate instead of mutating by listing id alone, and back-in-stock fanout failures now emit Sentry evidence instead of a silent catch. Regression coverage lives in `tests/seller-ops-hardening.test.mjs`.
