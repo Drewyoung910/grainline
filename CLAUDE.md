@@ -285,8 +285,8 @@ Plus category label matches from `CATEGORY_VALUES`.
 - Migration: `20260327190830_expand_seller_profile`
 
 ### Upload endpoints added
-- `bannerImage` — 1 file, max 8MB, auth required
-- `galleryImage` — 10 files, max 4MB each, auth required
+- `bannerImage` — 1 file, max 15MB, auth required
+- `galleryImage` — 10 files, max 8MB each, auth required
 
 ### New components
 - `ProfileBannerUploader` — client component for banner upload; shows current image or neutral placeholder; hidden input passes URL to parent form; opens the 3:1 crop step before upload
@@ -3559,14 +3559,14 @@ Files upload to Cloudflare R2. Images use the processed upload route so metadata
 ### Endpoints
 | Endpoint | Max size | Max count |
 |---|---|---|
-| `listingImage` | 8MB | 8 |
+| `listingImage` | 12MB | 10 |
 | `messageImage` | 8MB | 6 |
 | `messageFile` (PDF) | 8MB | 4 |
-| `messageAny` | 8MB | 6 |
+| `messageAny` (images/PDF only) | 8MB | 6 |
 | `reviewPhoto` | 8MB | 6 |
 | `listingVideo` | 128MB | 1 |
-| `bannerImage` | 8MB | 1 |
-| `galleryImage` | 4MB | 10 |
+| `bannerImage` | 15MB | 1 |
+| `galleryImage` | 8MB | 10 |
 
 ### R2 CORS Policy
 Must be set in Cloudflare R2 bucket settings → CORS Policy:
@@ -4097,6 +4097,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Blog publish gating behavior**: seller blog posts are content/marketing and are intentionally not gated by Stripe/`chargesEnabled`; a disconnected seller may draft or publish a blog post. Non-staff authors must still have a real `SellerProfile` before creating maker-authored posts, and maker posts must write `sellerProfileId` so public visibility, comments, saves, and feed surfaces can apply seller/profile safety filters. Blog create/edit/delete server actions must also check suspended/deleted account state inside the action rather than relying only on page render or middleware.
 - **Shop profile canonical fields**: `/dashboard/profile` is canonical for public identity/profile content: display name, tagline, bio, story, avatar/banner/workshop image, workshop gallery, social links, public policies, custom-order availability, gift wrap, FAQs, and featured listings. `/dashboard/seller` is operational: payouts, vacation mode, city/state map location, pickup, shipping/tax, ship-from, package defaults, notification preferences, and broadcasts. Do not re-add display name, bio, or workshop gallery editing to `/dashboard/seller`.
 - **Image upload error UX behavior**: all upload validation should use `uploadRules.ts` so client and server agree on max size, max count, allowed types, labels, and error copy. Client-side prevalidation runs before network upload so users are not waiting on multi-MB files that will be rejected. User-facing errors should include the actual file size and endpoint limit when size is the problem, and should spell out allowed formats when type is the problem. All uploader components must wire `onUploadError` to `emitToast(e.message, "error")` or render `R2UploadButton`'s inline error; do not swallow upload errors.
+- **Message attachment upload behavior**: message attachments use the `messageAny` endpoint for images and PDFs only. Do not allow MP4/MOV on `messageAny` or `messageFile`; listing videos belong on the seller-only `listingVideo` endpoint. The message composer copy, picker accept list, `uploadRules.ts`, and server presign validation should stay aligned.
 - **Commission reference-image upload behavior**: `/commission/new` uses the non-seller `messageImage` endpoint for reference photos, and `/api/commission` validates submitted reference URLs with `filterFirstPartyMediaUrlsForUser(..., ["messageImage"])`. Do not switch commission references back to `listingImage`; that endpoint is seller-only and breaks buyer commission requests.
 - **Image upload crop UX behavior**: `bannerImage` uploads from `ProfileBannerUploader` use a 3:1 crop and the public seller banner displays at 3:1 from the `sm` breakpoint up (`h-56` fallback on mobile). `ProfileAvatarUploader` uses a 1:1 crop. Listing photos preserve their original upload aspect on the initial upload path (`PhotoManager`, `EditPhotoGrid`, and related R2 upload buttons do not force `cropAspect`) so the lightbox can show the full image; listing cards, management previews, browse/home listing tiles, and listing detail gallery display those photos with `aspect-[4/5] object-cover`. Sellers who want explicit thumbnail framing use the 4:5 `ImageRecropButton` flow. Workshop photo and workshop gallery uploads use 3:2 crops and 3:2 public/profile previews. `ImageCropModal` exports a JPEG with max 2000px long edge through `canvas.toBlob(..., 0.9)` and then uploads through the existing R2 pipeline. Message/chat uploads skip the crop step to avoid extra friction. `ImageCropModal` must reset processing/zoom/offset/naturalSize/error when the `file` prop changes so multi-file listing-photo batches cannot get stuck after the first crop.
 - **Image recrop behavior**: existing banner, avatar, workshop, gallery, new-listing photos, and edit-listing photos expose "Adjust crop" / "Re-crop" controls through `ImageRecropButton`. Profile recrops update the form's hidden URL and still require the profile form save. New-listing recrops update hidden `imageUrlsJson` before submit. Edit-listing recrops update `photoManifestJson` and are saved only when the parent listing form is saved; if the listing is active, that save goes through the existing AI review/PENDING_REVIEW flow because the image bytes changed.

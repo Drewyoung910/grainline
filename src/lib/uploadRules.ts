@@ -65,8 +65,8 @@ export const UPLOAD_ENDPOINT_LABELS: Record<UploadEndpoint, string> = {
 export const DIRECT_ENDPOINT_ALLOWED_TYPES: Record<UploadEndpoint, readonly string[]> = {
   listingImage: [],
   messageImage: [],
-  messageFile: DIRECT_UPLOAD_TYPES,
-  messageAny: [...IMAGE_UPLOAD_TYPES, ...DIRECT_UPLOAD_TYPES],
+  messageFile: ["application/pdf"],
+  messageAny: ["application/pdf"],
   reviewPhoto: [],
   listingVideo: ["video/mp4", "video/quicktime"],
   bannerImage: [],
@@ -83,11 +83,11 @@ export function uploadMaxSizeMb(endpoint: UploadEndpoint) {
 
 export function allowedTypesLabel(endpoint: UploadEndpoint) {
   if (IMAGE_UPLOAD_ENDPOINTS.includes(endpoint as (typeof IMAGE_UPLOAD_ENDPOINTS)[number])) {
-    if (endpoint === "messageAny") return "JPEG, PNG, WebP, MP4, MOV, and PDF";
+    if (endpoint === "messageAny") return "JPEG, PNG, WebP, and PDF";
     return "JPEG, PNG, and WebP images";
   }
   if (endpoint === "listingVideo") return "MP4 and MOV videos";
-  if (endpoint === "messageFile") return "MP4, MOV, and PDF files";
+  if (endpoint === "messageFile") return "PDF files";
   return "supported files";
 }
 

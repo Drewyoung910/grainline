@@ -24,6 +24,18 @@ describe("upload UX follow-ups", () => {
       rules.uploadExtensionMessage("video/quicktime", ["mov", "qt"]),
       /Use \.mov, \.qt\./,
     );
+    assert.match(
+      rules.uploadTypeMessage("messageAny", "video/mp4"),
+      /Only JPEG, PNG, WebP, and PDF are allowed\. You uploaded video\/mp4\./,
+    );
+    assert.throws(
+      () => rules.validateUploadFile("messageAny", { size: 1024, type: "video/mp4" }, 0),
+      /Only JPEG, PNG, WebP, and PDF are allowed/,
+    );
+    assert.throws(
+      () => rules.validateUploadFile("messageFile", { size: 1024, type: "video/quicktime" }, 0),
+      /Only PDF files are allowed/,
+    );
     assert.throws(
       () => rules.validateUploadFile("bannerImage", { size: 16 * 1024 * 1024, type: "image/jpeg" }, 0),
       /Shop banner must be under 15 MB/,
