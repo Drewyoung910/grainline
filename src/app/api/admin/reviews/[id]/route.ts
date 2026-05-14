@@ -1,10 +1,48 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
+
+function mediaUrlHost(url: string) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "invalid-url";
+  }
+}
+
+function captureAdminReviewPhotoCleanupFailures({
+  results,
+  photos,
+  reviewId,
+}: {
+  results: PromiseSettledResult<boolean>[];
+  photos: { url: string }[];
+  reviewId: string;
+}) {
+  results.forEach((result, index) => {
+    const host = mediaUrlHost(photos[index]?.url ?? "");
+    if (result.status === "rejected") {
+      Sentry.captureException(result.reason, {
+        level: "warning",
+        tags: { source: "admin_review_photo_cleanup" },
+        extra: { reviewId, host },
+      });
+      return;
+    }
+    if (result.value === false) {
+      Sentry.captureMessage("Admin review photo cleanup skipped non-R2 media", {
+        level: "warning",
+        tags: { source: "admin_review_photo_cleanup", host },
+        extra: { reviewId },
+      });
+    }
+  });
+}
 
 export async function DELETE(
   _request: Request,
@@ -43,8 +81,14 @@ export async function DELETE(
     await refreshSellerRatingSummary(review.listing.sellerId);
   } catch (error) {
     console.error("Failed to refresh seller rating summary after admin review delete:", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_review_rating_summary_refresh" },
+      extra: { reviewId: id, listingId: review.listingId, sellerId: review.listing.sellerId },
+    });
   }
-  await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
+  const cleanupResults = await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
+  captureAdminReviewPhotoCleanupFailures({ results: cleanupResults, photos, reviewId: id });
 
   await logAdminAction({
     adminId: admin.id,

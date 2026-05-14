@@ -1,4 +1,5 @@
 import { auth } from '@clerk/nextjs/server'
+import * as Sentry from '@sentry/nextjs'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit'
@@ -67,7 +68,15 @@ export async function PATCH(
     }
     revalidateListingSearchCaches()
     // First active listing for this seller might earn the Founding Maker badge.
-    await maybeGrantFoundingMaker(listing.sellerId)
+    try {
+      await maybeGrantFoundingMaker(listing.sellerId)
+    } catch (error) {
+      Sentry.captureException(error, {
+        level: 'warning',
+        tags: { source: 'admin_listing_review_founding_maker' },
+        extra: { listingId: id, sellerId: listing.sellerId },
+      })
+    }
     await logAdminAction({
       adminId: admin.id,
       action: 'APPROVE_LISTING',
@@ -81,7 +90,13 @@ export async function PATCH(
       title: 'Listing approved',
       body: `Your listing "${listing.title}" has been approved and is now live!`,
       link: publicListingPath(id, listing.title),
-    }).catch(() => {})
+    }).catch((error) => {
+      Sentry.captureException(error, {
+        level: 'warning',
+        tags: { source: 'admin_listing_review_notification' },
+        extra: { listingId: id, sellerUserId: listing.seller.userId, action },
+      })
+    })
     if (listing.customOrderConversationId && listing.reservedForUserId) {
       await sendCustomOrderReadyLink({
         conversationId: listing.customOrderConversationId,
@@ -114,7 +129,13 @@ export async function PATCH(
       title: 'Listing needs changes',
       body: `Your listing "${listing.title}" was not approved. Reason: ${reason}. Please edit and resubmit.`,
       link: `/dashboard/listings/${id}/edit`,
-    }).catch(() => {})
+    }).catch((error) => {
+      Sentry.captureException(error, {
+        level: 'warning',
+        tags: { source: 'admin_listing_review_notification' },
+        extra: { listingId: id, sellerUserId: listing.seller.userId, action },
+      })
+    })
   } else {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   }

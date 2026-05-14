@@ -1,0 +1,61 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+describe("admin moderation hardening follow-ups", () => {
+  it("expires open checkout sessions when staff remove a listing", () => {
+    const route = source("src/app/api/admin/listings/[id]/route.ts");
+
+    assert.match(route, /expireOpenCheckoutSessionsForListing/);
+    assert.match(route, /source: "admin_listing_remove"/);
+    assert.match(route, /sellerId: listing\.sellerId/);
+  });
+
+  it("captures admin listing-review and custom-order side effects", () => {
+    const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+    const customOrderReadyLink = source("src/lib/customOrderReadyLink.ts");
+
+    assert.match(reviewRoute, /source: 'admin_listing_review_founding_maker'/);
+    assert.match(reviewRoute, /source: 'admin_listing_review_notification'/);
+    assert.doesNotMatch(reviewRoute, /\.catch\(\(\) => \{\}\)/);
+    assert.match(customOrderReadyLink, /source: "custom_order_ready_email"/);
+    assert.match(customOrderReadyLink, /listingId: listing\.id/);
+    assert.doesNotMatch(customOrderReadyLink, /extra:\s*\{[^}]*email/s);
+  });
+
+  it("keeps report resolution rate-limited and stale-safe", () => {
+    const route = source("src/app/api/admin/reports/[id]/resolve/route.ts");
+
+    assert.match(route, /adminActionRatelimit/);
+    assert.match(route, /safeRateLimit\(adminActionRatelimit, admin\.id\)/);
+    assert.match(route, /userReport\.updateMany/);
+    assert.match(route, /where: \{ id, resolved: false \}/);
+  });
+
+  it("captures admin review cleanup failures without full media URLs", () => {
+    const route = source("src/app/api/admin/reviews/[id]/route.ts");
+
+    assert.match(route, /source: "admin_review_rating_summary_refresh"/);
+    assert.match(route, /source: "admin_review_photo_cleanup"/);
+    assert.match(route, /captureAdminReviewPhotoCleanupFailures/);
+    assert.match(route, /const host = mediaUrlHost/);
+    assert.doesNotMatch(route, /extra:\s*\{[^}]*url/s);
+  });
+
+  it("captures admin email and verification email failures with safe telemetry", () => {
+    const emailRoute = source("src/app/api/admin/email/route.ts");
+    const verificationPage = source("src/app/admin/verification/page.tsx");
+
+    assert.match(emailRoute, /hashEmailForTelemetry/);
+    assert.match(emailRoute, /source: "admin_email_send"/);
+    assert.match(emailRoute, /source: "admin_email_notification"/);
+    assert.match(emailRoute, /source: "admin_email_audit_log"/);
+    assert.doesNotMatch(emailRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+    assert.match(verificationPage, /"admin_verification_email"/);
+    assert.doesNotMatch(verificationPage, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+  });
+});

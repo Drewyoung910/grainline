@@ -1,8 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 
 export async function DELETE(
   _request: Request,
@@ -58,6 +60,14 @@ export async function DELETE(
       previousIsPrivate: listing.isPrivate,
       previousRejectionReason: listing.rejectionReason,
     },
+  });
+
+  after(async () => {
+    await expireOpenCheckoutSessionsForListing({
+      listingId: id,
+      sellerId: listing.sellerId,
+      source: "admin_listing_remove",
+    });
   });
 
   return NextResponse.json({ ok: true });

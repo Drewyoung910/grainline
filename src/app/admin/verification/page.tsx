@@ -1,4 +1,5 @@
 // src/app/admin/verification/page.tsx
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
@@ -51,6 +52,18 @@ function cachedMetricsToResult(sellerProfileId: string, metrics: CachedSellerMet
 
 function formatUsd(cents: number) {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+function captureVerificationEmailFailure(
+  error: unknown,
+  source: string,
+  extra: Record<string, string | null>,
+) {
+  Sentry.captureException(error, {
+    level: "warning",
+    tags: { source },
+    extra,
+  });
 }
 
 function guildMasterFailureDetails(
@@ -214,7 +227,12 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
         },
         profileId: verification.sellerProfile.id,
       });
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: verification.sellerProfile.id,
+      });
+    }
   }
 
   await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId });
@@ -270,7 +288,12 @@ async function rejectGuildMember(formData: FormData) {
         },
         notes: reviewNotes,
       });
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: null,
+      });
+    }
   }
 
   await logAdminAction({ adminId: me.id, action: "REJECT_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId, reason: reviewNotes ?? undefined });
@@ -329,7 +352,12 @@ async function revokeMember(sellerProfileId: string) {
         seller: { displayName: seller.displayName, email: seller.user.email },
         reason: "Your Guild Member badge was revoked by Grainline staff.",
       });
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        sellerProfileId,
+        verificationId: null,
+      });
+    }
   }
 
   await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
@@ -437,7 +465,12 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
         },
         profileId: verification.sellerProfile.id,
       });
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        verificationId,
+        sellerProfileId: verification.sellerProfile.id,
+      });
+    }
   }
 
   await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: verification.sellerProfileId });
@@ -545,7 +578,12 @@ async function revokeMaster(sellerProfileId: string) {
       await sendGuildMasterRevokedEmail({
         seller: { displayName: seller.displayName, email: seller.user.email },
       });
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      captureVerificationEmailFailure(error, "admin_verification_email", {
+        sellerProfileId,
+        verificationId: null,
+      });
+    }
   }
 
   await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });

@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { adminEmailRatelimit, safeRateLimit } from "@/lib/ratelimit";
@@ -9,6 +10,7 @@ import { normalizeUserText, stripBidiControls, truncateText } from "@/lib/saniti
 import { sendRenderedEmail } from "@/lib/email";
 import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
 import { logAdminAction } from "@/lib/audit";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
 
@@ -120,6 +122,11 @@ export async function POST(request: Request) {
     }, { throwOnFailure: true });
   } catch (err) {
     console.error("[admin email] send failed:", err);
+    Sentry.captureException(err, {
+      level: "warning",
+      tags: { source: "admin_email_send" },
+      extra: { targetUserId: body.userId ?? null, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
+    });
     return NextResponse.json({ error: "Email send failed" }, { status: 500 });
   }
 
@@ -130,7 +137,13 @@ export async function POST(request: Request) {
       title: sanitizedSubject,
       body: truncateText(sanitizedBody.replace(/\s+/g, " ").trim(), 500) || "Message from the Grainline team.",
       link: "/account",
-    }).catch(() => {});
+    }).catch((error) => {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "admin_email_notification" },
+        extra: { targetUserId: body.userId },
+      });
+    });
   }
 
   // Audit log
@@ -143,7 +156,13 @@ export async function POST(request: Request) {
       reason: sanitizedSubject,
       metadata: {},
     });
-  } catch { /* non-fatal */ }
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_email_audit_log" },
+      extra: { targetUserId: body.userId ?? null, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
+    });
+  }
 
   return NextResponse.json({ ok: true, skipped: !emailConfigured });
 }

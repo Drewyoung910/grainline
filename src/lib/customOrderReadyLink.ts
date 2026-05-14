@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { sendCustomOrderReady } from "@/lib/email";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -84,7 +85,12 @@ export async function sendCustomOrderReadyLink({
         });
       }
     }
-  } catch {
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "custom_order_ready_email" },
+      extra: { listingId: listing.id, conversationId, sellerUserId, buyerUserId },
+    });
     // Non-fatal: the in-app message and notification are the durable buyer path.
   }
 

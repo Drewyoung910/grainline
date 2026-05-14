@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
+import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST(
   _req: Request,
@@ -18,11 +19,17 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
+  if (!success) return rateLimitResponse(reset, "Too many admin actions. Try again shortly.");
+
   const { id } = await params;
-  await prisma.userReport.update({
-    where: { id },
+  const updated = await prisma.userReport.updateMany({
+    where: { id, resolved: false },
     data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id },
   });
+  if (updated.count === 0) {
+    return NextResponse.json({ error: "Report is already resolved or no longer exists." }, { status: 404 });
+  }
 
   await logAdminAction({
     adminId: admin.id,

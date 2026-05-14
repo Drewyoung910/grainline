@@ -473,6 +473,36 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** commission geo-assignment failures, close/fulfill notification failures, and interest-created message/notification failures now emit Sentry evidence with safe commission/conversation/user/seller-profile IDs. The interest route no longer selects the buyer email address because it is not needed for the side effects. Regression coverage lives in `tests/commission-observability-followups.test.mjs`.
 
+## 2026-05-13 admin/moderation route spot check
+
+Scope:
+
+- `src/app/api/admin/listings/[id]/route.ts`
+- `src/app/api/admin/listings/[id]/review/route.ts`
+- `src/app/api/admin/reports/[id]/resolve/route.ts`
+- `src/app/api/admin/reviews/[id]/route.ts`
+- `src/app/api/admin/users/[id]/ban/route.ts`
+- `src/app/api/admin/audit/[id]/undo/route.ts`
+- `src/app/api/admin/email/route.ts`
+- `src/app/api/admin/verify-pin/route.ts`
+- `src/app/admin/actions.ts`
+- `src/app/admin/support/actions.ts`
+- `src/app/admin/verification/page.tsx`
+- `src/lib/audit.ts`
+- `src/lib/ban.ts`
+
+Results:
+
+- Admin APIs/pages/actions re-check local role plus banned/deleted state at the access point instead of relying only on middleware or layout state.
+- Destructive admin listing/review/user actions require `ADMIN`; staff review/report/support/order actions allow `ADMIN | EMPLOYEE` where intended.
+- Admin listing review uses a pending-status precondition for approve/reject writes, and custom-order ready-link side effects remain idempotent through `customOrderReadyLink.ts`.
+- User ban/unban flows block admin-target bans, write durable audit metadata, disable seller orderability on ban, close open buyer commission requests, mark open seller orders for review, expire open checkout sessions for banned sellers, and sync Clerk session state after the local transaction.
+- Admin PIN verification uses account and IP rate limits, constant-time digest comparison, signed HTTP-only cookies, and audit/Sentry evidence for rate-limit and failed-auth cases.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** staff listing removal now proactively expires matching open Stripe Checkout Sessions; admin report resolution is rate-limited and stale-safe; admin listing-review notifications/Founding Maker grants, custom-order ready emails, admin review rating/photo cleanup, admin email send/notification/audit side effects, and admin verification emails now emit Sentry evidence with bounded IDs or hashed email telemetry. Regression coverage lives in `tests/admin-moderation-observability.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
