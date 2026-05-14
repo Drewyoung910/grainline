@@ -1,5 +1,6 @@
 // src/app/dashboard/listings/new/page.tsx
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -392,6 +393,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
     }
   } catch (error) {
     console.error("[listing-create] AI review failed:", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "listing_create_ai_review" },
+      extra: { listingId: created.id, sellerProfileId: seller.id },
+    });
     await prisma.listing.update({
       where: { id: created.id },
       data: {
@@ -401,6 +407,11 @@ async function createListing(_prevState: unknown, formData: FormData) {
       },
     }).catch((updateError) => {
       console.error("[listing-create] failed to mark AI review error:", updateError);
+      Sentry.captureException(updateError, {
+        level: "error",
+        tags: { source: "listing_create_ai_error_mark_failed" },
+        extra: { listingId: created.id, sellerProfileId: seller.id },
+      });
     });
   }
 
@@ -422,7 +433,13 @@ async function createListing(_prevState: unknown, formData: FormData) {
           listing: { id: created.id, title: created.title, priceCents: created.priceCents },
           emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
-      } catch { /* non-fatal */ }
+      } catch (error) {
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { source: "listing_create_follower_fanout" },
+          extra: { listingId: created.id, sellerProfileId: seller.id },
+        });
+      }
     });
   }
 

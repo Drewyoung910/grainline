@@ -1,5 +1,6 @@
 "use server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -86,8 +87,13 @@ function queueFollowerFanoutForActiveListing(listing: {
         listing,
         emailDedupKey: (followerId) => `followed-listing-active:${listing.id}:${followerId}:${emailBucket}`,
       });
-    } catch {
+    } catch (error) {
       // Non-fatal: listing activation should not roll back if follower fan-out fails.
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "listing_activation_follower_fanout" },
+        extra: { listingId: listing.id, sellerProfileId: listing.sellerId },
+      });
     }
   });
 }

@@ -613,6 +613,29 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** review/follow notification side-effect failures no longer turn successful primary mutations into false 500s; duplicate review races now return `409 Already reviewed`; blog comment tree reads are bounded by depth (`100` top-level, `50` replies, `25` nested replies); and commission-request reports cannot target closed/expired/suspended-buyer requests. Regression coverage lives in `tests/social-interaction-hardening.test.mjs`.
 
+## 2026-05-13 server action spot check
+
+Scope:
+
+- `src/app/account/blocked/actions.ts`
+- `src/app/dashboard/onboarding/actions.ts`
+- `src/app/admin/actions.ts`
+- `src/app/admin/support/actions.ts`
+- `src/app/seller/[id]/shop/actions.ts`
+- `src/app/dashboard/listings/new/page.tsx`
+
+Results:
+
+- Account blocked-user unblocking resolves the current local user through `ensureUserByClerkId()` and deletes only `Block` rows where the current user is the blocker.
+- Onboarding actions resolve the current seller through the signed-in Clerk user, reject suspended/deleted accounts, constrain step advancement with `updateMany({ id, onboardingStep })`, and keep profile media first-party-only.
+- Admin order/support server actions repeat local active-staff gates (`EMPLOYEE`/`ADMIN`, not banned, not deleted) before mutating order review flags, order notes, or support request state.
+- Seller listing shop actions resolve ownership through `getOwnedListing()`, use state-preconditioned `updateMany()` for listing status transitions, and keep checkout-session expiry queued only for availability-changing transitions.
+- New-listing creation keeps AI review fail-closed and follower fanout after-response/non-blocking.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** seller shop activation fanout and new-listing follower fanout failures now emit Sentry evidence instead of silent catches. New-listing AI review failures and "mark AI error" follow-up failures also emit bounded Sentry evidence while preserving the existing fail-closed `PENDING_REVIEW` behavior. Regression coverage lives in `tests/server-action-hardening.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
