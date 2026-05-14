@@ -59,6 +59,13 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     assert.match(profile, /normalizeOwnedImageUrl/);
     assert.match(profile, /isFirstPartyMediaUrlForUser\(raw, clerkUserId, \[endpoint\]\)/);
     assert.match(profile, /existingGalleryUrls\.has\(url\)/);
+
+    const commissionRoute = source("src/app/api/commission/route.ts");
+    const commissionPage = source("src/app/commission/new/page.tsx");
+    assert.match(commissionRoute, /isFirstPartyMediaUrlForUser|filterFirstPartyMediaUrlsForUser/);
+    assert.match(commissionRoute, /filterFirstPartyMediaUrlsForUser\(referenceImageUrls \?\? \[\], 3, userId, \["messageImage"\]\)/);
+    assert.match(commissionPage, /endpoint="messageImage"/);
+    assert.doesNotMatch(commissionPage, /endpoint="listingImage"/);
   });
 
   it("deletes processed image uploads when public availability verification fails", () => {

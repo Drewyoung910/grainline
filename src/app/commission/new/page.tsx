@@ -183,7 +183,7 @@ export default function NewCommissionPage() {
           </p>
           {referenceImageUrls.length < 3 && (
             <UploadButton
-              endpoint="listingImage"
+              endpoint="messageImage"
               appearance={{
                 button: "bg-neutral-900 text-white text-xs px-3 py-2 hover:bg-neutral-700",
                 container: "inline-block",

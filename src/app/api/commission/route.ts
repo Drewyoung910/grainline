@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
   const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
-  const images = filterFirstPartyMediaUrlsForUser(referenceImageUrls ?? [], 3, userId, ["listingImage"]);
+  const images = filterFirstPartyMediaUrlsForUser(referenceImageUrls ?? [], 3, userId, ["messageImage"]);
 
   if (budgetMin != null && budgetMinCents === null) return NextResponse.json({ error: "Minimum budget must be a valid dollar amount." }, { status: 400 });
   if (budgetMax != null && budgetMaxCents === null) return NextResponse.json({ error: "Maximum budget must be a valid dollar amount." }, { status: 400 });

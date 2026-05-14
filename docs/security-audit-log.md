@@ -787,3 +787,4 @@ Results so far:
 Follow-up fix from this pass:
 
 - **Hardened 2026-05-14:** account deletion media cleanup now filters collected URLs through `accountDeletionMediaUrlsForCleanup()` before calling `deleteR2ObjectByUrl()`. Only configured first-party media keys owned by the deleted Clerk user are deleted, so copied markdown/message/blog URLs cannot make one user deletion remove another user's upload. Regression coverage lives in `tests/account-deletion-media.test.mjs`.
+- **Fixed 2026-05-14:** commission reference-image uploads now use the non-seller `messageImage` endpoint instead of seller-only `listingImage`, and the commission API validates those submitted reference URLs against `messageImage` ownership. This preserves current-uploader scoping without requiring buyers to have a seller profile. Regression coverage lives in `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.

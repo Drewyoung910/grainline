@@ -144,6 +144,7 @@ const ACCOUNT_DELETION_MEDIA_ENDPOINTS = [
   "galleryImage",
   "listingImage",
   "listingVideo",
+  "messageImage",
   "messageAny",
   "messageFile",
   "reviewPhoto",
