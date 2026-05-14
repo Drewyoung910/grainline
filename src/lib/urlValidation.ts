@@ -18,6 +18,12 @@ const FIRST_PARTY_MEDIA_ORIGINS = ["https://cdn.thegrainline.com"];
 // and preservable while new uploads continue to go through Grainline's R2 flow.
 const LEGACY_MEDIA_ORIGINS = ["https://utfs.io", "https://ufs.sh", "https://qu5gyczaki.ufs.sh"];
 const DISPLAY_ONLY_MEDIA_HOSTS = new Set(["i.postimg.cc"]);
+const MAX_KEY_SEGMENT_LENGTH = 128;
+
+function uploadKeyUserSegmentForValidation(userId: string): string {
+  const segment = userId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, MAX_KEY_SEGMENT_LENGTH);
+  return segment || "user";
+}
 
 function normalizedUrl(input: string): URL | null {
   try {
@@ -54,6 +60,58 @@ export function isFirstPartyMediaUrl(input: string): boolean {
 
 export function filterFirstPartyMediaUrls(urls: string[], max: number): string[] {
   return urls.filter((url) => isFirstPartyMediaUrl(url)).slice(0, max);
+}
+
+export function firstPartyMediaKey(input: string): string | null {
+  const candidate = normalizedUrl(input);
+  if (!candidate || candidate.protocol !== "https:") return null;
+
+  const allowedBases = [...configuredPublicUrls, ...FIRST_PARTY_MEDIA_ORIGINS]
+    .map((url) => normalizedUrl(url))
+    .filter((url): url is URL => Boolean(url));
+
+  for (const base of allowedBases) {
+    const basePath = base.pathname.replace(/\/$/, "");
+    if (candidate.origin !== base.origin) continue;
+    if (basePath && !candidate.pathname.startsWith(`${basePath}/`)) continue;
+    let key: string;
+    try {
+      key = decodeURIComponent(candidate.pathname.slice(basePath.length).replace(/^\/+/, ""));
+    } catch {
+      return null;
+    }
+    if (!key || key.includes("..") || key.split("/").some((part) => part === "." || part === "..")) {
+      return null;
+    }
+    return key;
+  }
+
+  return null;
+}
+
+export function isFirstPartyMediaUrlForUser(
+  input: string,
+  clerkUserId: string,
+  allowedEndpoints?: readonly string[],
+): boolean {
+  const key = firstPartyMediaKey(input);
+  if (!key) return false;
+
+  const [endpoint, userSegment, ...rest] = key.split("/");
+  if (!endpoint || !userSegment || rest.length === 0) return false;
+  if (allowedEndpoints && !allowedEndpoints.includes(endpoint)) return false;
+  return userSegment === uploadKeyUserSegmentForValidation(clerkUserId);
+}
+
+export function filterFirstPartyMediaUrlsForUser(
+  urls: string[],
+  max: number,
+  clerkUserId: string,
+  allowedEndpoints?: readonly string[],
+): string[] {
+  return urls
+    .filter((url) => isFirstPartyMediaUrlForUser(url, clerkUserId, allowedEndpoints))
+    .slice(0, max);
 }
 
 export function isR2PublicUrl(input: string): boolean {

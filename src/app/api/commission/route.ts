@@ -16,7 +16,7 @@ import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
-import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { z } from "zod";
 
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
   const categoryValid = category && CATEGORY_VALUES.includes(category as Category);
   const budgetMinCents = budgetMin != null ? parseMoneyInputToCents(budgetMin) : null;
   const budgetMaxCents = budgetMax != null ? parseMoneyInputToCents(budgetMax) : null;
-  const images = filterFirstPartyMediaUrls(referenceImageUrls ?? [], 3);
+  const images = filterFirstPartyMediaUrlsForUser(referenceImageUrls ?? [], 3, userId, ["listingImage"]);
 
   if (budgetMin != null && budgetMinCents === null) return NextResponse.json({ error: "Minimum budget must be a valid dollar amount." }, { status: 400 });
   if (budgetMax != null && budgetMaxCents === null) return NextResponse.json({ error: "Maximum budget must be a valid dollar amount." }, { status: 400 });

@@ -11,7 +11,7 @@ import { renderFirstListingCongratsEmail } from "@/lib/email";
 import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrlsForUser } from "@/lib/urlValidation";
 import { fanOutListingToFollowers } from "@/lib/followerListingNotifications";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import PhotoManager from "@/components/PhotoManager";
@@ -71,7 +71,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrls(imageUrls, 10);
+  imageUrls = filterFirstPartyMediaUrlsForUser(imageUrls, 10, userId, ["listingImage"]);
 
   // Original (pre-crop) URLs from PhotoManager. Aligned by index with
   // imageUrls. For new uploads these equal imageUrls (no crop applied
@@ -87,7 +87,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
   } else {
     console.warn("[listing-create] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
   }
-  imageOriginalUrls = filterFirstPartyMediaUrls(imageOriginalUrls, 10);
+  imageOriginalUrls = filterFirstPartyMediaUrlsForUser(imageOriginalUrls, 10, userId, ["listingImage"]);
 
   // Alt texts (from PhotoManager hidden input)
   let imageAltTexts: string[] = [];

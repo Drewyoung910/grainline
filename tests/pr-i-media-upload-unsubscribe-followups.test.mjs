@@ -35,6 +35,32 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     assert.match(source("src/lib/ai-review.ts"), /isR2PublicUrl/);
   });
 
+  it("scopes newly submitted first-party media URLs to the current uploader", () => {
+    const currentUserWritePaths = [
+      "src/app/messages/[id]/page.tsx",
+      "src/app/dashboard/listings/new/page.tsx",
+      "src/app/dashboard/listings/custom/page.tsx",
+      "src/app/dashboard/onboarding/actions.ts",
+      "src/app/api/commission/route.ts",
+      "src/app/api/reviews/route.ts",
+      "src/lib/blogInput.ts",
+      "src/actions/listings.ts",
+    ];
+
+    for (const path of currentUserWritePaths) {
+      assert.match(source(path), /isFirstPartyMediaUrlForUser|filterFirstPartyMediaUrlsForUser/, path);
+    }
+
+    const listingEdit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    assert.match(listingEdit, /isExistingUrl/);
+    assert.match(listingEdit, /isFirstPartyMediaUrlForUser\(url, clerkUserId, \["listingImage"\]\)/);
+
+    const profile = source("src/app/dashboard/profile/page.tsx");
+    assert.match(profile, /normalizeOwnedImageUrl/);
+    assert.match(profile, /isFirstPartyMediaUrlForUser\(raw, clerkUserId, \[endpoint\]\)/);
+    assert.match(profile, /existingGalleryUrls\.has\(url\)/);
+  });
+
   it("deletes processed image uploads when public availability verification fails", () => {
     const route = source("src/app/api/upload/image/route.ts");
     assert.match(route, /DeleteObjectCommand/);

@@ -6,15 +6,13 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { sanitizeRichText } from "@/lib/sanitize";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { mapWithConcurrency } from "@/lib/concurrency";
 
-const ReviewPhotoUrlsSchema = z.array(
-  z.string().url().refine((url) => isFirstPartyMediaUrl(url), { message: "Invalid image URL" })
-).max(6).optional();
+const ReviewPhotoUrlsSchema = z.array(z.string().url()).max(6).optional();
 
 const ReviewPatchSchema = z.object({
   ratingX2: z.number().int().min(2).max(10),
@@ -119,6 +117,10 @@ export async function PATCH(
     where: { reviewId: id },
     select: { url: true },
   });
+  const oldPhotoUrls = new Set(oldPhotos.map((photo) => photo.url));
+  if (photos.some((url) => !oldPhotoUrls.has(url) && !isFirstPartyMediaUrlForUser(url, userId, ["reviewPhoto"]))) {
+    return NextResponse.json({ error: "Use uploaded Grainline images only." }, { status: 400 });
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.review.update({

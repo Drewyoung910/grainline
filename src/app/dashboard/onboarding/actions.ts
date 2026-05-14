@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -20,6 +20,7 @@ async function getSeller(): Promise<{
   onboardingStep: number;
   chargesEnabled: boolean;
   listingCount: number;
+  clerkUserId: string;
 }> {
   const { userId } = await auth();
   if (!userId) throw new Error("Not signed in");
@@ -40,6 +41,7 @@ async function getSeller(): Promise<{
     onboardingStep: seller.onboardingStep,
     chargesEnabled: seller.chargesEnabled,
     listingCount: seller._count.listings,
+    clerkUserId: userId,
   };
 }
 
@@ -51,7 +53,7 @@ export async function saveStep1(formData: FormData): Promise<ActionResult> {
     const taglineRaw = truncateText(String(formData.get("tagline") || "").trim(), 100);
     const tagline = taglineRaw ? sanitizeText(taglineRaw) : null;
     const avatarImageUrl = String(formData.get("avatarImageUrl") || "").trim() || null;
-    if (avatarImageUrl && !isFirstPartyMediaUrl(avatarImageUrl)) {
+    if (avatarImageUrl && !isFirstPartyMediaUrlForUser(avatarImageUrl, seller.clerkUserId, ["galleryImage"])) {
       return { ok: false, error: "Use an uploaded Grainline image for your profile photo." };
     }
 

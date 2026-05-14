@@ -16,7 +16,7 @@ import ThreadCustomOrderButton from "@/components/ThreadCustomOrderButton";
 import BlockReportButton from "@/components/BlockReportButton";
 import { normalizeMessageAttachments } from "@/lib/messageAttachments";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 import { truncateText } from "@/lib/sanitize";
 
@@ -134,7 +134,10 @@ export default async function ThreadPage({
     if (!rlOk) return { ok: false, error: "You're sending messages too quickly. Please wait a moment." };
 
     const body = truncateText(String(formData.get("body") ?? "").trim(), 2000);
-    const atts = normalizeMessageAttachments(String(formData.get("attachments") ?? "[]"), isFirstPartyMediaUrl);
+    const atts = normalizeMessageAttachments(
+      String(formData.get("attachments") ?? "[]"),
+      (url) => isFirstPartyMediaUrlForUser(url, userId, ["messageAny"]),
+    );
 
     // Profanity check (log-only)
     if (body) {

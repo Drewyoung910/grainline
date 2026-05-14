@@ -20,7 +20,7 @@ import { listingEditBlockReason } from "@/lib/listingEditState";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import type { Metadata } from "next";
 
@@ -91,6 +91,7 @@ type PhotoManifestItem = {
 function parsePhotoManifestField(
   value: FormDataEntryValue | null,
   existingPhotos: ExistingPhotoForManifest[],
+  clerkUserId: string,
 ): { ok: true; photos: PhotoManifestItem[] } | { ok: false; error: string } {
   if (typeof value !== "string" || value.trim() === "") {
     return {
@@ -130,13 +131,16 @@ function parsePhotoManifestField(
       return { ok: false, error: "Invalid photo data. Refresh and try again." };
     }
     const url = typeof item.url === "string" ? item.url.trim() : "";
-    if (!url || !isFirstPartyMediaUrl(url)) {
+    const isExistingUrl =
+      Boolean(existingPhoto) &&
+      (url === existingPhoto?.url || (existingPhoto?.originalUrl ? url === existingPhoto.originalUrl : false));
+    if (!url || (!isExistingUrl && !isFirstPartyMediaUrlForUser(url, clerkUserId, ["listingImage"]))) {
       return { ok: false, error: "Invalid photo URL. Use uploaded Grainline images only." };
     }
     const rawOriginalUrl = typeof item.originalUrl === "string" ? item.originalUrl.trim() : "";
     const originalUrl = existingPhoto
       ? existingPhoto.originalUrl ?? existingPhoto.url
-      : rawOriginalUrl && isFirstPartyMediaUrl(rawOriginalUrl)
+      : rawOriginalUrl && isFirstPartyMediaUrlForUser(rawOriginalUrl, clerkUserId, ["listingImage"])
         ? rawOriginalUrl
         : url;
     const altText = truncateText(sanitizeText(String(item.altText ?? "").trim()), 200) || null;
@@ -263,7 +267,7 @@ async function updateListing(
   const blockReason = listingEditBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
 
-  const photoManifest = parsePhotoManifestField(formData.get("photoManifestJson"), listing.photos);
+  const photoManifest = parsePhotoManifestField(formData.get("photoManifestJson"), listing.photos, userId);
   if (!photoManifest.ok) return { ok: false, error: photoManifest.error };
   if (photoManifest.photos.length === 0) {
     return { ok: false, error: "Add at least one listing photo before saving." };

@@ -48,6 +48,7 @@ describe("seller operational route hardening", () => {
 
     assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
     assert.match(route, /isFirstPartyMediaUrl\(u\)/);
+    assert.match(route, /isFirstPartyMediaUrlForUser\(imageUrl, userId/);
     assert.match(route, /safeRateLimit\(broadcastRatelimit, seller\.id\)/);
     assert.match(route, /dedupScope: broadcast\.id/);
   });

@@ -16,7 +16,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import CharCounter from "@/components/CharCounter";
 import RemoveAvatarButton from "./RemoveAvatarButton";
 import { sanitizeText, sanitizeRichText, sanitizeUserName, truncateText } from "@/lib/sanitize";
-import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
@@ -38,6 +38,7 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
+  const clerkUserId = userId;
   const { seller } = await ensureSeller();
 
   function toNull(v: FormDataEntryValue | null): string | null {
@@ -80,13 +81,21 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
     parsed.hash = "";
     return parsed.toString();
   }
-  function normalizeR2ImageUrl(v: FormDataEntryValue | null): string | null {
+  function normalizeOwnedImageUrl(
+    v: FormDataEntryValue | null,
+    endpoint: "bannerImage" | "galleryImage",
+    existingUrl?: string | null,
+  ): string | null {
     const raw = toNull(v);
-    if (!raw) return null;
+    if (raw === null) return null;
+    if (raw === "") return null;
     if (raw.length > 2048) {
       redirect("/dashboard/profile?warning=invalid-url");
     }
-    if (!isFirstPartyMediaUrl(raw)) {
+    if (raw === existingUrl) {
+      return raw;
+    }
+    if (!isFirstPartyMediaUrlForUser(raw, clerkUserId, [endpoint])) {
       redirect("/dashboard/profile?warning=invalid-url");
     }
     return raw;
@@ -105,14 +114,15 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   const storyBody = cleanSellerProfileRichText(formData.get("storyBody"), SELLER_PROFILE_TEXT_LIMITS.storyBody);
   const yearsInBusiness = toInt(formData.get("yearsInBusiness"));
 
-  const bannerImageUrl = normalizeR2ImageUrl(formData.get("bannerImageUrl"));
-  const avatarImageUrl = normalizeR2ImageUrl(formData.get("avatarImageUrl"));
-  const workshopImageUrl = normalizeR2ImageUrl(formData.get("workshopImageUrl"));
+  const bannerImageUrl = normalizeOwnedImageUrl(formData.get("bannerImageUrl"), "bannerImage", seller.bannerImageUrl);
+  const avatarImageUrl = normalizeOwnedImageUrl(formData.get("avatarImageUrl"), "galleryImage", seller.avatarImageUrl);
+  const workshopImageUrl = normalizeOwnedImageUrl(formData.get("workshopImageUrl"), "galleryImage", seller.workshopImageUrl);
   const galleryImageUrlsTouched = formData.get("galleryImageUrlsTouched") === "1";
-  const galleryImageUrls = filterFirstPartyMediaUrls(
-    formData.getAll("galleryImageUrls").map(String).filter(Boolean),
-    10,
-  );
+  const existingGalleryUrls = new Set(seller.galleryImageUrls ?? []);
+  const galleryImageUrls = formData.getAll("galleryImageUrls")
+    .map(String)
+    .filter((url) => existingGalleryUrls.has(url) || isFirstPartyMediaUrlForUser(url, clerkUserId, ["galleryImage"]))
+    .slice(0, 10);
   const galleryAltTexts = galleryImageUrls.map((_, index) => {
     const raw = formData.getAll("galleryAltTexts")[index];
     return truncateText(sanitizeText(String(raw ?? "")), 240);

@@ -1,4 +1,4 @@
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { normalizeBlogVideoUrlString } from "@/lib/blogVideo";
 
 function trimmed(raw: FormDataEntryValue | string | null | undefined): string | null {
@@ -6,10 +6,17 @@ function trimmed(raw: FormDataEntryValue | string | null | undefined): string | 
   return value ? value : null;
 }
 
-export function normalizeBlogCoverImageUrl(raw: FormDataEntryValue | string | null | undefined): string | null {
+export function normalizeBlogCoverImageUrl(
+  raw: FormDataEntryValue | string | null | undefined,
+  clerkUserId: string,
+  existingUrl?: string | null,
+): string | null {
   const value = trimmed(raw);
   if (!value) return null;
-  if (!isFirstPartyMediaUrl(value)) {
+  if (value === existingUrl) {
+    return value;
+  }
+  if (!isFirstPartyMediaUrlForUser(value, clerkUserId, ["galleryImage"])) {
     throw new Error("Cover image must be an uploaded Grainline image.");
   }
   return value;

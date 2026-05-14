@@ -8,7 +8,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { listingEditBlockReason } from "@/lib/listingEditState";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 
 export async function updateListingAction(listingId: string, formData: FormData) {
   const { userId } = await auth();
@@ -21,7 +21,7 @@ export async function updateListingAction(listingId: string, formData: FormData)
   const imageUrl = String(formData.get("imageUrl") ?? "").trim();
   const priceCents = parseMoneyInputToCents(formData.get("price"));
 
-  if (!title || !imageUrl || !isFirstPartyMediaUrl(imageUrl) || priceCents === null || priceCents <= 0) {
+  if (!title || !imageUrl || !isFirstPartyMediaUrlForUser(imageUrl, userId, ["listingImage"]) || priceCents === null || priceCents <= 0) {
     throw new Error("Please fill title, price and image.");
   }
 

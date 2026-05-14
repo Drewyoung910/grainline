@@ -63,7 +63,7 @@ export default async function EditBlogPostPage({
 
     const existing = await prisma.blogPost.findUnique({
       where: { id },
-      select: { authorId: true, status: true, publishedAt: true, slug: true, sellerProfileId: true },
+      select: { authorId: true, status: true, publishedAt: true, slug: true, sellerProfileId: true, coverImageUrl: true },
     });
     if (!existing || existing.authorId !== author.id) return { ok: false, error: "Post not found." };
 
@@ -76,7 +76,7 @@ export default async function EditBlogPostPage({
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {
-      coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"));
+      coverImageUrl = normalizeBlogCoverImageUrl(formData.get("coverImageUrl"), uid, existing.coverImageUrl);
       videoUrl = normalizeBlogVideoUrl(formData.get("videoUrl"));
     } catch (error) {
       return {

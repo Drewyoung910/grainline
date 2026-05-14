@@ -10,8 +10,11 @@ process.env.CLOUDFLARE_R2_PUBLIC_URLS = "https://assets.example.com/base,not-a-u
 
 const {
   filterFirstPartyMediaUrls,
+  filterFirstPartyMediaUrlsForUser,
+  firstPartyMediaKey,
   filterR2PublicUrls,
   isFirstPartyMediaUrl,
+  isFirstPartyMediaUrlForUser,
   filterTrustedMediaUrls,
   isR2PublicUrl,
   isTrustedMediaUrl,
@@ -56,6 +59,50 @@ describe("media URL validation", () => {
         "https://cdn.thegrainline.com/c.jpg",
       ], 5),
       ["https://media.example.com/grain/a.jpg", "https://cdn.thegrainline.com/c.jpg"],
+    );
+  });
+
+  it("extracts first-party media keys and scopes new media writes to the current uploader", () => {
+    assert.equal(
+      firstPartyMediaKey("https://media.example.com/grain/listingImage/user_123/photo.jpg"),
+      "listingImage/user_123/photo.jpg",
+    );
+    assert.equal(firstPartyMediaKey("https://media.example.com/grain/../photo.jpg"), null);
+    assert.equal(firstPartyMediaKey("https://media.example.com/grain/listingImage/user_123/%E0%A4%A.jpg"), null);
+    assert.equal(
+      isFirstPartyMediaUrlForUser(
+        "https://media.example.com/grain/listingImage/user_123/photo.jpg",
+        "user_123",
+        ["listingImage"],
+      ),
+      true,
+    );
+    assert.equal(
+      isFirstPartyMediaUrlForUser(
+        "https://media.example.com/grain/listingImage/user_456/photo.jpg",
+        "user_123",
+        ["listingImage"],
+      ),
+      false,
+    );
+    assert.equal(
+      isFirstPartyMediaUrlForUser(
+        "https://media.example.com/grain/galleryImage/user_123/photo.jpg",
+        "user_123",
+        ["listingImage"],
+      ),
+      false,
+    );
+    assert.deepEqual(
+      filterFirstPartyMediaUrlsForUser([
+        "https://media.example.com/grain/listingImage/user_123/a.jpg",
+        "https://media.example.com/grain/listingImage/user_456/b.jpg",
+        "https://cdn.thegrainline.com/listingImage/user_123/c.jpg",
+      ], 5, "user_123", ["listingImage"]),
+      [
+        "https://media.example.com/grain/listingImage/user_123/a.jpg",
+        "https://cdn.thegrainline.com/listingImage/user_123/c.jpg",
+      ],
     );
   });
 

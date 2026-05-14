@@ -9,7 +9,7 @@ import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreference
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
-import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl, isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
   const sellersOnly = broadcastParsed.sellersOnly === true;
 
   if (!message) return NextResponse.json({ error: "Message is required" }, { status: 400 });
+  if (imageUrl && !isFirstPartyMediaUrlForUser(imageUrl, userId, ["listingImage", "bannerImage", "galleryImage"])) {
+    return NextResponse.json({ error: "Use an uploaded Grainline image for this update." }, { status: 400 });
+  }
 
   // Profanity check (log-only)
   const { containsProfanity } = await import("@/lib/profanity");

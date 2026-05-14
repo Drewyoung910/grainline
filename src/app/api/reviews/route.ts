@@ -11,7 +11,7 @@ import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelim
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
-import { filterFirstPartyMediaUrls, isFirstPartyMediaUrl } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
   }
 
-  const urls = filterFirstPartyMediaUrls(photoUrls ?? [], 6);
+  const urls = filterFirstPartyMediaUrlsForUser(photoUrls ?? [], 6, userId, ["reviewPhoto"]);
 
   let created;
   try {

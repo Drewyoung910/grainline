@@ -12,7 +12,7 @@ describe("server action hardening guardrails", () => {
 
     assert.match(actions, /where: \{ user: \{ clerkId: userId \} \}/);
     assert.match(actions, /banned: true, deletedAt: true/);
-    assert.match(actions, /isFirstPartyMediaUrl\(avatarImageUrl\)/);
+    assert.match(actions, /isFirstPartyMediaUrlForUser\(avatarImageUrl, seller\.clerkUserId/);
     assert.match(actions, /updateMany\(\{\s*where: \{ id: seller\.id, onboardingStep: seller\.onboardingStep \}/s);
   });
 

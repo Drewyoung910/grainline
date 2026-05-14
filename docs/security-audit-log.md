@@ -658,6 +658,26 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** custom-order request budget validation now runs before conversation upsert/message creation, preventing invalid-budget attempts from leaving empty conversations behind. Custom-order seller notification failures now emit Sentry evidence and no longer turn successful message creation into a false 500. Regression coverage lives in `tests/custom-order-admin-thread-followups.test.mjs`.
 
+## 2026-05-13 upload/media write-path spot check
+
+Scope:
+
+- `src/app/api/upload/image/route.ts`
+- `src/app/api/upload/presign/route.ts`
+- `src/app/api/upload/verify/route.ts`
+- `src/lib/urlValidation.ts`
+- Message attachment, listing photo, profile media, onboarding avatar, commission reference, review photo, blog cover, broadcast image, and legacy listing image write paths.
+
+Results:
+
+- Processed image uploads require an active signed-in account, enforce endpoint-specific size/type/count rules, require seller profile ownership for seller-only endpoints, strip image metadata through `sharp`, write user-segmented R2 keys, verify public availability, and delete the object if availability checks fail.
+- Direct presigned uploads reject image MIME types so images cannot bypass server-side processing. Direct upload verification requires an HMAC token bound to key, endpoint, expected size, content type, and expiry; the verify route HEAD-checks actual R2 metadata and deletes mismatched objects.
+- URL origin validation correctly separates first-party writable media from legacy display-only media. The follow-up gap was that origin-only validation still let a signed-in user reuse another user's public Grainline media URL in hidden fields.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** new upload-backed media writes now use current-uploader key scoping through `isFirstPartyMediaUrlForUser()` / `filterFirstPartyMediaUrlsForUser()`. Listing/profile/review/blog edit paths preserve existing DB-owned media values so legacy/unchanged media is not broken, but newly submitted URLs must match the current Clerk user segment and expected upload endpoint. Regression coverage lives in `tests/media-url.test.mjs`, `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`, `tests/seller-ops-hardening.test.mjs`, and `tests/server-action-hardening.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

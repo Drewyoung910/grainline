@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
-import { filterFirstPartyMediaUrls } from "@/lib/urlValidation";
+import { filterFirstPartyMediaUrlsForUser } from "@/lib/urlValidation";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import ActionForm from "@/components/ActionForm";
@@ -80,7 +80,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   if (imageUrls.length === 0) {
     imageUrls = formData.getAll("imageUrls").map(String).filter(Boolean);
   }
-  imageUrls = filterFirstPartyMediaUrls(imageUrls, 10);
+  imageUrls = filterFirstPartyMediaUrlsForUser(imageUrls, 10, userId, ["listingImage"]);
 
   // Original (pre-crop) URLs paired by index with imageUrls — same
   // validation, used so the seller can re-crop from the full original.
@@ -92,7 +92,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   } else {
     console.warn("[custom-listing] invalid imageOriginalUrlsJson:", imageOriginalUrlsResult.error);
   }
-  imageOriginalUrls = filterFirstPartyMediaUrls(imageOriginalUrls, 10);
+  imageOriginalUrls = filterFirstPartyMediaUrlsForUser(imageOriginalUrls, 10, userId, ["listingImage"]);
 
   let imageAltTexts: string[] = [];
   const altJson = formData.get("imageAltTextsJson");
