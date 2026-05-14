@@ -3818,6 +3818,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 150. **[HARDENED 2026-05-13] Seller listing republish AI-review fail-closed path lacked full Sentry evidence** — listing create already captured AI-review failures and error-marking failures. The seller shop publish/mark-available path also failed closed to `PENDING_REVIEW`, but AI provider/backfill/admin-log failures and follow-up pending-review write failures were not captured with the same fidelity. The republish path now captures `listing_publish_ai_review`, `listing_publish_ai_review_followup`, and `listing_publish_ai_error_mark_failed` with bounded listing/seller IDs. Source guardrail: `tests/server-action-hardening.test.mjs`.
 
+151. **[HARDENED 2026-05-13] Follow-up mutating-route sweep closed remaining ordinary rate-limit gaps** — static scan found six authenticated/admin mutations without an explicit route limiter: account deletion, notification preference writes, favorite removal, commission close/fulfilled transitions, admin review deletion, and admin user ban/unban. They now use fail-closed `accountDeletionRatelimit`, `notificationPreferenceRatelimit`, `saveRatelimit`, `commissionStatusRatelimit`, and `adminActionRatelimit` respectively. Signed webhooks are intentionally excluded because signature verification plus idempotency is their boundary, and the dev make-order fixture remains local-only/non-Vercel. Source guardrail: `tests/mutation-rate-limit-sweep.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

@@ -12,6 +12,7 @@ describe("seller operational route hardening", () => {
 
     assert.match(form, /setPendingEnable\(false\);\s*setShowWarning\(false\);/s);
     assert.match(form, /function cancelEnable\(\)[\s\S]*?setEnabled\(false\);/);
+    assert.match(form, /if \(showWarning\) \{\s*cancelEnable\(\);\s*return;\s*\}/);
     assert.match(form, /checked=\{enabled \|\| pendingEnable\}/);
     assert.match(form, /type="button"[\s\S]*?onClick=\{confirmEnable\}/);
     assert.match(form, /type="button"[\s\S]*?onClick=\{cancelEnable\}/);

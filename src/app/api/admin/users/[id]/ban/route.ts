@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { BanUserPolicyError, banUser, unbanUser } from '@/lib/ban'
+import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { z } from 'zod'
 
 const BanSchema = z.object({
@@ -23,6 +24,8 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = await getAdmin(userId)
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
+  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
   const { id } = await params
   let body
   try {
@@ -56,6 +59,8 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const admin = await getAdmin(userId)
   if (!admin || admin.banned || admin.deletedAt || admin.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id)
+  if (!success) return rateLimitResponse(reset, 'Too many admin actions.')
   const { id } = await params
   let unbanBody
   try {

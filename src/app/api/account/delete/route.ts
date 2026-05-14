@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/nextjs";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { anonymizeUserAccount, getAccountDeletionBlockers } from "@/lib/accountDeletion";
+import { accountDeletionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST() {
   const { userId: clerkId } = await auth();
@@ -18,6 +19,9 @@ export async function POST() {
     throw error;
   }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(accountDeletionRatelimit, me.id);
+  if (!success) return rateLimitResponse(reset, "Too many account deletion attempts.");
 
   const blockers = await getAccountDeletionBlockers(me.id);
   if (blockers.length > 0) {

@@ -88,6 +88,13 @@ export const savedSearchRatelimit = new Ratelimit({
   prefix: "rl:saved-search",
 });
 
+export const notificationPreferenceRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "10 m"),
+  analytics: true,
+  prefix: "rl:notification-preference",
+});
+
 export const accountFeedRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(120, "10 m"),
@@ -154,6 +161,13 @@ export const commissionCreateRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, "24 h"),
   analytics: true,
   prefix: "rl:commission_create",
+});
+
+export const commissionStatusRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(20, "60 m"),
+  analytics: true,
+  prefix: "rl:commission_status",
 });
 
 // Guild verification application — mutates review state and runs eligibility queries.
@@ -390,6 +404,13 @@ export const accountExportRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(3, "24 h"),
   analytics: true,
   prefix: "rl:account-export",
+});
+
+export const accountDeletionRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "60 m"),
+  analytics: true,
+  prefix: "rl:account-delete",
 });
 
 export const termsAcceptanceRatelimit = new Ratelimit({

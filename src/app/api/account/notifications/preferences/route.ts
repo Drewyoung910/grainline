@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { VALID_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
+import { notificationPreferenceRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const PreferencesSchema = z.object({
@@ -25,6 +26,8 @@ export async function POST(request: NextRequest) {
     if (accountResponse) return accountResponse;
     throw err;
   }
+  const { success, reset } = await safeRateLimit(notificationPreferenceRatelimit, me.id);
+  if (!success) return rateLimitResponse(reset, "Too many notification preference changes.");
 
   let body;
   try {

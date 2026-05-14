@@ -2667,10 +2667,12 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `messageRatelimit` | userId | 30 / 60 s | message send server action |
 | `messageStreamRatelimit` | userId | 120 / 60 s | `GET /api/messages/[id]/stream` |
 | `followRatelimit` | userId | 50 / 60 min | `POST/DELETE /api/follow/[sellerId]` |
-| `saveRatelimit` | userId | 100 / 60 min | `POST /api/favorites` |
+| `saveRatelimit` | userId | 100 / 60 min | `POST /api/favorites`, `DELETE /api/favorites/[listingId]` |
+| `notificationPreferenceRatelimit` | userId | 60 / 10 min | `POST /api/account/notifications/preferences` |
 | `blogSaveRatelimit` | userId | 100 / 60 min | `POST/DELETE /api/blog/[slug]/save` |
 | `commissionInterestRatelimit` | userId | 20 / 24 h | `POST /api/commission/[id]/interest` |
 | `commissionCreateRatelimit` | userId | 5 / 24 h | `POST /api/commission` |
+| `commissionStatusRatelimit` | userId | 20 / 60 min | `PATCH /api/commission/[id]` |
 | `verificationApplyRatelimit` | userId | 5 / 24 h | `POST /api/verification/apply` |
 | `listingCreateRatelimit` | userId | 20 / 24 h | `createListing` server action |
 | `profileViewRatelimit` | `${ip}:${listingId}` | 1 / 24 h | `POST /api/listings/[id]/view` (silent drop — no 429 returned) |
@@ -2681,6 +2683,8 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `stripeConnectRatelimit` | userId | 5 / 60 s | `POST /api/stripe/connect/create`, `POST /api/stripe/connect/dashboard`, `GET /api/stripe/connect/status` |
 | `stripeLoginLinkRatelimit` | userId | 10 / 60 min | `POST /api/stripe/connect/login-link` |
 | `markReadRatelimit` | userId | 60 / 60 min | `POST /api/notifications/read-all` (fail open — silent success on limit) |
+| `accountDeletionRatelimit` | userId | 5 / 60 min | `POST /api/account/delete` |
+| `adminActionRatelimit` | admin.id | 120 / 10 min | destructive admin moderation routes, including listing removal/review, report resolution, review deletion, user ban/unban, audit undo |
 
 ### Spam prevention guards
 

@@ -10,6 +10,7 @@ import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
+import { commissionStatusRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 
 const CommissionPatchSchema = z.object({
@@ -91,6 +92,9 @@ export async function PATCH(
   const { id } = await params;
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(commissionStatusRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many commission status updates.");
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },

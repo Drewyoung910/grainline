@@ -37,6 +37,10 @@ export default function VacationModeForm({
     const checked = e.target.checked;
     setError(null);
     setSaved(false);
+    if (showWarning) {
+      cancelEnable();
+      return;
+    }
     if (checked && !enabled) {
       // Show warning before enabling
       setPendingEnable(true);

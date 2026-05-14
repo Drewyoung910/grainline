@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { rateLimitResponse, safeRateLimit, saveRatelimit } from "@/lib/ratelimit";
 
 type Params = { listingId: string };
 
 export async function DELETE(_req: Request, ctx: { params: Promise<Params> }) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success: rlOk, reset } = await safeRateLimit(saveRatelimit, userId);
+  if (!rlOk) return rateLimitResponse(reset, "Too many save actions.");
 
   const { listingId } = await ctx.params;
   if (!listingId) return NextResponse.json({ error: "listingId required" }, { status: 400 });

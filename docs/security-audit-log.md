@@ -726,6 +726,7 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** `POST /api/verification/apply` now uses fail-closed `verificationApplyRatelimit` keyed by the current user before parsing the application body or running eligibility queries. Regression coverage lives in `tests/guild-listing-edit-followups.test.mjs`.
 - **Hardened 2026-05-13:** seller listing publish/mark-available AI-review failures and error-marking follow-up failures now emit Sentry evidence with bounded listing/seller IDs, matching the create-listing fail-closed observability pattern. Regression coverage lives in `tests/server-action-hardening.test.mjs`.
+- **Hardened 2026-05-13:** the follow-up mutating-route sweep added missing fail-closed rate limits to account deletion (`accountDeletionRatelimit`), notification preference writes (`notificationPreferenceRatelimit`), favorite removal (`saveRatelimit`), commission close/fulfilled transitions (`commissionStatusRatelimit`), admin review deletion (`adminActionRatelimit`), and admin user ban/unban (`adminActionRatelimit`). Signed webhooks remain bounded by signature verification and idempotency ledgers, and the dev make-order fixture remains disabled outside local non-Vercel development. Regression coverage lives in `tests/mutation-rate-limit-sweep.test.mjs`.
 
 Open work:
 

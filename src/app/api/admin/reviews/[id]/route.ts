@@ -6,6 +6,7 @@ import { logAdminAction } from "@/lib/audit";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 function mediaUrlHost(url: string) {
   try {
@@ -58,6 +59,8 @@ export async function DELETE(
   if (!admin || admin.banned || admin.deletedAt || admin.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const { success, reset } = await safeRateLimit(adminActionRatelimit, admin.id);
+  if (!success) return rateLimitResponse(reset, "Too many admin actions.");
 
   const { id } = await params;
   const review = await prisma.review.findUnique({
