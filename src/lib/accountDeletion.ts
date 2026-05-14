@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import {
   Prisma,
   EmailSuppressionReason,
@@ -409,7 +410,7 @@ function markdownImageUrls(markdown: string) {
   return [...urls];
 }
 
-async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]> {
+async function collectAccountDeletionMediaUrls(userId: string, clerkUserId: string): Promise<string[]> {
   const urls = new Set<string>();
   const [sellerProfile, reviewPhotos, commissionRequests, messages, blogPosts] = await Promise.all([
     prisma.sellerProfile.findUnique({
@@ -472,7 +473,7 @@ async function collectAccountDeletionMediaUrls(userId: string): Promise<string[]
     markdownImageUrls(post.body).forEach((url) => urls.add(url));
   });
 
-  return [...urls];
+  return accountDeletionMediaUrlsForCleanup(urls, clerkUserId);
 }
 
 function mediaUrlHost(url: string) {
@@ -487,6 +488,7 @@ export async function anonymizeUserAccount(userId: string) {
   const account = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      clerkId: true,
       deletedAt: true,
       sellerProfile: {
         select: {
@@ -508,7 +510,7 @@ export async function anonymizeUserAccount(userId: string) {
     ? await rejectConnectedStripeAccount(stripeAccountId, userId, stripeAccountVersion)
     : true;
 
-  const mediaUrls = await collectAccountDeletionMediaUrls(userId);
+  const mediaUrls = await collectAccountDeletionMediaUrls(userId, account.clerkId);
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({

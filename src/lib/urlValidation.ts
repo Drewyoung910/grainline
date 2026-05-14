@@ -138,3 +138,18 @@ export function isTrustedMediaUrl(input: string): boolean {
 export function filterTrustedMediaUrls(urls: string[], max: number): string[] {
   return urls.filter((url) => isTrustedMediaUrl(url)).slice(0, max);
 }
+
+const ACCOUNT_DELETION_MEDIA_ENDPOINTS = [
+  "bannerImage",
+  "galleryImage",
+  "listingImage",
+  "listingVideo",
+  "messageAny",
+  "messageFile",
+  "reviewPhoto",
+] as const;
+
+export function accountDeletionMediaUrlsForCleanup(urls: Iterable<string>, clerkUserId: string): string[] {
+  return [...new Set(urls)]
+    .filter((url) => isFirstPartyMediaUrlForUser(url, clerkUserId, ACCOUNT_DELETION_MEDIA_ENDPOINTS));
+}

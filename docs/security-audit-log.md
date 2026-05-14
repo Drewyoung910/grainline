@@ -770,3 +770,20 @@ Results so far:
 Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** checkout stock reservation SQL now repeats live listing availability in the atomic reservation update (`sellerId`, `status = ACTIVE`, `listingType = IN_STOCK`, and sufficient stock). Restore paths carry the captured seller id as well. This closes the read-to-reserve gap where a seller could hide/sell a listing after checkout preflight but before stock decrement. Regression coverage lives in `tests/order-state-followups.test.mjs`.
+
+## 2026-05-14 upload/media/account-deletion audit
+
+Scope started:
+
+- Upload image, presign, and verify routes.
+- R2 URL validation, upload verification tokens, direct-upload cleanup, markdown image rendering, message/blog media references, and account-deletion R2 cleanup.
+
+Results so far:
+
+- Upload creation routes authenticate through Clerk, fail closed on suspended/deleted accounts, rate-limit before object creation or presign, centralize size/type/count rules in `uploadRules.ts`, and create path-safe user-segmented R2 keys.
+- Direct uploads use signed verification tokens bound to key, endpoint, expected size, content type, and expiry. Verification checks object metadata in R2 and deletes invalid objects with Sentry evidence on cleanup failures.
+- Blog markdown rendering is centralized and strips non-Grainline image sources before rendering, preventing arbitrary third-party tracking pixels in public posts.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-14:** account deletion media cleanup now filters collected URLs through `accountDeletionMediaUrlsForCleanup()` before calling `deleteR2ObjectByUrl()`. Only configured first-party media keys owned by the deleted Clerk user are deleted, so copied markdown/message/blog URLs cannot make one user deletion remove another user's upload. Regression coverage lives in `tests/account-deletion-media.test.mjs`.
