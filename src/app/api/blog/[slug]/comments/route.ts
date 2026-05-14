@@ -20,6 +20,10 @@ const CommentSchema = z.object({
   parentId: z.string().min(1).optional(),
 });
 
+const TOP_LEVEL_COMMENT_LIMIT = 100;
+const REPLY_COMMENT_LIMIT = 50;
+const NESTED_REPLY_COMMENT_LIMIT = 25;
+
 export const runtime = "nodejs";
 
 export async function GET(
@@ -33,6 +37,7 @@ export async function GET(
   const comments = await prisma.blogComment.findMany({
     where: { postId: post.id, approved: true, parentId: null, author: { banned: false, deletedAt: null } },
     orderBy: { createdAt: "asc" },
+    take: TOP_LEVEL_COMMENT_LIMIT,
     select: {
       id: true,
       body: true,
@@ -41,6 +46,7 @@ export async function GET(
       replies: {
         where: { approved: true, author: { banned: false, deletedAt: null } },
         orderBy: { createdAt: "asc" },
+        take: REPLY_COMMENT_LIMIT,
         select: {
           id: true,
           body: true,
@@ -49,6 +55,7 @@ export async function GET(
           replies: {
             where: { approved: true, author: { banned: false, deletedAt: null } },
             orderBy: { createdAt: "asc" },
+            take: NESTED_REPLY_COMMENT_LIMIT,
             select: {
               id: true,
               body: true,
@@ -128,9 +135,21 @@ export async function POST(
   if (parentId) {
     const parent = await prisma.blogComment.findUnique({
       where: { id: parentId },
-      select: { id: true, postId: true, parentId: true, authorId: true },
+      select: {
+        id: true,
+        postId: true,
+        parentId: true,
+        approved: true,
+        author: { select: { banned: true, deletedAt: true } },
+      },
     });
-    if (!parent || parent.postId !== post.id) {
+    if (
+      !parent ||
+      parent.postId !== post.id ||
+      !parent.approved ||
+      parent.author.banned ||
+      parent.author.deletedAt
+    ) {
       return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
     }
 
@@ -141,9 +160,21 @@ export async function POST(
       // Parent is level 2 or deeper → check grandparent
       const grandparent = await prisma.blogComment.findUnique({
         where: { id: parent.parentId },
-        select: { id: true, parentId: true, postId: true },
+        select: {
+          id: true,
+          parentId: true,
+          postId: true,
+          approved: true,
+          author: { select: { banned: true, deletedAt: true } },
+        },
       });
-      if (!grandparent || grandparent.postId !== post.id) {
+      if (
+        !grandparent ||
+        grandparent.postId !== post.id ||
+        !grandparent.approved ||
+        grandparent.author.banned ||
+        grandparent.author.deletedAt
+      ) {
         return NextResponse.json({ error: "Invalid parent comment" }, { status: 400 });
       }
       if (grandparent.parentId === null) {

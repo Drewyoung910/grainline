@@ -586,6 +586,33 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** `/api/blog` now uses the shared public search rate limiter and caps tag input before Prisma filters; blog search and blog suggestion APIs now use shared `getIP()` instead of local forwarded-header parsing. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
 
+## 2026-05-13 social interaction route spot check
+
+Scope:
+
+- `src/app/api/blog/[slug]/comments/route.ts`
+- `src/app/api/blog/[slug]/save/route.ts`
+- `src/app/api/reviews/route.ts`
+- `src/app/api/reviews/[id]/route.ts`
+- `src/app/api/reviews/[id]/reply/route.ts`
+- `src/app/api/reviews/[id]/vote/route.ts`
+- `src/app/api/follow/[sellerId]/route.ts`
+- `src/app/api/users/[id]/block/route.ts`
+- `src/app/api/users/[id]/report/route.ts`
+
+Results:
+
+- Blog comment reads are public only for published/visible posts and active authors. Comment creation is signed-in, current-account checked, rate-limited, sanitized, moderation-gated, and now rejects replies to unapproved comments or comments whose author is suspended/deleted.
+- Saved blog post actions resolve the current local user through `ensureUserByClerkId`, rate-limit mutations, and only save public posts through `publicBlogPostWhere()`.
+- Reviews require a signed-in active buyer, block self-reviews, require a delivered or picked-up paid order inside the 90-day window, reject refunded orders, require first-party media URLs, and preserve review edit/delete ownership checks.
+- Review helpful votes resolve the current local user, require public/reserved listing visibility via `canViewListingDetail()`, and block voting on one's own review or own listing.
+- Follow/unfollow actions resolve current-account state, target only visible seller profiles, block self-follows, honor user blocks, and keep follower counts current.
+- User reports require reporter access to private targets; public targets use shared visibility helpers; commission-request reports are limited to open public commission requests via `openCommissionWhere()`.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** review/follow notification side-effect failures no longer turn successful primary mutations into false 500s; duplicate review races now return `409 Already reviewed`; blog comment tree reads are bounded by depth (`100` top-level, `50` replies, `25` nested replies); and commission-request reports cannot target closed/expired/suspended-buyer requests. Regression coverage lives in `tests/social-interaction-hardening.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

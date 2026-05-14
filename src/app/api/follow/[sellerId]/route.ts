@@ -1,6 +1,7 @@
 // src/app/api/follow/[sellerId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ensureUser, ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
@@ -116,14 +117,23 @@ export async function POST(
   // Only notify the seller on a new follow; createNotification handles exact duplicate suppression.
   if (!existingFollow) {
     const followerName = me.name ?? me.email.split("@")[0] ?? "Someone";
-    await createNotification({
-      userId: sellerProfile.userId,
-      type: "NEW_FOLLOWER",
-      title: `${followerName} started following you`,
-      body: "They can now see your new listings and posts in their feed",
-      link: "/dashboard/analytics",
-      dedupScope: me.id,
-    });
+    try {
+      await createNotification({
+        userId: sellerProfile.userId,
+        type: "NEW_FOLLOWER",
+        title: `${followerName} started following you`,
+        body: "They can now see your new listings and posts in their feed",
+        link: "/dashboard/analytics",
+        dedupScope: me.id,
+      });
+    } catch (error) {
+      console.error("Failed to create follow notification:", error);
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "follow_notification" },
+        extra: { followerId: me.id, sellerProfileId: sellerProfile.id, sellerUserId: sellerProfile.userId },
+      });
+    }
   }
 
   return NextResponse.json({ following: true, followerCount });

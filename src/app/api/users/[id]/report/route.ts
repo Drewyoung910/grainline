@@ -7,6 +7,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { createNotification } from "@/lib/notifications";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import { openCommissionWhere } from "@/lib/commissionExpiry";
 import { z } from "zod";
 import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -189,7 +190,9 @@ export async function POST(
         }
         break;
       case "COMMISSION_REQUEST":
-        exists = await prisma.commissionRequest.count({ where: { id: body.targetId, buyerId: reportedId } }) > 0;
+        exists = await prisma.commissionRequest.count({
+          where: openCommissionWhere({ id: body.targetId, buyerId: reportedId }),
+        }) > 0;
         reporterCanAccess = exists;
         break;
     }

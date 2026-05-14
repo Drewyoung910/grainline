@@ -131,29 +131,37 @@ export async function POST(req: NextRequest) {
 
   const urls = filterFirstPartyMediaUrls(photoUrls ?? [], 6);
 
-  const created = await prisma.$transaction(async (tx) => {
-    const r = await tx.review.create({
-      data: {
-        listingId,
-        reviewerId: me.id,
-        ratingX2,
-        comment: truncateText(sanitizeRichText(comment ?? ""), 2000),
-        verified: true,
-      },
-    });
-
-    if (urls.length) {
-      await tx.reviewPhoto.createMany({
-        data: urls.map((url, i) => ({
-          reviewId: r.id,
-          url,
-          sortOrder: i,
-        })),
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const r = await tx.review.create({
+        data: {
+          listingId,
+          reviewerId: me.id,
+          ratingX2,
+          comment: truncateText(sanitizeRichText(comment ?? ""), 2000),
+          verified: true,
+        },
       });
-    }
 
-    return r;
-  });
+      if (urls.length) {
+        await tx.reviewPhoto.createMany({
+          data: urls.map((url, i) => ({
+            reviewId: r.id,
+            url,
+            sortOrder: i,
+          })),
+        });
+      }
+
+      return r;
+    });
+  } catch (error) {
+    if ((error as { code?: string }).code === "P2002") {
+      return NextResponse.json({ error: "Already reviewed" }, { status: 409 });
+    }
+    throw error;
+  }
 
   // Notify the seller
   const listing = await prisma.listing.findUnique({
@@ -185,14 +193,23 @@ export async function POST(req: NextRequest) {
   if (listing?.seller.userId && !listing.seller.user.banned && !listing.seller.user.deletedAt) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
     const reviewerName = me.name ?? me.email?.split("@")[0] ?? "Someone";
-    await createNotification({
-      userId: listing.seller.userId,
-      type: "NEW_REVIEW",
-      title: `${reviewerName} left you a ${stars}-star review`,
-      body: listing.title,
-      link: `${publicListingPath(listingId, listing.title)}#reviews`,
-      dedupScope: created.id,
-    });
+    try {
+      await createNotification({
+        userId: listing.seller.userId,
+        type: "NEW_REVIEW",
+        title: `${reviewerName} left you a ${stars}-star review`,
+        body: listing.title,
+        link: `${publicListingPath(listingId, listing.title)}#reviews`,
+        dedupScope: created.id,
+      });
+    } catch (e) {
+      console.error("Failed to create review notification:", e);
+      Sentry.captureException(e, {
+        level: "warning",
+        tags: { source: "review_notification" },
+        extra: { reviewId: created.id, listingId, sellerUserId: listing.seller.userId },
+      });
+    }
 
     try {
       if (await shouldSendEmail(listing.seller.userId, "EMAIL_NEW_REVIEW")) {
