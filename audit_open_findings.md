@@ -3812,6 +3812,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 147. **[HARDENED 2026-05-13] Account/privacy routes audited; privacy-safe observability tightened** — accept-terms, account delete/export, support/data-request, newsletter, unsubscribe, Clerk webhook, and Resend webhook paths were authenticated/rate-limited/signature-verified as appropriate in this pass. The hardening fix added Sentry evidence for account export failures/missing audit rows, newsletter signup failures, unsubscribe processing failures, and Resend webhook mark-failed errors using local IDs, webhook IDs, methods, or hashed emails only; newsletter signup now uses shared IP/rate-limit response helpers. Source guardrail: `tests/account-privacy-observability.test.mjs`.
 
+148. **[HARDENED 2026-05-13] Stripe Connect/account lifecycle routes audited; status refresh rate-limited** — Connect create/status/dashboard/login-link routes derive the seller from the current Clerk user, never accept client-supplied Stripe account IDs, and preserve the Accounts v2 split-webhook model (`STRIPE_WEBHOOK_SECRET` for snapshot events, `STRIPE_V2_WEBHOOK_SECRET` for `/api/stripe/webhook/v2` thin events). The hardening fix added fail-closed `stripeConnectRatelimit` protection to `/api/stripe/connect/status` before it calls `stripe.accounts.retrieve()`, closing an authenticated Stripe API hammer surface. Source guardrail: `tests/stripe-connect-v2.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

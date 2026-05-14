@@ -678,6 +678,34 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** new upload-backed media writes now use current-uploader key scoping through `isFirstPartyMediaUrlForUser()` / `filterFirstPartyMediaUrlsForUser()`. Listing/profile/review/blog edit paths preserve existing DB-owned media values so legacy/unchanged media is not broken, but newly submitted URLs must match the current Clerk user segment and expected upload endpoint. Regression coverage lives in `tests/media-url.test.mjs`, `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`, `tests/seller-ops-hardening.test.mjs`, and `tests/server-action-hardening.test.mjs`.
 
+## 2026-05-13 Stripe Connect/account lifecycle route spot check
+
+Scope:
+
+- `src/app/api/stripe/connect/create/route.ts`
+- `src/app/api/stripe/connect/status/route.ts`
+- `src/app/api/stripe/connect/dashboard/route.ts`
+- `src/app/api/stripe/connect/login-link/route.ts`
+- `src/app/api/stripe/webhook/route.ts`
+- `src/app/api/stripe/webhook/v2/route.ts`
+- `src/lib/stripeConnectV2.ts`
+- `src/lib/stripeConnectV2State.ts`
+- `src/lib/stripeWebhookMirror.ts`
+- `src/lib/stripeWebhookEvents.ts`
+- `src/lib/accountDeletion.ts`
+
+Results:
+
+- Connect account creation, dashboard-link, login-link, and status routes derive the seller from the authenticated Clerk user and never accept a client-supplied Stripe account ID.
+- New accounts are created through Accounts v2 raw `/v2/core/accounts` with an idempotency key scoped to the seller profile. Existing account links preserve the destination-charge model and keep `stripeAccountVersion` diagnostics backward-compatible for legacy/null sellers.
+- Legacy snapshot webhooks remain on `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET`; Accounts v2 thin events remain isolated on `/api/stripe/webhook/v2` with `STRIPE_V2_WEBHOOK_SECRET`, `stripe.parseEventNotification()`, the shared webhook-idempotency ledger, and `mirrorStripeChargesEnabled()`.
+- Stripe event processing rejects stale events, reclaims stale in-progress idempotency rows, and avoids logging raw webhook payloads or secrets in Sentry extras.
+- Account deletion still runs the local anonymization transaction with `{ timeout: 30000, maxWait: 10000 }`, disables local seller orderability inside the transaction when Stripe rejection succeeds, and leaves audit-log redaction/R2 cleanup outside the transaction as Sentry-captured best-effort work.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** `/api/stripe/connect/status` now shares the fail-closed `stripeConnectRatelimit` before retrieving the connected account from Stripe. This closes an authenticated Stripe API hammer surface while keeping the route seller-owned and account-state checked. Regression coverage lives in `tests/stripe-connect-v2.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

@@ -5,10 +5,14 @@ import { stripe } from "@/lib/stripe";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
+import { rateLimitResponse, safeRateLimit, stripeConnectRatelimit } from "@/lib/ratelimit";
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { success: rlOk, reset } = await safeRateLimit(stripeConnectRatelimit, userId);
+  if (!rlOk) return rateLimitResponse(reset, "Too many Stripe status checks.");
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
