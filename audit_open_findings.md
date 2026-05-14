@@ -3801,6 +3801,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 145. **[HARDENED 2026-05-13] Admin/moderation routes audited; checkout expiry and side-effect observability tightened** — admin listing/review/report/user/audit/email/PIN APIs plus admin order/support/verification server actions were role/account-state guarded in this pass. The hardening fix added proactive checkout-session expiry on staff listing removal, made report resolution rate-limited and stale-safe, and added Sentry evidence for admin listing-review notifications/Founding Maker grants, custom-order ready emails, admin review cleanup/rating refreshes, admin email send/notification/audit failures, and admin verification emails using bounded IDs or hashed email telemetry. Source guardrail: `tests/admin-moderation-observability.test.mjs`.
 
+146. **[HARDENED 2026-05-13] Upload/media routes audited; sanitized key consistency and cleanup observability tightened** — upload/image, upload/presign, upload/verify, R2 helpers, upload verification tokens, and first-party media validators were broadly sound. The hardening fix made processed-image key creation and direct-upload ownership verification share the same path-safe user-segment normalization and added Sentry evidence for failed cleanup of invalid direct uploads. Source guardrails: `tests/upload-verification-token.test.mjs`, `tests/upload-ux-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

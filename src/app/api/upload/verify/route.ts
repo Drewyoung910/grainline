@@ -1,6 +1,7 @@
 import { HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -80,6 +81,11 @@ export async function POST(req: Request) {
   if (verificationError) {
     await deleteObject(key).catch((error) => {
       console.error("[upload verify] failed to delete invalid object:", error);
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "upload_verify_cleanup", endpoint },
+        extra: { key },
+      });
     });
     return NextResponse.json({ error: verificationError }, { status: 400 });
   }

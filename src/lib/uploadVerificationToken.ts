@@ -1,5 +1,12 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
+const MAX_KEY_SEGMENT_LENGTH = 128;
+
+function uploadVerificationUserSegment(userId: string) {
+  const segment = userId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, MAX_KEY_SEGMENT_LENGTH);
+  return segment || "user";
+}
+
 export const UPLOAD_VERIFICATION_TOKEN_TTL_MS = 5 * 60 * 1000;
 
 export type UploadVerificationFields = {
@@ -72,7 +79,8 @@ export function verifyUploadVerificationToken(
 }
 
 export function uploadKeyBelongsToUser(key: string, endpoint: string, clerkUserId: string) {
-  if (!key.startsWith(`${endpoint}/${clerkUserId}/`)) return false;
+  const userSegment = uploadVerificationUserSegment(clerkUserId);
+  if (!key.startsWith(`${endpoint}/${userSegment}/`)) return false;
   if (key.includes("..")) return false;
   return !key.split("/").some((part) => part === "." || part === "..");
 }

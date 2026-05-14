@@ -45,9 +45,18 @@ describe("upload UX follow-ups", () => {
     assert.match(imageRoute, /uploadTooLargeMessage/);
     assert.match(imageRoute, /uploadTypeMessage/);
     assert.match(imageRoute, /uploadTooManyFilesMessage/);
+    assert.match(imageRoute, /uploadKeyUserSegment\(userId\)/);
     assert.doesNotMatch(imageRoute, /File too large/);
     assert.doesNotMatch(imageRoute, /File type not allowed/);
     assert.doesNotMatch(source("src/components/MarkdownToolbar.tsx"), /max 4MB/);
+  });
+
+  it("keeps direct upload verification cleanup observable", () => {
+    const verifyRoute = source("src/app/api/upload/verify/route.ts");
+
+    assert.match(verifyRoute, /source: "upload_verify_cleanup"/);
+    assert.match(verifyRoute, /level: "warning"/);
+    assert.match(verifyRoute, /tags: \{ source: "upload_verify_cleanup", endpoint \}/);
   });
 
   it("prevalidates before upload and reports progress with XMLHttpRequest", () => {

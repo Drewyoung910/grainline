@@ -12,6 +12,7 @@ import { r2, R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
+import { uploadKeyUserSegment } from "@/lib/uploadKey";
 import {
   IMAGE_UPLOAD_ENDPOINTS,
   IMAGE_UPLOAD_TYPES,
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
   }
 
   const output = outputFor(file.type);
-  const key = `${endpoint}/${userId}/${Date.now()}-${randomUUID()}.${output.ext}`;
+  const key = `${endpoint}/${uploadKeyUserSegment(userId)}/${Date.now()}-${randomUUID()}.${output.ext}`;
 
   try {
     await r2.send(new PutObjectCommand({

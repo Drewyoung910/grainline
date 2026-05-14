@@ -64,9 +64,11 @@ describe("upload verification tokens", () => {
 
   it("scopes uploaded keys to the authenticated user and endpoint", () => {
     assert.equal(uploadKeyBelongsToUser("listingVideo/user_123/file.mp4", "listingVideo", "user_123"), true);
+    assert.equal(uploadKeyBelongsToUser("listingVideo/user____bad_name/file.mp4", "listingVideo", "user/../bad:name"), true);
     assert.equal(uploadKeyBelongsToUser("listingVideo/user_456/file.mp4", "listingVideo", "user_123"), false);
     assert.equal(uploadKeyBelongsToUser("messageFile/user_123/file.pdf", "listingVideo", "user_123"), false);
     assert.equal(uploadKeyBelongsToUser("listingVideo/user_123/../file.mp4", "listingVideo", "user_123"), false);
+    assert.equal(uploadKeyBelongsToUser("listingVideo/user/../bad:name/file.mp4", "listingVideo", "user/../bad:name"), false);
   });
 
   it("requires actual object size and content type to match signed metadata exactly", () => {
