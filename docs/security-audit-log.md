@@ -557,6 +557,35 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** vacation return-date parsing now supports native date input without weakening invalid-date rejection, the warning toggle can be cancelled by toggling back off, vacation-route failures emit Sentry evidence, and seller broadcast notification fanout failures are captured with bounded IDs instead of being silently swallowed. Regression coverage lives in `tests/seller-ops-hardening.test.mjs`.
 
+## 2026-05-13 cron/public utility route spot check
+
+Scope:
+
+- `src/app/api/cron/*/route.ts`
+- `src/lib/cronAuth.ts`
+- `src/app/api/csp-report/route.ts`
+- `src/app/api/health/route.ts`
+- `src/app/api/blog/route.ts`
+- `src/app/api/blog/search/route.ts`
+- `src/app/api/blog/search/suggestions/route.ts`
+- `src/app/api/search/popular-tags/route.ts`
+- `src/app/api/search/popular-blog-tags/route.ts`
+- `src/app/api/search/suggestions/route.ts`
+- `src/app/api/cart/checkout/rollback/route.ts`
+
+Results:
+
+- Every cron route checks `verifyCronRequest()` before work, uses the shared cron-run state helpers to avoid duplicate execution, and reports through `withSentryCronMonitor`.
+- `cronAuth.ts` uses SHA-256 digests with `timingSafeEqual` and supports `CRON_SECRET_PREVIOUS` for rotation.
+- CSP reports remain public by design, but they are IP-rate-limited, sanitized before Sentry capture, and tag checkout/cart document violations without leaking checkout query strings.
+- Health checks are IP-rate-limited and hide backend component details unless `HEALTH_CHECK_TOKEN` is supplied.
+- Public search/blog endpoints cap query/tag input, use shared public visibility helpers, and keep popular-tag routes cached. Signed-in global search suggestions also honor block filters.
+- Checkout rollback is signed-in, current-buyer-scoped through Stripe session metadata, rate-limited, expires only unpaid/open sessions, and uses idempotent checkout-stock restoration.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** `/api/blog` now uses the shared public search rate limiter and caps tag input before Prisma filters; blog search and blog suggestion APIs now use shared `getIP()` instead of local forwarded-header parsing. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.
