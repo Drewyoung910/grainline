@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
@@ -129,6 +130,18 @@ export async function POST(req: NextRequest) {
           dedupScope: broadcast.id,
         }),
       );
+      results.forEach((result, index) => {
+        if (result.status !== "rejected") return;
+        Sentry.captureException(result.reason, {
+          level: "warning",
+          tags: { source: "seller_broadcast_notification" },
+          extra: {
+            broadcastId: broadcast.id,
+            sellerProfileId: seller.id,
+            followerId: notificationFollowers[index]?.followerId ?? null,
+          },
+        });
+      });
       const deliveredCount = results.reduce(
         (count, result) => count + (result.status === "fulfilled" && result.value ? 1 : 0),
         0,
@@ -139,7 +152,13 @@ export async function POST(req: NextRequest) {
           data: { recipientCount: deliveredCount },
         });
       }
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "seller_broadcast_after" },
+        extra: { broadcastId: broadcast.id, sellerProfileId: seller.id },
+      });
+    }
   });
 
   return NextResponse.json({ broadcastId: broadcast.id, recipientCount: notificationFollowers.length });

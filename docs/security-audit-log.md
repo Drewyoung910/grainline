@@ -533,6 +533,29 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** account export failures/missing audit rows, newsletter signup failures, unsubscribe processing failures, and Resend webhook mark-failed errors now emit Sentry evidence with local IDs, webhook IDs, methods, or hashed emails only. Newsletter signup now uses the shared `getIP()`/`rateLimitResponse()` helpers. Regression coverage lives in `tests/account-privacy-observability.test.mjs`.
 
+## 2026-05-13 seller operational route spot check
+
+Scope:
+
+- `src/app/api/seller/vacation/route.ts`
+- `src/app/dashboard/seller/VacationModeForm.tsx`
+- `src/app/api/seller/broadcast/route.ts`
+- `src/app/api/seller/analytics/route.ts`
+- `src/app/api/seller/analytics/recent-sales/route.ts`
+- `src/app/api/seller/[id]/view/route.ts`
+
+Results:
+
+- Vacation mode is current-seller-only through `ensureSeller()`, accepts the native `YYYY-MM-DD` value emitted by `<input type="date">`, rejects malformed provided return dates, and queues seller-wide checkout-session expiry only when enabling vacation mode.
+- The vacation warning UI remains reversible while the warning is open: toggling the switch back off clears the pending enable state and dismisses the warning, matching the Cancel action.
+- Seller broadcasts are current-seller-only, block incomplete/disconnected/vacation sellers, rate-limit by seller, require first-party broadcast image URLs, and keep notification fanout idempotent by `dedupScope`.
+- Seller analytics and recent-sales APIs resolve the current local user, scope to that user's seller profile, block incomplete onboarding, and keep recent-sales reads on whole-order seller ownership (`items.some` plus `items.every`).
+- Public seller profile view analytics skip likely bots, skip owner views, rate-limit by IP/client ID, and apply the shared visible-seller predicate before recording.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** vacation return-date parsing now supports native date input without weakening invalid-date rejection, the warning toggle can be cancelled by toggling back off, vacation-route failures emit Sentry evidence, and seller broadcast notification fanout failures are captured with bounded IDs instead of being silently swallowed. Regression coverage lives in `tests/seller-ops-hardening.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

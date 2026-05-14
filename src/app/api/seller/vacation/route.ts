@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -9,11 +10,20 @@ import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
-  vacationReturnDate: z.string().datetime().optional().nullable(),
+  vacationReturnDate: z.string().max(40).optional().nullable(),
   vacationMessage: z.string().max(200).optional().nullable(),
 });
 
 export const runtime = "nodejs";
+
+function parseVacationReturnDate(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T12:00:00.000Z`)
+    : new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 export async function POST(req: Request) {
   try {
@@ -35,7 +45,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
     const vacationMode = vacParsed.vacationMode;
-    const vacationReturnDate = vacParsed.vacationReturnDate ? new Date(vacParsed.vacationReturnDate) : null;
+    const vacationReturnDate = parseVacationReturnDate(vacParsed.vacationReturnDate);
+    if (vacParsed.vacationReturnDate && !vacationReturnDate) {
+      return NextResponse.json({ error: "Invalid return date" }, { status: 400 });
+    }
     const vacationMessage = vacParsed.vacationMessage?.trim() || null;
 
     await prisma.sellerProfile.update({
@@ -59,6 +72,10 @@ export async function POST(req: Request) {
     if (accountResponse) return accountResponse;
 
     console.error("POST /api/seller/vacation error:", err);
+    Sentry.captureException(err, {
+      level: "warning",
+      tags: { source: "seller_vacation_update" },
+    });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
