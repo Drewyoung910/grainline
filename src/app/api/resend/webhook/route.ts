@@ -218,7 +218,12 @@ export async function POST(request: Request) {
     await markWebhookProcessed(id);
     return NextResponse.json({ ok: true, ignored: true, type: event.type });
   } catch (err) {
-    await markWebhookFailed(id, err);
+    await markWebhookFailed(id, err).catch((markError) => {
+      Sentry.captureException(markError, {
+        tags: { source: "resend_webhook_mark_failed", type: event.type },
+        extra: { svixId: id },
+      });
+    });
     Sentry.captureException(err, { tags: { source: "resend_webhook_process", type: event.type } });
     return NextResponse.json({ ok: false, error: "Webhook processing failed" }, { status: 500 });
   }

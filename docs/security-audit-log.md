@@ -504,6 +504,35 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** staff listing removal now proactively expires matching open Stripe Checkout Sessions; admin report resolution is rate-limited and stale-safe; admin listing-review notifications/Founding Maker grants, custom-order ready emails, admin review rating/photo cleanup, admin email send/notification/audit side effects, and admin verification emails now emit Sentry evidence with bounded IDs or hashed email telemetry. Regression coverage lives in `tests/admin-moderation-observability.test.mjs`.
 
+## 2026-05-13 account/privacy route spot check
+
+Scope:
+
+- `src/app/api/account/accept-terms/route.ts`
+- `src/app/api/account/delete/route.ts`
+- `src/app/api/account/export/route.ts`
+- `src/app/api/legal/data-request/route.ts`
+- `src/app/api/support/route.ts`
+- `src/app/api/newsletter/route.ts`
+- `src/app/api/email/unsubscribe/route.ts`
+- `src/app/api/clerk/webhook/route.ts`
+- `src/app/api/resend/webhook/route.ts`
+- `src/lib/supportRequest.ts`
+- `src/lib/unsubscribe.ts`
+
+Results:
+
+- Terms acceptance is authenticated, rate-limited, version-pinned, and writes durable `termsAcceptedAt`, `termsVersion`, and `ageAttestedAt` state for the current user only.
+- Account deletion blocks open obligations, returns a terminal error when Clerk deletion succeeds but local anonymization fails, and emits Sentry evidence for both Clerk deletion and anonymization failures.
+- Account export is authenticated, rate-limited, buyer/seller scoped, and requires an `ACCOUNT_EXPORT` audit row before returning the export download.
+- Support and data-request forms are public but IP-rate-limited, normalized/sanitized, stored before email delivery, and keep email-delivery errors on the `SupportRequest` row without blocking the user receipt.
+- Newsletter signup is public and fail-closed on suppression uncertainty; unsubscribe GET is non-mutating and POST verifies signed tokens before mutating preferences/suppression state.
+- Clerk and Resend webhooks verify signatures, reserve webhook event IDs before processing, and use retryable event state for failed/in-progress deliveries.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** account export failures/missing audit rows, newsletter signup failures, unsubscribe processing failures, and Resend webhook mark-failed errors now emit Sentry evidence with local IDs, webhook IDs, methods, or hashed emails only. Newsletter signup now uses the shared `getIP()`/`rateLimitResponse()` helpers. Regression coverage lives in `tests/account-privacy-observability.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

@@ -1,9 +1,11 @@
 // src/app/api/newsletter/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { newsletterRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { sanitizeUserName } from "@/lib/sanitize";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { z } from "zod";
 
 const NewsletterSchema = z.object({
@@ -14,10 +16,11 @@ const NewsletterSchema = z.object({
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  let emailHash: string | null = null;
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
+    const ip = getIP(req);
     const rl = await safeRateLimitOpen(newsletterRatelimit, ip);
-    if (!rl.success) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+    if (!rl.success) return rateLimitResponse(rl.reset, "Too many newsletter signup attempts.");
 
     let parsed;
     try {
@@ -30,6 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const email = parsed.email.trim().toLowerCase();
+    emailHash = hashEmailForTelemetry(email);
     const name = parsed.name ? sanitizeUserName(parsed.name, 200) || null : null;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -53,6 +57,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ subscribed: true });
   } catch (err) {
     console.error("POST /api/newsletter error:", err);
+    Sentry.captureException(err, {
+      level: "warning",
+      tags: { source: "newsletter_subscribe" },
+      extra: { emailHash },
+    });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

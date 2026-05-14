@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { unsubscribeEmail, verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import { getIP, rateLimitResponse, safeRateLimit, unsubscribeRatelimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,6 +122,11 @@ async function handlePost(req: NextRequest) {
     }
   } catch (error) {
     console.error("Unsubscribe failed:", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "unsubscribe_email" },
+      extra: { emailHash: hashEmailForTelemetry(email) },
+    });
     if (mode === "html") return htmlResponse("Unsubscribe failed", "We could not process this request. Please try again later.", 500);
     return NextResponse.json({ ok: false, error: "Unsubscribe failed" }, { status: 500 });
   }

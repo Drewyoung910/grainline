@@ -3803,6 +3803,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 146. **[HARDENED 2026-05-13] Upload/media routes audited; sanitized key consistency and cleanup observability tightened** — upload/image, upload/presign, upload/verify, R2 helpers, upload verification tokens, and first-party media validators were broadly sound. The hardening fix made processed-image key creation and direct-upload ownership verification share the same path-safe user-segment normalization and added Sentry evidence for failed cleanup of invalid direct uploads. Source guardrails: `tests/upload-verification-token.test.mjs`, `tests/upload-ux-followups.test.mjs`.
 
+147. **[HARDENED 2026-05-13] Account/privacy routes audited; privacy-safe observability tightened** — accept-terms, account delete/export, support/data-request, newsletter, unsubscribe, Clerk webhook, and Resend webhook paths were authenticated/rate-limited/signature-verified as appropriate in this pass. The hardening fix added Sentry evidence for account export failures/missing audit rows, newsletter signup failures, unsubscribe processing failures, and Resend webhook mark-failed errors using local IDs, webhook IDs, methods, or hashed emails only; newsletter signup now uses shared IP/rate-limit response helpers. Source guardrail: `tests/account-privacy-observability.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

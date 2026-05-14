@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { accountExportRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -380,9 +381,11 @@ async function buildExport(user: NonNullable<ExportableUser>) {
 }
 
 async function handleExport(method: "GET" | "POST") {
+  let exportUserId: string | null = null;
   try {
     const user = await ensureUser();
     if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    exportUserId = user.id;
 
     const rate = await safeRateLimit(accountExportRatelimit, user.id);
     if (!rate.success) return rateLimitResponse(rate.reset, "Too many account export requests.");
@@ -397,6 +400,11 @@ async function handleExport(method: "GET" | "POST") {
       metadata: { route: "/api/account/export", method },
     });
     if (!auditLogId) {
+      Sentry.captureMessage("Account export audit log unavailable", {
+        level: "warning",
+        tags: { source: "account_export_audit_log" },
+        extra: { userId: user.id, method },
+      });
       return NextResponse.json(
         { error: "Could not record account export audit trail. Please try again." },
         { status: 503 },
@@ -409,6 +417,11 @@ async function handleExport(method: "GET" | "POST") {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
     console.error("account export failed", error);
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "account_export" },
+      extra: { userId: exportUserId, method },
+    });
     return NextResponse.json({ error: "Could not generate account export" }, { status: 500 });
   }
 }
