@@ -789,3 +789,28 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-14:** account deletion media cleanup now filters collected URLs through `accountDeletionMediaUrlsForCleanup()` before calling `deleteR2ObjectByUrl()`. Only configured first-party media keys owned by the deleted Clerk user are deleted, so copied markdown/message/blog URLs cannot make one user deletion remove another user's upload. Regression coverage lives in `tests/account-deletion-media.test.mjs`.
 - **Fixed 2026-05-14:** commission reference-image uploads now use the non-seller `messageImage` endpoint instead of seller-only `listingImage`, and the commission API validates those submitted reference URLs against `messageImage` ownership. This preserves current-uploader scoping without requiring buyers to have a seller profile. Regression coverage lives in `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
 - **Hardened 2026-05-14:** message attachment upload rules now match the message composer contract: `messageAny` accepts processed images plus PDFs, `messageFile` accepts PDFs only, and MP4/MOV files remain confined to seller-only `listingVideo`. This avoids an authenticated crafted-upload path for unsupported message videos and keeps attachment UX/server validation aligned. Regression coverage lives in `tests/upload-ux-followups.test.mjs`.
+
+## 2026-05-14 public forms, webhooks, payment-script, and XSS surface audit
+
+Scope:
+
+- Public support, legal data-request, newsletter, CSP-report, health, and unsubscribe routes.
+- Clerk, Resend, Stripe snapshot, and Stripe Connect v2 thin webhook routes.
+- Dev/diagnostic routes and health payload behavior.
+- Checkout/payment browser script inventory and CSP controls.
+- User-generated HTML/markdown/JSON-LD/video embed rendering paths.
+
+Results:
+
+- Public support and legal data-request forms are IP rate-limited, normalize/sanitize bounded fields before storage/email rendering, escape HTML in generated emails, hash email addresses before Sentry telemetry, and preserve the user's escalation path if email delivery fails.
+- Newsletter signup is IP rate-limited, validates/normalizes email before write, respects suppression, hashes telemetry, and fails closed on unexpected errors.
+- CSP reports are public but rate-limited, sanitized before Sentry, and tag checkout/payment-surface violations with `checkout_surface=true`.
+- Health checks cache backend probes for 30 seconds, rate-limit public callers, and return only `{ ok }` unless `HEALTH_CHECK_TOKEN` matches.
+- `/api/dev/make-order` remains disabled outside local non-Vercel development and still requires an authenticated, unsuspended user when explicitly enabled.
+- Clerk, Resend, Stripe snapshot, and Stripe v2 thin webhooks all verify signatures before work and use idempotency ledgers before side effects.
+- Checkout script inventory remains accurate: no direct `next/script` usage was found in `src/app` or `src/components`; Stripe Embedded Checkout loads through `@stripe/stripe-js`/`EmbeddedCheckoutProvider`; Clerk and Sentry are the other expected browser runtimes; CSP keeps explicit Stripe/Clerk/Sentry/R2/Turnstile host allowlists.
+- User-generated HTML surfaces are centralized: blog markdown renders through `renderBlogMarkdown()` with `sanitize-html`, markdown images are limited to first-party R2 public URLs, JSON-LD uses `safeJsonLd()`, and blog video URLs normalize to YouTube/Vimeo IDs before iframe rendering.
+
+Follow-up fix from this pass:
+
+- No code fix required from this batch. The next unauthenticated-surface pass should continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.
