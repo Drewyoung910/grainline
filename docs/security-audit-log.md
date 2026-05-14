@@ -706,6 +706,24 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** `/api/stripe/connect/status` now shares the fail-closed `stripeConnectRatelimit` before retrieving the connected account from Stripe. This closes an authenticated Stripe API hammer surface while keeping the route seller-owned and account-state checked. Regression coverage lives in `tests/stripe-connect-v2.test.mjs`.
 
+## 2026-05-13 static API footgun sweep
+
+Scope:
+
+- Empty-catch patterns under `src`
+- API mutation routes without obvious auth/signature/rate-limit boundaries
+- Redirect usage and raw SQL usage for follow-up review targets
+
+Results:
+
+- No empty `catch {}` blocks remain under `src`.
+- Public support, legal data-request, newsletter, CSP-report, listing-view, and listing-click routes are intentionally public and rate-limited or telemetry-only.
+- `POST /api/verification/apply` was authenticated through `ensureSeller()` and state-safe through a single `MakerVerification` upsert, but it lacked a route-level limiter despite mutating review state and running eligibility aggregate queries.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** `POST /api/verification/apply` now uses fail-closed `verificationApplyRatelimit` keyed by the current user before parsing the application body or running eligibility queries. Regression coverage lives in `tests/guild-listing-edit-followups.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

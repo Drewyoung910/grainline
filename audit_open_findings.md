@@ -3814,6 +3814,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 148. **[HARDENED 2026-05-13] Stripe Connect/account lifecycle routes audited; status refresh rate-limited** — Connect create/status/dashboard/login-link routes derive the seller from the current Clerk user, never accept client-supplied Stripe account IDs, and preserve the Accounts v2 split-webhook model (`STRIPE_WEBHOOK_SECRET` for snapshot events, `STRIPE_V2_WEBHOOK_SECRET` for `/api/stripe/webhook/v2` thin events). The hardening fix added fail-closed `stripeConnectRatelimit` protection to `/api/stripe/connect/status` before it calls `stripe.accounts.retrieve()`, closing an authenticated Stripe API hammer surface. Source guardrail: `tests/stripe-connect-v2.test.mjs`.
 
+149. **[HARDENED 2026-05-13] Static API footgun sweep found one unrate-limited authenticated mutation** — empty-catch scans were clean and the public support/newsletter/CSP/view/click routes remain intentionally public with rate-limit or telemetry boundaries. `POST /api/verification/apply` was authenticated and upsert-safe, but it mutated MakerVerification review state and ran eligibility aggregate queries without a route limiter. It now uses fail-closed `verificationApplyRatelimit` keyed by the current user before body parsing/eligibility work. Source guardrail: `tests/guild-listing-edit-followups.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

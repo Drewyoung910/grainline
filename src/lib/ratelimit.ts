@@ -156,6 +156,14 @@ export const commissionCreateRatelimit = new Ratelimit({
   prefix: "rl:commission_create",
 });
 
+// Guild verification application — mutates review state and runs eligibility queries.
+export const verificationApplyRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "24 h"),
+  analytics: true,
+  prefix: "rl:verification_apply",
+});
+
 export const commissionReferenceImageIpRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(10, "24 h"),

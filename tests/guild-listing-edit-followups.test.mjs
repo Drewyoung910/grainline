@@ -13,6 +13,8 @@ describe("guild and listing-edit audit follow-ups", () => {
 
     assert.match(dashboard, /status: "ACTIVE", isPrivate: false/);
     assert.match(applyRoute, /status: "ACTIVE", isPrivate: false/);
+    assert.match(applyRoute, /safeRateLimit\(verificationApplyRatelimit, me\.id\)/);
+    assert.match(applyRoute, /rateLimitResponse\(reset, "Too many verification applications\."\)/);
   });
 
   it("keeps listing edit row and variant replacement in one transaction", () => {

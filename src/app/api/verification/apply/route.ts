@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
+import { rateLimitResponse, safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
 import { z } from "zod";
 
@@ -34,7 +35,9 @@ function normalizeHttpsUrl(input: string | null | undefined): string | null {
 
 export async function POST(req: Request) {
   try {
-    const { seller } = await ensureSeller();
+    const { me, seller } = await ensureSeller();
+    const { success: rlOk, reset } = await safeRateLimit(verificationApplyRatelimit, me.id);
+    if (!rlOk) return rateLimitResponse(reset, "Too many verification applications.");
 
     let verParsed;
     try {

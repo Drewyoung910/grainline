@@ -2671,6 +2671,7 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `blogSaveRatelimit` | userId | 100 / 60 min | `POST/DELETE /api/blog/[slug]/save` |
 | `commissionInterestRatelimit` | userId | 20 / 24 h | `POST /api/commission/[id]/interest` |
 | `commissionCreateRatelimit` | userId | 5 / 24 h | `POST /api/commission` |
+| `verificationApplyRatelimit` | userId | 5 / 24 h | `POST /api/verification/apply` |
 | `listingCreateRatelimit` | userId | 20 / 24 h | `createListing` server action |
 | `profileViewRatelimit` | `${ip}:${listingId}` | 1 / 24 h | `POST /api/listings/[id]/view` (silent drop — no 429 returned) |
 | `broadcastRatelimit` | sellerId | 1 / 7 d | `POST /api/seller/broadcast` (in addition to DB 7-day check) |
