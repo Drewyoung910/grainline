@@ -522,7 +522,13 @@ export async function POST(req: Request) {
         SET "stockQuantity" = "stockQuantity" + ${reservedQuantity}
         WHERE id = ${reservedListingId}
           AND "listingType" = 'IN_STOCK'
-      `.catch(() => {}); // best effort — don't mask the original error
+      `.catch((restoreError) => {
+        Sentry.captureException(restoreError, {
+          level: "warning",
+          tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_single" },
+          extra: { listingId: reservedListingId, quantity: reservedQuantity, reason: "checkout_create_error" },
+        });
+      }); // best effort — don't mask the original error
     }
 
     if (checkoutLockAcquired) {

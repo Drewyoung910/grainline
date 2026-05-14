@@ -313,7 +313,13 @@ export async function POST(
           body: `Your maker issued a refund of $${(refundAmountCents / 100).toFixed(2)} for your order.`,
           link: `/dashboard/orders/${orderId}`,
         });
-      } catch { /* non-fatal */ }
+      } catch (error) {
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { source: "seller_refund_notification" },
+          extra: { orderId, buyerId: order.buyerId, refundAmountCents },
+        });
+      }
     }
 
     try {
@@ -331,7 +337,13 @@ export async function POST(
           orderId,
         });
       }
-    } catch { /* non-fatal */ }
+    } catch (error) {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "seller_refund_email" },
+        extra: { orderId, buyerId: order.buyerId ?? null, refundAmountCents },
+      });
+    }
 
     return NextResponse.json({
       ok: true,

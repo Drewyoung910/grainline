@@ -455,7 +455,13 @@ export async function POST(req: Request) {
               SET "stockQuantity" = "stockQuantity" + ${r.quantity}
               WHERE id = ${r.listingId}
                 AND "listingType" = 'IN_STOCK'
-            `.catch(() => {});
+            `.catch((restoreError) => {
+              Sentry.captureException(restoreError, {
+                level: "warning",
+                tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_seller" },
+                extra: { listingId: r.listingId, quantity: r.quantity, reason: "insufficient_stock_batch_rollback" },
+              });
+            });
           }
           await releaseCheckoutLock(checkoutLockKeyValue);
           return NextResponse.json(
@@ -584,7 +590,13 @@ export async function POST(req: Request) {
         SET "stockQuantity" = "stockQuantity" + ${r.quantity}
         WHERE id = ${r.listingId}
           AND "listingType" = 'IN_STOCK'
-      `.catch(() => {}); // best effort
+      `.catch((restoreError) => {
+        Sentry.captureException(restoreError, {
+          level: "warning",
+          tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_seller" },
+          extra: { listingId: r.listingId, quantity: r.quantity, reason: "checkout_create_error" },
+        });
+      }); // best effort
     }
 
     if (checkoutLockAcquired) {

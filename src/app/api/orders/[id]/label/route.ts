@@ -365,7 +365,13 @@ export async function POST(
       await prisma.$executeRaw`
         UPDATE "Order" SET "labelStatus" = NULL
         WHERE id = ${order.id}
-      `.catch(() => {});
+      `.catch((error) => {
+        Sentry.captureException(error, {
+          level: "warning",
+          tags: { source: "label_lock_revert_failed" },
+          extra: { orderId: order.id },
+        });
+      });
     };
 
     let shippoPurchaseSucceeded = false;
@@ -487,7 +493,14 @@ export async function POST(
       } else {
         Sentry.captureException(labelErr, {
           tags: { source: "shippo_label_post_purchase_db_update" },
-          extra: { orderId: id, purchasedLabelDetails },
+          extra: {
+            orderId: id,
+            shippoTransactionId: purchasedLabelDetails?.transactionId ?? null,
+            labelCostCents: purchasedLabelDetails?.labelCostCents ?? null,
+            carrier: purchasedLabelDetails?.carrier ?? null,
+            hasLabelUrl: Boolean(purchasedLabelDetails?.labelUrl),
+            hasTrackingNumber: Boolean(purchasedLabelDetails?.trackingNumber),
+          },
         });
         await prisma.order.updateMany({
           where: { id, labelStatus: "PURCHASED" },
@@ -506,7 +519,19 @@ export async function POST(
             } : {}),
             ...(typeof purchasedLabelDetails?.labelCostCents === "number" ? { labelCostCents: purchasedLabelDetails.labelCostCents } : {}),
           },
-        }).catch(() => {});
+        }).catch((updateError) => {
+          Sentry.captureException(updateError, {
+            tags: { source: "shippo_label_orphan_record_failed" },
+            extra: {
+              orderId: id,
+              shippoTransactionId: purchasedLabelDetails?.transactionId ?? null,
+              labelCostCents: purchasedLabelDetails?.labelCostCents ?? null,
+              carrier: purchasedLabelDetails?.carrier ?? null,
+              hasLabelUrl: Boolean(purchasedLabelDetails?.labelUrl),
+              hasTrackingNumber: Boolean(purchasedLabelDetails?.trackingNumber),
+            },
+          });
+        });
       }
       throw labelErr;
     }

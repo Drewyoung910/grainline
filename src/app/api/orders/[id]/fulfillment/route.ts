@@ -1,6 +1,7 @@
 // src/app/api/orders/[id]/fulfillment/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
@@ -29,6 +30,26 @@ const ACTIVE_CASE_STATUSES = [
   CaseStatus.UNDER_REVIEW,
 ] as const;
 const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
+
+async function notifyBuyer(orderId: string, buyerId: string, payload: Parameters<typeof createNotification>[0]) {
+  try {
+    await createNotification(payload);
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "fulfillment_notification" },
+      extra: { orderId, buyerId, notificationType: payload.type },
+    });
+  }
+}
+
+function captureFulfillmentEmailFailure(error: unknown, orderId: string, action: string) {
+  Sentry.captureException(error, {
+    level: "warning",
+    tags: { source: "fulfillment_email", action },
+    extra: { orderId },
+  });
+}
 
 async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   const me = await prisma.user.findUnique({
@@ -219,7 +240,7 @@ export async function POST(
       const carrier = payload.trackingCarrier ?? null;
       const trackingNumber = payload.trackingNumber ?? null;
       if (updated.buyerId) {
-        await createNotification({
+        await notifyBuyer(id, updated.buyerId, {
           userId: updated.buyerId,
           type: "ORDER_SHIPPED",
           title: "Your piece is on its way!",
@@ -235,13 +256,15 @@ export async function POST(
             carrier,
             trackingNumber,
           });
-        } catch { /* non-fatal */ }
+        } catch (error) {
+          captureFulfillmentEmailFailure(error, id, action);
+        }
       }
     }
 
     if (action === "delivered") {
       if (updated.buyerId) {
-        await createNotification({
+        await notifyBuyer(id, updated.buyerId, {
           userId: updated.buyerId,
           type: "ORDER_DELIVERED",
           title: "Your piece has been delivered!",
@@ -255,13 +278,15 @@ export async function POST(
             order: { id },
             buyer: { name: updated.buyer?.name, email: buyerEmail },
           });
-        } catch { /* non-fatal */ }
+        } catch (error) {
+          captureFulfillmentEmailFailure(error, id, action);
+        }
       }
     }
 
     if (action === "picked_up") {
       if (updated.buyerId) {
-        await createNotification({
+        await notifyBuyer(id, updated.buyerId, {
           userId: updated.buyerId,
           type: "ORDER_DELIVERED",
           title: "Order picked up!",
@@ -273,7 +298,7 @@ export async function POST(
 
     if (action === "ready_for_pickup") {
       if (updated.buyerId) {
-        await createNotification({
+        await notifyBuyer(id, updated.buyerId, {
           userId: updated.buyerId,
           type: "ORDER_SHIPPED",
           title: "Ready for pickup!",
@@ -289,7 +314,9 @@ export async function POST(
             buyer: { name: updated.buyer?.name, email: buyerEmail },
             seller: { displayName: sellerName },
           });
-        } catch { /* non-fatal */ }
+        } catch (error) {
+          captureFulfillmentEmailFailure(error, id, action);
+        }
       }
     }
 
