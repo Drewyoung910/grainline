@@ -78,4 +78,16 @@ describe("seller operational route hardening", () => {
     assert.match(route, /source: "stock_back_in_stock_fanout"/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
+
+  it("keeps seller listing status follow-up mutations owner-scoped", () => {
+    const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+    const createListing = source("src/app/dashboard/listings/new/page.tsx");
+    const customListing = source("src/app/dashboard/listings/custom/page.tsx");
+    const editListing = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+
+    assert.match(shopActions, /WHERE id = \$\{listingId\}\s+AND "sellerId" = \$\{listing\.sellerId\}/);
+    assert.match(createListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
+    assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
+    assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.ACTIVE, updatedAt: updatedListing\.updatedAt \}/);
+  });
 });

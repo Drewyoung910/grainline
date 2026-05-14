@@ -458,7 +458,7 @@ async function updateListing(
           !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
         if (shouldHold) {
           const holdResult = await prisma.listing.updateMany({
-            where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
             data: {
               status: ListingStatus.PENDING_REVIEW,
               aiReviewFlags: aiResult.flags,
@@ -471,7 +471,7 @@ async function updateListing(
         } else {
           // Stays ACTIVE; refresh AI metadata to reflect this review pass.
           await prisma.listing.updateMany({
-            where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+            where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
             data: {
               aiReviewFlags: aiResult.flags,
               aiReviewScore: aiResult.confidence,
@@ -481,7 +481,7 @@ async function updateListing(
       } else {
         // Seller lost chargesEnabled mid-edit: send the listing to draft.
         const draftResult = await prisma.listing.updateMany({
-          where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+          where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
           data: { status: ListingStatus.DRAFT },
         });
         if (draftResult.count > 0 && seller) {
@@ -493,7 +493,7 @@ async function updateListing(
       // AI infrastructure error — flip to PENDING_REVIEW conservatively so
       // staff can review the new content.
       const pendingResult = await prisma.listing.updateMany({
-        where: { id: listingId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
+        where: { id: listingId, sellerId: listing.sellerId, status: ListingStatus.ACTIVE, updatedAt: updatedListing.updatedAt },
         data: {
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: ["AI review error"],

@@ -356,6 +356,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
         UPDATE "Listing"
         SET status = 'SOLD_OUT'
         WHERE id = ${created.id}
+          AND "sellerId" = ${seller.id}
           AND "listingType" = 'IN_STOCK'
           AND COALESCE("stockQuantity", 0) <= 0
           AND status = 'ACTIVE'

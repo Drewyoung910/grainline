@@ -3822,6 +3822,8 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 152. **[HARDENED 2026-05-13] Dynamic-route IDOR pass tightened listing stock final mutation and observability** — order, case, message, review, follow/block/report, and listing telemetry dynamic routes were inspected for route-local ownership/staff/public-visibility predicates. No cross-account read/write exploit was verified. The stock patch route already performed a seller ownership read first; this pass also keeps `sellerId` in the final raw SQL update predicate and replaces the silent back-in-stock fanout catch with Sentry evidence. Source guardrail: `tests/seller-ops-hardening.test.mjs`.
 
+153. **[HARDENED 2026-05-13] Server-action listing state follow-up mutations now repeat seller ownership** — listing create, custom listing create, seller publish/mark-available, and ACTIVE edit re-review actions already resolve the acting seller before changing state. This follow-up carries that seller id into the final SOLD_OUT/status update predicates so forged action posts and future refactors have the same defense-in-depth boundary at the mutation line. Source guardrail: `tests/seller-ops-hardening.test.mjs`.
+
 ## Recommended fix order for Codex
 
 **Batch A (closes ~25 form bugs in one mechanical pass):**

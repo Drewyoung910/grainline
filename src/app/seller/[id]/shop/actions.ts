@@ -317,6 +317,7 @@ export async function publishListingAction(listingId: string): Promise<{ status:
         UPDATE "Listing"
         SET status = 'SOLD_OUT'
         WHERE id = ${listingId}
+          AND "sellerId" = ${listing.sellerId}
           AND "listingType" = 'IN_STOCK'
           AND COALESCE("stockQuantity", 0) <= 0
           AND status = 'ACTIVE'
