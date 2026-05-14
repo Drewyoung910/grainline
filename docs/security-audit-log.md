@@ -636,6 +636,28 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** seller shop activation fanout and new-listing follower fanout failures now emit Sentry evidence instead of silent catches. New-listing AI review failures and "mark AI error" follow-up failures also emit bounded Sentry evidence while preserving the existing fail-closed `PENDING_REVIEW` behavior. Regression coverage lives in `tests/server-action-hardening.test.mjs`.
 
+## 2026-05-13 message/custom-order route spot check
+
+Scope:
+
+- `src/app/api/messages/[id]/list/route.ts`
+- `src/app/api/messages/[id]/read/route.ts`
+- `src/app/api/messages/[id]/stream/route.ts`
+- `src/app/api/messages/unread-count/route.ts`
+- `src/app/api/messages/custom-order-request/route.ts`
+
+Results:
+
+- Message list/read/stream routes resolve the current local user through account-state helpers and require the user to be a participant in the target conversation before returning messages or marking them read.
+- Message list and stream reads are capped or paced: list returns at most 200 rows, stream uses a bounded polling backoff and captures poll errors once per stream.
+- Unread count uses `ensureUserByClerkId()` and returns account-state errors when available; the outer header-safe catch keeps the header from breaking on unexpected failures.
+- Custom-order requests block self-messages, enforce mutual block checks, require an active seller who accepts custom orders and is currently orderable, and validate listing context against the seller's active public listing.
+- Custom-order requests now validate budget before any conversation/message side effects.
+
+Follow-up fix from this pass:
+
+- **Hardened 2026-05-13:** custom-order request budget validation now runs before conversation upsert/message creation, preventing invalid-budget attempts from leaving empty conversations behind. Custom-order seller notification failures now emit Sentry evidence and no longer turn successful message creation into a false 500. Regression coverage lives in `tests/custom-order-admin-thread-followups.test.mjs`.
+
 Open work:
 
 - Continue route-by-route audit for the remaining dynamic private routes.

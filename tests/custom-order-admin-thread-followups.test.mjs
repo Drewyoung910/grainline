@@ -38,8 +38,14 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
 
     assert.match(customOrderRoute, /Sentry\.captureException\(error, \{/);
+    assert.match(customOrderRoute, /source: "custom_order_request_notification"/);
     assert.match(customOrderRoute, /source: "custom_order_request_email"/);
     assert.doesNotMatch(customOrderRoute, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
+
+    assert.ok(
+      customOrderRoute.indexOf("Budget must be a valid dollar amount") < customOrderRoute.indexOf("conversation.create"),
+      "custom order budget validation must run before conversation creation side effects",
+    );
 
     assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);

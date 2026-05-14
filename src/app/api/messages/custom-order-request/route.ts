@@ -123,6 +123,17 @@ export async function POST(req: Request) {
     contextListingTitle = listing.title;
   }
 
+  const budgetCents = budget != null ? parseMoneyInputToCents(budget) : null;
+  if (budget != null && (budgetCents === null || budgetCents <= 0)) {
+    return NextResponse.json({ error: "Budget must be a valid dollar amount." }, { status: 400 });
+  }
+  if (budgetCents !== null && budgetCents > 10_000_000) {
+    return NextResponse.json({ error: "Budget cannot exceed $100,000." }, { status: 400 });
+  }
+  const budgetNum = budgetCents !== null ? budgetCents / 100 : null;
+  const timelineStr = timeline ?? null;
+  const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
+
   // Upsert conversation (canonical sort, race-safe — same logic as /messages/new)
   const [a, b] = [me.id, sellerUserId].sort((x, y) => (x < y ? -1 : 1));
   let convo = await prisma.conversation.findUnique({
@@ -157,17 +168,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const budgetCents = budget != null ? parseMoneyInputToCents(budget) : null;
-  if (budget != null && (budgetCents === null || budgetCents <= 0)) {
-    return NextResponse.json({ error: "Budget must be a valid dollar amount." }, { status: 400 });
-  }
-  if (budgetCents !== null && budgetCents > 10_000_000) {
-    return NextResponse.json({ error: "Budget cannot exceed $100,000." }, { status: 400 });
-  }
-  const budgetNum = budgetCents !== null ? budgetCents / 100 : null;
-  const timelineStr = timeline ?? null;
-  const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
-
   const messageBody = JSON.stringify({
     description: truncateText(description.trim(), 500),
     dimensions: dimensions?.trim() || null,
@@ -193,13 +193,21 @@ export async function POST(req: Request) {
     data: { updatedAt: new Date() },
   });
 
-  await createNotification({
-    userId: sellerUserId,
-    type: "CUSTOM_ORDER_REQUEST",
-    title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} wants a custom piece!`,
-    body: truncateText(String(description).trim(), 60),
-    link: `/messages/${convo.id}`,
-  });
+  try {
+    await createNotification({
+      userId: sellerUserId,
+      type: "CUSTOM_ORDER_REQUEST",
+      title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} wants a custom piece!`,
+      body: truncateText(String(description).trim(), 60),
+      link: `/messages/${convo.id}`,
+    });
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "custom_order_request_notification" },
+      extra: { conversationId: convo.id, buyerId: me.id, sellerUserId },
+    });
+  }
 
   try {
     if (await shouldSendEmail(sellerUserId, "EMAIL_CUSTOM_ORDER")) {
