@@ -4,6 +4,11 @@ import { sendRenderedEmail } from "@/lib/email";
 import { prisma } from "@/lib/db";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { getIP, rateLimitResponse, safeRateLimitOpen, supportRequestRatelimit } from "@/lib/ratelimit";
 import {
   normalizeSupportRequest,
@@ -14,14 +19,20 @@ import {
   supportRequestSubject,
 } from "@/lib/supportRequest";
 
+const SUPPORT_REQUEST_BODY_MAX_BYTES = 24 * 1024;
+
 export async function POST(req: Request) {
   const rate = await safeRateLimitOpen(supportRequestRatelimit, getIP(req));
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many support requests.");
 
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
+    body = await readBoundedJson(req, SUPPORT_REQUEST_BODY_MAX_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (!isInvalidJsonBodyError(error)) throw error;
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 

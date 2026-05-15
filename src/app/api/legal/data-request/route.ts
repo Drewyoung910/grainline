@@ -6,6 +6,11 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { dataRequestRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import {
   normalizeSupportRequest,
   supportRequestHtml,
   supportRequestRecipient,
@@ -14,14 +19,20 @@ import {
   supportRequestSubject,
 } from "@/lib/supportRequest";
 
+const DATA_REQUEST_BODY_MAX_BYTES = 24 * 1024;
+
 export async function POST(req: Request) {
   const rate = await safeRateLimitOpen(dataRequestRatelimit, getIP(req));
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many data requests.");
 
   let body: unknown;
   try {
-    body = await req.json();
-  } catch {
+    body = await readBoundedJson(req, DATA_REQUEST_BODY_MAX_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (!isInvalidJsonBodyError(error)) throw error;
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 

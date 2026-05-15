@@ -8,12 +8,23 @@ import {
   type CspReportLike,
 } from "@/lib/cspReport";
 import { cspReportRatelimit, getIP, safeRateLimitOpen } from "@/lib/ratelimit";
+import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
+
+const CSP_REPORT_BODY_MAX_BYTES = 32 * 1024;
 
 export async function POST(request: NextRequest) {
   const { success } = await safeRateLimitOpen(cspReportRatelimit, getIP(request));
   if (!success) return new NextResponse(null, { status: 204 });
 
-  const rawBody = await request.text();
+  let rawBody = "";
+  try {
+    rawBody = await readBoundedText(request, CSP_REPORT_BODY_MAX_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return new NextResponse(null, { status: 204 });
+    }
+    throw error;
+  }
   try {
     const body = JSON.parse(rawBody);
     const report = (body["csp-report"] || body) as CspReportLike;

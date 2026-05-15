@@ -43,6 +43,7 @@ describe("cron and public route hardening", () => {
     const health = source("src/app/api/health/route.ts");
 
     assert.match(cspReport, /safeRateLimitOpen\(cspReportRatelimit, getIP\(request\)\)/);
+    assert.match(cspReport, /readBoundedText\(request, CSP_REPORT_BODY_MAX_BYTES\)/);
     assert.match(cspReport, /sanitizeCspReportForSentry/);
     assert.match(cspReport, /checkout_surface/);
 

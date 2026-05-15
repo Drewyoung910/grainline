@@ -6,7 +6,14 @@ import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { sanitizeUserName } from "@/lib/sanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
+
+const NEWSLETTER_BODY_MAX_BYTES = 8 * 1024;
 
 const NewsletterSchema = z.object({
   email: z.string().min(1).max(254),
@@ -24,12 +31,18 @@ export async function POST(req: NextRequest) {
 
     let parsed;
     try {
-      parsed = NewsletterSchema.parse(await req.json());
+      parsed = NewsletterSchema.parse(await readBoundedJson(req, NEWSLETTER_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
 
     const email = parsed.email.trim().toLowerCase();

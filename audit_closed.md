@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 60.
-- Verified code/feature fix commits since 2026-05-13: 52.
+- Verified hardening/doc commits since 2026-05-13: 61.
+- Verified code/feature fix commits since 2026-05-13: 53.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 12 verified closed items in the 2026-05-14
+- Most recent reported pass total: 13 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -69,6 +69,11 @@ Last updated: 2026-05-14
     viewed, global search suggestions, and public commission reads fail closed
     before Prisma/raw SQL work when Redis limiting is unavailable. Commit:
     `fix: tighten fail-open limiter policy`.
+13. **Public form/report body reads bounded** — code fix. Public newsletter,
+    support, legal data-request, and CSP report routes now read through
+    `readBoundedJson()` / `readBoundedText()` before parsing or Sentry
+    processing, with route-specific byte caps and streamed-body enforcement.
+    Commit: `fix: bound public request bodies`.
 
 ## Verified Stale / Not Fixed
 

@@ -22,11 +22,25 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /getIP\(req\)/);
     assert.match(route, /safeRateLimit\(newsletterRatelimit, ip\)/);
     assert.doesNotMatch(route, /safeRateLimitOpen\(newsletterRatelimit/);
+    assert.match(route, /readBoundedJson\(req, NEWSLETTER_BODY_MAX_BYTES\)/);
+    assert.match(route, /isRequestBodyTooLargeError/);
     assert.match(route, /rateLimitResponse\(rl\.reset, "Too many newsletter signup attempts\."\)/);
     assert.match(route, /hashEmailForTelemetry\(email\)/);
     assert.match(route, /source: "newsletter_subscribe"/);
     assert.match(route, /extra: \{ emailHash \}/);
     assert.match(route, /isEmailSuppressed\(email\)/);
+  });
+
+  it("bounds public support and privacy request bodies before normalization", () => {
+    const support = source("src/app/api/support/route.ts");
+    const dataRequest = source("src/app/api/legal/data-request/route.ts");
+
+    for (const route of [support, dataRequest]) {
+      assert.match(route, /readBoundedJson\(req, [A-Z_]+_BODY_MAX_BYTES\)/);
+      assert.match(route, /isRequestBodyTooLargeError/);
+      assert.match(route, /Request body too large/);
+      assert.doesNotMatch(route, /body = await req\.json\(\)/);
+    }
   });
 
   it("captures unsubscribe processing failures with hashed email telemetry only", () => {
