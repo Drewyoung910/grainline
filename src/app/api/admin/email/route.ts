@@ -11,8 +11,14 @@ import { sendRenderedEmail } from "@/lib/email";
 import { inactiveAdminEmailRecipientReason } from "@/lib/adminEmailRecipient";
 import { logAdminAction } from "@/lib/audit";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const ADMIN_EMAIL_BODY_MAX_BYTES = 64 * 1024;
 
 const Schema = z.object({
   userId: z.string().min(1).optional(),
@@ -47,9 +53,15 @@ export async function POST(request: Request) {
 
   let body;
   try {
-    body = Schema.parse(await request.json());
-  } catch {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    body = Schema.parse(await readBoundedJson(request, ADMIN_EMAIL_BODY_MAX_BYTES));
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(error) || error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+    throw error;
   }
 
   let recipientEmail: string;

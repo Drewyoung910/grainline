@@ -12,6 +12,11 @@ import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sani
 import { isFirstPartyMediaUrl, isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -22,6 +27,7 @@ const BroadcastSchema = z.object({
   ).optional().nullable(),
   sellersOnly: z.boolean().optional(),
 });
+const BROADCAST_BODY_MAX_BYTES = 32 * 1024;
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -48,12 +54,18 @@ export async function POST(req: NextRequest) {
 
   let broadcastParsed;
   try {
-    broadcastParsed = BroadcastSchema.parse(await req.json());
+    broadcastParsed = BroadcastSchema.parse(await readBoundedJson(req, BROADCAST_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const message = truncateText(sanitizeText(broadcastParsed.message.trim()), 500);
   const imageUrl = broadcastParsed.imageUrl?.trim() || null;

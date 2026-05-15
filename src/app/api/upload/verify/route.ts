@@ -8,6 +8,11 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { R2_BUCKET, r2 } from "@/lib/r2";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit } from "@/lib/ratelimit";
 import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import {
   uploadedObjectVerificationError,
   uploadKeyBelongsToUser,
   verifyUploadVerificationToken,
@@ -22,6 +27,7 @@ const Schema = z.object({
   verificationToken: z.string().min(1).max(200),
   verificationExpiresAt: z.number().int().positive(),
 });
+const UPLOAD_VERIFY_BODY_MAX_BYTES = 16 * 1024;
 
 async function deleteObject(key: string) {
   await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
@@ -41,7 +47,20 @@ export async function POST(req: Request) {
   const { success, reset } = await safeRateLimit(uploadHourlyRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many uploads.");
 
-  const parsed = Schema.safeParse(await req.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readBoundedJson(req, UPLOAD_VERIFY_BODY_MAX_BYTES);
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(error)) {
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+    throw error;
+  }
+
+  const parsed = Schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }

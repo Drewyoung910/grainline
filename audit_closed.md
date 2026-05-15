@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 63.
-- Verified code/feature fix commits since 2026-05-13: 55.
+- Verified hardening/doc commits since 2026-05-13: 64.
+- Verified code/feature fix commits since 2026-05-13: 56.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 15 verified closed items in the 2026-05-14
+- Most recent reported pass total: 16 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -83,6 +83,12 @@ Last updated: 2026-05-14
     markdown rendering were verified behind safe serializers/sanitizers, and
     remaining target-blank links now use explicit `rel="noopener noreferrer"`.
     Commit: `fix: tighten rendering security guardrails`.
+16. **Authenticated JSON mutation body reads bounded** — code fix. Checkout,
+    shipping quote, direct upload presign/verify, seller broadcast, admin
+    email, user report, case, review, custom-order, and commission JSON
+    mutations now use `readBoundedJson()` with route-specific caps before Zod
+    parsing and downstream side effects. Commit: `fix: bound authenticated json
+    mutations`.
 
 ## Verified Stale / Not Fixed
 

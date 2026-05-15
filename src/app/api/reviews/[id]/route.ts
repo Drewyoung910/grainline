@@ -11,6 +11,11 @@ import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelim
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url()).max(6).optional();
 
@@ -20,6 +25,7 @@ const ReviewPatchSchema = z.object({
   photos: ReviewPhotoUrlsSchema,
   photoUrls: ReviewPhotoUrlsSchema,
 });
+const REVIEW_PATCH_BODY_MAX_BYTES = 24 * 1024;
 
 function mediaUrlHost(url: string) {
   try {
@@ -73,12 +79,18 @@ export async function PATCH(
 
   let reviewPatchParsed;
   try {
-    reviewPatchParsed = ReviewPatchSchema.parse(await req.json());
+    reviewPatchParsed = ReviewPatchSchema.parse(await readBoundedJson(req, REVIEW_PATCH_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const { ratingX2, comment } = reviewPatchParsed;
   const photos = reviewPatchParsed.photos ?? reviewPatchParsed.photoUrls ?? [];

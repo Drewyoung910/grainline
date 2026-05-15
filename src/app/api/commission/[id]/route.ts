@@ -11,6 +11,11 @@ import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
 import { commissionStatusRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const CommissionPatchSchema = z.object({
@@ -19,6 +24,7 @@ const CommissionPatchSchema = z.object({
 
 const COMMISSION_INTEREST_DISPLAY_LIMIT = 100;
 const COMMISSION_INTEREST_NOTIFY_LIMIT = 10000;
+const COMMISSION_STATUS_BODY_MAX_BYTES = 8 * 1024;
 
 export async function GET(
   _req: NextRequest,
@@ -134,12 +140,18 @@ export async function PATCH(
 
   let patchParsed;
   try {
-    patchParsed = CommissionPatchSchema.parse(await req.json());
+    patchParsed = CommissionPatchSchema.parse(await readBoundedJson(req, COMMISSION_STATUS_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const { status } = patchParsed;
   if ((status as CommissionStatus) === CommissionStatus.FULFILLED && request.interests.length === 0) {

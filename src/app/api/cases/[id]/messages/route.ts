@@ -14,11 +14,17 @@ import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { truncateText } from "@/lib/sanitize";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
   body: z.string().min(1).max(5000),
 });
+const CASE_MESSAGE_BODY_MAX_BYTES = 24 * 1024;
 
 export const runtime = "nodejs";
 
@@ -39,12 +45,18 @@ export async function POST(
 
     let parsed;
     try {
-      parsed = CaseMessageSchema.parse(await req.json());
+      parsed = CaseMessageSchema.parse(await readBoundedJson(req, CASE_MESSAGE_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
     const messageBody = parsed.body.trim();
     if (!messageBody) return NextResponse.json({ error: "body is required." }, { status: 400 });

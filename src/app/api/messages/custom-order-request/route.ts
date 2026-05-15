@@ -9,6 +9,11 @@ import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -29,6 +34,7 @@ const CustomOrderRequestSchema = z.object({
   listingId: z.string().min(1).optional().nullable(),
   listingTitle: z.string().max(200).optional().nullable(),
 });
+const CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -46,12 +52,18 @@ export async function POST(req: Request) {
 
   let parsed;
   try {
-    parsed = CustomOrderRequestSchema.parse(await req.json());
+    parsed = CustomOrderRequestSchema.parse(await readBoundedJson(req, CUSTOM_ORDER_REQUEST_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
 
   const { sellerUserId, description, dimensions, budget, timeline, listingId } = parsed;

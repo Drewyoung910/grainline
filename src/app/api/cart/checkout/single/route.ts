@@ -22,6 +22,11 @@ import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -54,6 +59,7 @@ const CheckoutSingleSchema = z.object({
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "iad1";
+const CHECKOUT_BODY_MAX_BYTES = 64 * 1024;
 
 export async function POST(req: Request) {
   // Track stock reservation for rollback on error
@@ -74,12 +80,18 @@ export async function POST(req: Request) {
 
     let body;
     try {
-      body = CheckoutSingleSchema.parse(await req.json());
+      body = CheckoutSingleSchema.parse(await readBoundedJson(req, CHECKOUT_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
 
     const listing = await prisma.listing.findUnique({

@@ -14,6 +14,11 @@ import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { createUploadVerificationToken } from "@/lib/uploadVerificationToken";
 import { uploadKeyUserSegment } from "@/lib/uploadKey";
 import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import {
   DIRECT_ENDPOINT_ALLOWED_TYPES,
   IMAGE_UPLOAD_TYPES,
   UPLOAD_ENDPOINTS,
@@ -46,6 +51,7 @@ const Schema = z.object({
   endpoint: z.enum(UPLOAD_ENDPOINTS),
   fileIndex: z.number().int().min(0).default(0),
 });
+const UPLOAD_PRESIGN_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -66,12 +72,18 @@ export async function POST(req: NextRequest) {
 
   let body;
   try {
-    body = Schema.parse(await req.json());
+    body = Schema.parse(await readBoundedJson(req, UPLOAD_PRESIGN_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    throw e;
   }
 
   const { filename, contentType, size, endpoint, fileIndex } = body;

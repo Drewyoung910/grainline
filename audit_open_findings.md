@@ -6,9 +6,9 @@ Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: **pending triage**. Do not treat the raw
   claim count as real until Codex verifies each item against `main`.
-- Verified hardening/doc commits since 2026-05-13: **63 total** (**55**
+- Verified hardening/doc commits since 2026-05-13: **64 total** (**56**
   code/feature fixes, **8** docs/audit-only commits).
-- Current 2026-05-14 active closed tracker: **15 verified closed items** in
+- Current 2026-05-14 active closed tracker: **16 verified closed items** in
   `audit_closed.md`, plus **1 stale/false-positive claim verified clean**.
 - Reporting rule for future passes: each Codex pass should end with a counter
   such as `verified closed this pass`, `verified stale/false-positive this
@@ -50,6 +50,7 @@ Drew asked for a concrete plan to harden Grainline against AI-assisted attacker 
 29. **[LOW-MEDIUM HARDENED 2026-05-14] Public unauthenticated form/report routes parsed bodies without app-level byte caps.** Platform limits existed, but newsletter, support, legal data-request, and CSP report routes called raw `req.json()`/`request.text()` before any local size boundary. `readBoundedJson()` / `readBoundedText()` now enforce `Content-Length` and streamed byte caps before parsing or Sentry processing. Regression coverage: `tests/request-body-bounds.test.mjs`, `tests/account-privacy-observability.test.mjs`, and `tests/public-cron-search-hardening.test.mjs`.
 30. **[LOW-MEDIUM HARDENED 2026-05-14] Signed webhook routes read raw bodies before app-level size caps.** Stripe, Stripe v2, Clerk, and Resend webhooks verify signatures after reading raw payloads, so oversized unsigned traffic could still force avoidable body reads. These routes now use `readBoundedText()` with route-specific caps before vendor verification and reject oversized payloads with bounded telemetry. Regression coverage: `tests/webhook-body-bounds.test.mjs` and `tests/stripe-webhook-v2-route.test.mjs`.
 31. **[LOW HARDENED 2026-05-14] Rendering/XSS sweep found target-blank rel drift.** JSON-LD and blog markdown rendering were verified behind `safeJsonLd()` and `sanitize-html`; remaining `rel="noreferrer"` target-blank links in message attachments and map fallback were normalized to `rel="noopener noreferrer"` so opener protection is explicit and consistent. Regression coverage: `tests/rendering-security.test.mjs`.
+32. **[LOW-MEDIUM HARDENED 2026-05-14] High-cost authenticated JSON mutations parsed unbounded request bodies.** Checkout session creation, shipping quotes, direct upload presign/verify, seller broadcasts, admin email, user reports, cases, reviews, custom-order requests, and commission create/status mutations now use `readBoundedJson()` with route-specific caps before Zod parsing and before Stripe/Shippo/R2/Prisma/email/notification work. Oversized bodies return 413. Regression coverage: `tests/authenticated-json-body-bounds.test.mjs`, plus focused route tests.
 
 ## 2026-05-12 — Codex resumed: Claude-change audit + launch polish
 

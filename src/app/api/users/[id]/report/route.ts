@@ -8,6 +8,11 @@ import { createNotification } from "@/lib/notifications";
 import { canViewListingDetail } from "@/lib/listingVisibility";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -27,6 +32,7 @@ const Schema = z.object({
   ]).optional(),
   targetId: z.string().max(100).optional(),
 });
+const USER_REPORT_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(
   req: Request,
@@ -61,9 +67,15 @@ export async function POST(
 
   let body;
   try {
-    body = Schema.parse(await req.json());
-  } catch {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    body = Schema.parse(await readBoundedJson(req, USER_REPORT_BODY_MAX_BYTES));
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(error) || error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
+    throw error;
   }
 
   if ((body.targetType && !body.targetId) || (!body.targetType && body.targetId)) {

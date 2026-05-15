@@ -21,6 +21,11 @@ import {
   refundStockRestoreQuantities,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -32,6 +37,7 @@ const CaseResolveSchema = z.object({
   resolution: z.enum(["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"]),
   refundAmountCents: z.number().int().positive().optional().nullable(),
 });
+const CASE_RESOLVE_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(
   req: Request,
@@ -55,12 +61,18 @@ export async function POST(
 
     let parsed;
     try {
-      parsed = CaseResolveSchema.parse(await req.json());
+      parsed = CaseResolveSchema.parse(await readBoundedJson(req, CASE_RESOLVE_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
     const { resolution, refundAmountCents } = parsed;
 

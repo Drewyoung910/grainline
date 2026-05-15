@@ -13,6 +13,11 @@ import {
 } from "@/lib/shippingQuoteState";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const ShippingQuoteSchema = z.object({
@@ -37,6 +42,7 @@ const ShippingQuoteSchema = z.object({
 export const runtime = "nodejs";
 export const maxDuration = 30;
 export const preferredRegion = "iad1";
+const SHIPPING_QUOTE_BODY_MAX_BYTES = 32 * 1024;
 
 function fallbackRate({
   amountCents,
@@ -151,12 +157,18 @@ export async function POST(req: Request) {
 
     let body;
     try {
-      body = ShippingQuoteSchema.parse(await req.json());
+      body = ShippingQuoteSchema.parse(await readBoundedJson(req, SHIPPING_QUOTE_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
     const mode = body.mode ?? "cart";
     const currency = (body.currency ?? "usd").toLowerCase();

@@ -7,10 +7,16 @@ import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 
 const ReplySchema = z.object({
   text: z.string().min(1).max(2000),
 });
+const REVIEW_REPLY_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params; // review id
@@ -22,12 +28,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   let replyParsed;
   try {
-    replyParsed = ReplySchema.parse(await req.json());
+    replyParsed = ReplySchema.parse(await readBoundedJson(req, REVIEW_REPLY_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const rawBody = truncateText(replyParsed.text.trim(), 2000);
   const body = sanitizeRichText(rawBody);

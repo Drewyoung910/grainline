@@ -21,6 +21,11 @@ import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
@@ -38,6 +43,7 @@ const CommissionCreateSchema = z.object({
   )).max(3).optional(),
   isNational: z.boolean().optional(),
 });
+const COMMISSION_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
 export async function GET(req: NextRequest) {
   const rate = await safeRateLimit(searchRatelimit, getIP(req));
@@ -106,12 +112,18 @@ export async function POST(req: NextRequest) {
 
   let parsed;
   try {
-    parsed = CommissionCreateSchema.parse(await req.json());
+    parsed = CommissionCreateSchema.parse(await readBoundedJson(req, COMMISSION_CREATE_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const { title, description, category, budgetMin, budgetMax, timeline, referenceImageUrls, isNational } = parsed;
   if ((referenceImageUrls?.length ?? 0) > 0) {

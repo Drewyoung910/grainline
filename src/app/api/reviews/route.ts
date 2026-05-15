@@ -16,6 +16,11 @@ import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/ur
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const ReviewPhotoUrlsSchema = z.array(z.string().url().refine(
@@ -32,6 +37,7 @@ const ReviewSchema = z.object({
 });
 
 const REVIEW_WINDOW_DAYS = 90;
+const REVIEW_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -44,12 +50,18 @@ export async function POST(req: NextRequest) {
 
   let parsed;
   try {
-    parsed = ReviewSchema.parse(await req.json());
+    parsed = ReviewSchema.parse(await readBoundedJson(req, REVIEW_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const { listingId, ratingX2, comment } = parsed;
   const photoUrls = parsed.photoUrls ?? parsed.photos ?? [];

@@ -11,6 +11,11 @@ import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRou
 import { logUserAuditAction } from "@/lib/audit";
 import { caseEstimatedDeliveryBlockMessage } from "@/lib/caseCreateState";
 import { truncateText } from "@/lib/sanitize";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -20,6 +25,7 @@ const CaseCreateSchema = z.object({
   reason: z.enum(["NOT_RECEIVED", "NOT_AS_DESCRIBED", "DAMAGED", "WRONG_ITEM", "OTHER"]),
   description: z.string().min(1).max(2000),
 });
+const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
   try {
@@ -33,12 +39,18 @@ export async function POST(req: Request) {
 
     let parsed;
     try {
-      parsed = CaseCreateSchema.parse(await req.json());
+      parsed = CaseCreateSchema.parse(await readBoundedJson(req, CASE_CREATE_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
     const { orderId, reason } = parsed;
     const description = parsed.description.trim();
