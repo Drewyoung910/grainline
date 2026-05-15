@@ -4,11 +4,12 @@ import { unsubscribeEmail, verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import { getIP, rateLimitResponse, safeRateLimit, unsubscribeRatelimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
-import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const UNSUBSCRIBE_JSON_BODY_MAX_BYTES = 8 * 1024;
+const UNSUBSCRIBE_FORM_BODY_MAX_BYTES = 8 * 1024;
 
 type UnsubscribeParams = { email: string | null; token: string | null; issuedAt: string | null };
 
@@ -69,6 +70,7 @@ async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParam
         issuedAt ??
         (typeof body?.issuedAt === "string" || typeof body?.issuedAt === "number" ? String(body.issuedAt) : null);
     } else {
+      assertContentLengthUnder(req, UNSUBSCRIBE_FORM_BODY_MAX_BYTES);
       const formData = await req.formData().catch(() => null);
       email = email ?? (typeof formData?.get("email") === "string" ? String(formData.get("email")) : null);
       token = token ?? (typeof formData?.get("token") === "string" ? String(formData.get("token")) : null);

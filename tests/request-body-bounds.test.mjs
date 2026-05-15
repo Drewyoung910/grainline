@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   InvalidJsonBodyError,
   RequestBodyTooLargeError,
+  assertContentLengthUnder,
   readBoundedJson,
   readBoundedText,
   readOptionalBoundedJson,
@@ -23,6 +24,13 @@ describe("bounded request body helpers", () => {
     await assert.rejects(
       () => readBoundedText(req, 8),
       (error) => error instanceof RequestBodyTooLargeError && error.status === 413,
+    );
+  });
+
+  it("shares the content-length pre-check with non-JSON body readers", () => {
+    assert.throws(
+      () => assertContentLengthUnder(requestWithBody("", { "content-length": "999" }), 8),
+      (error) => error instanceof RequestBodyTooLargeError && error.maxBytes === 8,
     );
   });
 

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 65.
-- Verified code/feature fix commits since 2026-05-13: 57.
+- Verified hardening/doc commits since 2026-05-13: 66.
+- Verified code/feature fix commits since 2026-05-13: 58.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 17 verified closed items in the 2026-05-14
+- Most recent reported pass total: 18 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -94,6 +94,10 @@ Last updated: 2026-05-14
     regression test recursively scans every API route to prevent raw
     `req.json()` / `request.json()` from returning. Commit: `fix: bound
     remaining api json reads`.
+18. **API form-data body pre-checks added** — code fix. Processed image upload,
+    order fulfillment form fallback, and unsubscribe form fallback now run
+    `assertContentLengthUnder()` before `formData()` parsing when
+    `Content-Length` is present. Commit: `fix: precheck api form data bodies`.
 
 ## Verified Stale / Not Fixed
 

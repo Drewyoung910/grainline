@@ -13,6 +13,7 @@ import { assertPublicMediaAvailable } from "@/lib/publicMediaAvailability";
 import { rateLimitResponse, safeRateLimit, uploadHourlyRatelimit, uploadRatelimit } from "@/lib/ratelimit";
 import { uploadServiceFailure } from "@/lib/uploadServiceFailure";
 import { uploadKeyUserSegment } from "@/lib/uploadKey";
+import { assertContentLengthUnder, isRequestBodyTooLargeError } from "@/lib/requestBody";
 import {
   IMAGE_UPLOAD_ENDPOINTS,
   IMAGE_UPLOAD_TYPES,
@@ -28,6 +29,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SELLER_ONLY_ENDPOINTS = new Set(["listingImage", "bannerImage", "galleryImage"]);
+const IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES = 12 * 1024 * 1024;
 
 const FormSchema = z.object({
   endpoint: z.enum(IMAGE_UPLOAD_ENDPOINTS),
@@ -68,7 +70,16 @@ export async function POST(req: Request) {
   const { success: hourlySuccess, reset: hourlyReset } = await safeRateLimit(uploadHourlyRatelimit, userId);
   if (!hourlySuccess) return rateLimitResponse(hourlyReset, "Too many uploads.");
 
-  const form = await req.formData();
+  let form: FormData;
+  try {
+    assertContentLengthUnder(req, IMAGE_UPLOAD_MULTIPART_BODY_MAX_BYTES);
+    form = await req.formData();
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    throw error;
+  }
   const parsed = FormSchema.safeParse({
     endpoint: form.get("endpoint"),
     fileIndex: form.get("fileIndex") ?? 0,

@@ -26,14 +26,18 @@ export function isInvalidJsonBodyError(error: unknown): error is InvalidJsonBody
   return error instanceof InvalidJsonBodyError;
 }
 
-export async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+export function assertContentLengthUnder(request: Request, maxBytes: number): void {
   const contentLength = request.headers.get("content-length");
-  if (contentLength) {
-    const parsedLength = Number.parseInt(contentLength, 10);
-    if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
-      throw new RequestBodyTooLargeError(maxBytes);
-    }
+  if (!contentLength) return;
+
+  const parsedLength = Number.parseInt(contentLength, 10);
+  if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
+    throw new RequestBodyTooLargeError(maxBytes);
   }
+}
+
+export async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+  assertContentLengthUnder(request, maxBytes);
 
   if (!request.body) return "";
 
