@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
+import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -29,10 +30,13 @@ type SimilarRow = {
 };
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const rate = await safeRateLimit(searchRatelimit, getIP(req));
+    if (!rate.success) return rateLimitResponse(rate.reset, "Too many similar-listing requests.");
+
     const { id } = await params;
 
     const listing = await prisma.listing.findFirst({

@@ -78,6 +78,7 @@ describe("cron and public route hardening", () => {
     const blogSearch = source("src/app/api/blog/search/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
+    const similarListings = source("src/app/api/listings/[id]/similar/route.ts");
 
     assert.match(blog, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blog, /rateLimitResponse\(reset, "Too many blog requests\."\)/);
@@ -106,6 +107,11 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /getBlockedSellerProfileIdsFor/);
     assert.match(globalSuggestions, /publicListingWhere/);
     assert.match(globalSuggestions, /activeSellerProfileWhere/);
+
+    assert.match(similarListings, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(similarListings, /rateLimitResponse\(rate\.reset, "Too many similar-listing requests\."\)/);
+    assert.match(similarListings, /publicListingWhere\(\{ id \}\)/);
+    assert.match(similarListings, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
   });
 
   it("keeps public commission reads bounded and rate-limited", () => {
