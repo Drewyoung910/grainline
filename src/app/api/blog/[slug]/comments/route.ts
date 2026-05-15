@@ -7,6 +7,11 @@ import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { sanitizeText } from "@/lib/sanitize";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const AUTHOR_SELECT = {
@@ -24,6 +29,7 @@ const CommentSchema = z.object({
 const TOP_LEVEL_COMMENT_LIMIT = 100;
 const REPLY_COMMENT_LIMIT = 50;
 const NESTED_REPLY_COMMENT_LIMIT = 25;
+const BLOG_COMMENT_BODY_MAX_BYTES = 24 * 1024;
 
 export const runtime = "nodejs";
 
@@ -111,12 +117,18 @@ export async function POST(
 
   let parsed;
   try {
-    parsed = CommentSchema.parse(await req.json());
+    parsed = CommentSchema.parse(await readBoundedJson(req, BLOG_COMMENT_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const text = sanitizeText(parsed.body.trim());
   if (!text) return NextResponse.json({ error: "Comment is empty" }, { status: 400 });

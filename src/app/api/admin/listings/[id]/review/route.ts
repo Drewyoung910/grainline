@@ -9,12 +9,18 @@ import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
 import { revalidateListingSearchCaches } from '@/lib/searchCache'
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from '@/lib/requestBody'
 import { z } from 'zod'
 
 const ReviewActionSchema = z.object({
   action: z.enum(['approve', 'reject']),
   reason: z.string().max(500).nullish(),
 })
+const ADMIN_LISTING_REVIEW_BODY_MAX_BYTES = 16 * 1024
 
 export async function PATCH(
   request: NextRequest,
@@ -34,12 +40,18 @@ export async function PATCH(
   const { id } = await params
   let body
   try {
-    body = ReviewActionSchema.parse(await request.json())
+    body = ReviewActionSchema.parse(await readBoundedJson(request, ADMIN_LISTING_REVIEW_BODY_MAX_BYTES))
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
     }
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    throw e
   }
   const { action, reason } = body
 

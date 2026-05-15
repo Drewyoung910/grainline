@@ -3,8 +3,10 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
+const NOTIFICATION_READ_ALL_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -23,9 +25,18 @@ export async function POST(req: Request) {
     throw err;
   }
 
-  const body = await req.json().catch(() => ({}));
-  const ids = Array.isArray(body?.ids)
-    ? body.ids.filter((id: unknown): id is string => typeof id === "string").slice(0, 100)
+  let body: unknown;
+  try {
+    body = await readOptionalBoundedJson(req, NOTIFICATION_READ_ALL_BODY_MAX_BYTES, {});
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    throw error;
+  }
+  const bodyObject = body as { ids?: unknown };
+  const ids = Array.isArray(bodyObject.ids)
+    ? bodyObject.ids.filter((id: unknown): id is string => typeof id === "string").slice(0, 100)
     : [];
 
   await prisma.notification.updateMany({

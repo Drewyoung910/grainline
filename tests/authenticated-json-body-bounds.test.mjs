@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function apiRouteFiles(dir = "src/app/api") {
+  const files = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    const stat = statSync(path);
+    if (stat.isDirectory()) {
+      files.push(...apiRouteFiles(path));
+    } else if (entry === "route.ts") {
+      files.push(path);
+    }
+  }
+  return files;
 }
 
 const boundedMutationRoutes = [
@@ -95,6 +110,16 @@ const boundedMutationRoutes = [
 ];
 
 describe("authenticated JSON mutation body bounds", () => {
+  it("does not leave raw JSON body reads in API route handlers", () => {
+    for (const path of apiRouteFiles()) {
+      assert.doesNotMatch(
+        source(path),
+        /await (?:req|request)\.json\(\)(?:\.catch)?/,
+        `${path} should use readBoundedJson() or readOptionalBoundedJson()`,
+      );
+    }
+  });
+
   for (const route of boundedMutationRoutes) {
     it(`${route.path} bounds JSON before parsing`, () => {
       const text = source(route.path);

@@ -2,11 +2,17 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const DevOrderSchema = z.object({
   listingId: z.string().min(1),
 });
+const DEV_MAKE_ORDER_BODY_MAX_BYTES = 8 * 1024;
 
 function devFixturesEnabled() {
   return (
@@ -32,12 +38,18 @@ export async function POST(req: Request) {
 
   let devParsed;
   try {
-    devParsed = DevOrderSchema.parse(await req.json());
+    devParsed = DevOrderSchema.parse(await readBoundedJson(req, DEV_MAKE_ORDER_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const { listingId } = devParsed;
 

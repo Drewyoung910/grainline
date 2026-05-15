@@ -26,6 +26,11 @@ import {
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 
@@ -33,6 +38,7 @@ const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
   amountCents: z.number().int().positive().optional().nullable(),
 });
+const REFUND_BODY_MAX_BYTES = 16 * 1024;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,12 +61,18 @@ export async function POST(
 
     let refundParsed;
     try {
-      refundParsed = RefundSchema.parse(await req.json());
+      refundParsed = RefundSchema.parse(await readBoundedJson(req, REFUND_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
 
     const type: "FULL" | "PARTIAL" = refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";

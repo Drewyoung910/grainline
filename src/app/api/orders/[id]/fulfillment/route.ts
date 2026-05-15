@@ -7,6 +7,7 @@ import { createNotification } from "@/lib/notifications";
 import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { CaseStatus, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 
@@ -30,6 +31,7 @@ const ACTIVE_CASE_STATUSES = [
   CaseStatus.UNDER_REVIEW,
 ] as const;
 const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
+const FULFILLMENT_JSON_BODY_MAX_BYTES = 24 * 1024;
 
 async function notifyBuyer(orderId: string, buyerId: string, payload: Parameters<typeof createNotification>[0]) {
   try {
@@ -102,7 +104,14 @@ export async function POST(
     let rawPayload: Record<string, unknown> = {};
     const contentType = req.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
-      try { rawPayload = await req.json(); } catch { /* empty */ }
+      try {
+        rawPayload = (await readOptionalBoundedJson(req, FULFILLMENT_JSON_BODY_MAX_BYTES, {})) as Record<string, unknown>;
+      } catch (error) {
+        if (isRequestBodyTooLargeError(error)) {
+          return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+        }
+        throw error;
+      }
     } else {
       const form = await req.formData();
       rawPayload = Object.fromEntries(form.entries()) as Record<string, unknown>;

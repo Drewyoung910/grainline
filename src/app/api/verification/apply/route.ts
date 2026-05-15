@@ -5,6 +5,11 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -12,6 +17,7 @@ export const runtime = "nodejs";
 const REQUIRED_LISTINGS = 5;
 const REQUIRED_SALES_CENTS = 25000; // $250
 const REQUIRED_ACCOUNT_DAYS = 30;
+const VERIFICATION_APPLY_BODY_MAX_BYTES = 24 * 1024;
 
 const VerificationApplySchema = z.object({
   craftDescription: z.string().min(1).max(500),
@@ -41,12 +47,18 @@ export async function POST(req: Request) {
 
     let verParsed;
     try {
-      verParsed = VerificationApplySchema.parse(await req.json());
+      verParsed = VerificationApplySchema.parse(await readBoundedJson(req, VERIFICATION_APPLY_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
 
     const craftDescription = truncateText(verParsed.craftDescription.trim(), 500);

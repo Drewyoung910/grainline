@@ -3,11 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { BanUserPolicyError, banUser, unbanUser } from '@/lib/ban'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from '@/lib/requestBody'
 import { z } from 'zod'
 
 const BanSchema = z.object({
   reason: z.string().min(1).max(500),
 })
+const ADMIN_USER_BAN_BODY_MAX_BYTES = 16 * 1024
 
 async function getAdmin(clerkId: string) {
   return prisma.user.findUnique({
@@ -29,12 +35,18 @@ export async function POST(
   const { id } = await params
   let body
   try {
-    body = BanSchema.parse(await request.json())
+    body = BanSchema.parse(await readBoundedJson(request, ADMIN_USER_BAN_BODY_MAX_BYTES))
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
     }
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    throw e
   }
   const { reason } = body
   if (id === admin.id) return NextResponse.json({ error: 'Cannot ban yourself' }, { status: 400 })
@@ -64,12 +76,18 @@ export async function DELETE(
   const { id } = await params
   let unbanBody
   try {
-    unbanBody = BanSchema.parse(await request.json())
+    unbanBody = BanSchema.parse(await readBoundedJson(request, ADMIN_USER_BAN_BODY_MAX_BYTES))
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
     }
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    throw e
   }
   const { reason } = unbanBody
   try {

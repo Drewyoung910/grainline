@@ -9,6 +9,11 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { normalizeTags } from "@/lib/tags";
 import { truncateText } from "@/lib/sanitize";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -24,6 +29,7 @@ const SavedSearchSchema = z.object({
   maxPrice: z.number().min(0).max(10_000_000).optional().nullable(),
   tags: z.array(z.string().min(1).max(100)).max(20).optional(),
 });
+const SAVED_SEARCH_BODY_MAX_BYTES = 24 * 1024;
 
 async function getDbUser() {
   const { userId } = await auth();
@@ -54,12 +60,18 @@ export async function POST(req: NextRequest) {
 
   let searchParsed;
   try {
-    searchParsed = SavedSearchSchema.parse(await req.json());
+    searchParsed = SavedSearchSchema.parse(await readBoundedJson(req, SAVED_SEARCH_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
   const { q, category, type, shipsWithinDays, minRating, lat, lng, radiusMiles, sort, minPrice, maxPrice, tags } = searchParsed;
 

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 64.
-- Verified code/feature fix commits since 2026-05-13: 56.
+- Verified hardening/doc commits since 2026-05-13: 65.
+- Verified code/feature fix commits since 2026-05-13: 57.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 16 verified closed items in the 2026-05-14
+- Most recent reported pass total: 17 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -89,6 +89,11 @@ Last updated: 2026-05-14
     mutations now use `readBoundedJson()` with route-specific caps before Zod
     parsing and downstream side effects. Commit: `fix: bound authenticated json
     mutations`.
+17. **All API JSON body reads bounded** — code fix. Remaining smaller JSON
+    readers now use `readBoundedJson()` or `readOptionalBoundedJson()` and the
+    regression test recursively scans every API route to prevent raw
+    `req.json()` / `request.json()` from returning. Commit: `fix: bound
+    remaining api json reads`.
 
 ## Verified Stale / Not Fixed
 

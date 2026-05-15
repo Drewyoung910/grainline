@@ -13,6 +13,7 @@ import {
 } from "@/lib/adminPin";
 import { getIP } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
+import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { createHash, timingSafeEqual } from "crypto";
 
 // 5 attempts per 15 minutes per user — fail closed for compromised sessions.
@@ -22,6 +23,7 @@ const pinUserRatelimit = new Ratelimit({
   analytics: true,
   prefix: "rl:admin-pin:user",
 });
+const ADMIN_PIN_BODY_MAX_BYTES = 8 * 1024;
 
 // 50 attempts per 15 minutes per IP — broad bot-flood guard without locking
 // out every staff member behind a shared office/network IP.
@@ -111,8 +113,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = await req.json().catch(() => ({}));
-  const pin = typeof body.pin === "string" ? body.pin : "";
+  let body: unknown;
+  try {
+    body = await readOptionalBoundedJson(req, ADMIN_PIN_BODY_MAX_BYTES, {});
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    throw error;
+  }
+  const bodyObject = body as { pin?: unknown };
+  const pin = typeof bodyObject.pin === "string" ? bodyObject.pin : "";
   const adminPin = process.env.ADMIN_PIN;
 
   if (!adminPin) {

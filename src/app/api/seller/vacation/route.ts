@@ -7,6 +7,11 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { z } from "zod";
 import { rateLimitResponse, safeRateLimit, vacationRatelimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -15,6 +20,7 @@ const VacationSchema = z.object({
 });
 
 export const runtime = "nodejs";
+const SELLER_VACATION_BODY_MAX_BYTES = 16 * 1024;
 
 function parseVacationReturnDate(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -37,12 +43,18 @@ export async function POST(req: Request) {
 
     let vacParsed;
     try {
-      vacParsed = VacationSchema.parse(await req.json());
+      vacParsed = VacationSchema.parse(await readBoundedJson(req, SELLER_VACATION_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
     const vacationMode = vacParsed.vacationMode;
     const vacationReturnDate = parseVacationReturnDate(vacParsed.vacationReturnDate);

@@ -70,3 +70,18 @@ export async function readBoundedJson(request: Request, maxBytes: number): Promi
     throw new InvalidJsonBodyError();
   }
 }
+
+export async function readOptionalBoundedJson(
+  request: Request,
+  maxBytes: number,
+  fallback: unknown = null,
+): Promise<unknown> {
+  try {
+    return await readBoundedJson(request, maxBytes);
+  } catch (error) {
+    if (isInvalidJsonBodyError(error)) {
+      return fallback;
+    }
+    throw error;
+  }
+}

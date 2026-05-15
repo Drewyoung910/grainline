@@ -4,9 +4,11 @@ import { unsubscribeEmail, verifyUnsubscribeToken } from "@/lib/unsubscribe";
 import { getIP, rateLimitResponse, safeRateLimit, unsubscribeRatelimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const UNSUBSCRIBE_JSON_BODY_MAX_BYTES = 8 * 1024;
 
 type UnsubscribeParams = { email: string | null; token: string | null; issuedAt: string | null };
 
@@ -56,7 +58,7 @@ async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParam
   if ((!email || !token || !issuedAt) && req.method === "POST") {
     const contentType = req.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
-      const body = (await req.json().catch(() => null)) as {
+      const body = (await readOptionalBoundedJson(req, UNSUBSCRIBE_JSON_BODY_MAX_BYTES, null)) as {
         email?: unknown;
         token?: unknown;
         issuedAt?: unknown;
@@ -109,7 +111,18 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
 
 async function handlePost(req: NextRequest) {
   const mode = wantsHtmlResponse(req) ? "html" : "json";
-  const validated = await validateUnsubscribeRequest(req, mode);
+  let validated: Awaited<ReturnType<typeof validateUnsubscribeRequest>>;
+  try {
+    validated = await validateUnsubscribeRequest(req, mode);
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      if (mode === "html") {
+        return htmlResponse("Request too large", "This unsubscribe request is too large.", 413);
+      }
+      return NextResponse.json({ ok: false, error: "Request body too large" }, { status: 413 });
+    }
+    throw error;
+  }
   if ("response" in validated) return validated.response;
 
   const { email } = validated;

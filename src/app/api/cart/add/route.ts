@@ -5,6 +5,11 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartMutationRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import * as Sentry from "@sentry/nextjs";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -14,6 +19,7 @@ const CartAddSchema = z.object({
   quantity: z.number().int().min(1).max(99).optional(),
   selectedVariantOptionIds: z.array(z.string()).max(30).optional(),
 });
+const CART_ADD_BODY_MAX_BYTES = 16 * 1024;
 
 export const runtime = "nodejs";
 
@@ -44,12 +50,18 @@ export async function POST(req: Request) {
 
     let parsed;
     try {
-      parsed = CartAddSchema.parse(await req.json());
+      parsed = CartAddSchema.parse(await readBoundedJson(req, CART_ADD_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
 
     const listingId = parsed.listingId;

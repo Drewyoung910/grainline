@@ -18,6 +18,11 @@ import {
   stockAlertBody,
 } from "@/lib/stockMutationState";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const StockPatchSchema = z.object({
@@ -28,6 +33,7 @@ const StockPatchSchema = z.object({
 export const runtime = "nodejs";
 const BACK_IN_STOCK_CLAIM_BATCH_SIZE = 5000;
 const BACK_IN_STOCK_USER_LOOKUP_BATCH_SIZE = 500;
+const LISTING_STOCK_BODY_MAX_BYTES = 8 * 1024;
 
 async function syncListingsThreshold(sellerProfileId: string) {
   const [activeCount, sp] = await Promise.all([
@@ -65,12 +71,18 @@ export async function PATCH(
 
     let stockParsed;
     try {
-      stockParsed = StockPatchSchema.parse(await req.json());
+      stockParsed = StockPatchSchema.parse(await readBoundedJson(req, LISTING_STOCK_BODY_MAX_BYTES));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw e;
     }
     const quantity = Math.max(0, Math.floor(stockParsed.quantity));
     const expectedQuantity = stockParsed.expectedQuantity == null

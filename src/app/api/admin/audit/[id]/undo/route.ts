@@ -3,11 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { undoAdminAction } from '@/lib/audit'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from '@/lib/requestBody'
 import { z } from 'zod'
 
 const UndoSchema = z.object({
   reason: z.string().min(1).max(500),
 })
+const ADMIN_AUDIT_UNDO_BODY_MAX_BYTES = 16 * 1024
 
 export async function POST(
   request: NextRequest,
@@ -25,12 +31,18 @@ export async function POST(
   const { id } = await params
   let body
   try {
-    body = UndoSchema.parse(await request.json())
+    body = UndoSchema.parse(await readBoundedJson(request, ADMIN_AUDIT_UNDO_BODY_MAX_BYTES))
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: 'Request body too large' }, { status: 413 })
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
     }
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    throw e
   }
   const { reason } = body
   try {

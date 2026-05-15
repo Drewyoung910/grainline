@@ -5,6 +5,11 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { shippingAddressRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeUserName } from "@/lib/sanitize";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const US_STATE_CODES = new Set([
@@ -24,6 +29,7 @@ const AddressSchema = z.object({
   postalCode: z.string().regex(/^\d{5}(-\d{4})?$/),
   phone: z.string().max(20).optional().nullable(),
 });
+const SHIPPING_ADDRESS_BODY_MAX_BYTES = 24 * 1024;
 
 export async function GET() {
   const { userId } = await auth();
@@ -82,12 +88,18 @@ export async function PUT(req: Request) {
 
   let body;
   try {
-    body = AddressSchema.parse(await req.json());
+    body = AddressSchema.parse(await readBoundedJson(req, SHIPPING_ADDRESS_BODY_MAX_BYTES));
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
 
   await prisma.user.update({

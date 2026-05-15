@@ -10,6 +10,11 @@ import {
   restoreUnorderedCheckoutStockOnce,
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 
 const RollbackSchema = z.object({
   sessionIds: z.array(z.string().min(1)).min(1).max(20),
@@ -18,6 +23,7 @@ const RollbackSchema = z.object({
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "iad1";
+const CHECKOUT_ROLLBACK_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(req: Request) {
   try {
@@ -35,12 +41,18 @@ export async function POST(req: Request) {
 
     let parsed;
     try {
-      parsed = RollbackSchema.parse(await req.json());
+      parsed = RollbackSchema.parse(await readBoundedJson(req, CHECKOUT_ROLLBACK_BODY_MAX_BYTES));
     } catch (error) {
+      if (isRequestBodyTooLargeError(error)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(error)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (error instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: error.issues }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      throw error;
     }
 
     const sessionIds = [...new Set(parsed.sessionIds)];

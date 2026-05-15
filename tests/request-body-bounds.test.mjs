@@ -5,6 +5,7 @@ import {
   RequestBodyTooLargeError,
   readBoundedJson,
   readBoundedText,
+  readOptionalBoundedJson,
 } from "../src/lib/requestBody.ts";
 
 function requestWithBody(body, headers = {}) {
@@ -40,6 +41,15 @@ describe("bounded request body helpers", () => {
     await assert.rejects(
       () => readBoundedJson(requestWithBody("{bad json"), 32),
       (error) => error instanceof InvalidJsonBodyError && error.status === 400,
+    );
+  });
+
+  it("allows optional bounded JSON callers to preserve invalid-body fallback behavior", async () => {
+    assert.deepEqual(await readOptionalBoundedJson(requestWithBody("{bad json"), 32, {}), {});
+
+    await assert.rejects(
+      () => readOptionalBoundedJson(requestWithBody("abcdefghijklmnop"), 8, {}),
+      (error) => error instanceof RequestBodyTooLargeError && error.status === 413,
     );
   });
 });

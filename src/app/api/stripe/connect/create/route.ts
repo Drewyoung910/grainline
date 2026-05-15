@@ -12,6 +12,7 @@ import {
   STRIPE_CONNECT_CONTROLLER_SUMMARY,
   isSupportedStripeConnectAccountVersion,
 } from "@/lib/stripeConnectV2";
+import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { z } from "zod";
 
 const ConnectCreateSchema = z.object({
@@ -19,6 +20,7 @@ const ConnectCreateSchema = z.object({
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
+const STRIPE_CONNECT_CREATE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -51,9 +53,12 @@ export async function POST(req: Request) {
   // Optional custom return URL (used by onboarding wizard)
   let customReturnUrl: string | undefined;
   try {
-    const body = ConnectCreateSchema.parse(await req.json());
+    const body = ConnectCreateSchema.parse(await readOptionalBoundedJson(req, STRIPE_CONNECT_CREATE_BODY_MAX_BYTES, {}));
     customReturnUrl = safeInternalReturnUrl(body.returnUrl, APP_URL) ?? undefined;
-  } catch {
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
     // no body or invalid JSON — use default
   }
 

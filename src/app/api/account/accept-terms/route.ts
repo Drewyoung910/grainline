@@ -6,12 +6,14 @@ import { ensureUser } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
 import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/lib/ratelimit";
 import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/termsAcceptance";
+import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
   ageAttested: z.literal(true),
   termsVersion: z.literal(CURRENT_TERMS_VERSION),
 });
+const ACCEPT_TERMS_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -20,7 +22,16 @@ export async function POST(req: Request) {
   const { success, reset } = await safeRateLimit(termsAcceptanceRatelimit, userId);
   if (!success) return rateLimitResponse(reset, "Too many acceptance attempts.");
 
-  const parsed = AcceptTermsSchema.safeParse(await req.json().catch(() => null));
+  let body: unknown;
+  try {
+    body = await readOptionalBoundedJson(req, ACCEPT_TERMS_BODY_MAX_BYTES, null);
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    throw error;
+  }
+  const parsed = AcceptTermsSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Terms acceptance and age confirmation are required.", code: "TERMS_ACCEPTANCE_REQUIRED" },

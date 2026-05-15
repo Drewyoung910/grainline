@@ -12,6 +12,11 @@ import {
   labelClawbackReviewNote,
   type LabelClawbackFailureReason,
 } from "@/lib/labelClawbackState";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readOptionalBoundedJson,
+} from "@/lib/requestBody";
 import type { FulfillmentStatus, LabelStatus, Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
@@ -35,6 +40,7 @@ type LiveRate = {
 
 const ACTIVE_CASE_STATUSES = new Set(["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"]);
 const LABEL_RATE_QUOTE_TTL_MS = 30 * 60 * 1000;
+const LABEL_PURCHASE_BODY_MAX_BYTES = 16 * 1024;
 
 function isPurchasableRateObjectId(rateObjectId: string | null | undefined): rateObjectId is string {
   return !!rateObjectId && rateObjectId !== "fallback" && rateObjectId !== "pickup";
@@ -174,12 +180,19 @@ export async function POST(
     // Parse optional body — frontend may supply rateObjectId after a re-quote
     let labelParsed: { rateObjectId?: string | null | undefined } = {};
     try {
-      labelParsed = LabelSchema.parse(await req.json());
+      labelParsed = LabelSchema.parse(await readOptionalBoundedJson(req, LABEL_PURCHASE_BODY_MAX_BYTES, {}));
     } catch (e) {
+      if (isRequestBodyTooLargeError(e)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+      if (isInvalidJsonBodyError(e)) {
+        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      }
       if (e instanceof z.ZodError) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       // empty body is fine — treat as no rateObjectId
+      throw e;
     }
     const bodyRateObjectId: string | null = labelParsed?.rateObjectId ?? null;
 

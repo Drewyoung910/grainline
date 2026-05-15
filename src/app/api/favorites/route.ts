@@ -9,11 +9,17 @@ import { createNotification } from "@/lib/notifications";
 import { saveRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { publicListingDetailWhere } from "@/lib/listingVisibility";
 import { publicListingPath } from "@/lib/publicPaths";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
 import { z } from "zod";
 
 const FavoriteSchema = z.object({
   listingId: z.string().min(1),
 });
+const FAVORITE_BODY_MAX_BYTES = 8 * 1024;
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -24,13 +30,19 @@ export async function POST(req: Request) {
 
   let listingId: string;
   try {
-    const parsed = FavoriteSchema.parse(await req.json());
+    const parsed = FavoriteSchema.parse(await readBoundedJson(req, FAVORITE_BODY_MAX_BYTES));
     listingId = parsed.listingId;
   } catch (e) {
+    if (isRequestBodyTooLargeError(e)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(e)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    throw e;
   }
 
   let me;
