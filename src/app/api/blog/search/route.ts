@@ -6,6 +6,7 @@ import { getIP, searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { normalizeTags } from "@/lib/tags";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const POST_SELECT = {
   id: true,
@@ -35,12 +36,6 @@ type PostRow = {
   sellerProfile: { displayName: string; avatarImageUrl: string | null } | null;
 };
 
-function parseBoundedPositiveInt(raw: string | null, fallback: number, max: number) {
-  const parsed = Number.parseInt(raw ?? "", 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
-  return Math.min(parsed, max);
-}
-
 export async function GET(req: NextRequest) {
   const rl = await safeRateLimitOpen(searchRatelimit, getIP(req));
   if (!rl.success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -51,8 +46,8 @@ export async function GET(req: NextRequest) {
   const tagsParam = url.searchParams.get("tags") ?? "";
   const tags = tagsParam ? normalizeTags(tagsParam.split(","), 20) : [];
   const sort = url.searchParams.get("sort") ?? (q ? "relevant" : "newest");
-  const page = parseBoundedPositiveInt(url.searchParams.get("page"), 1, 1000);
-  const limit = parseBoundedPositiveInt(url.searchParams.get("limit"), 12, 50);
+  const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
+  const limit = parseBoundedPositiveIntParam(url.searchParams.get("limit"), 12, 50);
   const skip = (page - 1) * limit;
 
   const typeValid = type && (Object.values(BlogPostType) as string[]).includes(type);

@@ -58,6 +58,13 @@ describe("R49 account-state route guardrails", () => {
     );
   });
 
+  it("keeps account feed page size bounded even when limit is malformed", () => {
+    const feedRoute = source("src/app/api/account/feed/route.ts");
+
+    assert.match(feedRoute, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("limit"\), 20, 50\)/);
+    assert.doesNotMatch(feedRoute, /Math\.min\(parseInt\(url\.searchParams\.get\("limit"/);
+  });
+
   it("prevents blocked users from creating favorite notifications", () => {
     const text = source("src/app/api/favorites/route.ts");
 

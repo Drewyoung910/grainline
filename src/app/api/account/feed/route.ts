@@ -15,6 +15,7 @@ import {
 } from "@/lib/accountFeedCursor";
 import { accountFeedRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor");
-  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
+  const limit = parseBoundedPositiveIntParam(url.searchParams.get("limit"), 20, 50);
   const take = limit + 1;
   const parsedCursor = parseAccountFeedCursor(cursor);
 

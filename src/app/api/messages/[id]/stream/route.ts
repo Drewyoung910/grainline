@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { parseTimestampMsParam } from "@/lib/queryParams";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -35,8 +36,7 @@ export async function GET(
   if (!allowed) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
-  let since = Number(url.searchParams.get("since") || 0);
-  if (Number.isNaN(since)) since = 0;
+  let since = parseTimestampMsParam(url.searchParams.get("since")) ?? 0;
 
   const stream = new ReadableStream({
     async start(controller) {

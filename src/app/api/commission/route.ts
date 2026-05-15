@@ -11,6 +11,8 @@ import {
   getIP,
   rateLimitResponse,
   safeRateLimit,
+  safeRateLimitOpen,
+  searchRatelimit,
 } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
@@ -19,6 +21,7 @@ import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { z } from "zod";
 
 const BudgetInputSchema = z.union([z.string().max(20), z.number().finite()]);
@@ -38,8 +41,11 @@ const CommissionCreateSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
+  const rate = await safeRateLimitOpen(searchRatelimit, getIP(req));
+  if (!rate.success) return rateLimitResponse(rate.reset, "Too many commission requests.");
+
   const url = new URL(req.url);
-  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+  const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
   const category = url.searchParams.get("category") ?? "";
   const pageSize = 20;
 

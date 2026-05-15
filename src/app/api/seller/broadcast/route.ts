@@ -11,6 +11,7 @@ import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/rate
 import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { isFirstPartyMediaUrl, isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -190,7 +191,7 @@ export async function GET(req: NextRequest) {
   if (!seller) return NextResponse.json({ error: "No seller profile" }, { status: 403 });
 
   const url = new URL(req.url);
-  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+  const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
   const pageSize = 10;
 
   const [broadcasts, total] = await Promise.all([

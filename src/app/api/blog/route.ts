@@ -5,6 +5,7 @@ import { BlogPostType, Prisma } from "@prisma/client";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { getIP, rateLimitResponse, safeRateLimitOpen, searchRatelimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
+import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const runtime = "nodejs";
 
@@ -15,8 +16,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const type = searchParams.get("type");
   const tag = truncateText(searchParams.get("tag")?.trim() ?? "", 64);
-  const parsedPage = parseInt(searchParams.get("page") ?? "1", 10);
-  const page = Math.min(1000, Math.max(1, Number.isFinite(parsedPage) ? parsedPage : 1));
+  const page = parseBoundedPositiveIntParam(searchParams.get("page"), 1, 1000);
   const pageSize = 12;
 
   const where: Prisma.BlogPostWhereInput = publicBlogPostWhere({

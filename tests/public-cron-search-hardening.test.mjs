@@ -55,14 +55,14 @@ describe("cron and public route hardening", () => {
     assert.match(blog, /rateLimitResponse\(reset, "Too many blog requests\."\)/);
     assert.match(blog, /truncateText\(searchParams\.get\("tag"\)\?\.trim\(\) \?\? "", 64\)/);
     assert.match(blog, /publicBlogPostWhere/);
-    assert.match(blog, /Math\.min\(1000/);
+    assert.match(blog, /parseBoundedPositiveIntParam\(searchParams\.get\("page"\), 1, 1000\)/);
     assert.match(blog, /const pageSize = 12/);
 
     assert.match(blogSearch, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSearch, /publicBlogPostWhere/);
-    assert.match(blogSearch, /function parseBoundedPositiveInt/);
-    assert.match(blogSearch, /const page = parseBoundedPositiveInt\(url\.searchParams\.get\("page"\), 1, 1000\)/);
-    assert.match(blogSearch, /const limit = parseBoundedPositiveInt\(url\.searchParams\.get\("limit"\), 12, 50\)/);
+    assert.match(blogSearch, /parseBoundedPositiveIntParam/);
+    assert.match(blogSearch, /const page = parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
+    assert.match(blogSearch, /const limit = parseBoundedPositiveIntParam\(url\.searchParams\.get\("limit"\), 12, 50\)/);
     assert.match(blogSearch, /normalizeTags\(tagsParam\.split\(","\), 20\)/);
     assert.doesNotMatch(blogSearch, /x-forwarded-for/);
 
@@ -77,6 +77,15 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /getBlockedSellerProfileIdsFor/);
     assert.match(globalSuggestions, /publicListingWhere/);
     assert.match(globalSuggestions, /activeSellerProfileWhere/);
+  });
+
+  it("keeps public commission reads bounded and rate-limited", () => {
+    const commission = source("src/app/api/commission/route.ts");
+
+    assert.match(commission, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(commission, /rateLimitResponse\(rate\.reset, "Too many commission requests\."\)/);
+    assert.match(commission, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
+    assert.match(commission, /openCommissionWhere/);
   });
 
   it("keeps checkout rollback scoped to the signed-in buyer and idempotent stock restore", () => {

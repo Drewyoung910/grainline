@@ -50,4 +50,16 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(threadPage, /select: \{ id: true, banned: true, deletedAt: true \}/);
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);
   });
+
+  it("bounds message polling since parameters before Prisma date filters", () => {
+    const listRoute = source("src/app/api/messages/[id]/list/route.ts");
+    const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
+
+    assert.match(listRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\)/);
+    assert.match(listRoute, /const sinceDate = sinceMs == null \? null : new Date\(sinceMs\)/);
+    assert.doesNotMatch(listRoute, /new Date\(Number\(since\)\)/);
+
+    assert.match(streamRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\) \?\? 0/);
+    assert.doesNotMatch(streamRoute, /Number\(url\.searchParams\.get\("since"\)/);
+  });
 });

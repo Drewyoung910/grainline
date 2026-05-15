@@ -44,6 +44,13 @@ describe("seller operational route hardening", () => {
     assert.doesNotMatch(route, /extra:\s*\{[^}]*message/s);
   });
 
+  it("keeps seller broadcast history pagination bounded", () => {
+    const route = source("src/app/api/seller/broadcast/route.ts");
+
+    assert.match(route, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
+    assert.match(route, /where: \{ sellerProfileId: seller\.id \}/);
+  });
+
   it("keeps seller broadcast writes gated to orderable sellers and first-party media", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
 

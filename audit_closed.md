@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 58.
-- Verified code/feature fix commits since 2026-05-13: 50.
+- Verified hardening/doc commits since 2026-05-13: 59.
+- Verified code/feature fix commits since 2026-05-13: 51.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 10 verified closed items in the 2026-05-14
+- Most recent reported pass total: 11 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -58,6 +58,11 @@ Last updated: 2026-05-14
 10. **Public blog search inputs bounded** — code fix. Blog search now bounds
     page/limit/tags before Prisma/raw SQL; suggestions use shared query
     normalization and fuzzy threshold constants. Commit: `99e47ff`.
+11. **API query pagination/timestamps centralized and bounded** — code fix.
+    `page`, `limit`, and message `since` params now use shared helpers before
+    Prisma `skip`/`take`/date filters across blog, commission, account feed,
+    seller broadcast history, and message polling. Public commission reads now
+    share the public search IP limiter. Commit: `fix: centralize api query bounds`.
 
 ## Verified Stale / Not Fixed
 

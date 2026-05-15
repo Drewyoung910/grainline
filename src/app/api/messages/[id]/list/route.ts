@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { parseTimestampMsParam } from "@/lib/queryParams";
 
 export async function GET(
   req: Request,
@@ -31,11 +32,8 @@ export async function GET(
   if (!belongs) return NextResponse.json({ ok: false }, { status: 403 });
 
   const url = new URL(req.url);
-  const since = url.searchParams.get("since");
-  const sinceDate =
-    since && !Number.isNaN(Number(since))
-      ? new Date(Number(since))
-      : null;
+  const sinceMs = parseTimestampMsParam(url.searchParams.get("since"));
+  const sinceDate = sinceMs == null ? null : new Date(sinceMs);
 
   const messages = await prisma.message.findMany({
     where: {

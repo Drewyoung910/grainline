@@ -594,6 +594,7 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** `/api/blog` now uses the shared public search rate limiter and caps tag input before Prisma filters; blog search and blog suggestion APIs now use shared `getIP()` instead of local forwarded-header parsing. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
 - **Hardened 2026-05-14:** `/api/blog/search` now bounds invalid/huge `page` and `limit` params before Prisma offsets, caps tag filters through `normalizeTags(..., 20)`, and `/api/blog/search/suggestions` now uses the shared suggestion query normalizer and `BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY` constant instead of a looser hardcoded threshold. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
+- **Hardened 2026-05-14:** query-param parsing was centralized in `src/lib/queryParams.ts`; `/api/blog`, `/api/blog/search`, `/api/commission`, `/api/account/feed`, `/api/seller/broadcast`, and message list/stream polling now reject malformed page/limit/timestamp values before Prisma `skip`/`take`/date filters. Public commission reads now share the public search IP limiter. Regression coverage lives in `tests/query-param-state.test.mjs`, `tests/public-cron-search-hardening.test.mjs`, `tests/r49-account-state-routes.test.mjs`, `tests/seller-ops-hardening.test.mjs`, and `tests/custom-order-admin-thread-followups.test.mjs`.
 
 ## 2026-05-13 social interaction route spot check
 
