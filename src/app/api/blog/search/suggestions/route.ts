@@ -2,8 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getIP, searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
-import { truncateText } from "@/lib/sanitize";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import {
+  BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
+  normalizeSearchSuggestionQuery,
+} from "@/lib/searchSuggestionState";
 
 export type BlogSuggestion = {
   type: "post" | "tag" | "author";
@@ -17,7 +20,7 @@ export async function GET(req: NextRequest) {
   const rl = await safeRateLimitOpen(searchRatelimit, getIP(req));
   if (!rl.success) return NextResponse.json({ suggestions: [] });
 
-  const q = truncateText(req.nextUrl.searchParams.get("bq")?.trim() ?? "", 200);
+  const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));
   if (q.length < 2) return NextResponse.json({ suggestions: [] });
 
   const [postRows, tagRows, authorRows] = await Promise.all([
@@ -41,7 +44,7 @@ export async function GET(req: NextRequest) {
             AND seller_user."deletedAt" IS NULL
           )
         )
-        AND similarity(bp.title, ${q}) > 0.2
+        AND similarity(bp.title, ${q}) > ${BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY}
       ORDER BY similarity(bp.title, ${q}) DESC
       LIMIT 5
     `,

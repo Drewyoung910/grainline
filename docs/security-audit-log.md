@@ -587,12 +587,13 @@ Results:
 - `cronAuth.ts` uses SHA-256 digests with `timingSafeEqual` and supports `CRON_SECRET_PREVIOUS` for rotation.
 - CSP reports remain public by design, but they are IP-rate-limited, sanitized before Sentry capture, and tag checkout/cart document violations without leaking checkout query strings.
 - Health checks are IP-rate-limited and hide backend component details unless `HEALTH_CHECK_TOKEN` is supplied.
-- Public search/blog endpoints cap query/tag input, use shared public visibility helpers, and keep popular-tag routes cached. Signed-in global search suggestions also honor block filters.
+- Public search/blog endpoints cap query/tag/page/limit input, use shared public visibility helpers, and keep popular-tag routes cached. Signed-in global search suggestions also honor block filters.
 - Checkout rollback is signed-in, current-buyer-scoped through Stripe session metadata, rate-limited, expires only unpaid/open sessions, and uses idempotent checkout-stock restoration.
 
 Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** `/api/blog` now uses the shared public search rate limiter and caps tag input before Prisma filters; blog search and blog suggestion APIs now use shared `getIP()` instead of local forwarded-header parsing. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
+- **Hardened 2026-05-14:** `/api/blog/search` now bounds invalid/huge `page` and `limit` params before Prisma offsets, caps tag filters through `normalizeTags(..., 20)`, and `/api/blog/search/suggestions` now uses the shared suggestion query normalizer and `BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY` constant instead of a looser hardcoded threshold. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
 
 ## 2026-05-13 social interaction route spot check
 

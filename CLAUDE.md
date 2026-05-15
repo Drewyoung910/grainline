@@ -1420,12 +1420,13 @@ Post-deployment bug fixes and gap fills:
 
 #### `GET /api/blog/search` (`src/app/api/blog/search/route.ts`)
 - Query params: `?q=`, `?type=`, `?tags=` (comma-separated), `?sort=newest|relevant|alpha`, `?page=`, `?limit=12`
+- Input bounds: `bq`/query text is capped at 200 chars, tags are normalized/capped through `normalizeTags(..., 20)`, `page` falls back to 1 and is capped at 1000, and `limit` falls back to 12 and is capped at 50. Keep these bounds before Prisma/raw SQL.
 - When `q` + `sort=relevant`: raw SQL GIN `ts_rank` search returns ranked IDs, then Prisma fetches full records with type/tag filter; re-ordered by rank
 - Otherwise: standard Prisma `contains` + `hasSome` query; `publishedAt desc` or `title asc`
 - Returns `{ posts, total, page, totalPages, relatedTags }`
 
 #### `GET /api/blog/search/suggestions` (`src/app/api/blog/search/suggestions/route.ts`)
-- Three parallel queries: post titles via `similarity() > 0.2`, tags via `unnest ILIKE`, seller display names via `contains`
+- Three parallel queries: post titles via `similarity() > BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY`, tags via `unnest ILIKE`, seller display names via `contains`; query input uses `normalizeSearchSuggestionQuery()` so the suggestion search cap matches the global search helper.
 - **Blog search suggestions tag query**: uses `unnest(tags) AS tag` in the `FROM` clause, then filters on the `tag` column in `WHERE` — PostgreSQL does not allow `unnest()` directly in a `WHERE` clause
 - Returns `{ suggestions: Array<{ type: "post"|"tag"|"author", label, slug?, tag? }> }` up to 8 items
 
@@ -3024,7 +3025,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 - **Broadcast imageUrl** — Accepted any string. Changed Zod to `z.string().url().regex(/^https:\/\//)`.
 - **Notification preferences allowlist** — `type` field accepted arbitrary strings; users could silence always-on notifications like `LISTING_APPROVED`. Changed to `z.enum([...34 valid keys...])`.
 - **Browse input bounds** — `q` capped at 200 chars; `pageNum` capped at 500; `minPrice`/`maxPrice` clamped to `[0, 500000]` (raised from 100K to 500K for high-value custom furniture).
-- **Blog search rate limiting** — Both `/api/blog/search` and `/api/blog/search/suggestions` now have IP-based `searchRatelimit` + 200-char query cap.
+- **Blog search rate limiting** — Both `/api/blog/search` and `/api/blog/search/suggestions` now have IP-based `searchRatelimit`; the main search caps query text at 200 chars, tags at 20, page at 1000, and limit at 50. Suggestions use the shared 80-char `normalizeSearchSuggestionQuery()` cap.
 
 ### Low fixes
 - **Review edit/reply sanitization** — PATCH review and seller reply were missing `sanitizeRichText()` (POST had it). Added to both.

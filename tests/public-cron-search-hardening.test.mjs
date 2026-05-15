@@ -60,10 +60,17 @@ describe("cron and public route hardening", () => {
 
     assert.match(blogSearch, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSearch, /publicBlogPostWhere/);
+    assert.match(blogSearch, /function parseBoundedPositiveInt/);
+    assert.match(blogSearch, /const page = parseBoundedPositiveInt\(url\.searchParams\.get\("page"\), 1, 1000\)/);
+    assert.match(blogSearch, /const limit = parseBoundedPositiveInt\(url\.searchParams\.get\("limit"\), 12, 50\)/);
+    assert.match(blogSearch, /normalizeTags\(tagsParam\.split\(","\), 20\)/);
     assert.doesNotMatch(blogSearch, /x-forwarded-for/);
 
     assert.match(blogSuggestions, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(blogSuggestions, /normalizeSearchSuggestionQuery/);
+    assert.match(blogSuggestions, /BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY/);
     assert.match(blogSuggestions, /activeSellerProfileWhere/);
+    assert.doesNotMatch(blogSuggestions, /similarity\(bp\.title, \$\{q\}\) > 0\.2/);
     assert.doesNotMatch(blogSuggestions, /x-forwarded-for/);
 
     assert.match(globalSuggestions, /normalizeSearchSuggestionQuery/);
