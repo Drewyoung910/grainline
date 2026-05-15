@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
-import { searchRatelimit, getIP, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import { searchRatelimit, getIP, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { auth } from "@clerk/nextjs/server";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { getPopularListingTags } from "@/lib/popularTags";
@@ -16,7 +16,7 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 export async function GET(req: NextRequest) {
-  const { success, reset } = await safeRateLimitOpen(searchRatelimit, getIP(req));
+  const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
   if (!success) {
     return rateLimitResponse(reset, "Too many searches.");
   }

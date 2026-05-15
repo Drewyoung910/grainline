@@ -1,7 +1,7 @@
 // src/app/api/blog/search/suggestions/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getIP, searchRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { getIP, searchRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import {
   BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY,
@@ -17,7 +17,7 @@ export type BlogSuggestion = {
 };
 
 export async function GET(req: NextRequest) {
-  const rl = await safeRateLimitOpen(searchRatelimit, getIP(req));
+  const rl = await safeRateLimit(searchRatelimit, getIP(req));
   if (!rl.success) return NextResponse.json({ suggestions: [] });
 
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("bq"));

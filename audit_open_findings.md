@@ -6,9 +6,9 @@ Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: **pending triage**. Do not treat the raw
   claim count as real until Codex verifies each item against `main`.
-- Verified hardening/doc commits since 2026-05-13: **59 total** (**51**
+- Verified hardening/doc commits since 2026-05-13: **60 total** (**52**
   code/feature fixes, **8** docs/audit-only commits).
-- Current 2026-05-14 active closed tracker: **11 verified closed items** in
+- Current 2026-05-14 active closed tracker: **12 verified closed items** in
   `audit_closed.md`, plus **1 stale/false-positive claim verified clean**.
 - Reporting rule for future passes: each Codex pass should end with a counter
   such as `verified closed this pass`, `verified stale/false-positive this
@@ -46,6 +46,7 @@ Drew asked for a concrete plan to harden Grainline against AI-assisted attacker 
 25. **[LOW-MEDIUM HARDENED 2026-05-14] Authenticated user-state route cluster tightened.** Favorite creation was current-user scoped but did not check reciprocal block state before writing the favorite and creating `NEW_FAVORITE` notifications; blocked users can no longer use favorite notifications as a harassment channel. Saved-search GET is now fail-closed rate-limited before listing current-user saved searches, and saved shipping-address GET now rate-limits before the saved-address DB read. Regression coverage: `tests/r49-account-state-routes.test.mjs`.
 26. **[LOW-MEDIUM HARDENED 2026-05-14] Blog search abuse bounds were incomplete.** The report-route privacy note was re-audited and verified stale/already fixed, then the surrounding public search surface found real cost-control gaps: `/api/blog/search` did not safely bound invalid/huge `page` and `limit` params and accepted unbounded tag filters, while `/api/blog/search/suggestions` used a longer local query cap and looser hardcoded fuzzy threshold than the shared search helper. Blog search now bounds page/limit/tags before Prisma/raw SQL, and suggestions use `normalizeSearchSuggestionQuery()` plus `BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY`. Regression coverage: `tests/public-cron-search-hardening.test.mjs`.
 27. **[LOW-MEDIUM HARDENED 2026-05-14] API pagination/timestamp params could reach Prisma malformed.** A broader query-cost sweep found remaining bare `parseInt()`/`Number()` paths in API `page`, `limit`, and message `since` params. Malformed values could produce `NaN`/invalid dates and cause avoidable 500s or expensive offsets. `parseBoundedPositiveIntParam()` and `parseTimestampMsParam()` now centralize fallback/cap behavior; `/api/blog`, `/api/blog/search`, `/api/commission`, `/api/account/feed`, `/api/seller/broadcast`, and message list/stream polling use them. Public commission reads also now share the public search IP limiter. Regression coverage: `tests/query-param-state.test.mjs`, `tests/public-cron-search-hardening.test.mjs`, `tests/r49-account-state-routes.test.mjs`, `tests/seller-ops-hardening.test.mjs`, and `tests/custom-order-admin-thread-followups.test.mjs`.
+28. **[LOW-MEDIUM HARDENED 2026-05-14] Fail-open limiter policy was broader than the documented safety boundary.** `safeRateLimitOpen()` was still used by public/newsletter/search/list/feed routes that write state or hit Prisma/raw SQL. Fail-open is now regression-limited to telemetry, diagnostics, and support/legal escalation; newsletter, account feed, blog/search APIs, recently viewed, global search suggestions, and public commission reads fail closed before database work when Redis limiting is unavailable. Regression coverage: `tests/public-cron-search-hardening.test.mjs`, `tests/r49-account-state-routes.test.mjs`, and `tests/account-privacy-observability.test.mjs`.
 
 ## 2026-05-12 — Codex resumed: Claude-change audit + launch polish
 
@@ -3753,7 +3754,7 @@ Stripe webhook idempotency (all events incl. checkout.session.completed); P2002 
 
 ### Recently Viewed + Saved Searches
 
-108. **[FIXED 2026-04-30] Recently Viewed: no rate limit on public endpoint** — the public endpoint now uses IP-keyed `safeRateLimitOpen` before reading listing IDs.
+108. **[FIXED 2026-04-30; HARDENED 2026-05-14] Recently Viewed: no rate limit on public endpoint** — the public endpoint now uses IP-keyed fail-closed `safeRateLimit` before reading listing IDs.
 
 109. **[FIXED 2026-04-30] Recently Viewed: stale IDs leak in cookie** — the server now returns all surviving IDs in request order, and the client prunes the `rv` cookie from that list while still rendering only the visible subset.
 

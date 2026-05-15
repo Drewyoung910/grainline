@@ -13,6 +13,12 @@ function cronRoutes() {
   }).trim().split("\n").filter(Boolean);
 }
 
+function apiRoutes() {
+  return execFileSync("find", ["src/app/api", "-type", "f", "-name", "route.ts"], {
+    encoding: "utf8",
+  }).trim().split("\n").filter(Boolean);
+}
+
 describe("cron and public route hardening", () => {
   it("keeps every cron route behind shared bearer-token auth and cron-run state", () => {
     for (const path of cronRoutes()) {
@@ -45,20 +51,41 @@ describe("cron and public route hardening", () => {
     assert.match(health, /healthResponsePayload\(cachedHealth!, verbose, cached\)/);
   });
 
+  it("keeps fail-open rate limits limited to telemetry, diagnostics, and escalation routes", () => {
+    const allowedFailOpenRoutes = new Set([
+      "src/app/api/csp-report/route.ts",
+      "src/app/api/health/route.ts",
+      "src/app/api/legal/data-request/route.ts",
+      "src/app/api/listings/[id]/click/route.ts",
+      "src/app/api/listings/[id]/view/route.ts",
+      "src/app/api/seller/[id]/view/route.ts",
+      "src/app/api/support/route.ts",
+    ]);
+
+    for (const path of apiRoutes()) {
+      const route = source(path);
+      if (!route.includes("safeRateLimitOpen(")) continue;
+      assert.ok(
+        allowedFailOpenRoutes.has(path),
+        `${path} should not fail open unless it is telemetry, diagnostics, or support/legal escalation`,
+      );
+    }
+  });
+
   it("keeps public blog and search APIs rate-limited and visibility-scoped", () => {
     const blog = source("src/app/api/blog/route.ts");
     const blogSearch = source("src/app/api/blog/search/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
 
-    assert.match(blog, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(blog, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blog, /rateLimitResponse\(reset, "Too many blog requests\."\)/);
     assert.match(blog, /truncateText\(searchParams\.get\("tag"\)\?\.trim\(\) \?\? "", 64\)/);
     assert.match(blog, /publicBlogPostWhere/);
     assert.match(blog, /parseBoundedPositiveIntParam\(searchParams\.get\("page"\), 1, 1000\)/);
     assert.match(blog, /const pageSize = 12/);
 
-    assert.match(blogSearch, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(blogSearch, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSearch, /publicBlogPostWhere/);
     assert.match(blogSearch, /parseBoundedPositiveIntParam/);
     assert.match(blogSearch, /const page = parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
@@ -66,7 +93,7 @@ describe("cron and public route hardening", () => {
     assert.match(blogSearch, /normalizeTags\(tagsParam\.split\(","\), 20\)/);
     assert.doesNotMatch(blogSearch, /x-forwarded-for/);
 
-    assert.match(blogSuggestions, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(blogSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSuggestions, /normalizeSearchSuggestionQuery/);
     assert.match(blogSuggestions, /BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY/);
     assert.match(blogSuggestions, /activeSellerProfileWhere/);
@@ -74,6 +101,7 @@ describe("cron and public route hardening", () => {
     assert.doesNotMatch(blogSuggestions, /x-forwarded-for/);
 
     assert.match(globalSuggestions, /normalizeSearchSuggestionQuery/);
+    assert.match(globalSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(globalSuggestions, /getBlockedSellerProfileIdsFor/);
     assert.match(globalSuggestions, /publicListingWhere/);
     assert.match(globalSuggestions, /activeSellerProfileWhere/);
@@ -82,7 +110,7 @@ describe("cron and public route hardening", () => {
   it("keeps public commission reads bounded and rate-limited", () => {
     const commission = source("src/app/api/commission/route.ts");
 
-    assert.match(commission, /safeRateLimitOpen\(searchRatelimit, getIP\(req\)\)/);
+    assert.match(commission, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(commission, /rateLimitResponse\(rate\.reset, "Too many commission requests\."\)/);
     assert.match(commission, /parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
     assert.match(commission, /openCommissionWhere/);

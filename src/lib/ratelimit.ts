@@ -439,7 +439,9 @@ export const clickDedupRatelimit = new Ratelimit({
 /**
  * Fail CLOSED — if Redis is down, reject the request.
  * Use for: checkout, follow, broadcast, commission create,
- * commission interest, listing creation, reviews, blog save, favorites save
+ * commission interest, listing creation, reviews, blog save, favorites save,
+ * newsletter signup, account feed, and public search/list reads that hit
+ * Prisma or raw SQL.
  */
 export async function safeRateLimit(
   limiter: Ratelimit,
@@ -456,9 +458,9 @@ export async function safeRateLimit(
 
 /**
  * Fail OPEN — if Redis is down, allow the request.
- * Use ONLY for: view tracking, click tracking, search suggestions,
- * profile view dedup, public support/data request forms where outage should
- * not remove the user's escalation path.
+ * Use ONLY for: view tracking, click tracking, profile view dedup, health/CSP
+ * diagnostics, and public support/data request forms where outage should not
+ * remove the user's escalation path.
  */
 export async function safeRateLimitOpen(
   limiter: Ratelimit,

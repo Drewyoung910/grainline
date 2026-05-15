@@ -11,7 +11,6 @@ import {
   getIP,
   rateLimitResponse,
   safeRateLimit,
-  safeRateLimitOpen,
   searchRatelimit,
 } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
@@ -41,7 +40,7 @@ const CommissionCreateSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const rate = await safeRateLimitOpen(searchRatelimit, getIP(req));
+  const rate = await safeRateLimit(searchRatelimit, getIP(req));
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many commission requests.");
 
   const url = new URL(req.url);

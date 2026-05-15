@@ -13,7 +13,7 @@ import {
   parseAccountFeedCursor,
   type AccountFeedKind,
 } from "@/lib/accountFeedCursor";
-import { accountFeedRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import { accountFeedRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     throw err;
   }
 
-  const rate = await safeRateLimitOpen(accountFeedRatelimit, me.id);
+  const rate = await safeRateLimit(accountFeedRatelimit, me.id);
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many feed requests.");
 
   const url = new URL(req.url);

@@ -56,6 +56,24 @@ describe("R49 account-state route guardrails", () => {
         savedSearchRoute.indexOf("prisma.savedSearch.findMany"),
       "saved-search GET should rate-limit before listing current-user saved searches",
     );
+
+    const feedRoute = source("src/app/api/account/feed/route.ts");
+    assert.match(feedRoute, /safeRateLimit\(accountFeedRatelimit, me\.id\)/);
+    assert.doesNotMatch(feedRoute, /safeRateLimitOpen\(accountFeedRatelimit/);
+    assert.ok(
+      feedRoute.indexOf("safeRateLimit(accountFeedRatelimit, me.id)") <
+        feedRoute.indexOf("prisma.follow.findMany"),
+      "account-feed GET should fail closed before fan-out feed queries",
+    );
+
+    const recentlyViewedRoute = source("src/app/api/listings/recently-viewed/route.ts");
+    assert.match(recentlyViewedRoute, /safeRateLimit\(searchRatelimit, `recently-viewed:\$\{getIP\(req\)\}`\)/);
+    assert.doesNotMatch(recentlyViewedRoute, /safeRateLimitOpen\(searchRatelimit/);
+    assert.ok(
+      recentlyViewedRoute.indexOf("safeRateLimit(searchRatelimit") <
+        recentlyViewedRoute.indexOf("prisma.listing.findMany"),
+      "recently-viewed GET should fail closed before public listing reads",
+    );
   });
 
   it("keeps account feed page size bounded even when limit is malformed", () => {

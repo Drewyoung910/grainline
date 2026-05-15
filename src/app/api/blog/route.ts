@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { BlogPostType, Prisma } from "@prisma/client";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
-import { getIP, rateLimitResponse, safeRateLimitOpen, searchRatelimit } from "@/lib/ratelimit";
+import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { truncateText } from "@/lib/sanitize";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const { success, reset } = await safeRateLimitOpen(searchRatelimit, getIP(req));
+  const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
   if (!success) return rateLimitResponse(reset, "Too many blog requests.");
 
   const { searchParams } = req.nextUrl;

@@ -728,7 +728,7 @@ Results:
 
 - No empty `catch {}` blocks remain under `src`.
 - The only `$queryRawUnsafe` usage is the commission Near Me page. It uses constant SQL fragments selected from booleans, positional parameters for all variable values, and category allowlisting before the raw SQL path.
-- Public support, legal data-request, newsletter, CSP-report, listing-view, and listing-click routes are intentionally public and rate-limited or telemetry-only.
+- Public support, legal data-request, newsletter, CSP-report, listing-view, and listing-click routes are intentionally public and rate-limited or telemetry-only. Newsletter is public but fail-closed because it writes `NewsletterSubscriber`; support/legal data-request stay fail-open because they are escalation/privacy-rights paths.
 - `POST /api/verification/apply` was authenticated through `ensureSeller()` and state-safe through a single `MakerVerification` upsert, but it lacked a route-level limiter despite mutating review state and running eligibility aggregate queries.
 - Seller listing publish/mark-available actions already fail closed to `PENDING_REVIEW` when AI review cannot approve, but the republish path still had less observability than the create-listing path.
 
@@ -737,6 +737,7 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-13:** `POST /api/verification/apply` now uses fail-closed `verificationApplyRatelimit` keyed by the current user before parsing the application body or running eligibility queries. Regression coverage lives in `tests/guild-listing-edit-followups.test.mjs`.
 - **Hardened 2026-05-13:** seller listing publish/mark-available AI-review failures and error-marking follow-up failures now emit Sentry evidence with bounded listing/seller IDs, matching the create-listing fail-closed observability pattern. Regression coverage lives in `tests/server-action-hardening.test.mjs`.
 - **Hardened 2026-05-13:** the follow-up mutating-route sweep added missing fail-closed rate limits to account deletion (`accountDeletionRatelimit`), notification preference writes (`notificationPreferenceRatelimit`), favorite removal (`saveRatelimit`), commission close/fulfilled transitions (`commissionStatusRatelimit`), admin review deletion (`adminActionRatelimit`), and admin user ban/unban (`adminActionRatelimit`). Signed webhooks remain bounded by signature verification and idempotency ledgers, and the dev make-order fixture remains disabled outside local non-Vercel development. Regression coverage lives in `tests/mutation-rate-limit-sweep.test.mjs`.
+- **Hardened 2026-05-14:** remaining `safeRateLimitOpen()` uses were re-audited. Fail-open behavior is now limited by regression test to telemetry/diagnostic routes and support/legal escalation. Public newsletter, account feed, blog/search APIs, recently viewed, global search suggestions, and public commission reads now fail closed before Prisma/raw SQL work when Redis rate limiting is unavailable. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`, `tests/r49-account-state-routes.test.mjs`, and `tests/account-privacy-observability.test.mjs`.
 
 Open work:
 

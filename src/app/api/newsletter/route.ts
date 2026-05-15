@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimitOpen } from "@/lib/ratelimit";
+import { getIP, newsletterRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { isEmailSuppressed } from "@/lib/emailSuppression";
 import { sanitizeUserName } from "@/lib/sanitize";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   let emailHash: string | null = null;
   try {
     const ip = getIP(req);
-    const rl = await safeRateLimitOpen(newsletterRatelimit, ip);
+    const rl = await safeRateLimit(newsletterRatelimit, ip);
     if (!rl.success) return rateLimitResponse(rl.reset, "Too many newsletter signup attempts.");
 
     let parsed;

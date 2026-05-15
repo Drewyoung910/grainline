@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 59.
-- Verified code/feature fix commits since 2026-05-13: 51.
+- Verified hardening/doc commits since 2026-05-13: 60.
+- Verified code/feature fix commits since 2026-05-13: 52.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 11 verified closed items in the 2026-05-14
+- Most recent reported pass total: 12 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -63,6 +63,12 @@ Last updated: 2026-05-14
     Prisma `skip`/`take`/date filters across blog, commission, account feed,
     seller broadcast history, and message polling. Public commission reads now
     share the public search IP limiter. Commit: `fix: centralize api query bounds`.
+12. **Fail-open limiter policy tightened** — code fix. `safeRateLimitOpen()` is
+    now regression-limited to telemetry, diagnostics, and support/legal
+    escalation. Public newsletter, account feed, blog/search APIs, recently
+    viewed, global search suggestions, and public commission reads fail closed
+    before Prisma/raw SQL work when Redis limiting is unavailable. Commit:
+    `fix: tighten fail-open limiter policy`.
 
 ## Verified Stale / Not Fixed
 

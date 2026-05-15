@@ -20,6 +20,8 @@ describe("account and privacy route observability guardrails", () => {
     const route = source("src/app/api/newsletter/route.ts");
 
     assert.match(route, /getIP\(req\)/);
+    assert.match(route, /safeRateLimit\(newsletterRatelimit, ip\)/);
+    assert.doesNotMatch(route, /safeRateLimitOpen\(newsletterRatelimit/);
     assert.match(route, /rateLimitResponse\(rl\.reset, "Too many newsletter signup attempts\."\)/);
     assert.match(route, /hashEmailForTelemetry\(email\)/);
     assert.match(route, /source: "newsletter_subscribe"/);
