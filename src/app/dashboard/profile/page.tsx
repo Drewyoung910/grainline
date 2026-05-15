@@ -20,6 +20,7 @@ import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
+import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 
 const inputClass =
   "w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300";
@@ -38,6 +39,8 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/profile");
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return { ok: false, error: "Too many profile updates. Try again shortly." };
   const clerkUserId = userId;
   const { seller } = await ensureSeller();
 
@@ -203,6 +206,8 @@ async function addFaq(formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
   const { seller } = await ensureSeller();
 
   const question = truncateText(sanitizeText(String(formData.get("question") ?? "")), 200).trim();
@@ -232,6 +237,8 @@ async function deleteFaq(faqId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
   const { seller } = await ensureSeller();
 
   await prisma.sellerFaq.deleteMany({
@@ -246,6 +253,8 @@ async function removeSellerAvatar() {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
   const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
   if (!me) return;
   await prisma.sellerProfile.update({ where: { userId: me.id }, data: { avatarImageUrl: null } });
@@ -256,6 +265,8 @@ async function toggleFeaturedListing(listingId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) return;
   const { seller } = await ensureSeller();
 
   // Verify seller owns the listing before featuring it

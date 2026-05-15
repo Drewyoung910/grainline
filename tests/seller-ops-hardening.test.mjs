@@ -122,4 +122,61 @@ describe("seller operational route hardening", () => {
       "dashboard listing archive action should rate-limit before ownership DB lookup",
     );
   });
+
+  it("rate-limits seller profile, shop, onboarding, and notification server actions before DB write work", () => {
+    const ratelimit = source("src/lib/ratelimit.ts");
+    const profile = source("src/app/dashboard/profile/page.tsx");
+    const sellerSettings = source("src/app/dashboard/seller/page.tsx");
+    const onboarding = source("src/app/dashboard/onboarding/actions.ts");
+    const notifications = source("src/app/dashboard/notifications/page.tsx");
+
+    assert.match(ratelimit, /export const sellerProfileRatelimit = new Ratelimit/);
+    assert.match(ratelimit, /prefix: "rl:seller-profile"/);
+
+    assert.match(profile, /sellerProfileRatelimit/);
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
+        profile.indexOf("const { seller } = await ensureSeller()"),
+      "profile update should rate-limit before seller lookup/write preparation",
+    );
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function addFaq")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function addFaq")),
+      "FAQ create should rate-limit before seller lookup",
+    );
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function deleteFaq")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function deleteFaq")),
+      "FAQ delete should rate-limit before seller lookup",
+    );
+    assert.ok(
+      profile.indexOf("safeRateLimit(sellerProfileRatelimit, userId)", profile.indexOf("async function toggleFeaturedListing")) <
+        profile.indexOf("const { seller } = await ensureSeller()", profile.indexOf("async function toggleFeaturedListing")),
+      "featured-listing toggle should rate-limit before seller lookup",
+    );
+
+    assert.match(sellerSettings, /sellerProfileRatelimit/);
+    assert.ok(
+      sellerSettings.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
+        sellerSettings.indexOf("const { seller } = await ensureSeller()"),
+      "shop settings update should rate-limit before seller lookup/write preparation",
+    );
+
+    assert.match(onboarding, /SELLER_PROFILE_RATE_LIMITED/);
+    assert.match(onboarding, /Too many profile updates\. Try again shortly\./);
+    assert.ok(
+      onboarding.indexOf("safeRateLimit(sellerProfileRatelimit, userId)") <
+        onboarding.indexOf("prisma.sellerProfile.findFirst"),
+      "onboarding step actions should rate-limit before seller lookup",
+    );
+
+    assert.match(notifications, /markReadRatelimit/);
+    assert.ok(
+      notifications.indexOf("safeRateLimit(markReadRatelimit, userId)") <
+        notifications.indexOf("prisma.user.findUnique"),
+      "notification mark-all-read should rate-limit before current-user lookup",
+    );
+    assert.match(notifications, /select: \{ id: true, banned: true, deletedAt: true \}/);
+    assert.match(notifications, /if \(me\.banned \|\| me\.deletedAt\) return/);
+  });
 });

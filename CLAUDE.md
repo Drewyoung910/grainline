@@ -678,7 +678,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ### Components & pages
 - **`NotificationBell`** (`src/components/NotificationBell.tsx`) — `"use client"`; uses adaptive 60s/5min/15min/stop polling as documented in the Scalability Optimizations section; shows `Bell` icon with red badge for unread count; dropdown list of recent notifications with title, body, timestamp, and link; "Mark all read" button; accepts `initialUnreadCount` prop (SSR hint). **Mobile positioning**: `fixed inset-x-4 top-14` on mobile (spans full width with 16px margins); `md:absolute md:right-0 md:top-8` on desktop
-- **`/dashboard/notifications`** (`src/app/dashboard/notifications/page.tsx`) — full paginated notification history; "Mark all read" server action; grouped by read/unread; links to relevant pages
+- **`/dashboard/notifications`** (`src/app/dashboard/notifications/page.tsx`) — full paginated notification history; "Mark all read" server action; grouped by read/unread; links to relevant pages. The server action uses `markReadRatelimit` before the current-user lookup and ignores banned/deleted accounts locally.
 - **`UnreadBadge`** (`src/components/UnreadBadge.tsx`) — small red dot/count badge, reused by `NotificationBell`
 - `NotificationBell` rendered in `Header.tsx` inside `<Show when="signed-in">`, replacing the static bell placeholder
 
@@ -958,6 +958,8 @@ All `.limit()` calls are wrapped in one of two helpers from `src/lib/ratelimit.t
 - **`safeRateLimit(limiter, key)`** — **fail closed**: if Redis is unavailable, the request is rejected (returns `{ success: false }`). Used for all state-mutating routes where abuse has real cost, plus public search/list reads that hit Prisma or raw SQL: checkout, reviews, favorites, blog save, follow/unfollow, commission create/interest, broadcast, listing creation, messages stream, newsletter signup, account feed, blog/search APIs, global search suggestions, recently viewed, and public commission reads.
 - **`safeRateLimitOpen(limiter, key)`** — **fail open**: if Redis is unavailable, the request is allowed through. Used only for non-critical telemetry/diagnostic paths or user escalation paths where outage should not remove access: view tracking (both global IP limiter and per-IP+listing dedup), click tracking, seller profile view dedup, health/CSP diagnostics, support requests, and legal data requests.
 
+**Server-action rate-limit behavior** (2026-05-14): seller profile, shop settings, onboarding step, FAQ, profile-media, and featured-listing server actions use `sellerProfileRatelimit` before seller/profile DB work. Dashboard notification "mark all read" uses `markReadRatelimit` before the current-user lookup and locally ignores banned/deleted accounts. Do not rely on middleware alone for these forged server-action POST surfaces.
+
 ## Seller Onboarding Flow (complete)
 
 A 5-step guided wizard at `/dashboard/onboarding` that walks new makers through shop setup.
@@ -984,6 +986,8 @@ Server component (`src/app/dashboard/onboarding/page.tsx`) — calls `ensureSell
 - `src/app/dashboard/onboarding/actions.ts` — `saveStep1`, `saveStep2`, `advanceStep(targetStep)`, `completeOnboarding`
 - `src/app/dashboard/onboarding/OnboardingWizard.tsx` — `"use client"` wizard; local `step` state starts at `initialStep`; each step uses `onSubmit` handlers calling server actions
 - `src/app/dashboard/onboarding/page.tsx` — server component wrapper
+
+Onboarding action mutations share `sellerProfileRatelimit` with `/dashboard/profile` and `/dashboard/seller` before loading the seller row. Rate-limit failures must return the explicit "Too many profile updates" message instead of the generic save failure copy.
 
 ### Stripe connect route update
 `POST /api/stripe/connect/create` now accepts optional `{ returnUrl: "/path" }` in the request body (relative paths only for security). Falls back to `/dashboard/seller?onboarded=1` if not provided.

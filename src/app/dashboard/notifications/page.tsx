@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { markReadRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -71,8 +72,14 @@ async function markAllRead() {
   "use server";
   const { userId } = await auth();
   if (!userId) return;
-  const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
+  const { success } = await safeRateLimit(markReadRatelimit, userId);
+  if (!success) return;
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
   if (!me) return;
+  if (me.banned || me.deletedAt) return;
   await prisma.notification.updateMany({
     where: { userId: me.id, read: false },
     data: { read: true },

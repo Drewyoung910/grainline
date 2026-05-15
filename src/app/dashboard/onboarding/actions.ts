@@ -7,10 +7,16 @@ import { revalidatePath } from "next/cache";
 import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { cleanSellerProfileRichText, SELLER_PROFILE_TEXT_LIMITS } from "@/lib/sellerProfileText";
+import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
+const SELLER_PROFILE_RATE_LIMITED = "SELLER_PROFILE_RATE_LIMITED";
+
 function actionError(error: unknown): ActionResult {
+  if (error instanceof Error && error.message === SELLER_PROFILE_RATE_LIMITED) {
+    return { ok: false, error: "Too many profile updates. Try again shortly." };
+  }
   console.error("[onboarding action] error:", error);
   return { ok: false, error: "We couldn't save that step. Please try again." };
 }
@@ -24,6 +30,10 @@ async function getSeller(): Promise<{
 }> {
   const { userId } = await auth();
   if (!userId) throw new Error("Not signed in");
+
+  const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
+  if (!success) throw new Error(SELLER_PROFILE_RATE_LIMITED);
+
   const seller = await prisma.sellerProfile.findFirst({
     where: { user: { clerkId: userId } },
     select: {
