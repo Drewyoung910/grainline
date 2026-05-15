@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 const ReplySchema = z.object({
@@ -36,7 +37,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   {
     const profanityResult = containsProfanity(body);
     if (profanityResult.flagged) {
-      console.error(`[PROFANITY] Seller review reply flagged — matches: ${profanityResult.matches.join(", ")}`);
+      captureProfanityFlag({
+        source: "review_reply",
+        matchCount: profanityResult.matches.length,
+        extra: { reviewId: id },
+      });
     }
   }
 

@@ -10,6 +10,7 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 import { broadcastRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sanitizeText, truncateText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { isFirstPartyMediaUrl, isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -66,7 +67,11 @@ export async function POST(req: NextRequest) {
   const { containsProfanity } = await import("@/lib/profanity");
   const profCheck = containsProfanity(message);
   if (profCheck.flagged) {
-    console.error(`[PROFANITY] Broadcast by seller ${seller.id}: ${profCheck.matches.join(", ")}`);
+    captureProfanityFlag({
+      source: "seller_broadcast",
+      matchCount: profCheck.matches.length,
+      extra: { sellerProfileId: seller.id },
+    });
   }
 
   // Enforce 7-day rate limit between broadcasts

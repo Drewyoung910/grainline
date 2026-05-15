@@ -14,6 +14,7 @@ import {
 } from "@/lib/ratelimit";
 import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { commissionExpiresAt, openCommissionWhere } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
@@ -122,7 +123,11 @@ export async function POST(req: NextRequest) {
   {
     const profanityResult = containsProfanity(`${title} ${description}`);
     if (profanityResult.flagged) {
-      console.error(`[PROFANITY] Commission request flagged — matches: ${profanityResult.matches.join(", ")}`);
+      captureProfanityFlag({
+        source: "commission_create",
+        matchCount: profanityResult.matches.length,
+        extra: { clerkUserId: userId },
+      });
     }
   }
 

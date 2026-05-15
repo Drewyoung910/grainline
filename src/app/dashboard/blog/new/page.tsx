@@ -13,6 +13,7 @@ import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInp
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -82,7 +83,11 @@ export default async function NewBlogPostPage() {
     const { containsProfanity } = await import("@/lib/profanity");
     const profCheck = containsProfanity(`${title} ${excerpt ?? ""} ${body}`);
     if (profCheck.flagged) {
-      console.error(`[PROFANITY] Blog post by ${uid}: ${profCheck.matches.join(", ")}`);
+      captureProfanityFlag({
+        source: "blog_create",
+        matchCount: profCheck.matches.length,
+        extra: { clerkUserId: uid, status },
+      });
       if (status === "PUBLISHED") {
         return { ok: false, error: "This post needs edits before it can be published." };
       }

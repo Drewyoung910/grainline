@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
 import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { containsProfanity } from "@/lib/profanity";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { sanitizeText } from "@/lib/sanitize";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { z } from "zod";
@@ -125,7 +126,11 @@ export async function POST(
   {
     const profanityResult = containsProfanity(text);
     if (profanityResult.flagged) {
-      console.error(`[PROFANITY] Blog comment flagged — matches: ${profanityResult.matches.join(", ")}`);
+      captureProfanityFlag({
+        source: "blog_comment",
+        matchCount: profanityResult.matches.length,
+        extra: { slug, parentId },
+      });
     }
   }
 

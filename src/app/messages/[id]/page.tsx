@@ -19,6 +19,7 @@ import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 import { truncateText } from "@/lib/sanitize";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 
 export default async function ThreadPage({
   params,
@@ -143,7 +144,13 @@ export default async function ThreadPage({
     if (body) {
       const { containsProfanity } = await import("@/lib/profanity");
       const p = containsProfanity(body);
-      if (p.flagged) console.error(`[PROFANITY] Message by ${userId}: ${p.matches.join(", ")}`);
+      if (p.flagged) {
+        captureProfanityFlag({
+          source: "message_thread_send",
+          matchCount: p.matches.length,
+          extra: { clerkUserId: userId, conversationId: id },
+        });
+      }
     }
 
     // Validate participation

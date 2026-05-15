@@ -11,6 +11,7 @@ import { reviewRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelim
 import { logSecurityEvent } from "@/lib/security";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
+import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { filterFirstPartyMediaUrlsForUser, isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
@@ -57,7 +58,11 @@ export async function POST(req: NextRequest) {
   if (comment) {
     const profanityResult = containsProfanity(comment);
     if (profanityResult.flagged) {
-      console.error(`[PROFANITY] Review comment flagged — matches: ${profanityResult.matches.join(", ")}`);
+      captureProfanityFlag({
+        source: "review_create",
+        matchCount: profanityResult.matches.length,
+        extra: { listingId },
+      });
     }
   }
 
