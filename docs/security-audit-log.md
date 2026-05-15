@@ -767,6 +767,7 @@ Follow-up fix from this pass:
 
 - **Hardened 2026-05-13:** manual listing stock updates now keep the verified seller profile in the final SQL `UPDATE` predicate instead of mutating by listing id alone, and back-in-stock fanout failures now emit Sentry evidence instead of a silent catch. Regression coverage lives in `tests/seller-ops-hardening.test.mjs`.
 - **Hardened 2026-05-13:** seller listing server actions now carry the verified seller id into follow-up status mutations after publish, create, custom-listing creation, and ACTIVE edit re-review. This is a defense-in-depth IDOR guard: the actions already verify ownership before mutation, and the final status/SOLD_OUT updates now repeat the same seller boundary.
+- **Hardened 2026-05-14:** message thread send actions now reject empty submissions with no valid first-party attachments before conversation lookup/update work, so forged action posts cannot bump thread `updatedAt` without creating content. Message notification email failures from that action now emit bounded Sentry evidence. Regression coverage lives in `tests/custom-order-admin-thread-followups.test.mjs`.
 
 ## 2026-05-13 checkout/payment boundary audit
 

@@ -20,6 +20,7 @@ import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
 import { truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
+import * as Sentry from "@sentry/nextjs";
 
 export default async function ThreadPage({
   params,
@@ -139,6 +140,9 @@ export default async function ThreadPage({
       String(formData.get("attachments") ?? "[]"),
       (url) => isFirstPartyMediaUrlForUser(url, userId, ["messageAny"]),
     );
+    if (!body && atts.length === 0) {
+      return { ok: false, error: "Write a message or attach a file." };
+    }
 
     // Profanity check (log-only)
     if (body) {
@@ -257,6 +261,11 @@ export default async function ThreadPage({
       }
     } catch (e) {
       console.error("Failed to send message notification email:", e);
+      Sentry.captureException(e, {
+        level: "warning",
+        tags: { source: "message_thread_email" },
+        extra: { conversationId: id, recipientId },
+      });
     }
 
     return { ok: true };

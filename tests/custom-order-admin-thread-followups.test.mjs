@@ -51,6 +51,25 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(threadPage, /if \(me\.banned \|\| me\.deletedAt\) return \{ ok: false \};/);
   });
 
+  it("rejects empty thread messages before bumping conversations and captures email failures", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(threadPage, /if \(!body && atts\.length === 0\) \{/);
+    assert.match(threadPage, /Write a message or attach a file\./);
+    assert.ok(
+      threadPage.indexOf("if (!body && atts.length === 0)") <
+        threadPage.indexOf("const c = await prisma.conversation.findFirst"),
+      "empty message guard should run before conversation lookup/update work",
+    );
+    assert.ok(
+      threadPage.indexOf("if (!body && atts.length === 0)") <
+        threadPage.indexOf("await prisma.conversation.update"),
+      "empty message guard should run before bumping updatedAt",
+    );
+    assert.match(threadPage, /source: "message_thread_email"/);
+    assert.match(threadPage, /extra: \{ conversationId: id, recipientId \}/);
+  });
+
   it("bounds message polling since parameters before Prisma date filters", () => {
     const listRoute = source("src/app/api/messages/[id]/list/route.ts");
     const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
