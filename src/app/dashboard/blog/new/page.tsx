@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { after } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { BLOG_BODY_MAX_CHARS, generateSlug, calculateReadingTime } from "@/lib/blog";
 import { BlogPostType, BlogAuthorType } from "@prisma/client";
@@ -178,7 +179,13 @@ export default async function NewBlogPostPage() {
               link: `/blog/${newPost.slug}`,
             }),
           );
-        } catch { /* non-fatal */ }
+        } catch (error) {
+          Sentry.captureException(error, {
+            level: "warning",
+            tags: { source: "blog_create_follower_notification" },
+            extra: { postId: newPost.id, sellerProfileId },
+          });
+        }
       });
     }
 

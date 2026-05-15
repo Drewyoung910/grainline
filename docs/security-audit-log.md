@@ -813,4 +813,8 @@ Results:
 
 Follow-up fix from this pass:
 
-- No code fix required from this batch. The next unauthenticated-surface pass should continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.
+- **Hardened 2026-05-14:** admin blog-comment approval notification failures and maker-blog follower notification fanout failures now emit Sentry evidence with bounded comment/post/seller IDs instead of silent `catch {}` blocks. These side effects remain non-blocking after the primary moderation or publish mutation succeeds. Regression coverage lives in `tests/blog-action-guardrails.test.mjs` and `tests/admin-moderation-observability.test.mjs`.
+
+Open work:
+
+- Continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.

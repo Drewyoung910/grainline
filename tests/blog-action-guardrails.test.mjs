@@ -31,4 +31,16 @@ describe("blog dashboard action guardrails", () => {
       );
     }
   });
+
+  it("captures follower notification failures instead of silently swallowing them", () => {
+    for (const [path, sourceTag] of [
+      ["src/app/dashboard/blog/new/page.tsx", "blog_create_follower_notification"],
+      ["src/app/dashboard/blog/[id]/edit/page.tsx", "blog_update_follower_notification"],
+    ]) {
+      const text = source(path);
+      assert.match(text, /Sentry\.captureException/);
+      assert.match(text, new RegExp(`source: "${sourceTag}"`));
+      assert.doesNotMatch(text, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
+    }
+  });
 });

@@ -58,4 +58,12 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(verificationPage, /"admin_verification_email"/);
     assert.doesNotMatch(verificationPage, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
+
+  it("captures admin blog comment approval notification failures", () => {
+    const page = source("src/app/admin/blog/page.tsx");
+
+    assert.match(page, /Sentry\.captureException/);
+    assert.match(page, /source: "admin_blog_comment_approval_notification"/);
+    assert.doesNotMatch(page, /catch \{\s*\/\* non-fatal/);
+  });
 });

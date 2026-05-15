@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { createNotification } from "@/lib/notifications";
 import { logAdminAction } from "@/lib/audit";
@@ -68,7 +69,13 @@ async function approveComment(commentId: string) {
         }
       }
     }
-  } catch { /* non-fatal — approval succeeded even if notification fails */ }
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_blog_comment_approval_notification" },
+      extra: { commentId },
+    });
+  }
 
   revalidatePath("/admin/blog");
 }
