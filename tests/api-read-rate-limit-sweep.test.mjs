@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+function assertBefore(text, first, second, label) {
+  const firstIndex = text.indexOf(first);
+  const secondIndex = text.indexOf(second);
+  assert.notEqual(firstIndex, -1, `${label} missing ${first}`);
+  assert.notEqual(secondIndex, -1, `${label} missing ${second}`);
+  assert.ok(firstIndex < secondIndex, `${label} should run ${first} before ${second}`);
+}
+
+describe("API read route rate-limit sweep", () => {
+  it("defines fail-closed read limiters for signed-in fan-out reads", () => {
+    const text = source("src/lib/ratelimit.ts");
+
+    for (const [name, prefix] of [
+      ["cartReadRatelimit", "rl:cart-read"],
+      ["messageListRatelimit", "rl:message_list"],
+      ["notificationReadRatelimit", "rl:notification-read"],
+      ["sellerAnalyticsRatelimit", "rl:seller-analytics"],
+    ]) {
+      assert.match(text, new RegExp(`export const ${name} = new Ratelimit`));
+      assert.match(text, new RegExp(`prefix: "${prefix}"`));
+    }
+  });
+
+  it("rate-limits signed-in fan-out GET routes before Prisma work", () => {
+    for (const [path, limiter, dbNeedle] of [
+      ["src/app/api/cart/route.ts", "safeRateLimit(cartReadRatelimit, userId)", "prisma.cart.findUnique"],
+      ["src/app/api/messages/[id]/list/route.ts", "safeRateLimit(messageListRatelimit, userId)", "prisma.conversation.findFirst"],
+      ["src/app/api/notifications/route.ts", "safeRateLimit(notificationReadRatelimit, userId)", "pruneReadNotificationsHourly();"],
+      ["src/app/api/seller/analytics/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
+      ["src/app/api/seller/analytics/recent-sales/route.ts", "safeRateLimit(sellerAnalyticsRatelimit, userId)", "prisma.sellerProfile.findUnique"],
+    ]) {
+      const text = source(path);
+      assert.match(text, new RegExp(limiter.replace(/[()]/g, "\\$&")));
+      assert.doesNotMatch(text, /safeRateLimitOpen\(/);
+      assertBefore(text, limiter, dbNeedle, path);
+    }
+  });
+
+  it("rate-limits optional-public GET routes before public Prisma work", () => {
+    for (const [path, dbNeedle] of [
+      ["src/app/api/blog/[slug]/comments/route.ts", "prisma.blogPost.findFirst"],
+      ["src/app/api/commission/[id]/route.ts", "prisma.commissionRequest.findUnique"],
+      ["src/app/api/follow/[sellerId]/route.ts", "prisma.sellerProfile.findFirst"],
+    ]) {
+      const text = source(path);
+      assert.match(text, /searchRatelimit/);
+      assert.match(text, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
+      assert.doesNotMatch(text, /safeRateLimitOpen\(searchRatelimit/);
+      assertBefore(text, "safeRateLimit(searchRatelimit, getIP(req))", dbNeedle, path);
+    }
+  });
+});

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 67.
-- Verified code/feature fix commits since 2026-05-13: 59.
+- Verified hardening/doc commits since 2026-05-13: 68.
+- Verified code/feature fix commits since 2026-05-13: 60.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 19 verified closed items in the 2026-05-14
+- Most recent reported pass total: 20 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -102,6 +102,11 @@ Last updated: 2026-05-14
     Unauthenticated API routes are regression-allowlisted, and the public
     similar-listings endpoint now fails closed through `searchRatelimit` before
     Prisma/raw-SQL work. Commit: `fix: rate-limit public similar listings`.
+20. **API read amplification limiter sweep** — code fix. Optional-public GET
+    routes that do Prisma work before requiring auth now use the public
+    `searchRatelimit`, and heavier signed-in fan-out reads for cart contents,
+    message history, notifications, and seller analytics now use dedicated
+    fail-closed read limiters before Prisma work. Commit: `fix: rate-limit api read fanouts`.
 
 ## Verified Stale / Not Fixed
 

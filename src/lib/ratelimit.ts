@@ -65,6 +65,13 @@ export const messageStreamRatelimit = new Ratelimit({
   prefix: "rl:message_stream",
 });
 
+export const messageListRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(240, "60 m"),
+  analytics: true,
+  prefix: "rl:message_list",
+});
+
 // Follow/unfollow — prevent follow spam
 export const followRatelimit = new Ratelimit({
   redis,
@@ -100,6 +107,27 @@ export const accountFeedRatelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(120, "10 m"),
   analytics: true,
   prefix: "rl:account-feed",
+});
+
+export const cartReadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "10 m"),
+  analytics: true,
+  prefix: "rl:cart-read",
+});
+
+export const notificationReadRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "10 m"),
+  analytics: true,
+  prefix: "rl:notification-read",
+});
+
+export const sellerAnalyticsRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(60, "10 m"),
+  analytics: true,
+  prefix: "rl:seller-analytics",
 });
 
 export const reviewVoteRatelimit = new Ratelimit({

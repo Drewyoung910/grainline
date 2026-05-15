@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { parseTimestampMsParam } from "@/lib/queryParams";
+import { messageListRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function GET(
   req: Request,
@@ -13,6 +14,9 @@ export async function GET(
 
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
+
+  const { success, reset } = await safeRateLimit(messageListRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many message reads.");
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {

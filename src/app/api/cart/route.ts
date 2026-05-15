@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
+import { cartReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -13,6 +14,9 @@ export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(cartReadRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many cart reads.");
 
     const me = await ensureUserByClerkId(userId);
 

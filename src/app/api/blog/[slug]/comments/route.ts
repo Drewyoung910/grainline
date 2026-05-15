@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
-import { blogCommentRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { blogCommentRatelimit, getIP, safeRateLimit, rateLimitResponse, searchRatelimit } from "@/lib/ratelimit";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { sanitizeText } from "@/lib/sanitize";
@@ -34,10 +34,14 @@ const BLOG_COMMENT_BODY_MAX_BYTES = 24 * 1024;
 export const runtime = "nodejs";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+
+  const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
+  if (!success) return rateLimitResponse(reset, "Too many comment reads.");
+
   const post = await prisma.blogPost.findFirst({ where: publicBlogPostWhere({ slug }), select: { id: true } });
   if (!post) return NextResponse.json({ comments: [] });
 

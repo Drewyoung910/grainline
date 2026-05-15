@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ensureUser, ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { followRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { followRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
 
@@ -16,10 +16,13 @@ async function getFollowerCount(sellerProfileId: string) {
 
 // GET — check if current user follows this seller
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sellerId: string }> }
 ) {
   const { sellerId } = await params;
+
+  const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
+  if (!success) return rateLimitResponse(reset, "Too many follow reads.");
 
   // sellerId here is the SellerProfile.id (not userId)
   const sellerProfile = await prisma.sellerProfile.findFirst({

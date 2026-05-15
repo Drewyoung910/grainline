@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
+import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,9 @@ export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+    const { success, reset } = await safeRateLimit(sellerAnalyticsRatelimit, userId);
+    if (!success) return rateLimitResponse(reset, "Too many analytics requests.");
 
     const me = await ensureUserByClerkId(userId);
     const sellerProfile = await prisma.sellerProfile.findUnique({

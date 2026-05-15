@@ -10,7 +10,7 @@ import { commissionIsExpired } from "@/lib/commissionExpiry";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { openCommissionMutationWhere } from "@/lib/commissionState";
-import { commissionStatusRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { commissionStatusRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -27,10 +27,13 @@ const COMMISSION_INTEREST_NOTIFY_LIMIT = 10000;
 const COMMISSION_STATUS_BODY_MAX_BYTES = 8 * 1024;
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
+  if (!success) return rateLimitResponse(reset, "Too many commission reads.");
 
   const request = await prisma.commissionRequest.findUnique({
     where: { id },
