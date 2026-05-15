@@ -32,7 +32,7 @@ export default function MapFallback({
       )}
       <div className="flex flex-wrap gap-3 text-xs">
         {osmHref && (
-          <a href={osmHref} target="_blank" rel="noreferrer" className="font-medium text-amber-700 underline">
+          <a href={osmHref} target="_blank" rel="noopener noreferrer" className="font-medium text-amber-700 underline">
             Open in OpenStreetMap
           </a>
         )}

@@ -6,9 +6,9 @@ Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: **pending triage**. Do not treat the raw
   claim count as real until Codex verifies each item against `main`.
-- Verified hardening/doc commits since 2026-05-13: **62 total** (**54**
+- Verified hardening/doc commits since 2026-05-13: **63 total** (**55**
   code/feature fixes, **8** docs/audit-only commits).
-- Current 2026-05-14 active closed tracker: **14 verified closed items** in
+- Current 2026-05-14 active closed tracker: **15 verified closed items** in
   `audit_closed.md`, plus **1 stale/false-positive claim verified clean**.
 - Reporting rule for future passes: each Codex pass should end with a counter
   such as `verified closed this pass`, `verified stale/false-positive this
@@ -49,6 +49,7 @@ Drew asked for a concrete plan to harden Grainline against AI-assisted attacker 
 28. **[LOW-MEDIUM HARDENED 2026-05-14] Fail-open limiter policy was broader than the documented safety boundary.** `safeRateLimitOpen()` was still used by public/newsletter/search/list/feed routes that write state or hit Prisma/raw SQL. Fail-open is now regression-limited to telemetry, diagnostics, and support/legal escalation; newsletter, account feed, blog/search APIs, recently viewed, global search suggestions, and public commission reads fail closed before database work when Redis limiting is unavailable. Regression coverage: `tests/public-cron-search-hardening.test.mjs`, `tests/r49-account-state-routes.test.mjs`, and `tests/account-privacy-observability.test.mjs`.
 29. **[LOW-MEDIUM HARDENED 2026-05-14] Public unauthenticated form/report routes parsed bodies without app-level byte caps.** Platform limits existed, but newsletter, support, legal data-request, and CSP report routes called raw `req.json()`/`request.text()` before any local size boundary. `readBoundedJson()` / `readBoundedText()` now enforce `Content-Length` and streamed byte caps before parsing or Sentry processing. Regression coverage: `tests/request-body-bounds.test.mjs`, `tests/account-privacy-observability.test.mjs`, and `tests/public-cron-search-hardening.test.mjs`.
 30. **[LOW-MEDIUM HARDENED 2026-05-14] Signed webhook routes read raw bodies before app-level size caps.** Stripe, Stripe v2, Clerk, and Resend webhooks verify signatures after reading raw payloads, so oversized unsigned traffic could still force avoidable body reads. These routes now use `readBoundedText()` with route-specific caps before vendor verification and reject oversized payloads with bounded telemetry. Regression coverage: `tests/webhook-body-bounds.test.mjs` and `tests/stripe-webhook-v2-route.test.mjs`.
+31. **[LOW HARDENED 2026-05-14] Rendering/XSS sweep found target-blank rel drift.** JSON-LD and blog markdown rendering were verified behind `safeJsonLd()` and `sanitize-html`; remaining `rel="noreferrer"` target-blank links in message attachments and map fallback were normalized to `rel="noopener noreferrer"` so opener protection is explicit and consistent. Regression coverage: `tests/rendering-security.test.mjs`.
 
 ## 2026-05-12 — Codex resumed: Claude-change audit + launch polish
 

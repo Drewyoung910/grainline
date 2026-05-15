@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 62.
-- Verified code/feature fix commits since 2026-05-13: 54.
+- Verified hardening/doc commits since 2026-05-13: 63.
+- Verified code/feature fix commits since 2026-05-13: 55.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 14 verified closed items in the 2026-05-14
+- Most recent reported pass total: 15 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -79,6 +79,10 @@ Last updated: 2026-05-14
     `readBoundedText()` before vendor signature verification, with
     route-specific byte caps and bounded telemetry for oversized payloads.
     Commit: `fix: bound signed webhook bodies`.
+15. **Rendering/XSS guardrails tightened** — code fix. JSON-LD and blog
+    markdown rendering were verified behind safe serializers/sanitizers, and
+    remaining target-blank links now use explicit `rel="noopener noreferrer"`.
+    Commit: `fix: tighten rendering security guardrails`.
 
 ## Verified Stale / Not Fixed
 

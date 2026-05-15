@@ -39,7 +39,7 @@ function PdfChip({ url, name }: { url: string; name?: string | null }) {
     <a
       href={url}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
     >
       {/* tiny PDF icon */}
@@ -419,7 +419,7 @@ export default function ThreadMessages({
           if (file) {
             if (isImage) {
               bubble = (
-                <a href={file.url} target="_blank" rel="noreferrer">
+                <a href={file.url} target="_blank" rel="noopener noreferrer">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={file.url}
@@ -435,7 +435,7 @@ export default function ThreadMessages({
                 <a
                   href={file.url}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
                 >
                   ⬇️ <span className="truncate max-w-[220px]">{file.name ?? "Download file"}</span>
@@ -444,7 +444,7 @@ export default function ThreadMessages({
             }
           } else if (isImage) {
             bubble = (
-              <a href={body} target="_blank" rel="noreferrer">
+              <a href={body} target="_blank" rel="noopener noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={body}
