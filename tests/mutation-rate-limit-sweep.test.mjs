@@ -18,6 +18,23 @@ describe("mutating API route rate-limit sweep", () => {
     assert.match(route, /rateLimitResponse\(reset, "Too many notification preference changes\."/);
   });
 
+  it("rate-limits notification mark-read writes fail-closed", () => {
+    for (const path of [
+      "src/app/api/notifications/read-all/route.ts",
+      "src/app/api/notifications/[id]/read/route.ts",
+    ]) {
+      const route = source(path);
+
+      assert.match(route, /markReadRatelimit/, `${path} must import/use markReadRatelimit`);
+      assert.match(route, /safeRateLimit\(markReadRatelimit, userId\)/, `${path} must fail closed`);
+      assert.doesNotMatch(route, /safeRateLimitOpen\(markReadRatelimit/, `${path} must not fail open`);
+      assert.match(route, /rateLimitResponse\(reset, "Too many notification updates\."/);
+    }
+
+    const limiters = source("src/lib/ratelimit.ts");
+    assert.match(limiters, /Notification mark-read — low risk, but still a write path; fail closed\./);
+  });
+
   it("rate-limits account deletion before blocker checks and external deletion calls", () => {
     const route = source("src/app/api/account/delete/route.ts");
     const limiters = source("src/lib/ratelimit.ts");

@@ -298,7 +298,7 @@ export const reportRatelimit = new Ratelimit({
   prefix: "rl:report",
 });
 
-// Notification mark-read — low risk but cap it (fail open — non-critical)
+// Notification mark-read — low risk, but still a write path; fail closed.
 export const markReadRatelimit = new Ratelimit({
   redis,
   limiter: Ratelimit.slidingWindow(60, "60 m"),

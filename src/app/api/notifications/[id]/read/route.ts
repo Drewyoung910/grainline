@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
-import { markReadRatelimit, safeRateLimitOpen } from "@/lib/ratelimit";
+import { markReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -14,8 +14,8 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { success } = await safeRateLimitOpen(markReadRatelimit, userId);
-  if (!success) return NextResponse.json({ ok: true });
+  const { success, reset } = await safeRateLimit(markReadRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many notification updates.");
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {

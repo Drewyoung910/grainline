@@ -138,7 +138,14 @@ Spot checks completed in this pass:
 
 - `src/app/api/notifications/[id]/read/route.ts`
   - Requires auth and local user.
+  - Uses fail-closed `markReadRatelimit` before the current-user mutation.
   - `updateMany` scopes notification mutation to `{ id, userId: me.id }`.
+  - Result: no verified IDOR found.
+
+- `src/app/api/notifications/read-all/route.ts`
+  - Requires auth and local user.
+  - Uses fail-closed `markReadRatelimit` before the current-user mutation.
+  - Optional `ids` input is capped at 100 and `updateMany` scopes all mutations to `{ userId: me.id }`.
   - Result: no verified IDOR found.
 
 - `src/app/api/search/saved/route.ts`

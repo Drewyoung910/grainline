@@ -2682,7 +2682,7 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `customOrderRequestRatelimit` | userId | 10 / 24 h | `POST /api/messages/custom-order-request` |
 | `stripeConnectRatelimit` | userId | 5 / 60 s | `POST /api/stripe/connect/create`, `POST /api/stripe/connect/dashboard`, `GET /api/stripe/connect/status` |
 | `stripeLoginLinkRatelimit` | userId | 10 / 60 min | `POST /api/stripe/connect/login-link` |
-| `markReadRatelimit` | userId | 60 / 60 min | `POST /api/notifications/read-all` (fail open — silent success on limit) |
+| `markReadRatelimit` | userId | 60 / 60 min | `POST /api/notifications/read-all`, `POST /api/notifications/[id]/read` (fail closed — notification read-state writes return 429 on limiter failure/limit) |
 | `accountDeletionRatelimit` | userId | 5 / 60 min | `POST /api/account/delete` |
 | `adminActionRatelimit` | admin.id | 120 / 10 min | destructive admin moderation routes, including listing removal/review, report resolution, review deletion, user ban/unban, audit undo |
 
