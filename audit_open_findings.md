@@ -2,6 +2,19 @@
 
 Last updated: 2026-05-14
 
+## Active Hardening Progress Counter
+
+- Raw Claude/new-audit candidate total: **pending triage**. Do not treat the raw
+  claim count as real until Codex verifies each item against `main`.
+- Verified hardening/doc commits since 2026-05-13: **58 total** (**50**
+  code/feature fixes, **8** docs/audit-only commits).
+- Current 2026-05-14 active closed tracker: **10 verified closed items** in
+  `audit_closed.md`, plus **1 stale/false-positive claim verified clean**.
+- Reporting rule for future passes: each Codex pass should end with a counter
+  such as `verified closed this pass`, `verified stale/false-positive this
+  pass`, and `running verified closed / verified candidate total` when a stable
+  candidate denominator exists.
+
 ## 2026-05-13 — Security hardening + maintainability planning
 
 Drew asked for a concrete plan to harden Grainline against AI-assisted attacker discovery, avoid false confidence from AI audits, and make the codebase maintainable by a future team without rewriting it.
