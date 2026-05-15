@@ -2668,6 +2668,7 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 | `messageStreamRatelimit` | userId | 120 / 60 s | `GET /api/messages/[id]/stream` |
 | `followRatelimit` | userId | 50 / 60 min | `POST/DELETE /api/follow/[sellerId]` |
 | `saveRatelimit` | userId | 100 / 60 min | `POST /api/favorites`, `DELETE /api/favorites/[listingId]` |
+| `savedSearchRatelimit` | userId | 20 / 60 min | `GET/POST/DELETE /api/search/saved` |
 | `notificationPreferenceRatelimit` | userId | 60 / 10 min | `POST /api/account/notifications/preferences` |
 | `blogSaveRatelimit` | userId | 100 / 60 min | `POST/DELETE /api/blog/[slug]/save` |
 | `commissionInterestRatelimit` | userId | 20 / 24 h | `POST /api/commission/[id]/interest` |
@@ -2689,6 +2690,8 @@ All limiters live in `src/lib/ratelimit.ts` (Upstash Redis sliding-window). All 
 ### Spam prevention guards
 
 All blocked actions return 400; spam attempts for self-actions are also logged to Sentry via `logSecurityEvent()` in `src/lib/security.ts`.
+
+Favorite creation must honor block state in both directions before writing `Favorite` or creating a `NEW_FAVORITE` notification. A blocked user should not be able to use favorite notifications as a harassment channel.
 
 | Guard | Where | Status |
 |---|---|---|

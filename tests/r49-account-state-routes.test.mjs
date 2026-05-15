@@ -39,4 +39,38 @@ describe("R49 account-state route guardrails", () => {
     assert.match(text, /console\.error\("Failed to remove follow rows after block:", error\)/);
     assert.equal(text.includes("catch { /* non-fatal */ }"), false);
   });
+
+  it("keeps authenticated user-state reads rate-limited before fan-out database reads", () => {
+    const shippingRoute = source("src/app/api/account/shipping-address/route.ts");
+    assert.match(shippingRoute, /safeRateLimit\(shippingAddressRatelimit, userId\)/);
+    assert.ok(
+      shippingRoute.indexOf("safeRateLimit(shippingAddressRatelimit, userId)") <
+        shippingRoute.indexOf("prisma.user.findUnique"),
+      "shipping-address GET should rate-limit before reading the saved address",
+    );
+
+    const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+    assert.match(savedSearchRoute, /safeRateLimit\(savedSearchRatelimit, userId\)/);
+    assert.ok(
+      savedSearchRoute.indexOf("safeRateLimit(savedSearchRatelimit, userId)") <
+        savedSearchRoute.indexOf("prisma.savedSearch.findMany"),
+      "saved-search GET should rate-limit before listing current-user saved searches",
+    );
+  });
+
+  it("prevents blocked users from creating favorite notifications", () => {
+    const text = source("src/app/api/favorites/route.ts");
+
+    assert.match(text, /prisma\.block\.findFirst/);
+    assert.match(text, /\{ blockerId: me\.id, blockedId: listing\.seller\.userId \}/);
+    assert.match(text, /\{ blockerId: listing\.seller\.userId, blockedId: me\.id \}/);
+    assert.ok(
+      text.indexOf("prisma.block.findFirst") < text.indexOf("prisma.favorite.upsert"),
+      "favorite POST should check block state before writing the favorite",
+    );
+    assert.ok(
+      text.indexOf("prisma.block.findFirst") < text.indexOf("await createNotification"),
+      "favorite POST should check block state before notifying the seller",
+    );
+  });
 });

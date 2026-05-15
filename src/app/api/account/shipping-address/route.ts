@@ -37,6 +37,9 @@ export async function GET() {
     throw err;
   }
 
+  const { success, reset } = await safeRateLimit(shippingAddressRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many requests.");
+
   const me = await prisma.user.findUnique({
     where: { id: user.id },
     select: {
@@ -50,9 +53,6 @@ export async function GET() {
     },
   });
   if (!me) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-  const { success, reset } = await safeRateLimit(shippingAddressRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many requests.");
 
   return NextResponse.json({
     name: me.shippingName ?? null,

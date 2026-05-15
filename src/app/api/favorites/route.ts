@@ -53,6 +53,16 @@ export async function POST(req: Request) {
   if (listing.seller.userId === me.id) {
     return NextResponse.json({ error: "Cannot favorite your own listing." }, { status: 400 });
   }
+  const blockExists = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: listing.seller.userId },
+        { blockerId: listing.seller.userId, blockedId: me.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blockExists) return NextResponse.json({ error: "Blocked" }, { status: 403 });
 
   try {
     await prisma.favorite.upsert({

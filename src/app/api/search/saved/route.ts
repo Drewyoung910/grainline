@@ -147,6 +147,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
+  if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
+
   const userResult = await getDbUserResult();
   if (userResult.response) return userResult.response;
   const me = userResult.me;
