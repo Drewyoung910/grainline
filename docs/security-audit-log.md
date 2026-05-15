@@ -814,6 +814,7 @@ Results:
 Follow-up fix from this pass:
 
 - **Hardened 2026-05-14:** admin blog-comment approval notification failures and maker-blog follower notification fanout failures now emit Sentry evidence with bounded comment/post/seller IDs instead of silent `catch {}` blocks. These side effects remain non-blocking after the primary moderation or publish mutation succeeds. Regression coverage lives in `tests/blog-action-guardrails.test.mjs` and `tests/admin-moderation-observability.test.mjs`.
+- **Hardened 2026-05-14:** central email send failure telemetry now uses `hashEmailForTelemetry()` and `subjectLength` instead of raw recipient email addresses or raw subject values for inactive-account lookup failures, invalid-recipient skips, retry failures, and final send failures. Regression coverage lives in `tests/account-privacy-observability.test.mjs`.
 
 Open work:
 

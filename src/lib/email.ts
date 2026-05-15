@@ -12,6 +12,7 @@ import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { sendEmailWithRetry } from "@/lib/emailRetry";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -152,6 +153,7 @@ type RenderedEmail = {
 };
 
 async function findInactiveEmailAccount(recipient: string, subject: string) {
+  const emailHash = hashEmailForTelemetry(recipient);
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       return await prisma.user.findUnique({
@@ -164,7 +166,7 @@ async function findInactiveEmailAccount(recipient: string, subject: string) {
         Sentry.captureException(err, {
           level: "warning",
           tags: { source: "email_inactive_account_lookup" },
-          extra: { to: recipient, subject },
+          extra: { emailHash, subjectLength: subject.length },
         });
         throw err;
       }
@@ -180,10 +182,11 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
     Sentry.captureMessage("Skipped email with invalid recipient", {
       level: "warning",
       tags: { source: "email_send" },
-      extra: { to, subject: sanitizedSubject },
+      extra: { emailHash: hashEmailForTelemetry(to), subjectLength: sanitizedSubject.length },
     });
     return;
   }
+  const emailHash = hashEmailForTelemetry(recipient);
 
   const unsubscribeUrl = buildUnsubscribeUrl(recipient);
   const htmlForRecipient = html.replaceAll(UNSUBSCRIBE_URL_PLACEHOLDER, unsubscribeUrl ?? `${APP_URL}/unsubscribe`);
@@ -193,12 +196,12 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
   }
   try {
     if (await isEmailSuppressed(recipient)) {
-      console.warn("[email] suppressed recipient skipped", { to: recipient, subject: sanitizedSubject });
+      console.warn("[email] suppressed recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
       return;
     }
     const account = await findInactiveEmailAccount(recipient, sanitizedSubject);
     if (account?.banned || account?.deletedAt) {
-      console.warn("[email] inactive recipient skipped", { to: recipient, subject: sanitizedSubject });
+      console.warn("[email] inactive recipient skipped", { emailHash, subjectLength: sanitizedSubject.length });
       return;
     }
 
@@ -224,14 +227,17 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
           Sentry.captureException(err, {
             level: "warning",
             tags: { source: "email_send_retry" },
-            extra: { to: recipient, subject: sanitizedSubject, attempt, delayMs },
+            extra: { emailHash, subjectLength: sanitizedSubject.length, attempt, delayMs },
           });
         },
       },
     );
   } catch (err) {
     console.error("[email] send failed:", err);
-    Sentry.captureException(err, { tags: { source: "email_send" }, extra: { to: recipient, subject } });
+    Sentry.captureException(err, {
+      tags: { source: "email_send" },
+      extra: { emailHash, subjectLength: sanitizedSubject.length },
+    });
     if (opts.throwOnFailure) throw err;
   }
 }

@@ -35,6 +35,19 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(route, /extra: \{ email \}/);
   });
 
+  it("keeps central email failure telemetry off raw recipient emails", () => {
+    const email = source("src/lib/email.ts");
+
+    assert.match(email, /hashEmailForTelemetry/);
+    assert.match(email, /source: "email_inactive_account_lookup"/);
+    assert.match(email, /source: "email_send_retry"/);
+    assert.match(email, /source: "email_send"/);
+    assert.doesNotMatch(email, /extra:\s*\{[^}]*\bto:\s*recipient/s);
+    assert.doesNotMatch(email, /extra:\s*\{[^}]*\bto,/s);
+    assert.doesNotMatch(email, /extra:\s*\{[^}]*subject:\s*sanitizedSubject/s);
+    assert.doesNotMatch(email, /extra:\s*\{[^}]*subject\s*\}/s);
+  });
+
   it("preserves Resend webhook error evidence even when marking the event failed errors", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
 
