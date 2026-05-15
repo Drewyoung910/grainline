@@ -14,6 +14,7 @@ import {
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
+import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -41,6 +42,7 @@ function dateFromMetadata(value: unknown): Date | null {
 }
 
 const CLERK_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
+const CLERK_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
 
 function isUniqueViolation(err: unknown) {
   return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
@@ -121,7 +123,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing svix headers" }, { status: 400 });
   }
 
-  const body = await req.text();
+  let body = "";
+  try {
+    body = await readBoundedText(req, CLERK_WEBHOOK_BODY_MAX_BYTES);
+  } catch (err) {
+    if (isRequestBodyTooLargeError(err)) {
+      Sentry.captureMessage("Clerk webhook payload is too large", {
+        level: "warning",
+        tags: { source: "clerk_webhook_payload" },
+        extra: { maxBytes: err.maxBytes, svixId },
+      });
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
+    throw err;
+  }
 
   const wh = new Webhook(webhookSecret);
   let event: { type: string; data: ClerkUserEvent };

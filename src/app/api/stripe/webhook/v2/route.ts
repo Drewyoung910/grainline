@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { stripe } from "@/lib/stripe";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
+import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import {
   beginStripeWebhookEvent,
   markStripeWebhookEventFailed,
@@ -21,6 +22,8 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 export const preferredRegion = "iad1";
 
+const STRIPE_V2_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
+
 type StripeConnectV2NotificationEnvelope = StripeConnectV2AccountNotification & {
   id?: unknown;
   type?: unknown;
@@ -28,7 +31,6 @@ type StripeConnectV2NotificationEnvelope = StripeConnectV2AccountNotification & 
 };
 
 export async function POST(req: Request) {
-  const body = await req.text();
   const signature = (await headers()).get("stripe-signature");
   const secret = process.env.STRIPE_V2_WEBHOOK_SECRET;
 
@@ -47,6 +49,22 @@ export async function POST(req: Request) {
     });
     await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "signature", status: 400 });
     return NextResponse.json({ error: "Missing Stripe signature" }, { status: 400 });
+  }
+
+  let body = "";
+  try {
+    body = await readBoundedText(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES);
+  } catch (err) {
+    if (isRequestBodyTooLargeError(err)) {
+      Sentry.captureMessage("Stripe v2 webhook payload is too large", {
+        level: "warning",
+        tags: { source: "stripe_v2_webhook_payload" },
+        extra: { maxBytes: err.maxBytes },
+      });
+      await recordWebhookFailureSpike({ webhook: "stripe_v2", kind: "payload", status: 413 });
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
+    throw err;
   }
 
   let notification: StripeConnectV2NotificationEnvelope;

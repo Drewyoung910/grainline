@@ -15,10 +15,12 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /return NextResponse\.json\(\{ error: "Webhook temporarily unavailable" \}, \{ status: 500 \}\)/);
     assert.match(route, /return NextResponse\.json\(\{ error: "Missing Stripe signature" \}, \{ status: 400 \}\)/);
     assert.match(route, /return NextResponse\.json\(\{ error: "Invalid signature" \}, \{ status: 400 \}\)/);
+    assert.match(route, /readBoundedText\(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES\)/);
     assert.match(route, /stripe\.parseEventNotification\(body, signature, secret\)/);
     assert.doesNotMatch(route, /STRIPE_WEBHOOK_SECRET/);
 
     assert.match(legacyRoute, /process\.env\.STRIPE_WEBHOOK_SECRET/);
+    assert.match(legacyRoute, /readBoundedText\(req, STRIPE_WEBHOOK_BODY_MAX_BYTES\)/);
     assert.match(legacyRoute, /stripe\.webhooks\.constructEvent\(body, signature, secret\)/);
     assert.doesNotMatch(legacyRoute, /parseEventNotification/);
     assert.doesNotMatch(legacyRoute, /STRIPE_V2_WEBHOOK_SECRET/);

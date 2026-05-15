@@ -6,11 +6,13 @@ import { prisma } from "@/lib/db";
 import { normalizeEmailAddress, suppressEmail } from "@/lib/emailSuppression";
 import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
 import { truncateText } from "@/lib/sanitize";
+import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const RESEND_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
+const RESEND_WEBHOOK_BODY_MAX_BYTES = 256 * 1024;
 const TRANSIENT_FAILURE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 3;
 
@@ -166,7 +168,20 @@ export async function POST(request: Request) {
   }
 
   let event: WebhookEventPayload;
-  const payload = await request.text();
+  let payload = "";
+  try {
+    payload = await readBoundedText(request, RESEND_WEBHOOK_BODY_MAX_BYTES);
+  } catch (err) {
+    if (isRequestBodyTooLargeError(err)) {
+      Sentry.captureMessage("Resend webhook payload is too large", {
+        level: "warning",
+        tags: { source: "resend_webhook_payload" },
+        extra: { maxBytes: err.maxBytes, webhookId: id },
+      });
+      return NextResponse.json({ ok: false, error: "Payload too large" }, { status: 413 });
+    }
+    throw err;
+  }
   try {
     const resend = new Resend(config.apiKey);
     event = resend.webhooks.verify({

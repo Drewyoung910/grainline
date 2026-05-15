@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 61.
-- Verified code/feature fix commits since 2026-05-13: 53.
+- Verified hardening/doc commits since 2026-05-13: 62.
+- Verified code/feature fix commits since 2026-05-13: 54.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 13 verified closed items in the 2026-05-14
+- Most recent reported pass total: 14 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -74,6 +74,11 @@ Last updated: 2026-05-14
     `readBoundedJson()` / `readBoundedText()` before parsing or Sentry
     processing, with route-specific byte caps and streamed-body enforcement.
     Commit: `fix: bound public request bodies`.
+14. **Signed webhook raw body reads bounded** — code fix. Stripe snapshot,
+    Stripe v2 thin, Clerk, and Resend webhook routes now read through
+    `readBoundedText()` before vendor signature verification, with
+    route-specific byte caps and bounded telemetry for oversized payloads.
+    Commit: `fix: bound signed webhook bodies`.
 
 ## Verified Stale / Not Fixed
 
