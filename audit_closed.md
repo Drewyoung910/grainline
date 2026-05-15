@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 69.
-- Verified code/feature fix commits since 2026-05-13: 61.
+- Verified hardening/doc commits since 2026-05-13: 70.
+- Verified code/feature fix commits since 2026-05-13: 62.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 21 verified closed items in the 2026-05-14
+- Most recent reported pass total: 22 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -112,6 +112,10 @@ Last updated: 2026-05-14
     now return an error before conversation lookup/update work, and
     message-email failures from that action emit bounded Sentry evidence.
     Commit: `fix: reject empty message sends`.
+22. **Seller listing server actions rate-limited** — code fix. Dashboard
+    status/archive actions and public-shop listing actions now use
+    `listingMutationRatelimit` before ownership DB lookups, so forged server
+    action posts cannot hammer listing state transitions. Commit: `fix: rate-limit listing server actions`.
 
 ## Verified Stale / Not Fixed
 

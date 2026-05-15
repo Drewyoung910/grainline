@@ -6,9 +6,9 @@ Last updated: 2026-05-14
 
 - Raw Claude/new-audit candidate total: **pending triage**. Do not treat the raw
   claim count as real until Codex verifies each item against `main`.
-- Verified hardening/doc commits since 2026-05-13: **69 total** (**61**
+- Verified hardening/doc commits since 2026-05-13: **70 total** (**62**
   code/feature fixes, **8** docs/audit-only commits).
-- Current 2026-05-14 active closed tracker: **21 verified closed items** in
+- Current 2026-05-14 active closed tracker: **22 verified closed items** in
   `audit_closed.md`, plus **1 stale/false-positive claim verified clean**.
 - Reporting rule for future passes: each Codex pass should end with a counter
   such as `verified closed this pass`, `verified stale/false-positive this
@@ -56,6 +56,7 @@ Drew asked for a concrete plan to harden Grainline against AI-assisted attacker 
 35. **[LOW-MEDIUM HARDENED 2026-05-14] Public similar-listings route lacked IP rate limiting before DB work.** `/api/listings/[id]/similar` is intentionally public, but it performs Prisma lookup plus raw SQL candidate scoring. It now uses fail-closed `safeRateLimit(searchRatelimit, getIP(req))` before DB work, and unauthenticated API routes are regression-inventoried so new no-auth routes must be allowlisted deliberately. Regression coverage: `tests/public-api-auth-inventory.test.mjs`, `tests/public-cron-search-hardening.test.mjs`.
 36. **[LOW-MEDIUM HARDENED 2026-05-14] Optional-public and signed-in fan-out GET routes had read-amplification gaps.** The no-auth inventory correctly caught routes with no local auth boundary, but optional-auth GET handlers can still expose public Prisma work before auth is required. Blog comment reads, commission detail reads, and follow-count reads now run `safeRateLimit(searchRatelimit, getIP(req))` before public DB work. Signed-in cart contents, message history polling, notification lists, and seller analytics/recent-sales now use dedicated fail-closed read limiters before fan-out queries. Regression coverage: `tests/api-read-rate-limit-sweep.test.mjs`.
 37. **[LOW HARDENED 2026-05-14] Empty message-thread submissions could bump conversations.** The message composer UI prevents empty sends, but the server action accepted forged submissions with no text and no valid attachments, then updated `Conversation.updatedAt`. The server action now returns an error before conversation lookup/update work when both body and normalized attachments are empty, and message-email failures from the action emit bounded Sentry evidence. Regression coverage: `tests/custom-order-admin-thread-followups.test.mjs`.
+38. **[LOW-MEDIUM HARDENED 2026-05-14] Seller listing server actions lacked mutation rate limits.** API listing mutation routes were rate-limited, but dashboard/server-action status changes and public-shop listing actions could still be invoked repeatedly by a signed-in seller after passing auth/ownership checks. Dashboard status/archive actions and shop hide/unhide/mark-sold/mark-available/publish/archive actions now run `listingMutationRatelimit` before ownership DB lookups. Regression coverage: `tests/seller-ops-hardening.test.mjs`.
 
 ## 2026-05-12 — Codex resumed: Claude-change audit + launch polish
 

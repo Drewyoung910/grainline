@@ -97,4 +97,29 @@ describe("seller operational route hardening", () => {
     assert.match(customListing, /WHERE id = \$\{created\.id\}\s+AND "sellerId" = \$\{seller\.id\}/);
     assert.match(editListing, /where: \{ id: listingId, sellerId: listing\.sellerId, status: ListingStatus\.ACTIVE, updatedAt: updatedListing\.updatedAt \}/);
   });
+
+  it("rate-limits seller listing server actions before owner mutation work", () => {
+    const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+    const dashboard = source("src/app/dashboard/page.tsx");
+
+    assert.match(shopActions, /listingMutationRatelimit/);
+    assert.match(shopActions, /safeRateLimit\(listingMutationRatelimit, userId\)/);
+    assert.ok(
+      shopActions.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
+        shopActions.indexOf("prisma.user.findUnique"),
+      "shop listing actions should rate-limit before ownership DB lookups",
+    );
+
+    assert.match(dashboard, /listingMutationRatelimit/);
+    assert.ok(
+      dashboard.indexOf("safeRateLimit(listingMutationRatelimit, userId)") <
+        dashboard.indexOf("const me = await prisma.user.findUnique"),
+      "dashboard listing status action should rate-limit before ownership DB lookup",
+    );
+    assert.ok(
+      dashboard.lastIndexOf("safeRateLimit(listingMutationRatelimit, userId)") <
+        dashboard.lastIndexOf("const me = await prisma.user.findUnique"),
+      "dashboard listing archive action should rate-limit before ownership DB lookup",
+    );
+  });
 });

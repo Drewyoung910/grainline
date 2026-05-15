@@ -12,7 +12,7 @@ import { softDeleteListingWithCleanup } from "@/lib/listingSoftDelete";
 import { archiveListingBlockReason, hideListingBlockReason } from "@/lib/listingActionState";
 import DismissibleBanner from "@/components/DismissibleBanner";
 import ResubmitButton from "@/components/ResubmitButton";
-import { safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
+import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
@@ -31,6 +31,9 @@ async function setStatus(
   "use server";
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "Sign in to update listings." };
+
+  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
+  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
   // ensure ownership
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
@@ -111,6 +114,9 @@ async function deleteListing(
   "use server";
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "Sign in to archive listings." };
+
+  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
+  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) return { ok: false, error: "Account not found." };

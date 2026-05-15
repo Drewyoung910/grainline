@@ -18,25 +18,42 @@ import {
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
+import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
-// Ensure the calling user owns this listing; returns listing + seller or null
-async function getOwnedListing(listingId: string) {
-  const { userId } = await auth();
-  if (!userId) return null;
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
-  if (!me) return null;
-  if (me.banned || me.deletedAt) return null;
+async function findOwnedListing(listingId: string, ownerId: string) {
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
     include: { seller: true },
   });
-  if (!listing || listing.seller.userId !== me.id) return null;
+  if (!listing || listing.seller.userId !== ownerId) return null;
   return listing;
+}
+
+type OwnedListing = NonNullable<Awaited<ReturnType<typeof findOwnedListing>>>;
+type OwnedListingResult =
+  | { ok: true; listing: OwnedListing }
+  | { ok: false; error: string };
+
+// Ensure the calling user owns this listing and the action is rate-limited.
+async function getOwnedListing(listingId: string): Promise<OwnedListingResult> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "Sign in to update listings." };
+
+  const { success } = await safeRateLimit(listingMutationRatelimit, userId);
+  if (!success) return { ok: false, error: "Too many listing updates. Try again shortly." };
+
+  const me = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, banned: true, deletedAt: true },
+  });
+  if (!me) return { ok: false, error: "Account not found." };
+  if (me.banned || me.deletedAt) return { ok: false, error: "Account access is restricted." };
+
+  const listing = await findOwnedListing(listingId, me.id);
+  if (!listing) return { ok: false, error: "Listing not found." };
+  return { ok: true, listing };
 }
 
 function revalidateListingSurfaces(listingId: string, sellerId: string) {
@@ -113,8 +130,9 @@ async function syncThreshold(sellerId: string) {
 }
 
 export async function hideListingAction(listingId: string) {
-  const listing = await getOwnedListing(listingId);
-  if (!listing) return { ok: false, error: "Listing not found." };
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+  const listing = owned.listing;
   const blockReason = hideListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
   const result = await prisma.listing.updateMany({
@@ -129,8 +147,9 @@ export async function hideListingAction(listingId: string) {
 }
 
 export async function unhideListingAction(listingId: string) {
-  const listing = await getOwnedListing(listingId);
-  if (!listing) return { error: "Listing not found." };
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { error: owned.error };
+  const listing = owned.listing;
   const blockReason = unhideListingBlockReason(listing);
   if (blockReason) return { error: blockReason };
   const result = await publishListingAction(listingId);
@@ -139,10 +158,13 @@ export async function unhideListingAction(listingId: string) {
 }
 
 export async function markSoldAction(listingId: string) {
-  const listing = await getOwnedListing(listingId);
-  if (!listing) return;
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+  const listing = owned.listing;
   // Only ACTIVE and SOLD_OUT can be marked as sold
-  if (listing.status !== "ACTIVE" && listing.status !== "SOLD_OUT") return;
+  if (listing.status !== "ACTIVE" && listing.status !== "SOLD_OUT") {
+    return { ok: false, error: "Only active or sold-out listings can be marked sold." };
+  }
   const result = await prisma.listing.updateMany({
     where: {
       id: listingId,
@@ -151,15 +173,17 @@ export async function markSoldAction(listingId: string) {
     },
     data: { status: ListingStatus.SOLD },
   });
-  if (result.count === 0) return;
+  if (result.count === 0) return { ok: false, error: "Listing state changed; refresh and try again." };
   await syncThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_mark_sold");
   revalidateListingSurfaces(listingId, listing.sellerId);
+  return { ok: true };
 }
 
 export async function deleteListingAction(listingId: string) {
-  const listing = await getOwnedListing(listingId);
-  if (!listing) return { ok: false, error: "Listing not found." };
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { ok: false, error: owned.error };
+  const listing = owned.listing;
   const blockReason = archiveListingBlockReason(listing);
   if (blockReason) return { ok: false, error: blockReason };
   // Soft delete: preserve order history, remove current shopping intent records.
@@ -185,8 +209,9 @@ export async function deleteListingAction(listingId: string) {
 }
 
 export async function markAvailableAction(listingId: string) {
-  const listing = await getOwnedListing(listingId);
-  if (!listing) return { error: "Listing not found." };
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { error: owned.error };
+  const listing = owned.listing;
   const blockReason = markAvailableBlockReason(listing);
   if (blockReason) return { error: blockReason };
   // Seller-initiated reactivation must go through AI/admin review.
@@ -197,8 +222,9 @@ export async function markAvailableAction(listingId: string) {
 }
 
 export async function publishListingAction(listingId: string): Promise<{ status: "ACTIVE" | "PENDING_REVIEW" } | { error: string }> {
-  const listing = await getOwnedListing(listingId);
-  if (!listing) return { status: "PENDING_REVIEW" };
+  const owned = await getOwnedListing(listingId);
+  if (!owned.ok) return { error: owned.error };
+  const listing = owned.listing;
   const blockReason = publishListingBlockReason(listing);
   if (blockReason) return { error: blockReason };
 
