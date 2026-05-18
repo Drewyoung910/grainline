@@ -1,4 +1,4 @@
-import { HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/requestBody";
 import {
   uploadedObjectVerificationError,
+  uploadFileSignatureMatches,
   uploadKeyBelongsToUser,
   verifyUploadVerificationToken,
 } from "@/lib/uploadVerificationToken";
@@ -31,6 +32,13 @@ const UPLOAD_VERIFY_BODY_MAX_BYTES = 16 * 1024;
 
 async function deleteObject(key: string) {
   await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+}
+
+async function objectPrefixBytes(key: string) {
+  const response = await r2.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key, Range: "bytes=0-511" }));
+  const body = response.Body as { transformToByteArray?: () => Promise<Uint8Array> } | undefined;
+  if (!body?.transformToByteArray) return new Uint8Array();
+  return body.transformToByteArray();
 }
 
 export async function POST(req: Request) {
@@ -107,6 +115,38 @@ export async function POST(req: Request) {
       });
     });
     return NextResponse.json({ error: verificationError }, { status: 400 });
+  }
+
+  let prefixBytes: Uint8Array;
+  try {
+    prefixBytes = await objectPrefixBytes(key);
+  } catch (error) {
+    await deleteObject(key).catch((cleanupError) => {
+      console.error("[upload verify] failed to delete unverifiable object:", cleanupError);
+      Sentry.captureException(cleanupError, {
+        level: "warning",
+        tags: { source: "upload_verify_cleanup", endpoint },
+        extra: { key },
+      });
+    });
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "upload_verify_read_signature", endpoint },
+      extra: { key },
+    });
+    return NextResponse.json({ error: "Uploaded object could not be verified" }, { status: 400 });
+  }
+
+  if (!uploadFileSignatureMatches(prefixBytes, contentType)) {
+    await deleteObject(key).catch((error) => {
+      console.error("[upload verify] failed to delete invalid object:", error);
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "upload_verify_cleanup", endpoint },
+        extra: { key },
+      });
+    });
+    return NextResponse.json({ error: "Uploaded file content did not match the signed file type." }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true, size: actualSize });

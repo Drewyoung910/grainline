@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 process.env.UPLOAD_VERIFICATION_SECRET = "test-upload-secret";
 
 const {
   createUploadVerificationToken,
+  uploadFileSignatureMatches,
   uploadedObjectVerificationError,
   uploadContentTypeMatches,
   uploadKeyBelongsToUser,
@@ -104,6 +106,33 @@ describe("upload verification tokens", () => {
       }),
       "Uploaded file type did not match the signed upload.",
     );
+  });
+
+  it("validates direct-upload file signatures for PDFs and videos", () => {
+    const pdf = new TextEncoder().encode("%PDF-1.7\n...");
+    const mp4 = new Uint8Array([
+      0x00, 0x00, 0x00, 0x18,
+      0x66, 0x74, 0x79, 0x70,
+      0x69, 0x73, 0x6f, 0x6d,
+      0x00, 0x00, 0x02, 0x00,
+      0x6d, 0x70, 0x34, 0x32,
+    ]);
+    const html = new TextEncoder().encode("<script>alert(1)</script>");
+
+    assert.equal(uploadFileSignatureMatches(pdf, "application/pdf"), true);
+    assert.equal(uploadFileSignatureMatches(mp4, "video/mp4"), true);
+    assert.equal(uploadFileSignatureMatches(mp4, "video/quicktime"), true);
+    assert.equal(uploadFileSignatureMatches(html, "application/pdf"), false);
+    assert.equal(uploadFileSignatureMatches(html, "video/mp4"), false);
+  });
+
+  it("verifies uploaded object signatures before accepting direct uploads", () => {
+    const route = readFileSync("src/app/api/upload/verify/route.ts", "utf8");
+
+    assert.match(route, /GetObjectCommand/);
+    assert.match(route, /Range: "bytes=0-511"/);
+    assert.match(route, /uploadFileSignatureMatches\(prefixBytes, contentType\)/);
+    assert.match(route, /Uploaded file content did not match the signed file type/);
   });
 
   it("does not fall back to the R2 access key as the verification secret", () => {

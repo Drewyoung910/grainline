@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 86.
-- Verified code/feature fix commits since 2026-05-13: 78.
+- Verified hardening/doc commits since 2026-05-13: 87.
+- Verified code/feature fix commits since 2026-05-13: 79.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 38 verified closed items in the 2026-05-14
+- Most recent reported pass total: 39 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -193,6 +193,11 @@ Last updated: 2026-05-18
     `blocked-uri`. Breadcrumb data now reduces blocked/source URLs to origins
     and strips document query strings through `cspReportBreadcrumbData()`.
     Commit: `fix: sanitize csp report breadcrumbs`.
+39. **Direct-upload media signature verification added** — code fix. R2 direct
+    uploads were already signed by key/endpoint/size/content-type metadata, but
+    `/api/upload/verify` now also reads the first 512 bytes and checks PDF/video
+    magic signatures before accepting direct-uploaded files.
+    Commit: `fix: verify direct upload file signatures`.
 
 ## Verified Stale / Not Fixed
 

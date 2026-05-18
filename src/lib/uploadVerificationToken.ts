@@ -110,3 +110,44 @@ export function uploadedObjectVerificationError({
   }
   return null;
 }
+
+function ascii(bytes: Uint8Array, start: number, length: number) {
+  return String.fromCharCode(...bytes.slice(start, start + length));
+}
+
+function hasIsoBaseMediaFileSignature(bytes: Uint8Array) {
+  if (bytes.length < 12) return false;
+  if (ascii(bytes, 4, 4) !== "ftyp") return false;
+
+  const knownBrands = new Set([
+    "isom",
+    "iso2",
+    "iso3",
+    "iso4",
+    "iso5",
+    "iso6",
+    "mp41",
+    "mp42",
+    "avc1",
+    "M4A ",
+    "M4V ",
+    "qt  ",
+  ]);
+
+  const checkLength = Math.min(bytes.length, 128);
+  for (let offset = 8; offset + 4 <= checkLength; offset += 4) {
+    if (knownBrands.has(ascii(bytes, offset, 4))) return true;
+  }
+  return false;
+}
+
+export function uploadFileSignatureMatches(bytes: Uint8Array, expectedContentType: string) {
+  const contentType = expectedContentType.split(";")[0].trim().toLowerCase();
+  if (contentType === "application/pdf") {
+    return bytes.length >= 5 && ascii(bytes, 0, 5) === "%PDF-";
+  }
+  if (contentType === "video/mp4" || contentType === "video/quicktime") {
+    return hasIsoBaseMediaFileSignature(bytes);
+  }
+  return true;
+}
