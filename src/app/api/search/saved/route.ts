@@ -47,6 +47,10 @@ async function getDbUserResult() {
   }
 }
 
+function normalizeSavedSearchTags(tags: string[] | undefined) {
+  return normalizeTags(tags ?? [], 20).sort((a, b) => a.localeCompare(b));
+}
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
 
   const normalizedQuery = q ? truncateText(q.trim().replace(/\s+/g, " "), 200) || null : null;
   const listingType = type === "IN_STOCK" || type === "MADE_TO_ORDER" ? (type as ListingType) : null;
-  const normalizedTags = normalizeTags(tags ?? [], 20);
+  const normalizedTags = normalizeSavedSearchTags(tags);
   const normalizedMin = typeof minPrice === "number" && Number.isFinite(minPrice) ? minPrice : null;
   const normalizedMax = typeof maxPrice === "number" && Number.isFinite(maxPrice) ? maxPrice : null;
   const normalizedShips = typeof shipsWithinDays === "number" && Number.isFinite(shipsWithinDays) ? shipsWithinDays : null;

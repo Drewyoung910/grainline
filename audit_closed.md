@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 78.
-- Verified code/feature fix commits since 2026-05-13: 70.
+- Verified hardening/doc commits since 2026-05-13: 79.
+- Verified code/feature fix commits since 2026-05-13: 71.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 30 verified closed items in the 2026-05-14
+- Most recent reported pass total: 31 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -153,6 +153,11 @@ Last updated: 2026-05-18
     `NODE_ENV === "development"`, `VERCEL !== "1"`, `VERCEL_ENV === undefined`,
     and `ENABLE_DEV_MAKE_ORDER === "true"`. Commit: `fix: harden dev order
     fixture gate`.
+31. **Saved-search tag-order duplicates canonicalized** — code fix. Saved-search
+    reads/writes were already rate-limited and capped at 25 rows per user, so
+    Claude's 10k-row DoS version was stale; the remaining real issue was
+    order-sensitive tag dedup. Writes now sort normalized tags before duplicate
+    lookup and create. Commit: `fix: canonicalize saved search tags`.
 
 ## Verified Stale / Not Fixed
 

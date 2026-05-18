@@ -262,7 +262,7 @@ Plus category label matches from `CATEGORY_VALUES`.
 
 ### Saved Searches
 
-`SavedSearch` model stores `userId`, `query`, `category`, `minPrice`, `maxPrice`, `tags[]`. API: `POST/GET/DELETE /api/search/saved`. Dashboard (`/dashboard`) shows a "Saved Searches" section with browse link and delete button per entry.
+`SavedSearch` model stores `userId`, `query`, `category`, `minPrice`, `maxPrice`, `tags[]`. API: `POST/GET/DELETE /api/search/saved`. Dashboard (`/dashboard`) shows a "Saved Searches" section with browse link and delete button per entry. Saved-search writes canonicalize `tags[]` through `normalizeTags(...).sort(localeCompare)` before duplicate lookup and create, so tag-order permutations cannot consume duplicate saved-search slots.
 
 ## SEO (complete)
 

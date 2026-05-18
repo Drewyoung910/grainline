@@ -83,6 +83,16 @@ describe("R49 account-state route guardrails", () => {
     assert.doesNotMatch(feedRoute, /Math\.min\(parseInt\(url\.searchParams\.get\("limit"/);
   });
 
+  it("canonicalizes saved-search tag order before duplicate lookup and create", () => {
+    const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+
+    assert.match(savedSearchRoute, /function normalizeSavedSearchTags/);
+    assert.match(savedSearchRoute, /normalizeTags\(tags \?\? \[\], 20\)\.sort\(\(a, b\) => a\.localeCompare\(b\)\)/);
+    assert.match(savedSearchRoute, /const normalizedTags = normalizeSavedSearchTags\(tags\)/);
+    assert.match(savedSearchRoute, /tags: \{ equals: normalizedTags \}/);
+    assert.match(savedSearchRoute, /tags: normalizedTags/);
+  });
+
   it("prevents blocked users from creating favorite notifications", () => {
     const text = source("src/app/api/favorites/route.ts");
 
