@@ -962,6 +962,8 @@ All `.limit()` calls are wrapped in one of two helpers from `src/lib/ratelimit.t
 
 **Server-action mutation sweep** (2026-05-18): blocked-user unblocks, dashboard blog deletes, custom-listing creation, listing edit saves, and dashboard Guild applications run fail-closed rate limits before current-user, seller, conversation, ownership, metrics, or high-cost form work. Guardrail coverage lives in `tests/server-action-rate-limit-sweep.test.mjs`.
 
+**Admin server-action rate-limit behavior** (2026-05-18): admin order/support/blog/broadcast/verification server actions run `adminActionRatelimit` before the local admin `prisma.user.findUnique()` lookup. Middleware and Admin PIN still remain the primary entry gates, but high-privilege server actions must keep this local cost-control layer.
+
 ## Seller Onboarding Flow (complete)
 
 A 5-step guided wizard at `/dashboard/onboarding` that walks new makers through shop setup.

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 72.
-- Verified code/feature fix commits since 2026-05-13: 64.
+- Verified hardening/doc commits since 2026-05-13: 73.
+- Verified code/feature fix commits since 2026-05-13: 65.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 24 verified closed items in the 2026-05-14
+- Most recent reported pass total: 25 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -124,6 +124,9 @@ Last updated: 2026-05-18
     Blocked-user unblocks, dashboard blog deletes, custom-listing creation,
     listing edit saves, and dashboard Guild applications now use local
     fail-closed limiters before DB/form/metrics work. Commit: `fix: rate-limit remaining user server actions`.
+25. **Admin server actions rate-limited before local admin lookup** — code fix.
+    Admin order/support/blog/broadcast/verification server actions now use
+    `adminActionRatelimit` before local admin-user DB lookups. Commit: `fix: rate-limit admin server actions`.
 
 ## Verified Stale / Not Fixed
 

@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
+import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 export type SupportRequestActionState = { ok: boolean; error?: string };
 
@@ -18,6 +19,8 @@ function isSupportRequestStatus(status: string): status is SupportRequestStatusV
 async function requireAdmin() {
   const { userId } = await auth();
   if (!userId) throw new Error("Unauthorized");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) throw new Error("Rate limited");
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },

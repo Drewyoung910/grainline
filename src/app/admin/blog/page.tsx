@@ -9,16 +9,24 @@ import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { createNotification } from "@/lib/notifications";
 import { logAdminAction } from "@/lib/audit";
 import { truncateText } from "@/lib/sanitize";
+import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
-async function approveComment(commentId: string) {
-  "use server";
+async function requireAdmin() {
   const { userId } = await auth();
   if (!userId) redirect("/");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) redirect("/");
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!me || me.banned || me.deletedAt || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
+  return me;
+}
+
+async function approveComment(commentId: string) {
+  "use server";
+  const me = await requireAdmin();
   await prisma.blogComment.update({ where: { id: commentId }, data: { approved: true } });
   await logAdminAction({
     adminId: me.id,
@@ -82,13 +90,7 @@ async function approveComment(commentId: string) {
 
 async function deleteComment(commentId: string) {
   "use server";
-  const { userId } = await auth();
-  if (!userId) redirect("/");
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, role: true, banned: true, deletedAt: true },
-  });
-  if (!me || me.banned || me.deletedAt || (me.role !== "EMPLOYEE" && me.role !== "ADMIN")) redirect("/");
+  const me = await requireAdmin();
   const deleted = await prisma.blogComment.delete({
     where: { id: commentId },
     select: { id: true, postId: true, authorId: true },

@@ -69,4 +69,23 @@ describe("admin server action guardrails", () => {
       );
     }
   });
+
+  it("rate-limits admin server actions before local admin DB lookups", () => {
+    for (const path of [
+      "src/app/admin/actions.ts",
+      "src/app/admin/support/actions.ts",
+      "src/app/admin/blog/page.tsx",
+      "src/app/admin/broadcasts/page.tsx",
+      "src/app/admin/verification/page.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(text, /adminActionRatelimit/, `${path} must use adminActionRatelimit`);
+      assert.match(text, /safeRateLimit\(adminActionRatelimit, userId\)/, `${path} must rate-limit by Clerk userId before DB lookup`);
+      assert.ok(
+        text.indexOf("safeRateLimit(adminActionRatelimit, userId)") <
+          text.indexOf("prisma.user.findUnique"),
+        `${path} must rate-limit before local admin user lookup`,
+      );
+    }
+  });
 });

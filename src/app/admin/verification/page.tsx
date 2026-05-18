@@ -18,6 +18,7 @@ import { logAdminAction } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -99,6 +100,8 @@ function guildMasterFailureDetails(
 async function requireAdmin() {
   const { userId } = await auth();
   if (!userId) redirect("/");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) redirect("/");
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },

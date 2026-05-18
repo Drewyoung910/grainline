@@ -7,11 +7,14 @@ import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
 import { logAdminAction } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
+import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 async function deleteBroadcast(formData: FormData) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
+  const { success } = await safeRateLimit(adminActionRatelimit, userId);
+  if (!success) return;
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },
