@@ -22,6 +22,7 @@ import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
+import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -159,6 +160,8 @@ async function updateListing(
 
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "Not signed in" };
+  const { success: rlOk } = await safeRateLimit(listingMutationRatelimit, userId);
+  if (!rlOk) return { ok: false, error: "Too many listing updates. Try again shortly." };
 
   const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 150);
   const description = truncateText(sanitizeRichText(String(formData.get("description") ?? "").trim()), 5000);

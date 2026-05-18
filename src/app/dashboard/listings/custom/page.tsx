@@ -19,6 +19,7 @@ import type { AIReviewResult } from "@/lib/ai-review";
 import { publicListingPath } from "@/lib/publicPaths";
 import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -29,6 +30,8 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
 
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard");
+  const { success: rlOk } = await safeRateLimit(listingCreateRatelimit, userId);
+  if (!rlOk) return { ok: false, error: "You can create up to 20 listings per day. Try again tomorrow." };
 
   const { me, seller } = await ensureSeller();
 

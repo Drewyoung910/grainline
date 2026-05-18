@@ -1,10 +1,12 @@
 // src/app/dashboard/verification/page.tsx
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
 import { truncateText } from "@/lib/sanitize";
+import { safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -177,6 +179,10 @@ export default async function VerificationPage() {
   // ── Server actions ─────────────────────────────────────────────────────────
   async function applyForGuildMember(formData: FormData) {
     "use server";
+    const { userId } = await auth();
+    if (!userId) redirect("/sign-in?redirect_url=/dashboard/verification");
+    const { success } = await safeRateLimit(verificationApplyRatelimit, userId);
+    if (!success) return;
     const { seller: s } = await ensureSeller();
     const craftDescription = truncateText(String(formData.get("craftDescription") ?? "").trim(), 500);
     const yearsExperience = parseInt(String(formData.get("yearsExperience") ?? "0"), 10);
@@ -233,6 +239,10 @@ export default async function VerificationPage() {
 
   async function applyForGuildMaster(formData: FormData) {
     "use server";
+    const { userId } = await auth();
+    if (!userId) redirect("/sign-in?redirect_url=/dashboard/verification");
+    const { success } = await safeRateLimit(verificationApplyRatelimit, userId);
+    if (!success) return;
     const { seller: s } = await ensureSeller();
     const craftBusiness = truncateText(String(formData.get("craftBusiness") ?? "").trim(), 500);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();

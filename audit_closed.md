@@ -19,13 +19,13 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-14
+Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 71.
-- Verified code/feature fix commits since 2026-05-13: 63.
+- Verified hardening/doc commits since 2026-05-13: 72.
+- Verified code/feature fix commits since 2026-05-13: 64.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 23 verified closed items in the 2026-05-14
+- Most recent reported pass total: 24 verified closed items in the 2026-05-14
   active tracker below, plus one stale report-route claim verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -120,6 +120,10 @@ Last updated: 2026-05-14
     Profile/shop/onboarding settings mutations now use `sellerProfileRatelimit`
     before seller/profile DB work, and notification mark-all-read uses
     `markReadRatelimit` plus a local banned/deleted guard. Commit: `fix: rate-limit settings server actions`.
+24. **Non-admin server-action mutation sweep rate-limited** — code fix.
+    Blocked-user unblocks, dashboard blog deletes, custom-listing creation,
+    listing edit saves, and dashboard Guild applications now use local
+    fail-closed limiters before DB/form/metrics work. Commit: `fix: rate-limit remaining user server actions`.
 
 ## Verified Stale / Not Fixed
 

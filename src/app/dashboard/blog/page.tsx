@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import ConfirmButton from "@/components/ConfirmButton";
+import { blogCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -14,6 +15,8 @@ async function deletePost(postId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
+  const { success } = await safeRateLimit(blogCreateRatelimit, userId);
+  if (!success) return;
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },

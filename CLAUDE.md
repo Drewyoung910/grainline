@@ -960,6 +960,8 @@ All `.limit()` calls are wrapped in one of two helpers from `src/lib/ratelimit.t
 
 **Server-action rate-limit behavior** (2026-05-14): seller profile, shop settings, onboarding step, FAQ, profile-media, and featured-listing server actions use `sellerProfileRatelimit` before seller/profile DB work. Dashboard notification "mark all read" uses `markReadRatelimit` before the current-user lookup and locally ignores banned/deleted accounts. Do not rely on middleware alone for these forged server-action POST surfaces.
 
+**Server-action mutation sweep** (2026-05-18): blocked-user unblocks, dashboard blog deletes, custom-listing creation, listing edit saves, and dashboard Guild applications run fail-closed rate limits before current-user, seller, conversation, ownership, metrics, or high-cost form work. Guardrail coverage lives in `tests/server-action-rate-limit-sweep.test.mjs`.
+
 ## Seller Onboarding Flow (complete)
 
 A 5-step guided wizard at `/dashboard/onboarding` that walks new makers through shop setup.
