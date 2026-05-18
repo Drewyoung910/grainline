@@ -2714,8 +2714,8 @@ Favorite creation must honor block state in both directions before writing `Favo
 
 ### Input sanitization (`src/lib/sanitize.ts`)
 
-- `sanitizeText(input)` — strips HTML tags, `javascript:` protocol, event handler attributes; used on short fields
-- `sanitizeRichText(input)` — strips `<script>`, `<iframe>`, `javascript:`, event handlers; used on long-form content
+- `sanitizeText(input)` — strips HTML tags, `javascript:` protocol, event handler attributes, and bidi controls; used on short fields
+- `sanitizeRichText(input)` — stores long-form user text as plain text by running `sanitize-html` with no allowed tags/attributes, then stripping dangerous protocols and event handler text. Do not preserve markup here; long-form fields render as React text nodes, and blog markdown has its own explicit `renderBlogMarkdown()` sanitizer.
 
 Applied at DB boundary: listing title/description (new + edit), seller displayName/tagline/bio, commission title/description, review text, broadcast messages.
 

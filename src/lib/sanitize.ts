@@ -1,3 +1,5 @@
+import sanitizeHtml from "sanitize-html";
+
 const BIDI_CONTROL_CHARS = /[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g;
 
 export function stripBidiControls(input: string): string {
@@ -9,13 +11,12 @@ export function normalizeUserText(input: string): string {
 }
 
 function stripHtmlTags(input: string): string {
-  let output = input;
-  for (let i = 0; i < 10; i++) {
-    const next = output.replace(/<[^>]*>/g, "");
-    if (next === output) break;
-    output = next;
-  }
-  return output.replace(/[<>]/g, "");
+  const output = sanitizeHtml(input, {
+    allowedTags: [],
+    allowedAttributes: {},
+    disallowedTagsMode: "discard",
+  });
+  return output.replace(/&lt;|&gt;/gi, "").replace(/[<>]/g, "");
 }
 
 // Strip HTML tags and dangerous characters from user input
@@ -42,11 +43,11 @@ export function truncateTextWithEllipsis(input: string, maxLength: number): stri
   return Array.from(input).length > Math.max(0, Math.floor(maxLength)) ? `${truncated}…` : truncated;
 }
 
-// For longer content (bio, description) — allow basic formatting but strip dangerous content
+// For longer content (bio, description) — store plain text and strip any HTML.
+// User text renders as React text nodes; do not preserve markup for a future
+// dangerouslySetInnerHTML sink to accidentally trust.
 export function sanitizeRichText(input: string): string {
-  return normalizeUserText(input)
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // strip script tags
-    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') // strip iframes
+  return stripHtmlTags(normalizeUserText(input))
     .replace(/\b(?:javascript|data|vbscript)\s*:/gi, '')
     .replace(/on\w+\s*=/gi, '')
     .trim()

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 74.
-- Verified code/feature fix commits since 2026-05-13: 66.
+- Verified hardening/doc commits since 2026-05-13: 75.
+- Verified code/feature fix commits since 2026-05-13: 67.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 26 verified closed items in the 2026-05-14
+- Most recent reported pass total: 27 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -131,6 +131,10 @@ Last updated: 2026-05-18
     Signed-in similar-listing requests now resolve the local user and exclude
     reciprocal blocked seller profiles before raw-SQL candidate selection.
     Commit: `fix: filter blocked sellers from similar listings`.
+27. **Rich-text sanitizer hardened against future HTML sinks** — code fix.
+    `sanitizeRichText()` now strips all HTML via `sanitize-html` before
+    protocol/event cleanup; blog markdown remains on its separate explicit
+    sanitizer. Commit: `fix: harden rich text sanitization`.
 
 ## Verified Stale / Not Fixed
 

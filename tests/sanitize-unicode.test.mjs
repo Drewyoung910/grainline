@@ -11,7 +11,7 @@ describe("unicode sanitization", () => {
   });
 
   it("strips nested or malformed HTML from plain text", () => {
-    assert.equal(sanitizeText("<<script>alert(1)</script>Chair"), "alert(1)Chair");
+    assert.equal(sanitizeText("<<script>alert(1)</script>Chair"), "Chair");
     assert.equal(sanitizeText("hello <b onclick=alert(1)>world</b>"), "hello world");
   });
 
@@ -31,6 +31,19 @@ describe("unicode sanitization", () => {
   it("supports bounded rich-text persistence without script content", () => {
     const cleaned = sanitizeRichText(`${"a".repeat(505)}<script>alert(1)</script>`);
     assert.equal(truncateText(cleaned, 500), "a".repeat(500));
+  });
+
+  it("strips active rich-text markup instead of preserving future HTML sinks", () => {
+    const cleaned = sanitizeRichText(
+      '<svg onload="alert(1)">bad</svg><object data="x"></object><style>body{}</style><b>Chair</b>',
+    );
+
+    assert.equal(cleaned, "badChair");
+    assert.doesNotMatch(cleaned, /svg|object|style|onload|<|>/i);
+  });
+
+  it("decodes entity-obfuscated protocols before protocol stripping", () => {
+    assert.equal(sanitizeRichText("j&#x61;vascript:alert(1)"), "alert(1)");
   });
 
   it("normalizes Cyrillic confusables before profanity matching", () => {
