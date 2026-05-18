@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 91.
-- Verified code/feature fix commits since 2026-05-13: 82.
+- Verified hardening/doc commits since 2026-05-13: 92.
+- Verified code/feature fix commits since 2026-05-13: 83.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 43 verified closed items in the 2026-05-14
+- Most recent reported pass total: 44 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -217,6 +217,11 @@ Last updated: 2026-05-18
     counter-outage deferrals roll back the claim attempt so quota pressure does
     not age legitimate jobs toward dead-lettering without a send attempt.
     Commit: `fix: retry email outbox quota outages`.
+44. **Email outbox dead-letter monitoring and retention added** — code fix.
+    Ops-health now reports `DEAD` outbox rows, and the daily
+    notification-prune cron removes `SENT`, `SKIPPED`, and `DEAD` outbox rows
+    after 30 days so recipient addresses and full rendered email HTML are not
+    retained indefinitely. Commit: `fix: prune stale email outbox rows`.
 
 ## Verified Stale / Not Fixed
 

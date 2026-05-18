@@ -5,6 +5,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
+import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,15 +25,18 @@ export async function GET(request: NextRequest) {
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
     try {
-      const [pruned, staleRefundLocks] = await Promise.all([
+      const [pruned, staleRefundLocks, emailOutboxPruned] = await Promise.all([
         pruneReadNotifications(cutoff),
         releaseStaleRefundLocks(),
+        pruneEmailOutboxRetention(),
       ]);
 
       const response = {
         pruned: pruned.count,
         pruneComplete: pruned.complete,
         staleRefundLocksReleased: staleRefundLocks.count,
+        emailOutboxPruned: emailOutboxPruned.count,
+        emailOutboxPruneComplete: emailOutboxPruned.complete,
       };
       await completeCronRun(cronRun, response);
       return NextResponse.json(response);

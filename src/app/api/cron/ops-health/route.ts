@@ -25,7 +25,12 @@ export async function GET(request: Request) {
       const failedCronSince = new Date(now.getTime() - FAILED_CRON_LOOKBACK_MS);
       const staleEmailBefore = new Date(now.getTime() - STALE_EMAIL_OUTBOX_MS);
 
-      const [failedCronRuns, staleEmailOutboxCount, overdueSupportRequestCount] = await Promise.all([
+      const [
+        failedCronRuns,
+        staleEmailOutboxCount,
+        deadEmailOutboxCount,
+        overdueSupportRequestCount,
+      ] = await Promise.all([
         prisma.cronRun.findMany({
           where: {
             status: "FAILED",
@@ -42,6 +47,9 @@ export async function GET(request: Request) {
             nextAttemptAt: { lt: staleEmailBefore },
           },
         }),
+        prisma.emailOutbox.count({
+          where: { status: "DEAD" },
+        }),
         prisma.supportRequest.count({
           where: {
             status: { in: ["OPEN", "IN_PROGRESS"] },
@@ -53,12 +61,14 @@ export async function GET(request: Request) {
       const issues = {
         failedCronRunCount: failedCronRuns.length,
         staleEmailOutboxCount,
+        deadEmailOutboxCount,
         overdueSupportRequestCount,
       };
 
       if (
         issues.failedCronRunCount > 0 ||
         issues.staleEmailOutboxCount > 0 ||
+        issues.deadEmailOutboxCount > 0 ||
         issues.overdueSupportRequestCount > 0
       ) {
         Sentry.captureMessage("Ops health check found actionable issues", {
