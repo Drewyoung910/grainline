@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { assertAdminPinCookieSecretConfigured } = await import("../src/lib/adminPin.ts");
@@ -32,5 +33,12 @@ describe("admin PIN cookie secret configuration", () => {
         NEXT_PHASE: "phase-production-build",
       }),
     );
+  });
+
+  it("sets admin PIN cookies with strict same-site semantics", () => {
+    const route = readFileSync("src/app/api/admin/verify-pin/route.ts", "utf8");
+
+    assert.match(route, /sameSite: "strict"/);
+    assert.doesNotMatch(route, /sameSite: "lax"/);
   });
 });

@@ -151,7 +151,7 @@ export async function POST(req: Request) {
     devRes.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: false,
-      sameSite: "lax",
+      sameSite: "strict",
       maxAge: ADMIN_PIN_MAX_AGE_SECONDS,
       path: "/",
     });
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
   res.cookies.set(ADMIN_PIN_COOKIE_NAME, cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     maxAge: ADMIN_PIN_MAX_AGE_SECONDS,
     path: "/",
   });
