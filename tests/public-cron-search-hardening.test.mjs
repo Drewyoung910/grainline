@@ -111,6 +111,9 @@ describe("cron and public route hardening", () => {
     assert.match(similarListings, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(similarListings, /rateLimitResponse\(rate\.reset, "Too many similar-listing requests\."\)/);
     assert.match(similarListings, /publicListingWhere\(\{ id \}\)/);
+    assert.match(similarListings, /getBlockedSellerProfileIdsFor/);
+    assert.match(similarListings, /l\."sellerId" != ALL\(\$\{blockedSellerIds\}\)/);
+    assert.match(similarListings, /me\?\.banned \|\| me\?\.deletedAt/);
     assert.match(similarListings, /sp\."stripeAccountVersion" IS NULL OR sp\."stripeAccountVersion" = 'v2'/);
   });
 

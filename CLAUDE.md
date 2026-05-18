@@ -553,7 +553,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ## Similar Items (redesigned 2026-04-15)
 
-- **`GET /api/listings/[id]/similar`** — weighted similarity scoring. Fetches up to 20 candidates via raw SQL, scores each with: tag overlap (3 pts/match), same category (5 pts), price proximity (0-3 pts, closer = more), title word overlap (2 pts/shared word). Returns up to 12 sorted by total score. Wide price range (10%-1000%) to fill section even with few listings. Returns full `ListingCardData` shape (id, title, priceCents, currency, status, listingType, stockQuantity, photoUrl, secondPhotoUrl, seller object).
+- **`GET /api/listings/[id]/similar`** — weighted similarity scoring. Fetches up to 20 candidates via raw SQL, scores each with: tag overlap (3 pts/match), same category (5 pts), price proximity (0-3 pts, closer = more), title word overlap (2 pts/shared word). Returns up to 12 sorted by total score. Wide price range (10%-1000%) to fill section even with few listings. Returns full `ListingCardData` shape (id, title, priceCents, currency, status, listingType, stockQuantity, photoUrl, secondPhotoUrl, seller object). For signed-in viewers, the route resolves the local user and excludes reciprocal blocked seller profiles before running candidate SQL; banned/deleted viewers receive 403.
 - **`SimilarItems`** (`src/components/SimilarItems.tsx`) — `"use client"` component; fetches on mount; horizontal scroll row using `ScrollFadeRow` + `ListingCard` (same card style as browse/homepage). Skeleton loading shows 4 placeholder cards. Hides section entirely if 0 results.
 - **Listing detail page** — `<SimilarItems listingId={id} />` in "You might also like" section
 

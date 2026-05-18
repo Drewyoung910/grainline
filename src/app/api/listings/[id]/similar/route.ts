@@ -1,8 +1,11 @@
 // src/app/api/listings/[id]/similar/route.ts
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
+import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 
 export const runtime = "nodejs";
 
@@ -46,6 +49,23 @@ export async function GET(
     if (!listing) return NextResponse.json({ listings: [] });
 
     const { category, tags, priceCents, title, sellerId } = listing;
+    const { userId } = await auth();
+    let blockedSellerIds: string[] = [];
+    if (userId) {
+      const me = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true, banned: true, deletedAt: true },
+      });
+      if (me?.banned || me?.deletedAt) {
+        return NextResponse.json({ error: "Account restricted" }, { status: 403 });
+      }
+      if (me) {
+        blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
+      }
+    }
+    const blockedSellerPredicate = blockedSellerIds.length > 0
+      ? Prisma.sql`AND l."sellerId" != ALL(${blockedSellerIds})`
+      : Prisma.empty;
 
     // Wide price range to get enough candidates
     const minPrice = Math.floor(priceCents * 0.1);
@@ -54,7 +74,7 @@ export async function GET(
     // Get up to 24 candidates via raw SQL with tag overlap + category match scoring.
     // Exclude the same seller because "More from this maker" already covers
     // same-seller items above the "You might also like" carousel.
-    const rows = await prisma.$queryRaw<SimilarRow[]>`
+    const rows = await prisma.$queryRaw<SimilarRow[]>(Prisma.sql`
       SELECT
         l.id,
         l.title,
@@ -81,6 +101,7 @@ export async function GET(
       WHERE
         l.id != ${id}
         AND l."sellerId" != ${sellerId}
+        ${blockedSellerPredicate}
         AND l.status = 'ACTIVE'
         AND l."isPrivate" = false
         AND l."priceCents" BETWEEN ${minPrice} AND ${maxPrice}
@@ -98,7 +119,7 @@ export async function GET(
         COALESCE((SELECT COUNT(*) FROM unnest(l.tags) t WHERE t = ANY(${tags})), 0) DESC,
         ABS(l."priceCents" - ${priceCents}) ASC
       LIMIT 24
-    `;
+    `);
 
     // Score each candidate with weighted similarity
     const scored = rows.map((r) => {

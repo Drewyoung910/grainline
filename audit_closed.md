@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 73.
-- Verified code/feature fix commits since 2026-05-13: 65.
+- Verified hardening/doc commits since 2026-05-13: 74.
+- Verified code/feature fix commits since 2026-05-13: 66.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 25 verified closed items in the 2026-05-14
-  active tracker below, plus one stale report-route claim verified clean.
+- Most recent reported pass total: 26 verified closed items in the 2026-05-14
+  active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
 
@@ -127,9 +127,17 @@ Last updated: 2026-05-18
 25. **Admin server actions rate-limited before local admin lookup** — code fix.
     Admin order/support/blog/broadcast/verification server actions now use
     `adminActionRatelimit` before local admin-user DB lookups. Commit: `fix: rate-limit admin server actions`.
+26. **Similar-listings carousel block filter restored** — code fix.
+    Signed-in similar-listing requests now resolve the local user and exclude
+    reciprocal blocked seller profiles before raw-SQL candidate selection.
+    Commit: `fix: filter blocked sellers from similar listings`.
 
 ## Verified Stale / Not Fixed
 
 1. **Report target access gap** — stale claim. Current `main` already requires
    reporter access for private order/message/thread/listing report targets and
    has guardrail coverage in `tests/user-report-target-access.test.mjs`.
+2. **Active-listing photo POST AI-review bypass chain** — stale claim. Current
+   `main` disables `POST /api/listings/[id]/photos` with HTTP 410; edit-page
+   photo changes are staged through `photoManifestJson` and reviewed only when
+   the seller presses Save.
