@@ -596,7 +596,13 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    Sentry.captureException(err);
+    Sentry.captureException(err, {
+      tags: { source: "checkout_seller_route", route: "/api/cart/checkout-seller" },
+      extra: {
+        reservedItemCount: reservedItems.length,
+        checkoutLockAcquired,
+      },
+    });
     console.error("POST /api/cart/checkout-seller error:", err);
 
     // Restore reserved stock if the Stripe session creation failed.

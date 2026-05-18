@@ -12,6 +12,8 @@ describe("R65 observability guardrails", () => {
       ["src/app/api/cart/route.ts", "cart_route", "/api/cart"],
       ["src/app/api/cart/add/route.ts", "cart_add_route", "/api/cart/add"],
       ["src/app/api/cart/update/route.ts", "cart_update_route", "/api/cart/update"],
+      ["src/app/api/cart/checkout/single/route.ts", "checkout_single_route", "/api/cart/checkout/single"],
+      ["src/app/api/cart/checkout-seller/route.ts", "checkout_seller_route", "/api/cart/checkout-seller"],
     ];
 
     for (const [routePath, sourceTag, route] of routes) {

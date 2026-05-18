@@ -529,7 +529,15 @@ export async function POST(req: Request) {
     if (accountResponse) return accountResponse;
 
     console.error("POST /api/cart/checkout/single error:", err);
-    Sentry.captureException(err);
+    Sentry.captureException(err, {
+      tags: { source: "checkout_single_route", route: "/api/cart/checkout/single" },
+      extra: {
+        reservedListingId,
+        reservedSellerId,
+        reservedQuantity,
+        checkoutLockAcquired,
+      },
+    });
 
     // Restore reserved stock if the Stripe session creation failed.
     // Without this, stock is permanently lost on Stripe/DB errors.

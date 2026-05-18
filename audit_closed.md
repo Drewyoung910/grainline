@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 87.
-- Verified code/feature fix commits since 2026-05-13: 79.
+- Verified hardening/doc commits since 2026-05-13: 88.
+- Verified code/feature fix commits since 2026-05-13: 80.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 39 verified closed items in the 2026-05-14
+- Most recent reported pass total: 40 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -198,6 +198,11 @@ Last updated: 2026-05-18
     `/api/upload/verify` now also reads the first 512 bytes and checks PDF/video
     magic signatures before accepting direct-uploaded files.
     Commit: `fix: verify direct upload file signatures`.
+40. **Checkout primary exception telemetry tagged** — code fix. Single-listing
+    and seller-cart checkout routes no longer use bare outer
+    `Sentry.captureException(err)`; primary unexpected failures carry explicit
+    route/source tags plus bounded reservation context.
+    Commit: `fix: tag checkout route exceptions`.
 
 ## Verified Stale / Not Fixed
 
