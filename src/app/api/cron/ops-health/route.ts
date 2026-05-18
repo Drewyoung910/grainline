@@ -88,7 +88,7 @@ export async function GET(request: Request) {
 
       const response = { ok: Object.values(issues).every((count) => count === 0), ...issues };
       await completeCronRun(cronRun, response);
-      return NextResponse.json(response);
+      return NextResponse.json(response, { status: response.ok ? 200 : 503 });
     } catch (error) {
       await failCronRun(cronRun, error);
       Sentry.captureException(error, { tags: { source: "cron_ops_health" } });

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 92.
-- Verified code/feature fix commits since 2026-05-13: 83.
+- Verified hardening/doc commits since 2026-05-13: 93.
+- Verified code/feature fix commits since 2026-05-13: 84.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 44 verified closed items in the 2026-05-14
+- Most recent reported pass total: 45 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -222,6 +222,12 @@ Last updated: 2026-05-18
     notification-prune cron removes `SENT`, `SKIPPED`, and `DEAD` outbox rows
     after 30 days so recipient addresses and full rendered email HTML are not
     retained indefinitely. Commit: `fix: prune stale email outbox rows`.
+45. **Ops-health Sentry monitor reflects actionable issues** — code fix.
+    `/api/cron/ops-health` now returns 503 when it finds failed cron runs,
+    stale/dead outbox jobs, or overdue support requests, after recording the
+    completed local `CronRun`; this keeps the Sentry cron check-in red instead
+    of reporting a green 200 while warning separately.
+    Commit: `fix: mark ops health unhealthy on issues`.
 
 ## Verified Stale / Not Fixed
 

@@ -54,6 +54,13 @@ describe("cron and public route hardening", () => {
     assert.match(health, /healthResponsePayload\(cachedHealth!, verbose, cached\)/);
   });
 
+  it("marks ops-health cron check-ins unhealthy when actionable issues exist", () => {
+    const route = source("src/app/api/cron/ops-health/route.ts");
+
+    assert.match(route, /deadEmailOutboxCount/);
+    assert.match(route, /status:\s*response\.ok \? 200 : 503/);
+  });
+
   it("keeps dev-only order fixtures disabled outside local development", () => {
     const route = source("src/app/api/dev/make-order/route.ts");
 
