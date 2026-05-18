@@ -56,7 +56,7 @@ Visual standards for all UI work on this codebase. Do not deviate without explic
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.2.4 (App Router), React 19.2.5, TypeScript
+- **Framework**: Next.js 16.2.6 (App Router), React 19.2.5, TypeScript
 - **Styling**: Tailwind CSS 4
 - **Database**: PostgreSQL via Prisma ORM
 - **Auth**: Clerk (`@clerk/nextjs`)
@@ -2765,7 +2765,7 @@ Migration `20260331205748_charges_enabled`: `chargesEnabled Boolean @default(fal
 | `X-Frame-Options` | `SAMEORIGIN` |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Cross-Origin-Opener-Policy` | `same-origin-allow-popups` |
 | `Cross-Origin-Resource-Policy` | `same-site` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(self)` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
@@ -3026,7 +3026,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 ### Critical fixes
 - **@clerk/nextjs 7.0.7 → 7.2.3** — fixes middleware route protection bypass (GHSA-vqx2-fgx2-5wq9). Attacker could access `/dashboard`, `/admin`, etc. without auth.
 - **@clerk/nextjs 7.2.3 → 7.3.0** (2026-05-01) — fixes authorization bypass when combining organization/billing/reverification checks (GHSA-w24r-5266-9c3c). Lockfile-only bump via `npm audit fix`; the package.json `^7.2.3` caret range already covered 7.3.0. Affected transitive packages: `@clerk/shared 4.8.2 → 4.9.0`, `@clerk/backend 3.2.13 → 3.4.4`, `@clerk/react 6.4.2 → 6.5.0`. CI's `npm audit --audit-level=high` had been red for ~24h before the patch.
-- **next 16.2.1 → 16.2.4** — fixes Server Components DoS (GHSA-q4gf-8mx6-v5v3). Crafted request crashes Vercel instance.
+- **next 16.2.1 → 16.2.6** — fixes Server Components DoS (GHSA-q4gf-8mx6-v5v3) and later Next 16.2 patch advisories. Crafted request crashes Vercel instance.
 - **Dependency audit overrides (2026-05-05)** — `@hono/node-server` is overridden to 1.19.13 to clear Prisma dev-tooling middleware-bypass advisories without downgrading Prisma, and `postcss` is pinned/overridden to 8.5.10 so Next's nested vulnerable 8.4.31 copy is deduped. `npm audit --audit-level=moderate` reports zero vulnerabilities after this override pass.
 
 ### High fixes
@@ -3379,7 +3379,7 @@ Real pagination (PAGE_SIZE + Prev/Next) should be added per page as row counts g
 ## Production Deployment
 
 - **Live at**: [thegrainline.com](https://thegrainline.com) — deployed to Vercel, DNS via Cloudflare
-- **Next.js** 16.2.4 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3)
+- **Next.js** 16.2.6 (upgraded from 16.2.1 — CVE-2025-55182 + GHSA-q4gf-8mx6-v5v3, plus later 16.2 patch advisories)
 - **Clerk** v7.3.0 in lockfile (upgraded from 7.0.7 — GHSA-vqx2-fgx2-5wq9 middleware bypass fix; 7.3.0 also fixes GHSA-w24r-5266-9c3c)
 - **Stripe SDK** 19.3 (`src/lib/stripe.ts` explicitly pins API version `2025-10-29.clover`)
 - **Prisma** 7.7.0 (upgraded from 7.6.0 via Dependabot)

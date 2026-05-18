@@ -61,6 +61,17 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("CLAUDE.md"), /pins `"2025-10-29\.clover"` explicitly/);
   });
 
+  it("keeps runtime security docs aligned with current Next and header config", () => {
+    const lock = JSON.parse(source("package-lock.json"));
+    const resolvedNext = lock.packages?.["node_modules/next"]?.version;
+    assert.equal(resolvedNext, "16.2.6");
+    assert.match(source("CLAUDE.md"), /Next\.js 16\.2\.6/);
+    assert.doesNotMatch(source("CLAUDE.md"), /Next\.js 16\.2\.4/);
+
+    assert.match(source("next.config.ts"), /Cross-Origin-Opener-Policy", value: "same-origin-allow-popups"/);
+    assert.match(source("CLAUDE.md"), /`Cross-Origin-Opener-Policy` \| `same-origin-allow-popups`/);
+  });
+
   it("keeps terms acceptance enforced server-side instead of only in the signup form", () => {
     const middleware = source("src/middleware.ts");
     assert.match(middleware, /isTermsAcceptanceAllowed/);

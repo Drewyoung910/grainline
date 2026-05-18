@@ -856,6 +856,7 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-18:** direct-upload verification now reads the first 512 bytes from R2 and verifies PDF/video magic signatures before accepting the object. Size and `Content-Type` were already bound to the signed token and R2 metadata, but the new byte check prevents arbitrary content uploaded with a forged client-declared media type from being accepted. Regression coverage lives in `tests/upload-verification-token.test.mjs`.
 - **Hardened 2026-05-18:** single-listing and seller-cart checkout routes now tag outer unexpected Sentry exceptions with explicit route/source metadata and bounded reservation counts/IDs. Stock-restoration and stale-lock cleanup paths were already tagged; this closes the bare primary checkout exception path. Regression coverage lives in `tests/r65-observability-guardrails.test.mjs`.
 - **Hardened 2026-05-18:** message-thread body media rendering now requires `isTrustedMediaUrl()` before turning bare URLs or parsed file-message URLs into image/PDF/download bubbles. Arbitrary external `https://...jpg/pdf` message text remains plain text, while trusted Grainline/legacy media continues rendering as attachments. Regression coverage lives in `tests/rendering-security.test.mjs`.
+- **Documented 2026-05-18:** security/runtime documentation now reflects the resolved `next@16.2.6` runtime and the actual `Cross-Origin-Opener-Policy: same-origin-allow-popups` header used for Clerk/Stripe popup compatibility. Regression coverage lives in `tests/verified-audit-followups.test.mjs`.
 
 Open work:
 

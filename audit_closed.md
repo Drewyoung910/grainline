@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 89.
+- Verified hardening/doc commits since 2026-05-13: 90.
 - Verified code/feature fix commits since 2026-05-13: 81.
-- Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 41 verified closed items in the 2026-05-14
+- Verified docs/audit-only commits since 2026-05-13: 9.
+- Most recent reported pass total: 42 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -207,6 +207,10 @@ Last updated: 2026-05-18
     `ThreadMessages` now renders image/PDF/download bubbles only for trusted
     Grainline/legacy media URLs; arbitrary external bare URLs remain plain text.
     Commit: `fix: trust-bound message media rendering`.
+42. **Runtime/security-header doc drift corrected** — docs/test fix. CLAUDE now
+    reflects the resolved `next@16.2.6` runtime and the actual
+    `Cross-Origin-Opener-Policy: same-origin-allow-popups` header used for
+    Clerk/Stripe popup compatibility. Commit: `docs: align security runtime docs`.
 
 ## Verified Stale / Not Fixed
 
