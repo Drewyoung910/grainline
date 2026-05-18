@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 83.
-- Verified code/feature fix commits since 2026-05-13: 75.
+- Verified hardening/doc commits since 2026-05-13: 84.
+- Verified code/feature fix commits since 2026-05-13: 76.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 35 verified closed items in the 2026-05-14
+- Most recent reported pass total: 36 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -178,6 +178,11 @@ Last updated: 2026-05-18
     admin PIN verification and local dev-bypass cookie issuance now set
     `sameSite: "strict"`, matching the documented privileged-cookie contract.
     Commit: `fix: make admin pin cookie strict`.
+36. **Sentry exception-message PII scrub restored** — code fix. `beforeSend()`
+    now scrubs top-level event messages, transaction names, exception values,
+    and exception stack-frame vars, so SDK/Prisma/email error strings cannot
+    bypass the existing request/extra/context/tag/breadcrumb privacy filter.
+    Commit: `fix: scrub sentry exception messages`.
 
 ## Verified Stale / Not Fixed
 

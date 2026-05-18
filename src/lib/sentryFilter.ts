@@ -13,7 +13,7 @@ const NOISY_PATTERNS = [
 
 const SECRET_KEY_PATTERN = /(authorization|cookie|set-cookie|email|ip[_-]?address|token|secret|password|api[_-]?key|session|clerk|stripe|resend)/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const TOKEN_QUERY_PATTERN = /(^|[?&])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s]+/gi;
+const TOKEN_QUERY_PATTERN = /(^|[?&\s])((?:token|signature|sig|code|session_id|client_secret)=)[^&\s]+/gi;
 
 function eventText(event: ErrorEvent, hint?: EventHint) {
   const exceptionValues = event.exception?.values?.map((value) => value.value).filter(Boolean).join(" ") ?? "";
@@ -33,7 +33,7 @@ function scrubString(value: string) {
 }
 
 function scrubValue(value: unknown, depth = 0): unknown {
-  if (depth > 5) return "[redacted-depth]";
+  if (depth > 8) return "[redacted-depth]";
   if (typeof value === "string") return scrubString(value);
   if (value == null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => scrubValue(item, depth + 1));
@@ -56,6 +56,10 @@ function scrubHeaders(headers: Record<string, string>) {
 export function beforeSend(event: ErrorEvent, hint?: EventHint): ErrorEvent | null {
   const text = eventText(event, hint);
   if (NOISY_PATTERNS.some((pattern) => pattern.test(text))) return null;
+
+  if (typeof event.message === "string") event.message = scrubString(event.message);
+  if (typeof event.transaction === "string") event.transaction = scrubString(event.transaction);
+  if (event.exception) event.exception = scrubValue(event.exception) as ErrorEvent["exception"];
 
   if (event.request) {
     if (event.request.headers) event.request.headers = scrubHeaders(event.request.headers);

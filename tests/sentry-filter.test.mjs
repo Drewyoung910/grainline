@@ -70,6 +70,46 @@ describe("Sentry beforeSend filtering", () => {
     });
   });
 
+  it("redacts sensitive data from top-level messages, transactions, and exception values", () => {
+    const event = beforeSend({
+      message: "Failed to email buyer@example.com for /checkout/success?session_id=cs_test_123",
+      transaction: "GET /unsubscribe?token=secret-token&email=seller@example.com",
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value: "Stripe rejected customer buyer@example.com with client_secret=secret_123",
+            stacktrace: {
+              frames: [
+                {
+                  filename: "route.ts",
+                  vars: {
+                    email: "buyer@example.com",
+                    safe: "visible",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    assert.equal(
+      event.message,
+      "Failed to email [redacted-email] for /checkout/success?session_id=[redacted]",
+    );
+    assert.equal(event.transaction, "GET /unsubscribe?token=[redacted]&email=[redacted-email]");
+    assert.equal(
+      event.exception.values[0].value,
+      "Stripe rejected customer [redacted-email] with client_secret=[redacted]",
+    );
+    assert.deepEqual(event.exception.values[0].stacktrace.frames[0].vars, {
+      email: "[redacted]",
+      safe: "visible",
+    });
+  });
+
   it("redacts URLs and sensitive breadcrumb data before upload", () => {
     const breadcrumb = beforeBreadcrumb({
       category: "fetch",

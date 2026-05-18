@@ -1015,6 +1015,13 @@ Installed via Sentry wizard. Session replay disabled (bundle size trade-off).
 - Error tracking (unhandled exceptions + manual `Sentry.captureException`)
 - Tracing / performance monitoring
 - Logs integration
+- `src/lib/sentryFilter.ts` owns the Sentry privacy scrubber. It drops noisy
+  browser/network failures before upload, strips raw emails and tokenized query
+  params from request URLs, breadcrumbs, top-level `event.message`,
+  `event.transaction`, and `event.exception.values[*].value`, and recursively
+  scrubs `extra`, `contexts`, `tags`, and exception stack-frame vars. Do not add
+  raw emails, addresses, message bodies, checkout session IDs, Stripe client
+  secrets, or unsubscribe/signature tokens to Sentry payloads.
 
 ### Environment variables
 - `NEXT_PUBLIC_SENTRY_DSN` — public DSN, set in Vercel
