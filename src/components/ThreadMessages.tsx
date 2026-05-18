@@ -12,6 +12,7 @@ import {
 } from "@/lib/messageBodies";
 import { isTerminalMessageStreamStatus, messageStreamStatusMessage } from "@/lib/messageStreamState";
 import { publicListingPath } from "@/lib/publicPaths";
+import { isTrustedMediaUrl } from "@/lib/urlValidation";
 
 type Msg = {
   id: string;
@@ -30,9 +31,11 @@ type OtherUser = {
   name?: string | null;
 };
 
-const isImageUrl = (s: string) =>
-  /^https?:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
-const isPdfUrl = (s: string) => /^https?:\/\/.+\.pdf$/i.test(s.trim());
+const hasImageExtension = (s: string) =>
+  /^https:\/\/.+\.(png|jpe?g|gif|webp|avif)$/i.test(s.trim());
+const hasPdfExtension = (s: string) => /^https:\/\/.+\.pdf$/i.test(s.trim());
+const isTrustedImageUrl = (s: string) => isTrustedMediaUrl(s) && hasImageExtension(s);
+const isTrustedPdfUrl = (s: string) => isTrustedMediaUrl(s) && hasPdfExtension(s);
 
 function PdfChip({ url, name }: { url: string; name?: string | null }) {
   return (
@@ -397,14 +400,15 @@ export default function ThreadMessages({
 
           // ── Standard message rendering ──────────────────────────────────
           const file = parseFileMessageBody(body);
+          const fileUrlTrusted = file ? isTrustedMediaUrl(file.url) : false;
 
           const isImage = file
-            ? (file.type?.startsWith("image/") ?? false) || isImageUrl(file.url)
-            : isImageUrl(body);
+            ? fileUrlTrusted && ((file.type?.startsWith("image/") ?? false) || hasImageExtension(file.url))
+            : isTrustedImageUrl(body);
 
           const isPdf = file
-            ? file.type === "application/pdf" || isPdfUrl(file.url)
-            : isPdfUrl(body);
+            ? fileUrlTrusted && (file.type === "application/pdf" || hasPdfExtension(file.url))
+            : isTrustedPdfUrl(body);
 
           // Attachment bubbles are always light for readability
           const isAttachment = file || isImage || isPdf;
@@ -430,7 +434,7 @@ export default function ThreadMessages({
               );
             } else if (isPdf) {
               bubble = <PdfChip url={file.url} name={file.name ?? undefined} />;
-            } else {
+            } else if (fileUrlTrusted) {
               bubble = (
                 <a
                   href={file.url}
@@ -441,6 +445,8 @@ export default function ThreadMessages({
                   ⬇️ <span className="truncate max-w-[220px]">{file.name ?? "Download file"}</span>
                 </a>
               );
+            } else {
+              bubble = <div className="whitespace-pre-wrap break-words">{file.name ?? "Attachment unavailable"}</div>;
             }
           } else if (isImage) {
             bubble = (

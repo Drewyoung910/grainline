@@ -42,4 +42,15 @@ describe("rendering security guardrails", () => {
       assert.doesNotMatch(text, /rel="noreferrer"/, `${path} should use rel="noopener noreferrer"`);
     }
   });
+
+  it("keeps message-body media rendering behind trusted media origins", () => {
+    const thread = source("src/components/ThreadMessages.tsx");
+
+    assert.match(thread, /import \{ isTrustedMediaUrl \} from "@\/lib\/urlValidation"/);
+    assert.match(thread, /const isTrustedImageUrl = \(s: string\) => isTrustedMediaUrl\(s\) && hasImageExtension\(s\)/);
+    assert.match(thread, /const isTrustedPdfUrl = \(s: string\) => isTrustedMediaUrl\(s\) && hasPdfExtension\(s\)/);
+    assert.match(thread, /const fileUrlTrusted = file \? isTrustedMediaUrl\(file\.url\) : false/);
+    assert.doesNotMatch(thread, /const isImageUrl/);
+    assert.doesNotMatch(thread, /const isPdfUrl/);
+  });
 });
