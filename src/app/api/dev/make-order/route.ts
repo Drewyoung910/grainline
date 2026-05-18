@@ -16,8 +16,9 @@ const DEV_MAKE_ORDER_BODY_MAX_BYTES = 8 * 1024;
 
 function devFixturesEnabled() {
   return (
-    process.env.NODE_ENV !== "production" &&
-    !process.env.VERCEL_ENV &&
+    process.env.NODE_ENV === "development" &&
+    process.env.VERCEL !== "1" &&
+    process.env.VERCEL_ENV === undefined &&
     process.env.ENABLE_DEV_MAKE_ORDER === "true"
   );
 }

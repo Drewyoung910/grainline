@@ -116,7 +116,7 @@ Spot checks completed in this pass:
   - Result: no verified IDOR found in the inspected action path.
 
 - `src/app/api/dev/make-order/route.ts`
-  - Dev fixture route is disabled unless `NODE_ENV !== "production"`, `VERCEL_ENV` is absent, and `ENABLE_DEV_MAKE_ORDER === "true"`.
+  - Dev fixture route is disabled unless `NODE_ENV === "development"`, `VERCEL !== "1"`, `VERCEL_ENV === undefined`, and `ENABLE_DEV_MAKE_ORDER === "true"`.
   - Requires auth and non-suspended local user even when enabled.
   - Result: no verified production exposure found.
 
@@ -844,6 +844,7 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-18:** `sanitizeRichText()` now strips all HTML through `sanitize-html` with no allowed tags/attributes before protocol/event cleanup. Current long-form fields render as React text nodes, so this is defense-in-depth against a future `dangerouslySetInnerHTML` sink accidentally trusting seller/review/commission text. Regression coverage lives in `tests/sanitize-unicode.test.mjs`, `tests/rendering-security.test.mjs`, and `tests/blog-markdown-sanitization.test.mjs`.
 - **Hardened 2026-05-18:** Founding Maker number assignment now takes a short Postgres advisory transaction lock before reading `max(foundingMakerNumber)` and assigning the next permanent badge number. The helper still keeps listing transitions non-blocking, but high-concurrency publish bursts can no longer exhaust a bounded unique-conflict retry loop and silently miss eligible makers while slots remain. Regression coverage lives in `tests/post-launch-ui-followups.test.mjs`.
 - **Hardened 2026-05-18:** blog comment-approval notifications now include `dedupScope: commentId`, and maker blog edits preserve the first `publishedAt` timestamp through archive/draft cycles so follower fanout only happens on a post's first-ever publish. This closes the verified comment-notification collision and archive/re-publish follower spam chain without blocking legitimate post edits. Regression coverage lives in `tests/blog-action-guardrails.test.mjs`.
+- **Hardened 2026-05-18:** the `/api/dev/make-order` fixture gate is now a positive local-development-only check (`NODE_ENV === "development"`, `VERCEL !== "1"`, `VERCEL_ENV === undefined`, and `ENABLE_DEV_MAKE_ORDER === "true"`). This removes dependence on broad `NODE_ENV !== "production"` / falsy `VERCEL_ENV` checks while preserving the local-only test fixture. Regression coverage lives in `tests/public-cron-search-hardening.test.mjs`.
 
 Open work:
 

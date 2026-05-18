@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 77.
-- Verified code/feature fix commits since 2026-05-13: 69.
+- Verified hardening/doc commits since 2026-05-13: 78.
+- Verified code/feature fix commits since 2026-05-13: 70.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 29 verified closed items in the 2026-05-14
+- Most recent reported pass total: 30 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -147,6 +147,12 @@ Last updated: 2026-05-18
     blog edit publishes preserve the first `publishedAt` timestamp so
     archive/re-publish cycles do not refire follower notifications. Commit:
     `fix: tighten blog notification dedup`.
+30. **Dev order fixture gate made positive-local-only** — code fix. The
+    `/api/dev/make-order` fixture already required `NODE_ENV !== "production"`
+    and no Vercel env, but the gate now positively requires
+    `NODE_ENV === "development"`, `VERCEL !== "1"`, `VERCEL_ENV === undefined`,
+    and `ENABLE_DEV_MAKE_ORDER === "true"`. Commit: `fix: harden dev order
+    fixture gate`.
 
 ## Verified Stale / Not Fixed
 

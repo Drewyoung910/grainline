@@ -52,6 +52,17 @@ describe("cron and public route hardening", () => {
     assert.match(health, /healthResponsePayload\(cachedHealth!, verbose, cached\)/);
   });
 
+  it("keeps dev-only order fixtures disabled outside local development", () => {
+    const route = source("src/app/api/dev/make-order/route.ts");
+
+    assert.match(route, /process\.env\.NODE_ENV === "development"/);
+    assert.match(route, /process\.env\.VERCEL !== "1"/);
+    assert.match(route, /process\.env\.VERCEL_ENV === undefined/);
+    assert.match(route, /process\.env\.ENABLE_DEV_MAKE_ORDER === "true"/);
+    assert.doesNotMatch(route, /process\.env\.NODE_ENV !== "production"/);
+    assert.doesNotMatch(route, /!process\.env\.VERCEL_ENV/);
+  });
+
   it("keeps fail-open rate limits limited to telemetry, diagnostics, and escalation routes", () => {
     const allowedFailOpenRoutes = new Set([
       "src/app/api/csp-report/route.ts",
