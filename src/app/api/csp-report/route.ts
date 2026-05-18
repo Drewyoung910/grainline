@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import {
+  cspReportBreadcrumbData,
   cspReportDirective,
-  cspReportDocumentPath,
   cspReportSentryTags,
   sanitizeCspReportForSentry,
   type CspReportLike,
@@ -34,13 +34,7 @@ export async function POST(request: NextRequest) {
     Sentry.addBreadcrumb({
       category: "csp-violation",
       message: `CSP violation: ${directive}`,
-      data: {
-        blockedUri: report["blocked-uri"],
-        violatedDirective: report["violated-directive"],
-        documentPath: cspReportDocumentPath(report),
-        effectiveDirective: report["effective-directive"],
-        checkoutSurface: tags.checkout_surface,
-      },
+      data: cspReportBreadcrumbData(report),
       level: "warning",
     });
 

@@ -2784,7 +2784,7 @@ The `chargesEnabled Boolean @default(false)` field caused all existing sellers t
 
 `Content-Security-Policy` is **enforced** in `next.config.ts` as of 2026-04-02. Was report-only; switched after fixing missing `https://clerk.thegrainline.com` in `script-src-elem` (was causing 3K Sentry CSP violation events from Clerk's custom domain scripts). Clerk bot protection also requires `https://challenges.cloudflare.com` in `script-src`, `script-src-elem`, `frame-src`, and `connect-src` for Cloudflare Turnstile CAPTCHA.
 
-**Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs to Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode. Reports are sanitized through `src/lib/cspReport.ts` before Sentry capture: document/referrer query strings are stripped, blocked/source URLs are reduced to origins or CSP keywords, and checkout/cart document paths are tagged with `checkout_surface=true` so payment-page script/frame violations can be monitored separately for PCI evidence.
+**Violation reporting**: `POST /api/csp-report` — public route (in middleware `isPublic`); logs sanitized Sentry breadcrumbs; captures Sentry events for `script` and `frame` directive violations; logs to console in dev mode. Reports are sanitized through `src/lib/cspReport.ts` before Sentry capture: document/referrer query strings are stripped, blocked/source URLs are reduced to origins or CSP keywords, breadcrumbs use `cspReportBreadcrumbData()`, and checkout/cart document paths are tagged with `checkout_surface=true` so payment-page script/frame violations can be monitored separately for PCI evidence.
 
 **Directives summary**:
 

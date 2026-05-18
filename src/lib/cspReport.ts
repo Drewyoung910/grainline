@@ -74,6 +74,17 @@ export function sanitizeCspReportForSentry(report: CspReportLike): CspReportLike
   return sanitized;
 }
 
+export function cspReportBreadcrumbData(report: CspReportLike): Record<string, CspReportValue> {
+  const sanitized = sanitizeCspReportForSentry(report);
+  return {
+    blockedUri: sanitized["blocked-uri"],
+    violatedDirective: sanitized["violated-directive"],
+    documentPath: cspReportDocumentPath(report),
+    effectiveDirective: sanitized["effective-directive"],
+    checkoutSurface: isCheckoutCspReport(report) ? "true" : "false",
+  };
+}
+
 export function cspReportSentryTags(report: CspReportLike): Record<string, string> {
   const directive = cspReportDirective(report);
   return {

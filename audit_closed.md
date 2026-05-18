@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 85.
-- Verified code/feature fix commits since 2026-05-13: 77.
+- Verified hardening/doc commits since 2026-05-13: 86.
+- Verified code/feature fix commits since 2026-05-13: 78.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 37 verified closed items in the 2026-05-14
+- Most recent reported pass total: 38 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -188,6 +188,11 @@ Last updated: 2026-05-18
     `lastError` uses the shared email-error sanitizer, and Resend suppression
     details store safe webhook IDs/counts/hashes instead of full provider
     payloads. Commit: `fix: sanitize resend email observability`.
+38. **CSP report breadcrumb URL sanitization restored** — code fix. CSP report
+    Sentry tags/extras were already sanitized, but breadcrumbs still used raw
+    `blocked-uri`. Breadcrumb data now reduces blocked/source URLs to origins
+    and strips document query strings through `cspReportBreadcrumbData()`.
+    Commit: `fix: sanitize csp report breadcrumbs`.
 
 ## Verified Stale / Not Fixed
 

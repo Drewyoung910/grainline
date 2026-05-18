@@ -40,12 +40,14 @@ describe("cron and public route hardening", () => {
 
   it("keeps CSP reports and health checks bounded before exposing diagnostics", () => {
     const cspReport = source("src/app/api/csp-report/route.ts");
+    const cspReportState = source("src/lib/cspReport.ts");
     const health = source("src/app/api/health/route.ts");
 
     assert.match(cspReport, /safeRateLimitOpen\(cspReportRatelimit, getIP\(request\)\)/);
     assert.match(cspReport, /readBoundedText\(request, CSP_REPORT_BODY_MAX_BYTES\)/);
     assert.match(cspReport, /sanitizeCspReportForSentry/);
-    assert.match(cspReport, /checkout_surface/);
+    assert.match(cspReport, /cspReportBreadcrumbData\(report\)/);
+    assert.match(cspReportState, /checkout_surface/);
 
     assert.match(health, /safeRateLimitOpen\(healthRatelimit, getIP\(req\)\)/);
     assert.match(health, /isVerboseHealthRequest\(req\.url, process\.env\.HEALTH_CHECK_TOKEN\)/);

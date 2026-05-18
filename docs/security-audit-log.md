@@ -852,6 +852,7 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-18:** admin PIN cookies now use `sameSite: "strict"` in both normal verification and local dev-bypass issuance, matching the documented privileged-cookie contract. Regression coverage lives in `tests/admin-pin.test.mjs`.
 - **Hardened 2026-05-18:** the Sentry privacy filter now scrubs top-level `event.message`, `event.transaction`, and exception values/stack-frame vars in addition to request/user/extra/context/tag/breadcrumb data. This closes the highest-risk remaining observability PII path where SDK or Prisma error messages could carry raw emails or tokenized URLs. Regression coverage lives in `tests/sentry-filter.test.mjs`.
 - **Hardened 2026-05-18:** email/Resend observability now avoids raw recipient leakage outside the canonical suppression record. Dev-mode email logs use email hashes and subject lengths, Resend webhook `lastError` uses the shared email-error sanitizer, and suppression `details` stores only webhook type/id plus recipient counts/hashes instead of the full provider payload. Regression coverage lives in `tests/account-privacy-observability.test.mjs`.
+- **Hardened 2026-05-18:** CSP report breadcrumbs now use the same sanitized report helper as Sentry event extras, reducing blocked/source URLs to origins and stripping document-query strings before breadcrumb upload. The raw-tag/raw-extra part of the Claude finding was already fixed; the breadcrumb path was the remaining real gap. Regression coverage lives in `tests/csp-report-sanitization.test.mjs`.
 
 Open work:
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const {
+  cspReportBreadcrumbData,
   cspReportDirective,
   cspReportDocumentPath,
   cspReportSentryTags,
@@ -45,6 +46,20 @@ describe("CSP report sanitization", () => {
     assert.equal(sanitized["blocked-uri"], "https://evil.example");
     assert.equal(sanitized["source-file"], "https://evil.example");
     assert.doesNotMatch(JSON.stringify(sanitized), /cs_test_secret|token=secret/);
+  });
+
+  it("does not send raw blocked URLs to Sentry breadcrumbs", () => {
+    const report = {
+      "effective-directive": "script-src-elem",
+      "document-uri": "https://thegrainline.com/messages/convo_123?token=secret",
+      "blocked-uri": "https://evil.example/path/to/skimmer.js?token=secret",
+    };
+    const breadcrumb = cspReportBreadcrumbData(report);
+
+    assert.equal(breadcrumb.blockedUri, "https://evil.example");
+    assert.equal(breadcrumb.documentPath, "/messages/convo_123");
+    assert.equal(breadcrumb.effectiveDirective, "script-src-elem");
+    assert.doesNotMatch(JSON.stringify(breadcrumb), /token=secret|skimmer\.js/);
   });
 
   it("keeps non-checkout documents distinguishable", () => {
