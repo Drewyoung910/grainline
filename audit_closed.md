@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 93.
-- Verified code/feature fix commits since 2026-05-13: 84.
+- Verified hardening/doc commits since 2026-05-13: 94.
+- Verified code/feature fix commits since 2026-05-13: 85.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 45 verified closed items in the 2026-05-14
+- Most recent reported pass total: 46 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -228,6 +228,11 @@ Last updated: 2026-05-18
     completed local `CronRun`; this keeps the Sentry cron check-in red instead
     of reporting a green 200 while warning separately.
     Commit: `fix: mark ops health unhealthy on issues`.
+46. **Verbose health token comparison made constant-time** — code fix.
+    `/api/health` still returns only `{ ok }` anonymously, but verbose
+    dependency details now require `HEALTH_CHECK_TOKEN` through the same
+    SHA-256 `timingSafeEqual` pattern used by cron auth instead of raw string
+    equality. Commit: `fix: harden verbose health token compare`.
 
 ## Verified Stale / Not Fixed
 

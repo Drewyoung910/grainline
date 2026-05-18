@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -20,6 +21,14 @@ describe("health route state helpers", () => {
     assert.equal(isVerboseHealthRequest("https://example.test/api/health?token=wrong", "secret"), false);
     assert.equal(isVerboseHealthRequest("https://example.test/api/health?token=secret", ""), false);
     assert.equal(isVerboseHealthRequest("not a url", "secret"), false);
+  });
+
+  it("compares verbose health tokens with a constant-time digest check", () => {
+    const source = readFileSync("src/lib/healthState.ts", "utf8");
+
+    assert.match(source, /timingSafeEqual/);
+    assert.match(source, /sha256\(supplied\), sha256\(token\)/);
+    assert.doesNotMatch(source, /supplied === token/);
   });
 
   it("hides backend check details from anonymous health responses", () => {

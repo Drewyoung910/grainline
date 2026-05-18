@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from "crypto";
+
 export const HEALTH_CACHE_MS = 30_000;
 
 type HealthCheckStatus = "ok" | "fail";
@@ -25,7 +27,12 @@ export function isVerboseHealthRequest(url: string, configuredToken: string | nu
   } catch {
     return false;
   }
-  return supplied === token;
+  if (!supplied) return false;
+  return timingSafeEqual(sha256(supplied), sha256(token));
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value).digest();
 }
 
 export function healthResponsePayload(result: HealthCheckResult, verbose: boolean, cached: boolean) {
