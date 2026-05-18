@@ -7,6 +7,7 @@ const {
   emailOutboxDedupKey,
   emailOutboxFailureState,
   emailOutboxProcessingStaleCutoff,
+  emailOutboxQuotaDeferralState,
   emailOutboxRetryDelayMs,
   isEmailOutboxProcessingStale,
   isTerminalEmailOutboxAttempt,
@@ -66,5 +67,33 @@ describe("email outbox state helpers", () => {
     assert.equal(terminalState.terminal, true);
     assert.equal(terminalState.status, "DEAD");
     assert.equal(terminalState.nextAttemptAt, null);
+  });
+
+  it("defers true daily quota exhaustion until the UTC reset", () => {
+    const resetAt = new Date("2026-04-29T00:00:00.000Z");
+    const state = emailOutboxQuotaDeferralState({
+      counterAvailable: true,
+      resetAt,
+      attempts: 3,
+      now,
+    });
+
+    assert.deepEqual(state.attempts, { decrement: 1 });
+    assert.equal(state.nextAttemptAt.toISOString(), resetAt.toISOString());
+    assert.equal(state.lastError, "Daily email outbox send cap reached");
+  });
+
+  it("uses retry cadence instead of UTC reset when the quota counter is unavailable", () => {
+    const resetAt = new Date("2026-04-29T00:00:00.000Z");
+    const state = emailOutboxQuotaDeferralState({
+      counterAvailable: false,
+      resetAt,
+      attempts: 2,
+      now,
+    });
+
+    assert.deepEqual(state.attempts, { decrement: 1 });
+    assert.equal(state.nextAttemptAt.toISOString(), new Date(now.getTime() + 120_000).toISOString());
+    assert.equal(state.lastError, "Daily email outbox send cap unavailable");
   });
 });

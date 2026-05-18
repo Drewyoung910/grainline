@@ -11,6 +11,7 @@ import {
   emailOutboxProcessingStaleCutoff,
   emailOutboxDedupKey,
   emailOutboxFailureState,
+  emailOutboxQuotaDeferralState,
 } from "@/lib/emailOutboxState";
 import {
   EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT,
@@ -173,16 +174,24 @@ export async function processEmailOutboxBatch({
         return;
       }
 
-      const quota = await reserveDailySendAllowance(1, new Date());
+      const quotaCheckedAt = new Date();
+      const quota = await reserveDailySendAllowance(1, quotaCheckedAt);
       if (quota.allowed < 1) {
+        const deferral = emailOutboxQuotaDeferralState({
+          counterAvailable: quota.counterAvailable,
+          resetAt: quota.resetAt,
+          attempts,
+          now: quotaCheckedAt,
+        });
         await prisma.emailOutbox.update({
           where: { id: job.id },
           data: {
             status: "PENDING",
-            nextAttemptAt: quota.resetAt,
+            attempts: deferral.attempts,
+            nextAttemptAt: deferral.nextAttemptAt,
             lastError: quota.counterAvailable
-              ? `Daily email outbox send cap reached (${quota.limit}/day)`
-              : "Daily email outbox send cap unavailable",
+              ? `${deferral.lastError} (${quota.limit}/day)`
+              : deferral.lastError,
           },
         });
         capped += 1;
@@ -194,6 +203,7 @@ export async function processEmailOutboxBatch({
           extra: {
             emailOutboxId: job.id,
             limit: quota.limit,
+            nextAttemptAt: deferral.nextAttemptAt.toISOString(),
             resetAt: quota.resetAt.toISOString(),
             counterAvailable: quota.counterAvailable,
           },

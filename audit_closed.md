@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 90.
-- Verified code/feature fix commits since 2026-05-13: 81.
+- Verified hardening/doc commits since 2026-05-13: 91.
+- Verified code/feature fix commits since 2026-05-13: 82.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 42 verified closed items in the 2026-05-14
+- Most recent reported pass total: 43 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -211,6 +211,12 @@ Last updated: 2026-05-18
     reflects the resolved `next@16.2.6` runtime and the actual
     `Cross-Origin-Opener-Policy: same-origin-allow-popups` header used for
     Clerk/Stripe popup compatibility. Commit: `docs: align security runtime docs`.
+43. **Email outbox quota deferrals no longer stall or age jobs** — code fix.
+    A Redis quota-counter outage now retries on the normal capped outbox retry
+    cadence instead of waiting until UTC midnight, and both true daily-cap and
+    counter-outage deferrals roll back the claim attempt so quota pressure does
+    not age legitimate jobs toward dead-lettering without a send attempt.
+    Commit: `fix: retry email outbox quota outages`.
 
 ## Verified Stale / Not Fixed
 

@@ -46,3 +46,25 @@ export function emailOutboxFailureState(attempts: number, now = new Date()) {
     nextAttemptAt: terminal ? null : new Date(now.getTime() + emailOutboxRetryDelayMs(attempts)),
   };
 }
+
+export function emailOutboxQuotaDeferralState({
+  counterAvailable,
+  resetAt,
+  attempts,
+  now = new Date(),
+}: {
+  counterAvailable: boolean;
+  resetAt: Date;
+  attempts: number;
+  now?: Date;
+}) {
+  return {
+    attempts: { decrement: 1 },
+    nextAttemptAt: counterAvailable
+      ? resetAt
+      : new Date(now.getTime() + emailOutboxRetryDelayMs(attempts)),
+    lastError: counterAvailable
+      ? "Daily email outbox send cap reached"
+      : "Daily email outbox send cap unavailable",
+  };
+}
