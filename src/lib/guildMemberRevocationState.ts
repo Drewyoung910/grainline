@@ -4,6 +4,7 @@ export const GUILD_MEMBER_REVOKE_CASE_STATUSES = [
   CaseStatus.OPEN,
   CaseStatus.IN_DISCUSSION,
   CaseStatus.PENDING_CLOSE,
+  CaseStatus.UNDER_REVIEW,
 ] as const;
 
 export type GuildMemberRevocationGuard =

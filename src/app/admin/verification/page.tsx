@@ -19,6 +19,7 @@ import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { guildMemberRevocationCaseWhere } from "@/lib/guildMemberRevocationState";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -601,7 +602,28 @@ async function reinstateGuildMember(formData: FormData) {
   if (!sellerProfileId) return;
 
   const reinstatedAt = new Date();
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const reinstated = await prisma.$transaction(async (tx) => {
+    const seller = await tx.sellerProfile.findUnique({
+      where: { id: sellerProfileId },
+      select: { userId: true },
+    });
+    if (!seller) return false;
+
+    const longCase = await tx.case.findFirst({
+      where: guildMemberRevocationCaseWhere(seller.userId, {
+        kind: "unresolved_case",
+        caseCreatedBefore: ninetyDaysAgo,
+      }),
+      select: { id: true },
+    });
+    if (longCase) return false;
+
+    const activeListings = await tx.listing.count({
+      where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false },
+    });
+    if (activeListings < 5) return false;
+
     const updated = await tx.sellerProfile.updateMany({
       where: { id: sellerProfileId, guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
       data: {

@@ -27,4 +27,17 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.doesNotMatch(editPage, /await prisma\.listingVariantGroup\.deleteMany/);
     assert.doesNotMatch(editPage, /await prisma\.listingVariantGroup\.create/);
   });
+
+  it("keeps Guild case metrics and reinstatement checks on active unresolved cases", () => {
+    const metrics = source("src/lib/metrics.ts");
+    const revocationState = source("src/lib/guildMemberRevocationState.ts");
+    const adminVerification = source("src/app/admin/verification/page.tsx");
+
+    assert.match(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \}/);
+    assert.doesNotMatch(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*createdAt: \{ gte: periodStart \}/);
+    assert.match(revocationState, /CaseStatus\.UNDER_REVIEW/);
+    assert.match(adminVerification, /guildMemberRevocationCaseWhere/);
+    assert.match(adminVerification, /caseCreatedBefore: ninetyDaysAgo/);
+    assert.match(adminVerification, /activeListings < 5/);
+  });
 });

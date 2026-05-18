@@ -13,7 +13,7 @@ describe("guild member revocation state", () => {
 
     assert.deepEqual(guildMemberRevocationCaseWhere("user_1", guard), {
       sellerId: "user_1",
-      status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE"] },
+      status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] },
       createdAt: { lt: cutoff },
     });
     assert.deepEqual(guildMemberRevocationSellerWhere("seller_1", "user_1", guard), {
@@ -23,7 +23,7 @@ describe("guild member revocation state", () => {
         casesAsSeller: {
           some: {
             sellerId: "user_1",
-            status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE"] },
+            status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] },
             createdAt: { lt: cutoff },
           },
         },

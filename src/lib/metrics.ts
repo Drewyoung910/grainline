@@ -120,7 +120,6 @@ export async function calculateSellerMetrics(
         where: {
           sellerId: seller.userId,
           status: { notIn: ["RESOLVED", "CLOSED"] },
-          createdAt: { gte: periodStart },
         },
       }),
 

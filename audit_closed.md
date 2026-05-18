@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 79.
-- Verified code/feature fix commits since 2026-05-13: 71.
+- Verified hardening/doc commits since 2026-05-13: 80.
+- Verified code/feature fix commits since 2026-05-13: 72.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 31 verified closed items in the 2026-05-14
+- Most recent reported pass total: 32 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -158,6 +158,11 @@ Last updated: 2026-05-18
     Claude's 10k-row DoS version was stale; the remaining real issue was
     order-sensitive tag dedup. Writes now sort normalized tags before duplicate
     lookup and create. Commit: `fix: canonicalize saved search tags`.
+32. **Guild badge good-standing checks tightened** — code fix. Guild Master
+    metrics now count all unresolved cases, Guild Member revocation includes
+    `UNDER_REVIEW` cases older than 90 days, and admin reinstatement re-checks
+    unresolved-case and active-listing blockers before restoring the badge.
+    Commit: `fix: tighten guild reinstatement checks`.
 
 ## Verified Stale / Not Fixed
 
