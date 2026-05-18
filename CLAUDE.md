@@ -2501,8 +2501,8 @@ First-250-seller recognition program. Permanent badge granted on the seller's FI
 `maybeGrantFoundingMaker(sellerProfileId)`:
 1. Returns immediately if the seller already has the badge.
 2. Returns immediately if the seller has zero public ACTIVE listings.
-3. Otherwise opens a transaction: reads the current max `foundingMakerNumber`, assigns `max + 1` while `<= 250`, and runs an `updateMany` with `isFoundingMaker: false` guard.
-4. Retries unique-index collisions from concurrent grants up to three times. Numbers are never reused after gaps/deletions because the helper uses the current max number, not `count + 1`.
+3. Otherwise opens a transaction, takes the short Postgres advisory lock `pg_advisory_xact_lock(913337, 250)`, re-checks that the seller still has a public ACTIVE listing, reads the current max `foundingMakerNumber`, assigns `max + 1` while `<= 250`, and runs an `updateMany` with `isFoundingMaker: false` guard.
+4. Numbers are never reused after gaps/deletions because the helper uses the current max number, not `count + 1`. The advisory lock serializes only the tiny number-assignment window so high-concurrency publish bursts cannot exhaust a bounded retry loop and silently drop eligible makers while slots remain.
 5. Idempotent. Wrapped in try/catch so a grant failure never blocks the calling flow.
 6. The `foundingMakerNumber` unique index also enforces no-double-issue at the DB level.
 

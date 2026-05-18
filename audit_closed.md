@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 75.
-- Verified code/feature fix commits since 2026-05-13: 67.
+- Verified hardening/doc commits since 2026-05-13: 76.
+- Verified code/feature fix commits since 2026-05-13: 68.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 27 verified closed items in the 2026-05-14
+- Most recent reported pass total: 28 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -135,6 +135,13 @@ Last updated: 2026-05-18
     `sanitizeRichText()` now strips all HTML via `sanitize-html` before
     protocol/event cleanup; blog markdown remains on its separate explicit
     sanitizer. Commit: `fix: harden rich text sanitization`.
+28. **Founding Maker grant burst race serialized** — code fix. The current
+    helper already handled the two-concurrent-seller collision Claude described
+    with `max + 1` and unique-conflict retry, but a larger publish burst could
+    still exhaust the bounded retry count and silently miss eligible makers while
+    slots remained. Number assignment now uses a short Postgres advisory
+    transaction lock before reading max/assigning. Commit: `fix: serialize
+    founding maker grants`.
 
 ## Verified Stale / Not Fixed
 

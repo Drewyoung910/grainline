@@ -441,12 +441,16 @@ describe("post-launch UI follow-ups", () => {
     assert.match(sitemap, /\.\.\.customerPhotoRoutes/);
   });
 
-  it("grants Founding Maker numbers from max+1 with retry instead of reusing count gaps", () => {
+  it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
     const founding = source("src/lib/foundingMaker.ts");
 
+    assert.match(founding, /pg_advisory_xact_lock/);
+    assert.match(founding, /FOUNDING_MAKER_LOCK_NAMESPACE/);
     assert.match(founding, /_max: \{ foundingMakerNumber: true \}/);
-    assert.match(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS = 3/);
-    assert.match(founding, /isUniqueConstraintError\(err\)/);
+    assert.match(founding, /stillEligible/);
+    assert.match(founding, /maxWait: 5000, timeout: 10000/);
+    assert.doesNotMatch(founding, /FOUNDING_MAKER_GRANT_ATTEMPTS/);
+    assert.doesNotMatch(founding, /isUniqueConstraintError\(err\)/);
     assert.doesNotMatch(founding, /currentCount \+ 1/);
   });
 });

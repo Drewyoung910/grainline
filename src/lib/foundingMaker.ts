@@ -1,12 +1,8 @@
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
 
 const FOUNDING_MAKER_CAP = 250;
-const FOUNDING_MAKER_GRANT_ATTEMPTS = 3;
-
-function isUniqueConstraintError(err: unknown) {
-  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
-}
+const FOUNDING_MAKER_LOCK_NAMESPACE = 913337;
+const FOUNDING_MAKER_LOCK_KEY = 250;
 
 /**
  * Idempotent + race-safe grant of the Founding Maker badge to a seller.
@@ -18,8 +14,9 @@ function isUniqueConstraintError(err: unknown) {
  * Buyers never get the badge because buyers never create an ACTIVE listing.
  *
  * Safe to call from multiple code paths and concurrently. The transaction
- * does the count + assign atomically; the unique index on foundingMakerNumber
- * prevents accidental double-issue.
+ * takes a short Postgres advisory lock around max-number assignment so a burst
+ * of simultaneous seller grants cannot exhaust a fixed retry count. The unique
+ * index on foundingMakerNumber remains the database backstop.
  */
 export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<void> {
   try {
@@ -30,7 +27,7 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
     });
     if (!seller || seller.isFoundingMaker) return;
 
-    // Confirm the seller has at least one ACTIVE listing right now.
+    // Cheap pre-check: avoid taking the assignment lock if no public listing exists.
     const activeListingCount = await prisma.listing.count({
       where: {
         sellerId: sellerProfileId,
@@ -41,35 +38,39 @@ export async function maybeGrantFoundingMaker(sellerProfileId: string): Promise<
     if (activeListingCount === 0) return;
 
     // Assign from the current max number instead of count+1 so deleted/gapped
-    // numbers are never reused. Retry unique collisions from concurrent grants.
-    for (let attempt = 0; attempt < FOUNDING_MAKER_GRANT_ATTEMPTS; attempt++) {
-      try {
-        await prisma.$transaction(async (tx) => {
-          const currentMax = await tx.sellerProfile.aggregate({
-            where: { isFoundingMaker: true },
-            _max: { foundingMakerNumber: true },
-          });
-          const nextNumber = (currentMax._max.foundingMakerNumber ?? 0) + 1;
-          if (nextNumber > FOUNDING_MAKER_CAP) return;
+    // numbers are never reused. The advisory lock serializes only this tiny
+    // assignment window and avoids silently dropping eligible sellers during a
+    // high-concurrency publish burst.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(${FOUNDING_MAKER_LOCK_NAMESPACE}, ${FOUNDING_MAKER_LOCK_KEY})
+      `;
 
-          const updated = await tx.sellerProfile.updateMany({
-            where: { id: sellerProfileId, isFoundingMaker: false },
-            data: {
-              isFoundingMaker: true,
-              foundingMakerNumber: nextNumber,
-              foundingMakerAt: new Date(),
-            },
-          });
-          if (updated.count === 0) return;
-        });
-        return;
-      } catch (err) {
-        if (isUniqueConstraintError(err) && attempt < FOUNDING_MAKER_GRANT_ATTEMPTS - 1) {
-          continue;
-        }
-        throw err;
-      }
-    }
+      const stillEligible = await tx.listing.count({
+        where: {
+          sellerId: sellerProfileId,
+          status: "ACTIVE",
+          isPrivate: false,
+        },
+      });
+      if (stillEligible === 0) return;
+
+      const currentMax = await tx.sellerProfile.aggregate({
+        where: { isFoundingMaker: true },
+        _max: { foundingMakerNumber: true },
+      });
+      const nextNumber = (currentMax._max.foundingMakerNumber ?? 0) + 1;
+      if (nextNumber > FOUNDING_MAKER_CAP) return;
+
+      await tx.sellerProfile.updateMany({
+        where: { id: sellerProfileId, isFoundingMaker: false },
+        data: {
+          isFoundingMaker: true,
+          foundingMakerNumber: nextNumber,
+          foundingMakerAt: new Date(),
+        },
+      });
+    }, { maxWait: 5000, timeout: 10000 });
   } catch (err) {
     // Non-fatal: the listing transition is the primary work, the badge is a bonus.
     if (process.env.NODE_ENV !== "production") {
