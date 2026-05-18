@@ -600,10 +600,10 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ### Dashboard
 - **`/dashboard/blog`** — author's posts list with type/status badges, edit/delete/view actions
 - **`/dashboard/blog/new`** — create form via `BlogPostForm`; `createBlogPost` server action generates unique slug (appends `-2`, `-3` etc. on collision), calculates reading time, sets `authorType` and `sellerProfileId`, sets `publishedAt` if PUBLISHED
-- **`/dashboard/blog/[id]/edit`** — pre-filled `BlogPostForm`; `updateBlogPost` server action sets `publishedAt` on first publish transition, nulls it on unpublish
+- **`/dashboard/blog/[id]/edit`** — pre-filled `BlogPostForm`; `updateBlogPost` server action sets `publishedAt` only on the first publish transition and preserves it through draft/archive/re-publish cycles. Follower fanout for `FOLLOWED_MAKER_NEW_BLOG` only runs on that first-ever publish, not on archive/re-publish.
 
 ### Admin (`/admin/blog`)
-- Pending comments queue at top with approve/delete actions; all posts list with author, status, pending comment count badge; Blog link in admin sidebar with unapproved comment count badge
+- Pending comments queue at top with approve/delete actions; all posts list with author, status, pending comment count badge; Blog link in admin sidebar with unapproved comment count badge. Approved comment notifications pass `dedupScope: commentId` so multiple approved comments on the same post in the same day do not collide on the notification dedup key.
 
 ### Integrations
 - **Seller profile** (`/seller/[id]`) — "From the Workshop" section: up to 3 most recent published posts by this seller, shown as cards with cover image, type badge, title, excerpt, date

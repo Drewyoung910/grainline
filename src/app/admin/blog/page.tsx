@@ -62,6 +62,7 @@ async function approveComment(commentId: string) {
             title: `${commenterName} replied to your comment`,
             body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}`,
+            dedupScope: commentId,
           });
         }
       } else {
@@ -73,6 +74,7 @@ async function approveComment(commentId: string) {
             title: `${commenterName} commented on your post`,
             body: truncateText(comment.body, 60),
             link: `/blog/${comment.post.slug}`,
+            dedupScope: commentId,
           });
         }
       }

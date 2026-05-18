@@ -43,4 +43,21 @@ describe("blog dashboard action guardrails", () => {
       assert.doesNotMatch(text, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
     }
   });
+
+  it("deduplicates approved blog comment notifications per comment", () => {
+    const adminBlog = source("src/app/admin/blog/page.tsx");
+
+    assert.match(adminBlog, /type: "BLOG_COMMENT_REPLY"[\s\S]*dedupScope: commentId/);
+    assert.match(adminBlog, /type: "NEW_BLOG_COMMENT"[\s\S]*dedupScope: commentId/);
+  });
+
+  it("does not treat archive and republish as a brand-new blog post", () => {
+    const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+
+    assert.match(editPage, /const transitioningToPublished = newStatus === "PUBLISHED" && existing\.status !== "PUBLISHED"/);
+    assert.match(editPage, /const isFirstPublish = transitioningToPublished && existing\.publishedAt === null/);
+    assert.match(editPage, /if \(isFirstPublish\) \{\s*publishedAt = new Date\(\);/);
+    assert.match(editPage, /if \(isFirstPublish && updated\.sellerProfileId\)/);
+    assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);
+  });
 });

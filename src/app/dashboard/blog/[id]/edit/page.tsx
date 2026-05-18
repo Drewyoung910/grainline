@@ -128,15 +128,18 @@ export default async function EditBlogPostPage({
       verifiedFeaturedListings.some((listing) => listing.id === featuredId)
     );
 
-    // Set publishedAt if transitioning to PUBLISHED
+    // `publishedAt` is the first-publication timestamp. Keep it when a post is
+    // archived/drafted so re-publishing cannot look like a brand-new post.
+    const transitioningToPublished = newStatus === "PUBLISHED" && existing.status !== "PUBLISHED";
+    const isFirstPublish = transitioningToPublished && existing.publishedAt === null;
     let publishedAt: Date | null | undefined = undefined;
-    if (newStatus === "PUBLISHED" && existing.status !== "PUBLISHED") {
+    if (transitioningToPublished) {
       const { safeRateLimit, blogCreateRatelimit } = await import("@/lib/ratelimit");
       const { success: rlOk } = await safeRateLimit(blogCreateRatelimit, author.id);
       if (!rlOk) return { ok: false, error: "You can publish up to 3 blog posts per day." };
-      publishedAt = new Date();
-    } else if (newStatus !== "PUBLISHED") {
-      publishedAt = null;
+      if (isFirstPublish) {
+        publishedAt = new Date();
+      }
     }
 
     const updated = await prisma.blogPost.update({
@@ -162,8 +165,8 @@ export default async function EditBlogPostPage({
       revalidateBlogSearchCaches();
     }
 
-    // Notify followers when a maker blog post is first published
-    if (newStatus === "PUBLISHED" && existing.status !== "PUBLISHED" && updated.sellerProfileId) {
+    // Notify followers only on the first-ever publish, not on archive/republish.
+    if (isFirstPublish && updated.sellerProfileId) {
       after(async () => {
         try {
           const followers = await prisma.follow.findMany({

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 76.
-- Verified code/feature fix commits since 2026-05-13: 68.
+- Verified hardening/doc commits since 2026-05-13: 77.
+- Verified code/feature fix commits since 2026-05-13: 69.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 28 verified closed items in the 2026-05-14
+- Most recent reported pass total: 29 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -142,6 +142,11 @@ Last updated: 2026-05-18
     slots remained. Number assignment now uses a short Postgres advisory
     transaction lock before reading max/assigning. Commit: `fix: serialize
     founding maker grants`.
+29. **Blog notification dedup and republish spam tightened** — code fix.
+    Approved comment notifications now include `dedupScope: commentId`, and
+    blog edit publishes preserve the first `publishedAt` timestamp so
+    archive/re-publish cycles do not refire follower notifications. Commit:
+    `fix: tighten blog notification dedup`.
 
 ## Verified Stale / Not Fixed
 
