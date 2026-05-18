@@ -15,22 +15,28 @@ export async function mirrorStripeChargesEnabled({
     select: {
       id: true,
       chargesEnabled: true,
-      user: { select: { id: true } },
+      user: { select: { id: true, banned: true, deletedAt: true } },
     },
   });
 
-  if (!seller || seller.chargesEnabled === chargesEnabled) return;
+  if (!seller) return;
+
+  const localAccountActive = !seller.user.banned && !seller.user.deletedAt;
+  const effectiveChargesEnabled = chargesEnabled && localAccountActive;
+  if (seller.chargesEnabled === effectiveChargesEnabled) return;
 
   await prisma.sellerProfile.update({
     where: { id: seller.id },
-    data: { chargesEnabled },
+    data: { chargesEnabled: effectiveChargesEnabled },
   });
 
-  if (!chargesEnabled) {
+  if (!effectiveChargesEnabled) {
     logSecurityEvent("ownership_violation", {
       userId: seller.user.id,
       route,
-      reason: `Seller Stripe account disabled by Stripe: ${accountId}`,
+      reason: !localAccountActive && chargesEnabled
+        ? `Ignored Stripe charges_enabled=true for inactive local account: ${accountId}`
+        : `Seller Stripe account disabled by Stripe: ${accountId}`,
     });
   }
 }

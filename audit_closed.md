@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 81.
-- Verified code/feature fix commits since 2026-05-13: 73.
+- Verified hardening/doc commits since 2026-05-13: 82.
+- Verified code/feature fix commits since 2026-05-13: 74.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 33 verified closed items in the 2026-05-14
+- Most recent reported pass total: 34 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -169,6 +169,11 @@ Last updated: 2026-05-18
     signup and unsubscribe token signing now NFC-normalize before lowercasing so
     Unicode email variants stay aligned. Commit: `fix: normalize unsubscribe
     email inputs`.
+34. **Stripe charges mirror respects local inactive accounts** — code fix.
+    `mirrorStripeChargesEnabled()` now computes `chargesEnabled && local user
+    active`, so queued Stripe account events cannot re-enable seller
+    orderability after a ban or account deletion. Commit: `fix: keep stripe
+    mirror local-state safe`.
 
 ## Verified Stale / Not Fixed
 
