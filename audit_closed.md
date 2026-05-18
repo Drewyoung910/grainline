@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 84.
-- Verified code/feature fix commits since 2026-05-13: 76.
+- Verified hardening/doc commits since 2026-05-13: 85.
+- Verified code/feature fix commits since 2026-05-13: 77.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 36 verified closed items in the 2026-05-14
+- Most recent reported pass total: 37 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -183,6 +183,11 @@ Last updated: 2026-05-18
     and exception stack-frame vars, so SDK/Prisma/email error strings cannot
     bypass the existing request/extra/context/tag/breadcrumb privacy filter.
     Commit: `fix: scrub sentry exception messages`.
+37. **Email/Resend observability raw-recipient leakage reduced** — code fix.
+    Dev-mode email logs now use hashed recipient telemetry, Resend webhook
+    `lastError` uses the shared email-error sanitizer, and Resend suppression
+    details store safe webhook IDs/counts/hashes instead of full provider
+    payloads. Commit: `fix: sanitize resend email observability`.
 
 ## Verified Stale / Not Fixed
 

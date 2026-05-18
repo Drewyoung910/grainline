@@ -191,7 +191,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
   const unsubscribeUrl = buildUnsubscribeUrl(recipient);
   const htmlForRecipient = html.replaceAll(UNSUBSCRIBE_URL_PLACEHOLDER, unsubscribeUrl ?? `${APP_URL}/unsubscribe`);
   if (!HAS_RESEND) {
-    console.log("[email:dev]", { to: recipient, subject: sanitizedSubject });
+    console.log("[email:dev]", { emailHash, subjectLength: sanitizedSubject.length });
     return;
   }
   try {

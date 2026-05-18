@@ -56,9 +56,11 @@ describe("account and privacy route observability guardrails", () => {
     const email = source("src/lib/email.ts");
 
     assert.match(email, /hashEmailForTelemetry/);
+    assert.match(email, /console\.log\("\[email:dev\]", \{ emailHash, subjectLength: sanitizedSubject\.length \}\)/);
     assert.match(email, /source: "email_inactive_account_lookup"/);
     assert.match(email, /source: "email_send_retry"/);
     assert.match(email, /source: "email_send"/);
+    assert.doesNotMatch(email, /console\.log\("\[email:dev\]", \{ to: recipient/);
     assert.doesNotMatch(email, /extra:\s*\{[^}]*\bto:\s*recipient/s);
     assert.doesNotMatch(email, /extra:\s*\{[^}]*\bto,/s);
     assert.doesNotMatch(email, /extra:\s*\{[^}]*subject:\s*sanitizedSubject/s);
@@ -69,6 +71,9 @@ describe("account and privacy route observability guardrails", () => {
     const route = source("src/app/api/resend/webhook/route.ts");
 
     assert.match(route, /markWebhookFailed\(id, err\)\.catch/);
+    assert.match(route, /sanitizeEmailOutboxError\(err\)/);
+    assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
+    assert.doesNotMatch(route, /details: event as unknown as Prisma\.InputJsonValue/);
     assert.match(route, /source: "resend_webhook_mark_failed"/);
     assert.match(route, /source: "resend_webhook_process"/);
   });

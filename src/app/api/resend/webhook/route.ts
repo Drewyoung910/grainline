@@ -4,8 +4,9 @@ import { Resend, type WebhookEventPayload } from "resend";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { normalizeEmailAddress, suppressEmail } from "@/lib/emailSuppression";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { resolveResendWebhookConfig } from "@/lib/resendWebhookConfig";
-import { truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 
 export const runtime = "nodejs";
@@ -34,11 +35,6 @@ function isTransientFailure(type: string) {
 
 function isUniqueViolation(err: unknown) {
   return typeof err === "object" && err !== null && "code" in err && (err as { code?: unknown }).code === "P2002";
-}
-
-function errorMessage(err: unknown) {
-  if (err instanceof Error) return err.message;
-  return String(err);
 }
 
 async function reserveWebhookEvent(svixId: string, type: string): Promise<"process" | "processed" | "in_progress"> {
@@ -94,12 +90,28 @@ async function markWebhookFailed(svixId: string, err: unknown) {
   await prisma.resendWebhookEvent.update({
     where: { svixId },
     data: {
-      lastError: truncateText(errorMessage(err), 2000),
+      lastError: sanitizeEmailOutboxError(err),
     },
   });
 }
 
-async function recordTransientFailure(email: string, eventId: string, event: WebhookEventPayload): Promise<boolean> {
+function safeResendWebhookDetails(event: WebhookEventPayload, svixId: string, emails: string[]): Prisma.InputJsonValue {
+  return {
+    svixId,
+    type: event.type,
+    recipientCount: emails.length,
+    recipientHashes: emails.flatMap((email) => {
+      const hash = hashEmailForTelemetry(email);
+      return hash ? [hash] : [];
+    }),
+  };
+}
+
+async function recordTransientFailure(
+  email: string,
+  eventId: string,
+  details: Prisma.InputJsonValue,
+): Promise<boolean> {
   const normalized = normalizeEmailAddress(email);
   if (!normalized) return false;
 
@@ -144,7 +156,7 @@ async function recordTransientFailure(email: string, eventId: string, event: Web
     reason: EmailSuppressionReason.BOUNCE,
     source: "resend_transient_failure",
     eventId,
-    details: event as unknown as Prisma.InputJsonValue,
+    details,
   });
   return true;
 }
@@ -202,6 +214,7 @@ export async function POST(request: Request) {
   try {
     const reason = suppressionReason(event.type);
     const emails = emailsFromEvent(event);
+    const safeDetails = safeResendWebhookDetails(event, id, emails);
 
     if (reason) {
       await Promise.all(
@@ -211,7 +224,7 @@ export async function POST(request: Request) {
             reason,
             source: "resend",
             eventId: id,
-            details: event as unknown as Prisma.InputJsonValue,
+            details: safeDetails,
           }),
         ),
       );
@@ -220,7 +233,7 @@ export async function POST(request: Request) {
     }
 
     if (isTransientFailure(event.type)) {
-      const suppressed = await Promise.all(emails.map((email) => recordTransientFailure(email, id, event)));
+      const suppressed = await Promise.all(emails.map((email) => recordTransientFailure(email, id, safeDetails)));
       await markWebhookProcessed(id);
       return NextResponse.json({
         ok: true,
