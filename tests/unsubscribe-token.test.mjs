@@ -15,6 +15,7 @@ const {
 describe("unsubscribe token lifecycle", () => {
   it("normalizes valid addresses and rejects invalid ones", () => {
     assert.equal(normalizeUnsubscribeEmail("  Drew@Example.COM "), "drew@example.com");
+    assert.equal(normalizeUnsubscribeEmail("dre\u0301w@example.com"), "dr\u00e9w@example.com");
     assert.equal(normalizeUnsubscribeEmail("not-an-email"), null);
     assert.equal(normalizeUnsubscribeEmail("drew@example"), null);
   });

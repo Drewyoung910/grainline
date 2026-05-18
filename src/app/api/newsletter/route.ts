@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       throw e;
     }
 
-    const email = parsed.email.trim().toLowerCase();
+    const email = parsed.email.trim().normalize("NFC").toLowerCase();
     emailHash = hashEmailForTelemetry(email);
     const name = parsed.name ? sanitizeUserName(parsed.name, 200) || null : null;
 

@@ -23,6 +23,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /safeRateLimit\(newsletterRatelimit, ip\)/);
     assert.doesNotMatch(route, /safeRateLimitOpen\(newsletterRatelimit/);
     assert.match(route, /readBoundedJson\(req, NEWSLETTER_BODY_MAX_BYTES\)/);
+    assert.match(route, /parsed\.email\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
     assert.match(route, /isRequestBodyTooLargeError/);
     assert.match(route, /rateLimitResponse\(rl\.reset, "Too many newsletter signup attempts\."\)/);
     assert.match(route, /hashEmailForTelemetry\(email\)/);

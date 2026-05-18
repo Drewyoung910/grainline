@@ -8,7 +8,7 @@ function unsubscribeSecret(): string | null {
 }
 
 export function normalizeUnsubscribeEmail(email: string): string | null {
-  const normalized = email.trim().toLowerCase();
+  const normalized = email.trim().normalize("NFC").toLowerCase();
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized) ? normalized : null;
 }
 

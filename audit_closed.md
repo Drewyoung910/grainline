@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 80.
-- Verified code/feature fix commits since 2026-05-13: 72.
+- Verified hardening/doc commits since 2026-05-13: 81.
+- Verified code/feature fix commits since 2026-05-13: 73.
 - Verified docs/audit-only commits since 2026-05-13: 8.
-- Most recent reported pass total: 32 verified closed items in the 2026-05-14
+- Most recent reported pass total: 33 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -163,6 +163,12 @@ Last updated: 2026-05-18
     `UNDER_REVIEW` cases older than 90 days, and admin reinstatement re-checks
     unresolved-case and active-listing blockers before restoring the badge.
     Commit: `fix: tighten guild reinstatement checks`.
+33. **Email unsubscribe/newsletter normalization tightened** — code fix. The
+    claimed self-service unsubscribe replay loop was stale because suppression
+    is permanent and newsletter signup refuses suppressed emails, but newsletter
+    signup and unsubscribe token signing now NFC-normalize before lowercasing so
+    Unicode email variants stay aligned. Commit: `fix: normalize unsubscribe
+    email inputs`.
 
 ## Verified Stale / Not Fixed
 
