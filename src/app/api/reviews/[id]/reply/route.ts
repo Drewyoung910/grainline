@@ -60,8 +60,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   // Find review + ensure current user owns the shop/listing
   const review = await prisma.review.findUnique({
     where: { id },
-    include: {
-      listing: { include: { seller: { include: { user: true } } } },
+    select: {
+      sellerReply: true,
+      listing: {
+        select: {
+          seller: {
+            select: {
+              user: { select: { clerkId: true, banned: true, deletedAt: true } },
+            },
+          },
+        },
+      },
     },
   });
   if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });

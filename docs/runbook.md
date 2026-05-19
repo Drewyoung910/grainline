@@ -67,6 +67,30 @@ Rotate one dependency at a time and verify before moving to the next one.
 4. Verify the dependent endpoint or job.
 5. Revoke the old secret only after the new deploy is healthy.
 
+Recommended cadence:
+
+- Rotate hot HMAC/application secrets every 90 days:
+  `ADMIN_PIN_COOKIE_SECRET`, `UPLOAD_VERIFICATION_SECRET`,
+  `UNSUBSCRIBE_SECRET`, `SHIPPING_RATE_SECRET`, `CRON_SECRET`, and
+  `HEALTH_CHECK_TOKEN`.
+- Rotate provider API keys at least annually or immediately after any suspected
+  exposure: Stripe, Clerk, Resend, Shippo, Upstash, Sentry, OpenAI, Cloudflare
+  R2, Neon, and GitHub/Vercel tokens.
+- Rotate webhook signing secrets annually when the provider supports a
+  dual-secret or staged endpoint cutover. For emergency webhook rotation, create
+  the new endpoint/secret, deploy support for it, replay failed events, then
+  disable the old endpoint only after deliveries are healthy.
+
+Zero-downtime rotation preference:
+
+- Verification-only secrets should support a short dual-verify window whenever
+  practical (`*_PREVIOUS` accepted for verification, current secret used for new
+  signatures). `CRON_SECRET_PREVIOUS` already follows this pattern.
+- Secrets that cannot safely support dual verification must use the provider
+  dashboard cutover flow plus a production deploy before revocation.
+- Document the rotation date, old-secret revocation time, owner, and smoke-test
+  evidence in the launch/security evidence record.
+
 High-risk secrets:
 
 - `DATABASE_URL`: runtime Neon pooled URL. Must use the `-pooler` host.

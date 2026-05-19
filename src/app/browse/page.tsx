@@ -67,7 +67,11 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
     skip,
     include: {
       photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
-      seller: { include: { user: true } },
+      seller: {
+        include: {
+          user: { select: { imageUrl: true } },
+        },
+      },
       ...(withFavCount ? { _count: { select: { favorites: true } } } : {}),
     },
   });
@@ -560,7 +564,7 @@ export default async function BrowsePage({
   // ── List card renderer ─────────────────────────────────────────────────────
   function ListCard({ l }: { l: ListingWithIncludes }) {
     const img = l.photos[0]?.url ?? "/favicon.ico";
-    const sellerName = l.seller.displayName ?? l.seller.user?.email ?? "Maker";
+    const sellerName = l.seller.displayName ?? "Maker";
     const shop = sellerRatings.get(l.sellerId);
     const isInStock = l.listingType === "IN_STOCK";
     const outOfStock = l.status === "SOLD_OUT" || (isInStock && (l.stockQuantity ?? 0) <= 0);

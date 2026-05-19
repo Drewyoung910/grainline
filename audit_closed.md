@@ -22,11 +22,12 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 105.
-- Verified code/feature fix commits since 2026-05-13: 96.
+- Verified hardening/doc commits since 2026-05-13: 106.
+- Verified code/feature fix commits since 2026-05-13: 97.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 69 verified closed items in the 2026-05-14
-  active tracker below, plus ten stale/false-positive claims verified clean.
+- Most recent reported pass total: 72 verified closed items in the 2026-05-14
+  active tracker below, plus thirteen stale/false-positive claims verified
+  clean.
 
 ## 2026-05-14 Active Tracker
 
@@ -350,6 +351,21 @@ Last updated: 2026-05-18
     `Retry-After` for non-stale in-progress duplicates so Stripe retries instead
     of treating the event as complete. Commit:
     `fix: harden guild cart and webhook races`.
+70. **Prisma User relation over-fetch removed** — code fix. Public browse and
+    review-reply ownership code now select only needed `User` fields instead of
+    `include: { user: true }`; browse no longer falls back to seller email as a
+    public display name. A recursive source guard blocks future full-user
+    relation selects. Commit: `fix: narrow user selects and document security
+    tradeoffs`.
+71. **Secret-rotation cadence documented** — docs fix. The operations runbook
+    now records recommended rotation cadence, staged webhook rotation, and
+    dual-verify preferences for HMAC/application secrets. Commit:
+    `fix: narrow user selects and document security tradeoffs`.
+72. **Unsubscribe URL PII tradeoff documented** — docs fix. CLAUDE.md now records
+    the one-click-unsubscribe email query parameter as an accepted tradeoff with
+    required referrer-policy, no third-party-resource, and no raw query/token
+    logging guardrails. Commit: `fix: narrow user selects and document security
+    tradeoffs`.
 
 ## Verified Stale / Not Fixed
 
@@ -388,3 +404,14 @@ Last updated: 2026-05-18
     prunes DEAD outbox rows, stores safe Resend webhook details, uses
     `Promise.allSettled()` for multi-recipient webhook tasks, and returns 503
     with `Retry-After` for in-progress webhook reservations.
+11. **Admin PIN SameSite lax drift** — stale claim. Current `main` already sets
+    the admin PIN cookie with `sameSite: "strict"` in both normal and dev-bypass
+    branches, matching CLAUDE.md.
+12. **Direct upload video/PDF magic-byte gap** — stale claim. Current `main`
+    already range-reads uploaded objects in `/api/upload/verify` and checks PDF,
+    MP4, and QuickTime signatures before accepting direct uploads.
+13. **Checkout external script SRI gap** — accepted documented deviation. Current
+    CLAUDE.md and checkout script inventory require Stripe.js to load directly
+    from `https://js.stripe.com` and explicitly prohibit stale SRI hashes for
+    Stripe/Clerk/Turnstile-style rotating scripts; CSP host allowlisting plus
+    checkout CSP monitoring are the compensating controls.
