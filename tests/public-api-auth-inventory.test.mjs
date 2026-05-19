@@ -22,7 +22,6 @@ const intentionalPublicRoutes = new Set([
   "src/app/api/health/route.ts",
   "src/app/api/legal/data-request/route.ts",
   "src/app/api/listings/[id]/click/route.ts",
-  "src/app/api/listings/[id]/similar/route.ts",
   "src/app/api/listings/[id]/view/route.ts",
   "src/app/api/newsletter/route.ts",
   "src/app/api/search/popular-blog-tags/route.ts",

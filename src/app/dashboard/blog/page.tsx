@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import ConfirmButton from "@/components/ConfirmButton";
 import { blogCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -29,6 +30,7 @@ async function deletePost(postId: string) {
 
   await prisma.blogPost.delete({ where: { id: postId } });
   revalidatePath("/dashboard/blog");
+  revalidateBlogSearchCaches();
 }
 
 export default async function DashboardBlogPage() {

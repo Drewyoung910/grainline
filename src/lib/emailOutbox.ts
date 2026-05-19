@@ -50,6 +50,42 @@ async function reserveDailySendAllowance(requested: number, now: Date) {
   });
 }
 
+async function inactiveQueuedEmailRecipientReason(job: {
+  userId: string | null;
+  recipientEmail: string;
+}) {
+  if (job.userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: job.userId },
+      select: { banned: true, deletedAt: true },
+    });
+    if (!user) return "Recipient account no longer exists";
+    if (user.banned) return "Recipient account is banned";
+    if (user.deletedAt) return "Recipient account is deleted";
+    return null;
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: job.recipientEmail },
+    select: { banned: true, deletedAt: true },
+  });
+  if (user?.banned) return "Recipient account is banned";
+  if (user?.deletedAt) return "Recipient account is deleted";
+  return null;
+}
+
+async function skipEmailOutboxJob(id: string, lastError: string) {
+  await prisma.emailOutbox.update({
+    where: { id },
+    data: {
+      status: "SKIPPED",
+      sentAt: new Date(),
+      nextAttemptAt: null,
+      lastError,
+    },
+  });
+}
+
 export async function enqueueEmailOutbox(email: QueuedEmail) {
   const recipient = normalizeEmailAddress(email.to);
   if (!recipient) return null;
@@ -146,30 +182,21 @@ export async function processEmailOutboxBatch({
     });
     const attempts = claimedJob?.attempts ?? job.attempts + 1;
     try {
+      const inactiveReason = await inactiveQueuedEmailRecipientReason(job);
+      if (inactiveReason) {
+        await skipEmailOutboxJob(job.id, inactiveReason);
+        skipped += 1;
+        return;
+      }
+
       if (job.userId && job.preferenceKey && !isValidEmailPreferenceKey(job.preferenceKey)) {
-        await prisma.emailOutbox.update({
-          where: { id: job.id },
-          data: {
-            status: "SKIPPED",
-            sentAt: new Date(),
-            nextAttemptAt: null,
-            lastError: `Invalid email preference key: ${job.preferenceKey}`,
-          },
-        });
+        await skipEmailOutboxJob(job.id, `Invalid email preference key: ${job.preferenceKey}`);
         skipped += 1;
         return;
       }
 
       if (job.userId && job.preferenceKey && !(await shouldSendEmail(job.userId, job.preferenceKey))) {
-        await prisma.emailOutbox.update({
-          where: { id: job.id },
-          data: {
-            status: "SKIPPED",
-            sentAt: new Date(),
-            nextAttemptAt: null,
-            lastError: "Email preference disabled before send",
-          },
-        });
+        await skipEmailOutboxJob(job.id, "Email preference disabled before send");
         skipped += 1;
         return;
       }

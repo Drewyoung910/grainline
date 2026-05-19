@@ -4,6 +4,8 @@ import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
+import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
+import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   Prisma,
   EmailSuppressionReason,
@@ -486,6 +488,19 @@ function mediaUrlHost(url: string) {
   }
 }
 
+function revalidateDeletedAccountSearchCaches(userId: string) {
+  try {
+    revalidateListingSearchCaches();
+    revalidateBlogSearchCaches();
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "account_delete_search_cache_revalidate" },
+      extra: { userId },
+    });
+  }
+}
+
 export async function anonymizeUserAccount(userId: string) {
   const deletionLockKey = `account-delete:${userId}`;
   const lockResult = await redis.set(deletionLockKey, "1", {
@@ -627,6 +642,7 @@ export async function anonymizeUserAccount(userId: string) {
           data: { chargesEnabled: false, vacationMode: true },
         });
       }
+      await removeSellerCommissionInterests(tx, user.sellerProfile.id);
       await tx.photo.deleteMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
       });
@@ -791,6 +807,8 @@ export async function anonymizeUserAccount(userId: string) {
   });
 
   if (!result.alreadyDeleted) {
+    revalidateDeletedAccountSearchCaches(userId);
+
     try {
       await redactAdminAuditLogsForAccountDeletion({
         db: prisma,

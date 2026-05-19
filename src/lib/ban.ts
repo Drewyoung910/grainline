@@ -6,6 +6,8 @@ import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { blockingRefundLedgerWhere } from './refundRouteState'
 import { truncateText } from './sanitize'
+import { removeSellerCommissionInterests } from './commissionInterestCleanup'
+import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from './searchCache'
 import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
@@ -86,6 +88,19 @@ async function notifyBuyersOfBannedSellerOrders(
   )
 }
 
+function revalidateAccountStateSearchCaches(source: string, userId: string) {
+  try {
+    revalidateListingSearchCaches()
+    revalidateBlogSearchCaches()
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { source },
+      extra: { userId },
+    })
+  }
+}
+
 export async function banUser({ userId, adminId, reason }: {
   userId: string; adminId: string; reason: string
 }) {
@@ -135,6 +150,11 @@ export async function banUser({ userId, adminId, reason }: {
       where: { userId },
       data: { chargesEnabled: false, vacationMode: true }
     })
+    let removedCommissionInterestRequestIds: string[] = []
+    if (sellerProfile) {
+      const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
+      removedCommissionInterestRequestIds = cleanup.commissionRequestIds
+    }
     await tx.commissionRequest.updateMany({
       where: { buyerId: userId, status: 'OPEN' },
       data: { status: 'CLOSED' }
@@ -155,16 +175,19 @@ export async function banUser({ userId, adminId, reason }: {
         targetType: 'USER',
         targetId: userId,
         reason,
-        metadata: buildBanAuditMetadata({
-          sellerProfile,
-          commissionRequests,
-          openOrders: openSellerOrders.map((order) => ({
-            id: order.id,
-            buyerId: order.buyerId,
-            previousReviewNeeded: order.reviewNeeded,
-            previousReviewNote: order.reviewNote,
-          })),
-        }),
+        metadata: {
+          ...buildBanAuditMetadata({
+            sellerProfile,
+            commissionRequests,
+            openOrders: openSellerOrders.map((order) => ({
+              id: order.id,
+              buyerId: order.buyerId,
+              previousReviewNeeded: order.reviewNeeded,
+              previousReviewNote: order.reviewNote,
+            })),
+          }),
+          removedCommissionInterestRequestIds,
+        },
       }
     })
     return {
@@ -178,6 +201,8 @@ export async function banUser({ userId, adminId, reason }: {
       })),
     }
   })
+
+  revalidateAccountStateSearchCaches('ban_user_search_cache_revalidate', userId)
 
   if (clerkSync.sellerCheckoutExpiry) {
     const expiryResult = await expireOpenCheckoutSessionsForSeller({
@@ -303,6 +328,8 @@ export async function unbanUser({ userId, adminId, reason }: {
     })
     return { clerkId: previousUser.clerkId, sellerRestoreWarning }
   })
+
+  revalidateAccountStateSearchCaches('unban_user_search_cache_revalidate', userId)
 
   try {
     await unbanClerkUser(clerkSync.clerkId)

@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 110.
-- Verified code/feature fix commits since 2026-05-13: 101.
+- Verified hardening/doc commits since 2026-05-13: 115.
+- Verified code/feature fix commits since 2026-05-13: 106.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 78 verified closed items in the 2026-05-14
-  active tracker below, plus sixteen stale/false-positive claims verified
+- Most recent reported pass total: 83 verified closed items in the 2026-05-14
+  active tracker below, plus twenty stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -394,6 +394,30 @@ Last updated: 2026-05-18
     signed-in carts at 50 distinct item/variant rows and 200 total quantity,
     in addition to the existing 99-per-item cap. Commit:
     `fix: cap signed-in cart size`.
+79. **Banned reviewer identity leakage closed** — code fix.
+    `ReviewsSection` now selects `reviewer.banned` and redacts banned reviewers
+    the same way as deleted reviewers: "Former buyer", `FB` initials, no saved
+    avatar/name/email fallback, and no report button. Commit:
+    `fix: close account-state residue gaps`.
+80. **Banned/deleted seller commission-interest residue removed** — code fix.
+    `removeSellerCommissionInterests()` deletes a seller's commission interests
+    during admin ban and account deletion, then recomputes every affected
+    `CommissionRequest.interestedCount` so hidden sellers do not inflate public
+    interest counts. Commit: `fix: close account-state residue gaps`.
+81. **Account-state search-cache invalidation wired** — code fix. Admin
+    ban/unban and account deletion now invalidate listing/blog popular-tag
+    caches, and dashboard blog deletion invalidates the popular-blog-tag cache.
+    Commit: `fix: close account-state residue gaps`.
+82. **Email outbox account-state recheck made unconditional** — code fix.
+    `processEmailOutboxBatch()` now rechecks recipient account state by
+    `userId` when present, or by recipient email when no user id exists, before
+    every send even when `preferenceKey` is null. Commit:
+    `fix: close account-state residue gaps`.
+83. **Node stripped-type full-suite import drift closed** — code fix.
+    `aiReviewSafety.ts` and `notificationPayload.ts` no longer depend on the
+    Next/TypeScript `@/lib` alias when imported directly by Node's stripped-type
+    test runner, restoring full `npm test` portability. Commit:
+    `fix: close account-state residue gaps`.
 
 ## Verified Stale / Not Fixed
 
@@ -453,3 +477,19 @@ Last updated: 2026-05-18
 16. **Newsletter suppression enumeration gap** — stale claim. Current newsletter
     signup returns the same `{ subscribed: true }` response for suppressed and
     accepted addresses, preventing public suppression-history probing.
+17. **Banned seller Stripe dashboard access gap** — stale claim. Current Stripe
+    Connect login-link and dashboard routes call `ensureUserByClerkId()` and
+    return the shared account-access response before creating login links, so
+    banned/deleted users cannot open connected-account dashboards.
+18. **Banned user message-send gap** — stale claim. Current message routes use
+    `ensureUserByClerkId()` for streaming/list/read APIs and the message-thread
+    send action explicitly returns before create when `me.banned` or
+    `me.deletedAt` is set.
+19. **Banned seller fulfillment-action gap** — stale claim. Current order
+    fulfillment routes resolve the seller through `ensureSellerOwnsOrder()`,
+    which returns null when the Clerk user maps to a banned or deleted local
+    user, causing the mutation to return 403 before status changes or emails.
+20. **Similar-listing route listed as fully unauthenticated** — stale test
+    inventory. Current `/api/listings/[id]/similar` intentionally performs
+    optional `auth()` to filter blocked sellers and reject banned/deleted signed
+    in users, while still returning public similar listings to signed-out users.
