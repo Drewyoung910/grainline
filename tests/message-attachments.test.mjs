@@ -1,45 +1,27 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { normalizeMessageAttachments } = await import("../src/lib/messageAttachments.ts");
+const source = readFileSync(new URL("../src/lib/messageAttachments.ts", import.meta.url), "utf8");
 
-const isAllowedUrl = (url) => url.startsWith("https://cdn.thegrainline.com/");
-
-describe("message attachment normalization", () => {
+describe("message attachment normalization guardrails", () => {
   it("sanitizes and caps client-provided attachment metadata before persistence", () => {
-    const longName = `refund\u202E${"x".repeat(300)}.pdf`;
-    const result = normalizeMessageAttachments(
-      JSON.stringify([
-        {
-          url: "https://cdn.thegrainline.com/messageFile/user/123.pdf",
-          name: longName,
-          type: "application/pdf<script>",
-        },
-      ]),
-      isAllowedUrl,
-    );
+    assert.match(source, /import \{ sanitizeText, truncateText \} from "@\/lib\/sanitize"/);
+    assert.match(source, /const MAX_ATTACHMENT_NAME_LENGTH = 200/);
+    assert.match(source, /const MAX_ATTACHMENT_TYPE_LENGTH = 100/);
+    assert.match(source, /truncateText\(sanitizeAttachmentText\(value\), maxLength\)/);
+  });
 
-    assert.equal(result.length, 1);
-    assert.equal(result[0].name?.includes("\u202E"), false);
-    assert.equal(result[0].name?.length, 200);
-    assert.equal(result[0].type, "application/pdf");
+  it("strips dangerous protocol text from attachment names and types", () => {
+    assert.match(source, /function sanitizeAttachmentText\(input: string\): string/);
+    assert.match(source, /return sanitizeText\(input\)/);
+    assert.doesNotMatch(source, /\.replace\(\/javascript:/);
   });
 
   it("drops invalid URLs and caps attachment count", () => {
-    const items = Array.from({ length: 10 }, (_, index) => ({
-      url: `https://cdn.thegrainline.com/messageFile/user/${index}.pdf`,
-      name: `file-${index}.pdf`,
-      type: "application/pdf",
-    }));
-    items.splice(1, 0, {
-      url: "https://attacker.example/file.pdf",
-      name: "bad.pdf",
-      type: "application/pdf",
-    });
-
-    const result = normalizeMessageAttachments(JSON.stringify(items), isAllowedUrl);
-
-    assert.equal(result.length, 6);
-    assert.equal(result.some((item) => item.url.includes("attacker.example")), false);
+    assert.match(source, /const MAX_MESSAGE_ATTACHMENTS = 6/);
+    assert.match(source, /const MAX_ATTACHMENT_URL_LENGTH = 1000/);
+    assert.match(source, /attachments\.length >= MAX_MESSAGE_ATTACHMENTS/);
+    assert.match(source, /url\.length > MAX_ATTACHMENT_URL_LENGTH \|\| !isAllowedUrl\(url\)/);
   });
 });

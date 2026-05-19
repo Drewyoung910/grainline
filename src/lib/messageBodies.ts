@@ -1,3 +1,6 @@
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { isR2PublicUrl } from "@/lib/urlValidation";
+
 export type FileMessageBody = {
   kind: "file";
   url: string;
@@ -40,6 +43,10 @@ export type ThreadMessageEventMessage = {
   readAt?: string | null;
 };
 
+const MAX_FILE_MESSAGE_URL_LENGTH = 1000;
+const MAX_FILE_MESSAGE_NAME_LENGTH = 200;
+const MAX_FILE_MESSAGE_TYPE_LENGTH = 100;
+
 function parseJsonRecord(raw: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(raw);
@@ -60,6 +67,14 @@ function optionalNullableString(value: unknown): string | null | undefined {
   return optionalString(value);
 }
 
+function optionalCleanNullableString(value: unknown, maxLength: number): string | null | undefined {
+  if (value === null) return null;
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") return undefined;
+  const cleaned = truncateText(sanitizeText(value), maxLength).trim();
+  return cleaned || null;
+}
+
 function optionalNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
@@ -70,14 +85,19 @@ function optionalNullableNumber(value: unknown): number | null | undefined {
   return optionalNumber(value);
 }
 
-export function parseFileMessageBody(raw: string): FileMessageBody | null {
+export function parseFileMessageBody(
+  raw: string,
+  isAllowedUrl: (url: string) => boolean = isR2PublicUrl,
+): FileMessageBody | null {
   const obj = parseJsonRecord(raw);
   if (!obj || obj.kind !== "file" || typeof obj.url !== "string" || !obj.url.trim()) return null;
+  const url = obj.url.trim();
+  if (url.length > MAX_FILE_MESSAGE_URL_LENGTH || !isAllowedUrl(url)) return null;
   return {
     kind: "file",
-    url: obj.url,
-    name: optionalNullableString(obj.name) ?? null,
-    type: optionalNullableString(obj.type) ?? null,
+    url,
+    name: optionalCleanNullableString(obj.name, MAX_FILE_MESSAGE_NAME_LENGTH) ?? null,
+    type: optionalCleanNullableString(obj.type, MAX_FILE_MESSAGE_TYPE_LENGTH) ?? null,
   };
 }
 

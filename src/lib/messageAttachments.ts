@@ -1,4 +1,4 @@
-import { normalizeUserText, truncateText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 
 export type NormalizedMessageAttachment = {
   url: string;
@@ -12,11 +12,7 @@ const MAX_ATTACHMENT_NAME_LENGTH = 200;
 const MAX_ATTACHMENT_TYPE_LENGTH = 100;
 
 function sanitizeAttachmentText(input: string): string {
-  return normalizeUserText(input)
-    .replace(/<[^>]*>/g, "")
-    .replace(/javascript:/gi, "")
-    .replace(/on\w+\s*=/gi, "")
-    .trim();
+  return sanitizeText(input);
 }
 
 function normalizeOptionalField(value: unknown, maxLength: number): string | null {
