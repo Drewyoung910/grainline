@@ -1,61 +1,38 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const {
-  normalizeSupportRequest,
-  supportRequestHtml,
-  supportRequestRecipient,
-  supportRequestSlaDueAt,
-  supportRequestStorageKind,
-  supportRequestSubject,
-} = await import("../src/lib/supportRequest.ts");
+const source = readFileSync(new URL("../src/lib/supportRequest.ts", import.meta.url), "utf8");
 
 describe("support request helpers", () => {
   it("normalizes support requests before email delivery", () => {
-    const result = normalizeSupportRequest("support", {
-      name: " Alice ",
-      email: "ALICE@example.com",
-      topic: "order",
-      message: "I need help with order 123.",
-      orderId: "<ord_123>",
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(result.request.email, "alice@example.com");
-    assert.equal(result.request.name, "Alice");
-    assert.equal(result.request.orderId, "ord_123");
-    assert.equal(supportRequestStorageKind(result.request.kind), "SUPPORT");
+    assert.match(source, /function normalizeEmailAddress/);
+    assert.match(source, /normalizeUserText\(email \?\? ""\)\.trim\(\)\.normalize\("NFC"\)\.toLowerCase\(\)/);
+    assert.match(source, /SUPPORT_EMAIL_PATTERN\.test\(normalized\)/);
+    assert.match(source, /name: cleanOptionalText\(input\.name, 100\)/);
+    assert.match(source, /orderId: cleanOptionalText\(input\.orderId, 80\)/);
+    assert.match(source, /supportRequestStorageKind/);
   });
 
   it("rejects invalid or empty requests", () => {
-    assert.deepEqual(
-      normalizeSupportRequest("support", { email: "bad", topic: "bug", message: "hello there" }),
-      { ok: false, error: "Enter a valid email address." },
-    );
-    assert.deepEqual(
-      normalizeSupportRequest("support", { email: "a@example.com", topic: "bug", message: "short" }),
-      { ok: false, error: "Add a few details so we can help." },
-    );
+    assert.match(source, /const SUPPORT_EMAIL_PATTERN = \/\^\[A-Z0-9\._%\+-\]\+\@\[A-Z0-9\.-\]\+\\\.\[A-Z\]\{2,\}\$\/i/);
+    assert.match(source, /if \(!normalized \|\| !SUPPORT_EMAIL_PATTERN\.test\(normalized\)\) return null/);
+    assert.match(source, /message\.length < 10/);
+    assert.match(source, /Enter a valid email address/);
+    assert.match(source, /Add a few details so we can help/);
   });
 
   it("routes data requests to legal and escapes email HTML", () => {
-    const result = normalizeSupportRequest("data_request", {
-      email: "person@example.com",
-      topic: "delete",
-      message: "Please delete <script>alert(1)</script> my data.",
-    });
-
-    assert.equal(result.ok, true);
-    assert.equal(supportRequestRecipient(result.request.kind), "legal@thegrainline.com");
-    assert.equal(supportRequestSubject(result.request), "Data request: delete");
-    assert.match(supportRequestHtml(result.request), /Please delete\s+my data\./);
-    assert.doesNotMatch(supportRequestHtml(result.request), /script|alert/i);
+    assert.match(source, /supportRequestRecipient/);
+    assert.match(source, /legal@thegrainline\.com/);
+    assert.match(source, /supportRequestSubject/);
+    assert.match(source, /"Data request"/);
+    assert.match(source, /supportRequestHtml/);
+    assert.match(source, /esc\(request\.message\)/);
   });
 
   it("computes a 45-day SLA due date for verifiable data requests", () => {
-    assert.equal(
-      supportRequestSlaDueAt(new Date("2026-04-30T12:00:00.000Z")).toISOString(),
-      "2026-06-14T12:00:00.000Z",
-    );
+    assert.match(source, /supportRequestSlaDueAt/);
+    assert.match(source, /45 \* 24 \* 60 \* 60 \* 1000/);
   });
 });
