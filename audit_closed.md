@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 108.
-- Verified code/feature fix commits since 2026-05-13: 99.
+- Verified hardening/doc commits since 2026-05-13: 109.
+- Verified code/feature fix commits since 2026-05-13: 100.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 76 verified closed items in the 2026-05-14
+- Most recent reported pass total: 77 verified closed items in the 2026-05-14
   active tracker below, plus thirteen stale/false-positive claims verified
   clean.
 
@@ -385,6 +385,11 @@ Last updated: 2026-05-18
     a transaction-scoped advisory lock keyed by conversation and listing, then
     runs the duplicate read and message create inside that lock. Commit:
     `fix: serialize custom order ready links`.
+77. **Account deletion double-submit Stripe side effect guarded** — code fix.
+    `anonymizeUserAccount()` now acquires a short Redis account-deletion lock
+    before Stripe connected-account rejection and local anonymization, returning
+    an in-progress terminal response if another delete/webhook path is already
+    running. Commit: `fix: serialize account deletion`.
 
 ## Verified Stale / Not Fixed
 

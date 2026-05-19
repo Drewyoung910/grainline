@@ -40,6 +40,23 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /vacationMode: true/);
   });
 
+  it("serializes account deletion anonymization before Stripe side effects", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const route = source("src/app/api/account/delete/route.ts");
+
+    assert.match(accountDeletion, /const deletionLockKey = `account-delete:\$\{userId\}`/);
+    assert.match(accountDeletion, /redis\.set\(deletionLockKey, "1", \{\s*nx: true,\s*ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS/s);
+    const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
+    assert.ok(
+      accountDeletion.indexOf("const lockResult = await redis.set", anonymizeStart) <
+        accountDeletion.indexOf("rejectConnectedStripeAccount(", anonymizeStart),
+      "account deletion lock must be acquired before Stripe account rejection",
+    );
+    assert.match(accountDeletion, /source: "account_delete_lock_release"/);
+    assert.match(route, /"inProgress" in anonymized && anonymized\.inProgress/);
+    assert.match(route, /status: 409/);
+  });
+
   it("treats post-Clerk anonymization failures as terminal for the client", () => {
     const route = source("src/app/api/account/delete/route.ts");
     const button = source("src/components/AccountDeletionButton.tsx");

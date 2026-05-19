@@ -3,6 +3,7 @@ import { stripe } from "@/lib/stripe";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
+import { redis } from "@/lib/ratelimit";
 import {
   Prisma,
   EmailSuppressionReason,
@@ -19,6 +20,7 @@ const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] a
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
+const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
 
 export type AccountDeletionBlocker = {
   code: "buyer_orders" | "seller_orders" | "open_cases" | "active_commissions";
@@ -485,6 +487,16 @@ function mediaUrlHost(url: string) {
 }
 
 export async function anonymizeUserAccount(userId: string) {
+  const deletionLockKey = `account-delete:${userId}`;
+  const lockResult = await redis.set(deletionLockKey, "1", {
+    nx: true,
+    ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS,
+  });
+  if (lockResult !== "OK") {
+    return { ok: false, alreadyDeleted: false, inProgress: true };
+  }
+
+  try {
   const account = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -813,6 +825,15 @@ export async function anonymizeUserAccount(userId: string) {
   });
 
   return { ok: result.ok, alreadyDeleted: result.alreadyDeleted };
+  } finally {
+    await redis.del(deletionLockKey).catch((error) => {
+      Sentry.captureException(error, {
+        level: "warning",
+        tags: { source: "account_delete_lock_release" },
+        extra: { userId },
+      });
+    });
+  }
 }
 
 export async function anonymizeUserAccountByClerkId(clerkId: string) {

@@ -41,7 +41,13 @@ export async function POST() {
   }
 
   try {
-    await anonymizeUserAccount(me.id);
+    const anonymized = await anonymizeUserAccount(me.id);
+    if ("inProgress" in anonymized && anonymized.inProgress) {
+      return NextResponse.json({
+        error: "Account deletion is already in progress. Please wait a moment.",
+        clerkSessionDeleted: true,
+      }, { status: 409 });
+    }
   } catch (error) {
     Sentry.captureException(error, { tags: { source: "account_delete_anonymize" }, extra: { dbUserId: me.id } });
     return NextResponse.json({
