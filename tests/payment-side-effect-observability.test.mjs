@@ -35,6 +35,15 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
 
+  it("sanitizes Stripe webhook console error output before logging", () => {
+    const route = source("src/app/api/stripe/webhook/route.ts");
+
+    assert.match(route, /sanitizeEmailOutboxError\(retrieveErr\)/);
+    assert.match(route, /sanitizeEmailOutboxError\(err\)/);
+    assert.doesNotMatch(route, /console\.error\("Webhook: failed to retrieve full event:", retrieveErr\)/);
+    assert.doesNotMatch(route, /console\.error\("Stripe webhook handler error:", err\)/);
+  });
+
   it("keeps shipping-label orphan paths observable without full label URLs", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
 

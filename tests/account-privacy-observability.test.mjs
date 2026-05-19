@@ -59,6 +59,7 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(email, /hashEmailForTelemetry/);
     assert.match(email, /console\.log\("\[email:dev\]", \{ emailHash, subjectLength: sanitizedSubject\.length \}\)/);
+    assert.match(email, /console\.error\("\[email\] inactive-account lookup failed; skipping send:", sanitizeEmailOutboxError\(err\)\)/);
     assert.match(email, /source: "email_inactive_account_lookup"/);
     assert.match(email, /source: "email_send_retry"/);
     assert.match(email, /source: "email_send"/);
@@ -76,6 +77,9 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
     assert.match(route, /processingStartedAt: null/);
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
+    assert.match(route, /const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 5/);
+    assert.match(route, /return type === "email\.failed"/);
+    assert.doesNotMatch(route, /email\.delivery_delayed/);
     assert.doesNotMatch(route, /details: event as unknown as Prisma\.InputJsonValue/);
     assert.match(route, /source: "resend_webhook_mark_failed"/);
     assert.match(route, /source: "resend_webhook_process"/);

@@ -24,6 +24,7 @@ import {
 } from "@/lib/stripeWebhookEvents";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { parseSelectedVariantsMetadata } from "@/lib/stripeWebhookMetadata";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
   lockCheckoutSessionMutation,
   restorableStockItemsFromLineItems,
@@ -186,7 +187,7 @@ export async function POST(req: Request) {
         },
       } as Stripe.Event;
     } catch (retrieveErr) {
-      console.error("Webhook: failed to retrieve full event:", retrieveErr);
+      console.error("Webhook: failed to retrieve full event:", sanitizeEmailOutboxError(retrieveErr));
       Sentry.captureException(retrieveErr, {
         tags: { source: "stripe_webhook_thin_event_retrieve" },
         extra: { stripeEventId: event.id, stripeEventType: event.type },
@@ -1714,7 +1715,7 @@ export async function POST(req: Request) {
     if (duplicateSession) {
       return NextResponse.json({ ok: true });
     }
-    console.error("Stripe webhook handler error:", err);
+    console.error("Stripe webhook handler error:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, { tags: { source: "stripe_webhook" } });
     await recordWebhookFailureSpike({
       webhook: "stripe",

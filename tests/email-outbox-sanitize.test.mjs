@@ -7,13 +7,13 @@ describe("email outbox error sanitization", () => {
   it("redacts recipient emails, URLs, and likely tokens", () => {
     const sanitized = sanitizeEmailOutboxError(
       new Error(
-        "Failed sending to buyer@example.com via https://api.resend.com/emails with sk_test_1234567890abcdef and 0123456789abcdef0123456789abcdef",
+        "Failed sending to buyer@example.com via https://api.resend.com/emails with sk_test_1234567890abcdef, pi_1234567890abcdef, c123456789012345678901234, and 0123456789abcdef0123456789abcdef",
       ),
     );
 
     assert.equal(
       sanitized,
-      "Failed sending to [email] via [url] with [token] and [token]",
+      "Failed sending to [email] via [url] with [token], [token], [token], and [token]",
     );
   });
 

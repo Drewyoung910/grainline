@@ -10,6 +10,7 @@ import { normalizeUserText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { sendEmailWithRetry } from "@/lib/emailRetry";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
@@ -162,7 +163,7 @@ async function findInactiveEmailAccount(recipient: string, subject: string) {
       });
     } catch (err) {
       if (attempt === 2) {
-        console.error("[email] inactive-account lookup failed; skipping send:", err);
+        console.error("[email] inactive-account lookup failed; skipping send:", sanitizeEmailOutboxError(err));
         Sentry.captureException(err, {
           level: "warning",
           tags: { source: "email_inactive_account_lookup" },

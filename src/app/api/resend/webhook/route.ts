@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const RESEND_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
 const RESEND_WEBHOOK_BODY_MAX_BYTES = 256 * 1024;
 const TRANSIENT_FAILURE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 3;
+const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 5;
 const RESEND_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(RESEND_WEBHOOK_RETRY_AFTER_MS / 1000);
 
 function emailsFromEvent(event: WebhookEventPayload): string[] {
@@ -31,7 +31,7 @@ function suppressionReason(type: string): EmailSuppressionReason | null {
 }
 
 function isTransientFailure(type: string) {
-  return type === "email.failed" || type === "email.delivery_delayed";
+  return type === "email.failed";
 }
 
 function isUniqueViolation(err: unknown) {

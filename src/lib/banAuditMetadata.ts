@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { CommissionStatus } from "@prisma/client";
 
 const COMMISSION_STATUSES = new Set<string>(Object.values(CommissionStatus));
@@ -17,7 +18,15 @@ export type BanOpenOrderSnapshot = {
   id: string;
   buyerId: string | null;
   previousReviewNeeded: boolean;
-  previousReviewNote: string | null;
+  previousReviewNoteHash: string | null;
+  previousReviewNoteLength: number;
+};
+
+export type BanOpenOrderInput = {
+  id: string;
+  buyerId: string | null;
+  previousReviewNeeded: boolean;
+  previousReviewNote?: string | null;
 };
 
 export type BanAuditMetadata = {
@@ -61,14 +70,32 @@ function readOpenOrderSnapshots(value: unknown): BanOpenOrderSnapshot[] {
     if (typeof item.id !== "string") return [];
     if (item.buyerId !== null && typeof item.buyerId !== "string") return [];
     if (typeof item.previousReviewNeeded !== "boolean") return [];
-    if (item.previousReviewNote !== null && typeof item.previousReviewNote !== "string") return [];
+    const legacyReviewNote = typeof item.previousReviewNote === "string" ? item.previousReviewNote : null;
+    const legacySnapshot = reviewNoteSnapshot(legacyReviewNote);
+    const previousReviewNoteHash =
+      typeof item.previousReviewNoteHash === "string" || item.previousReviewNoteHash === null
+        ? item.previousReviewNoteHash
+        : legacySnapshot.previousReviewNoteHash;
+    const previousReviewNoteLength =
+      typeof item.previousReviewNoteLength === "number" && Number.isSafeInteger(item.previousReviewNoteLength)
+        ? item.previousReviewNoteLength
+        : legacySnapshot.previousReviewNoteLength;
     return [{
       id: item.id,
       buyerId: item.buyerId,
       previousReviewNeeded: item.previousReviewNeeded,
-      previousReviewNote: item.previousReviewNote,
+      previousReviewNoteHash,
+      previousReviewNoteLength,
     }];
   });
+}
+
+function reviewNoteSnapshot(note: string | null) {
+  if (!note) return { previousReviewNoteHash: null, previousReviewNoteLength: 0 };
+  return {
+    previousReviewNoteHash: createHash("sha256").update(note).digest("hex"),
+    previousReviewNoteLength: Array.from(note).length,
+  };
 }
 
 export function buildBanAuditMetadata({
@@ -78,7 +105,7 @@ export function buildBanAuditMetadata({
 }: {
   sellerProfile: BanSellerProfileSnapshot | null;
   commissionRequests: BanCommissionRequestSnapshot[];
-  openOrders?: BanOpenOrderSnapshot[];
+  openOrders?: BanOpenOrderInput[];
 }): BanAuditMetadata {
   return {
     previousSellerProfile: sellerProfile
@@ -96,7 +123,7 @@ export function buildBanAuditMetadata({
       id: order.id,
       buyerId: order.buyerId,
       previousReviewNeeded: order.previousReviewNeeded,
-      previousReviewNote: order.previousReviewNote,
+      ...reviewNoteSnapshot(order.previousReviewNote ?? null),
     })),
   };
 }

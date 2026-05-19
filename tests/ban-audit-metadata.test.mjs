@@ -20,7 +20,8 @@ describe("ban audit metadata", () => {
           id: "order_1",
           buyerId: "buyer_1",
           previousReviewNeeded: false,
-          previousReviewNote: null,
+          previousReviewNoteHash: null,
+          previousReviewNoteLength: 0,
         },
       ],
     });
@@ -40,7 +41,8 @@ describe("ban audit metadata", () => {
           id: "order_1",
           buyerId: "buyer_1",
           previousReviewNeeded: false,
-          previousReviewNote: null,
+          previousReviewNoteHash: null,
+          previousReviewNoteLength: 0,
         },
       ],
     });
@@ -81,10 +83,30 @@ describe("ban audit metadata", () => {
           id: "order_1",
           buyerId: null,
           previousReviewNeeded: true,
-          previousReviewNote: "Already flagged",
+          previousReviewNoteHash: "018c721c15e35e4408b533754eb1ad743d20aef6e3a748dfffc5213fa4df5edb",
+          previousReviewNoteLength: 15,
         },
       ],
     });
+  });
+
+  it("stores only a hash and length for admin-written review notes", () => {
+    const metadata = buildBanAuditMetadata({
+      sellerProfile: null,
+      commissionRequests: [],
+      openOrders: [
+        {
+          id: "order_1",
+          buyerId: "buyer_1",
+          previousReviewNeeded: true,
+          previousReviewNote: "Buyer phone 512-555-1000",
+        },
+      ],
+    });
+
+    assert.equal(metadata.flaggedOpenOrders[0].previousReviewNoteLength, 24);
+    assert.match(metadata.flaggedOpenOrders[0].previousReviewNoteHash, /^[a-f0-9]{64}$/);
+    assert.equal(JSON.stringify(metadata).includes("512-555-1000"), false);
   });
 
   it("falls back to empty metadata for legacy audit rows", () => {

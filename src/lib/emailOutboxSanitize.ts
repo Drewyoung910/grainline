@@ -1,6 +1,7 @@
 const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
-const TOKEN_PATTERN = /\b(?:re_|rk_|sk_|pk_|whsec_|svix_|v1_|eyJ)[A-Za-z0-9._~+/=-]{12,}\b/g;
+const TOKEN_PATTERN = /\b(?:acct_|ch_|cs_|cu_|evt_|in_|pi_|po_|re_|rk_|seti_|sk_|pk_|tr_|txn_|whsec_|svix_|v1_|eyJ)[A-Za-z0-9._~+/=-]{12,}\b/g;
+const CUID_PATTERN = /\bc[a-z0-9]{24,}\b/g;
 const LONG_HEX_PATTERN = /\b[a-f0-9]{32,}\b/gi;
 
 export function sanitizeEmailOutboxError(error: unknown) {
@@ -9,6 +10,7 @@ export function sanitizeEmailOutboxError(error: unknown) {
     .replace(EMAIL_PATTERN, "[email]")
     .replace(URL_PATTERN, "[url]")
     .replace(TOKEN_PATTERN, "[token]")
+    .replace(CUID_PATTERN, "[token]")
     .replace(LONG_HEX_PATTERN, "[token]")
     .slice(0, 1000);
 }

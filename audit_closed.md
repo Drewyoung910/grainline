@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 102.
-- Verified code/feature fix commits since 2026-05-13: 93.
+- Verified hardening/doc commits since 2026-05-13: 103.
+- Verified code/feature fix commits since 2026-05-13: 94.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 58 verified closed items in the 2026-05-14
-  active tracker below, plus two stale/false-positive claims verified clean.
+- Most recent reported pass total: 62 verified closed items in the 2026-05-14
+  active tracker below, plus ten stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
 
@@ -299,6 +299,26 @@ Last updated: 2026-05-18
     transfer and uses a platform-only refund, the seller profile now gets
     `manualStripeReconciliationNeeded` plus staff-facing note, not just an
     order-level review note. Commit: `fix: harden refund and seller disable flows`.
+59. **Operational error string sanitizer expanded** — code fix.
+    `sanitizeEmailOutboxError()` now redacts common Stripe IDs and cuids in
+    addition to emails, URLs, token-like secrets, and long hex values before
+    values reach durable outbox errors or operational console output. Commit:
+    `fix: sanitize operational email and webhook logs`.
+60. **Stripe/email console error output sanitized** — code fix. Stripe webhook
+    thin-event retrieval/outer-handler console errors and central email
+    inactive-account lookup console errors now log sanitized error strings
+    instead of raw SDK/Prisma error objects. Commit:
+    `fix: sanitize operational email and webhook logs`.
+61. **BAN_USER audit metadata no longer stores raw review notes** — code fix.
+    Open-order snapshots in ban audit metadata store previous review-note hash
+    and length only, preserving rollback/diagnostic shape without durably
+    copying admin-written free text into audit metadata. Commit:
+    `fix: sanitize operational email and webhook logs`.
+62. **Resend transient delivery delays no longer create hard suppression** —
+    code fix. `email.delivery_delayed` remains observable but does not count
+    toward durable suppression; suppression now requires five final
+    `email.failed` events inside the 30-day window. Commit:
+    `fix: sanitize operational email and webhook logs`.
 
 ## Verified Stale / Not Fixed
 
@@ -309,3 +329,31 @@ Last updated: 2026-05-18
    `main` disables `POST /api/listings/[id]/photos` with HTTP 410; edit-page
    photo changes are staged through `photoManifestJson` and reviewed only when
    the seller presses Save.
+3. **Similar-listing block filter gap** — stale claim. Current `main` resolves
+   the signed-in local user in `/api/listings/[id]/similar`, loads blocked
+   seller profile IDs, and excludes those sellers in the raw SQL predicate.
+4. **Sanitize helper stored-XSS chain** — stale claim. Current `main` routes
+   `sanitizeText()` and `sanitizeRichText()` through `sanitize-html`, strips all
+   tags, removes dangerous protocol text including whitespace-obfuscated
+   variants, and test-covers exception/message Sentry redaction separately.
+5. **Founding Maker number race** — stale claim. Current `main` assigns the
+   badge under a Postgres advisory transaction lock and uses max-number
+   assignment instead of count-plus-one.
+6. **Dev make-order production gate** — stale claim. Current `main` requires
+   `NODE_ENV === "development"`, `VERCEL !== "1"`, `VERCEL_ENV === undefined`,
+   and `ENABLE_DEV_MAKE_ORDER === "true"` before the fixture route is reachable.
+7. **Saved-search amplification chain** — stale claim. Current `main`
+   normalizes tag order, caps saved searches at 25 inside a serializable retry
+   transaction, and rate-limits saved-search GET/POST/DELETE.
+8. **Blog republish/comment notification chain** — stale claim. Current `main`
+   preserves first-publication `publishedAt`, notifies followers only on first
+   publish, and blog comment approval uses `dedupScope: commentId`.
+9. **Sentry exception value scrub gap** — stale claim. Current `main` scrubs
+   top-level `event.message`, `event.transaction`,
+   `event.exception.values[*].value`, and exception frame vars; regression
+   coverage exists in `tests/sentry-filter.test.mjs`.
+10. **Email outbox/resend reliability stale cluster** — stale claims. Current
+    `main` retries quota-counter outages on normal retry cadence, monitors and
+    prunes DEAD outbox rows, stores safe Resend webhook details, uses
+    `Promise.allSettled()` for multi-recipient webhook tasks, and returns 503
+    with `Retry-After` for in-progress webhook reservations.
