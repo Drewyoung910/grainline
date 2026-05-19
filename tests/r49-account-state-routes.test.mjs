@@ -93,6 +93,21 @@ describe("R49 account-state route guardrails", () => {
     assert.match(savedSearchRoute, /tags: normalizedTags/);
   });
 
+  it("keeps saved-search dedupe, 25 cap, and create in one serializable transaction", () => {
+    const savedSearchRoute = source("src/app/api/search/saved/route.ts");
+
+    assert.match(savedSearchRoute, /withSerializableRetry/);
+    assert.match(savedSearchRoute, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(savedSearchRoute, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+    assert.ok(
+      savedSearchRoute.indexOf("tx.savedSearch.findFirst") <
+        savedSearchRoute.indexOf("tx.savedSearch.count") &&
+        savedSearchRoute.indexOf("tx.savedSearch.count") <
+        savedSearchRoute.indexOf("tx.savedSearch.create"),
+      "saved-search POST should dedupe, count, and create inside the serializable transaction",
+    );
+  });
+
   it("prevents blocked users from creating favorite notifications", () => {
     const text = source("src/app/api/favorites/route.ts");
 

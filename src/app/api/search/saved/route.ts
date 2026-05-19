@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
-import { Category, ListingType } from "@prisma/client";
+import { Category, ListingType, Prisma } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { z } from "zod";
 import { ensureUser } from "@/lib/ensureUser";
@@ -14,6 +14,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { withSerializableRetry } from "@/lib/transactionRetry";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -116,50 +117,58 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Choose at least one search term or filter before saving." }, { status: 400 });
   }
 
-  const existing = await prisma.savedSearch.findFirst({
-    where: {
-      userId: me.id,
-      query: normalizedQuery,
-      category: categoryVal,
-      listingType,
-      shipsWithinDays: normalizedShips,
-      minRating: normalizedRating,
-      lat: normalizedLat,
-      lng: normalizedLng,
-      radiusMiles: normalizedRadius,
-      sort: normalizedSort,
-      minPrice: normalizedMin,
-      maxPrice: normalizedMax,
-      tags: { equals: normalizedTags },
-    },
-    select: { id: true },
-  });
-  if (existing) return NextResponse.json({ ok: true, id: existing.id, existing: true });
+  const result = await withSerializableRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const existing = await tx.savedSearch.findFirst({
+        where: {
+          userId: me.id,
+          query: normalizedQuery,
+          category: categoryVal,
+          listingType,
+          shipsWithinDays: normalizedShips,
+          minRating: normalizedRating,
+          lat: normalizedLat,
+          lng: normalizedLng,
+          radiusMiles: normalizedRadius,
+          sort: normalizedSort,
+          minPrice: normalizedMin,
+          maxPrice: normalizedMax,
+          tags: { equals: normalizedTags },
+        },
+        select: { id: true },
+      });
+      if (existing) return { id: existing.id, existing: true };
 
-  const count = await prisma.savedSearch.count({ where: { userId: me.id } });
-  if (count >= 25) {
+      const count = await tx.savedSearch.count({ where: { userId: me.id } });
+      if (count >= 25) return { error: "limit" as const };
+
+      const saved = await tx.savedSearch.create({
+        data: {
+          userId: me.id,
+          query: normalizedQuery,
+          category: categoryVal,
+          listingType,
+          shipsWithinDays: normalizedShips,
+          minRating: normalizedRating,
+          lat: normalizedLat,
+          lng: normalizedLng,
+          radiusMiles: normalizedRadius,
+          sort: normalizedSort,
+          minPrice: normalizedMin,
+          maxPrice: normalizedMax,
+          tags: normalizedTags,
+        },
+        select: { id: true },
+      });
+      return { id: saved.id, existing: false };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }),
+  );
+
+  if ("error" in result) {
     return NextResponse.json({ error: "You can save up to 25 searches. Delete one before saving another." }, { status: 400 });
   }
 
-  const saved = await prisma.savedSearch.create({
-    data: {
-      userId: me.id,
-      query: normalizedQuery,
-      category: categoryVal,
-      listingType,
-      shipsWithinDays: normalizedShips,
-      minRating: normalizedRating,
-      lat: normalizedLat,
-      lng: normalizedLng,
-      radiusMiles: normalizedRadius,
-      sort: normalizedSort,
-      minPrice: normalizedMin,
-      maxPrice: normalizedMax,
-      tags: normalizedTags,
-    },
-  });
-
-  return NextResponse.json({ ok: true, id: saved.id });
+  return NextResponse.json({ ok: true, id: result.id, existing: result.existing });
 }
 
 export async function GET() {

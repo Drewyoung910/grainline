@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 95.
-- Verified code/feature fix commits since 2026-05-13: 86.
+- Verified hardening/doc commits since 2026-05-13: 96.
+- Verified code/feature fix commits since 2026-05-13: 87.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 47 verified closed items in the 2026-05-14
+- Most recent reported pass total: 48 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -240,6 +240,11 @@ Last updated: 2026-05-18
     bypasses. Raw message, case, custom-order, gift-note, report, seller-note,
     blog, shipping-address, and audit-reason write paths now pass through the
     canonical sanitizers before persistence. Commit: `fix: normalize user text writes`.
+48. **Saved-search duplicate/cap race closed** — code fix. Saved-search POST
+    already canonicalized tag order and rate-limited reads/writes, but the
+    duplicate lookup, per-user 25 cap, and create now run inside a serializable
+    transaction with retry so parallel save attempts cannot bypass the cap or
+    create duplicate rows. Commit: `fix: serialize saved search creation`.
 
 ## Verified Stale / Not Fixed
 
