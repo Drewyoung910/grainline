@@ -194,6 +194,9 @@ export async function POST(req: Request) {
     if (isAccountAccessError(err)) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
+    if ((err as { code?: string }).code === "P2002") {
+      return NextResponse.json({ error: "A case is already open for this order." }, { status: 409 });
+    }
     console.error("POST /api/cases error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

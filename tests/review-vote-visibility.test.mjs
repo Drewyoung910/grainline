@@ -25,4 +25,10 @@ describe("review vote visibility guardrails", () => {
       "hidden, private, banned-seller, or disabled-seller listings must not be votable by id",
     );
   });
+
+  it("uses deleteMany for concurrent unvote races", () => {
+    assert.match(source, /reviewVote\.deleteMany\(\{\s*where: \{ reviewId: id, userId: me\.id \}/s);
+    assert.match(source, /if \(deleted\.count === 1\)/);
+    assert.doesNotMatch(source, /reviewVote\.delete\(\{/);
+  });
 });

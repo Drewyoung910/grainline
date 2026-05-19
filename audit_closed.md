@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 103.
-- Verified code/feature fix commits since 2026-05-13: 94.
+- Verified hardening/doc commits since 2026-05-13: 104.
+- Verified code/feature fix commits since 2026-05-13: 95.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 62 verified closed items in the 2026-05-14
+- Most recent reported pass total: 66 verified closed items in the 2026-05-14
   active tracker below, plus ten stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -319,6 +319,22 @@ Last updated: 2026-05-18
     toward durable suppression; suppression now requires five final
     `email.failed` events inside the 30-day window. Commit:
     `fix: sanitize operational email and webhook logs`.
+63. **Create-time AI review no longer reverts staff removal** — code fix.
+    Listing create AI-review follow-up writes now require the listing to still
+    be `PENDING_REVIEW` before setting AI status/flags or backfilling AI alt
+    text, so a concurrent admin removal/rejection cannot be undone by a late AI
+    response. Commit: `fix: harden stale write races`.
+64. **Blog comment approval side effects deduped** — code fix. Admin comment
+    approval now uses `updateMany({ approved: false })` and returns before
+    audit/notification side effects when another click/process already approved
+    the comment. Commit: `fix: harden stale write races`.
+65. **Review helpful unvote race closed** — code fix. Helpful-vote unvote now
+    uses `deleteMany` and decrements only when a vote row was actually deleted,
+    avoiding P2025/generic 500s and over-decrements on concurrent unvotes.
+    Commit: `fix: harden stale write races`.
+66. **Case duplicate-create race returns conflict** — code fix. Buyer case
+    creation now catches the unique-order `P2002` race and returns a friendly
+    `409` instead of a generic 500. Commit: `fix: harden stale write races`.
 
 ## Verified Stale / Not Fixed
 

@@ -334,40 +334,45 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8
 
+    let aiStatusApplied = false
     if (shouldHold) {
-      await prisma.listing.update({
-        where: { id: created.id },
+      const updated = await prisma.listing.updateMany({
+        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
         data: {
           status: ListingStatus.PENDING_REVIEW,
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
         }
       })
+      aiStatusApplied = updated.count === 1
     } else {
-      await prisma.listing.update({
-        where: { id: created.id },
+      const updated = await prisma.listing.updateMany({
+        where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
         data: {
           status: ListingStatus.ACTIVE,
           aiReviewFlags: aiResult.flags,
           aiReviewScore: aiResult.confidence,
         },
       })
-      await prisma.$executeRaw`
-        UPDATE "Listing"
-        SET status = 'SOLD_OUT'
-        WHERE id = ${created.id}
-          AND "sellerId" = ${seller.id}
-          AND "listingType" = 'IN_STOCK'
-          AND COALESCE("stockQuantity", 0) <= 0
-          AND status = 'ACTIVE'
-      `;
+      aiStatusApplied = updated.count === 1
+      if (aiStatusApplied) {
+        await prisma.$executeRaw`
+          UPDATE "Listing"
+          SET status = 'SOLD_OUT'
+          WHERE id = ${created.id}
+            AND "sellerId" = ${seller.id}
+            AND "listingType" = 'IN_STOCK'
+            AND COALESCE("stockQuantity", 0) <= 0
+            AND status = 'ACTIVE'
+        `;
+      }
     }
 
     // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text
     if (process.env.NODE_ENV !== "production") {
       console.debug(`[ai-alt-text] AI returned ${aiResult.altTexts?.length ?? 0} alt texts for listing ${created.id}`)
     }
-    if (aiResult.altTexts?.length) {
+    if (aiStatusApplied && aiResult.altTexts?.length) {
       try {
         const photos = await prisma.photo.findMany({
           where: { listingId: created.id },
@@ -399,8 +404,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
       tags: { source: "listing_create_ai_review" },
       extra: { listingId: created.id, sellerProfileId: seller.id },
     });
-    await prisma.listing.update({
-      where: { id: created.id },
+    await prisma.listing.updateMany({
+      where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
       data: {
         status: ListingStatus.PENDING_REVIEW,
         aiReviewFlags: ["AI review error"],

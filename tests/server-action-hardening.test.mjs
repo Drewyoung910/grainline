@@ -40,6 +40,7 @@ describe("server action hardening guardrails", () => {
     assert.match(createPage, /source: "listing_create_ai_review"/);
     assert.match(createPage, /source: "listing_create_ai_error_mark_failed"/);
     assert.match(createPage, /source: "listing_create_follower_fanout"/);
+    assert.match(createPage, /updateMany\(\{\s*where: \{ id: created\.id, status: ListingStatus\.PENDING_REVIEW \}/s);
     const createFanoutBlock = createPage.slice(createPage.lastIndexOf("fanOutListingToFollowers"));
     assert.doesNotMatch(createFanoutBlock, /catch \{ \/\* non-fatal \*\/ \}/);
   });

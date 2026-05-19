@@ -27,7 +27,12 @@ async function requireAdmin() {
 async function approveComment(commentId: string) {
   "use server";
   const me = await requireAdmin();
-  await prisma.blogComment.update({ where: { id: commentId }, data: { approved: true } });
+  const approved = await prisma.blogComment.updateMany({
+    where: { id: commentId, approved: false },
+    data: { approved: true },
+  });
+  if (approved.count !== 1) return;
+
   await logAdminAction({
     adminId: me.id,
     action: "APPROVE_BLOG_COMMENT",

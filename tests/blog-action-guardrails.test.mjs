@@ -47,6 +47,8 @@ describe("blog dashboard action guardrails", () => {
   it("deduplicates approved blog comment notifications per comment", () => {
     const adminBlog = source("src/app/admin/blog/page.tsx");
 
+    assert.match(adminBlog, /blogComment\.updateMany\(\{\s*where: \{ id: commentId, approved: false \}/s);
+    assert.match(adminBlog, /if \(approved\.count !== 1\) return/);
     assert.match(adminBlog, /type: "BLOG_COMMENT_REPLY"[\s\S]*dedupScope: commentId/);
     assert.match(adminBlog, /type: "NEW_BLOG_COMMENT"[\s\S]*dedupScope: commentId/);
   });
