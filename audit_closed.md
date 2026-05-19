@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 107.
-- Verified code/feature fix commits since 2026-05-13: 98.
+- Verified hardening/doc commits since 2026-05-13: 108.
+- Verified code/feature fix commits since 2026-05-13: 99.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 75 verified closed items in the 2026-05-14
+- Most recent reported pass total: 76 verified closed items in the 2026-05-14
   active tracker below, plus thirteen stale/false-positive claims verified
   clean.
 
@@ -380,6 +380,11 @@ Last updated: 2026-05-18
     deletes the just-written follow row if a block raced the write, and returns
     403 before counting followers or notifying the seller. Commit:
     `fix: harden blog message and follow races`.
+76. **Custom-order ready-link duplicate race closed** — code fix.
+    `sendCustomOrderReadyLink()` now serializes ready-link message creation with
+    a transaction-scoped advisory lock keyed by conversation and listing, then
+    runs the duplicate read and message create inside that lock. Commit:
+    `fix: serialize custom order ready links`.
 
 ## Verified Stale / Not Fixed
 

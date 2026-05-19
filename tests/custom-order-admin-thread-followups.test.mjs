@@ -15,6 +15,13 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(helper, /kind: "custom_order_link"/);
     assert.match(helper, /dedupScope: listing\.id/);
     assert.match(helper, /sendCustomOrderReady/);
+    assert.match(helper, /pg_advisory_xact_lock/);
+    assert.match(helper, /hashtext\(\$\{\`\$\{conversationId\}:\$\{listing\.id\}`\}\)/);
+    assert.ok(
+      helper.indexOf("const existingLinkMessage = await tx.message.findFirst") <
+        helper.indexOf("await tx.message.create"),
+      "custom order ready link duplicate check must run inside the locked transaction before message create",
+    );
     assert.match(customPage, /sendCustomOrderReadyLink\(\{/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.match(adminReview, /sendCustomOrderReadyLink\(\{/);

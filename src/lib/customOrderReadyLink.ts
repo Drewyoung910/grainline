@@ -11,6 +11,8 @@ type CustomOrderReadyListing = {
   currency: string | null;
 };
 
+const CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE = 913349;
+
 export async function sendCustomOrderReadyLink({
   conversationId,
   sellerUserId,
@@ -25,21 +27,24 @@ export async function sendCustomOrderReadyLink({
   listing: CustomOrderReadyListing;
 }) {
   const listingLink = publicListingPath(listing.id, listing.title);
-  const existingLinkMessage = await prisma.message.findFirst({
-    where: {
-      conversationId,
-      kind: "custom_order_link",
-      body: { contains: listing.id },
-    },
-    select: { id: true },
-  });
 
-  if (existingLinkMessage) {
-    return { messageCreated: false };
-  }
+  const messageCreated = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(${CUSTOM_ORDER_READY_LINK_LOCK_NAMESPACE}, hashtext(${`${conversationId}:${listing.id}`}))
+    `;
 
-  await prisma.$transaction([
-    prisma.message.create({
+    const existingLinkMessage = await tx.message.findFirst({
+      where: {
+        conversationId,
+        kind: "custom_order_link",
+        body: { contains: listing.id },
+      },
+      select: { id: true },
+    });
+
+    if (existingLinkMessage) return false;
+
+    await tx.message.create({
       data: {
         conversationId,
         senderId: sellerUserId,
@@ -52,12 +57,17 @@ export async function sendCustomOrderReadyLink({
           currency: listing.currency,
         }),
       },
-    }),
-    prisma.conversation.update({
+    });
+    await tx.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
-    }),
-  ]);
+    });
+    return true;
+  });
+
+  if (!messageCreated) {
+    return { messageCreated: false };
+  }
 
   await createNotification({
     userId: buyerUserId,
