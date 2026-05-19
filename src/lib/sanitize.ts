@@ -3,6 +3,9 @@ import sanitizeHtml from "sanitize-html";
 export const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 export const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
 const NULL_BYTES = /\u0000/g;
+const DANGEROUS_PROTOCOL_TEXT =
+  /\b(?:j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t|d\s*a\s*t\s*a|v\s*b\s*s\s*c\s*r\s*i\s*p\s*t|f\s*i\s*l\s*e)\s*:/gi;
+const EVENT_HANDLER_TEXT = /\bo\s*n\w+\s*=/gi;
 const CYRILLIC_CONFUSABLES: Record<string, string> = {
   А: "A",
   а: "a",
@@ -60,9 +63,9 @@ function stripHtmlTags(input: string): string {
 // Strip HTML tags and dangerous characters from user input
 export function sanitizeText(input: string): string {
   return stripHtmlTags(normalizeUserText(input))
-    .replace(/\b(?:javascript|data|vbscript)\s*:/gi, '') // strip dangerous protocols
-    .replace(/on\w+\s*=/gi, '') // strip event handlers
-    .trim()
+    .replace(DANGEROUS_PROTOCOL_TEXT, "") // strip dangerous protocols
+    .replace(EVENT_HANDLER_TEXT, "") // strip event handlers
+    .trim();
 }
 
 export function sanitizeUserName(input: string, maxLength = 100): string {
@@ -86,7 +89,7 @@ export function truncateTextWithEllipsis(input: string, maxLength: number): stri
 // dangerouslySetInnerHTML sink to accidentally trust.
 export function sanitizeRichText(input: string): string {
   return stripHtmlTags(normalizeUserText(input))
-    .replace(/\b(?:javascript|data|vbscript)\s*:/gi, '')
-    .replace(/on\w+\s*=/gi, '')
-    .trim()
+    .replace(DANGEROUS_PROTOCOL_TEXT, "")
+    .replace(EVENT_HANDLER_TEXT, "")
+    .trim();
 }

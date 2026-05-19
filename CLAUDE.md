@@ -2721,7 +2721,7 @@ Favorite creation must honor block state in both directions before writing `Favo
 
 ### Input sanitization (`src/lib/sanitize.ts`)
 
-- `sanitizeText(input)` — normalizes NFKC, strips bidi controls including U+061C, zero-width chars, null bytes, HTML tags, `javascript:`/`data:`/`vbscript:` protocol text, event handler attributes, and folds common Cyrillic confusables used for Latin impersonation; used on short fields.
+- `sanitizeText(input)` — normalizes NFKC, strips bidi controls including U+061C, zero-width chars, null bytes, HTML tags, dangerous protocol text including entity/whitespace-obfuscated `javascript:`/`data:`/`vbscript:`/`file:`, event handler attributes, and folds common Cyrillic confusables used for Latin impersonation; used on short fields.
 - `sanitizeRichText(input)` — stores long-form user text as plain text by running the same canonical user-text normalization plus `sanitize-html` with no allowed tags/attributes, then stripping dangerous protocols and event handler text. Do not preserve markup here; long-form fields render as React text nodes, and blog markdown is sanitized at write plus has its own explicit `renderBlogMarkdown()` sanitizer.
 
 Applied at DB boundary: listing title/description (new + edit), seller displayName/tagline/bio/story/FAQ, commission title/description/timeline, review text, broadcast messages, message/case/custom-order bodies, checkout gift notes, user-report details, seller fulfillment notes, blog title/body/excerpt/meta description, shipping-address lines, and admin audit reasons.

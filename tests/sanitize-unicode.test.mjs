@@ -51,6 +51,11 @@ describe("unicode sanitization", () => {
     assert.equal(sanitizeRichText("j&#x61;vascript:alert(1)"), "alert(1)");
   });
 
+  it("strips whitespace-obfuscated and file protocol text", () => {
+    assert.equal(sanitizeText("java\tscript:alert(1) file:///etc/passwd"), "alert(1) ///etc/passwd");
+    assert.equal(sanitizeRichText("d a t a:text/html vb script:msgbox(1)"), "text/html msgbox(1)");
+  });
+
   it("normalizes Cyrillic confusables before profanity matching", () => {
     const result = containsProfanity("handmade \u0441\u043Eck ornament");
     assert.equal(result.flagged, true);

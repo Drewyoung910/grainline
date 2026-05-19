@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 97.
-- Verified code/feature fix commits since 2026-05-13: 88.
+- Verified hardening/doc commits since 2026-05-13: 98.
+- Verified code/feature fix commits since 2026-05-13: 89.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 49 verified closed items in the 2026-05-14
+- Most recent reported pass total: 50 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -252,6 +252,12 @@ Last updated: 2026-05-18
     multi-recipient suppression/failure work uses `Promise.allSettled()` with
     per-recipient Sentry evidence before returning 500 for provider retry.
     Commit: `fix: retry in-progress resend webhooks`.
+50. **Sanitizer protocol obfuscation tightened** — code fix. Shared
+    `sanitizeText()` / `sanitizeRichText()` now strip dangerous protocol words
+    even when whitespace-obfuscated and include `file:` alongside existing
+    `javascript:`/`data:`/`vbscript:` handling, preserving write-boundary
+    defense even if future render paths change. Commit:
+    `fix: harden text protocol sanitization`.
 
 ## Verified Stale / Not Fixed
 
