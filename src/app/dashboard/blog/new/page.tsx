@@ -5,7 +5,7 @@ import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { BLOG_BODY_MAX_CHARS, generateSlug, calculateReadingTime } from "@/lib/blog";
-import { BlogPostType, BlogAuthorType } from "@prisma/client";
+import { BlogPostType, BlogAuthorType, Prisma } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { createNotification } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -133,26 +133,45 @@ export default async function NewBlogPostPage() {
       verifiedFeaturedListings.some((listing) => listing.id === id)
     );
 
-    const newPost = await prisma.blogPost.create({
-      data: {
-        slug,
-        title,
-        body,
-        excerpt,
-        metaDescription,
-        coverImageUrl,
-        videoUrl,
-        type,
-        status,
-        tags,
-        featuredListingIds: verifiedFeaturedListingIds,
-        readingTimeMinutes,
-        authorType,
-        authorId: author.id,
-        sellerProfileId,
-        publishedAt: status === "PUBLISHED" ? new Date() : null,
-      },
-    });
+    let newPost;
+    for (let createAttempt = 0; createAttempt < 5; createAttempt += 1) {
+      try {
+        newPost = await prisma.blogPost.create({
+          data: {
+            slug,
+            title,
+            body,
+            excerpt,
+            metaDescription,
+            coverImageUrl,
+            videoUrl,
+            type,
+            status,
+            tags,
+            featuredListingIds: verifiedFeaturedListingIds,
+            readingTimeMinutes,
+            authorType,
+            authorId: author.id,
+            sellerProfileId,
+            publishedAt: status === "PUBLISHED" ? new Date() : null,
+          },
+        });
+        break;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002" &&
+          Array.isArray(error.meta?.target) &&
+          error.meta.target.includes("slug")
+        ) {
+          if (attempt > 100) return { ok: false, error: "Could not generate a unique blog slug." };
+          slug = `${baseSlug}-${attempt++}`;
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (!newPost) return { ok: false, error: "Could not generate a unique blog slug." };
 
     if (status === "PUBLISHED") {
       revalidateBlogSearchCaches();

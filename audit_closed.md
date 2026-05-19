@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 106.
-- Verified code/feature fix commits since 2026-05-13: 97.
+- Verified hardening/doc commits since 2026-05-13: 107.
+- Verified code/feature fix commits since 2026-05-13: 98.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 72 verified closed items in the 2026-05-14
+- Most recent reported pass total: 75 verified closed items in the 2026-05-14
   active tracker below, plus thirteen stale/false-positive claims verified
   clean.
 
@@ -366,6 +366,20 @@ Last updated: 2026-05-18
     required referrer-policy, no third-party-resource, and no raw query/token
     logging guardrails. Commit: `fix: narrow user selects and document security
     tradeoffs`.
+73. **Blog slug collision race returns gracefully** — code fix. Dashboard blog
+    creation now catches unique-slug `P2002` races and retries with the next
+    `baseSlug-N` value before returning a user-facing slug failure. Commit:
+    `fix: harden blog message and follow races`.
+74. **Message first-response timestamp drift closed** — code fix. Message-thread
+    sends now set `firstResponseAt` through a null-preconditioned
+    `conversation.updateMany()` while keeping the ordinary `updatedAt` bump
+    separate, preventing concurrent replies from rewriting the metric. Commit:
+    `fix: harden blog message and follow races`.
+75. **Follow/block insertion race narrowed** — code fix. Follow POST now
+    re-checks reciprocal block state immediately after `Follow.upsert()`,
+    deletes the just-written follow row if a block raced the write, and returns
+    403 before counting followers or notifying the seller. Commit:
+    `fix: harden blog message and follow races`.
 
 ## Verified Stale / Not Fixed
 

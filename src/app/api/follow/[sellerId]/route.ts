@@ -115,6 +115,22 @@ export async function POST(
     update: {},
   });
 
+  const blockAfterFollow = await prisma.block.findFirst({
+    where: {
+      OR: [
+        { blockerId: me.id, blockedId: sellerProfile.userId },
+        { blockerId: sellerProfile.userId, blockedId: me.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blockAfterFollow) {
+    await prisma.follow.deleteMany({
+      where: { followerId: me.id, sellerProfileId: sellerProfile.id },
+    });
+    return NextResponse.json({ error: "Blocked" }, { status: 403 });
+  }
+
   const followerCount = await getFollowerCount(sellerProfile.id);
 
   // Only notify the seller on a new follow; createNotification handles exact duplicate suppression.

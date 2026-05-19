@@ -205,7 +205,7 @@ export default async function ThreadPage({
     }
 
     // bump thread; set firstResponseAt if this is the first reply from the other side
-    const conversationUpdate: Record<string, unknown> = { updatedAt: new Date() };
+    const messageSentAt = new Date();
     if (!c.firstResponseAt && (atts.length > 0 || body)) {
       // Check if the other person has sent a prior message (this is a response, not an opener)
       const priorFromOther = await prisma.message.findFirst({
@@ -213,12 +213,15 @@ export default async function ThreadPage({
         select: { id: true },
       });
       if (priorFromOther) {
-        conversationUpdate.firstResponseAt = new Date();
+        await prisma.conversation.updateMany({
+          where: { id, firstResponseAt: null },
+          data: { firstResponseAt: messageSentAt },
+        });
       }
     }
     await prisma.conversation.update({
       where: { id },
-      data: conversationUpdate,
+      data: { updatedAt: messageSentAt },
     });
 
     // Notify recipient

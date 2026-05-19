@@ -62,4 +62,13 @@ describe("blog dashboard action guardrails", () => {
     assert.match(editPage, /if \(isFirstPublish && updated\.sellerProfileId\)/);
     assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);
   });
+
+  it("retries create-time blog slug collisions instead of surfacing P2002", () => {
+    const newPage = source("src/app/dashboard/blog/new/page.tsx");
+
+    assert.match(newPage, /Prisma\.PrismaClientKnownRequestError/);
+    assert.match(newPage, /error\.code === "P2002"/);
+    assert.match(newPage, /error\.meta\?\.target[\s\S]*includes\("slug"\)/);
+    assert.match(newPage, /slug = `\$\{baseSlug\}-\$\{attempt\+\+\}`/);
+  });
 });

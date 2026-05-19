@@ -70,6 +70,14 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(threadPage, /extra: \{ conversationId: id, recipientId \}/);
   });
 
+  it("sets firstResponseAt through a null-preconditioned update", () => {
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(threadPage, /conversation\.updateMany\(\{\s*where: \{ id, firstResponseAt: null \}/s);
+    assert.match(threadPage, /data: \{ firstResponseAt: messageSentAt \}/);
+    assert.doesNotMatch(threadPage, /conversationUpdate\.firstResponseAt = new Date\(\)/);
+  });
+
   it("bounds message polling since parameters before Prisma date filters", () => {
     const listRoute = source("src/app/api/messages/[id]/list/route.ts");
     const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
