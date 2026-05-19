@@ -3,18 +3,26 @@ import { prisma } from "@/lib/db";
 import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
 import { truncateText } from "@/lib/sanitize";
 
-export async function beginStripeWebhookEvent(id: string, type: string): Promise<boolean> {
+export type StripeWebhookEventReservation = "process" | "processed" | "in_progress";
+
+export async function beginStripeWebhookEvent(id: string, type: string): Promise<StripeWebhookEventReservation> {
   const now = new Date();
   try {
     await prisma.stripeWebhookEvent.create({
       data: { id, type, processingStartedAt: now },
     });
-    return true;
+    return "process";
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
       throw error;
     }
   }
+
+  const existing = await prisma.stripeWebhookEvent.findUnique({
+    where: { id },
+    select: { processedAt: true },
+  });
+  if (existing?.processedAt) return "processed";
 
   const staleBefore = new Date(Date.now() - STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS);
   const claimed = await prisma.stripeWebhookEvent.updateMany({
@@ -32,7 +40,7 @@ export async function beginStripeWebhookEvent(id: string, type: string): Promise
       lastError: null,
     },
   });
-  return claimed.count > 0;
+  return claimed.count > 0 ? "process" : "in_progress";
 }
 
 export async function markStripeWebhookEventProcessed(id: string): Promise<void> {

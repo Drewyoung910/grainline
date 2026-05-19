@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 104.
-- Verified code/feature fix commits since 2026-05-13: 95.
+- Verified hardening/doc commits since 2026-05-13: 105.
+- Verified code/feature fix commits since 2026-05-13: 96.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 66 verified closed items in the 2026-05-14
+- Most recent reported pass total: 69 verified closed items in the 2026-05-14
   active tracker below, plus ten stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -335,6 +335,21 @@ Last updated: 2026-05-18
 66. **Case duplicate-create race returns conflict** — code fix. Buyer case
     creation now catches the unique-order `P2002` race and returns a friendly
     `409` instead of a generic 500. Commit: `fix: harden stale write races`.
+67. **Guild listing threshold sync race closed** — code fix. Listing-state
+    changes now call `syncGuildMemberListingThreshold()`, which recomputes the
+    active public listing threshold and updates/clears
+    `listingsBelowThresholdSince` in one SQL statement. Commit:
+    `fix: harden guild cart and webhook races`.
+68. **Cart update checkout-cleanup race closed** — code fix. `/api/cart/update`
+    now uses `deleteMany`/`updateMany` scoped by cart item and cart id, returning
+    a 409 refresh message if checkout webhook cleanup removed the row first.
+    Commit: `fix: harden guild cart and webhook races`.
+69. **Stripe webhook in-progress duplicates retry** — code fix.
+    `beginStripeWebhookEvent()` now distinguishes `process`, `processed`, and
+    `in_progress`; legacy snapshot and v2 thin webhook routes return 503 with
+    `Retry-After` for non-stale in-progress duplicates so Stripe retries instead
+    of treating the event as complete. Commit:
+    `fix: harden guild cart and webhook races`.
 
 ## Verified Stale / Not Fixed
 

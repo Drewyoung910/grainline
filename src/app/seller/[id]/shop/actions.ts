@@ -19,6 +19,7 @@ import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -116,17 +117,7 @@ function queueFollowerFanoutForActiveListing(listing: {
 }
 
 async function syncThreshold(sellerId: string) {
-  const activeCount = await prisma.listing.count({ where: { sellerId, status: "ACTIVE" } });
-  const sp = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: { listingsBelowThresholdSince: true },
-  });
-  if (!sp) return;
-  if (activeCount < 5 && !sp.listingsBelowThresholdSince) {
-    await prisma.sellerProfile.update({ where: { id: sellerId }, data: { listingsBelowThresholdSince: new Date() } });
-  } else if (activeCount >= 5 && sp.listingsBelowThresholdSince) {
-    await prisma.sellerProfile.update({ where: { id: sellerId }, data: { listingsBelowThresholdSince: null } });
-  }
+  await syncGuildMemberListingThreshold(sellerId);
 }
 
 export async function hideListingAction(listingId: string) {
@@ -195,14 +186,7 @@ export async function deleteListingAction(listingId: string) {
       error: error instanceof Error ? error.message : "Could not archive this listing.",
     };
   }
-  const activeCount = await prisma.listing.count({ where: { sellerId: listing.sellerId, status: "ACTIVE" } });
-  const sp = await prisma.sellerProfile.findUnique({
-    where: { id: listing.sellerId },
-    select: { listingsBelowThresholdSince: true },
-  });
-  if (sp && activeCount < 5 && !sp.listingsBelowThresholdSince) {
-    await prisma.sellerProfile.update({ where: { id: listing.sellerId }, data: { listingsBelowThresholdSince: new Date() } });
-  }
+  await syncGuildMemberListingThreshold(listing.sellerId);
   queueCheckoutSessionExpiryForListing(listingId, listing.sellerId, "listing_archive");
   revalidateListingSurfaces(listingId, listing.sellerId);
   return { ok: true };

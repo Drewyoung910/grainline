@@ -31,6 +31,10 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     const mirror = source("src/lib/stripeWebhookMirror.ts");
 
     assert.match(route, /beginStripeWebhookEvent\(stripeEventId, stripeEventType\)/);
+    assert.match(route, /reservation === "processed"/);
+    assert.match(route, /reservation === "in_progress"/);
+    assert.match(route, /status: 503/);
+    assert.match(route, /"Retry-After": String\(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS\)/);
     assert.match(route, /markStripeWebhookEventProcessed\(stripeEventId\)/);
     assert.match(route, /markStripeWebhookEventFailed\(stripeEventId, handlerErr\)/);
     assert.match(route, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
@@ -48,6 +52,19 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(mirror, /logSecurityEvent\("ownership_violation"/);
     assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
     assert.match(mirror, /source: route === "\/api\/stripe\/webhook\/v2" \? "stripe_v2_charges_disabled" : "stripe_charges_disabled"/);
+  });
+
+  it("keeps legacy snapshot webhooks retryable while an event is in progress", () => {
+    const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
+    const events = source("src/lib/stripeWebhookEvents.ts");
+
+    assert.match(events, /export type StripeWebhookEventReservation = "process" \| "processed" \| "in_progress"/);
+    assert.match(events, /if \(existing\?\.processedAt\) return "processed"/);
+    assert.match(events, /return claimed\.count > 0 \? "process" : "in_progress"/);
+    assert.match(legacyRoute, /reservation === "processed"/);
+    assert.match(legacyRoute, /reservation === "in_progress"/);
+    assert.match(legacyRoute, /status: 503/);
+    assert.match(legacyRoute, /"Retry-After": String\(STRIPE_WEBHOOK_RETRY_AFTER_SECONDS\)/);
   });
 
   it("documents and exposes the new webhook destination without weakening public middleware", () => {

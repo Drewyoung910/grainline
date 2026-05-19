@@ -40,4 +40,18 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(adminVerification, /caseCreatedBefore: ninetyDaysAgo/);
     assert.match(adminVerification, /activeListings < 5/);
   });
+
+  it("syncs Guild listing threshold from a single SQL statement", () => {
+    const helper = source("src/lib/guildListingThreshold.ts");
+    const dashboard = source("src/app/dashboard/page.tsx");
+    const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+
+    assert.match(helper, /UPDATE "SellerProfile" sp/);
+    assert.match(helper, /COUNT\(\*\)[\s\S]*FROM "Listing" l/);
+    assert.match(helper, /l\."isPrivate" = false/);
+    assert.match(helper, /COALESCE\(sp\."listingsBelowThresholdSince", NOW\(\)\)/);
+    assert.match(dashboard, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
+    assert.match(shopActions, /syncGuildMemberListingThreshold\(sellerId\)/);
+    assert.match(shopActions, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
+  });
 });

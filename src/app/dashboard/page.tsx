@@ -15,6 +15,7 @@ import ResubmitButton from "@/components/ResubmitButton";
 import { listingMutationRatelimit, safeRateLimit, savedSearchRatelimit } from "@/lib/ratelimit";
 import { publicListingPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -73,27 +74,7 @@ async function setStatus(
     return { ok: false, error: "Listing changed in another tab. Refresh and try again." };
   }
 
-  // Update listingsBelowThresholdSince for Guild Member revocation tracking
-  const activeCount = await prisma.listing.count({
-    where: { sellerId: listing.sellerId, status: "ACTIVE" },
-  });
-  const sp = await prisma.sellerProfile.findUnique({
-    where: { id: listing.sellerId },
-    select: { listingsBelowThresholdSince: true },
-  });
-  if (sp) {
-    if (activeCount < 5 && !sp.listingsBelowThresholdSince) {
-      await prisma.sellerProfile.update({
-        where: { id: listing.sellerId },
-        data: { listingsBelowThresholdSince: new Date() },
-      });
-    } else if (activeCount >= 5 && sp.listingsBelowThresholdSince) {
-      await prisma.sellerProfile.update({
-        where: { id: listing.sellerId },
-        data: { listingsBelowThresholdSince: null },
-      });
-    }
-  }
+  await syncGuildMemberListingThreshold(listing.sellerId);
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");
@@ -138,20 +119,7 @@ async function deleteListing(
     return { ok: false, error: "Could not archive this listing. Please try again." };
   }
 
-  // Deleting a listing may drop active count below 5
-  const activeCount = await prisma.listing.count({
-    where: { sellerId: listing.sellerId, status: "ACTIVE" },
-  });
-  const sp = await prisma.sellerProfile.findUnique({
-    where: { id: listing.sellerId },
-    select: { listingsBelowThresholdSince: true },
-  });
-  if (sp && activeCount < 5 && !sp.listingsBelowThresholdSince) {
-    await prisma.sellerProfile.update({
-      where: { id: listing.sellerId },
-      data: { listingsBelowThresholdSince: new Date() },
-    });
-  }
+  await syncGuildMemberListingThreshold(listing.sellerId);
 
   revalidatePath("/dashboard");
   revalidatePath("/browse");

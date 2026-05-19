@@ -35,6 +35,9 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(cartUpdate, /stripeAccountVersion: true/);
     assert.match(cartUpdate, /sellerOrderBlockReason\(listing\.seller\)/);
     assert.match(cartUpdate, /sellerOrderBlockMessage\(sellerBlockReason\)/);
+    assert.match(cartUpdate, /cartItem\.deleteMany\(\{ where: \{ id: item\.id, cartId: item\.cartId \} \}\)/);
+    assert.match(cartUpdate, /cartItem\.updateMany\(\{\s*where: \{ id: item\.id, cartId: item\.cartId \}/s);
+    assert.match(cartUpdate, /status: 409/);
 
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     assert.match(singleCheckout, /acceptingNewOrders: true/);

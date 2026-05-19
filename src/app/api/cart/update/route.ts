@@ -120,16 +120,19 @@ export async function POST(req: Request) {
     }
 
     if (quantity === 0) {
-      await prisma.cartItem.delete({ where: { id: item.id } });
+      await prisma.cartItem.deleteMany({ where: { id: item.id, cartId: item.cartId } });
     } else {
-      await prisma.cartItem.update({
-        where: { id: item.id },
+      const updated = await prisma.cartItem.updateMany({
+        where: { id: item.id, cartId: item.cartId },
         data: {
           quantity,
           priceCents: livePriceCents,
           priceVersion: livePriceVersion,
         },
       });
+      if (updated.count === 0) {
+        return NextResponse.json({ error: "Cart item changed. Refresh and try again." }, { status: 409 });
+      }
     }
 
     return NextResponse.json({ ok: true });

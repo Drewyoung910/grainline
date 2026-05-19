@@ -23,6 +23,7 @@ export const maxDuration = 30;
 export const preferredRegion = "iad1";
 
 const STRIPE_V2_WEBHOOK_BODY_MAX_BYTES = 512 * 1024;
+const STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS = 30;
 
 type StripeConnectV2NotificationEnvelope = StripeConnectV2AccountNotification & {
   id?: unknown;
@@ -111,8 +112,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Stale Stripe event" }, { status: 400 });
   }
 
-  const shouldProcess = await beginStripeWebhookEvent(stripeEventId, stripeEventType);
-  if (!shouldProcess) return NextResponse.json({ received: true });
+  const reservation = await beginStripeWebhookEvent(stripeEventId, stripeEventType);
+  if (reservation === "processed") return NextResponse.json({ received: true });
+  if (reservation === "in_progress") {
+    return NextResponse.json(
+      { received: false, status: reservation },
+      { status: 503, headers: { "Retry-After": String(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS) } },
+    );
+  }
 
   async function markCurrentStripeWebhookEventFailed(handlerErr: unknown) {
     try {
