@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 101.
-- Verified code/feature fix commits since 2026-05-13: 92.
+- Verified hardening/doc commits since 2026-05-13: 102.
+- Verified code/feature fix commits since 2026-05-13: 93.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 53 verified closed items in the 2026-05-14
+- Most recent reported pass total: 58 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -274,6 +274,31 @@ Last updated: 2026-05-18
     fallback to `ratelimitPolicy.ts`, whose direct tests assert fail-closed vs
     fail-open behavior without importing Next/Upstash route wiring. Commit:
     `test: cover rate limit failure policy`.
+54. **Stripe charges-disabled mirror expires open checkouts** — code fix.
+    `mirrorStripeChargesEnabled()` now proactively expires open Stripe Checkout
+    Sessions when Stripe/account mirroring flips `chargesEnabled` false,
+    reducing stale-payment/auto-refund UX when Stripe disables a seller.
+    Commit: `fix: harden refund and seller disable flows`.
+55. **Newsletter suppression enumeration closed** — code fix. Public newsletter
+    signup now returns the same success shape for suppressed/unsubscribed
+    addresses as normal accepted signups, preventing suppression-history
+    probing from the public endpoint. Commit:
+    `fix: harden refund and seller disable flows`.
+56. **Full-refund stock restoration excludes buyer handoff states** — code fix.
+    Seller full refunds restore IN_STOCK inventory only before buyer handoff;
+    `SHIPPED`, `DELIVERED`, and `PICKED_UP` orders can still be refunded, but
+    do not inflate sellable stock. Commit:
+    `fix: harden refund and seller disable flows`.
+57. **Seller refund lock stale window and record precondition hardened** — code
+    fix. Stale pending refund locks now use a 15-minute window, and seller
+    refund success recording runs inside a transaction that only writes the
+    Stripe refund when the pending lock is still present. Commit:
+    `fix: harden refund and seller disable flows`.
+58. **Platform-only seller refunds surface seller-level reconciliation** — code
+    fix. When Stripe refund creation cannot reverse the connected-account
+    transfer and uses a platform-only refund, the seller profile now gets
+    `manualStripeReconciliationNeeded` plus staff-facing note, not just an
+    order-level review note. Commit: `fix: harden refund and seller disable flows`.
 
 ## Verified Stale / Not Fixed
 

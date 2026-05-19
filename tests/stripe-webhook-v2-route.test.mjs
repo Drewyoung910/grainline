@@ -46,6 +46,8 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(mirror, /seller\.chargesEnabled === effectiveChargesEnabled/);
     assert.match(mirror, /data: \{ chargesEnabled: effectiveChargesEnabled \}/);
     assert.match(mirror, /logSecurityEvent\("ownership_violation"/);
+    assert.match(mirror, /expireOpenCheckoutSessionsForSeller/);
+    assert.match(mirror, /source: route === "\/api\/stripe\/webhook\/v2" \? "stripe_v2_charges_disabled" : "stripe_charges_disabled"/);
   });
 
   it("documents and exposes the new webhook destination without weakening public middleware", () => {

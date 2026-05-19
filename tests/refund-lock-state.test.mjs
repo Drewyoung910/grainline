@@ -9,6 +9,10 @@ const {
 } = await import("../src/lib/refundLockState.ts");
 
 describe("refund lock state", () => {
+  it("keeps the stale lock window longer than normal Stripe refund latency", () => {
+    assert.equal(REFUND_LOCK_STALE_MS, 15 * 60 * 1000);
+  });
+
   it("calculates the cleanup cutoff from the configured stale window", () => {
     const now = new Date("2026-04-28T12:00:00.000Z");
 

@@ -54,11 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (await isEmailSuppressed(email)) {
-      return NextResponse.json({
-        subscribed: false,
-        suppressed: true,
-        message: "This email has been unsubscribed. Contact support@thegrainline.com to re-enable email.",
-      });
+      return NextResponse.json({ subscribed: true });
     }
 
     await prisma.newsletterSubscriber.upsert({

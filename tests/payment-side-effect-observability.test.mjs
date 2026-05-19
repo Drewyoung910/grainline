@@ -26,6 +26,15 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
+  it("records seller refunds only while the refund lock is still held", () => {
+    const route = source("src/app/api/orders/[id]/refund/route.ts");
+
+    assert.match(route, /refundMayRestoreStock\(order\)/);
+    assert.match(route, /tx\.order\.updateMany\(\{\s*where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s);
+    assert.match(route, /if \(orderUpdate\.count !== 1\)/);
+    assert.match(route, /manualStripeReconciliationNeeded: true/);
+  });
+
   it("keeps shipping-label orphan paths observable without full label URLs", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
 

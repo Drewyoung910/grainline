@@ -198,6 +198,10 @@ export function refundStockRestoreQuantities(items: RefundStockRestoreItem[]) {
   }));
 }
 
+export function refundMayRestoreStock(order: { fulfillmentStatus?: string | null | undefined }) {
+  return !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(order.fulfillmentStatus ?? "");
+}
+
 export function shouldReactivateRefundedListing(listing: {
   status: string | null | undefined;
   listingType: string | null | undefined;

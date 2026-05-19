@@ -1,5 +1,5 @@
 export const REFUND_LOCK_SENTINEL = "pending";
-export const REFUND_LOCK_STALE_MS = 5 * 60 * 1000;
+export const REFUND_LOCK_STALE_MS = 15 * 60 * 1000;
 
 type RefundLockState = {
   sellerRefundId: string | null;

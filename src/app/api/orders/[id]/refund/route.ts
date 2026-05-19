@@ -22,6 +22,7 @@ import {
   partialRefundInputError,
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
+  refundMayRestoreStock,
   refundStockRestoreQuantities,
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
@@ -212,14 +213,8 @@ export async function POST(
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
 
-      const stockRestores = type === "FULL" ? refundStockRestoreQuantities(myItems) : [];
+      const stockRestores = type === "FULL" && refundMayRestoreStock(order) ? refundStockRestoreQuantities(myItems) : [];
       const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
-      const stockRestoreOps = stockRestores.map((restore) =>
-        prisma.listing.update({
-          where: { id: restore.listingId },
-          data: { stockQuantity: { increment: restore.quantity } },
-        }),
-      );
 
       // Resolve any open case on this order
       const existingCase = await prisma.case.findUnique({
@@ -236,9 +231,9 @@ export async function POST(
         : "";
       const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}`;
 
-      await prisma.$transaction([
-        prisma.order.update({
-          where: { id: orderId },
+      await prisma.$transaction(async (tx) => {
+        const orderUpdate = await tx.order.updateMany({
+          where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: {
             sellerRefundId: refundId,
             sellerRefundAmountCents: refundAmountCents,
@@ -246,40 +241,55 @@ export async function POST(
             reviewNeeded: true,
             reviewNote,
           },
-        }),
-        ...(existingCase &&
-        existingCase.status !== "RESOLVED" &&
-        existingCase.status !== "CLOSED"
-          ? [
-              prisma.case.update({
-                where: { id: existingCase.id },
-                data: {
-                  status: "RESOLVED",
-                  resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
-                  refundAmountCents: refundAmountCents,
-                  stripeRefundId: refundId,
-                  resolvedAt: now,
-                  resolvedById: me.id,
-                },
-              }),
-            ]
-          : []),
-        ...stockRestoreOps,
-        ...(stockRestoreIds.length
-          ? [
-              prisma.listing.updateMany({
-                where: {
-                  id: { in: stockRestoreIds },
-                  listingType: "IN_STOCK",
-                  status: "SOLD_OUT",
-                  stockQuantity: { gt: 0 },
-                  isPrivate: false,
-                },
-                data: { status: "ACTIVE" },
-              }),
-            ]
-          : []),
-      ]);
+        });
+        if (orderUpdate.count !== 1) {
+          throw new Error("Seller refund lock was no longer held while recording Stripe refund.");
+        }
+
+        if (refund.usedPlatformOnly) {
+          await tx.sellerProfile.update({
+            where: { id: seller.id },
+            data: {
+              manualStripeReconciliationNeeded: true,
+              manualStripeReconciliationNote: "Seller refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
+            },
+          });
+        }
+
+        if (existingCase && existingCase.status !== "RESOLVED" && existingCase.status !== "CLOSED") {
+          await tx.case.update({
+            where: { id: existingCase.id },
+            data: {
+              status: "RESOLVED",
+              resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
+              refundAmountCents: refundAmountCents,
+              stripeRefundId: refundId,
+              resolvedAt: now,
+              resolvedById: me.id,
+            },
+          });
+        }
+
+        for (const restore of stockRestores) {
+          await tx.listing.update({
+            where: { id: restore.listingId },
+            data: { stockQuantity: { increment: restore.quantity } },
+          });
+        }
+
+        if (stockRestoreIds.length) {
+          await tx.listing.updateMany({
+            where: {
+              id: { in: stockRestoreIds },
+              listingType: "IN_STOCK",
+              status: "SOLD_OUT",
+              stockQuantity: { gt: 0 },
+              isPrivate: false,
+            },
+            data: { status: "ACTIVE" },
+          });
+        }
+      });
     } catch (err) {
       if (refundId) {
         Sentry.captureException(err, {

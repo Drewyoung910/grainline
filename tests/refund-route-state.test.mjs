@@ -15,6 +15,7 @@ const {
   partialRefundInputError,
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
+  refundMayRestoreStock,
   refundStockRestoreQuantities,
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
@@ -234,6 +235,14 @@ describe("refund route state", () => {
       ]),
       [{ listingId: "listing_1", quantity: 3 }],
     );
+  });
+
+  it("does not restore stock after buyer handoff states", () => {
+    assert.equal(refundMayRestoreStock({ fulfillmentStatus: "PENDING" }), true);
+    assert.equal(refundMayRestoreStock({ fulfillmentStatus: "READY_FOR_PICKUP" }), true);
+    assert.equal(refundMayRestoreStock({ fulfillmentStatus: "SHIPPED" }), false);
+    assert.equal(refundMayRestoreStock({ fulfillmentStatus: "DELIVERED" }), false);
+    assert.equal(refundMayRestoreStock({ fulfillmentStatus: "PICKED_UP" }), false);
   });
 
   it("reactivates refunded listings only from current visible sold-out stock state", () => {

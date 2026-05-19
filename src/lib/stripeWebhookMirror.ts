@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { logSecurityEvent } from "@/lib/security";
+import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 
 export async function mirrorStripeChargesEnabled({
   accountId,
@@ -15,6 +16,7 @@ export async function mirrorStripeChargesEnabled({
     select: {
       id: true,
       chargesEnabled: true,
+      stripeAccountId: true,
       user: { select: { id: true, banned: true, deletedAt: true } },
     },
   });
@@ -37,6 +39,11 @@ export async function mirrorStripeChargesEnabled({
       reason: !localAccountActive && chargesEnabled
         ? `Ignored Stripe charges_enabled=true for inactive local account: ${accountId}`
         : `Seller Stripe account disabled by Stripe: ${accountId}`,
+    });
+    await expireOpenCheckoutSessionsForSeller({
+      sellerId: seller.id,
+      stripeAccountId: seller.stripeAccountId,
+      source: route === "/api/stripe/webhook/v2" ? "stripe_v2_charges_disabled" : "stripe_charges_disabled",
     });
   }
 }

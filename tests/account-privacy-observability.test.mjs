@@ -30,6 +30,8 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /source: "newsletter_subscribe"/);
     assert.match(route, /extra: \{ emailHash \}/);
     assert.match(route, /isEmailSuppressed\(email\)/);
+    assert.doesNotMatch(route, /suppressed: true/);
+    assert.doesNotMatch(route, /subscribed: false/);
   });
 
   it("bounds public support and privacy request bodies before normalization", () => {
