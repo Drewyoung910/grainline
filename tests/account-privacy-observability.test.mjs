@@ -72,9 +72,33 @@ describe("account and privacy route observability guardrails", () => {
 
     assert.match(route, /markWebhookFailed\(id, err\)\.catch/);
     assert.match(route, /sanitizeEmailOutboxError\(err\)/);
+    assert.match(route, /processingStartedAt: null/);
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
     assert.doesNotMatch(route, /details: event as unknown as Prisma\.InputJsonValue/);
     assert.match(route, /source: "resend_webhook_mark_failed"/);
     assert.match(route, /source: "resend_webhook_process"/);
+  });
+
+  it("returns retryable status for in-progress Resend webhook reservations", () => {
+    const route = source("src/app/api/resend/webhook/route.ts");
+
+    assert.match(route, /reservation === "processed"/);
+    assert.match(route, /reservation === "in_progress"/);
+    const inProgressStart = route.indexOf('reservation === "in_progress"');
+    const processStart = route.indexOf("try {", inProgressStart);
+    const inProgressBlock = route.slice(inProgressStart, processStart);
+    assert.match(inProgressBlock, /status: 503/);
+    assert.match(inProgressBlock, /"Retry-After": String\(RESEND_WEBHOOK_RETRY_AFTER_SECONDS\)/);
+    assert.doesNotMatch(inProgressBlock, /ok: true/);
+  });
+
+  it("captures each Resend recipient task failure before retrying the webhook", () => {
+    const route = source("src/app/api/resend/webhook/route.ts");
+
+    assert.match(route, /Promise\.allSettled\(tasks\)/);
+    assert.match(route, /"resend_webhook_suppress_email"/);
+    assert.match(route, /"resend_webhook_transient_failure"/);
+    assert.match(route, /recipientIndex: index/);
+    assert.doesNotMatch(route, /await Promise\.all\(\s*emails\.map/s);
   });
 });

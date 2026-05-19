@@ -16,6 +16,7 @@ const RESEND_WEBHOOK_RETRY_AFTER_MS = 5 * 60 * 1000;
 const RESEND_WEBHOOK_BODY_MAX_BYTES = 256 * 1024;
 const TRANSIENT_FAILURE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 3;
+const RESEND_WEBHOOK_RETRY_AFTER_SECONDS = Math.ceil(RESEND_WEBHOOK_RETRY_AFTER_MS / 1000);
 
 function emailsFromEvent(event: WebhookEventPayload): string[] {
   const to = "to" in event.data ? event.data.to : [];
@@ -90,9 +91,38 @@ async function markWebhookFailed(svixId: string, err: unknown) {
   await prisma.resendWebhookEvent.update({
     where: { svixId },
     data: {
+      processingStartedAt: null,
       lastError: sanitizeEmailOutboxError(err),
     },
   });
+}
+
+async function requireWebhookTasks<T>(
+  tasks: Promise<T>[],
+  source: string,
+  extra: Record<string, unknown>,
+): Promise<T[]> {
+  const results = await Promise.allSettled(tasks);
+  const values: T[] = [];
+  const failures: unknown[] = [];
+
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      values.push(result.value);
+      return;
+    }
+    failures.push(result.reason);
+    Sentry.captureException(result.reason, {
+      tags: { source },
+      extra: { ...extra, recipientIndex: index },
+    });
+  });
+
+  if (failures.length > 0) {
+    throw new Error(`${source} failed for ${failures.length} recipient(s)`);
+  }
+
+  return values;
 }
 
 function safeResendWebhookDetails(event: WebhookEventPayload, svixId: string, emails: string[]): Prisma.InputJsonValue {
@@ -207,8 +237,14 @@ export async function POST(request: Request) {
   }
 
   const reservation = await reserveWebhookEvent(id, event.type);
-  if (reservation !== "process") {
+  if (reservation === "processed") {
     return NextResponse.json({ ok: true, duplicate: true, status: reservation, type: event.type });
+  }
+  if (reservation === "in_progress") {
+    return NextResponse.json(
+      { ok: false, duplicate: true, status: reservation, type: event.type },
+      { status: 503, headers: { "Retry-After": String(RESEND_WEBHOOK_RETRY_AFTER_SECONDS) } },
+    );
   }
 
   try {
@@ -217,7 +253,7 @@ export async function POST(request: Request) {
     const safeDetails = safeResendWebhookDetails(event, id, emails);
 
     if (reason) {
-      await Promise.all(
+      await requireWebhookTasks(
         emails.map((email) =>
           suppressEmail({
             email,
@@ -227,13 +263,19 @@ export async function POST(request: Request) {
             details: safeDetails,
           }),
         ),
+        "resend_webhook_suppress_email",
+        { svixId: id, type: event.type },
       );
       await markWebhookProcessed(id);
       return NextResponse.json({ ok: true, type: event.type, suppressed: emails.length });
     }
 
     if (isTransientFailure(event.type)) {
-      const suppressed = await Promise.all(emails.map((email) => recordTransientFailure(email, id, safeDetails)));
+      const suppressed = await requireWebhookTasks(
+        emails.map((email) => recordTransientFailure(email, id, safeDetails)),
+        "resend_webhook_transient_failure",
+        { svixId: id, type: event.type },
+      );
       await markWebhookProcessed(id);
       return NextResponse.json({
         ok: true,

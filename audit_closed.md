@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 96.
-- Verified code/feature fix commits since 2026-05-13: 87.
+- Verified hardening/doc commits since 2026-05-13: 97.
+- Verified code/feature fix commits since 2026-05-13: 88.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 48 verified closed items in the 2026-05-14
+- Most recent reported pass total: 49 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -245,6 +245,13 @@ Last updated: 2026-05-18
     duplicate lookup, per-user 25 cap, and create now run inside a serializable
     transaction with retry so parallel save attempts cannot bypass the cap or
     create duplicate rows. Commit: `fix: serialize saved search creation`.
+49. **Resend webhook retry boundary closed** — code fix. In-progress Resend
+    webhook reservations now return retryable 503 with `Retry-After` instead of
+    200 so bounce/complaint events are not permanently dropped if the active
+    handler crashes. Failed processing clears `processingStartedAt`, and
+    multi-recipient suppression/failure work uses `Promise.allSettled()` with
+    per-recipient Sentry evidence before returning 500 for provider retry.
+    Commit: `fix: retry in-progress resend webhooks`.
 
 ## Verified Stale / Not Fixed
 
