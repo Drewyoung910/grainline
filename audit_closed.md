@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 100.
-- Verified code/feature fix commits since 2026-05-13: 91.
+- Verified hardening/doc commits since 2026-05-13: 101.
+- Verified code/feature fix commits since 2026-05-13: 92.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 52 verified closed items in the 2026-05-14
+- Most recent reported pass total: 53 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -269,6 +269,11 @@ Last updated: 2026-05-18
     normalization and a strict email pattern before durable write/email
     delivery, rejecting CRLF/header-injection strings that previously only had
     to contain `@`. Commit: `fix: validate support request email input`.
+53. **Rate-limit failure policy covered by pure tests** — code/test fix.
+    `safeRateLimit()` and `safeRateLimitOpen()` now delegate Redis-error
+    fallback to `ratelimitPolicy.ts`, whose direct tests assert fail-closed vs
+    fail-open behavior without importing Next/Upstash route wiring. Commit:
+    `test: cover rate limit failure policy`.
 
 ## Verified Stale / Not Fixed
 

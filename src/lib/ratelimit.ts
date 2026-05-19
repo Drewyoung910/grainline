@@ -1,6 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
+import { limitWithFailurePolicy } from "@/lib/ratelimitPolicy";
 
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -482,13 +483,7 @@ export async function safeRateLimit(
   limiter: Ratelimit,
   key: string
 ): Promise<{ success: boolean; reset: number }> {
-  try {
-    const result = await limiter.limit(key);
-    return { success: result.success, reset: result.reset };
-  } catch (error) {
-    console.error("Rate limit Redis error (fail closed):", error);
-    return { success: false, reset: Date.now() + 60000 };
-  }
+  return limitWithFailurePolicy(limiter, key, false, "Rate limit Redis error (fail closed):");
 }
 
 /**
@@ -501,13 +496,7 @@ export async function safeRateLimitOpen(
   limiter: Ratelimit,
   key: string
 ): Promise<{ success: boolean; reset: number }> {
-  try {
-    const result = await limiter.limit(key);
-    return { success: result.success, reset: result.reset };
-  } catch (error) {
-    console.error("Rate limit Redis error (fail open):", error);
-    return { success: true, reset: Date.now() + 60000 };
-  }
+  return limitWithFailurePolicy(limiter, key, true, "Rate limit Redis error (fail open):");
 }
 
 /** Returns the client IP from Vercel's x-forwarded-for header. */
