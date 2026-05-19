@@ -16,6 +16,11 @@ describe("email text rendering", () => {
     assert.equal(text, 'Order & Shipping\nUse code "A1" ...');
   });
 
+  it("strips decoded bidi and zero-width controls from plain-text fallback", () => {
+    const text = htmlToText("<p>refund&#x202E;gpj.exe f&#x200B;oo</p>");
+    assert.equal(text, "refundgpj.exe foo");
+  });
+
   it("keeps table cells readable in plain text", () => {
     const text = htmlToText(`
       <table>

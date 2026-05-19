@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 122.
-- Verified code/feature fix commits since 2026-05-13: 113.
+- Verified hardening/doc commits since 2026-05-13: 126.
+- Verified code/feature fix commits since 2026-05-13: 117.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 90 verified closed items in the 2026-05-14
-  active tracker below, plus twenty stale/false-positive claims verified
+- Most recent reported pass total: 94 verified closed items in the 2026-05-14
+  active tracker below, plus thirty-six stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -452,6 +452,23 @@ Last updated: 2026-05-18
     updated the lockfile to `sanitize-html@2.17.4` and `brace-expansion@5.0.6`;
     sanitizer guardrail tests and full `npm test` passed afterward. Commit
     `fix: harden admin report and deletion lifecycle`.
+91. **Durable user email normalization aligned** — code fix.
+    `ensureUserByClerkId()` now normalizes provided emails through
+    `normalizeEmailAddress()` before create/update, so Clerk/OAuth NFC/casing
+    variants do not split durable `User.email` identity or suppression matching.
+    Commit: `fix: normalize email and plaintext controls`.
+92. **Clerk webhook primary-email normalization aligned** — code fix.
+    `resolveClerkWebhookPrimaryEmail()` now returns NFC/lowercase primary
+    emails and rejects invalid resolved addresses instead of returning trimmed
+    raw provider values. Commit: `fix: normalize email and plaintext controls`.
+93. **Account-deletion suppression key normalization aligned** — code fix.
+    account deletion now writes the deletion-time `EmailSuppression` key through
+    the shared email normalization helper, matching suppression lookups and
+    re-signup cleanup. Commit: `fix: normalize email and plaintext controls`.
+94. **Plain-text email entity control stripping closed** — code fix.
+    `htmlToText()` now strips decoded bidi, zero-width, and null characters
+    after HTML entity decoding so plaintext email fallbacks cannot reintroduce
+    invisible spoofing controls. Commit: `fix: normalize email and plaintext controls`.
 
 ## Verified Stale / Not Fixed
 
@@ -527,3 +544,50 @@ Last updated: 2026-05-18
     inventory. Current `/api/listings/[id]/similar` intentionally performs
     optional `auth()` to filter blocked sellers and reject banned/deleted signed
     in users, while still returning public similar listings to signed-out users.
+21. **Staff reported-thread access write gap** — stale claim. Current message
+    thread pages allow staff to open only unresolved reported
+    `MESSAGE_THREAD` targets, set `isStaffReviewMode` only for non-participants,
+    skip mark-read side effects, hide the composer/custom-order/archive actions,
+    and are covered by `tests/custom-order-admin-thread-followups.test.mjs`.
+22. **Hostile staff destructive-admin action gap** — stale claim. Review
+    deletion, listing removal, user ban/unban, and admin email routes all require
+    `role === "ADMIN"` and reject EMPLOYEE accounts with 403.
+23. **Newsletter NFC normalization gap** — stale claim. Current newsletter
+    signup trims, NFC-normalizes, lowercases, suppression-checks, and stores the
+    normalized email key.
+24. **Unsubscribe token NFC normalization gap** — stale claim. Current
+    `normalizeUnsubscribeEmail()` trims, NFC-normalizes, lowercases, and rejects
+    invalid addresses before signing or verifying tokens.
+25. **Display-name homograph sanitizer gap** — stale claim. Current
+    `sanitizeUserName()` routes through `sanitizeText()`, which normalizes NFKC,
+    strips bidi/zero-width/null characters, and folds Cyrillic confusables.
+26. **Listing/profile text zero-width/homograph sanitizer gap** — stale claim.
+    Current `sanitizeText()` / `sanitizeRichText()` already strip zero-width and
+    bidi controls and fold Cyrillic confusables for listing/profile text.
+27. **Message body raw Unicode spoofing gap** — stale claim. Current message
+    thread sends use `truncateText(sanitizeText(...), 2000)` before persistence.
+28. **Case description/message raw Unicode spoofing gap** — stale claim. Current
+    case creation and case-message routes sanitize rich text before persistence.
+29. **Custom-order field sanitization gap** — stale claim. Current custom-order
+    request handling sanitizes description, dimensions, budget/timeline copy, and
+    notification text before JSON/message persistence.
+30. **Commission timeline raw Unicode spoofing gap** — stale claim. Current
+    commission creation sanitizes timeline text before persistence.
+31. **Checkout gift-note raw Unicode spoofing gap** — stale claim. Current
+    seller and single-checkout routes sanitize and truncate gift notes before
+    Stripe metadata or DB persistence.
+32. **User report details raw Unicode spoofing gap** — stale claim. Current
+    report submission sanitizes and truncates `details` before persistence.
+33. **Profanity zero-width bypass** — stale claim. Current profanity
+    normalization strips zero-width characters, bidi controls including U+061C,
+    and Cyrillic confusables before matching.
+34. **Bidi regex inconsistency cluster** — stale claim. Current sanitizer,
+    profanity, notification, AI review, support, and tag helpers strip U+061C
+    and the broader bidi control ranges; message attachments route through
+    `sanitizeText()`.
+35. **HTML email body bidi/zero-width gap** — stale claim. Current email HTML
+    escaping first runs user-facing strings through `normalizeUserText()` before
+    entity escaping.
+36. **Shipping address newline/control gap** — stale claim. Current account
+    shipping-address sanitization collapses CR/LF, U+0085, U+2028, and U+2029
+    to spaces before persistence.

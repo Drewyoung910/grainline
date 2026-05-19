@@ -19,6 +19,12 @@ export type ClerkWebhookEmailResolution =
       email: null;
     };
 
+export function normalizeClerkWebhookEmail(email: string | null | undefined): string | null {
+  const normalized = email?.trim().normalize("NFC").toLowerCase();
+  if (!normalized || !normalized.includes("@")) return null;
+  return normalized;
+}
+
 export function resolveClerkWebhookPrimaryEmail({
   emailAddresses,
   primaryEmailAddressId,
@@ -36,7 +42,7 @@ export function resolveClerkWebhookPrimaryEmail({
     return { reason: "primary_email_not_found", email: null };
   }
 
-  const email = primaryAddress.email_address?.trim();
+  const email = normalizeClerkWebhookEmail(primaryAddress.email_address);
   if (!email) {
     return { reason: "primary_email_empty", email: null };
   }

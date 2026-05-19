@@ -1,3 +1,7 @@
+const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
+const NULL_BYTES = /\u0000/g;
+
 const ENTITY_MAP: Record<string, string> = {
   amp: "&",
   apos: "'",
@@ -42,6 +46,13 @@ function safeCodePoint(fallback: string, codePoint: number): string {
   }
 }
 
+function normalizeDecodedEmailText(text: string): string {
+  return text.normalize("NFKC")
+    .replace(BIDI_CONTROL_CHARS, "")
+    .replace(ZERO_WIDTH_CHARS, "")
+    .replace(NULL_BYTES, "");
+}
+
 export function htmlToText(html: string): string {
   const stripped = html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -51,7 +62,7 @@ export function htmlToText(html: string): string {
     .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
     .replace(/<[^>]+>/g, "");
 
-  const lines = decodeHtmlEntities(stripped)
+  const lines = normalizeDecodedEmailText(decodeHtmlEntities(stripped))
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map(formatPlainTextLine);

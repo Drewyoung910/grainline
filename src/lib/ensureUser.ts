@@ -3,6 +3,7 @@ import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { AccountAccessError, isAccountAccessError } from "@/lib/accountAccessError";
+import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import * as Sentry from "@sentry/nextjs";
 
 export { AccountAccessError, isAccountAccessError };
@@ -58,7 +59,8 @@ export async function ensureUserByClerkId(
 
     // Only update fields if caller explicitly provided them
     if (typeof opts?.email === "string" && opts.email.trim() !== "") {
-      updateData.email = opts.email.trim();
+      const normalizedEmail = normalizeEmailAddress(opts.email);
+      if (normalizedEmail) updateData.email = normalizedEmail;
     }
     if (opts && "name" in opts) {
       updateData.name = opts.name ? sanitizeUserName(opts.name) || null : null;
@@ -103,7 +105,7 @@ export async function ensureUserByClerkId(
   }
 
   // CREATE path: allow placeholder email if none provided
-  const email = (opts?.email ?? `${clerkId}@placeholder.invalid`).trim();
+  const email = normalizeEmailAddress(opts?.email) ?? `${clerkId}@placeholder.invalid`;
   const name = opts?.name ? sanitizeUserName(opts.name) || null : null;
   const imageUrl = (opts?.imageUrl ?? null) as string | null;
   const createData = {

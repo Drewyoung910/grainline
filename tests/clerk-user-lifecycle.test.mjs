@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 const { shouldRevokeSessionsForClerkEmailChange } = await import("../src/lib/clerkSessionSecurity.ts");
-const { resolveClerkWebhookPrimaryEmail, shouldReserveClerkWelcomeEmail } = await import(
+const { normalizeClerkWebhookEmail, resolveClerkWebhookPrimaryEmail, shouldReserveClerkWelcomeEmail } = await import(
   "../src/lib/clerkWebhookEmail.ts"
 );
 
@@ -54,6 +54,11 @@ describe("Clerk user lifecycle session security", () => {
 });
 
 describe("Clerk webhook email resolution", () => {
+  it("normalizes Clerk primary emails before persistence", () => {
+    assert.equal(normalizeClerkWebhookEmail("  Dre\u0301w@Example.COM "), "dr\u00e9w@example.com");
+    assert.equal(normalizeClerkWebhookEmail("not-an-email"), null);
+  });
+
   it("uses only the Clerk primary email address", () => {
     assert.deepEqual(
       resolveClerkWebhookPrimaryEmail({

@@ -6,6 +6,7 @@ import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
 import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
+import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import {
   Prisma,
   EmailSuppressionReason,
@@ -621,7 +622,7 @@ export async function anonymizeUserAccount(userId: string) {
         resolutionNote: "Auto-resolved after the reported account was deleted.",
       },
     });
-    const suppressionEmail = user.email.trim().toLowerCase();
+    const suppressionEmail = normalizeEmailAddress(user.email) ?? user.email.trim().toLowerCase();
     await tx.newsletterSubscriber.deleteMany({
       where: { email: suppressionEmail },
     });
