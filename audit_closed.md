@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 109.
-- Verified code/feature fix commits since 2026-05-13: 100.
+- Verified hardening/doc commits since 2026-05-13: 110.
+- Verified code/feature fix commits since 2026-05-13: 101.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 77 verified closed items in the 2026-05-14
-  active tracker below, plus thirteen stale/false-positive claims verified
+- Most recent reported pass total: 78 verified closed items in the 2026-05-14
+  active tracker below, plus sixteen stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -390,6 +390,10 @@ Last updated: 2026-05-18
     before Stripe connected-account rejection and local anonymization, returning
     an in-progress terminal response if another delete/webhook path is already
     running. Commit: `fix: serialize account deletion`.
+78. **Signed-in cart size abuse capped** — code fix. `/api/cart/add` now caps
+    signed-in carts at 50 distinct item/variant rows and 200 total quantity,
+    in addition to the existing 99-per-item cap. Commit:
+    `fix: cap signed-in cart size`.
 
 ## Verified Stale / Not Fixed
 
@@ -439,3 +443,13 @@ Last updated: 2026-05-18
     from `https://js.stripe.com` and explicitly prohibit stale SRI hashes for
     Stripe/Clerk/Turnstile-style rotating scripts; CSP host allowlisting plus
     checkout CSP monitoring are the compensating controls.
+14. **Saved-search tag-order cap bypass** — stale claim. Current `main`
+    normalizes saved-search tags through `normalizeTags(...).sort(...)`, performs
+    dedup and 25-cap checks inside a serializable retry transaction, and
+    rate-limits GET/POST/DELETE.
+15. **Newsletter NFC normalization gap** — stale claim. Current newsletter signup
+    trims, NFC-normalizes, lowercases, validates, and hashes the submitted email
+    before lookup/persistence/telemetry.
+16. **Newsletter suppression enumeration gap** — stale claim. Current newsletter
+    signup returns the same `{ subscribed: true }` response for suppressed and
+    accepted addresses, preventing public suppression-history probing.

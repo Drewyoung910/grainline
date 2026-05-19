@@ -20,6 +20,8 @@ const CartAddSchema = z.object({
   selectedVariantOptionIds: z.array(z.string()).max(30).optional(),
 });
 const CART_ADD_BODY_MAX_BYTES = 16 * 1024;
+const MAX_CART_DISTINCT_ITEMS = 50;
+const MAX_CART_TOTAL_QUANTITY = 200;
 
 export const runtime = "nodejs";
 
@@ -125,6 +127,33 @@ export async function POST(req: Request) {
       create: { userId: me.id },
       update: {},
     });
+
+    const existingCartItem = await prisma.cartItem.findUnique({
+      where: {
+        cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+      },
+      select: { quantity: true },
+    });
+    const cartStats = await prisma.cartItem.aggregate({
+      where: { cartId: cart.id },
+      _count: { id: true },
+      _sum: { quantity: true },
+    });
+    const projectedItemQuantity = listing.listingType === "MADE_TO_ORDER"
+      ? 1
+      : (existingCartItem?.quantity ?? 0) + quantity;
+    if (projectedItemQuantity > 99) {
+      return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
+    }
+    const projectedDistinctItems = cartStats._count.id + (existingCartItem ? 0 : 1);
+    if (projectedDistinctItems > MAX_CART_DISTINCT_ITEMS) {
+      return NextResponse.json({ error: "Your cart can hold up to 50 different items." }, { status: 400 });
+    }
+    const projectedTotalQuantity =
+      (cartStats._sum.quantity ?? 0) - (existingCartItem?.quantity ?? 0) + projectedItemQuantity;
+    if (projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY) {
+      return NextResponse.json({ error: "Your cart can hold up to 200 total items." }, { status: 400 });
+    }
 
     // Idempotent add: wrap the create-or-increment flow so transient DB
     // errors get one retry before bubbling to a 500. The pattern is:

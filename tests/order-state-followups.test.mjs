@@ -73,6 +73,11 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /prisma\.cartItem\.updateMany/);
     assert.match(text, /quantity: \{ lte: 99 - quantity \}/);
     assert.match(text, /quantity: \{ increment: quantity \}/);
+    assert.match(text, /MAX_CART_DISTINCT_ITEMS = 50/);
+    assert.match(text, /MAX_CART_TOTAL_QUANTITY = 200/);
+    assert.match(text, /prisma\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \}/s);
+    assert.match(text, /projectedDistinctItems > MAX_CART_DISTINCT_ITEMS/);
+    assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
   });
 
   it("keeps checkout stock reservation tied to live active listing ownership", () => {
