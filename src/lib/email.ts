@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
-import { stripBidiControls, truncateTextWithEllipsis } from "@/lib/sanitize";
+import { normalizeUserText, truncateTextWithEllipsis } from "@/lib/sanitize";
 import { htmlToText } from "@/lib/emailText";
 import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
 import { sendEmailWithRetry } from "@/lib/emailRetry";
@@ -26,7 +26,7 @@ if (!process.env.RESEND_API_KEY) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function esc(s: string) {
-  return s
+  return normalizeUserText(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -36,7 +36,7 @@ function esc(s: string) {
 
 /** Strip HTML-like characters from user content in email subjects */
 function safeSubject(s: string) {
-  return stripBidiControls(s.normalize("NFKC"))
+  return normalizeUserText(s)
     .replace(/[\r\n]+/g, " ")
     .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
     .trim();

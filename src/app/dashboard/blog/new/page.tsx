@@ -57,9 +57,9 @@ export default async function NewBlogPostPage() {
     if (!rlOk) return { ok: false, error: "You can publish up to 3 blog posts per day." };
 
     const title = truncateText(sanitizeText(String(formData.get("title") ?? "").trim()), 200);
-    const body = truncateText(String(formData.get("body") ?? "").trim(), BLOG_BODY_MAX_CHARS);
-    const excerpt = truncateText(String(formData.get("excerpt") ?? "").trim(), 200) || null;
-    const metaDescription = truncateText(String(formData.get("metaDescription") ?? "").trim(), 160) || null;
+    const body = truncateText(sanitizeText(String(formData.get("body") ?? "").trim()), BLOG_BODY_MAX_CHARS);
+    const excerpt = truncateText(sanitizeText(String(formData.get("excerpt") ?? "").trim()), 200) || null;
+    const metaDescription = truncateText(sanitizeText(String(formData.get("metaDescription") ?? "").trim()), 160) || null;
     let coverImageUrl: string | null = null;
     let videoUrl: string | null = null;
     try {

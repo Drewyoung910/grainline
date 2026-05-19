@@ -19,7 +19,7 @@ import {
   singleCheckoutLockKey,
 } from "@/lib/checkoutSessionLock";
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import {
@@ -277,7 +277,7 @@ export async function POST(req: Request) {
         estDays: body.selectedRate.estDays,
       },
       giftWrapping: body.giftWrapping === true,
-      giftNote: body.giftNote ?? "",
+      giftNote: body.giftNote ? truncateText(sanitizeText(body.giftNote), 200) : "",
     });
 
     const existingCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
@@ -422,7 +422,7 @@ export async function POST(req: Request) {
       quotedToCountry: "US",
       quotedToPhone: body.shippingAddress.phone ?? "",
       quotedShippingAmountCents: String(shippingAmountCents),
-      giftNote: body.giftNote ?? "",
+      giftNote: body.giftNote ? truncateText(sanitizeText(body.giftNote), 200) : "",
       giftWrapping: body.giftWrapping ? "true" : "false",
       giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
       selectedVariants: selectedVariantsMetadata,

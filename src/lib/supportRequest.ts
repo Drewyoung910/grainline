@@ -1,3 +1,5 @@
+import { normalizeUserText, truncateText } from "@/lib/sanitize";
+
 export type SupportRequestKind = "support" | "data_request";
 
 export type NormalizedSupportRequest = {
@@ -28,7 +30,6 @@ const DATA_REQUEST_TOPICS = new Set([
   "other",
 ]);
 
-const BIDI_CONTROL_CHARS = /[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g;
 const DANGEROUS_BLOCK_TAGS = /<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
 const COMMON_HTML_TAGS = /<\/?(?:a|abbr|article|aside|b|blockquote|br|button|code|dd|div|dl|dt|em|fieldset|footer|form|h[1-6]|header|hr|i|img|input|label|li|main|nav|ol|option|p|pre|section|select|small|span|strong|table|tbody|td|textarea|tfoot|th|thead|tr|u|ul)[^>]*>/gi;
 
@@ -39,21 +40,13 @@ function normalizeEmailAddress(email: string | null | undefined): string | null 
 }
 
 function sanitizeText(input: string): string {
-  return input
-    .normalize("NFKC")
-    .replace(BIDI_CONTROL_CHARS, "")
+  return normalizeUserText(input)
     .replace(DANGEROUS_BLOCK_TAGS, "")
     .replace(COMMON_HTML_TAGS, "")
     .replace(/[<>]/g, "")
     .replace(/\b(?:javascript|data|vbscript)\s*:/gi, "")
     .replace(/on\w+\s*=/gi, "")
     .trim();
-}
-
-function truncateText(input: string, maxLength: number): string {
-  const limit = Math.max(0, Math.floor(maxLength));
-  const chars = Array.from(input);
-  return chars.length <= limit ? input : chars.slice(0, limit).join("");
 }
 
 function cleanOptionalText(value: unknown, maxLength: number): string | null {

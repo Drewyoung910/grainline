@@ -26,6 +26,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
     }
     const sellerId = body.sellerId;
 
-    const giftNote: string = body.giftNote ?? "";
+    const giftNote = body.giftNote ? truncateText(sanitizeText(body.giftNote), 200) : "";
     const giftWrapping: boolean = body.giftWrapping === true;
     // Gift wrap price is resolved below from the seller's server-side
     // giftWrappingPriceCents — do NOT trust client input for this.

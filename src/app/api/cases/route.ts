@@ -10,7 +10,7 @@ import { caseCreateRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/rat
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { logUserAuditAction } from "@/lib/audit";
 import { caseEstimatedDeliveryBlockMessage } from "@/lib/caseCreateState";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       throw e;
     }
     const { orderId, reason } = parsed;
-    const description = parsed.description.trim();
+    const description = sanitizeRichText(parsed.description.trim());
     if (description.length < 20) {
       return NextResponse.json({ error: "Description must be at least 20 characters." }, { status: 400 });
     }

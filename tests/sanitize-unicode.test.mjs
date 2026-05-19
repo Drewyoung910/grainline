@@ -8,6 +8,11 @@ describe("unicode sanitization", () => {
   it("strips bidirectional control characters from user-visible text", () => {
     assert.equal(stripBidiControls("refund\u202Egpj.exe"), "refundgpj.exe");
     assert.equal(sanitizeText("Maker\u2066 Name"), "Maker Name");
+    assert.equal(sanitizeText("pay\u061Cment"), "payment");
+  });
+
+  it("strips zero-width and null characters from canonical user text", () => {
+    assert.equal(sanitizeText("f\u200bu\u200dc\uFEFFk\u0000"), "fuck");
   });
 
   it("strips nested or malformed HTML from plain text", () => {
@@ -50,5 +55,11 @@ describe("unicode sanitization", () => {
     const result = containsProfanity("handmade \u0441\u043Eck ornament");
     assert.equal(result.flagged, true);
     assert.deepEqual(result.matches, ["cock"]);
+  });
+
+  it("normalizes zero-width profanity before matching", () => {
+    const result = containsProfanity("f\u200bu\u200bc\u200bk");
+    assert.equal(result.flagged, true);
+    assert.deepEqual(result.matches, ["fuck"]);
   });
 });

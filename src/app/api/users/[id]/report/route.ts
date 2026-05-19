@@ -15,6 +15,7 @@ import {
 } from "@/lib/requestBody";
 import { z } from "zod";
 import { reportRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
@@ -213,8 +214,9 @@ export async function POST(
     }
   }
 
+  const details = body.details ? truncateText(sanitizeText(body.details), 500) || null : null;
   await prisma.userReport.create({
-    data: { reporterId: me.id, reportedId, reason: body.reason, details: body.details, targetType: body.targetType ?? null, targetId: body.targetId ?? null },
+    data: { reporterId: me.id, reportedId, reason: body.reason, details, targetType: body.targetType ?? null, targetId: body.targetId ?? null },
   });
 
   if (body.targetType === "LISTING" && body.targetId) {

@@ -18,7 +18,7 @@ import { normalizeMessageAttachments } from "@/lib/messageAttachments";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { messagingUnavailableReason } from "@/lib/messageRecipientState";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import * as Sentry from "@sentry/nextjs";
 
@@ -135,7 +135,7 @@ export default async function ThreadPage({
     const { success: rlOk } = await safeRateLimit(messageRatelimit, me.id);
     if (!rlOk) return { ok: false, error: "You're sending messages too quickly. Please wait a moment." };
 
-    const body = truncateText(String(formData.get("body") ?? "").trim(), 2000);
+    const body = truncateText(sanitizeText(String(formData.get("body") ?? "").trim()), 2000);
     const atts = normalizeMessageAttachments(
       String(formData.get("attachments") ?? "[]"),
       (url) => isFirstPartyMediaUrlForUser(url, userId, ["messageAny"]),

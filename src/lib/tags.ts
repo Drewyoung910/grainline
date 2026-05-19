@@ -6,8 +6,8 @@ const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 export function normalizeTag(input: string | null | undefined): string {
   return (input ?? "")
     .normalize("NFKC")
-    .replace(BIDI_CONTROL_CHARS, "")
     .normalize("NFKD")
+    .replace(BIDI_CONTROL_CHARS, "")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()

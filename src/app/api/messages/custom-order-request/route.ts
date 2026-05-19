@@ -7,7 +7,7 @@ import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { sendCustomOrderRequest } from "@/lib/email";
 import { customOrderRequestRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { parseMoneyInputToCents } from "@/lib/money";
 import {
   isInvalidJsonBodyError,
@@ -67,6 +67,8 @@ export async function POST(req: Request) {
   }
 
   const { sellerUserId, description, dimensions, budget, timeline, listingId } = parsed;
+  const cleanedDescription = truncateText(sanitizeText(description.trim()), 500);
+  const cleanedDimensions = dimensions ? truncateText(sanitizeText(dimensions.trim()), 200) : null;
 
   if (me.id === sellerUserId) {
     return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 });
@@ -143,7 +145,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Budget cannot exceed $100,000." }, { status: 400 });
   }
   const budgetNum = budgetCents !== null ? budgetCents / 100 : null;
-  const timelineStr = timeline ?? null;
+  const timelineStr = timeline ? truncateText(sanitizeText(timeline), 50) : null;
   const timelineLabel = timelineStr ? (TIMELINE_LABELS[timelineStr] ?? timelineStr) : null;
 
   // Upsert conversation (canonical sort, race-safe — same logic as /messages/new)
@@ -181,8 +183,8 @@ export async function POST(req: Request) {
   }
 
   const messageBody = JSON.stringify({
-    description: truncateText(description.trim(), 500),
-    dimensions: dimensions?.trim() || null,
+    description: cleanedDescription,
+    dimensions: cleanedDimensions,
     budget: budgetNum,
     timeline: timelineStr,
     timelineLabel,
@@ -210,7 +212,7 @@ export async function POST(req: Request) {
       userId: sellerUserId,
       type: "CUSTOM_ORDER_REQUEST",
       title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} wants a custom piece!`,
-      body: truncateText(String(description).trim(), 60),
+      body: truncateText(cleanedDescription, 60),
       link: `/messages/${convo.id}`,
     });
   } catch (error) {
@@ -238,7 +240,7 @@ export async function POST(req: Request) {
             email: sellerUser.email,
           },
           buyerName: buyerUser?.name,
-          description: String(description).trim(),
+          description: cleanedDescription,
           conversationId: convo.id,
         });
       }

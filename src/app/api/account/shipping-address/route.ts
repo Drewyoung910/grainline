@@ -31,6 +31,13 @@ const AddressSchema = z.object({
 });
 const SHIPPING_ADDRESS_BODY_MAX_BYTES = 24 * 1024;
 
+function sanitizeAddressLine(value: string) {
+  return sanitizeText(value)
+    .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -106,12 +113,12 @@ export async function PUT(req: Request) {
     where: { id: user.id },
     data: {
       shippingName: sanitizeUserName(body.name),
-      shippingLine1: sanitizeText(body.line1),
-      shippingLine2: body.line2 ? sanitizeText(body.line2) : null,
-      shippingCity: sanitizeText(body.city),
+      shippingLine1: sanitizeAddressLine(body.line1),
+      shippingLine2: body.line2 ? sanitizeAddressLine(body.line2) || null : null,
+      shippingCity: sanitizeAddressLine(body.city),
       shippingState: body.state.toUpperCase(),
       shippingPostalCode: body.postalCode,
-      shippingPhone: body.phone ? sanitizeText(body.phone) : null,
+      shippingPhone: body.phone ? sanitizeAddressLine(body.phone) || null : null,
     },
   });
 

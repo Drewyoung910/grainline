@@ -10,6 +10,7 @@ import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRou
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { CaseStatus, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 
 const FulfillmentSchema = z.object({
   action: z.enum(["ready_for_pickup", "picked_up", "shipped", "delivered", "update_notes"]),
@@ -212,7 +213,7 @@ export async function POST(
         data.deliveredAt = now;
         break;
       case "update_notes":
-        data.sellerNotes = payload.sellerNotes ?? null;
+        data.sellerNotes = payload.sellerNotes ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null : null;
         break;
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });

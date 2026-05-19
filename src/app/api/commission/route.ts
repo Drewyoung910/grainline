@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
       category: categoryValid ? (category as Category) : null,
       budgetMinCents,
       budgetMaxCents,
-      timeline: timeline?.trim() || null,
+      timeline: timeline ? sanitizeText(timeline.trim()) || null : null,
       referenceImageUrls: images,
       expiresAt: commissionExpiresAt(),
       isNational: reqIsNational,

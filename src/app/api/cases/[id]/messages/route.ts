@@ -13,7 +13,7 @@ import {
   unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -58,7 +58,7 @@ export async function POST(
       }
       throw e;
     }
-    const messageBody = parsed.body.trim();
+    const messageBody = sanitizeRichText(parsed.body.trim());
     if (!messageBody) return NextResponse.json({ error: "body is required." }, { status: 400 });
 
     const caseRecord = await prisma.case.findUnique({

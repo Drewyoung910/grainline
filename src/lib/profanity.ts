@@ -26,12 +26,16 @@ const PROFANITY_REGEX = new RegExp(
   "gi"
 );
 
+const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
 const CYRILLIC_CONFUSABLES: Record<string, string> = {
   А: "A",
   а: "a",
   В: "B",
   Е: "E",
   е: "e",
+  І: "I",
+  і: "i",
   К: "K",
   к: "k",
   М: "M",
@@ -44,12 +48,10 @@ const CYRILLIC_CONFUSABLES: Record<string, string> = {
   с: "c",
   Т: "T",
   т: "t",
-  Х: "X",
-  х: "x",
   У: "Y",
   у: "y",
-  І: "I",
-  і: "i",
+  Х: "X",
+  х: "x",
   Ј: "J",
   ј: "j",
 };
@@ -57,8 +59,10 @@ const CYRILLIC_CONFUSABLES: Record<string, string> = {
 export function normalizeProfanityText(text: string): string {
   return text
     .normalize("NFKC")
-    .replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g, "")
-    .replace(/[АаВЕеКкМНОоРрСсТтХхУуІіЈј]/g, (char) => CYRILLIC_CONFUSABLES[char] ?? char);
+    .replace(BIDI_CONTROL_CHARS, "")
+    .replace(ZERO_WIDTH_CHARS, "")
+    .replace(/\u0000/g, "")
+    .replace(/[АаВЕеІіКкМНОоРрСсТтУуХхЈј]/g, (char) => CYRILLIC_CONFUSABLES[char] ?? char);
 }
 
 /**

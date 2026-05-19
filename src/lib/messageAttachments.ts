@@ -1,3 +1,5 @@
+import { normalizeUserText, truncateText } from "@/lib/sanitize";
+
 export type NormalizedMessageAttachment = {
   url: string;
   name: string | null;
@@ -8,12 +10,9 @@ const MAX_MESSAGE_ATTACHMENTS = 6;
 const MAX_ATTACHMENT_URL_LENGTH = 1000;
 const MAX_ATTACHMENT_NAME_LENGTH = 200;
 const MAX_ATTACHMENT_TYPE_LENGTH = 100;
-const BIDI_CONTROL_CHARS = /[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g;
 
 function sanitizeAttachmentText(input: string): string {
-  return input
-    .normalize("NFKC")
-    .replace(BIDI_CONTROL_CHARS, "")
+  return normalizeUserText(input)
     .replace(/<[^>]*>/g, "")
     .replace(/javascript:/gi, "")
     .replace(/on\w+\s*=/gi, "")
@@ -22,7 +21,7 @@ function sanitizeAttachmentText(input: string): string {
 
 function normalizeOptionalField(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
-  const normalized = sanitizeAttachmentText(value).slice(0, maxLength).trim();
+  const normalized = truncateText(sanitizeAttachmentText(value), maxLength).trim();
   return normalized || null;
 }
 

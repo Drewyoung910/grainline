@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 94.
-- Verified code/feature fix commits since 2026-05-13: 85.
+- Verified hardening/doc commits since 2026-05-13: 95.
+- Verified code/feature fix commits since 2026-05-13: 86.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 46 verified closed items in the 2026-05-14
+- Most recent reported pass total: 47 verified closed items in the 2026-05-14
   active tracker below, plus two stale/false-positive claims verified clean.
 
 ## 2026-05-14 Active Tracker
@@ -233,6 +233,13 @@ Last updated: 2026-05-18
     dependency details now require `HEALTH_CHECK_TOKEN` through the same
     SHA-256 `timingSafeEqual` pattern used by cron auth instead of raw string
     equality. Commit: `fix: harden verbose health token compare`.
+47. **User-visible text normalization centralized at write boundaries** — code
+    fix. Canonical sanitizers now strip U+061C/bidi controls, zero-width chars,
+    null bytes, active markup, dangerous protocol text, and common Cyrillic
+    confusables; the profanity normalizer strips the same invisible/confusable
+    bypasses. Raw message, case, custom-order, gift-note, report, seller-note,
+    blog, shipping-address, and audit-reason write paths now pass through the
+    canonical sanitizers before persistence. Commit: `fix: normalize user text writes`.
 
 ## Verified Stale / Not Fixed
 

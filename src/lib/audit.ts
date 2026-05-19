@@ -4,6 +4,7 @@ import { prisma } from './db'
 import { adminUndoActorBlockReason } from './adminAuditUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import { unbanClerkUser } from './clerkUserLifecycle'
+import { sanitizeText, truncateText } from './sanitize'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -28,7 +29,14 @@ export async function logAdminAction({
 }): Promise<string> {
   try {
     const log = await prisma.adminAuditLog.create({
-      data: { adminId, action, targetType, targetId, reason, metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'] }
+      data: {
+        adminId,
+        action,
+        targetType,
+        targetId,
+        reason: reason ? truncateText(sanitizeText(reason), 500) || null : undefined,
+        metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
+      }
     })
     return log.id
   } catch (error) {
