@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-18
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 115.
-- Verified code/feature fix commits since 2026-05-13: 106.
+- Verified hardening/doc commits since 2026-05-13: 122.
+- Verified code/feature fix commits since 2026-05-13: 113.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 83 verified closed items in the 2026-05-14
+- Most recent reported pass total: 90 verified closed items in the 2026-05-14
   active tracker below, plus twenty stale/false-positive claims verified
   clean.
 
@@ -418,6 +418,40 @@ Last updated: 2026-05-18
     Next/TypeScript `@/lib` alias when imported directly by Node's stripped-type
     test runner, restoring full `npm test` portability. Commit:
     `fix: close account-state residue gaps`.
+84. **Sensitive Guild restoration/promotion actions made admin-only** — code
+    fix. `/admin/verification` now separates staff-wide review auth from
+    `requireAdminOnly()` and requires ADMIN for Guild Member reinstatement,
+    maker featuring, and unfeaturing. Commit:
+    `fix: harden admin report and deletion lifecycle`.
+85. **Admin report resolution reason persisted** — code fix.
+    `/api/admin/reports/[id]/resolve` now requires a bounded JSON reason,
+    stores it in `UserReport.resolutionNote`, writes it to admin audit
+    metadata, and the admin UI collects the reason before posting. Commit:
+    `fix: harden admin report and deletion lifecycle`.
+86. **Same-email re-signup after account deletion unblocked** — code fix.
+    Clerk `user.created` webhooks now delete only `EmailSuppression` rows with
+    `source: "account_deletion"` for the normalized primary email, leaving
+    bounce/complaint/manual suppressions intact. Commit:
+    `fix: harden admin report and deletion lifecycle`.
+87. **Deleted-seller derived metrics removed** — code fix. Account deletion
+    removes `SellerMetrics` and `SellerRatingSummary` rows for the deleted
+    seller so stale derived trust metrics cannot survive anonymization. Commit:
+    `fix: harden admin report and deletion lifecycle`.
+88. **Deleted-seller review replies redacted** — code fix. Account deletion
+    clears `Review.sellerReply` and `sellerReplyAt` for reviews on the deleted
+    seller's listings, matching the existing buyer-comment redaction behavior.
+    Commit: `fix: harden admin report and deletion lifecycle`.
+89. **Reports against deleted users auto-resolved** — code fix. Account
+    deletion now resolves unresolved reports where the deleted user is the
+    reported account, nulls report details through the existing redaction pass,
+    and records a system resolution note. Commit:
+    `fix: harden admin report and deletion lifecycle`.
+90. **Dependency audit vulnerability drift closed** — dependency fix.
+    `npm audit` flagged a critical `sanitize-html` advisory and a moderate
+    transitive `brace-expansion` advisory during this pass. `npm audit fix`
+    updated the lockfile to `sanitize-html@2.17.4` and `brace-expansion@5.0.6`;
+    sanitizer guardrail tests and full `npm test` passed afterward. Commit
+    `fix: harden admin report and deletion lifecycle`.
 
 ## Verified Stale / Not Fixed
 

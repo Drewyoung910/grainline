@@ -97,8 +97,8 @@ function guildMasterFailureDetails(
   ].filter(Boolean);
 }
 
-// ── Shared auth helper ──────────────────────────────────────────────────────
-async function requireAdmin() {
+// ── Shared auth helpers ─────────────────────────────────────────────────────
+async function requireStaff() {
   const { userId } = await auth();
   if (!userId) redirect("/");
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
@@ -113,10 +113,16 @@ async function requireAdmin() {
   return me;
 }
 
+async function requireAdminOnly() {
+  const me = await requireStaff();
+  if (me.role !== "ADMIN") redirect("/");
+  return me;
+}
+
 // ── Guild Member actions ────────────────────────────────────────────────────
 async function approveGuildMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const verificationId = String(formData.get("verificationId") ?? "");
   const adminOverride = formData.get("adminOverride") === "on";
 
@@ -247,7 +253,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
 
 async function rejectGuildMember(formData: FormData) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const verificationId = String(formData.get("verificationId") ?? "");
   const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
 
@@ -307,7 +313,7 @@ async function rejectGuildMember(formData: FormData) {
 
 async function revokeMember(sellerProfileId: string) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
     select: { userId: true, displayName: true, user: { select: { email: true } } },
@@ -372,7 +378,7 @@ async function revokeMember(sellerProfileId: string) {
 // ── Guild Master actions ─────────────────────────────────────────────────────
 async function approveGuildMaster(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const verificationId = String(formData.get("verificationId") ?? "");
 
   const verification = await prisma.makerVerification.findUnique({
@@ -485,7 +491,7 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
 
 async function rejectGuildMaster(formData: FormData) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const verificationId = String(formData.get("verificationId") ?? "");
   const reviewNotes = truncateText(sanitizeText(String(formData.get("reviewNotes") ?? "")), 2000) || null;
 
@@ -533,7 +539,7 @@ async function rejectGuildMaster(formData: FormData) {
 
 async function revokeMaster(sellerProfileId: string) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireStaff();
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
     select: { userId: true, displayName: true, user: { select: { email: true } } },
@@ -597,7 +603,7 @@ async function revokeMaster(sellerProfileId: string) {
 
 async function reinstateGuildMember(formData: FormData) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireAdminOnly();
   const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
   if (!sellerProfileId) return;
 
@@ -662,7 +668,7 @@ async function reinstateGuildMember(formData: FormData) {
 
 async function featureMaker(sellerProfileId: string) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireAdminOnly();
 
   const ownSeller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
@@ -694,7 +700,7 @@ async function featureMaker(sellerProfileId: string) {
 
 async function unfeatureMaker(sellerProfileId: string) {
   "use server";
-  const me = await requireAdmin();
+  const me = await requireAdminOnly();
 
   const result = await prisma.sellerProfile.updateMany({
     where: { id: sellerProfileId, featuredUntil: { not: null } },

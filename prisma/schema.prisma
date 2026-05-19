@@ -1356,17 +1356,18 @@ model Block {
 }
 
 model UserReport {
-  id           String    @id @default(cuid())
-  reporterId   String
-  reportedId   String
-  reason       String    @db.VarChar(100)
-  details      String?   @db.VarChar(2000)
-  targetType   String?   @db.VarChar(100)
-  targetId     String?   @db.VarChar(255)
-  resolved     Boolean   @default(false)
-  resolvedAt   DateTime?
-  resolvedById String?
-  createdAt    DateTime  @default(now())
+  id             String    @id @default(cuid())
+  reporterId     String
+  reportedId     String
+  reason         String    @db.VarChar(100)
+  details        String?   @db.VarChar(2000)
+  targetType     String?   @db.VarChar(100)
+  targetId       String?   @db.VarChar(255)
+  resolved       Boolean   @default(false)
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolutionNote String?   @db.VarChar(500)
+  createdAt      DateTime  @default(now())
 
   reporter   User  @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
   reported   User  @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Cascade)

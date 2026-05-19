@@ -1,0 +1,70 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
+
+function functionBody(text, name) {
+  const marker = `async function ${name}`;
+  const start = text.indexOf(marker);
+  assert.notEqual(start, -1, `${name} must exist`);
+  const next = text.indexOf("\nasync function ", start + marker.length);
+  return text.slice(start, next === -1 ? undefined : next);
+}
+
+describe("security lifecycle follow-ups", () => {
+  it("keeps sensitive Guild restoration and feature actions admin-only", () => {
+    const page = source("src/app/admin/verification/page.tsx");
+
+    assert.match(page, /async function requireStaff\(\)/);
+    assert.match(page, /async function requireAdminOnly\(\)/);
+    assert.match(page, /const me = await requireStaff\(\);[\s\S]*if \(me\.role !== "ADMIN"\) redirect\("\/"\);/);
+
+    for (const action of ["reinstateGuildMember", "featureMaker", "unfeatureMaker"]) {
+      assert.match(functionBody(page, action), /const me = await requireAdminOnly\(\)/, `${action} must require ADMIN`);
+    }
+
+    assert.match(functionBody(page, "approveGuildMember"), /const me = await requireStaff\(\)/);
+    assert.match(functionBody(page, "approveGuildMaster"), /const me = await requireStaff\(\)/);
+  });
+
+  it("requires and persists report resolution reasons", () => {
+    const route = source("src/app/api/admin/reports/[id]/resolve/route.ts");
+    const button = source("src/components/admin/ResolveReportButton.tsx");
+    const schema = source("prisma/schema.prisma");
+    const migration = source("prisma/migrations/20260518180000_add_user_report_resolution_note/migration.sql");
+
+    assert.match(schema, /resolutionNote\s+String\?\s+@db\.VarChar\(500\)/);
+    assert.match(migration, /ADD COLUMN "resolutionNote" VARCHAR\(500\)/);
+    assert.match(route, /const ReportResolveSchema = z\.object\(\{\s*reason: z\.string\(\)\.min\(1\)\.max\(500\),\s*\}\)/s);
+    assert.match(route, /readBoundedJson\(req, ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES\)/);
+    assert.match(route, /const resolutionNote = truncateText\(sanitizeText\(body\.reason\), 500\)/);
+    assert.match(route, /data: \{ resolved: true, resolvedAt: new Date\(\), resolvedById: admin\.id, resolutionNote \}/);
+    assert.match(route, /metadata: \{ resolutionNote \}/);
+    assert.match(button, /Resolution reason/);
+    assert.match(button, /body: JSON\.stringify\(\{ reason: trimmedReason \}\)/);
+    assert.match(button, /Add a resolution reason before closing the report/);
+  });
+
+  it("clears account-deletion email suppression on same-email re-signup only", () => {
+    const webhook = source("src/app/api/clerk/webhook/route.ts");
+
+    assert.match(webhook, /import \{ normalizeEmailAddress \} from "@\/lib\/emailSuppression"/);
+    assert.match(webhook, /if \(event\.type === "user\.created"\) \{/);
+    assert.match(webhook, /const normalizedEmail = normalizeEmailAddress\(email\)/);
+    assert.match(webhook, /emailSuppression\.deleteMany\(\{\s*where: \{ email: normalizedEmail, source: "account_deletion" \},\s*\}\)/s);
+    assert.doesNotMatch(webhook, /emailSuppression\.deleteMany\(\{\s*where: \{ email: normalizedEmail \}/);
+  });
+
+  it("removes seller-derived state and seller-authored replies during account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /sellerMetrics\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
+    assert.match(deletion, /sellerRatingSummary\.deleteMany\(\{\s*where: \{ sellerProfileId: user\.sellerProfile\.id \},\s*\}\)/s);
+    assert.match(deletion, /review\.updateMany\(\{\s*where: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \},\s*data: \{ sellerReply: null, sellerReplyAt: null \},\s*\}\)/s);
+    assert.match(deletion, /where: \{ reportedId: user\.id, resolved: false \}/);
+    assert.match(deletion, /resolutionNote: "Auto-resolved after the reported account was deleted\."/);
+  });
+});

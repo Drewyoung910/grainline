@@ -612,6 +612,15 @@ export async function anonymizeUserAccount(userId: string) {
       where: { OR: [{ reporterId: user.id }, { reportedId: user.id }] },
       data: { details: null },
     });
+    await tx.userReport.updateMany({
+      where: { reportedId: user.id, resolved: false },
+      data: {
+        resolved: true,
+        resolvedAt: now,
+        resolvedById: null,
+        resolutionNote: "Auto-resolved after the reported account was deleted.",
+      },
+    });
     const suppressionEmail = user.email.trim().toLowerCase();
     await tx.newsletterSubscriber.deleteMany({
       where: { email: suppressionEmail },
@@ -643,6 +652,16 @@ export async function anonymizeUserAccount(userId: string) {
         });
       }
       await removeSellerCommissionInterests(tx, user.sellerProfile.id);
+      await tx.sellerMetrics.deleteMany({
+        where: { sellerProfileId: user.sellerProfile.id },
+      });
+      await tx.sellerRatingSummary.deleteMany({
+        where: { sellerProfileId: user.sellerProfile.id },
+      });
+      await tx.review.updateMany({
+        where: { listing: { sellerId: user.sellerProfile.id } },
+        data: { sellerReply: null, sellerReplyAt: null },
+      });
       await tx.photo.deleteMany({
         where: { listing: { sellerId: user.sellerProfile.id } },
       });

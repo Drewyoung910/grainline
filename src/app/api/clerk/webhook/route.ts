@@ -13,6 +13,7 @@ import {
 } from "@/lib/clerkWebhookEmail";
 import { shouldRevokeSessionsForClerkEmailChange } from "@/lib/clerkSessionSecurity";
 import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
+import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import * as Sentry from "@sentry/nextjs";
@@ -212,6 +213,15 @@ export async function POST(req: Request) {
     if (existingLocalUser?.banned || existingLocalUser?.deletedAt) {
       await markClerkWebhookProcessed(svixId);
       return NextResponse.json({ ok: true });
+    }
+
+    if (event.type === "user.created") {
+      const normalizedEmail = normalizeEmailAddress(email);
+      if (normalizedEmail) {
+        await prisma.emailSuppression.deleteMany({
+          where: { email: normalizedEmail, source: "account_deletion" },
+        });
+      }
     }
 
     if (

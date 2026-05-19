@@ -3,9 +3,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import {
+  isInvalidJsonBodyError,
+  isRequestBodyTooLargeError,
+  readBoundedJson,
+} from "@/lib/requestBody";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { z } from "zod";
+
+const ReportResolveSchema = z.object({
+  reason: z.string().min(1).max(500),
+});
+const ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES = 16 * 1024;
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
@@ -23,9 +35,29 @@ export async function POST(
   if (!success) return rateLimitResponse(reset, "Too many admin actions. Try again shortly.");
 
   const { id } = await params;
+  let body;
+  try {
+    body = ReportResolveSchema.parse(await readBoundedJson(req, ADMIN_REPORT_RESOLVE_BODY_MAX_BYTES));
+  } catch (error) {
+    if (isRequestBodyTooLargeError(error)) {
+      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+    }
+    if (isInvalidJsonBodyError(error)) {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: error.issues }, { status: 400 });
+    }
+    throw error;
+  }
+  const resolutionNote = truncateText(sanitizeText(body.reason), 500);
+  if (!resolutionNote) {
+    return NextResponse.json({ error: "Resolution reason is required." }, { status: 400 });
+  }
+
   const updated = await prisma.userReport.updateMany({
     where: { id, resolved: false },
-    data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id },
+    data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id, resolutionNote },
   });
   if (updated.count === 0) {
     return NextResponse.json({ error: "Report is already resolved or no longer exists." }, { status: 404 });
@@ -36,7 +68,7 @@ export async function POST(
     action: "RESOLVE_REPORT",
     targetType: "UserReport",
     targetId: id,
-    metadata: {},
+    metadata: { resolutionNote },
   });
 
   return NextResponse.json({ ok: true });
