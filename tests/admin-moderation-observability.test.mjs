@@ -37,6 +37,7 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /status: 'PENDING_REVIEW'/);
     assert.match(reviewRoute, /return NextResponse\.json\(\{ error: unavailableReason \}, \{ status: 409 \}\)/);
     assert.match(reviewRoute, /return NextResponse\.json\(\{ error: currentUnavailableReason \}, \{ status: 409 \}\)/);
+    assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
     assert.ok(
       reviewRoute.indexOf("const unavailableReason = sellerUnavailableReason(listing.seller)") <
         reviewRoute.indexOf("await prisma.listing.updateMany"),

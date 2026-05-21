@@ -121,7 +121,12 @@ export async function PATCH(
       if (currentListing.status === 'PENDING_REVIEW' && currentUnavailableReason) {
         return NextResponse.json({ error: currentUnavailableReason }, { status: 409 })
       }
-      if (currentListing.status === 'ACTIVE' && currentListing.customOrderConversationId && currentListing.reservedForUserId) {
+      if (
+        currentListing.status === 'ACTIVE' &&
+        !currentUnavailableReason &&
+        currentListing.customOrderConversationId &&
+        currentListing.reservedForUserId
+      ) {
         await sendCustomOrderReadyLink({
           conversationId: currentListing.customOrderConversationId,
           sellerUserId: currentListing.seller.userId,
