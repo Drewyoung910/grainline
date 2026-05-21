@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 157.
-- Verified code/feature fix commits since 2026-05-13: 135.
+- Verified hardening/doc commits since 2026-05-13: 160.
+- Verified code/feature fix commits since 2026-05-13: 137.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 112 verified closed items in the 2026-05-14
+- Most recent reported pass total: 114 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -548,6 +548,14 @@ Last updated: 2026-05-21
      become charges-disabled, vacationing, banned, or deleted during review; the
      final `updateMany` predicate repeats the seller-state guard before Founding
      Maker can be granted. Commit: `fix: guard admin listing approval state`.
+113. **SiteConfig singleton seeded** — migration fix.
+     Migration `20260521161000_seed_site_config_and_fallback_cap` inserts the
+     default `SiteConfig` row `id=1` if missing, so fallback-shipping lookup does
+     not rely on manual seed state. Commit: `fix: seed site config fallback guard`.
+114. **Fallback shipping ceiling added** — pricing safety fix.
+     `safeFallbackShippingCents()` now clamps fallback shipping to the $5-$50
+     range before quote/checkout use, preventing extreme buyer-facing fallback
+     rates from a bad config value. Commit: `fix: seed site config fallback guard`.
 
 ## Verified Stale / Not Fixed
 

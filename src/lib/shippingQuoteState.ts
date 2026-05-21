@@ -1,5 +1,6 @@
 export const DEFAULT_FALLBACK_SHIPPING_CENTS = 1500;
 export const MIN_FALLBACK_SHIPPING_CENTS = 500;
+export const MAX_FALLBACK_SHIPPING_CENTS = 5000;
 
 export type ShippoQuoteRate = {
   currency?: string | null;
@@ -15,7 +16,7 @@ export type ShippoQuoteRate = {
 export function safeFallbackShippingCents(value: number | null | undefined) {
   if (value == null) return DEFAULT_FALLBACK_SHIPPING_CENTS;
   if (!Number.isFinite(value)) return DEFAULT_FALLBACK_SHIPPING_CENTS;
-  return Math.max(MIN_FALLBACK_SHIPPING_CENTS, Math.round(value));
+  return Math.min(MAX_FALLBACK_SHIPPING_CENTS, Math.max(MIN_FALLBACK_SHIPPING_CENTS, Math.round(value)));
 }
 
 function normalizeCarrier(value: string) {

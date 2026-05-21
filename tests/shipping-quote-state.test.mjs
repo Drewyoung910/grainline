@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
   DEFAULT_FALLBACK_SHIPPING_CENTS,
+  MAX_FALLBACK_SHIPPING_CENTS,
   MIN_FALLBACK_SHIPPING_CENTS,
   carrierMatchesPreference,
   filterShippoRatesForCheckout,
@@ -16,6 +18,19 @@ describe("shipping quote state helpers", () => {
     assert.equal(safeFallbackShippingCents(0), MIN_FALLBACK_SHIPPING_CENTS);
     assert.equal(safeFallbackShippingCents(499), MIN_FALLBACK_SHIPPING_CENTS);
     assert.equal(safeFallbackShippingCents(999.6), 1000);
+    assert.equal(safeFallbackShippingCents(5001), MAX_FALLBACK_SHIPPING_CENTS);
+    assert.equal(safeFallbackShippingCents(99999999), MAX_FALLBACK_SHIPPING_CENTS);
+  });
+
+  it("keeps the singleton SiteConfig seed migration in place", () => {
+    const migration = readFileSync(
+      "prisma/migrations/20260521161000_seed_site_config_and_fallback_cap/migration.sql",
+      "utf8",
+    );
+
+    assert.match(migration, /INSERT INTO "SiteConfig" \("id", "fallbackShippingCents"\)/);
+    assert.match(migration, /VALUES \(1, 1500\)/);
+    assert.match(migration, /ON CONFLICT \("id"\) DO NOTHING/);
   });
 
   it("matches preferred carriers exactly without substring false positives", () => {
