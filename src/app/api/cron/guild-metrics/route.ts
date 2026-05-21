@@ -1,7 +1,7 @@
 // src/app/api/cron/guild-metrics/route.ts
 // Monthly cron — runs 1st of every month at 9am UTC.
 // Recalculates metrics for all Guild Members and Guild Masters;
-// enforces 2-month grace period for Guild Master revocation.
+// enforces a minimum 30-day warning window before Guild Master revocation.
 
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
@@ -27,6 +27,7 @@ const SELLER_PAGE_SIZE = 50;
 const SELLER_PROCESS_CONCURRENCY = 3;
 const VIEW_CLEANUP_BATCH_SIZE = 1000;
 const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000;
+const GUILD_MASTER_WARNING_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
@@ -119,6 +120,7 @@ async function fetchGuildSellerBatch(cursorId: string | null) {
       userId: true,
       guildLevel: true,
       consecutiveMetricFailures: true,
+      metricWarningSentAt: true,
       user: { select: { name: true, email: true } },
     },
   });
@@ -195,10 +197,28 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     return { processed: 1, warned: 1, revokedMaster: 0 };
   }
 
+  const warningSentAt = seller.metricWarningSentAt;
+  if (!warningSentAt || now.getTime() - warningSentAt.getTime() < GUILD_MASTER_WARNING_GRACE_MS) {
+    await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
+      data: {
+        metricWarningSentAt: warningSentAt ?? now,
+        lastMetricCheckAt: now,
+      },
+    });
+    return { processed: 1, warned: 0, revokedMaster: 0 };
+  }
+
   // Second consecutive failure — revoke Guild Master
+  const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS);
   const revoked = await prisma.$transaction(async (tx) => {
     const updated = await tx.sellerProfile.updateMany({
-      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
+      where: {
+        id: seller.id,
+        guildLevel: "GUILD_MASTER",
+        consecutiveMetricFailures: { gt: 0 },
+        metricWarningSentAt: { lte: revocationCutoff },
+      },
       data: {
         guildLevel: "GUILD_MEMBER",
         isVerifiedMaker: true,

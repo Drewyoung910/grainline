@@ -48,6 +48,17 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /deletedViewRowsComplete/);
   });
 
+  it("keeps Guild Master revocation behind a real 30-day warning grace", () => {
+    const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.match(source, /const GUILD_MASTER_WARNING_GRACE_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
+    assert.match(source, /metricWarningSentAt: true/);
+    assert.match(source, /now\.getTime\(\) - warningSentAt\.getTime\(\) < GUILD_MASTER_WARNING_GRACE_MS/);
+    assert.match(source, /metricWarningSentAt: warningSentAt \?\? now/);
+    assert.match(source, /const revocationCutoff = new Date\(now\.getTime\(\) - GUILD_MASTER_WARNING_GRACE_MS\)/);
+    assert.match(source, /metricWarningSentAt: \{ lte: revocationCutoff \}/);
+  });
+
   it("surfaces webhook failure piles in ops-health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
 

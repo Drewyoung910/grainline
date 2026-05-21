@@ -25,7 +25,7 @@ Last updated: 2026-05-21
 - Verified hardening/doc commits since 2026-05-13: 168.
 - Verified code/feature fix commits since 2026-05-13: 144.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 125 verified closed items in the 2026-05-14
+- Most recent reported pass total: 126 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -604,6 +604,11 @@ Last updated: 2026-05-21
      Upload verification tokens and HMAC-signed shipping rates now reject
      excessive future expiries before expensive verification work, while keeping
      the normal signed TTL plus skew window.
+126. **Guild Master warning grace enforced** — deadline fix.
+     The monthly Guild metrics cron now refuses to revoke Guild Master status
+     until `metricWarningSentAt` is at least 30 days old, and the final DB update
+     repeats that predicate so short-month cron runs cannot revoke before the
+     seller's promised warning window.
 
 ## Verified Stale / Not Fixed
 

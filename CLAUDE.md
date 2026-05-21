@@ -518,10 +518,10 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 **`src/app/api/cron/guild-metrics/route.ts`** — monthly Guild Master revocation:
 - Fetches all `GUILD_MEMBER` + `GUILD_MASTER` sellers
-- Processes in batches of 10 via `Promise.all`
+- Processes in pages of 50 with concurrency 3
 - Guild Master pass: resets `consecutiveMetricFailures = 0`, clears `metricWarningSentAt`
 - Guild Master fail (1st time): increments `consecutiveMetricFailures = 1`, sets `metricWarningSentAt`, sends `VERIFICATION_REJECTED` notification + `sendGuildMasterWarningEmail` listing which criteria failed
-- Guild Master fail (2nd consecutive): revokes to `GUILD_MEMBER`, resets counters, sends notification + `sendGuildMasterRevokedEmail`
+- Guild Master fail (2nd consecutive): revokes to `GUILD_MEMBER` only if `metricWarningSentAt` is at least 30 days old; the DB update also guards `metricWarningSentAt <= now - 30 days` so short-month monthly cron runs cannot revoke before the promised warning window. Revocation resets counters and sends notification + `sendGuildMasterRevokedEmail`.
 - Guild Member sellers: just updates `lastMetricCheckAt` (revocation handled by daily cron)
 - Returns `{ processed, warned, revokedMaster, errors[] }`
 
