@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 178.
-- Verified code/feature fix commits since 2026-05-13: 154.
+- Verified hardening/doc commits since 2026-05-13: 180.
+- Verified code/feature fix commits since 2026-05-13: 156.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 138 verified closed items in the 2026-05-14
+- Most recent reported pass total: 140 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -819,3 +819,14 @@ Last updated: 2026-05-21
     once-only abort listener, preventing abort races from throwing noisy
     WebStream lifecycle errors. Regression coverage:
     `tests/custom-order-admin-thread-followups.test.mjs`.
+51. **CSP reports leaked dynamic path identifiers into Sentry tags/extras** —
+    code fix. CSP report sanitization now turns dynamic path segments into
+    route shapes such as `/messages/[id]` and `/listing/[id]` before Sentry
+    tags, breadcrumbs, or sanitized report extras are emitted. Regression
+    coverage: `tests/csp-report-sanitization.test.mjs`.
+52. **CI high-severity dependency audit failure** — dependency hardening fix.
+    Targeted package updates moved Clerk to `@clerk/nextjs@7.4.0`, Resend to
+    `6.12.3`, Svix to `1.94.0`, and npm overrides force `js-cookie@3.0.7`
+    plus the direct Svix spec, clearing the `js-cookie` and `uuid` advisory
+    chains without using `npm audit fix --force`. Verification:
+    `npm audit --audit-level=high`.

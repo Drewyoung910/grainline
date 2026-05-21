@@ -13,7 +13,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1032.0",
     "@aws-sdk/s3-request-presigner": "^3.1032.0",
-    "@clerk/nextjs": "^7.2.3",
+    "@clerk/nextjs": "^7.4.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "@sentry/nextjs": "^10.49.0",
@@ -36,10 +36,10 @@
     "pg": "^8.20.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "resend": "^6.12.0",
+    "resend": "^6.12.3",
     "sanitize-html": "^2.17.3",
     "stripe": "^19.3.0",
-    "svix": "^1.89.0",
+    "svix": "^1.94.0",
     "tiptap-markdown": "^0.9.0",
     "zod": "^4.3.6"
   },
@@ -59,6 +59,8 @@
   },
   "overrides": {
     "@hono/node-server": "1.19.13",
-    "postcss": "8.5.10"
+    "js-cookie": "3.0.7",
+    "postcss": "8.5.10",
+    "svix": "$svix"
   }
 }

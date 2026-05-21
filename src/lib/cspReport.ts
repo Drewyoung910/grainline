@@ -27,11 +27,26 @@ function originAndPath(value: string): string {
   if (!value) return "unknown";
   try {
     const url = new URL(value);
-    return `${url.origin}${url.pathname || "/"}`;
+    return `${url.origin}${sanitizeDocumentPath(url.pathname || "/")}`;
   } catch {
-    if (value.startsWith("/")) return value.split("?")[0] || "/";
+    if (value.startsWith("/")) return sanitizeDocumentPath(value.split("?")[0] || "/");
     return originOrKeyword(value);
   }
+}
+
+function sanitizeDocumentPath(path: string): string {
+  return path
+    .split("/")
+    .map((segment) => {
+      if (!segment) return segment;
+      if (/^c[a-z0-9]{20,}(?:--.*)?$/i.test(segment)) return "[id]";
+      if (/^(?:convo|msg|ord|case|user|seller|listing|review|report|thread|cart)_[a-z0-9_-]+$/i.test(segment)) {
+        return "[id]";
+      }
+      if (/^(?:cs|pi|txn|acct|re|tr)_(?:test|live)?_?[a-z0-9_-]+$/i.test(segment)) return "[id]";
+      return segment;
+    })
+    .join("/") || "/";
 }
 
 export function cspReportDirective(report: CspReportLike): string {
@@ -42,9 +57,9 @@ export function cspReportDocumentPath(report: CspReportLike): string {
   const documentUri = field(report, "document-uri");
   if (!documentUri) return "unknown";
   try {
-    return new URL(documentUri).pathname || "/";
+    return sanitizeDocumentPath(new URL(documentUri).pathname || "/");
   } catch {
-    if (documentUri.startsWith("/")) return documentUri.split("?")[0] || "/";
+    if (documentUri.startsWith("/")) return sanitizeDocumentPath(documentUri.split("?")[0] || "/");
     return "unknown";
   }
 }

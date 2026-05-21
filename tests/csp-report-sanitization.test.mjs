@@ -57,9 +57,25 @@ describe("CSP report sanitization", () => {
     const breadcrumb = cspReportBreadcrumbData(report);
 
     assert.equal(breadcrumb.blockedUri, "https://evil.example");
-    assert.equal(breadcrumb.documentPath, "/messages/convo_123");
+    assert.equal(breadcrumb.documentPath, "/messages/[id]");
     assert.equal(breadcrumb.effectiveDirective, "script-src-elem");
-    assert.doesNotMatch(JSON.stringify(breadcrumb), /token=secret|skimmer\.js/);
+    assert.doesNotMatch(JSON.stringify(breadcrumb), /token=secret|skimmer\.js|convo_123/);
+  });
+
+  it("redacts dynamic path identifiers from CSP tags and sanitized report extras", () => {
+    const report = {
+      "effective-directive": "connect-src",
+      "document-uri": "https://thegrainline.com/listing/cmp1oo7nt000204jw976udshz--cat-litter-box?client_secret=secret",
+      referrer: "https://thegrainline.com/messages/cmp0w0075000404i8pha5p646",
+      "blocked-uri": "self",
+    };
+
+    assert.equal(cspReportDocumentPath(report), "/listing/[id]");
+    assert.equal(cspReportSentryTags(report).document_path, "/listing/[id]");
+    const sanitized = sanitizeCspReportForSentry(report);
+    assert.equal(sanitized["document-uri"], "https://thegrainline.com/listing/[id]");
+    assert.equal(sanitized.referrer, "https://thegrainline.com/messages/[id]");
+    assert.doesNotMatch(JSON.stringify({ sanitized, tags: cspReportSentryTags(report) }), /cmp1oo7|cmp0w/);
   });
 
   it("keeps non-checkout documents distinguishable", () => {
