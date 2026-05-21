@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 171.
-- Verified code/feature fix commits since 2026-05-13: 147.
+- Verified hardening/doc commits since 2026-05-13: 173.
+- Verified code/feature fix commits since 2026-05-13: 149.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 131 verified closed items in the 2026-05-14
+- Most recent reported pass total: 133 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -630,6 +630,14 @@ Last updated: 2026-05-21
      Guild Member revoke, Guild Master revoke, and Guild Member reinstatement
      now return `ActionState` responses through `ActionForm`, so races with
      cron/admin actions produce visible admin errors instead of silent no-ops.
+132. **Icon-only Guild badges have accessible names** — accessibility fix.
+     `GuildBadge` now sets `aria-label` from the same Guild Member/Master label
+     used for the title, so icon-only badge buttons on cards and compact
+     surfaces are announced correctly.
+133. **Guild verification narratives sanitize at write boundaries** — text-boundary hardening.
+     Guild Member `craftDescription` and Guild Master `craftBusiness` writes now
+     use `truncateText(sanitizeText(...), 500)` on dashboard/API paths before
+     persisting application narrative text.
 
 ## Verified Stale / Not Fixed
 

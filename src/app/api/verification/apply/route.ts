@@ -4,7 +4,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { prisma } from "@/lib/db";
 import { rateLimitResponse, safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
       throw e;
     }
 
-    const craftDescription = truncateText(verParsed.craftDescription.trim(), 500);
+    const craftDescription = truncateText(sanitizeText(verParsed.craftDescription), 500);
     const yearsExperience = Math.max(0, Math.floor(verParsed.yearsExperience));
     const portfolioUrl = normalizeHttpsUrl(verParsed.portfolioUrl);
     if (verParsed.portfolioUrl?.trim() && !portfolioUrl) {

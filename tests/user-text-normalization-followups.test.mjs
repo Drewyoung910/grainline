@@ -41,4 +41,15 @@ describe("user text normalization followups", () => {
     assert.match(route, /replace\(\s*\/\[\\r\\n\\u0085\\u2028\\u2029\]\+\/g,\s*" "\s*\)/);
     assert.match(route, /shippingLine1: sanitizeAddressLine\(body\.line1\)/);
   });
+
+  it("sanitizes Guild verification application narrative text", () => {
+    const dashboard = source("src/app/dashboard/verification/page.tsx");
+    const route = source("src/app/api/verification/apply/route.ts");
+
+    assert.match(dashboard, /import \{ sanitizeText, truncateText \} from "@\/lib\/sanitize"/);
+    assert.match(dashboard, /const craftDescription = truncateText\(sanitizeText\(String\(formData\.get\("craftDescription"\) \?\? ""\)\), 500\)/);
+    assert.match(dashboard, /const craftBusiness = truncateText\(sanitizeText\(String\(formData\.get\("craftBusiness"\) \?\? ""\)\), 500\)/);
+    assert.match(route, /import \{ sanitizeText, truncateText \} from "@\/lib\/sanitize"/);
+    assert.match(route, /const craftDescription = truncateText\(sanitizeText\(verParsed\.craftDescription\), 500\)/);
+  });
 });

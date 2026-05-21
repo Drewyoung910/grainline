@@ -5,7 +5,7 @@ import { ensureSeller } from "@/lib/ensureSeller";
 import { prisma } from "@/lib/db";
 import GuildBadge from "@/components/GuildBadge";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
-import { truncateText } from "@/lib/sanitize";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
 import type { Metadata } from "next";
 
@@ -184,7 +184,7 @@ export default async function VerificationPage() {
     const { success } = await safeRateLimit(verificationApplyRatelimit, userId);
     if (!success) return;
     const { seller: s } = await ensureSeller();
-    const craftDescription = truncateText(String(formData.get("craftDescription") ?? "").trim(), 500);
+    const craftDescription = truncateText(sanitizeText(String(formData.get("craftDescription") ?? "")), 500);
     const yearsExperience = parseInt(String(formData.get("yearsExperience") ?? "0"), 10);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
     const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
@@ -244,7 +244,7 @@ export default async function VerificationPage() {
     const { success } = await safeRateLimit(verificationApplyRatelimit, userId);
     if (!success) return;
     const { seller: s } = await ensureSeller();
-    const craftBusiness = truncateText(String(formData.get("craftBusiness") ?? "").trim(), 500);
+    const craftBusiness = truncateText(sanitizeText(String(formData.get("craftBusiness") ?? "")), 500);
     const portfolioRaw = String(formData.get("portfolioUrl") ?? "").trim();
     const portfolioUrl = portfolioRaw ? normalizeHttpsUrl(portfolioRaw) : null;
     const confirmStandards = formData.get("confirmStandards") === "on";

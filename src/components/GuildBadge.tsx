@@ -188,6 +188,7 @@ export default function GuildBadge({
           setOpen((o) => !o);
         }}
         title={label}
+        aria-label={label}
         style={{
           display: "inline-flex",
           alignItems: "center",

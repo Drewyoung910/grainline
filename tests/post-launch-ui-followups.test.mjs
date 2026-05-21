@@ -80,6 +80,14 @@ describe("post-launch UI follow-ups", () => {
     assert.match(dashboard, /Shield/);
   });
 
+  it("keeps icon-only Guild badges accessible", () => {
+    const badge = source("src/components/GuildBadge.tsx");
+
+    assert.match(badge, /const label = isMember \? "Guild Member" : "Guild Master"/);
+    assert.match(badge, /aria-label=\{label\}/);
+    assert.match(badge, /title=\{label\}/);
+  });
+
   it("keeps profile media uploaders aligned with the design system", () => {
     for (const path of [
       "src/components/ProfileBannerUploader.tsx",
