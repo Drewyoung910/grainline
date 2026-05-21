@@ -25,7 +25,7 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(customPage, /sendCustomOrderReadyLink\(\{/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.match(adminReview, /sendCustomOrderReadyLink\(\{/);
-    assert.match(adminReview, /listing\.status === 'ACTIVE' && listing\.customOrderConversationId/);
+    assert.match(adminReview, /currentListing\.status === 'ACTIVE' &&[\s\S]*currentListing\.customOrderConversationId &&[\s\S]*currentListing\.reservedForUserId/);
   });
 
   it("lets staff view reported message threads without becoming a participant", () => {
