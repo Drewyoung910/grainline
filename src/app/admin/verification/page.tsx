@@ -20,6 +20,7 @@ import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { guildMemberRevocationCaseWhere } from "@/lib/guildMemberRevocationState";
+import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -311,9 +312,12 @@ async function rejectGuildMember(formData: FormData) {
   revalidatePath("/admin/verification");
 }
 
-async function revokeMember(sellerProfileId: string) {
+async function revokeMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
   const me = await requireStaff();
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
+
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
     select: { userId: true, displayName: true, user: { select: { email: true } } },
@@ -345,7 +349,7 @@ async function revokeMember(sellerProfileId: string) {
     });
     return true;
   });
-  if (!revoked) return;
+  if (!revoked) return { ok: false, error: "Guild Member badge was already changed. Refresh this page." };
 
   if (seller?.userId) {
     await createNotification({
@@ -373,6 +377,7 @@ async function revokeMember(sellerProfileId: string) {
   await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
   revalidatePath("/admin/verification");
+  return { ok: true };
 }
 
 // ── Guild Master actions ─────────────────────────────────────────────────────
@@ -537,9 +542,12 @@ async function rejectGuildMaster(formData: FormData) {
   revalidatePath("/admin/verification");
 }
 
-async function revokeMaster(sellerProfileId: string) {
+async function revokeMaster(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
   const me = await requireStaff();
+  const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
+  if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
+
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },
     select: { userId: true, displayName: true, user: { select: { email: true } } },
@@ -572,7 +580,7 @@ async function revokeMaster(sellerProfileId: string) {
     });
     return true;
   });
-  if (!revoked) return;
+  if (!revoked) return { ok: false, error: "Guild Master badge was already changed. Refresh this page." };
 
   if (seller?.userId) {
     await createNotification({
@@ -599,22 +607,27 @@ async function revokeMaster(sellerProfileId: string) {
   await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
   revalidatePath("/admin/verification");
+  return { ok: true };
 }
 
-async function reinstateGuildMember(formData: FormData) {
+async function reinstateGuildMember(_prevState: unknown, formData: FormData): Promise<ActionState> {
   "use server";
   const me = await requireAdminOnly();
   const sellerProfileId = String(formData.get("sellerProfileId") ?? "");
-  if (!sellerProfileId) return;
+  if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
 
   const reinstatedAt = new Date();
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const reinstated = await prisma.$transaction(async (tx) => {
+  const reinstatedSeller = await prisma.$transaction(async (tx) => {
     const seller = await tx.sellerProfile.findUnique({
       where: { id: sellerProfileId },
-      select: { userId: true },
+      select: {
+        userId: true,
+        displayName: true,
+        user: { select: { banned: true, deletedAt: true } },
+      },
     });
-    if (!seller) return false;
+    if (!seller || seller.user.banned || seller.user.deletedAt) return null;
 
     const longCase = await tx.case.findFirst({
       where: guildMemberRevocationCaseWhere(seller.userId, {
@@ -623,15 +636,20 @@ async function reinstateGuildMember(formData: FormData) {
       }),
       select: { id: true },
     });
-    if (longCase) return false;
+    if (longCase) return null;
 
     const activeListings = await tx.listing.count({
       where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false },
     });
-    if (activeListings < 5) return false;
+    if (activeListings < 5) return null;
 
     const updated = await tx.sellerProfile.updateMany({
-      where: { id: sellerProfileId, guildLevel: "NONE", guildMemberApprovedAt: { not: null } },
+      where: {
+        id: sellerProfileId,
+        guildLevel: "NONE",
+        guildMemberApprovedAt: { not: null },
+        user: { banned: false, deletedAt: null },
+      },
       data: {
         guildLevel: "GUILD_MEMBER",
         isVerifiedMaker: true,
@@ -641,7 +659,7 @@ async function reinstateGuildMember(formData: FormData) {
         lastMetricCheckAt: reinstatedAt,
       },
     });
-    if (updated.count === 0) return false;
+    if (updated.count === 0) return null;
 
     await tx.makerVerification.updateMany({
       where: { sellerProfileId },
@@ -652,9 +670,22 @@ async function reinstateGuildMember(formData: FormData) {
         reviewNotes: null,
       },
     });
-    return true;
+    return seller;
   });
-  if (!reinstated) return;
+  if (!reinstatedSeller) {
+    return {
+      ok: false,
+      error: "Guild Member badge could not be reinstated. Confirm the seller is active, has 5 active public listings, and has no unresolved case older than 90 days.",
+    };
+  }
+
+  await createNotification({
+    userId: reinstatedSeller.userId,
+    type: "VERIFICATION_APPROVED",
+    title: "Guild Member badge reinstated",
+    body: "Your Guild Member badge is live again on your profile.",
+    link: publicSellerPath(sellerProfileId, reinstatedSeller.displayName),
+  });
 
   await logAdminAction({
     adminId: me.id,
@@ -664,6 +695,7 @@ async function reinstateGuildMember(formData: FormData) {
   });
 
   revalidatePath("/admin/verification");
+  return { ok: true };
 }
 
 async function featureMaker(sellerProfileId: string) {
@@ -678,10 +710,11 @@ async function featureMaker(sellerProfileId: string) {
 
   const now = new Date();
   const result = await prisma.sellerProfile.updateMany({
-    where: {
+    where: activeSellerProfileWhere({
       id: sellerProfileId,
+      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
       OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
-    },
+    }),
     data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
   });
   if (result.count === 0) return;
@@ -1086,11 +1119,15 @@ export default async function AdminVerificationPage() {
                     featureAction={featureMaker}
                     unfeatureAction={unfeatureMaker}
                   />
-                  <form action={revokeMember.bind(null, s.id)}>
-                    <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
+                  <ActionForm action={revokeMember}>
+                    <input type="hidden" name="sellerProfileId" value={s.id} />
+                    <SubmitButton
+                      pendingLabel="Revoking..."
+                      className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
                       Revoke Badge
-                    </button>
-                  </form>
+                    </SubmitButton>
+                  </ActionForm>
                 </div>
               </div>
             ))}
@@ -1122,11 +1159,15 @@ export default async function AdminVerificationPage() {
                     featureAction={featureMaker}
                     unfeatureAction={unfeatureMaker}
                   />
-                  <form action={revokeMaster.bind(null, s.id)}>
-                    <button type="submit" className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50">
+                  <ActionForm action={revokeMaster}>
+                    <input type="hidden" name="sellerProfileId" value={s.id} />
+                    <SubmitButton
+                      pendingLabel="Revoking..."
+                      className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
                       Revoke Guild Master
-                    </button>
-                  </form>
+                    </SubmitButton>
+                  </ActionForm>
                 </div>
               </div>
             ))}
@@ -1150,12 +1191,15 @@ export default async function AdminVerificationPage() {
                     </div>
                   )}
                 </div>
-                <form action={reinstateGuildMember}>
+                <ActionForm action={reinstateGuildMember}>
                   <input type="hidden" name="sellerProfileId" value={s.id} />
-                  <button type="submit" className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50">
+                  <SubmitButton
+                    pendingLabel="Reinstating..."
+                    className="rounded border border-green-300 px-3 py-1 text-xs text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
                     Reinstate
-                  </button>
-                </form>
+                  </SubmitButton>
+                </ActionForm>
               </div>
             ))}
           </div>

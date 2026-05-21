@@ -26,8 +26,39 @@ describe("security lifecycle follow-ups", () => {
       assert.match(functionBody(page, action), /const me = await requireAdminOnly\(\)/, `${action} must require ADMIN`);
     }
 
+    assert.match(page, /import \{ activeSellerProfileWhere \} from "@\/lib\/sellerVisibility"/);
+    assert.match(functionBody(page, "featureMaker"), /activeSellerProfileWhere\(\{\s*id: sellerProfileId,\s*guildLevel: \{ in: \["GUILD_MEMBER", "GUILD_MASTER"\] \}/s);
+
     assert.match(functionBody(page, "approveGuildMember"), /const me = await requireStaff\(\)/);
     assert.match(functionBody(page, "approveGuildMaster"), /const me = await requireStaff\(\)/);
+  });
+
+  it("keeps Guild Member reinstatement on active accounts and notifies the seller", () => {
+    const page = source("src/app/admin/verification/page.tsx");
+    const reinstateBody = functionBody(page, "reinstateGuildMember");
+
+    assert.match(reinstateBody, /user: \{ select: \{ banned: true, deletedAt: true \} \}/);
+    assert.match(reinstateBody, /seller\.user\.banned \|\| seller\.user\.deletedAt/);
+    assert.match(reinstateBody, /user: \{ banned: false, deletedAt: null \}/);
+    assert.match(reinstateBody, /title: "Guild Member badge reinstated"/);
+    assert.match(reinstateBody, /publicSellerPath\(sellerProfileId, reinstatedSeller\.displayName\)/);
+  });
+
+  it("surfaces stale Guild revoke and reinstatement races to admins", () => {
+    const page = source("src/app/admin/verification/page.tsx");
+
+    for (const action of ["revokeMember", "revokeMaster", "reinstateGuildMember"]) {
+      const body = functionBody(page, action);
+      assert.match(body, /: Promise<ActionState>/, `${action} must return ActionState`);
+      assert.match(body, /return \{ ok: false, error:/, `${action} must return visible errors`);
+      assert.match(body, /return \{ ok: true \}/, `${action} must report success`);
+    }
+
+    assert.match(page, /<ActionForm action=\{revokeMember\}>/);
+    assert.match(page, /<ActionForm action=\{revokeMaster\}>/);
+    assert.match(page, /<ActionForm action=\{reinstateGuildMember\}>/);
+    assert.doesNotMatch(page, /action=\{revokeMember\.bind/);
+    assert.doesNotMatch(page, /action=\{revokeMaster\.bind/);
   });
 
   it("requires and persists report resolution reasons", () => {

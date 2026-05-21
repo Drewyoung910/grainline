@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 168.
-- Verified code/feature fix commits since 2026-05-13: 144.
+- Verified hardening/doc commits since 2026-05-13: 171.
+- Verified code/feature fix commits since 2026-05-13: 147.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 128 verified closed items in the 2026-05-14
+- Most recent reported pass total: 131 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -617,6 +617,19 @@ Last updated: 2026-05-21
      `calculateSellerMetrics()` now derives rolling windows through
      `metricsPeriodStart()` with fixed 30-day-per-month periods, avoiding
      `Date.setMonth()` month-end rollover drift.
+129. **Admin feature-maker writes use public seller visibility gates** — trust-signal hardening.
+     `featureMaker()` now writes through `activeSellerProfileWhere()` and
+     requires an active Guild Member/Master, so banned/deleted, vacation-mode,
+     Stripe-disabled, unsupported-account-version, or non-Guild sellers cannot
+     be manually spotlighted.
+130. **Guild Member reinstatement rejects inactive accounts and notifies sellers** — admin action hardening.
+     `reinstateGuildMember()` now refuses banned/deleted target users in the
+     transaction, keeps the case/listing good-standing checks, and sends a
+     `VERIFICATION_APPROVED` notification when the badge is restored.
+131. **Admin Guild revoke/reinstate stale states now surface errors** — admin UX/ops hardening.
+     Guild Member revoke, Guild Master revoke, and Guild Member reinstatement
+     now return `ActionState` responses through `ActionForm`, so races with
+     cron/admin actions produce visible admin errors instead of silent no-ops.
 
 ## Verified Stale / Not Fixed
 
