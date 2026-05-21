@@ -60,6 +60,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(email, /hashEmailForTelemetry/);
     assert.match(email, /console\.log\("\[email:dev\]", \{ emailHash, subjectLength: sanitizedSubject\.length \}\)/);
     assert.match(email, /console\.error\("\[email\] inactive-account lookup failed; skipping send:", sanitizeEmailOutboxError\(err\)\)/);
+    assert.match(email, /console\.error\("\[email\] send failed:", sanitizeEmailOutboxError\(err\)\)/);
     assert.match(email, /source: "email_inactive_account_lookup"/);
     assert.match(email, /source: "email_send_retry"/);
     assert.match(email, /source: "email_send"/);
@@ -68,6 +69,7 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(email, /extra:\s*\{[^}]*\bto,/s);
     assert.doesNotMatch(email, /extra:\s*\{[^}]*subject:\s*sanitizedSubject/s);
     assert.doesNotMatch(email, /extra:\s*\{[^}]*subject\s*\}/s);
+    assert.doesNotMatch(email, /console\.error\("\[email\] send failed:", err\)/);
   });
 
   it("preserves Resend webhook error evidence even when marking the event failed errors", () => {

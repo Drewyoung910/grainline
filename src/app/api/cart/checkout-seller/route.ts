@@ -19,6 +19,7 @@ import {
   releaseCheckoutLock,
 } from "@/lib/checkoutSessionLock";
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import {
@@ -604,7 +605,7 @@ export async function POST(req: Request) {
         checkoutLockAcquired,
       },
     });
-    console.error("POST /api/cart/checkout-seller error:", err);
+    console.error("POST /api/cart/checkout-seller error:", sanitizeEmailOutboxError(err));
 
     // Restore reserved stock if the Stripe session creation failed.
     for (const r of reservedItems) {

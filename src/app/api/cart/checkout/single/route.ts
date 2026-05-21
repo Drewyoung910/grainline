@@ -19,6 +19,7 @@ import {
   singleCheckoutLockKey,
 } from "@/lib/checkoutSessionLock";
 import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -528,7 +529,7 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/cart/checkout/single error:", err);
+    console.error("POST /api/cart/checkout/single error:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, {
       tags: { source: "checkout_single_route", route: "/api/cart/checkout/single" },
       extra: {

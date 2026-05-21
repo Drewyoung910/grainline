@@ -234,7 +234,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
       },
     );
   } catch (err) {
-    console.error("[email] send failed:", err);
+    console.error("[email] send failed:", sanitizeEmailOutboxError(err));
     Sentry.captureException(err, {
       tags: { source: "email_send" },
       extra: { emailHash, subjectLength: sanitizedSubject.length },
