@@ -41,14 +41,34 @@ export async function GET(
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      const send = (data: unknown) =>
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      const ping = () => controller.enqueue(encoder.encode(`: ping\n\n`));
 
       let closed = false;
       let pollDelayMs = 3000;
       let timeout: ReturnType<typeof setTimeout> | null = null;
       let reportedPollError = false;
+      const safeEnqueue = (chunk: string) => {
+        if (closed) return false;
+        try {
+          controller.enqueue(encoder.encode(chunk));
+          return true;
+        } catch {
+          closed = true;
+          if (timeout) clearTimeout(timeout);
+          return false;
+        }
+      };
+      const send = (data: unknown) => safeEnqueue(`data: ${JSON.stringify(data)}\n\n`);
+      const ping = () => safeEnqueue(`: ping\n\n`);
+      const closeStream = () => {
+        if (closed) return;
+        closed = true;
+        if (timeout) clearTimeout(timeout);
+        try {
+          controller.close();
+        } catch {
+          // The client may already have closed the stream; cleanup is enough.
+        }
+      };
 
       const poll = async () => {
         if (closed) return;
@@ -63,11 +83,11 @@ export async function GET(
           });
           if (messages.length) {
             since = new Date(messages[messages.length - 1].createdAt).getTime();
-            send({ type: "messages", messages });
+            if (!send({ type: "messages", messages })) return;
             pollDelayMs = 3000;
           } else {
             // keep-alive comment so proxies don’t close us
-            ping();
+            if (!ping()) return;
             pollDelayMs = Math.min(pollDelayMs + 1000, 10000);
           }
         } catch (err) {
@@ -78,7 +98,7 @@ export async function GET(
               extra: { conversationId: id },
             });
           }
-          ping();
+          if (!ping()) return;
           pollDelayMs = Math.min(pollDelayMs * 2, 15000);
         }
         if (!closed) timeout = setTimeout(poll, pollDelayMs);
@@ -87,11 +107,7 @@ export async function GET(
       timeout = setTimeout(poll, 0);
 
       // close handler
-      req.signal?.addEventListener("abort", () => {
-        closed = true;
-        if (timeout) clearTimeout(timeout);
-        controller.close();
-      });
+      req.signal?.addEventListener("abort", closeStream, { once: true });
     },
   });
 

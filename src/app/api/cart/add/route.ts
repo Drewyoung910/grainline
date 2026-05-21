@@ -164,19 +164,40 @@ export async function POST(req: Request) {
     async function addOrIncrement() {
       let item: Awaited<ReturnType<typeof prisma.cartItem.create>> | null = null;
       if (listing!.listingType === "MADE_TO_ORDER") {
-        return prisma.cartItem.upsert({
+        try {
+          item = await prisma.cartItem.create({
+            data: {
+              cartId: cart.id,
+              listingId,
+              quantity: 1,
+              priceCents: totalPriceCents,
+              priceVersion: listing!.priceVersion,
+              selectedVariantOptionIds,
+              variantKey,
+            },
+            include: { listing: true },
+          });
+        } catch (err) {
+          if (!isUniqueConstraintError(err)) throw err;
+        }
+        if (item) return item;
+
+        await prisma.cartItem.updateMany({
           where: {
-            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-          },
-          update: { quantity: 1, priceCents: totalPriceCents, priceVersion: listing!.priceVersion },
-          create: {
             cartId: cart.id,
             listingId,
+            variantKey,
+          },
+          data: {
             quantity: 1,
             priceCents: totalPriceCents,
             priceVersion: listing!.priceVersion,
             selectedVariantOptionIds,
-            variantKey,
+          },
+        });
+        return prisma.cartItem.findUnique({
+          where: {
+            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
           },
           include: { listing: true },
         });

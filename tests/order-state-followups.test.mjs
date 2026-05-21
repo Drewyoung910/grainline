@@ -71,6 +71,7 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /isUniqueConstraintError/);
     assert.match(text, /prisma\.cartItem\.create/);
     assert.match(text, /prisma\.cartItem\.updateMany/);
+    assert.doesNotMatch(text, /prisma\.cartItem\.upsert/);
     assert.match(text, /quantity: \{ lte: 99 - quantity \}/);
     assert.match(text, /quantity: \{ increment: quantity \}/);
     assert.match(text, /MAX_CART_DISTINCT_ITEMS = 50/);

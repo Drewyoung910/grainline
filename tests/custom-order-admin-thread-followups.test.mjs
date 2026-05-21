@@ -96,4 +96,14 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(streamRoute, /parseTimestampMsParam\(url\.searchParams\.get\("since"\)\) \?\? 0/);
     assert.doesNotMatch(streamRoute, /Number\(url\.searchParams\.get\("since"\)/);
   });
+
+  it("keeps message stream cleanup safe after client aborts", () => {
+    const streamRoute = source("src/app/api/messages/[id]/stream/route.ts");
+
+    assert.match(streamRoute, /safeEnqueue/);
+    assert.match(streamRoute, /closeStream/);
+    assert.match(streamRoute, /controller\.close\(\)/);
+    assert.match(streamRoute, /catch \{\s*\/\/ The client may already have closed the stream/s);
+    assert.match(streamRoute, /addEventListener\("abort", closeStream, \{ once: true \}\)/);
+  });
 });

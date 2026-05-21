@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 175.
-- Verified code/feature fix commits since 2026-05-13: 151.
+- Verified hardening/doc commits since 2026-05-13: 178.
+- Verified code/feature fix commits since 2026-05-13: 154.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 135 verified closed items in the 2026-05-14
+- Most recent reported pass total: 138 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -802,3 +802,20 @@ Last updated: 2026-05-21
 47. **Verbose health token uses non-constant comparison** — stale claim.
     `isVerboseHealthRequest()` hashes both supplied and configured tokens and
     compares the digests with `timingSafeEqual()`.
+48. **Buy Now loaded Stripe.js for crawlers before checkout intent** — code fix.
+    `BuyNowCheckoutModal` now dynamically imports `EmbeddedCheckoutPanel` only
+    when the buyer reaches the payment step, keeping listing-page crawlers from
+    loading Stripe.js. Sentry filtering drops bot-only Stripe.js load failures
+    while preserving real buyer checkout failures. Regression coverage:
+    `tests/checkout-script-inventory.test.mjs` and
+    `tests/sentry-filter.test.mjs`.
+49. **Made-to-order cart add duplicate-submit race could surface P2002** — code
+    fix. `/api/cart/add` now uses the same create-then-update idempotency
+    pattern for made-to-order cart rows that in-stock rows already used, and the
+    guardrail test rejects future `cartItem.upsert` drift in the add path.
+    Regression coverage: `tests/order-state-followups.test.mjs`.
+50. **Message stream abort cleanup could enqueue/close after client disconnect**
+    — code fix. The SSE stream now uses safe enqueue/close helpers and a
+    once-only abort listener, preventing abort races from throwing noisy
+    WebStream lifecycle errors. Regression coverage:
+    `tests/custom-order-admin-thread-followups.test.mjs`.
