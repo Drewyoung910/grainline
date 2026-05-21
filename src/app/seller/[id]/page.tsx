@@ -339,7 +339,7 @@ export default async function SellerPublicPage({
           <p className="font-medium text-amber-900">This maker is currently on vacation and not accepting new orders.</p>
           {seller.vacationReturnDate && (
             <p className="text-amber-800 text-sm mt-0.5">
-              Expected return: <LocalDate date={seller.vacationReturnDate} />
+              Expected return: <LocalDate date={seller.vacationReturnDate} dateOnly />
             </p>
           )}
           {seller.vacationMessage && (

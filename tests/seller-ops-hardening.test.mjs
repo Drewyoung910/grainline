@@ -33,6 +33,19 @@ describe("seller operational route hardening", () => {
     assert.match(route, /source: "seller_vacation"/);
   });
 
+  it("renders vacation return dates consistently as date-only local dates", () => {
+    const localDate = source("src/components/LocalDate.tsx");
+    const sellerProfile = source("src/app/seller/[id]/page.tsx");
+    const sellerShop = source("src/app/seller/[id]/shop/page.tsx");
+
+    assert.match(localDate, /dateOnly = false/);
+    assert.match(localDate, /toLocaleDateString\("en-US", \{ month: "long", day: "numeric", year: "numeric" \}\)/);
+    assert.match(sellerProfile, /<LocalDate date=\{seller\.vacationReturnDate\} dateOnly \/>/);
+    assert.match(sellerShop, /import LocalDate from "@\/components\/LocalDate"/);
+    assert.match(sellerShop, /<LocalDate date=\{seller\.vacationReturnDate\} dateOnly \/>/);
+    assert.doesNotMatch(sellerShop, /vacationReturnDate\)\.toLocaleDateString/);
+  });
+
   it("captures seller broadcast notification side-effect failures without message payloads", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
 

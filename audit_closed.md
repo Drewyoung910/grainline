@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 153.
-- Verified code/feature fix commits since 2026-05-13: 133.
+- Verified hardening/doc commits since 2026-05-13: 155.
+- Verified code/feature fix commits since 2026-05-13: 134.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 110 verified closed items in the 2026-05-14
+- Most recent reported pass total: 111 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -538,6 +538,11 @@ Last updated: 2026-05-21
      CLAUDE.md now records notification/webhook retention and failed-webhook
      aggregate behavior, with tests covering the cron wiring and retention
      constants. Commit: `fix: add retention and webhook health guards`.
+111. **Vacation return-date rendering aligned** — UX/date fix.
+     Public seller profile and seller shop pages now both render vacation return
+     dates through `LocalDate dateOnly`, avoiding UTC-vs-client date drift and
+     preventing an accidental time component from appearing. Commit:
+     `fix: align vacation return date display`.
 
 ## Verified Stale / Not Fixed
 

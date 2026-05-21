@@ -10,6 +10,7 @@ import ListingCard from "@/components/ListingCard";
 import GuildBadge from "@/components/GuildBadge";
 import FoundingMakerBadge from "@/components/FoundingMakerBadge";
 import FollowButton from "@/components/FollowButton";
+import LocalDate from "@/components/LocalDate";
 import ShopListingActions from "./ShopListingActions";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import SortSelect from "./SortSelect";
@@ -243,7 +244,7 @@ export default async function SellerShopPage({
           <p className="font-medium text-amber-900">This maker is currently on vacation and not accepting new orders.</p>
           {seller.vacationReturnDate && (
             <p className="text-amber-800 text-sm mt-0.5">
-              Expected return: {new Date(seller.vacationReturnDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+              Expected return: <LocalDate date={seller.vacationReturnDate} dateOnly />
             </p>
           )}
           {seller.vacationMessage && (
