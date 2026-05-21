@@ -1,16 +1,25 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import ShippingAddressForm from "./ShippingAddressForm";
 import ShippingRateSelector from "./ShippingRateSelector";
-import EmbeddedCheckoutPanel from "./EmbeddedCheckoutPanel";
 import GiftNoteSection from "./GiftNoteSection";
 import type {
   ShippingAddress,
   SelectedShippingRate,
 } from "@/types/checkout";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
+
+const EmbeddedCheckoutPanel = dynamic(() => import("./EmbeddedCheckoutPanel"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-md border border-neutral-200 bg-[#F7F5F0] p-4 text-sm text-neutral-600">
+      Loading secure checkout...
+    </div>
+  ),
+});
 
 type ModalStep = "address" | "shipping" | "payment";
 

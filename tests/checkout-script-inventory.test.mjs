@@ -45,6 +45,13 @@ describe("checkout script inventory", () => {
     }
   });
 
+  it("keeps Buy Now from loading Stripe.js before the payment step", () => {
+    const modal = source("src/components/BuyNowCheckoutModal.tsx");
+
+    assert.match(modal, /dynamic\(\(\) => import\("\.\/EmbeddedCheckoutPanel"\)/);
+    assert.doesNotMatch(modal, /import EmbeddedCheckoutPanel from "\.\/EmbeddedCheckoutPanel"/);
+  });
+
   it("keeps the security plan and launch checklist pointed at the inventory", () => {
     assert.match(source("docs/security-hardening-plan.md"), /docs\/checkout-script-inventory\.md/);
     assert.match(source("docs/launch-checklist.md"), /docs\/checkout-script-inventory\.md/);

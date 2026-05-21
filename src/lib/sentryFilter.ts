@@ -26,6 +26,26 @@ function eventText(event: ErrorEvent, hint?: EventHint) {
   return [event.message, exceptionValues, originalException].filter(Boolean).join(" ");
 }
 
+function isKnownBot(value: string) {
+  return /\b(googlebot|bingbot|duckduckbot|slurp|baiduspider|yandexbot|spider|crawler|bot)\b/i.test(value);
+}
+
+function isBotStripeLoadFailure(event: ErrorEvent, text: string) {
+  if (!/Failed to load Stripe\.js/i.test(text)) return false;
+
+  const requestHeaders =
+    event.request?.headers && typeof event.request.headers === "object"
+      ? Object.values(event.request.headers as Record<string, string>).join(" ")
+      : "";
+  const tagText =
+    event.tags && typeof event.tags === "object"
+      ? Object.entries(event.tags as Record<string, unknown>)
+          .map(([key, value]) => `${key}:${String(value)}`)
+          .join(" ")
+      : "";
+  return isKnownBot(`${requestHeaders} ${tagText}`);
+}
+
 function scrubString(value: string) {
   return value
     .replace(EMAIL_PATTERN, "[redacted-email]")
@@ -55,6 +75,7 @@ function scrubHeaders(headers: Record<string, string>) {
 
 export function beforeSend(event: ErrorEvent, hint?: EventHint): ErrorEvent | null {
   const text = eventText(event, hint);
+  if (isBotStripeLoadFailure(event, text)) return null;
   if (NOISY_PATTERNS.some((pattern) => pattern.test(text))) return null;
 
   if (typeof event.message === "string") event.message = scrubString(event.message);

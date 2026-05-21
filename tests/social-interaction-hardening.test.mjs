@@ -36,10 +36,14 @@ describe("social interaction route hardening", () => {
 
   it("keeps follow notification failures from masking a successful follow mutation", () => {
     const route = source("src/app/api/follow/[sellerId]/route.ts");
+    const notifications = source("src/lib/notifications.ts");
 
     assert.match(route, /source: "follow_notification"/);
     assert.match(route, /Failed to create follow notification/);
     assert.match(route, /return NextResponse\.json\(\{ following: true, followerCount \}\)/);
+    assert.match(notifications, /function isNotificationDedupError/);
+    assert.match(notifications, /err\?\.code === "P2002"/);
+    assert.match(notifications, /userId_type_dedupKey/);
   });
 
   it("keeps commission-request reports limited to public open commission targets", () => {

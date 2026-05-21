@@ -9,6 +9,22 @@ describe("Sentry beforeSend filtering", () => {
     assert.equal(beforeSend({ exception: { values: [{ value: "ChunkLoadError: Loading chunk 7 failed" }] } }), null);
   });
 
+  it("drops bot-only Stripe.js load failures without hiding buyer checkout failures", () => {
+    assert.equal(
+      beforeSend({
+        exception: { values: [{ value: "Error: Failed to load Stripe.js" }] },
+        tags: { browser: "Googlebot 2.1", "browser.name": "Googlebot", device: "Smartphone" },
+      }),
+      null,
+    );
+
+    const buyerEvent = beforeSend({
+      exception: { values: [{ value: "Error: Failed to load Stripe.js" }] },
+      tags: { browser: "Mobile Safari 26.0.1", "browser.name": "Mobile Safari" },
+    });
+    assert.equal(buyerEvent?.exception?.values?.[0]?.value, "Error: Failed to load Stripe.js");
+  });
+
   it("redacts sensitive headers, cookies, query params, and user PII", () => {
     const event = beforeSend({
       request: {
