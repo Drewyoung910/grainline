@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import BlockReportButton from "@/components/BlockReportButton";
 import { publicListingPath } from "@/lib/publicPaths";
+import { avatarInitials } from "@/lib/avatarInitials";
 
 function quarterRound(n: number) {
   return Math.min(5, Math.max(0, Math.round(n * 4) / 4));
@@ -42,14 +43,7 @@ function reviewerName(reviewer: ReviewAuthorDisplay) {
 
 function reviewerInitials(reviewer: ReviewAuthorDisplay) {
   if (reviewerUnavailable(reviewer)) return "FB";
-  return (
-    reviewerName(reviewer)
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("") || "B"
-  );
+  return avatarInitials(reviewerName(reviewer), "B");
 }
 
 export default async function ReviewsSection({

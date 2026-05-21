@@ -14,6 +14,7 @@ import { anonymousCartCount } from "@/lib/anonymousCart";
 import { subscribeCartUpdated } from "@/lib/cartEvents";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 import { clearRecentlyViewed } from "@/lib/recentlyViewed";
+import { avatarInitial } from "@/lib/avatarInitials";
 
 export default function Header() {
   const pathname = usePathname();
@@ -446,7 +447,7 @@ export default function Header() {
                       />
                     ) : (
                       <span className="text-sm font-medium text-neutral-600 select-none">
-                        {(name ?? "A").charAt(0).toUpperCase()}
+                        {avatarInitial(name, "A")}
                       </span>
                     )}
                   </div>

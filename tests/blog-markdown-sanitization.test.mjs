@@ -37,6 +37,12 @@ describe("blog markdown sanitization", () => {
 
   it("caps rendered markdown input before parsing", () => {
     assert.match(blogMarkdownSource, /MAX_RENDERED_BLOG_MARKDOWN_CHARS = 200_000/);
-    assert.match(blogMarkdownSource, /body\.slice\(0, MAX_RENDERED_BLOG_MARKDOWN_CHARS\)/);
+    assert.match(blogMarkdownSource, /truncateText\(body, MAX_RENDERED_BLOG_MARKDOWN_CHARS\)/);
+    assert.doesNotMatch(blogMarkdownSource, /body\.slice\(0, MAX_RENDERED_BLOG_MARKDOWN_CHARS\)/);
+  });
+
+  it("relies on the shared code-point-safe truncation helper", () => {
+    assert.match(blogMarkdownSource, /import \{ truncateText \} from "\.\/sanitize"/);
+    assert.doesNotMatch(blogMarkdownSource, /\.slice\(0, MAX_RENDERED_BLOG_MARKDOWN_CHARS\)/);
   });
 });

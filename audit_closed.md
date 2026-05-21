@@ -19,14 +19,14 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-18
+Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 126.
-- Verified code/feature fix commits since 2026-05-13: 117.
+- Verified hardening/doc commits since 2026-05-13: 138.
+- Verified code/feature fix commits since 2026-05-13: 122.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 94 verified closed items in the 2026-05-14
-  active tracker below, plus thirty-six stale/false-positive claims verified
+- Most recent reported pass total: 99 verified closed items in the 2026-05-14
+  active tracker below, plus forty-three stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -469,6 +469,26 @@ Last updated: 2026-05-18
     `htmlToText()` now strips decoded bidi, zero-width, and null characters
     after HTML entity decoding so plaintext email fallbacks cannot reintroduce
     invisible spoofing controls. Commit: `fix: normalize email and plaintext controls`.
+95. **Saved-search query Unicode normalization closed** — code fix.
+    Saved-search POST now routes free-text `q` through `sanitizeText()` before
+    whitespace collapsing and code-point-safe truncation, matching other saved
+    user text. Commit: `fix: harden unicode text boundaries`.
+96. **Blog markdown render cap made code-point-safe** — code fix.
+    `renderBlogMarkdown()` now uses `truncateText()` instead of UTF-16
+    `slice()` before calling `marked.parse()`, so astral characters are not
+    split at the 200k render cap. Commit: `fix: harden unicode text boundaries`.
+97. **Avatar fallback initials centralized** — code fix.
+    Fallback avatars now use `src/lib/avatarInitials.ts`, sanitizing names and
+    deriving initials by Unicode code point instead of `charAt(0)` or `[0]`.
+    Commit: `fix: harden unicode text boundaries`.
+98. **Stripe order snapshot strings sanitized** — code fix.
+    Stripe webhook order-item snapshots now sanitize/truncate listing titles,
+    descriptions, and seller display names before permanent order storage.
+    Commit: `fix: harden unicode text boundaries`.
+99. **Short-name account-deletion notification redaction closed** — code fix.
+    Notification redaction now handles two-character names as bounded tokens, so
+    deleted users named like "Li" are redacted without replacing embedded text in
+    unrelated words. Commit: `fix: harden unicode text boundaries`.
 
 ## Verified Stale / Not Fixed
 
@@ -591,3 +611,21 @@ Last updated: 2026-05-18
 36. **Shipping address newline/control gap** — stale claim. Current account
     shipping-address sanitization collapses CR/LF, U+0085, U+2028, and U+2029
     to spaces before persistence.
+37. **Order seller-notes raw Unicode gap** — stale claim. Current fulfillment
+    route stores `sellerNotes` through `truncateText(sanitizeText(...), 2000)`,
+    and `tests/user-text-normalization-followups.test.mjs` guards it.
+38. **Admin audit reason raw Unicode gap** — stale claim. `logAdminAction()`
+    sanitizes and truncates `reason` before persistence.
+39. **Blog write-path raw Unicode gap** — stale claim. Blog create and edit
+    actions sanitize/truncate title, body, excerpt, and meta description before
+    storing.
+40. **Seller FAQ raw Unicode gap** — stale claim. Profile FAQ question/answer
+    writes already use `sanitizeText()` / `sanitizeRichText()` with bounds.
+41. **Message attachment filename raw Unicode gap** — stale claim. Attachment
+    `name` and `type` fields route through `sanitizeText()` and
+    code-point-safe `truncateText()`.
+42. **Null-byte user-text sanitizer gap** — stale claim. Current
+    `normalizeUserText()` strips null bytes, and the audited DB-boundary text
+    surfaces route through `sanitizeText()` or `sanitizeRichText()`.
+43. **Attachment filename surrogate-split gap** — stale claim. Attachment names
+    use shared `truncateText()` rather than UTF-16 `slice()`.

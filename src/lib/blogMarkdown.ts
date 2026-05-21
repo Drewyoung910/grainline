@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
 import { isR2PublicUrl } from "./urlValidation";
+import { truncateText } from "./sanitize";
 
 export const MAX_RENDERED_BLOG_MARKDOWN_CHARS = 200_000;
 
@@ -10,7 +11,7 @@ type SanitizerFrame = {
 };
 
 export function renderBlogMarkdown(body: string): string {
-  const rawHtml = marked.parse(body.slice(0, MAX_RENDERED_BLOG_MARKDOWN_CHARS)) as string;
+  const rawHtml = marked.parse(truncateText(body, MAX_RENDERED_BLOG_MARKDOWN_CHARS)) as string;
 
   return sanitizeHtml(rawHtml, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([

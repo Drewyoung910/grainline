@@ -28,6 +28,7 @@ import { isTrustedMediaUrl } from "@/lib/urlValidation";
 import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
+import { avatarInitial } from "@/lib/avatarInitials";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -774,7 +775,7 @@ export default async function HomePage() {
                           />
                         ) : (
                           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-200 text-2xl font-bold text-amber-800 ring-4 ring-[#F7F5F0] shadow-sm">
-                            {(maker.displayName || "M")[0]?.toUpperCase()}
+                            {avatarInitial(maker.displayName, "M")}
                           </div>
                         )}
                       </div>

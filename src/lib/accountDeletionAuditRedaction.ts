@@ -62,6 +62,14 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function redactionPatternForNeedle(needle: string) {
+  const escaped = escapeRegExp(needle);
+  if (Array.from(needle).length >= 3) {
+    return new RegExp(escaped, "gi");
+  }
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "giu");
+}
+
 export function redactAccountDeletionAuditMetadata(
   metadata: AuditJsonValue,
   sensitiveValues: Iterable<string | null | undefined>,
@@ -98,12 +106,12 @@ export function redactAccountDeletionText(
   sensitiveValues: Iterable<string | null | undefined>,
   replacement = ACCOUNT_DELETION_TEXT_REDACTION,
 ) {
-  const needles = normalizeNeedles(sensitiveValues).filter((value) => value.length >= 3);
+  const needles = normalizeNeedles(sensitiveValues).filter((value) => Array.from(value).length >= 2);
   if (needles.length === 0) return { text, changed: false };
 
   let redacted = text;
   for (const needle of needles.sort((a, b) => b.length - a.length)) {
-    redacted = redacted.replace(new RegExp(escapeRegExp(needle), "gi"), replacement);
+    redacted = redacted.replace(redactionPatternForNeedle(needle), replacement);
   }
 
   return { text: redacted, changed: redacted !== text };

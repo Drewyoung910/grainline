@@ -25,6 +25,7 @@ import {
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
 import { parseSelectedVariantsMetadata } from "@/lib/stripeWebhookMetadata";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { sanitizeText, sanitizeUserName, truncateText } from "@/lib/sanitize";
 import {
   lockCheckoutSessionMutation,
   restorableStockItemsFromLineItems,
@@ -59,6 +60,14 @@ export const preferredRegion = "iad1";
 
 const STRIPE_WEBHOOK_BODY_MAX_BYTES = 1024 * 1024;
 const STRIPE_WEBHOOK_RETRY_AFTER_SECONDS = 30;
+
+function snapshotText(value: string | null | undefined, maxLength: number) {
+  return truncateText(sanitizeText(value ?? ""), maxLength);
+}
+
+function snapshotSellerName(value: string | null | undefined) {
+  return sanitizeUserName(value ?? "", 100);
+}
 
 const STRIPE_DISPUTE_EVENT_TYPES = new Set([
   "charge.dispute.created",
@@ -1059,13 +1068,13 @@ export async function POST(req: Request) {
                 quantity: orderQuantity,
                 priceCents: orderPriceCents,
                 listingSnapshot: {
-                  title: listing.title,
-                  description: listing.description ?? "",
+                  title: snapshotText(listing.title, 200),
+                  description: snapshotText(listing.description, 5000),
                   priceCents: listing.priceCents,
                   imageUrls: listing.photos?.map((p: { url: string }) => p.url) ?? [],
                   category: listing.category ?? null,
                   tags: listing.tags ?? [],
-                  sellerName: listing.seller?.displayName ?? "",
+                  sellerName: snapshotSellerName(listing.seller?.displayName),
                   capturedAt: new Date().toISOString(),
                 },
                 selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
@@ -1294,13 +1303,13 @@ export async function POST(req: Request) {
                   quantity,
                   priceCents: price,
                   listingSnapshot: {
-                    title: listingData?.title ?? "",
-                    description: listingData?.description ?? "",
+                    title: snapshotText(listingData?.title, 200),
+                    description: snapshotText(listingData?.description, 5000),
                     priceCents: listingData?.priceCents ?? price,
                     imageUrls: listingData?.photos?.map((p: { url: string }) => p.url) ?? [],
                     category: listingData?.category ?? null,
                     tags: listingData?.tags ?? [],
-                    sellerName: listingData?.seller?.displayName ?? "",
+                    sellerName: snapshotSellerName(listingData?.seller?.displayName),
                     capturedAt: new Date().toISOString(),
                   },
                   selectedVariants,

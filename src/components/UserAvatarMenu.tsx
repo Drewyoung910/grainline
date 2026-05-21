@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
 import { clearRecentlyViewed } from "@/lib/recentlyViewed";
+import { avatarInitial } from "@/lib/avatarInitials";
 
 interface Props {
   name: string | null;
@@ -80,7 +81,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
         ) : (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-200">
             <span className="text-sm font-medium text-neutral-600 select-none">
-              {displayName.charAt(0).toUpperCase()}
+              {avatarInitial(displayName)}
             </span>
           </div>
         )}
@@ -101,7 +102,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
                 <img src={avatarSrc} alt={displayName} className="h-full w-full object-cover rounded-full" />
               ) : (
                 <span className="text-sm font-medium text-neutral-600 select-none">
-                  {displayName.charAt(0).toUpperCase()}
+                  {avatarInitial(displayName)}
                 </span>
               )}
             </div>

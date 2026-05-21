@@ -26,6 +26,7 @@ import { canViewListingDetail, isPublicListingDetail } from "@/lib/listingVisibi
 import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+import { avatarInitials } from "@/lib/avatarInitials";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -265,13 +266,7 @@ export default async function ListingPage({
   const sellerClerkId = listing.seller.user?.clerkId ?? null;
   const sellerUserId = sellerDbUserId;
 
-  const initials =
-    (sellerName || "S")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("") || "S";
+  const initials = avatarInitials(sellerName, "S");
 
   const lat = listing.seller.lat != null ? Number(listing.seller.lat) : null;
   const lng = listing.seller.lng != null ? Number(listing.seller.lng) : null;

@@ -8,6 +8,7 @@ import FollowButton from "@/components/FollowButton";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { avatarInitial } from "@/lib/avatarInitials";
 
 export const metadata: Metadata = {
   title: "Makers You Follow",
@@ -94,7 +95,7 @@ export default async function FollowingPage() {
                     <img src={avatar} alt={s.displayName ?? ""} className="h-14 w-14 rounded-full object-cover" />
                   ) : (
                     <div className="h-14 w-14 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-500 text-xl font-bold">
-                      {(s.displayName ?? "?")[0]?.toUpperCase()}
+                      {avatarInitial(s.displayName, "?")}
                     </div>
                   )}
                 </Link>

@@ -62,7 +62,7 @@ describe("account deletion audit metadata redaction", () => {
     });
   });
 
-  it("redacts notification text case-insensitively without matching tiny values", () => {
+  it("redacts notification text case-insensitively without broad matching tiny values", () => {
     const result = redactAccountDeletionText(
       "Drew Young sent a message from drew@example.com about a listing.",
       ["drew young", "DREW@example.com", "dy"],
@@ -74,8 +74,12 @@ describe("account deletion audit metadata redaction", () => {
       `${ACCOUNT_DELETION_TEXT_REDACTION} sent a message from ${ACCOUNT_DELETION_TEXT_REDACTION} about a listing.`,
     );
 
-    const short = redactAccountDeletionText("dy finished ready", ["dy"]);
-    assert.equal(short.changed, false);
-    assert.equal(short.text, "dy finished ready");
+    const short = redactAccountDeletionText("Li sent a note about a listing.", ["li"]);
+    assert.equal(short.changed, true);
+    assert.equal(short.text, `${ACCOUNT_DELETION_TEXT_REDACTION} sent a note about a listing.`);
+
+    const embedded = redactAccountDeletionText("The listing is ready.", ["li"]);
+    assert.equal(embedded.changed, false);
+    assert.equal(embedded.text, "The listing is ready.");
   });
 });

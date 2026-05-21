@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { unblockUser } from "./actions";
 import { ensureUserForPage } from "@/lib/pageAuth";
+import { avatarInitials } from "@/lib/avatarInitials";
 
 export const metadata: Metadata = { title: "Blocked Users", robots: { index: false, follow: false } };
 
@@ -50,12 +51,7 @@ export default async function BlockedUsersPage() {
             const u = b.blocked;
             const avatar = u.sellerProfile?.avatarImageUrl ?? u.imageUrl;
             const name = u.sellerProfile?.displayName ?? u.name ?? "User";
-            const initials = name
-              .split(/\s+/)
-              .filter(Boolean)
-              .slice(0, 2)
-              .map((w: string) => w[0]?.toUpperCase() ?? "")
-              .join("") || "U";
+            const initials = avatarInitials(name, "U");
 
             return (
               <div key={b.id} className="card-section p-4 flex gap-4 items-center">

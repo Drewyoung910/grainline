@@ -69,6 +69,26 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
     });
 }
 
+function escapePostgresRegex(value: string) {
+  return value.replace(/[\\.^$|?*+()[\]{}]/g, "\\$&");
+}
+
+function notificationTextMatchSql(value: string) {
+  const normalized = value.toLowerCase();
+  if (Array.from(normalized).length >= 3) {
+    return Prisma.sql`(
+      position(${normalized} in lower(title)) > 0 OR
+      position(${normalized} in lower(body)) > 0
+    )`;
+  }
+
+  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
+  return Prisma.sql`(
+    lower(title) ~ ${pattern} OR
+    lower(body) ~ ${pattern}
+  )`;
+}
+
 async function collectAuditLogsBySensitiveMetadata(
   db: AuditLogRedactionDb,
   candidates: Map<string, AuditLogRedactionCandidate>,
@@ -175,8 +195,8 @@ async function collectNotificationsBySensitiveText(
 ) {
   const notifications = new Map<string, NotificationRedactionCandidate>();
 
-  for (const value of sensitiveValues.filter((item) => item.length >= 3)) {
-    const normalized = value.toLowerCase();
+  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
+    const textMatchSql = notificationTextMatchSql(value);
     let cursor: string | null = null;
 
     for (;;) {
@@ -186,10 +206,7 @@ async function collectNotificationsBySensitiveText(
           FROM "Notification"
           WHERE id > ${cursor}
             AND "userId" <> ${deletedUserId}
-            AND (
-              position(${normalized} in lower(title)) > 0 OR
-              position(${normalized} in lower(body)) > 0
-            )
+            AND ${textMatchSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `
@@ -197,10 +214,7 @@ async function collectNotificationsBySensitiveText(
           SELECT id, title, body
           FROM "Notification"
           WHERE "userId" <> ${deletedUserId}
-            AND (
-              position(${normalized} in lower(title)) > 0 OR
-              position(${normalized} in lower(body)) > 0
-            )
+            AND ${textMatchSql}
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `;
