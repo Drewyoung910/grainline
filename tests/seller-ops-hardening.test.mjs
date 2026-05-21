@@ -66,12 +66,18 @@ describe("seller operational route hardening", () => {
 
   it("keeps seller broadcast writes gated to orderable sellers and first-party media", () => {
     const route = source("src/app/api/seller/broadcast/route.ts");
+    const composer = source("src/components/BroadcastComposer.tsx");
 
     assert.match(route, /!seller\.chargesEnabled \|\| seller\.vacationMode/);
     assert.match(route, /isFirstPartyMediaUrl\(u\)/);
     assert.match(route, /isFirstPartyMediaUrlForUser\(imageUrl, userId/);
     assert.match(route, /safeRateLimit\(broadcastRatelimit, seller\.id\)/);
     assert.match(route, /dedupScope: broadcast\.id/);
+    assert.match(route, /nextAvailableAt: nextAvailable\.toISOString\(\)/);
+    assert.doesNotMatch(route, /nextAvailable\.toLocaleDateString/);
+    assert.match(composer, /function broadcastErrorMessage/);
+    assert.match(composer, /new Date\(data\.nextAvailableAt\)/);
+    assert.match(composer, /next\.toLocaleDateString\("en-US"/);
   });
 
   it("keeps seller analytics scoped to the current seller profile", () => {

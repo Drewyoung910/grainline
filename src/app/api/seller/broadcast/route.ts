@@ -98,7 +98,10 @@ export async function POST(req: NextRequest) {
     if (daysSinceLast < 7) {
       const nextAvailable = new Date(lastBroadcast.sentAt.getTime() + 7 * 24 * 60 * 60 * 1000);
       return NextResponse.json(
-        { error: `You can send one broadcast per week. Next available: ${nextAvailable.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` },
+        {
+          error: "You can send one broadcast per week.",
+          nextAvailableAt: nextAvailable.toISOString(),
+        },
         { status: 429 }
       );
     }

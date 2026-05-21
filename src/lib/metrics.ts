@@ -26,6 +26,13 @@ export const GUILD_MASTER_REQUIREMENTS = {
   activeCaseCount: 0,
 };
 
+export const METRICS_PERIOD_DAYS_PER_MONTH = 30;
+
+export function metricsPeriodStart(now: Date, periodMonths: number) {
+  const months = Math.max(0, Math.floor(periodMonths));
+  return new Date(now.getTime() - months * METRICS_PERIOD_DAYS_PER_MONTH * 24 * 60 * 60 * 1000);
+}
+
 export function meetsGuildMasterRequirements(m: SellerMetricsResult): {
   ratingMet: boolean;
   reviewsMet: boolean;
@@ -51,8 +58,7 @@ export async function calculateSellerMetrics(
   sellerProfileId: string,
   periodMonths = 3
 ): Promise<SellerMetricsResult> {
-  const periodStart = new Date();
-  periodStart.setMonth(periodStart.getMonth() - periodMonths);
+  const periodStart = metricsPeriodStart(new Date(), periodMonths);
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerProfileId },

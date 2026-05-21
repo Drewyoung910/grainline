@@ -25,7 +25,7 @@ Last updated: 2026-05-21
 - Verified hardening/doc commits since 2026-05-13: 168.
 - Verified code/feature fix commits since 2026-05-13: 144.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 126 verified closed items in the 2026-05-14
+- Most recent reported pass total: 128 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -609,6 +609,14 @@ Last updated: 2026-05-21
      until `metricWarningSentAt` is at least 30 days old, and the final DB update
      repeats that predicate so short-month cron runs cannot revoke before the
      seller's promised warning window.
+127. **Seller broadcast cooldown date moved to client formatting** — timezone fix.
+     `/api/seller/broadcast` now returns `nextAvailableAt` as an ISO timestamp
+     on cooldown errors, and `BroadcastComposer` formats it in the browser so
+     sellers see their local date instead of a Vercel UTC date.
+128. **Seller metrics period rollover stabilized** — date math fix.
+     `calculateSellerMetrics()` now derives rolling windows through
+     `metricsPeriodStart()` with fixed 30-day-per-month periods, avoiding
+     `Date.setMonth()` month-end rollover drift.
 
 ## Verified Stale / Not Fixed
 

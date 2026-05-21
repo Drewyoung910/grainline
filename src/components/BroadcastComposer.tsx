@@ -10,6 +10,14 @@ type Broadcast = {
   recipientCount: number;
 };
 
+function broadcastErrorMessage(data: { error?: string; nextAvailableAt?: string } | null) {
+  const base = data?.error ?? "Failed to send";
+  if (!data?.nextAvailableAt) return base;
+  const next = new Date(data.nextAvailableAt);
+  if (Number.isNaN(next.getTime())) return base;
+  return `${base} Next available: ${next.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
 export default function BroadcastComposer({ followerCount }: { followerCount: number }) {
   const [message, setMessage] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -50,8 +58,8 @@ export default function BroadcastComposer({ followerCount }: { followerCount: nu
         body: JSON.stringify({ message, sellersOnly }),
       });
       if (!res.ok) {
-        const data = await res.json() as { error?: string };
-        setError(data.error ?? "Failed to send");
+        const data = await res.json().catch(() => null) as { error?: string; nextAvailableAt?: string } | null;
+        setError(broadcastErrorMessage(data));
         return;
       }
       setMessage("");
