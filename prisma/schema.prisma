@@ -1173,7 +1173,7 @@ model Notification {
   title     String           @db.VarChar(200)
   body      String           @db.VarChar(1000)
   link      String?          @db.VarChar(2048)
-  dedupKey  String           @default(cuid()) @db.VarChar(64)
+  dedupKey  String           @default(dbgenerated("md5(random()::text || clock_timestamp()::text)")) @db.VarChar(64)
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
 

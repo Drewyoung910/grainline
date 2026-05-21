@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 142.
-- Verified code/feature fix commits since 2026-05-13: 125.
+- Verified hardening/doc commits since 2026-05-13: 146.
+- Verified code/feature fix commits since 2026-05-13: 128.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 102 verified closed items in the 2026-05-14
-  active tracker below, plus forty-four stale/false-positive claims verified
+- Most recent reported pass total: 105 verified closed items in the 2026-05-14
+  active tracker below, plus forty-five stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -501,6 +501,22 @@ Last updated: 2026-05-21
      `OrderPaymentEvent.description` is now `@db.VarChar(5000)` and Stripe
      webhook ledger writes sanitize/truncate descriptions through
      `paymentEventDescription()`. Commit: `fix: harden schema text and custom order refs`.
+103. **Raw-managed blog tag GIN index restored** — schema/migration fix.
+     `BlogPost_tags_gin_idx` was dropped by a later Prisma migration after the
+     original blog search pass. Migration
+     `20260521154500_schema_drift_and_raw_index_followups` re-creates it, and
+     `tests/schema-drift-followups.test.mjs` now guards against future silent
+     drops. Commit: `fix: close schema drift followups`.
+104. **Listing CHECK constraints validated** — schema/migration fix.
+     The positive-price and non-negative-stock CHECK constraints originally
+     added `NOT VALID` are now validated by migration
+     `20260521154500_schema_drift_and_raw_index_followups`, so historical rows
+     are covered in addition to future writes. Commit:
+     `fix: close schema drift followups`.
+105. **Notification dedup default drift aligned** — schema/migration fix.
+     `Notification.dedupKey` now uses the same `dbgenerated(md5(...))` default
+     in Prisma that the database applies, with a follow-up migration setting the
+     DB default explicitly. Commit: `fix: close schema drift followups`.
 
 ## Verified Stale / Not Fixed
 
@@ -646,3 +662,7 @@ Last updated: 2026-05-21
     serializable transaction wrapped by `withSerializableRetry()`. A future
     criteria-hash unique index would be additional defense-in-depth, but the
     reported `findFirst + create` race is already guarded on `main`.
+45. **Nine schema-vs-migration onDelete drifts** — stale claim. A static final
+    migration-history comparison against `schema.prisma` found no onDelete
+    mismatches. `tests/schema-drift-followups.test.mjs` now guards this class so
+    future FK drift is caught before merge.

@@ -1433,7 +1433,8 @@ Post-deployment bug fixes and gap fills:
 
 #### GIN full-text indexes (migration `20260331171540_blog_search_indexes`)
 - `@@index([title])` and `@@index([tags])` added to `BlogPost` schema (standard B-tree)
-- Raw SQL GIN indexes added manually to migration: `BlogPost_search_idx` on `to_tsvector('english', title || excerpt || body)` for `ts_rank` relevance sorting; `BlogPost_tags_gin_idx` on `tags` array (note: Prisma drops `BlogPost_tags_gin_idx` on subsequent migrations — only B-tree `BlogPost_tags_idx` survives; full-text GIN index stays since Prisma doesn't manage it)
+- Raw SQL GIN indexes added manually to migration: `BlogPost_search_idx` on `to_tsvector('english', title || excerpt || body)` for `ts_rank` relevance sorting; `BlogPost_tags_gin_idx` on `tags` array.
+- **Raw-managed index behavior**: Prisma does not model expression, trigram, partial, or some array GIN indexes in `schema.prisma`. Keep raw-managed indexes in migrations, document their purpose here, and keep `tests/schema-drift-followups.test.mjs` guarding that later Prisma-generated migrations do not silently drop them. `20260521154500_schema_drift_and_raw_index_followups` re-created `BlogPost_tags_gin_idx` after a prior Prisma migration dropped it.
 
 #### `GET /api/blog/search` (`src/app/api/blog/search/route.ts`)
 - Query params: `?q=`, `?type=`, `?tags=` (comma-separated), `?sort=newest|relevant|alpha`, `?page=`, `?limit=12`
@@ -4270,6 +4271,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Admin moderation observability behavior**: staff listing removal must call `expireOpenCheckoutSessionsForListing({ source: "admin_listing_remove" })` after making the listing unavailable. Admin listing-review notifications, Founding Maker grants, custom-order ready emails, admin review rating/photo cleanup, admin email send/notification/audit side effects, and admin verification emails must leave Sentry evidence keyed only by bounded IDs or hashed emails. Do not put admin email bodies, report details, review comments, rejection notes, full media URLs, or raw recipient emails in Sentry extras/tags.
 - **Notification and text payloads**: notification title/body/link values are bounded and strip bidi controls before persistence; email suppression normalizes addresses with NFC before lowercasing.
 - **Seller/listing text bounds**: seller bio, story, policies, listing descriptions, blog post bodies, seller order notes, and admin review notes are bounded both at write paths and in the database. Keep profile text writes going through `sellerProfileText.ts`, use `BLOG_BODY_MAX_CHARS` for blog writes, and keep new Listing CHECK constraints for positive prices and non-negative stock in raw migrations because Prisma does not model CHECK constraints.
+- **Schema drift behavior**: `tests/schema-drift-followups.test.mjs` compares schema `onDelete` declarations to final migration-history FKs, ensures raw-managed indexes such as `BlogPost_tags_gin_idx` remain restored after drops, verifies Listing CHECK constraints are validated after their original `NOT VALID` creation, and keeps `Notification.dedupKey`'s schema default aligned with the database default.
 - **Service worker/offline behavior**: stale manifest/icon caching was tightened; keep public asset cache changes compatible with `/offline`.
 
 ### Schema and migration additions
@@ -4281,6 +4283,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **`20260430162000_add_listing_description_trgm_index`**: adds active-public listing description trigram search index.
 - **`20260430183000_support_requests`**: adds `SupportRequest`, `SupportRequestKind`, and `SupportRequestStatus` for public support/legal intake, admin queue status, notification-email failure evidence, and 45-day SLA tracking.
 - **`20260505173000_schema_text_and_listing_guards`**: aligns seller/listing/blog/order text columns with UI/server limits, adds `MakerVerification.createdAt`/`updatedAt`, and adds future-write CHECK constraints for positive listing prices and non-negative stock.
+- **`20260521154500_schema_drift_and_raw_index_followups`**: re-creates `BlogPost_tags_gin_idx`, validates the Listing price/stock CHECK constraints, and aligns the `Notification.dedupKey` database default with the schema's `dbgenerated(...)` default.
 
 ### Deleted routes/files
 - **Deleted**: `src/app/api/whoami/route.ts`. Do not re-add dev identity/session endpoints in production route space.
