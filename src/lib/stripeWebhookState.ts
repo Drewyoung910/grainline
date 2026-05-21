@@ -7,6 +7,7 @@ export type StripeRefundLike = {
 };
 
 export const STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 24 * 60 * 60;
+export const STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 * 60;
 
 export function isStaleStripeEvent(
   created: number | null | undefined,
@@ -15,6 +16,7 @@ export function isStaleStripeEvent(
 ) {
   return typeof created !== "number" ||
     !Number.isFinite(created) ||
+    created > nowSeconds + STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS ||
     created < nowSeconds - maxAgeSeconds;
 }
 

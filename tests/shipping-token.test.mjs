@@ -63,4 +63,17 @@ describe("shipping rate tokens", () => {
       status: 400,
     });
   });
+
+  it("rejects shipping rate expiries beyond the signed-rate lifetime", () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    assert.deepEqual(
+      verifyRate(fields, "0".repeat(64), nowSeconds + 60 * 60, nowSeconds),
+      {
+        ok: false,
+        error: "Invalid shipping rate.",
+        status: 400,
+      },
+    );
+  });
 });

@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
       LEFT JOIN "SellerProfile" sp ON sp.id = bp."sellerProfileId"
       LEFT JOIN "User" seller_user ON seller_user.id = sp."userId"
       WHERE bp.status = 'PUBLISHED'
+        AND bp."publishedAt" IS NOT NULL
+        AND bp."publishedAt" <= NOW()
         AND author_user.banned = false
         AND author_user."deletedAt" IS NULL
         AND (

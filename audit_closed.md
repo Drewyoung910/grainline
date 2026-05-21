@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 167.
+- Verified hardening/doc commits since 2026-05-13: 168.
 - Verified code/feature fix commits since 2026-05-13: 144.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 121 verified closed items in the 2026-05-14
+- Most recent reported pass total: 125 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -588,6 +588,22 @@ Last updated: 2026-05-21
      the rendered email into `EmailOutbox` with deterministic order-scoped dedup
      keys so the cron drain gets a second chance. Commit:
      `fix: add order email outbox fallback`.
+122. **Future-dated public blog leak blocked** — visibility hardening.
+     `publicBlogPostWhere()` and equivalent raw-SQL blog predicates now require
+     `publishedAt` to be non-null and at or before the current time, so manually
+     future-dated posts do not appear on public blog/detail/search/sitemap/tag
+     surfaces before their timestamp.
+123. **Made-to-order processing window validation tightened** — UX/data fix.
+     Listing create/edit actions now reject made-to-order processing windows
+     where the minimum exceeds the maximum, preventing confusing "Ships in
+     10-5 days" order timeline output.
+124. **Stripe webhook future-timestamp guard added** — replay hardening.
+     Stripe snapshot and v2 thin event age checks still allow a 10-minute clock
+     skew but reject impossible future-dated events before side effects.
+125. **Signed upload/shipping token future-expiry caps added** — token hardening.
+     Upload verification tokens and HMAC-signed shipping rates now reject
+     excessive future expiries before expensive verification work, while keeping
+     the normal signed TTL plus skew window.
 
 ## Verified Stale / Not Fixed
 

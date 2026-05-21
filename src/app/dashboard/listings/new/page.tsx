@@ -196,6 +196,14 @@ async function createListing(_prevState: unknown, formData: FormData) {
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) {
     return { ok: false, error: "Processing time cannot exceed 365 days." };
   }
+  if (
+    listingType === "MADE_TO_ORDER" &&
+    processingTimeMinDays !== null &&
+    processingTimeMaxDays !== null &&
+    processingTimeMinDays > processingTimeMaxDays
+  ) {
+    return { ok: false, error: "Processing time minimum cannot exceed the maximum." };
+  }
 
   // 3. Create listing with status based on saveAsDraft
   const created = await prisma.listing.create({

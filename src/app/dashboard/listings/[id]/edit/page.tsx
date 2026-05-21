@@ -254,6 +254,14 @@ async function updateListing(
   }
   if (stockQuantity !== null && stockQuantity < 0) return { ok: false, error: "Stock quantity cannot be negative." };
   if (processingTimeMaxDays !== null && processingTimeMaxDays > 365) return { ok: false, error: "Processing time cannot exceed 365 days." };
+  if (
+    listingType === "MADE_TO_ORDER" &&
+    processingTimeMinDays !== null &&
+    processingTimeMaxDays !== null &&
+    processingTimeMinDays > processingTimeMaxDays
+  ) {
+    return { ok: false, error: "Processing time minimum cannot exceed the maximum." };
+  }
 
   // Guard ownership
   const listing = await prisma.listing.findFirst({

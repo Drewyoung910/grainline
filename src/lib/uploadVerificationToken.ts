@@ -8,6 +8,7 @@ function uploadVerificationUserSegment(userId: string) {
 }
 
 export const UPLOAD_VERIFICATION_TOKEN_TTL_MS = 5 * 60 * 1000;
+export const UPLOAD_VERIFICATION_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 export type UploadVerificationFields = {
   key: string;
@@ -73,7 +74,11 @@ export function verifyUploadVerificationToken(
   now = Date.now(),
 ) {
   const secret = uploadVerificationSecret();
-  if (!secret || fields.expiresAt < now) return false;
+  if (
+    !secret ||
+    fields.expiresAt < now ||
+    fields.expiresAt > now + UPLOAD_VERIFICATION_TOKEN_TTL_MS + UPLOAD_VERIFICATION_FUTURE_SKEW_MS
+  ) return false;
   const expected = signUploadVerification(fields, secret);
   return safeEqualHex(token, expected);
 }

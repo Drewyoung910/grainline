@@ -192,4 +192,14 @@ describe("seller operational route hardening", () => {
     assert.match(notifications, /select: \{ id: true, banned: true, deletedAt: true \}/);
     assert.match(notifications, /if \(me\.banned \|\| me\.deletedAt\) return/);
   });
+
+  it("keeps made-to-order processing windows internally consistent", () => {
+    const createPage = source("src/app/dashboard/listings/new/page.tsx");
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const guard =
+      /listingType === "MADE_TO_ORDER"[\s\S]*?processingTimeMinDays !== null[\s\S]*?processingTimeMaxDays !== null[\s\S]*?processingTimeMinDays > processingTimeMaxDays[\s\S]*?Processing time minimum cannot exceed the maximum/;
+
+    assert.match(createPage, guard);
+    assert.match(editPage, guard);
+  });
 });

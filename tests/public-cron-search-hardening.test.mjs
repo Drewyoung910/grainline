@@ -98,6 +98,8 @@ describe("cron and public route hardening", () => {
     const blogSearch = source("src/app/api/blog/search/route.ts");
     const blogSuggestions = source("src/app/api/blog/search/suggestions/route.ts");
     const globalSuggestions = source("src/app/api/search/suggestions/route.ts");
+    const blogPage = source("src/app/blog/page.tsx");
+    const popularBlogTags = source("src/lib/popularBlogTags.ts");
     const similarListings = source("src/app/api/listings/[id]/similar/route.ts");
 
     assert.match(blog, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
@@ -113,12 +115,16 @@ describe("cron and public route hardening", () => {
     assert.match(blogSearch, /const page = parseBoundedPositiveIntParam\(url\.searchParams\.get\("page"\), 1, 1000\)/);
     assert.match(blogSearch, /const limit = parseBoundedPositiveIntParam\(url\.searchParams\.get\("limit"\), 12, 50\)/);
     assert.match(blogSearch, /normalizeTags\(tagsParam\.split\(","\), 20\)/);
+    assert.match(blogSearch, /bp\."publishedAt" IS NOT NULL/);
+    assert.match(blogSearch, /bp\."publishedAt" <= NOW\(\)/);
     assert.doesNotMatch(blogSearch, /x-forwarded-for/);
 
     assert.match(blogSuggestions, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(blogSuggestions, /normalizeSearchSuggestionQuery/);
     assert.match(blogSuggestions, /BLOG_FUZZY_SUGGESTION_MIN_SIMILARITY/);
     assert.match(blogSuggestions, /activeSellerProfileWhere/);
+    assert.match(blogSuggestions, /bp\."publishedAt" IS NOT NULL/);
+    assert.match(blogSuggestions, /bp\."publishedAt" <= NOW\(\)/);
     assert.doesNotMatch(blogSuggestions, /similarity\(bp\.title, \$\{q\}\) > 0\.2/);
     assert.doesNotMatch(blogSuggestions, /x-forwarded-for/);
 
@@ -127,6 +133,15 @@ describe("cron and public route hardening", () => {
     assert.match(globalSuggestions, /getBlockedSellerProfileIdsFor/);
     assert.match(globalSuggestions, /publicListingWhere/);
     assert.match(globalSuggestions, /activeSellerProfileWhere/);
+    assert.match(globalSuggestions, /bp\."publishedAt" IS NOT NULL/);
+    assert.match(globalSuggestions, /bp\."publishedAt" <= NOW\(\)/);
+
+    assert.match(blogPage, /"BlogPost"\."publishedAt" IS NOT NULL/);
+    assert.match(blogPage, /"BlogPost"\."publishedAt" <= NOW\(\)/);
+    assert.match(blogPage, /bp\."publishedAt" IS NOT NULL/);
+    assert.match(blogPage, /bp\."publishedAt" <= NOW\(\)/);
+    assert.match(popularBlogTags, /bp\."publishedAt" IS NOT NULL/);
+    assert.match(popularBlogTags, /bp\."publishedAt" <= NOW\(\)/);
 
     assert.match(similarListings, /safeRateLimit\(searchRatelimit, getIP\(req\)\)/);
     assert.match(similarListings, /rateLimitResponse\(rate\.reset, "Too many similar-listing requests\."\)/);

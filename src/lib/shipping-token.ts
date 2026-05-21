@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
 const SECRET = process.env.SHIPPING_RATE_SECRET;
+export const SHIPPING_RATE_TOKEN_TTL_SECONDS = 30 * 60;
+export const SHIPPING_RATE_FUTURE_SKEW_SECONDS = 5 * 60;
 
 // Fail loudly if secret is missing.
 // Do NOT silently return unsigned rates or allow
@@ -59,7 +61,7 @@ export type SignedRateFields = {
 
 export function signRate(
   fields: SignedRateFields,
-  ttlSeconds = 1800, // 30 minutes
+  ttlSeconds = SHIPPING_RATE_TOKEN_TTL_SECONDS,
 ): { token: string; expiresAt: number } {
   const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
   const input = canonicalInput(
@@ -85,10 +87,11 @@ export function verifyRate(
   fields: SignedRateFields,
   token: string,
   expiresAt: number,
+  nowSeconds = Math.floor(Date.now() / 1000),
 ): VerifyRateResult {
   // Check expiry BEFORE computing HMAC — avoids unnecessary
   // crypto on expired tokens and gives clearer error messages.
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowSeconds;
   if (now > expiresAt) {
     return {
       ok: false,
@@ -96,6 +99,13 @@ export function verifyRate(
         "Shipping rates have expired. Please go back " +
         "and re-select a shipping option.",
       status: 422,
+    };
+  }
+  if (expiresAt > now + SHIPPING_RATE_TOKEN_TTL_SECONDS + SHIPPING_RATE_FUTURE_SKEW_SECONDS) {
+    return {
+      ok: false,
+      error: "Invalid shipping rate.",
+      status: 400,
     };
   }
 

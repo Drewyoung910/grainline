@@ -11,6 +11,8 @@ export const getPopularBlogTags = unstable_cache(
       LEFT JOIN "User" seller_user ON seller_user.id = sp."userId",
            unnest(bp.tags) AS tag
       WHERE bp.status = 'PUBLISHED'
+        AND bp."publishedAt" IS NOT NULL
+        AND bp."publishedAt" <= NOW()
         AND u.banned = false
         AND u."deletedAt" IS NULL
         AND (
