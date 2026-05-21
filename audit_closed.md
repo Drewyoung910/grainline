@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 166.
-- Verified code/feature fix commits since 2026-05-13: 143.
+- Verified hardening/doc commits since 2026-05-13: 167.
+- Verified code/feature fix commits since 2026-05-13: 144.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 120 verified closed items in the 2026-05-14
+- Most recent reported pass total: 121 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -582,6 +582,12 @@ Last updated: 2026-05-21
      multi-maker maps include screen-reader text summaries and pickup maps
      connect helper text with `aria-describedby`. Commit:
      `fix: close accessibility launch blockers`.
+121. **Order confirmation direct-send fallback added** — reliability fix.
+     Stripe completed-checkout side effects still send order-confirmed and
+     first-sale emails directly for speed, but direct-send failures now enqueue
+     the rendered email into `EmailOutbox` with deterministic order-scoped dedup
+     keys so the cron drain gets a second chance. Commit:
+     `fix: add order email outbox fallback`.
 
 ## Verified Stale / Not Fixed
 

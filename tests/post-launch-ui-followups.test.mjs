@@ -211,15 +211,18 @@ describe("post-launch UI follow-ups", () => {
     assert.match(variantSelector, /max-w-full whitespace-normal break-words/);
   });
 
-  it("sends order confirmations directly from the Stripe webhook", () => {
+  it("sends order confirmations directly from the Stripe webhook with outbox fallback", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(webhook, /sendOrderConfirmedBuyer/);
-    assert.match(webhook, /sendOrderConfirmedSeller/);
-    assert.match(webhook, /sendFirstSaleCongrats/);
+    assert.match(webhook, /sendOrderTransactionalEmailWithFallback/);
+    assert.match(webhook, /sendRenderedEmail\(email, \{ throwOnFailure: true \}\)/);
+    assert.match(webhook, /enqueueEmailOutbox/);
+    assert.match(webhook, /renderOrderConfirmedBuyerEmail/);
+    assert.match(webhook, /renderOrderConfirmedSellerEmail/);
+    assert.match(webhook, /renderFirstSaleCongratsEmail/);
     assert.match(webhook, /shouldSendEmail\(sellerUserId, "EMAIL_NEW_ORDER"\)/);
-    assert.doesNotMatch(webhook, /enqueueEmailOutbox\(\{[\s\S]*order-confirmed-buyer/);
-    assert.doesNotMatch(webhook, /enqueueEmailOutbox\(\{[\s\S]*order-confirmed-seller/);
+    assert.match(webhook, /dedupKey: `order-confirmed-buyer:\$\{order\.id\}`/);
+    assert.match(webhook, /dedupKey: `order-confirmed-seller:\$\{order\.id\}`/);
   });
 
   it("supports workshop gallery alt text, reordering, and buyer-facing alt attributes", () => {

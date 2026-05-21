@@ -8,10 +8,12 @@ import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import {
-  sendOrderConfirmedBuyer,
-  sendOrderConfirmedSeller,
-  sendFirstSaleCongrats,
+  renderFirstSaleCongratsEmail,
+  renderOrderConfirmedBuyerEmail,
+  renderOrderConfirmedSellerEmail,
+  sendRenderedEmail,
 } from "@/lib/email";
+import { enqueueEmailOutbox, type QueuedEmail } from "@/lib/emailOutbox";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
@@ -405,19 +407,18 @@ export async function POST(req: Request) {
     };
 
     if (order.buyer?.email) {
-      try {
-        await sendOrderConfirmedBuyer({
+      await sendOrderTransactionalEmailWithFallback({
+        email: renderOrderConfirmedBuyerEmail({
           order: orderSummary,
           buyer: { name: order.buyer.name, email: order.buyer.email },
           seller: { displayName: sellerName },
           items: emailItems,
-        });
-      } catch (error) {
-        Sentry.captureException(error, {
-          tags: { source: "stripe_webhook_email", email: "order_confirmed_buyer" },
-          extra: { orderId: order.id, buyerId: order.buyerId },
-        });
-      }
+        }),
+        dedupKey: `order-confirmed-buyer:${order.id}`,
+        userId: order.buyerId,
+        source: "order_confirmed_buyer",
+        extra: { orderId: order.id, buyerId: order.buyerId },
+      });
     }
 
     if (sellerUserId && seller?.user?.email) {
@@ -425,33 +426,72 @@ export async function POST(req: Request) {
         where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
       });
       if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
-        try {
-          await sendOrderConfirmedSeller({
+        await sendOrderTransactionalEmailWithFallback({
+          email: renderOrderConfirmedSellerEmail({
             order: orderSummary,
             buyer: { name: buyerDisplayName },
             seller: { displayName: sellerName, email: seller.user.email },
             items: emailItems,
-          });
-        } catch (error) {
-          Sentry.captureException(error, {
-            tags: { source: "stripe_webhook_email", email: "order_confirmed_seller" },
-            extra: { orderId: order.id, sellerUserId },
-          });
-        }
+          }),
+          dedupKey: `order-confirmed-seller:${order.id}`,
+          userId: sellerUserId,
+          preferenceKey: "EMAIL_NEW_ORDER",
+          source: "order_confirmed_seller",
+          extra: { orderId: order.id, sellerUserId },
+        });
       }
       if (sellerOrderCount === 1) {
-        try {
-          await sendFirstSaleCongrats({
+        await sendOrderTransactionalEmailWithFallback({
+          email: renderFirstSaleCongratsEmail({
             seller: { displayName: sellerName, email: seller.user.email },
             order: orderSummary,
-          });
-        } catch (error) {
-          Sentry.captureException(error, {
-            tags: { source: "stripe_webhook_email", email: "first_sale_congrats" },
-            extra: { orderId: order.id, sellerUserId },
-          });
-        }
+          }),
+          dedupKey: `first-sale-congrats:${order.id}:${sellerUserId}`,
+          userId: sellerUserId,
+          source: "first_sale_congrats",
+          extra: { orderId: order.id, sellerUserId },
+        });
       }
+    }
+  }
+
+  async function sendOrderTransactionalEmailWithFallback({
+    email,
+    dedupKey,
+    userId,
+    preferenceKey,
+    source,
+    extra,
+  }: {
+    email: Pick<QueuedEmail, "to" | "subject" | "html">;
+    dedupKey: string;
+    userId?: string | null;
+    preferenceKey?: QueuedEmail["preferenceKey"];
+    source: string;
+    extra: Record<string, unknown>;
+  }) {
+    try {
+      await sendRenderedEmail(email, { throwOnFailure: true });
+      return;
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: "stripe_webhook_email", email: source },
+        extra,
+      });
+    }
+
+    try {
+      await enqueueEmailOutbox({
+        ...email,
+        dedupKey,
+        userId: userId ?? undefined,
+        preferenceKey,
+      });
+    } catch (fallbackError) {
+      Sentry.captureException(fallbackError, {
+        tags: { source: "stripe_webhook_email_fallback", email: source },
+        extra,
+      });
     }
   }
 
