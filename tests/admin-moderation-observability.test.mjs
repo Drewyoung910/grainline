@@ -27,6 +27,28 @@ describe("admin moderation hardening follow-ups", () => {
     assert.doesNotMatch(customOrderReadyLink, /extra:\s*\{[^}]*email/s);
   });
 
+  it("rechecks seller orderability before admin listing approval", () => {
+    const reviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
+
+    assert.match(reviewRoute, /function sellerUnavailableReason/);
+    assert.match(reviewRoute, /chargesEnabled: true/);
+    assert.match(reviewRoute, /vacationMode: false/);
+    assert.match(reviewRoute, /user: \{ banned: false, deletedAt: null \}/);
+    assert.match(reviewRoute, /status: 'PENDING_REVIEW'/);
+    assert.match(reviewRoute, /return NextResponse\.json\(\{ error: unavailableReason \}, \{ status: 409 \}\)/);
+    assert.match(reviewRoute, /return NextResponse\.json\(\{ error: currentUnavailableReason \}, \{ status: 409 \}\)/);
+    assert.ok(
+      reviewRoute.indexOf("const unavailableReason = sellerUnavailableReason(listing.seller)") <
+        reviewRoute.indexOf("await prisma.listing.updateMany"),
+      "seller orderability should be checked before ACTIVE approval mutation",
+    );
+    assert.ok(
+      reviewRoute.indexOf("await prisma.listing.updateMany") <
+        reviewRoute.indexOf("await maybeGrantFoundingMaker(listing.sellerId)"),
+      "Founding Maker grant should only run after guarded ACTIVE mutation succeeds",
+    );
+  });
+
   it("keeps report resolution rate-limited and stale-safe", () => {
     const route = source("src/app/api/admin/reports/[id]/resolve/route.ts");
 

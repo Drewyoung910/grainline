@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 155.
-- Verified code/feature fix commits since 2026-05-13: 134.
+- Verified hardening/doc commits since 2026-05-13: 157.
+- Verified code/feature fix commits since 2026-05-13: 135.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 111 verified closed items in the 2026-05-14
+- Most recent reported pass total: 112 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -543,6 +543,11 @@ Last updated: 2026-05-21
      dates through `LocalDate dateOnly`, avoiding UTC-vs-client date drift and
      preventing an accidental time component from appearing. Commit:
      `fix: align vacation return date display`.
+112. **Admin listing approval rechecks seller orderability** — safety fix.
+     Admin approval now refuses to activate pending listings when the seller has
+     become charges-disabled, vacationing, banned, or deleted during review; the
+     final `updateMany` predicate repeats the seller-state guard before Founding
+     Maker can be granted. Commit: `fix: guard admin listing approval state`.
 
 ## Verified Stale / Not Fixed
 

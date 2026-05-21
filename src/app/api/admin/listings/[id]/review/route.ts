@@ -22,6 +22,18 @@ const ReviewActionSchema = z.object({
 })
 const ADMIN_LISTING_REVIEW_BODY_MAX_BYTES = 16 * 1024
 
+function sellerUnavailableReason(seller: {
+  chargesEnabled: boolean
+  vacationMode: boolean
+  user: { banned: boolean; deletedAt: Date | null } | null
+}) {
+  if (!seller.user || seller.user.deletedAt) return 'Seller account is unavailable.'
+  if (seller.user.banned) return 'Seller account is suspended.'
+  if (!seller.chargesEnabled) return 'Seller payouts are not connected.'
+  if (seller.vacationMode) return 'Seller is in vacation mode.'
+  return null
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -57,23 +69,65 @@ export async function PATCH(
 
   const listing = await prisma.listing.findUnique({
     where: { id },
-    include: { seller: { select: { userId: true, displayName: true } } }
+    include: {
+      seller: {
+        select: {
+          userId: true,
+          displayName: true,
+          chargesEnabled: true,
+          vacationMode: true,
+          user: { select: { banned: true, deletedAt: true } },
+        },
+      },
+    },
   })
   if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   if (action === 'approve') {
+    const unavailableReason = sellerUnavailableReason(listing.seller)
+    if (unavailableReason) {
+      return NextResponse.json({ error: unavailableReason }, { status: 409 })
+    }
+
     const approved = await prisma.listing.updateMany({
-      where: { id, status: 'PENDING_REVIEW' },
+      where: {
+        id,
+        status: 'PENDING_REVIEW',
+        seller: {
+          chargesEnabled: true,
+          vacationMode: false,
+          user: { banned: false, deletedAt: null },
+        },
+      },
       data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
     })
     if (approved.count === 0) {
-      if (listing.status === 'ACTIVE' && listing.customOrderConversationId && listing.reservedForUserId) {
+      const currentListing = await prisma.listing.findUnique({
+        where: { id },
+        include: {
+          seller: {
+            select: {
+              userId: true,
+              displayName: true,
+              chargesEnabled: true,
+              vacationMode: true,
+              user: { select: { banned: true, deletedAt: true } },
+            },
+          },
+        },
+      })
+      if (!currentListing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const currentUnavailableReason = sellerUnavailableReason(currentListing.seller)
+      if (currentListing.status === 'PENDING_REVIEW' && currentUnavailableReason) {
+        return NextResponse.json({ error: currentUnavailableReason }, { status: 409 })
+      }
+      if (currentListing.status === 'ACTIVE' && currentListing.customOrderConversationId && currentListing.reservedForUserId) {
         await sendCustomOrderReadyLink({
-          conversationId: listing.customOrderConversationId,
-          sellerUserId: listing.seller.userId,
-          buyerUserId: listing.reservedForUserId,
-          sellerName: listing.seller.displayName,
-          listing,
+          conversationId: currentListing.customOrderConversationId,
+          sellerUserId: currentListing.seller.userId,
+          buyerUserId: currentListing.reservedForUserId,
+          sellerName: currentListing.seller.displayName,
+          listing: currentListing,
         })
       }
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
