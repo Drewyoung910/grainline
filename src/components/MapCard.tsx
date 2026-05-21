@@ -165,5 +165,12 @@ export default function MapCard({
     );
   }
 
-  return <div ref={containerRef} className={resolvedClassName} />;
+  return (
+    <div
+      ref={containerRef}
+      role="application"
+      aria-label={label ? `Map showing ${label}` : "Map preview"}
+      className={resolvedClassName}
+    />
+  );
 }

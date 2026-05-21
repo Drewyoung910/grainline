@@ -116,9 +116,11 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           autoComplete="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          aria-invalid={Boolean(errors.name)}
+          aria-describedby={errors.name ? "sa-name-error" : undefined}
           className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
         />
-        {errors.name && <p className="text-sm text-red-600 mt-1">{errors.name}</p>}
+        {errors.name && <p id="sa-name-error" role="alert" className="text-sm text-red-600 mt-1">{errors.name}</p>}
       </div>
 
       <AddressAutocomplete
@@ -142,9 +144,11 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           autoComplete="address-line1"
           value={line1}
           onChange={(e) => setLine1(e.target.value)}
+          aria-invalid={Boolean(errors.line1)}
+          aria-describedby={errors.line1 ? "sa-line1-error" : undefined}
           className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
         />
-        {errors.line1 && <p className="text-sm text-red-600 mt-1">{errors.line1}</p>}
+        {errors.line1 && <p id="sa-line1-error" role="alert" className="text-sm text-red-600 mt-1">{errors.line1}</p>}
       </div>
 
       {/* Address line 2 */}
@@ -168,12 +172,14 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           <input
             id="sa-city"
             type="text"
-            autoComplete="address-level2"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
-          />
-          {errors.city && <p className="text-sm text-red-600 mt-1">{errors.city}</p>}
+          autoComplete="address-level2"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          aria-invalid={Boolean(errors.city)}
+          aria-describedby={errors.city ? "sa-city-error" : undefined}
+          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
+        />
+          {errors.city && <p id="sa-city-error" role="alert" className="text-sm text-red-600 mt-1">{errors.city}</p>}
         </div>
         <div>
           <label htmlFor="sa-state" className="block text-sm font-medium text-neutral-700 mb-1">State</label>
@@ -182,6 +188,8 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
             autoComplete="address-level1"
             value={state}
             onChange={(e) => setState(e.target.value)}
+            aria-invalid={Boolean(errors.state)}
+            aria-describedby={errors.state ? "sa-state-error" : undefined}
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
           >
             <option value="">Select...</option>
@@ -189,7 +197,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
               <option key={s.code} value={s.code}>{s.name}</option>
             ))}
           </select>
-          {errors.state && <p className="text-sm text-red-600 mt-1">{errors.state}</p>}
+          {errors.state && <p id="sa-state-error" role="alert" className="text-sm text-red-600 mt-1">{errors.state}</p>}
         </div>
         <div className="col-span-2 sm:col-span-1">
           <label htmlFor="sa-zip" className="block text-sm font-medium text-neutral-700 mb-1">ZIP code</label>
@@ -204,9 +212,11 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
               const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
               setPostalCode(digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits);
             }}
+            aria-invalid={Boolean(errors.postalCode)}
+            aria-describedby={errors.postalCode ? "sa-zip-error" : undefined}
             className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-stone-500 focus-visible:outline-none focus-visible:shadow-none"
           />
-          {errors.postalCode && <p className="text-sm text-red-600 mt-1">{errors.postalCode}</p>}
+          {errors.postalCode && <p id="sa-zip-error" role="alert" className="text-sm text-red-600 mt-1">{errors.postalCode}</p>}
         </div>
       </div>
 

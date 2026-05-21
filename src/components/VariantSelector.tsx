@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useId, useState, useCallback } from "react";
 
 export type VariantGroupForSelector = {
   id: string;
@@ -24,6 +24,7 @@ export default function VariantSelector({
   onSelectionChange: (selectedOptionIds: string[], totalPriceCents: number) => void;
   initialSelectedOptionIds?: string[];
 }) {
+  const baseId = useId();
   // Map of groupId -> selected optionId
   const [selected, setSelected] = useState<Record<string, string>>(() => {
     const initialIds = new Set(initialSelectedOptionIds);
@@ -53,6 +54,24 @@ export default function VariantSelector({
     [selected, groups, basePriceCents, onSelectionChange]
   );
 
+  const moveSelection = useCallback(
+    (group: VariantGroupForSelector, currentOptionId: string | undefined, direction: "next" | "prev" | "first" | "last") => {
+      const availableOptions = group.options.filter((option) => option.inStock);
+      if (availableOptions.length === 0) return;
+
+      let nextOption = availableOptions[0];
+      if (direction === "last") {
+        nextOption = availableOptions[availableOptions.length - 1];
+      } else if (direction === "next" || direction === "prev") {
+        const currentIndex = Math.max(0, availableOptions.findIndex((option) => option.id === currentOptionId));
+        const delta = direction === "next" ? 1 : -1;
+        nextOption = availableOptions[(currentIndex + delta + availableOptions.length) % availableOptions.length];
+      }
+      selectOption(group.id, nextOption.id);
+    },
+    [selectOption],
+  );
+
   // All required groups must have a selection for "complete"
   const allSelected = groups.every((g) => selected[g.id]);
 
@@ -60,18 +79,43 @@ export default function VariantSelector({
     <div className="min-w-0 space-y-4">
       {groups.map((group) => (
         <div key={group.id} className="min-w-0">
-          <label className="block text-sm font-medium text-neutral-700 mb-2">
+          <p id={`${baseId}-${group.id}-label`} className="block text-sm font-medium text-neutral-700 mb-2">
             {group.name}
-          </label>
-          <div className="flex min-w-0 flex-wrap gap-2">
+          </p>
+          <div
+            role="radiogroup"
+            aria-labelledby={`${baseId}-${group.id}-label`}
+            className="flex min-w-0 flex-wrap gap-2"
+          >
             {group.options.map((opt) => {
               const isSelected = selected[group.id] === opt.id;
+              const selectedOptionId = selected[group.id];
+              const firstAvailableId = group.options.find((option) => option.inStock)?.id;
               return (
                 <button
                   key={opt.id}
                   type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-disabled={!opt.inStock}
+                  tabIndex={opt.inStock && (isSelected || (!selectedOptionId && opt.id === firstAvailableId)) ? 0 : -1}
                   disabled={!opt.inStock}
                   onClick={() => selectOption(group.id, opt.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                      event.preventDefault();
+                      moveSelection(group, selectedOptionId, "next");
+                    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      moveSelection(group, selectedOptionId, "prev");
+                    } else if (event.key === "Home") {
+                      event.preventDefault();
+                      moveSelection(group, selectedOptionId, "first");
+                    } else if (event.key === "End") {
+                      event.preventDefault();
+                      moveSelection(group, selectedOptionId, "last");
+                    }
+                  }}
                   className={`max-w-full whitespace-normal break-words px-3 py-1.5 text-left rounded-md text-sm border transition-colors ${
                     isSelected
                       ? "border-neutral-900 bg-neutral-900 text-white"

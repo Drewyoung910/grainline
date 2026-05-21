@@ -60,5 +60,12 @@ export default function MaplibreMap({
     );
   }
 
-  return <div ref={containerRef} className={className} />;
+  return (
+    <div
+      ref={containerRef}
+      role="application"
+      aria-label="Map showing this location"
+      className={className}
+    />
+  );
 }

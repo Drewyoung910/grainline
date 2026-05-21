@@ -98,7 +98,12 @@ export default function SellersMap({ sellers }: { sellers: SellerPin[] }) {
 
   return (
     <div className="rounded-xl overflow-hidden border">
-      <div ref={containerRef} style={{ height: 520, width: "100%" }} />
+      <div
+        ref={containerRef}
+        role="application"
+        aria-label="Map of Grainline sellers"
+        style={{ height: 520, width: "100%" }}
+      />
     </div>
   );
 }

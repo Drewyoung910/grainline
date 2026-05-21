@@ -19,6 +19,10 @@ export default function OpenCaseForm({
   allowNotReceived?: boolean;
 }) {
   const router = useRouter();
+  const reasonId = `case-reason-${orderId}`;
+  const descriptionId = `case-description-${orderId}`;
+  const descriptionHelpId = `case-description-help-${orderId}`;
+  const errorId = `case-error-${orderId}`;
   const [expanded, setExpanded] = useState(false);
   const reasonEntries = Object.entries(REASON_LABELS).filter(
     ([value]) => allowNotReceived || value !== "NOT_RECEIVED",
@@ -53,6 +57,7 @@ export default function OpenCaseForm({
   if (!expanded) {
     return (
       <button
+        type="button"
         onClick={() => setExpanded(true)}
         className="rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50"
       >
@@ -69,8 +74,9 @@ export default function OpenCaseForm({
       <h3 className="text-sm font-semibold text-red-900">Open a Case</h3>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-neutral-700">Reason</label>
+        <label htmlFor={reasonId} className="text-xs font-medium text-neutral-700">Reason</label>
         <select
+          id={reasonId}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           className="w-full rounded border bg-white px-3 py-1.5 text-sm"
@@ -85,24 +91,27 @@ export default function OpenCaseForm({
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-neutral-700">
+        <label htmlFor={descriptionId} className="text-xs font-medium text-neutral-700">
           Description{" "}
           <span className="text-neutral-500">(min 20 characters)</span>
         </label>
         <textarea
+          id={descriptionId}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
           placeholder="Describe what happened…"
+          aria-describedby={`${descriptionHelpId}${error ? ` ${errorId}` : ""}`}
+          aria-invalid={Boolean(error)}
           className="w-full rounded border bg-white px-3 py-2 text-sm"
           disabled={loading}
         />
-        <p className="text-xs text-neutral-500">
+        <p id={descriptionHelpId} className="text-xs text-neutral-500">
           {description.trim().length} / 20 min
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-700">{error}</p>}
+      {error && <p id={errorId} role="alert" className="text-sm text-red-700">{error}</p>}
 
       <div className="flex gap-2">
         <button

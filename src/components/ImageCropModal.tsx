@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
 
 type Props = {
   file: File;
@@ -13,6 +14,7 @@ type Props = {
 const MAX_OUTPUT_LONG_EDGE = 2400;
 
 export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }: Props) {
+  const titleId = React.useId();
   const [imageUrl, setImageUrl] = React.useState("");
   const [naturalSize, setNaturalSize] = React.useState({ width: 0, height: 0 });
   const [zoom, setZoom] = React.useState(1);
@@ -21,9 +23,12 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
   const [processing, setProcessing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [mounted, setMounted] = React.useState(false);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
   const frameRef = React.useRef<HTMLDivElement>(null);
   const imgRef = React.useRef<HTMLImageElement>(null);
   const displayScale = getDisplayScale(frameRef.current, naturalSize, zoom);
+  useDialogFocus(mounted, dialogRef, onCancel);
+  useBodyScrollLock(mounted);
 
   React.useEffect(() => {
     setMounted(true);
@@ -40,13 +45,6 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
     setImageUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
-
-  React.useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -134,9 +132,16 @@ export default function ImageCropModal({ file, aspect = 1, onCancel, onConfirm }
 
   const modal = (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 px-4 py-6">
-      <div className="w-full max-w-2xl rounded-lg bg-[#F7F5F0] p-4 shadow-xl sm:p-5">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="w-full max-w-2xl rounded-lg bg-[#F7F5F0] p-4 shadow-xl sm:p-5"
+      >
         <div className="mb-4">
-          <h2 className="font-display text-xl font-semibold text-neutral-900">Adjust image</h2>
+          <h2 id={titleId} className="font-display text-xl font-semibold text-neutral-900">Adjust image</h2>
           <p className="mt-1 text-sm text-neutral-600">Drag to position. Zoom to choose the visible crop.</p>
         </div>
 

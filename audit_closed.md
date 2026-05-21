@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 161.
-- Verified code/feature fix commits since 2026-05-13: 138.
+- Verified hardening/doc commits since 2026-05-13: 166.
+- Verified code/feature fix commits since 2026-05-13: 143.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 115 verified closed items in the 2026-05-14
+- Most recent reported pass total: 120 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -560,6 +560,28 @@ Last updated: 2026-05-21
      The admin listing approval idempotency path now avoids sending a custom-order
      ready link on an already-active listing if the seller has since become
      unsellable. Commit: `fix: tighten admin approval retry guard`.
+116. **Variant selector radio semantics added** — accessibility fix.
+     Listing variant groups now expose `radiogroup` / `radio` semantics,
+     selected state, disabled state, and arrow/Home/End keyboard behavior so
+     assistive technology can operate mutually exclusive options. Commit:
+     `fix: close accessibility launch blockers`.
+117. **Open case form labels and errors wired** — accessibility fix.
+     Case reason and description controls now have stable label associations,
+     description help/error wiring, `aria-invalid`, and `role="alert"` error
+     copy. Commit: `fix: close accessibility launch blockers`.
+118. **Checkout shipping address errors wired** — accessibility fix.
+     Required checkout address inputs/selects now expose validation state via
+     `aria-invalid`, `aria-describedby`, stable error IDs, and alert roles.
+     Commit: `fix: close accessibility launch blockers`.
+119. **Image crop modal dialog semantics added** — accessibility fix.
+     The cropper portal now uses dialog ARIA, labelled title, Escape close,
+     focus trap/return, and shared body scroll lock helpers. Commit:
+     `fix: close accessibility launch blockers`.
+120. **Map widgets labelled for assistive tech** — accessibility fix.
+     MapLibre containers now expose `role="application"` with specific labels;
+     multi-maker maps include screen-reader text summaries and pickup maps
+     connect helper text with `aria-describedby`. Commit:
+     `fix: close accessibility launch blockers`.
 
 ## Verified Stale / Not Fixed
 

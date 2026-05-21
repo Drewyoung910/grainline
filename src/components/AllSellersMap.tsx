@@ -1,7 +1,7 @@
 // src/components/AllSellersMap.tsx
 "use client";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { publicSellerPath } from "@/lib/publicPaths";
 import MapFallback from "@/components/MapFallback";
@@ -31,6 +31,7 @@ export default function AllSellersMap({
   mobileInitialZoom,
   height = 520,
 }: Props) {
+  const summaryId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapUnavailable, setMapUnavailable] = useState(false);
 
@@ -242,5 +243,25 @@ export default function AllSellersMap({
     );
   }
 
-  return <div ref={containerRef} style={{ height, width: "100%" }} />;
+  return (
+    <>
+      <div
+        ref={containerRef}
+        role="application"
+        aria-label="Map of Grainline makers"
+        aria-describedby={summaryId}
+        style={{ height, width: "100%" }}
+      />
+      <ul id={summaryId} className="sr-only">
+        {points.slice(0, 12).map((point) => (
+          <li key={point.id}>
+            {point.name}
+            {[point.city, point.state].filter(Boolean).length > 0
+              ? ` in ${[point.city, point.state].filter(Boolean).join(", ")}`
+              : ""}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 }

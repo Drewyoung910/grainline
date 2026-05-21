@@ -165,11 +165,17 @@ export default function LocationPicker({
         />
       ) : (
         <div className="rounded-xl overflow-hidden border border-neutral-200">
-          <div ref={containerRef} style={{ height: 260, width: "100%" }} />
+          <div
+            ref={containerRef}
+            role="application"
+            aria-label="Map picker for pickup location"
+            aria-describedby="pickup-location-map-help"
+            style={{ height: 260, width: "100%" }}
+          />
         </div>
       )}
 
-      <div className="text-sm text-neutral-600">
+      <div id="pickup-location-map-help" className="text-sm text-neutral-600">
         {mapUnavailable ? "Search an address to set your pickup location." : "Drag the pin or click the map to set your pickup location."}
       </div>
 
