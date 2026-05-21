@@ -210,6 +210,20 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   }
 
   // Second consecutive failure — revoke Guild Master
+  const revocationMetrics = await calculateSellerMetrics(seller.id);
+  const revocationCriteria = meetsGuildMasterRequirements(revocationMetrics);
+  if (revocationCriteria.allMet) {
+    await prisma.sellerProfile.updateMany({
+      where: { id: seller.id, guildLevel: "GUILD_MASTER", consecutiveMetricFailures: { gt: 0 } },
+      data: {
+        consecutiveMetricFailures: 0,
+        metricWarningSentAt: null,
+        lastMetricCheckAt: now,
+      },
+    });
+    return { processed: 1, warned: 0, revokedMaster: 0 };
+  }
+
   const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS);
   const revoked = await prisma.$transaction(async (tx) => {
     const updated = await tx.sellerProfile.updateMany({

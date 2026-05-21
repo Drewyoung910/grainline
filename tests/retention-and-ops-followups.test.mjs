@@ -59,6 +59,20 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /metricWarningSentAt: \{ lte: revocationCutoff \}/);
   });
 
+  it("rechecks Guild Master metrics immediately before revocation", () => {
+    const source = readFileSync("src/app/api/cron/guild-metrics/route.ts", "utf8");
+
+    assert.match(source, /const revocationMetrics = await calculateSellerMetrics\(seller\.id\)/);
+    assert.match(source, /const revocationCriteria = meetsGuildMasterRequirements\(revocationMetrics\)/);
+    assert.match(source, /if \(revocationCriteria\.allMet\) \{/);
+    assert.match(source, /consecutiveMetricFailures: 0,\s*metricWarningSentAt: null,\s*lastMetricCheckAt: now/s);
+    assert.ok(
+      source.indexOf("const revocationMetrics = await calculateSellerMetrics(seller.id)") <
+        source.indexOf("const revocationCutoff = new Date(now.getTime() - GUILD_MASTER_WARNING_GRACE_MS)"),
+      "fresh metrics must be recalculated before revocation update",
+    );
+  });
+
   it("surfaces webhook failure piles in ops-health", () => {
     const source = readFileSync("src/app/api/cron/ops-health/route.ts", "utf8");
 

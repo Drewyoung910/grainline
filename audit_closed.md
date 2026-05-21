@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 173.
-- Verified code/feature fix commits since 2026-05-13: 149.
+- Verified hardening/doc commits since 2026-05-13: 174.
+- Verified code/feature fix commits since 2026-05-13: 150.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 133 verified closed items in the 2026-05-14
+- Most recent reported pass total: 134 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -638,6 +638,10 @@ Last updated: 2026-05-21
      Guild Member `craftDescription` and Guild Master `craftBusiness` writes now
      use `truncateText(sanitizeText(...), 500)` on dashboard/API paths before
      persisting application narrative text.
+134. **Guild Master revocation rechecks metrics at decision time** — trust-signal race hardening.
+     The monthly Guild metrics cron recalculates seller metrics immediately
+     before revoking Guild Master status and clears the warning state instead
+     if the seller has recovered during the 30-day grace window.
 
 ## Verified Stale / Not Fixed
 
