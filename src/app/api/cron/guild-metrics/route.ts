@@ -26,6 +26,7 @@ export const maxDuration = 300; // 5-minute limit for large seller sets
 const SELLER_PAGE_SIZE = 50;
 const SELLER_PROCESS_CONCURRENCY = 3;
 const VIEW_CLEANUP_BATCH_SIZE = 1000;
+const VIEW_CLEANUP_TIME_BUDGET_MS = 60_000;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
@@ -90,15 +91,18 @@ async function runGuildMetricsCron() {
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
   let deletedViewRows = 0;
+  let deletedViewRowsComplete = true;
   try {
-    deletedViewRows = await deleteOldListingViewDaily(twoYearsAgo);
+    const viewCleanup = await deleteOldListingViewDaily(twoYearsAgo);
+    deletedViewRows = viewCleanup.count;
+    deletedViewRowsComplete = viewCleanup.complete;
   } catch (err) {
     const code = getErrorCode(err);
     errors.push({ sellerId: "listing-view-cleanup", code });
     Sentry.captureException(err, { tags: { source: "cron_guild_metrics_cleanup", code } });
   }
 
-  return { processed, warned, revokedMaster, deletedViewRows, errors };
+  return { processed, warned, revokedMaster, deletedViewRows, deletedViewRowsComplete, errors };
 }
 
 async function fetchGuildSellerBatch(cursorId: string | null) {
@@ -236,10 +240,11 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
   return { processed: 1, warned: 0, revokedMaster: 1 };
 }
 
-async function deleteOldListingViewDaily(cutoff: Date): Promise<number> {
+async function deleteOldListingViewDaily(cutoff: Date): Promise<{ count: number; complete: boolean }> {
+  const deadline = Date.now() + VIEW_CLEANUP_TIME_BUDGET_MS;
   let totalDeleted = 0;
 
-  while (true) {
+  while (Date.now() < deadline) {
     const deleted = await prisma.$executeRaw<number>`
       DELETE FROM "ListingViewDaily"
       WHERE id IN (
@@ -252,10 +257,12 @@ async function deleteOldListingViewDaily(cutoff: Date): Promise<number> {
     `;
     const count = Number(deleted);
     totalDeleted += count;
-    if (count === 0 || count < VIEW_CLEANUP_BATCH_SIZE) break;
+    if (count === 0 || count < VIEW_CLEANUP_BATCH_SIZE) {
+      return { count: totalDeleted, complete: true };
+    }
   }
 
-  return totalDeleted;
+  return { count: totalDeleted, complete: false };
 }
 
 function getErrorCode(err: unknown): string {

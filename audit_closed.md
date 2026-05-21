@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 146.
-- Verified code/feature fix commits since 2026-05-13: 128.
+- Verified hardening/doc commits since 2026-05-13: 153.
+- Verified code/feature fix commits since 2026-05-13: 133.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 105 verified closed items in the 2026-05-14
-  active tracker below, plus forty-five stale/false-positive claims verified
+- Most recent reported pass total: 110 verified closed items in the 2026-05-14
+  active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -517,6 +517,27 @@ Last updated: 2026-05-21
      `Notification.dedupKey` now uses the same `dbgenerated(md5(...))` default
      in Prisma that the database applies, with a follow-up migration setting the
      DB default explicitly. Commit: `fix: close schema drift followups`.
+106. **Unread notification retention added** — privacy/storage fix.
+     Daily notification pruning now deletes unread notifications older than 365
+     days while keeping the existing 90-day read-notification retention.
+     Commit: `fix: add retention and webhook health guards`.
+107. **Webhook idempotency retention added** — storage/ops fix.
+     Processed Stripe/Resend/Clerk webhook idempotency rows are pruned after 90
+     days through the daily notification-prune cron. Failed or unprocessed rows
+     are retained for investigation. Commit: `fix: add retention and webhook health guards`.
+108. **Listing-view cleanup time budget added** — cron reliability fix.
+     The guild-metrics cleanup of old `ListingViewDaily` rows now has an
+     explicit time budget and reports whether cleanup completed, avoiding an
+     unbounded delete loop inside the monthly metrics cron. Commit:
+     `fix: add retention and webhook health guards`.
+109. **Webhook failure piles added to ops-health** — observability fix.
+     `/api/cron/ops-health` now counts unprocessed Stripe/Resend/Clerk webhook
+     rows with `lastError` set and reports unhealthy when any are present.
+     Commit: `fix: add retention and webhook health guards`.
+110. **Retention behavior documented and guarded** — docs/test fix.
+     CLAUDE.md now records notification/webhook retention and failed-webhook
+     aggregate behavior, with tests covering the cron wiring and retention
+     constants. Commit: `fix: add retention and webhook health guards`.
 
 ## Verified Stale / Not Fixed
 
@@ -666,3 +687,9 @@ Last updated: 2026-05-21
     migration-history comparison against `schema.prisma` found no onDelete
     mismatches. `tests/schema-drift-followups.test.mjs` now guards this class so
     future FK drift is caught before merge.
+46. **EmailOutbox has no retention policy** — stale claim. `pruneEmailOutboxRetention()`
+    runs from the daily notification-prune cron and deletes terminal outbox rows
+    after 30 days.
+47. **Verbose health token uses non-constant comparison** — stale claim.
+    `isVerboseHealthRequest()` hashes both supplied and configured tokens and
+    compares the digests with `timingSafeEqual()`.

@@ -30,6 +30,9 @@ export async function GET(request: Request) {
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
+        stripeWebhookFailureCount,
+        resendWebhookFailureCount,
+        clerkWebhookFailureCount,
       ] = await Promise.all([
         prisma.cronRun.findMany({
           where: {
@@ -56,6 +59,24 @@ export async function GET(request: Request) {
             slaDueAt: { lt: now },
           },
         }),
+        prisma.stripeWebhookEvent.count({
+          where: {
+            processedAt: null,
+            lastError: { not: null },
+          },
+        }),
+        prisma.resendWebhookEvent.count({
+          where: {
+            processedAt: null,
+            lastError: { not: null },
+          },
+        }),
+        prisma.clerkWebhookEvent.count({
+          where: {
+            processedAt: null,
+            lastError: { not: null },
+          },
+        }),
       ]);
 
       const issues = {
@@ -63,6 +84,9 @@ export async function GET(request: Request) {
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
+        stripeWebhookFailureCount,
+        resendWebhookFailureCount,
+        clerkWebhookFailureCount,
       };
 
       if (

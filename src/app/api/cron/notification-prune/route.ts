@@ -6,12 +6,11 @@ import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { pruneEmailOutboxRetention } from "@/lib/emailOutboxRetention";
+import { notificationRetentionCutoffs, NOTIFICATION_RETENTION_BATCH_SIZE, NOTIFICATION_RETENTION_TIME_BUDGET_MS } from "@/lib/notificationRetentionState";
+import { pruneWebhookEventRetention } from "@/lib/webhookEventRetention";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const NOTIFICATION_PRUNE_BATCH_SIZE = 1000;
-const PRUNE_TIME_BUDGET_MS = 45_000;
 
 export async function GET(request: NextRequest) {
   if (!verifyCronRequest(request)) {
@@ -22,21 +21,27 @@ export async function GET(request: NextRequest) {
     const cronRun = await beginCronRun("notification-prune");
     if (!cronRun.acquired) return NextResponse.json(skippedCronRunResponse(cronRun));
 
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const { readCutoff, unreadCutoff } = notificationRetentionCutoffs();
 
     try {
-      const [pruned, staleRefundLocks, emailOutboxPruned] = await Promise.all([
-        pruneReadNotifications(cutoff),
+      const [readPruned, unreadPruned, staleRefundLocks, emailOutboxPruned, webhookEventsPruned] = await Promise.all([
+        pruneReadNotifications(readCutoff),
+        pruneUnreadNotifications(unreadCutoff),
         releaseStaleRefundLocks(),
         pruneEmailOutboxRetention(),
+        pruneWebhookEventRetention(),
       ]);
 
       const response = {
-        pruned: pruned.count,
-        pruneComplete: pruned.complete,
+        pruned: readPruned.count,
+        pruneComplete: readPruned.complete,
+        unreadPruned: unreadPruned.count,
+        unreadPruneComplete: unreadPruned.complete,
         staleRefundLocksReleased: staleRefundLocks.count,
         emailOutboxPruned: emailOutboxPruned.count,
         emailOutboxPruneComplete: emailOutboxPruned.complete,
+        webhookEventsPruned: webhookEventsPruned.count,
+        webhookEventsPruneComplete: webhookEventsPruned.complete,
       };
       await completeCronRun(cronRun, response);
       return NextResponse.json(response);
@@ -49,7 +54,7 @@ export async function GET(request: NextRequest) {
 }
 
 async function pruneReadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
-  const deadline = Date.now() + PRUNE_TIME_BUDGET_MS;
+  const deadline = Date.now() + NOTIFICATION_RETENTION_TIME_BUDGET_MS;
   let totalDeleted = 0;
 
   while (Date.now() < deadline) {
@@ -61,12 +66,38 @@ async function pruneReadNotifications(cutoff: Date): Promise<{ count: number; co
         WHERE "read" = true
           AND "createdAt" < ${cutoff}
         ORDER BY "createdAt" ASC
-        LIMIT ${NOTIFICATION_PRUNE_BATCH_SIZE}
+        LIMIT ${NOTIFICATION_RETENTION_BATCH_SIZE}
       )
     `;
     const count = Number(deleted);
     totalDeleted += count;
-    if (count === 0 || count < NOTIFICATION_PRUNE_BATCH_SIZE) {
+    if (count === 0 || count < NOTIFICATION_RETENTION_BATCH_SIZE) {
+      return { count: totalDeleted, complete: true };
+    }
+  }
+
+  return { count: totalDeleted, complete: false };
+}
+
+async function pruneUnreadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
+  const deadline = Date.now() + NOTIFICATION_RETENTION_TIME_BUDGET_MS;
+  let totalDeleted = 0;
+
+  while (Date.now() < deadline) {
+    const deleted = await prisma.$executeRaw<number>`
+      DELETE FROM "Notification"
+      WHERE id IN (
+        SELECT id
+        FROM "Notification"
+        WHERE "read" = false
+          AND "createdAt" < ${cutoff}
+        ORDER BY "createdAt" ASC
+        LIMIT ${NOTIFICATION_RETENTION_BATCH_SIZE}
+      )
+    `;
+    const count = Number(deleted);
+    totalDeleted += count;
+    if (count === 0 || count < NOTIFICATION_RETENTION_BATCH_SIZE) {
       return { count: totalDeleted, complete: true };
     }
   }
