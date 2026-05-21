@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 138.
-- Verified code/feature fix commits since 2026-05-13: 122.
+- Verified hardening/doc commits since 2026-05-13: 142.
+- Verified code/feature fix commits since 2026-05-13: 125.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 99 verified closed items in the 2026-05-14
-  active tracker below, plus forty-three stale/false-positive claims verified
+- Most recent reported pass total: 102 verified closed items in the 2026-05-14
+  active tracker below, plus forty-four stale/false-positive claims verified
   clean.
 
 ## 2026-05-14 Active Tracker
@@ -489,6 +489,18 @@ Last updated: 2026-05-21
     Notification redaction now handles two-character names as bounded tokens, so
     deleted users named like "Li" are redacted without replacing embedded text in
     unrelated words. Commit: `fix: harden unicode text boundaries`.
+100. **Custom-order conversation FK added** — schema/code fix.
+     `Listing.customOrderConversationId` is now a real `Conversation` foreign key
+     with `onDelete: SetNull`, an index, and migration cleanup for pre-existing
+     orphans. Commit: `fix: harden schema text and custom order refs`.
+101. **Email outbox HTML bounded** — schema/code fix.
+     `EmailOutbox.html` is now `@db.VarChar(200000)` and `enqueueEmailOutbox()`
+     caps queued HTML at the same code-point-safe limit before persistence.
+     Commit: `fix: harden schema text and custom order refs`.
+102. **Order payment-event descriptions bounded** — schema/code fix.
+     `OrderPaymentEvent.description` is now `@db.VarChar(5000)` and Stripe
+     webhook ledger writes sanitize/truncate descriptions through
+     `paymentEventDescription()`. Commit: `fix: harden schema text and custom order refs`.
 
 ## Verified Stale / Not Fixed
 
@@ -629,3 +641,8 @@ Last updated: 2026-05-21
     surfaces route through `sanitizeText()` or `sanitizeRichText()`.
 43. **Attachment filename surrogate-split gap** — stale claim. Attachment names
     use shared `truncateText()` rather than UTF-16 `slice()`.
+44. **Saved-search dedup race without DB unique** — stale as a race claim.
+    Current saved-search POST deduplicates and checks the per-user cap inside a
+    serializable transaction wrapped by `withSerializableRetry()`. A future
+    criteria-hash unique index would be additional defense-in-depth, but the
+    reported `findFirst + create` race is already guarded on `main`.

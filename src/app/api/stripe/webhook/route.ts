@@ -69,6 +69,11 @@ function snapshotSellerName(value: string | null | undefined) {
   return sanitizeUserName(value ?? "", 100);
 }
 
+function paymentEventDescription(value: string | null | undefined) {
+  const description = truncateText(sanitizeText(value ?? ""), 5000);
+  return description || null;
+}
+
 const STRIPE_DISPUTE_EVENT_TYPES = new Set([
   "charge.dispute.created",
   "charge.dispute.updated",
@@ -276,7 +281,7 @@ export async function POST(req: Request) {
         currency: (data.currency ?? "usd").toLowerCase(),
         status: data.status ?? null,
         reason: data.reason ?? null,
-        description: data.description ?? null,
+        description: paymentEventDescription(data.description),
         metadata: data.metadata ?? undefined,
       },
     });

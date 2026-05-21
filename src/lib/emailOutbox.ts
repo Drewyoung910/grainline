@@ -7,6 +7,7 @@ import { sendRenderedEmail } from "@/lib/email";
 import { shouldSendEmail } from "@/lib/notifications";
 import { redis } from "@/lib/ratelimit";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
+import { truncateText } from "@/lib/sanitize";
 import {
   emailOutboxProcessingStaleCutoff,
   emailOutboxDedupKey,
@@ -21,6 +22,7 @@ import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 2;
+export const EMAIL_OUTBOX_HTML_MAX_CHARS = 200_000;
 const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 
 export type QueuedEmail = {
@@ -106,7 +108,7 @@ export async function enqueueEmailOutbox(email: QueuedEmail) {
         userId: email.userId,
         preferenceKey: email.preferenceKey,
         subject: email.subject.slice(0, 300),
-        html: email.html,
+        html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
         dedupKey,
       },
     });

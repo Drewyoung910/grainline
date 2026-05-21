@@ -319,6 +319,7 @@ model Listing {
   packagedHeightCm    Float?
 
   contextConversations Conversation[]      @relation("ConversationContextListing")
+  customOrderConversation Conversation?   @relation("ListingCustomOrderConversation", fields: [customOrderConversationId], references: [id], onDelete: SetNull)
   stockNotifications   StockNotification[]
   viewDailies          ListingViewDaily[]
 
@@ -364,6 +365,7 @@ model Listing {
   @@index([priceCents])
   @@index([qualityScore])
   @@index([sellerId, updatedAt])
+  @@index([customOrderConversationId])
 }
 
 model Photo {
@@ -431,6 +433,7 @@ model Conversation {
 
   contextListingId String?
   contextListing   Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id])
+  customOrderListings Listing[] @relation("ListingCustomOrderConversation")
   archivedAAt      DateTime?
   archivedBAt      DateTime?
   firstResponseAt  DateTime?
@@ -634,7 +637,7 @@ model OrderPaymentEvent {
   currency         String   @default("usd") @db.VarChar(3)
   status           String?  @db.VarChar(100)
   reason           String?  @db.VarChar(255)
-  description      String?
+  description      String?  @db.VarChar(5000)
   metadata         Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -1035,7 +1038,7 @@ model EmailOutbox {
   userId         String?   @db.VarChar(191)
   preferenceKey String?   @db.VarChar(80)
   subject        String    @db.VarChar(300)
-  html           String
+  html           String    @db.VarChar(200000)
   dedupKey       String    @unique @db.VarChar(128)
   status         String    @default("PENDING") @db.VarChar(20)
   attempts       Int       @default(0)
