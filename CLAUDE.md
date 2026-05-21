@@ -2094,6 +2094,7 @@ Single-file redesign applied to `src/components/ListingCard.tsx`, propagating to
 - POST /api/admin/email — ADMIN-only; rate limited 10/hr via adminEmailRatelimit; Resend email with Grainline template
 - adminEmailRatelimit added to src/lib/ratelimit.ts (slidingWindow 10/1h)
 - src/app/admin/reviews/page.tsx — all reviews list with delete buttons (100 most recent)
+- SellerRatingSummary transaction rule: review create, buyer review edit/delete, and admin review delete call `refreshSellerRatingSummary(sellerProfileId, tx)` inside the same Prisma transaction as the review mutation. Do not move the rating-summary refresh back outside the transaction; concurrent reviews can otherwise write stale public rating/Guild metric state until the next refresh.
 - DeleteReviewButton, DeleteListingButton, AdminEmailForm in src/components/admin/
 - AdminEmailForm: expand/collapse pattern, collapses after successful send
 - Admin sidebar + mobile nav updated with Reviews link

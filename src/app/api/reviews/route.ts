@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   // Ensure no duplicate review
   const exists = await prisma.review.findFirst({
     where: { listingId, reviewerId: me.id },
-    select: { id: true },
+    select: { id: true, listing: { select: { sellerId: true } } },
   });
   if (exists) return NextResponse.json({ error: "Already reviewed" }, { status: 409 });
 
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
         paymentEvents: { none: blockingRefundLedgerWhere() },
       },
     },
-    select: { id: true },
+    select: { id: true, listing: { select: { sellerId: true } } },
   });
   if (!orderItem) {
     return NextResponse.json({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
@@ -171,6 +171,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      await refreshSellerRatingSummary(orderItem.listing.sellerId, tx);
       return r;
     });
   } catch (error) {
@@ -195,18 +196,6 @@ export async function POST(req: NextRequest) {
       },
     },
   });
-  if (listing?.seller.id) {
-    try {
-      await refreshSellerRatingSummary(listing.seller.id);
-    } catch (error) {
-      console.error("Failed to refresh seller rating summary after review create:", error);
-      Sentry.captureException(error, {
-        level: "warning",
-        tags: { source: "review_rating_summary_refresh" },
-        extra: { reviewId: created.id, listingId, sellerId: listing.seller.id },
-      });
-    }
-  }
   if (listing?.seller.userId && !listing.seller.user.banned && !listing.seller.user.deletedAt) {
     const stars = (ratingX2 / 2).toFixed(1).replace(".0", "");
     const reviewerName = me.name ?? me.email?.split("@")[0] ?? "Someone";

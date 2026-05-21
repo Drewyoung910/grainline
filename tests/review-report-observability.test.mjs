@@ -7,13 +7,23 @@ function source(path) {
 }
 
 describe("review/report/favorite observability hardening", () => {
+  it("keeps review rating summaries in the review write transaction", () => {
+    const createRoute = source("src/app/api/reviews/route.ts");
+    const editRoute = source("src/app/api/reviews/[id]/route.ts");
+
+    assert.match(createRoute, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(createRoute, /await refreshSellerRatingSummary\(orderItem\.listing\.sellerId, tx\)/);
+    assert.match(editRoute, /await refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)/);
+    assert.match(editRoute, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
+    assert.doesNotMatch(createRoute, /source: "review_rating_summary_refresh"/);
+    assert.doesNotMatch(editRoute, /source: "review_rating_summary_refresh"/);
+  });
+
   it("captures review side-effect failures with bounded identifiers", () => {
     const createRoute = source("src/app/api/reviews/route.ts");
     const editRoute = source("src/app/api/reviews/[id]/route.ts");
 
-    assert.match(createRoute, /source: "review_rating_summary_refresh"/);
     assert.match(createRoute, /source: "review_notification_email"/);
-    assert.match(editRoute, /source: "review_rating_summary_refresh"/);
     assert.match(editRoute, /source: "review_photo_cleanup_edit"/);
     assert.match(editRoute, /source: "review_photo_cleanup_delete"/);
     assert.match(editRoute, /Review photo cleanup skipped non-R2 media/);

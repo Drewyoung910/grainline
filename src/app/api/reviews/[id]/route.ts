@@ -149,17 +149,9 @@ export async function PATCH(
         sortOrder: i,
       })),
     });
+
+    await refreshSellerRatingSummary(r.listing.sellerId, tx);
   });
-  try {
-    await refreshSellerRatingSummary(r.listing.sellerId);
-  } catch (error) {
-    console.error("Failed to refresh seller rating summary after review edit:", error);
-    Sentry.captureException(error, {
-      level: "warning",
-      tags: { source: "review_rating_summary_refresh" },
-      extra: { reviewId: id, listingId: r.listingId, sellerId: r.listing.sellerId },
-    });
-  }
 
   const retainedUrls = new Set(photos);
   const removedPhotos = oldPhotos.filter((photo) => !retainedUrls.has(photo.url));
@@ -216,17 +208,10 @@ export async function DELETE(
     select: { url: true },
   });
 
-  await prisma.review.delete({ where: { id } });
-  try {
-    await refreshSellerRatingSummary(review.listing.sellerId);
-  } catch (error) {
-    console.error("Failed to refresh seller rating summary after review delete:", error);
-    Sentry.captureException(error, {
-      level: "warning",
-      tags: { source: "review_rating_summary_refresh" },
-      extra: { reviewId: id, listingId: review.listingId, sellerId: review.listing.sellerId },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await tx.review.delete({ where: { id } });
+    await refreshSellerRatingSummary(review.listing.sellerId, tx);
+  });
   const cleanupResults = await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
   captureReviewPhotoCleanupFailures({
     results: cleanupResults,

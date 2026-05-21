@@ -59,10 +59,12 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(route, /where: \{ id, resolved: false \}/);
   });
 
-  it("captures admin review cleanup failures without full media URLs", () => {
+  it("keeps admin review rating summaries transactional and cleanup telemetry bounded", () => {
     const route = source("src/app/api/admin/reviews/[id]/route.ts");
 
-    assert.match(route, /source: "admin_review_rating_summary_refresh"/);
+    assert.match(route, /await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(route, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
+    assert.doesNotMatch(route, /source: "admin_review_rating_summary_refresh"/);
     assert.match(route, /source: "admin_review_photo_cleanup"/);
     assert.match(route, /captureAdminReviewPhotoCleanupFailures/);
     assert.match(route, /const host = mediaUrlHost/);

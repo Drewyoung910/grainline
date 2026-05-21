@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 174.
-- Verified code/feature fix commits since 2026-05-13: 150.
+- Verified hardening/doc commits since 2026-05-13: 175.
+- Verified code/feature fix commits since 2026-05-13: 151.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 134 verified closed items in the 2026-05-14
+- Most recent reported pass total: 135 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -642,6 +642,11 @@ Last updated: 2026-05-21
      The monthly Guild metrics cron recalculates seller metrics immediately
      before revoking Guild Master status and clears the warning state instead
      if the seller has recovered during the 30-day grace window.
+135. **Seller rating summaries refresh inside review transactions** — aggregation race hardening.
+     Review create, buyer edit/delete, and admin delete now call
+     `refreshSellerRatingSummary(..., tx)` inside the same Prisma transaction
+     as the review mutation, preventing concurrent writes from leaving stale
+     public rating summaries until the next refresh.
 
 ## Verified Stale / Not Fixed
 
