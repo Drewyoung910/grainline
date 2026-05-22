@@ -1077,3 +1077,16 @@ Last updated: 2026-05-21
     phrases plus ChatML markers, `[INST]` blocks, and `Human:` role labels
     before seller-provided listing text is included in the AI review prompt.
     Regression coverage: `tests/ai-review-safety.test.mjs`.
+100. **Cart add/update reject obvious in-stock over-quantity before checkout**
+     — cart UX and state-consistency fix. The checkout routes still own the
+     authoritative atomic stock reservation, but `/api/cart/add` and
+     `/api/cart/update` now reject requested quantities above live
+     `stockQuantity` for in-stock listings so stale carts fail earlier with a
+     clear "Only N available" response. Regression coverage:
+     `tests/order-state-followups.test.mjs`.
+101. **Founding Maker grant failures are observable in production** —
+     operational hardening fix. `maybeGrantFoundingMaker()` remains non-fatal
+     to listing publication, but failures now capture a warning-level Sentry
+     exception tagged `founding_maker_grant` with bounded seller profile
+     context instead of disappearing silently in production. Regression
+     coverage: `tests/post-launch-ui-followups.test.mjs`.

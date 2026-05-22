@@ -79,6 +79,8 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /prisma\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \}/s);
     assert.match(text, /projectedDistinctItems > MAX_CART_DISTINCT_ITEMS/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
+    assert.match(text, /projectedItemQuantity > \(listing\.stockQuantity \?\? 0\)/);
+    assert.match(text, /Only \$\{listing\.stockQuantity \?\? 0\} available/);
   });
 
   it("keeps cart quantity updates under the cart-wide total item cap", () => {
@@ -87,6 +89,8 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /prisma\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \},\s*_sum: \{ quantity: true \},\s*\}\)/s);
     assert.match(text, /\(cartStats\._sum\.quantity \?\? 0\) - item\.quantity \+ quantity/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
+    assert.match(text, /quantity > \(listing\.stockQuantity \?\? 0\)/);
+    assert.match(text, /Only \$\{listing\.stockQuantity \?\? 0\} available/);
   });
 
   it("keeps checkout stock reservation tied to live active listing ownership", () => {

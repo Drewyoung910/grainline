@@ -112,6 +112,12 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
+      if (listing.listingType === "IN_STOCK" && quantity > (listing.stockQuantity ?? 0)) {
+        return NextResponse.json(
+          { error: `Only ${listing.stockQuantity ?? 0} available.` },
+          { status: 400 },
+        );
+      }
       const cartStats = await prisma.cartItem.aggregate({
         where: { cartId: cart.id },
         _sum: { quantity: true },

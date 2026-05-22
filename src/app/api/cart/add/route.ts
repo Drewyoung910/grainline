@@ -145,6 +145,12 @@ export async function POST(req: Request) {
     if (projectedItemQuantity > 99) {
       return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
     }
+    if (listing.listingType === "IN_STOCK" && projectedItemQuantity > (listing.stockQuantity ?? 0)) {
+      return NextResponse.json(
+        { error: `Only ${listing.stockQuantity ?? 0} available.` },
+        { status: 400 },
+      );
+    }
     const projectedDistinctItems = cartStats._count.id + (existingCartItem ? 0 : 1);
     if (projectedDistinctItems > MAX_CART_DISTINCT_ITEMS) {
       return NextResponse.json({ error: "Your cart can hold up to 50 different items." }, { status: 400 });
