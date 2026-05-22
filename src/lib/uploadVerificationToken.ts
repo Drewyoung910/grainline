@@ -146,13 +146,38 @@ function hasIsoBaseMediaFileSignature(bytes: Uint8Array) {
   return false;
 }
 
+function hasJpegSignature(bytes: Uint8Array) {
+  return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+}
+
+function hasPngSignature(bytes: Uint8Array) {
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  return bytes.length >= png.length && png.every((value, index) => bytes[index] === value);
+}
+
+function hasWebpSignature(bytes: Uint8Array) {
+  return bytes.length >= 12 && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP";
+}
+
 export function uploadFileSignatureMatches(bytes: Uint8Array, expectedContentType: string) {
   const contentType = expectedContentType.split(";")[0].trim().toLowerCase();
+  if (contentType === "image/jpeg") {
+    return hasJpegSignature(bytes);
+  }
+  if (contentType === "image/png") {
+    return hasPngSignature(bytes);
+  }
+  if (contentType === "image/webp") {
+    return hasWebpSignature(bytes);
+  }
+  if (contentType === "image/svg+xml") {
+    return false;
+  }
   if (contentType === "application/pdf") {
     return bytes.length >= 5 && ascii(bytes, 0, 5) === "%PDF-";
   }
   if (contentType === "video/mp4" || contentType === "video/quicktime") {
     return hasIsoBaseMediaFileSignature(bytes);
   }
-  return true;
+  return false;
 }

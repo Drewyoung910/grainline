@@ -29,6 +29,10 @@ const CYRILLIC_CONFUSABLES: Record<string, string> = {
   ј: "j",
 };
 const CYRILLIC_CONFUSABLE_CHARS = /[АаВЕеІіКкМНОоРрСсТтУуХхЈј]/g;
+const PROMPT_CONTROL_PHRASES =
+  /(?:\b(ignore|disregard|forget|override|bypass|skip|ignora|ignorar|ignorez|ignorer|oublie|oublier|oubliez|omite|omitir|anula|anular|descarta|descartar|desconsidera|desconsiderar)\b|忽略|無視|무시|игнорируй|забудь)/giu;
+const MODEL_CONTROL_MARKERS =
+  /(<\|im_(?:start|end)\|>|\[\/?INST\]|\b(system|assistant|developer|user|human)\s*:)/giu;
 
 function normalizeAIReviewUserText(input: string): string {
   return input
@@ -47,8 +51,8 @@ function truncateText(input: string, maxLength: number): string {
 
 export function redactPromptInjection(value: string): string {
   const redacted = normalizeAIReviewUserText(value)
-    .replace(/\b(ignore|disregard|forget|override|bypass|skip)\b/gi, "[redacted-command]")
-    .replace(/\b(system|assistant|developer|user)\s*:/gi, "[redacted-role]:")
+    .replace(PROMPT_CONTROL_PHRASES, "[redacted-command]")
+    .replace(MODEL_CONTROL_MARKERS, "[redacted-role]:")
     .replace(/\b(approved|confidence|flags)\s*[:=]/gi, "[redacted-field]=")
     .replace(/```/g, "`\u200b``");
   return truncateText(redacted, 4000);

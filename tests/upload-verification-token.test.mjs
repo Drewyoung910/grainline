@@ -117,7 +117,10 @@ describe("upload verification tokens", () => {
     );
   });
 
-  it("validates direct-upload file signatures for PDFs and videos", () => {
+  it("validates direct-upload file signatures for images, PDFs, and videos", () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const webp = new TextEncoder().encode("RIFFxxxxWEBPVP8 ");
     const pdf = new TextEncoder().encode("%PDF-1.7\n...");
     const mp4 = new Uint8Array([
       0x00, 0x00, 0x00, 0x18,
@@ -128,11 +131,19 @@ describe("upload verification tokens", () => {
     ]);
     const html = new TextEncoder().encode("<script>alert(1)</script>");
 
+    assert.equal(uploadFileSignatureMatches(jpeg, "image/jpeg"), true);
+    assert.equal(uploadFileSignatureMatches(png, "image/png"), true);
+    assert.equal(uploadFileSignatureMatches(webp, "image/webp"), true);
     assert.equal(uploadFileSignatureMatches(pdf, "application/pdf"), true);
     assert.equal(uploadFileSignatureMatches(mp4, "video/mp4"), true);
     assert.equal(uploadFileSignatureMatches(mp4, "video/quicktime"), true);
+    assert.equal(uploadFileSignatureMatches(html, "image/jpeg"), false);
+    assert.equal(uploadFileSignatureMatches(html, "image/png"), false);
+    assert.equal(uploadFileSignatureMatches(html, "image/webp"), false);
+    assert.equal(uploadFileSignatureMatches(html, "image/svg+xml"), false);
     assert.equal(uploadFileSignatureMatches(html, "application/pdf"), false);
     assert.equal(uploadFileSignatureMatches(html, "video/mp4"), false);
+    assert.equal(uploadFileSignatureMatches(html, "application/octet-stream"), false);
   });
 
   it("verifies uploaded object signatures before accepting direct uploads", () => {

@@ -1063,3 +1063,17 @@ Last updated: 2026-05-21
     than 60 seconds in the future instead of collapsing negative deltas to
     "just now". Regression coverage:
     `tests/post-launch-ui-followups.test.mjs`.
+98. **Upload signature checks fail closed for images and unknown content types**
+    — upload defense-in-depth fix. Current image uploads are server-processed
+    through Sharp before R2, and current presigned direct uploads are limited
+    to video/PDF, so Claude's Round 4 image-XSS severity was overstated for
+    current routes. The shared verifier was still hardened so JPEG, PNG, WebP,
+    PDF, MP4, and QuickTime content types require matching magic bytes, SVG is
+    explicitly rejected, and unknown content types no longer pass by default.
+    Regression coverage: `tests/upload-verification-token.test.mjs`.
+99. **AI-review prompt-injection redaction covers common non-English and
+    model-control markers** — AI safety hardening fix. `redactPromptInjection()`
+    now redacts common Spanish/French/Portuguese/CJK/Korean/Russian control
+    phrases plus ChatML markers, `[INST]` blocks, and `Human:` role labels
+    before seller-provided listing text is included in the AI review prompt.
+    Regression coverage: `tests/ai-review-safety.test.mjs`.
