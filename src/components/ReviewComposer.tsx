@@ -45,6 +45,8 @@ export default function ReviewComposer(props: {
     existing?.photos?.map((p) => p.url) ?? []
   );
   const [submitting, setSubmitting] = React.useState(false);
+  const ratingId = React.useId();
+  const commentId = React.useId();
   const photoUrlsRef = React.useRef(photoUrls);
   React.useEffect(() => {
     photoUrlsRef.current = photoUrls;
@@ -127,13 +129,15 @@ export default function ReviewComposer(props: {
         <h3 className="font-medium">{editing ? "Edit your review" : "Write a review"}</h3>
         {/* Star preview + numeric select */}
         <div className="flex items-center gap-3">
-          <div className="relative leading-none" title={`${stars.toFixed(1)} out of 5`}>
-            <div className="text-neutral-300">★★★★★</div>
-            <div className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
+          <div className="relative leading-none" title={`${stars.toFixed(1)} out of 5`} role="img" aria-label={`${stars.toFixed(1)} out of 5 stars`}>
+            <div className="text-neutral-300" aria-hidden="true">★★★★★</div>
+            <div className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }} aria-hidden="true">
               <div className="text-amber-500">★★★★★</div>
             </div>
           </div>
+          <label htmlFor={ratingId} className="sr-only">Rating</label>
           <select
+            id={ratingId}
             className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
             value={ratingX2}
             onChange={(e) => setRatingX2(parseInt(e.target.value, 10))}
@@ -147,7 +151,9 @@ export default function ReviewComposer(props: {
         </div>
       </div>
 
+      <label htmlFor={commentId} className="sr-only">Review comment</label>
       <textarea
+        id={commentId}
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         rows={4}

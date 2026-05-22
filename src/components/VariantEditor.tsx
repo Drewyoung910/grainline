@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useId } from "react";
 import { parseMoneyInputToCents } from "@/lib/money";
 
 export type VariantGroupData = {
@@ -29,6 +29,7 @@ export default function VariantEditor({
   const [groups, setGroups] = useState<VariantGroupData[]>(initialGroups);
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
   const [focusedPriceKey, setFocusedPriceKey] = useState<string | null>(null);
+  const baseId = useId();
   const isMadeToOrder = listingType === "MADE_TO_ORDER";
 
   const addGroup = useCallback(() => {
@@ -157,7 +158,11 @@ export default function VariantEditor({
             </label>
             {group.options.map((opt, oi) => (
               <div key={oi} className="flex items-center gap-2">
+                <label htmlFor={`${baseId}-group-${gi}-option-${oi}-label`} className="sr-only">
+                  {group.name ? `${group.name} option ${oi + 1}` : `Option ${oi + 1} name`}
+                </label>
                 <input
+                  id={`${baseId}-group-${gi}-option-${oi}-label`}
                   type="text"
                   value={opt.label}
                   onChange={(e) => updateOption(gi, oi, "label", e.target.value)}
@@ -166,8 +171,12 @@ export default function VariantEditor({
                   className="flex-1 border border-neutral-200 bg-white rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-300"
                 />
                 <div className="relative w-28">
+                  <label htmlFor={`${baseId}-group-${gi}-option-${oi}-price`} className="sr-only">
+                    {group.name ? `${group.name} option ${oi + 1} price adjustment` : `Option ${oi + 1} price adjustment`}
+                  </label>
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-neutral-500">$</span>
                   <input
+                    id={`${baseId}-group-${gi}-option-${oi}-price`}
                     type="text"
                     inputMode="decimal"
                     pattern={"[+-]?(\\d+(\\.\\d{1,2})?|\\.\\d{1,2})"}

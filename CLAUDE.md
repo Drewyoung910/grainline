@@ -729,6 +729,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 | `api/clerk/webhook/route.ts` | `sendWelcomeBuyer` (user.created) — always |
 | `dashboard/listings/new/page.tsx` | `sendFirstListingCongrats` (always, if count=1); `sendNewListingFromFollowedMakerEmail` per follower (respects `EMAIL_FOLLOWED_MAKER_NEW_LISTING`) |
 | `messages/[id]/page.tsx` | `sendNewMessageEmail` (respects `EMAIL_NEW_MESSAGE`, 5-min atomic per-conversation throttle) |
+| `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
 
 ### Email/audit behavior future agents must preserve
 
@@ -738,7 +739,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 ### Accessibility behavior future agents must preserve
 
 - Interactive state controls need machine-readable state, not only visible text. `FollowButton` uses `aria-pressed`, unread badges expose an unread-message label while hiding the bare number from AT, compact `GuildBadge` buttons keep `aria-label={label}`, and admin email fields have explicit `htmlFor`/`id` labels plus `role="status"` send feedback.
-| `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
+- Form controls need programmatic labels, not placeholder-only instructions. Blog comments, review composition, shipping rate choices, browse filters, listing-type toggles, and variant option/price rows all use `htmlFor`/`id`, `fieldset`/`legend`, or radio-group ARIA as appropriate.
 
 **Emails are live once `RESEND_API_KEY` + `EMAIL_FROM` env vars are set and the sending domain is verified in Resend.**
 

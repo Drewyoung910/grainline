@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 189.
-- Verified code/feature fix commits since 2026-05-13: 165.
+- Verified hardening/doc commits since 2026-05-13: 197.
+- Verified code/feature fix commits since 2026-05-13: 173.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 149 verified closed items in the 2026-05-14
+- Most recent reported pass total: 157 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -871,4 +871,37 @@ Last updated: 2026-05-21
 61. **Unread badge count lacked context for screen readers** — accessibility fix.
     Unread badges now announce "`N` unread message(s)" and hide the bare visual
     number from assistive tech. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+62. **Blog comment form textarea lacked a programmatic label** — accessibility
+    fix. Blog comments/replies now label the textarea, connect error text via
+    `aria-describedby`, and expose errors as alerts. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+63. **Review composition controls lacked labels** — accessibility fix. The
+    rating select and comment textarea now have programmatic labels. Regression
+    coverage:
+    `tests/accessibility-followups.test.mjs`.
+64. **Shipping rate choices lacked group semantics** — accessibility fix.
+    Shipping rates now render inside a `fieldset` with a seller-specific
+    `legend`, preserving the existing radio inputs. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+65. **Browse filter radio/price/location controls lacked fieldsets and labels**
+    — accessibility fix. Listing type, price range, and location radius now use
+    semantic grouping and per-input labels; category/rating/sort/ships controls
+    also have explicit `htmlFor`/`id` pairs. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+66. **Listing type toggle buttons lacked radio semantics** — accessibility fix.
+    Listing create/edit type toggles now expose a radiogroup and radio checked
+    state while keeping the existing visual button design. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+67. **Variant editor option rows were placeholder-only** — accessibility fix.
+    Variant option name and price-adjustment inputs now have row-specific
+    screen-reader labels generated from a stable component id. Regression
+    coverage: `tests/accessibility-followups.test.mjs`.
+68. **Review star preview was decorative-only** — accessibility fix. Review
+    composer star display now has `role="img"` with the actual rating label and
+    hides the decorative fill layers. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+69. **Browse filter standalone labels were not associated with controls** —
+    accessibility fix. Category, ships-within, minimum rating, and sort controls
+    now use explicit labels tied to input/select ids. Regression coverage:
     `tests/accessibility-followups.test.mjs`.

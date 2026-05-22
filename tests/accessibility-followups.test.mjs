@@ -91,4 +91,51 @@ describe("accessibility follow-ups", () => {
     assert.match(unread, /aria-hidden="true"/);
     assert.match(guild, /aria-label=\{label\}/);
   });
+
+  it("labels comment and review authoring controls", () => {
+    const blogComment = source("src/components/BlogCommentForm.tsx");
+    const reviewComposer = source("src/components/ReviewComposer.tsx");
+
+    assert.match(blogComment, /htmlFor=\{bodyId\}/);
+    assert.match(blogComment, /id=\{bodyId\}/);
+    assert.match(blogComment, /aria-invalid=\{status === "error"\}/);
+    assert.match(blogComment, /role="alert"/);
+    assert.match(reviewComposer, /htmlFor=\{ratingId\}/);
+    assert.match(reviewComposer, /id=\{ratingId\}/);
+    assert.match(reviewComposer, /htmlFor=\{commentId\}/);
+    assert.match(reviewComposer, /id=\{commentId\}/);
+    assert.match(reviewComposer, /role="img"/);
+    assert.match(reviewComposer, /aria-label=\{`\$\{stars\.toFixed\(1\)\} out of 5 stars`\}/);
+  });
+
+  it("groups checkout and browse filters with accessible legends and labels", () => {
+    const shippingRates = source("src/components/ShippingRateSelector.tsx");
+    const filters = source("src/components/FilterSidebar.tsx");
+
+    assert.match(shippingRates, /<fieldset className="space-y-2">/);
+    assert.match(shippingRates, /<legend className="text-sm font-medium text-neutral-500">Shipping from/);
+    assert.match(filters, /<fieldset>/);
+    assert.match(filters, /<legend className="font-medium mb-1.5">Listing type<\/legend>/);
+    assert.match(filters, /<legend className="font-medium mb-1.5">Price \(USD\)<\/legend>/);
+    assert.match(filters, /<legend className="font-medium mb-1.5">Near location<\/legend>/);
+    assert.match(filters, /htmlFor=\{`\$\{baseId\}-min`\}/);
+    assert.match(filters, /htmlFor=\{`\$\{baseId\}-max`\}/);
+    assert.match(filters, /htmlFor=\{`\$\{baseId\}-radius`\}/);
+  });
+
+  it("gives listing type and variant editor controls machine-readable labels", () => {
+    const listingTypeFields = source("src/components/ListingTypeFields.tsx");
+    const variantEditor = source("src/components/VariantEditor.tsx");
+
+    assert.match(listingTypeFields, /role="radiogroup"/);
+    assert.match(listingTypeFields, /aria-labelledby=\{listingTypeLabelId\}/);
+    assert.match(listingTypeFields, /role="radio"/);
+    assert.match(listingTypeFields, /aria-checked=\{type === "MADE_TO_ORDER"\}/);
+    assert.match(listingTypeFields, /aria-checked=\{type === "IN_STOCK"\}/);
+    assert.match(variantEditor, /useId/);
+    assert.match(variantEditor, /htmlFor=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-label`\}/);
+    assert.match(variantEditor, /id=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-label`\}/);
+    assert.match(variantEditor, /htmlFor=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-price`\}/);
+    assert.match(variantEditor, /id=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-price`\}/);
+  });
 });

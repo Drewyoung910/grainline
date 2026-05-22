@@ -6,6 +6,7 @@ import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 
 export default function FilterSidebar({ popularTags }: { popularTags: string[] }) {
   const searchParams = useSearchParams();
+  const baseId = React.useId();
   const q = searchParams.get("q") ?? "";
   const selectedTags = searchParams.getAll("tag");
   const view = searchParams.get("view") ?? "grid";
@@ -74,8 +75,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
       {/* Category */}
       <div>
-        <label className="block font-medium mb-1.5">Category</label>
+        <label htmlFor={`${baseId}-category`} className="block font-medium mb-1.5">Category</label>
         <select
+          id={`${baseId}-category`}
           name="category"
           defaultValue={currentCategory}
           className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -90,8 +92,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
       </div>
 
       {/* Listing type */}
-      <div>
-        <div className="font-medium mb-1.5">Listing type</div>
+      <fieldset>
+        <legend className="font-medium mb-1.5">Listing type</legend>
         <div className="space-y-1.5">
           {[
             { value: "", label: "All" },
@@ -110,12 +112,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       {/* Ships within */}
       <div>
-        <label className="block font-medium mb-1.5">Ships within (days)</label>
+        <label htmlFor={`${baseId}-ships`} className="block font-medium mb-1.5">Ships within (days)</label>
         <input
+          id={`${baseId}-ships`}
           name="ships"
           type="number"
           inputMode="numeric"
@@ -128,8 +131,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
 
       {/* Min seller rating */}
       <div>
-        <label className="block font-medium mb-1.5">Min seller rating</label>
+        <label htmlFor={`${baseId}-rating`} className="block font-medium mb-1.5">Min seller rating</label>
         <select
+          id={`${baseId}-rating`}
           name="rating"
           defaultValue={currentRating}
           className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -142,10 +146,12 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
       </div>
 
       {/* Price range */}
-      <div>
-        <div className="font-medium mb-1.5">Price (USD)</div>
+      <fieldset>
+        <legend className="font-medium mb-1.5">Price (USD)</legend>
         <div className="flex items-center gap-2">
+          <label htmlFor={`${baseId}-min`} className="sr-only">Minimum price</label>
           <input
+            id={`${baseId}-min`}
             name="min"
             type="text"
             inputMode="decimal"
@@ -155,7 +161,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
           <span className="text-neutral-500 shrink-0">–</span>
+          <label htmlFor={`${baseId}-max`} className="sr-only">Maximum price</label>
           <input
+            id={`${baseId}-max`}
             name="max"
             type="text"
             inputMode="decimal"
@@ -165,12 +173,13 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
         </div>
-      </div>
+      </fieldset>
 
       {/* Sort */}
       <div>
-        <label className="block font-medium mb-1.5">Sort by</label>
+        <label htmlFor={`${baseId}-sort`} className="block font-medium mb-1.5">Sort by</label>
         <select
+          id={`${baseId}-sort`}
           name="sort"
           defaultValue={currentSort}
           className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
@@ -184,8 +193,8 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
       </div>
 
       {/* Location */}
-      <div>
-        <div className="font-medium mb-1.5">Near location</div>
+      <fieldset>
+        <legend className="font-medium mb-1.5">Near location</legend>
         <div className="space-y-1.5">
           <button
             type="button"
@@ -199,7 +208,9 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
               {geoLat}, {geoLng}
             </div>
           )}
+          <label htmlFor={`${baseId}-radius`} className="sr-only">Radius in miles</label>
           <input
+            id={`${baseId}-radius`}
             name="radius"
             type="number"
             inputMode="numeric"
@@ -209,7 +220,7 @@ export default function FilterSidebar({ popularTags }: { popularTags: string[] }
             className="w-full rounded-md border border-neutral-200 bg-[#F7F5F0] text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           />
         </div>
-      </div>
+      </fieldset>
 
       <div className="flex gap-2">
         <button

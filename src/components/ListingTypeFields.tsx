@@ -21,6 +21,7 @@ export default function ListingTypeFields({
   onListingTypeChange?: (type: "MADE_TO_ORDER" | "IN_STOCK") => void;
 }) {
   const [type, setType] = React.useState<"MADE_TO_ORDER" | "IN_STOCK">(listingType);
+  const listingTypeLabelId = React.useId();
   function changeType(nextType: "MADE_TO_ORDER" | "IN_STOCK") {
     setType(nextType);
     onListingTypeChange?.(nextType);
@@ -46,11 +47,13 @@ export default function ListingTypeFields({
       </div>
 
       {/* Listing type */}
-      <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-2">Listing type</label>
+      <div role="radiogroup" aria-labelledby={listingTypeLabelId}>
+        <p id={listingTypeLabelId} className="block text-sm font-medium text-neutral-700 mb-2">Listing type</p>
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
+            role="radio"
+            aria-checked={type === "MADE_TO_ORDER"}
             onClick={() => changeType("MADE_TO_ORDER")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "MADE_TO_ORDER"
@@ -62,6 +65,8 @@ export default function ListingTypeFields({
           </button>
           <button
             type="button"
+            role="radio"
+            aria-checked={type === "IN_STOCK"}
             onClick={() => changeType("IN_STOCK")}
             className={`rounded-md border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
               type === "IN_STOCK"
