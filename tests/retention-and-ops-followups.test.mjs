@@ -26,6 +26,15 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(route, /webhookEventsPruned/);
   });
 
+  it("keeps refund-lock release failures isolated from notification pruning", () => {
+    const route = readFileSync("src/app/api/cron/notification-prune/route.ts", "utf8");
+
+    assert.match(route, /releaseStaleRefundLocksForPrune\(\)/);
+    assert.match(route, /Sentry\.captureException\(error, \{ tags: \{ source: "cron_refund_lock_release" \} \}\)/);
+    assert.match(route, /staleRefundLocksReleaseFailed/);
+    assert.doesNotMatch(route, /releaseStaleRefundLocks\(\),/);
+  });
+
   it("retains processed webhook events for 90 days only", () => {
     const now = new Date("2026-05-21T12:00:00.000Z");
     const cutoff = webhookRetention.webhookEventRetentionCutoff(now);

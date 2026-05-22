@@ -994,3 +994,17 @@ Last updated: 2026-05-21
     closed with `approved: false`, confidence `0`, bounded text, and padded
     fallback alt text. Regression coverage:
     `tests/ai-review-result-state.test.mjs`.
+88. **Reverse-geocode Nominatim throttle fails closed under shared-lock pressure**
+    — third-party policy hardening fix. `reverseGeocode()` now requires the
+    shared Redis Nominatim lock before calling OpenStreetMap and skips external
+    geocoding with Sentry telemetry when Redis is unavailable or the lock stays
+    contended. It no longer falls back to per-instance local throttling, which
+    cannot enforce a global 1 req/sec limit across Vercel instances. Regression
+    coverage: `tests/reverse-geocode-throttle.test.mjs`.
+89. **Refund-lock cleanup no longer masks notification-prune health** — cron
+    observability fix. The daily notification prune still releases stale refund
+    locks as a side job, but refund-lock release errors are now caught and sent
+    to Sentry with source `cron_refund_lock_release` instead of failing the
+    notification/email/webhook retention cleanup under the generic
+    `cron_notification_prune` source. Regression coverage:
+    `tests/retention-and-ops-followups.test.mjs`.

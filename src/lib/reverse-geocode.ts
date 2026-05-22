@@ -4,6 +4,7 @@
 // Never crashes — all errors return null.
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { redis } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 
 const STATE_CODES: Record<string, string> = {
   Alabama: "al", Alaska: "ak", Arizona: "az", Arkansas: "ar", California: "ca",
@@ -20,19 +21,8 @@ const STATE_CODES: Record<string, string> = {
   Wisconsin: "wi", Wyoming: "wy",
 };
 
-let lastRequestTime = 0;
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForLocalThrottle() {
-  const now = Date.now();
-  const elapsed = now - lastRequestTime;
-  if (elapsed < 1100) {
-    await sleep(1100 - elapsed);
-  }
-  lastRequestTime = Date.now();
 }
 
 async function waitForSharedThrottle() {
@@ -43,11 +33,14 @@ async function waitForSharedThrottle() {
       await sleep(200);
     }
   } catch (error) {
-    console.error("[reverse-geocode] shared throttle unavailable; skipping external geocode:", error);
+    Sentry.captureException(error, { tags: { source: "reverse_geocode_throttle" } });
     return false;
   }
-  await waitForLocalThrottle();
-  return true;
+  Sentry.captureMessage("Reverse geocode shared throttle contention exceeded", {
+    level: "warning",
+    tags: { source: "reverse_geocode_throttle" },
+  });
+  return false;
 }
 
 async function throttledFetch(url: string): Promise<Response | null> {

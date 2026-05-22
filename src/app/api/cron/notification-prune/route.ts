@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       const [readPruned, unreadPruned, staleRefundLocks, emailOutboxPruned, webhookEventsPruned] = await Promise.all([
         pruneReadNotifications(readCutoff),
         pruneUnreadNotifications(unreadCutoff),
-        releaseStaleRefundLocks(),
+        releaseStaleRefundLocksForPrune(),
         pruneEmailOutboxRetention(),
         pruneWebhookEventRetention(),
       ]);
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         unreadPruned: unreadPruned.count,
         unreadPruneComplete: unreadPruned.complete,
         staleRefundLocksReleased: staleRefundLocks.count,
+        staleRefundLocksReleaseFailed: staleRefundLocks.failed,
         emailOutboxPruned: emailOutboxPruned.count,
         emailOutboxPruneComplete: emailOutboxPruned.complete,
         webhookEventsPruned: webhookEventsPruned.count,
@@ -51,6 +52,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Prune failed" }, { status: 500 });
     }
   });
+}
+
+async function releaseStaleRefundLocksForPrune(): Promise<{ count: number; failed: boolean }> {
+  try {
+    const result = await releaseStaleRefundLocks();
+    return { count: result.count, failed: false };
+  } catch (error) {
+    Sentry.captureException(error, { tags: { source: "cron_refund_lock_release" } });
+    return { count: 0, failed: true };
+  }
 }
 
 async function pruneReadNotifications(cutoff: Date): Promise<{ count: number; complete: boolean }> {
