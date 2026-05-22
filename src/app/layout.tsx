@@ -174,7 +174,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {/* Bottom bar — copyright + trust note */}
               <div className="border-t border-stone-200/15 pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-stone-300/80">
                 <p>&copy; {new Date().getFullYear()} Grainline LLC. All rights reserved.</p>
-                <p className="text-stone-300/60">Built in Texas. Handmade pieces, real makers, fair fees.</p>
+                <p className="text-stone-100">Built in Texas. Handmade pieces, real makers, fair fees.</p>
               </div>
             </div>
           </footer>

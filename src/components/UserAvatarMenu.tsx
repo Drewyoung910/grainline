@@ -90,12 +90,11 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
       {open && (
         <div
           id={menuId}
-          role="menu"
           aria-label="Account"
           className={`absolute right-0 z-[200] w-52 rounded-xl border border-neutral-100 bg-white text-neutral-900 shadow-lg ${dropDirection === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
         >
           {/* Header — avatar + name */}
-          <div role="presentation" className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-100">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 ring-1 ring-neutral-200 shadow-sm">
               {avatarSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -114,7 +113,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             {!hasSeller && (
               <Link
                 href="/dashboard"
-                role="menuitem"
                 className="flex items-center px-4 py-2.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
                 onClick={() => setOpen(false)}
               >
@@ -123,7 +121,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             )}
             <Link
               href="/account"
-              role="menuitem"
               className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
               onClick={() => setOpen(false)}
             >
@@ -132,7 +129,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             {hasSeller && (
               <Link
                 href="/dashboard"
-                role="menuitem"
                 className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
                 onClick={() => setOpen(false)}
               >
@@ -141,7 +137,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             )}
             <Link
               href="/account/feed"
-              role="menuitem"
               className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
               onClick={() => setOpen(false)}
             >
@@ -150,18 +145,16 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
             {isAdmin && (
               <Link
                 href="/admin"
-                role="menuitem"
                 className="flex items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"
                 onClick={() => setOpen(false)}
               >
                 Admin
               </Link>
             )}
-            <div role="separator" className="border-t border-neutral-100 my-1" />
+            <div className="border-t border-neutral-100 my-1" />
 
             <button
               type="button"
-              role="menuitem"
               onClick={() => {
                 openUserProfile({
                   appearance: {
@@ -178,7 +171,6 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
 
             <button
               type="button"
-              role="menuitem"
               onClick={async () => {
                 setOpen(false);
                 clearRecentlyViewed();

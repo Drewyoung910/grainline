@@ -171,4 +171,23 @@ describe("accessibility follow-ups", () => {
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
     assert.match(home, /<svg aria-hidden="true" width="24" height="24"/);
   });
+
+  it("keeps account popover and rating slider semantics honest", () => {
+    const avatarMenu = source("src/components/UserAvatarMenu.tsx");
+    const starInput = source("src/components/StarInput.tsx");
+    const layout = source("src/app/layout.tsx");
+
+    assert.doesNotMatch(avatarMenu, /role="menu"/);
+    assert.doesNotMatch(avatarMenu, /role="menuitem"/);
+    assert.match(starInput, /role="slider"/);
+    assert.match(starInput, /tabIndex=\{0\}/);
+    assert.match(starInput, /aria-valuetext=\{`\$\{\(valueX2 \/ 2\)\.toFixed\(1\)\} out of 5 stars`\}/);
+    assert.match(starInput, /ArrowRight/);
+    assert.match(starInput, /ArrowLeft/);
+    assert.match(starInput, /Home/);
+    assert.match(starInput, /End/);
+    assert.match(starInput, /htmlFor=\{selectId\}/);
+    assert.match(layout, /text-stone-100/);
+    assert.doesNotMatch(layout, /text-stone-300\/60/);
+  });
 });

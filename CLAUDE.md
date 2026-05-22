@@ -741,6 +741,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - Interactive state controls need machine-readable state, not only visible text. `FollowButton` uses `aria-pressed`, unread badges expose an unread-message label while hiding the bare number from AT, compact `GuildBadge` buttons keep `aria-label={label}`, and admin email fields have explicit `htmlFor`/`id` labels plus `role="status"` send feedback.
 - Form controls need programmatic labels, not placeholder-only instructions. Blog comments, review composition, shipping rate choices, browse filters, listing-type toggles, and variant option/price rows all use `htmlFor`/`id`, `fieldset`/`legend`, or radio-group ARIA as appropriate.
 - Autocomplete and compact icon controls need explicit semantics. `AddressAutocomplete` follows the combobox/listbox/option pattern with arrow-key selection, PDF links include SR-only "opens in a new tab" copy, decorative close/scroll glyphs are `aria-hidden`, and small favorite buttons keep at least a `p-2.5` target.
+- Do not use ARIA `role="menu"` unless arrow-key menu behavior is implemented. Plain account popovers should stay plain links/buttons. Rating sliders (`StarInput`) must be keyboard-operable with Arrow/Home/End and expose `aria-valuetext`.
 
 **Emails are live once `RESEND_API_KEY` + `EMAIL_FROM` env vars are set and the sending domain is verified in Resend.**
 

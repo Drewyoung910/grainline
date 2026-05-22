@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 203.
-- Verified code/feature fix commits since 2026-05-13: 179.
+- Verified hardening/doc commits since 2026-05-13: 206.
+- Verified code/feature fix commits since 2026-05-13: 182.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 163 verified closed items in the 2026-05-14
+- Most recent reported pass total: 166 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -928,3 +928,15 @@ Last updated: 2026-05-21
 75. **Homepage scroll indicator SVG was decorative but exposed** —
     accessibility polish. The scroll chevron is now `aria-hidden`. Regression
     coverage: `tests/accessibility-followups.test.mjs`.
+76. **Account popover used menu roles without menu keyboard behavior** —
+    accessibility fix. `UserAvatarMenu` now stays a plain link/button popover,
+    avoiding ARIA `menu`/`menuitem` promises it does not implement. Regression
+    coverage: `tests/accessibility-followups.test.mjs`.
+77. **StarInput slider lacked keyboard controls** — accessibility fix. The star
+    slider now supports Arrow/Home/End keys, exposes `aria-valuetext`, and
+    labels its fallback select. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+78. **Footer sub-line contrast was too low** — accessibility fix. The Texas
+    footer sub-line now uses solid `text-stone-100` instead of translucent
+    `text-stone-300/60`. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
