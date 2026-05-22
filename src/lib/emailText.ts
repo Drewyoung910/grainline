@@ -55,6 +55,7 @@ function normalizeDecodedEmailText(text: string): string {
 
 export function htmlToText(html: string): string {
   const stripped = html
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -62,7 +63,13 @@ export function htmlToText(html: string): string {
     .replace(/<\/(p|div|h1|h2|h3|li|tr)>/gi, "\n")
     .replace(/<[^>]+>/g, "");
 
-  const lines = normalizeDecodedEmailText(decodeHtmlEntities(stripped))
+  const decoded = normalizeDecodedEmailText(decodeHtmlEntities(stripped))
+    .replace(/<head[\s\S]*?<\/head>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, "");
+
+  const lines = decoded
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map(formatPlainTextLine);

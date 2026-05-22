@@ -147,39 +147,31 @@ async function recordTransientFailure(
 
   const now = new Date();
   const windowStart = new Date(now.getTime() - TRANSIENT_FAILURE_WINDOW_MS);
-  const existing = await prisma.emailFailureCount.findUnique({
-    where: { email: normalized },
-    select: { firstFailedAt: true },
-  });
+  const failures = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
+    INSERT INTO "EmailFailureCount" (
+      email,
+      count,
+      "firstFailedAt",
+      "lastFailedAt",
+      "lastEventId"
+    )
+    VALUES (${normalized}, 1, ${now}, ${now}, ${eventId})
+    ON CONFLICT (email) DO UPDATE SET
+      count = CASE
+        WHEN "EmailFailureCount"."firstFailedAt" < ${windowStart} THEN 1
+        ELSE "EmailFailureCount".count + 1
+      END,
+      "firstFailedAt" = CASE
+        WHEN "EmailFailureCount"."firstFailedAt" < ${windowStart} THEN ${now}
+        ELSE "EmailFailureCount"."firstFailedAt"
+      END,
+      "lastFailedAt" = ${now},
+      "lastEventId" = ${eventId}
+    RETURNING count
+  `);
+  const failureCount = Number(failures[0]?.count ?? 0);
 
-  const failure =
-    !existing || existing.firstFailedAt < windowStart
-      ? await prisma.emailFailureCount.upsert({
-          where: { email: normalized },
-          create: {
-            email: normalized,
-            count: 1,
-            firstFailedAt: now,
-            lastFailedAt: now,
-            lastEventId: eventId,
-          },
-          update: {
-            count: 1,
-            firstFailedAt: now,
-            lastFailedAt: now,
-            lastEventId: eventId,
-          },
-        })
-      : await prisma.emailFailureCount.update({
-          where: { email: normalized },
-          data: {
-            count: { increment: 1 },
-            lastFailedAt: now,
-            lastEventId: eventId,
-          },
-        });
-
-  if (failure.count < TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD) return false;
+  if (failureCount < TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD) return false;
 
   await suppressEmail({
     email: normalized,

@@ -81,6 +81,10 @@ describe("account and privacy route observability guardrails", () => {
     assert.match(route, /safeResendWebhookDetails\(event, id, emails\)/);
     assert.match(route, /const TRANSIENT_FAILURE_SUPPRESSION_THRESHOLD = 5/);
     assert.match(route, /return type === "email\.failed"/);
+    assert.match(route, /INSERT INTO "EmailFailureCount"/);
+    assert.match(route, /ON CONFLICT \(email\) DO UPDATE SET/);
+    assert.match(route, /"EmailFailureCount"\."firstFailedAt" < \$\{windowStart\}/);
+    assert.doesNotMatch(route, /emailFailureCount\.findUnique/);
     assert.doesNotMatch(route, /email\.delivery_delayed/);
     assert.doesNotMatch(route, /details: event as unknown as Prisma\.InputJsonValue/);
     assert.match(route, /source: "resend_webhook_mark_failed"/);

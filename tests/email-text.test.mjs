@@ -32,4 +32,9 @@ describe("email text rendering", () => {
 
     assert.equal(text, "Item | Qty | Price\nWalnut bench | x2 | $450.00\nSubtotal | $900.00");
   });
+
+  it("does not reintroduce decoded HTML tags into plain-text fallback", () => {
+    assert.equal(htmlToText("<p>&lt;script&gt;alert(1)&lt;/script&gt;Chair</p>"), "Chair");
+    assert.equal(htmlToText("<head><title>Hidden</title></head><body><p>Hello</p></body>"), "Hello");
+  });
 });

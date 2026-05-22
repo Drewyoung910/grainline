@@ -951,3 +951,20 @@ Last updated: 2026-05-21
     reads both block directions, excludes deleted participants, and derives
     seller-profile blocks from the blocked user set so privacy filtering cannot
     silently drift across seller/listing/blog/message surfaces.
+81. **Email plaintext fallbacks no longer reintroduce decoded markup** —
+    security/UX fix. `htmlToText()` removes head/style/script blocks before
+    tag stripping and repeats the tag-removal pass after entity decoding, so
+    escaped user content cannot show up as raw-looking `<script>` markup in
+    plaintext emails. Regression coverage: `tests/email-text.test.mjs`.
+82. **Resend transient-failure counting is atomic** — reliability fix.
+    `/api/resend/webhook` now records final `email.failed` events through one
+    `INSERT ... ON CONFLICT ... DO UPDATE` statement, preserving the existing
+    five-failure/30-day suppression threshold without under-counting concurrent
+    webhook deliveries. Regression coverage:
+    `tests/account-privacy-observability.test.mjs`.
+83. **Round 2 top chained-exploit claims re-verified against current main** —
+    stale/closed audit sweep. Claude #349 (similar-listing block bypass), #350
+    (sanitize/entity XSS chain), #351 (Founding Maker number race), #353
+    (dev make-order production gate), and #354 (saved-search amplification)
+    are already fixed on current `main` with existing guardrails covering the
+    relevant behavior. No code changes were needed for those five claims.
