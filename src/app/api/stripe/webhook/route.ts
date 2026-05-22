@@ -78,6 +78,16 @@ function paymentEventDescription(value: string | null | undefined) {
   return description || null;
 }
 
+type CheckoutSessionShippingDetails = {
+  shipping_details?: {
+    address?: Record<string, string | null> | null;
+  } | null;
+};
+
+function checkoutSessionShippingAddress(session: Stripe.Checkout.Session) {
+  return (session as Stripe.Checkout.Session & CheckoutSessionShippingDetails).shipping_details?.address ?? null;
+}
+
 const STRIPE_DISPUTE_EVENT_TYPES = new Set([
   "charge.dispute.created",
   "charge.dispute.updated",
@@ -577,12 +587,13 @@ export async function POST(req: Request) {
 
       const buyerEmail: string | undefined = s.customer_details?.email || undefined;
       const buyerName: string | undefined = sessionMeta.quotedToName ?? s.customer_details?.name ?? undefined;
-      const shipToLine1 = sessionMeta.quotedToLine1 ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.line1 ?? null;
-      const shipToLine2 = sessionMeta.quotedToLine2 ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.line2 ?? null;
-      const shipToCity = sessionMeta.quotedToCity ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.city ?? null;
-      const shipToState = sessionMeta.quotedToState ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.state ?? null;
-      const shipToPostalCode = sessionMeta.quotedToPostalCode ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.postal_code ?? null;
-      const shipToCountry = sessionMeta.quotedToCountry ?? (s as unknown as { shipping_details?: { address?: Record<string, string | null> | null } }).shipping_details?.address?.country ?? "US";
+      const shipAddress = checkoutSessionShippingAddress(s);
+      const shipToLine1 = sessionMeta.quotedToLine1 ?? shipAddress?.line1 ?? null;
+      const shipToLine2 = sessionMeta.quotedToLine2 ?? shipAddress?.line2 ?? null;
+      const shipToCity = sessionMeta.quotedToCity ?? shipAddress?.city ?? null;
+      const shipToState = sessionMeta.quotedToState ?? shipAddress?.state ?? null;
+      const shipToPostalCode = sessionMeta.quotedToPostalCode ?? shipAddress?.postal_code ?? null;
+      const shipToCountry = sessionMeta.quotedToCountry ?? shipAddress?.country ?? "US";
 
       // Payment refs
       type ExpandedPI = { id?: string; charges?: { data?: { id?: string; application_fee?: string | { id?: string }; transfer?: string | { id?: string } }[] } };

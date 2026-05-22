@@ -1130,3 +1130,9 @@ Last updated: 2026-05-21
      `buyerDataPurgedAt` so order fulfillment history can remain without
      retaining the deleted buyer's address details. Existing guardrails:
      `tests/order-pii-retention.test.mjs`.
+109. **Stripe checkout shipping-address casts are centralized** — webhook type
+     safety cleanup. Order creation in the Stripe webhook now reads
+     `shipping_details.address` through one `checkoutSessionShippingAddress()`
+     helper instead of repeating inline `as unknown as { shipping_details... }`
+     casts for every address field. Regression coverage:
+     `tests/stripe-webhook-state.test.mjs`.

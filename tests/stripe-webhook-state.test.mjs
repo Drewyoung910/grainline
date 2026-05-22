@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -35,6 +36,16 @@ function seller(overrides = {}) {
 }
 
 describe("Stripe webhook state helpers", () => {
+  it("keeps checkout session shipping-address casting centralized in the webhook", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /type CheckoutSessionShippingDetails/);
+    assert.match(source, /function checkoutSessionShippingAddress\(session: Stripe\.Checkout\.Session\)/);
+    assert.match(source, /const shipAddress = checkoutSessionShippingAddress\(s\)/);
+    assert.equal((source.match(/checkoutSessionShippingAddress\(s\)/g) ?? []).length, 1);
+    assert.equal((source.match(/as unknown as \{ shipping_details/g) ?? []).length, 0);
+  });
+
   it("detects Stripe thin event data objects conservatively", () => {
     assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session" }), true);
     assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", livemode: true }), true);
