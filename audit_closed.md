@@ -1090,3 +1090,9 @@ Last updated: 2026-05-21
      exception tagged `founding_maker_grant` with bounded seller profile
      context instead of disappearing silently in production. Regression
      coverage: `tests/post-launch-ui-followups.test.mjs`.
+102. **Shipping-rate HMAC canonicalization is separator-safe** — token
+     hardening fix. `signRate()` / `verifyRate()` now build the canonical HMAC
+     input as an ordered JSON array instead of a colon-joined string, so
+     Shippo/carrier display names containing punctuation cannot shift field
+     boundaries or create ambiguous token inputs. Regression coverage:
+     `tests/shipping-token.test.mjs`.

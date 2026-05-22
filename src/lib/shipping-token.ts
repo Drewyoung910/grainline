@@ -20,9 +20,9 @@ function getSecret(): string {
 }
 
 // Canonical HMAC input string.
-// Fields are explicit and ordered — do NOT use
-// JSON.stringify (key ordering is not guaranteed stable
-// across refactors that add/reorder fields).
+// Fields are explicit and ordered. Use a JSON array rather than a separator-
+// joined string so third-party display names containing ":" cannot create
+// alternate field boundaries that hash to the same canonical text.
 // contextId: sellerId for cart, listingId for buy-now.
 function canonicalInput(
   objectId: string,
@@ -35,17 +35,17 @@ function canonicalInput(
   buyerPostal: string,
   expiresAt: number,
 ): string {
-  return [
+  return JSON.stringify([
     objectId,
-    String(amountCents),
+    amountCents,
     displayName,
     carrier,
-    estDays != null ? String(estDays) : "null",
+    estDays,
     contextId,
     buyerId,
     buyerPostal,
-    String(expiresAt),
-  ].join(":");
+    expiresAt,
+  ]);
 }
 
 export type SignedRateFields = {
