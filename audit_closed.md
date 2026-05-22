@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 186.
-- Verified code/feature fix commits since 2026-05-13: 162.
+- Verified hardening/doc commits since 2026-05-13: 189.
+- Verified code/feature fix commits since 2026-05-13: 165.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 146 verified closed items in the 2026-05-14
+- Most recent reported pass total: 149 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -860,3 +860,15 @@ Last updated: 2026-05-21
     before mutation while preserving RFC 8058 one-click POST support and the
     non-mutating GET confirmation page. Regression coverage:
     `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
+59. **Admin email form relied on placeholder-only fields** — accessibility fix.
+    Admin staff email controls now have programmatic labels, an accessible close
+    button name, and a polite status region for send success/failure. Regression
+    coverage: `tests/accessibility-followups.test.mjs`.
+60. **Follow toggle state was visible-only** — accessibility fix. Follow buttons
+    now expose `aria-pressed` and hide the decorative checkmark from assistive
+    tech while keeping the visible count. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+61. **Unread badge count lacked context for screen readers** — accessibility fix.
+    Unread badges now announce "`N` unread message(s)" and hide the bare visual
+    number from assistive tech. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.

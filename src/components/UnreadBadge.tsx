@@ -35,8 +35,11 @@ export default function UnreadBadge({
   if (!count) return null;
 
   return (
-    <span className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] leading-none text-white ${className}`}>
-      {count}
+    <span
+      aria-label={`${count} unread message${count === 1 ? "" : "s"}`}
+      className={`absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] leading-none text-white ${className}`}
+    >
+      <span aria-hidden="true">{count}</span>
     </span>
   );
 }

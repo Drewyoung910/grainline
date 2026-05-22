@@ -734,6 +734,10 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 - New-message email notifications must claim `Conversation.lastMessageEmailSentAt` with a null-or-older-than-5-min `updateMany` before calling `sendNewMessageEmail`. Do not replace this with a read-before-write `findFirst` throttle; concurrent message sends can race and duplicate emails.
 - Admin email audit logs must not store raw recipient email addresses in `AdminAuditLog.targetId`. Use the recipient `userId` when present; otherwise store only a hashed `email:${hashEmailForTelemetry(...)}` target.
+
+### Accessibility behavior future agents must preserve
+
+- Interactive state controls need machine-readable state, not only visible text. `FollowButton` uses `aria-pressed`, unread badges expose an unread-message label while hiding the bare number from AT, compact `GuildBadge` buttons keep `aria-label={label}`, and admin email fields have explicit `htmlFor`/`id` labels plus `role="status"` send feedback.
 | `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
 
 **Emails are live once `RESEND_API_KEY` + `EMAIL_FROM` env vars are set and the sending domain is verified in Resend.**

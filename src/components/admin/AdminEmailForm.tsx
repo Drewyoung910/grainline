@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export function AdminEmailForm({
   userId,
@@ -18,6 +18,10 @@ export function AdminEmailForm({
   const [body, setBody] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formId = useId();
+  const toEmailId = `${formId}-to-email`;
+  const subjectId = `${formId}-subject`;
+  const bodyId = `${formId}-body`;
 
   useEffect(() => {
     return () => {
@@ -69,41 +73,63 @@ export function AdminEmailForm({
     <div className="mt-2 border border-neutral-200 rounded-lg p-3 space-y-2 bg-neutral-50">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-neutral-700">{label}</span>
-        <button onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:text-neutral-600">✕</button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close email form"
+          className="text-xs text-neutral-500 hover:text-neutral-600"
+        >
+          ✕
+        </button>
       </div>
       {!userId && (
+        <div className="space-y-1">
+          <label htmlFor={toEmailId} className="sr-only">To email address</label>
+          <input
+            id={toEmailId}
+            type="email"
+            placeholder="To (email address)"
+            value={toEmail}
+            onChange={(e) => setToEmail(e.target.value)}
+            className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm"
+          />
+        </div>
+      )}
+      <div className="space-y-1">
+        <label htmlFor={subjectId} className="sr-only">Subject</label>
         <input
-          type="email"
-          placeholder="To (email address)"
-          value={toEmail}
-          onChange={(e) => setToEmail(e.target.value)}
+          id={subjectId}
+          type="text"
+          placeholder="Subject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
           className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm"
         />
-      )}
-      <input
-        type="text"
-        placeholder="Subject"
-        value={subject}
-        onChange={(e) => setSubject(e.target.value)}
-        className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm"
-      />
-      <textarea
-        rows={3}
-        placeholder="Message..."
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm resize-none"
-      />
+      </div>
+      <div className="space-y-1">
+        <label htmlFor={bodyId} className="sr-only">Message</label>
+        <textarea
+          id={bodyId}
+          rows={3}
+          placeholder="Message..."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          className="w-full border border-neutral-200 rounded px-2 py-1.5 text-sm resize-none"
+        />
+      </div>
       <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={handleSend}
           disabled={status === "sending" || !subject.trim() || !body.trim() || (!userId && !toEmail.trim())}
           className="px-3 py-1.5 bg-neutral-900 text-white text-xs rounded hover:bg-neutral-700 disabled:opacity-50"
         >
           {status === "sending" ? "Sending..." : "Send"}
         </button>
-        {status === "sent" && <span className="text-xs text-green-600">Sent</span>}
-        {status === "error" && <span className="text-xs text-red-600">Failed</span>}
+        <span role="status" aria-live="polite" className="text-xs">
+          {status === "sent" && <span className="text-green-600">Sent</span>}
+          {status === "error" && <span className="text-red-600">Failed</span>}
+        </span>
       </div>
     </div>
   );

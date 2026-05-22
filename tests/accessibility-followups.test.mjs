@@ -64,4 +64,31 @@ describe("accessibility follow-ups", () => {
     assert.match(source("src/components/MapCard.tsx"), /aria-label=\{label \? `Map showing \$\{label\}` : "Map preview"\}/);
     assert.match(source("src/components/SellersMap.tsx"), /aria-label="Map of Grainline sellers"/);
   });
+
+  it("labels admin email fields and announces send status", () => {
+    const form = source("src/components/admin/AdminEmailForm.tsx");
+
+    assert.match(form, /useId/);
+    assert.match(form, /htmlFor=\{toEmailId\}/);
+    assert.match(form, /id=\{toEmailId\}/);
+    assert.match(form, /htmlFor=\{subjectId\}/);
+    assert.match(form, /id=\{subjectId\}/);
+    assert.match(form, /htmlFor=\{bodyId\}/);
+    assert.match(form, /id=\{bodyId\}/);
+    assert.match(form, /aria-label="Close email form"/);
+    assert.match(form, /role="status"/);
+    assert.match(form, /aria-live="polite"/);
+  });
+
+  it("announces toggle and badge state for compact header controls", () => {
+    const follow = source("src/components/FollowButton.tsx");
+    const unread = source("src/components/UnreadBadge.tsx");
+    const guild = source("src/components/GuildBadge.tsx");
+
+    assert.match(follow, /aria-pressed=\{following\}/);
+    assert.match(follow, /aria-hidden="true"/);
+    assert.match(unread, /aria-label=\{`\$\{count\} unread message/);
+    assert.match(unread, /aria-hidden="true"/);
+    assert.match(guild, /aria-label=\{label\}/);
+  });
 });
