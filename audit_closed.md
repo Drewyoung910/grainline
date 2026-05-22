@@ -940,3 +940,14 @@ Last updated: 2026-05-21
     footer sub-line now uses solid `text-stone-100` instead of translucent
     `text-stone-300/60`. Regression coverage:
     `tests/accessibility-followups.test.mjs`.
+79. **Vacation mode warning toggle and message boundary tightened** — UX/security
+    fix. The seller vacation warning state now explicitly lets the switch-off
+    action cancel pending enablement, matching the Cancel button, and the
+    buyer-facing vacation message is sanitized/truncated at the API boundary
+    before persistence. Regression coverage:
+    `tests/vacation-mode-followups.test.mjs`.
+80. **Block-filter behavior now has explicit guardrail coverage** — test fix.
+    `tests/block-filter-guardrails.test.mjs` verifies the shared block helper
+    reads both block directions, excludes deleted participants, and derives
+    seller-profile blocks from the blocked user set so privacy filtering cannot
+    silently drift across seller/listing/blog/message surfaces.

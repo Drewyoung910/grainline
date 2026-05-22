@@ -12,6 +12,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { sanitizeText, truncateText } from "@/lib/sanitize";
 
 const VacationSchema = z.object({
   vacationMode: z.boolean(),
@@ -61,7 +62,9 @@ export async function POST(req: Request) {
     if (vacParsed.vacationReturnDate && !vacationReturnDate) {
       return NextResponse.json({ error: "Invalid return date" }, { status: 400 });
     }
-    const vacationMessage = vacParsed.vacationMessage?.trim() || null;
+    const vacationMessage = vacParsed.vacationMessage
+      ? truncateText(sanitizeText(vacParsed.vacationMessage), 200) || null
+      : null;
 
     await prisma.sellerProfile.update({
       where: { id: seller.id },

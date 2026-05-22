@@ -38,7 +38,7 @@ export default function VacationModeForm({
     setError(null);
     setSaved(false);
     if (showWarning) {
-      cancelEnable();
+      if (!checked) cancelEnable();
       return;
     }
     if (checked && !enabled) {
