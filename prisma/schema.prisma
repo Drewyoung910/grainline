@@ -1050,6 +1050,7 @@ model EmailOutbox {
   updatedAt      DateTime  @updatedAt
 
   @@index([status, nextAttemptAt])
+  @@index([status, updatedAt])
   @@index([userId, preferenceKey])
   @@index([recipientEmail, createdAt])
 }

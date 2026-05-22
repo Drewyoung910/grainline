@@ -33,4 +33,15 @@ describe("email outbox retention", () => {
     assert.match(source, /deadEmailOutboxCount/);
     assert.match(source, /status:\s*"DEAD"/);
   });
+
+  it("keeps a status+updatedAt index for the terminal-row retention query", () => {
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260522164000_add_email_outbox_retention_index/migration.sql",
+      "utf8",
+    );
+
+    assert.match(schema, /model EmailOutbox[\s\S]*@@index\(\[status, updatedAt\]\)/);
+    assert.match(migration, /CREATE INDEX "EmailOutbox_status_updatedAt_idx"/);
+  });
 });

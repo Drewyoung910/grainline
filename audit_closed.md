@@ -1136,3 +1136,30 @@ Last updated: 2026-05-21
      helper instead of repeating inline `as unknown as { shipping_details... }`
      casts for every address field. Regression coverage:
      `tests/stripe-webhook-state.test.mjs`.
+110. **Email outbox terminal-retention query is indexed** — performance and
+     retention hardening fix. `EmailOutbox` now has a `[status, updatedAt]`
+     index so `pruneEmailOutboxRetention()` can efficiently delete terminal
+     `SENT`/`SKIPPED`/`DEAD` rows in updated-at order instead of relying on
+     unrelated outbox indexes as volume grows. Regression coverage:
+     `tests/email-outbox-retention.test.mjs`.
+111. **Admin PIN SameSite drift was already closed** — verified stale Round 4
+     ASVS finding. Current `/api/admin/verify-pin` sets the signed admin PIN
+     cookie with `sameSite: "strict"` for both normal and local-dev bypass
+     success paths, matching the privileged-cookie contract in `CLAUDE.md`.
+112. **Direct upload verification already byte-sniffs stored video/PDF bytes**
+     — verified stale Round 4 ASVS finding. `/api/upload/verify` reads the
+     first bytes from R2 with `GetObjectCommand` range requests, rejects
+     mismatched signatures through `uploadFileSignatureMatches()`, and deletes
+     unverifiable or invalid objects before returning success. Existing
+     guardrail: `tests/upload-verification-token.test.mjs`.
+113. **Email outbox quota-counter outages use retry cadence** — verified stale
+     Round 4 email finding. `emailOutboxQuotaDeferralState()` decrements the
+     claim attempt and schedules quota-counter outage retries through
+     `emailOutboxRetryDelayMs()` instead of delaying every touched job until
+     the next UTC midnight. Existing guardrail:
+     `tests/email-outbox-state.test.mjs`.
+114. **Dead email outbox rows are monitored and pruned** — verified stale Round
+     4 retention finding. `ops-health` counts `DEAD` outbox rows, and
+     `pruneEmailOutboxRetention()` deletes terminal `SENT`/`SKIPPED`/`DEAD`
+     rows after the documented 30-day retention window. Existing guardrail:
+     `tests/email-outbox-retention.test.mjs`.
