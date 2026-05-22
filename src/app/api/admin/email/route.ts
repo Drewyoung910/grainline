@@ -160,11 +160,12 @@ export async function POST(request: Request) {
 
   // Audit log
   try {
+    const auditTargetId = body.userId ?? `email:${hashEmailForTelemetry(normalizedRecipientEmail) ?? "unknown"}`;
     await logAdminAction({
       adminId: admin.id,
       action: "SEND_EMAIL",
-      targetType: "USER",
-      targetId: normalizedRecipientEmail,
+      targetType: body.userId ? "USER" : "EMAIL",
+      targetId: auditTargetId,
       reason: sanitizedSubject,
       metadata: {},
     });

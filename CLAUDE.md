@@ -708,7 +708,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 **Transactional:** `sendOrderConfirmedBuyer`, `sendOrderConfirmedSeller`, `sendOrderShipped`, `sendReadyForPickup`, `sendCaseOpened`, `sendCaseMessage`, `sendCaseResolved`, `sendCustomOrderRequest`, `sendCustomOrderReady`, `sendBackInStock`, `sendVerificationApproved`, `sendVerificationRejected`, `sendRefundIssued`
 
-**Notification:** `sendNewMessageEmail` — fires on new message with 5-minute active-conversation throttle (skipped if recipient replied in last 5 mins); respects `EMAIL_NEW_MESSAGE` preference. `sendNewReviewEmail` — fires on new review with rating display; respects `EMAIL_NEW_REVIEW` preference.
+**Notification:** `sendNewMessageEmail` — fires on new message with a 5-minute per-conversation atomic throttle (`Conversation.lastMessageEmailSentAt` claimed via `updateMany` before send); respects `EMAIL_NEW_MESSAGE` preference. `sendNewReviewEmail` — fires on new review with rating display; respects `EMAIL_NEW_REVIEW` preference.
 
 **Lifecycle:** `sendWelcomeBuyer`, `sendWelcomeSeller`, `sendFirstListingCongrats`, `sendFirstSaleCongrats`
 
@@ -728,7 +728,12 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 | `api/orders/[id]/refund/route.ts` | `sendRefundIssued` — always |
 | `api/clerk/webhook/route.ts` | `sendWelcomeBuyer` (user.created) — always |
 | `dashboard/listings/new/page.tsx` | `sendFirstListingCongrats` (always, if count=1); `sendNewListingFromFollowedMakerEmail` per follower (respects `EMAIL_FOLLOWED_MAKER_NEW_LISTING`) |
-| `messages/[id]/page.tsx` | `sendNewMessageEmail` (respects `EMAIL_NEW_MESSAGE`, 5-min throttle) |
+| `messages/[id]/page.tsx` | `sendNewMessageEmail` (respects `EMAIL_NEW_MESSAGE`, 5-min atomic per-conversation throttle) |
+
+### Email/audit behavior future agents must preserve
+
+- New-message email notifications must claim `Conversation.lastMessageEmailSentAt` with a null-or-older-than-5-min `updateMany` before calling `sendNewMessageEmail`. Do not replace this with a read-before-write `findFirst` throttle; concurrent message sends can race and duplicate emails.
+- Admin email audit logs must not store raw recipient email addresses in `AdminAuditLog.targetId`. Use the recipient `userId` when present; otherwise store only a hashed `email:${hashEmailForTelemetry(...)}` target.
 | `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
 
 **Emails are live once `RESEND_API_KEY` + `EMAIL_FROM` env vars are set and the sending domain is verified in Resend.**

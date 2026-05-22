@@ -77,6 +77,24 @@ describe("custom-order and staff-thread audit follow-ups", () => {
     assert.match(threadPage, /extra: \{ conversationId: id, recipientId \}/);
   });
 
+  it("atomically throttles new-message email notifications per conversation", () => {
+    const schema = source("prisma/schema.prisma");
+    const threadPage = source("src/app/messages/[id]/page.tsx");
+
+    assert.match(schema, /lastMessageEmailSentAt\s+DateTime\?/);
+    assert.doesNotMatch(threadPage, /const recentReply = await prisma\.message\.findFirst/);
+    assert.match(threadPage, /const emailWindowStart = new Date\(messageSentAt\.getTime\(\) - 5 \* 60 \* 1000\)/);
+    assert.match(threadPage, /const emailClaim = await prisma\.conversation\.updateMany\(\{/);
+    assert.match(threadPage, /OR: \[\{ lastMessageEmailSentAt: null \}, \{ lastMessageEmailSentAt: \{ lt: emailWindowStart \} \}\]/);
+    assert.match(threadPage, /data: \{ lastMessageEmailSentAt: messageSentAt \}/);
+    assert.match(threadPage, /if \(emailClaim\.count === 1\) \{/);
+    assert.ok(
+      threadPage.indexOf("const emailClaim = await prisma.conversation.updateMany") <
+        threadPage.indexOf("await sendNewMessageEmail"),
+      "email send should only happen after the atomic throttle claim succeeds",
+    );
+  });
+
   it("sets firstResponseAt through a null-preconditioned update", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
 

@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 182.
-- Verified code/feature fix commits since 2026-05-13: 158.
+- Verified hardening/doc commits since 2026-05-13: 184.
+- Verified code/feature fix commits since 2026-05-13: 160.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 142 verified closed items in the 2026-05-14
+- Most recent reported pass total: 144 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -839,3 +839,14 @@ Last updated: 2026-05-21
     fix. `src/lib/email.ts` now logs sanitized send-failure summaries and keeps
     hashed-recipient telemetry in Sentry. Regression coverage:
     `tests/account-privacy-observability.test.mjs`.
+55. **Admin email audit logs stored raw recipient emails** — code fix. Admin
+    staff email sends now audit by recipient user id when available, or by a
+    hashed `email:sha256:...` target when the email is ad hoc. Raw recipient
+    emails stay out of durable `AdminAuditLog.targetId`. Regression coverage:
+    `tests/admin-moderation-observability.test.mjs`.
+56. **New-message email throttle was a read-before-write race** — code/schema
+    fix. Conversations now track `lastMessageEmailSentAt`; the message send
+    action claims the 5-minute email window with a guarded `updateMany` before
+    calling `sendNewMessageEmail`, preventing concurrent duplicate message
+    emails. Regression coverage:
+    `tests/custom-order-admin-thread-followups.test.mjs`.

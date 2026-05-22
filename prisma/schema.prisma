@@ -437,6 +437,7 @@ model Conversation {
   archivedAAt      DateTime?
   archivedBAt      DateTime?
   firstResponseAt  DateTime?
+  lastMessageEmailSentAt DateTime?
 
   @@unique([userAId, userBId])
   @@index([userAId])
