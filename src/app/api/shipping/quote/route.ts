@@ -13,6 +13,7 @@ import {
 } from "@/lib/shippingQuoteState";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -171,7 +172,7 @@ export async function POST(req: Request) {
       throw e;
     }
     const mode = body.mode ?? "cart";
-    const currency = (body.currency ?? "usd").toLowerCase();
+    const currency = (body.currency ?? DEFAULT_CURRENCY).toLowerCase();
 
     let sellerId: string | null = null;
     let sellerAllowsPickup = false;

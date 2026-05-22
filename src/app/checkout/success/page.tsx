@@ -7,6 +7,7 @@ import LocalDate from "@/components/LocalDate";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -14,7 +15,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -67,8 +68,8 @@ export default async function CheckoutSuccessPage({
     });
 
     if (orders.length > 0) {
-      const currencies = [...new Set(orders.map((order) => order.currency || "usd"))];
-      const currency = currencies[0] ?? "usd";
+      const currencies = [...new Set(orders.map((order) => order.currency || DEFAULT_CURRENCY))];
+      const currency = currencies[0] ?? DEFAULT_CURRENCY;
       const totalChargedCents = orders.reduce((sum, order) => {
         const itemsSubtotalCents =
           order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
@@ -260,7 +261,7 @@ export default async function CheckoutSuccessPage({
     );
   }
 
-  const currency = order.currency || "usd";
+  const currency = order.currency || DEFAULT_CURRENCY;
   const itemsSubtotalCents =
     order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shippingAmountCents = order.shippingAmountCents || 0;

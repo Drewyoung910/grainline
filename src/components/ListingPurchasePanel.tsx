@@ -10,6 +10,7 @@ import { Gift } from "./icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
 import { useToast } from "@/components/Toast";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 function selectedOptionIdsFromIntent(groups: VariantGroupForSelector[], rawValue: string | null) {
   if (!rawValue) return [];
@@ -37,6 +38,7 @@ export default function ListingPurchasePanel({
   listingId,
   listingTitle,
   listingImageUrl,
+  currency,
   sellerId,
   sellerName,
   userId,
@@ -59,6 +61,7 @@ export default function ListingPurchasePanel({
   listingId: string;
   listingTitle: string;
   listingImageUrl?: string;
+  currency?: string | null;
   sellerId: string;
   sellerName: string;
   userId: string | null;
@@ -229,7 +232,7 @@ export default function ListingPurchasePanel({
               imageUrl: listingImageUrl ?? null,
               variantLabels: selectedVariantLabels,
               listingType,
-              currency: "usd",
+              currency: currency ?? DEFAULT_CURRENCY,
               maxQuantity: listingType === "MADE_TO_ORDER" ? 1 : stockQuantity,
               offersGiftWrapping,
               giftWrappingPriceCents,

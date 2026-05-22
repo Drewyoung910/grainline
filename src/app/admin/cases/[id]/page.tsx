@@ -5,8 +5,9 @@ import { prisma } from "@/lib/db";
 import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
-function fmtMoney(cents: number | null | undefined, currency = "usd") {
+function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
@@ -108,7 +109,7 @@ export default async function AdminCaseDetailPage({
 
   if (!caseRecord) notFound();
 
-  const currency = caseRecord.order.currency ?? "usd";
+  const currency = caseRecord.order.currency ?? DEFAULT_CURRENCY;
   const isActive =
     caseRecord.status !== "RESOLVED" && caseRecord.status !== "CLOSED";
 

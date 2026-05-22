@@ -5,8 +5,9 @@ import AdminOrderActions from "./AdminOrderActions";
 import { publicListingPath } from "@/lib/publicPaths";
 import { latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
-function fmtMoney(cents: number | null | undefined, currency = "usd") {
+function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
@@ -82,7 +83,7 @@ export default async function AdminOrderDetailPage({
 
   if (!order) notFound();
 
-  const currency = order.currency ?? "usd";
+  const currency = order.currency ?? DEFAULT_CURRENCY;
   const total = orderTotalCents(order);
 
   // Fulfillment timeline entries

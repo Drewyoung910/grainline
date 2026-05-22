@@ -27,6 +27,7 @@ import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSl
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { avatarInitials } from "@/lib/avatarInitials";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 function siteUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -72,7 +73,7 @@ export async function generateMetadata(
   const desc = listing.metaDescription || truncateText(listing.description ?? "", 160);
   const img = listing.photos[0]?.url;
   const price = (listing.priceCents / 100).toFixed(2);
-  const currency = (listing.currency || "usd").toUpperCase();
+  const currency = (listing.currency || DEFAULT_CURRENCY).toUpperCase();
 
   return {
     title: { absolute: `${title} — Grainline` },
@@ -322,7 +323,7 @@ export default async function ListingPage({
     url: siteUrl(publicListingPath(listing.id, listing.title)),
     offers: {
       "@type": "Offer",
-      priceCurrency: (listing.currency || "usd").toUpperCase(),
+      priceCurrency: (listing.currency || DEFAULT_CURRENCY).toUpperCase(),
       price: (listing.priceCents / 100).toFixed(2),
       priceValidUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       availability: isOutOfStock
@@ -477,6 +478,7 @@ export default async function ListingPage({
             listingId={listingId}
             listingTitle={listing.title}
             listingImageUrl={listing.photos[0]?.url}
+            currency={listing.currency}
             sellerId={listing.sellerId}
             sellerName={sellerName}
             userId={userId}

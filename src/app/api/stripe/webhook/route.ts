@@ -17,6 +17,7 @@ import { enqueueEmailOutbox, type QueuedEmail } from "@/lib/emailOutbox";
 import { releaseCheckoutLock } from "@/lib/checkoutSessionLock";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
 import { checkoutCompletionNeedsReview } from "@/lib/checkoutCompletionState";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import { recordWebhookFailureSpike } from "@/lib/webhookFailureSpike";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
 import {
@@ -292,7 +293,7 @@ export async function POST(req: Request) {
         stripeObjectType: data.stripeObjectType ?? null,
         eventType: data.eventType,
         amountCents: data.amountCents ?? null,
-        currency: (data.currency ?? "usd").toLowerCase(),
+        currency: (data.currency ?? DEFAULT_CURRENCY).toLowerCase(),
         status: data.status ?? null,
         reason: data.reason ?? null,
         description: paymentEventDescription(data.description),
@@ -571,7 +572,7 @@ export async function POST(req: Request) {
       }
 
       // Stripe snapshots
-      const currency: string = (s.currency || "usd").toLowerCase();
+      const currency: string = (s.currency || DEFAULT_CURRENCY).toLowerCase();
       const itemsSubtotalCents: number = s.amount_subtotal ?? 0;
       const shippingAmountCents: number = s.shipping_cost?.amount_subtotal ?? 0;
       const shippingRateObj = (s.shipping_cost?.shipping_rate || null) as {

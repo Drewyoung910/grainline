@@ -37,8 +37,6 @@
   ],
   "exclude": [
     "node_modules",
-    "prisma/seed.ts",
-    "prisma/seed-bulk.ts",
     "prisma/seeds",
     "scripts"
   ]

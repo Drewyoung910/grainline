@@ -6,6 +6,7 @@ import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
 import { cartReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -111,7 +112,7 @@ export async function GET() {
           id: ci.listing.id,
           title: ci.listing.title,
           sellerId: ci.listing.sellerId,
-          currency: ci.listing.currency || "usd",
+          currency: ci.listing.currency || DEFAULT_CURRENCY,
           listingType: ci.listing.listingType,
           maxQuantity,
           status: ci.listing.status,

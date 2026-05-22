@@ -1,3 +1,5 @@
+import { DEFAULT_CURRENCY } from "@/lib/money";
+
 export type StripeRefundLike = {
   id?: string;
   amount?: number;
@@ -535,7 +537,7 @@ export function payoutFailureState(payout: StripePayoutFailureLike, stripeEventI
       stripePayoutId: payout.id,
       status: payout.status ?? "failed",
       amountCents: payout.amount ?? null,
-      currency: payout.currency ?? "usd",
+      currency: payout.currency ?? DEFAULT_CURRENCY,
       failureCode: payout.failure_code ?? null,
       failureMessage,
       stripeEventId,

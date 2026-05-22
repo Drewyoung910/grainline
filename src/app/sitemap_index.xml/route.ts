@@ -7,17 +7,15 @@
 // any URL listed in the `Sitemap:` directive.
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { publicListingWhere } from "@/lib/listingVisibility";
 import { sitemapChunkCount, sitemapIndexXml } from "@/lib/sitemapIndex";
+import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 
 const BASE_URL = "https://thegrainline.com";
 
 export const revalidate = 3600;
 
 export async function GET() {
-  const listingCount = await prisma.listing.count({ where: publicListingWhere() });
-  const chunkCount = sitemapChunkCount(listingCount);
+  const chunkCount = sitemapChunkCount(await sitemapSourceCounts());
   const lastmod = new Date().toISOString();
   const xml = sitemapIndexXml(BASE_URL, chunkCount, lastmod);
 

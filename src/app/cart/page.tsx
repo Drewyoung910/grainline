@@ -20,6 +20,7 @@ import {
 import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import { ShoppingBag } from "@/components/icons";
 
 function CartLoadingSkeleton() {
@@ -182,7 +183,7 @@ function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
       id: item.listingId,
       title: item.snapshot.title,
       sellerId: item.snapshot.sellerId,
-      currency: item.snapshot.currency ?? "usd",
+      currency: item.snapshot.currency ?? DEFAULT_CURRENCY,
       listingType: item.snapshot.listingType ?? undefined,
       maxQuantity: item.snapshot.listingType === "MADE_TO_ORDER"
         ? 1
@@ -520,7 +521,7 @@ function CartPage() {
   const hasPriceChanged = items.some((i) => i.priceChanged && !i.variantUnavailable);
   const hasVariantUnavailable = items.some((i) => i.variantUnavailable);
   const hasStockExceeded = items.some((i) => i.stockExceeded);
-  const hasMixedCurrencies = new Set(items.map((i) => (i.listing.currency || "usd").toLowerCase())).size > 1;
+  const hasMixedCurrencies = new Set(items.map((i) => (i.listing.currency || DEFAULT_CURRENCY).toLowerCase())).size > 1;
   const hasBlockingCartChange = hasUnavailable || hasPriceChanged || hasVariantUnavailable || hasStockExceeded || hasMixedCurrencies;
 
   // Render seller item list (used in review and shipping steps)

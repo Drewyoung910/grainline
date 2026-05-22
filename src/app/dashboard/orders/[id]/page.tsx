@@ -14,12 +14,13 @@ import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -123,7 +124,7 @@ export default async function BuyerOrderDetailPage({
 
   if (!order || order.buyerId !== me.id) notFound();
 
-  const currency = order.currency ?? "usd";
+  const currency = order.currency ?? DEFAULT_CURRENCY;
   const itemsSubtotal =
     order.itemsSubtotalCents && order.itemsSubtotalCents > 0
       ? order.itemsSubtotalCents

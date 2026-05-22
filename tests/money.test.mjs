@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 const { formatCurrencyCents, normalizeCurrencyCode, parseMoneyInputToCents } = await import("../src/lib/money.ts");
@@ -25,5 +27,29 @@ describe("money formatting", () => {
     assert.equal(parseMoneyInputToCents("1.234"), null);
     assert.equal(parseMoneyInputToCents("-1"), null);
     assert.equal(parseMoneyInputToCents("-1.25", { allowNegative: true }), -125);
+  });
+
+  it("keeps runtime currency fallbacks centralized on DEFAULT_CURRENCY", () => {
+    const roots = ["src/app", "src/components", "src/lib"];
+    const files = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir)) {
+        const path = join(dir, entry);
+        const stat = statSync(path);
+        if (stat.isDirectory()) {
+          walk(path);
+          continue;
+        }
+        if (/\.(ts|tsx)$/.test(path)) files.push(path);
+      }
+    };
+    roots.forEach(walk);
+
+    const offenders = files.filter((path) => {
+      if (path === "src/lib/money.ts") return false;
+      return /["']usd["']/.test(readFileSync(path, "utf8"));
+    });
+
+    assert.deepEqual(offenders, []);
   });
 });

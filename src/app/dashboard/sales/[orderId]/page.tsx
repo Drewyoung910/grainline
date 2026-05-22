@@ -16,11 +16,12 @@ import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -119,7 +120,7 @@ export default async function SellerOrderDetailPage({
   const myItems = order.items.filter((it) => it.listing.seller.id === seller.id);
   if (myItems.length === 0) notFound();
 
-  const currency = order.currency ?? "usd";
+  const currency = order.currency ?? DEFAULT_CURRENCY;
   const myItemsSubtotal = myItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shipping = order.shippingAmountCents ?? 0;
   const tax = order.taxAmountCents ?? 0;

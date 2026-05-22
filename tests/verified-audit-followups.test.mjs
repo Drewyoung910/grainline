@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
 
 function source(path) {
@@ -23,6 +23,16 @@ function tsSourceFiles(dir) {
 }
 
 describe("verified audit follow-up guardrails", () => {
+  it("does not keep obsolete root Prisma demo seeds outside typecheck", () => {
+    const tsconfig = source("tsconfig.json");
+
+    assert.equal(existsSync("prisma/seed.ts"), false);
+    assert.equal(existsSync("prisma/seed-bulk.ts"), false);
+    assert.doesNotMatch(tsconfig, /prisma\/seed\.ts/);
+    assert.doesNotMatch(tsconfig, /prisma\/seed-bulk\.ts/);
+    assert.match(source("package.json"), /"seed:metros"/);
+  });
+
   it("validates new message recipients and listing context before creating a conversation", () => {
     const text = source("src/app/messages/new/page.tsx");
     assert.match(text, /canStartConversationWith/);

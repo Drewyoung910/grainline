@@ -23,6 +23,7 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import {
   isInvalidJsonBodyError,
@@ -164,7 +165,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const currency = (listing.currency || "usd").toLowerCase();
+    const currency = (listing.currency || DEFAULT_CURRENCY).toLowerCase();
     const sellerStripeAccountId = listing.seller.stripeAccountId || null;
     const sp = listing.seller;
 

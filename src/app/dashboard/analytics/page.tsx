@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Eye, Heart, Bell } from "@/components/icons";
 import { publicListingPath } from "@/lib/publicPaths";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ type SetupRequiredState = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmt(cents: number, currency = "usd") {
+function fmt(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency,
@@ -101,7 +102,7 @@ function fmt(cents: number, currency = "usd") {
   });
 }
 
-function fmtExact(cents: number, currency = "usd") {
+function fmtExact(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency });
 }
 

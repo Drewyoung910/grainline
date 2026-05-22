@@ -16,6 +16,16 @@ describe("launch readiness follow-ups", () => {
     assert.doesNotMatch(privacy, /We will respond within 30 days \(or within the timeframe required by applicable law\)/);
   });
 
+  it("discloses audit-log identifier retention for deleted administrator accounts", () => {
+    const privacy = source("src/app/privacy/page.tsx");
+
+    assert.match(privacy, /Administrative action logs/);
+    assert.match(privacy, /administrator account is later deleted/);
+    assert.match(privacy, /internal administrator\s+identifier/);
+    assert.match(privacy, /moderation, trust and safety, legal, and undo records remain\s+auditable/);
+    assert.match(privacy, /profile and contact metadata is anonymized or redacted/);
+  });
+
   it("documents the crawler-facing sitemap index and env-backed Search Console verification", () => {
     const layout = source("src/app/layout.tsx");
     const envExample = source(".env.example");

@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 const PAGE_SIZE = 25;
 
-function fmtMoney(cents: number | null | undefined, currency = "usd") {
+function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",

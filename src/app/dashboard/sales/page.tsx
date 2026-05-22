@@ -8,13 +8,14 @@ import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const PAGE_SIZE = 25;
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -149,7 +150,7 @@ export default async function SalesPage({
                 (s, it) => s + it.priceCents * it.quantity,
                 0
               );
-              const currency = o.currency ?? "usd";
+              const currency = o.currency ?? DEFAULT_CURRENCY;
               const shipping = o.shippingAmountCents ?? 0;
               const tax = o.taxAmountCents ?? 0;
               const giftWrapping = o.giftWrappingPriceCents ?? 0;

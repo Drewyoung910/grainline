@@ -617,7 +617,11 @@ export default function PrivacyPage() {
             <li>
               <strong>Administrative action logs.</strong> Records of administrative actions including
               account suspensions, content removal decisions, listing review decisions, and Guild badge
-              actions are retained permanently for legal compliance and audit purposes.
+              actions are retained permanently for legal compliance and audit purposes. If an
+              administrator account is later deleted, we may retain the internal administrator
+              identifier on those logs so moderation, trust and safety, legal, and undo records remain
+              auditable; associated account profile and contact metadata is anonymized or redacted
+              where appropriate.
             </li>
             <li>
               <strong>Seller performance metrics.</strong> Calculated seller metrics are refreshed

@@ -22,6 +22,7 @@ import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import {
   isInvalidJsonBodyError,
@@ -138,9 +139,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No items for this seller" }, { status: 400 });
     }
 
-    const currency = (sellerItems[0].listing.currency || "usd").toLowerCase();
+    const currency = (sellerItems[0].listing.currency || DEFAULT_CURRENCY).toLowerCase();
     const mixedCurrencyItem = sellerItems.find(
-      (item) => (item.listing.currency || "usd").toLowerCase() !== currency,
+      (item) => (item.listing.currency || DEFAULT_CURRENCY).toLowerCase() !== currency,
     );
     if (mixedCurrencyItem) {
       return NextResponse.json(

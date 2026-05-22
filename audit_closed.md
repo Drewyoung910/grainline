@@ -1214,3 +1214,40 @@ Last updated: 2026-05-21
      creating or incrementing `CartItem`, so concurrent adds cannot slip past
      the 50 distinct item or 200 total quantity caps. Regression coverage:
      `tests/order-state-followups.test.mjs`.
+125. **Stripe capability webhooks cannot re-enable inactive local sellers** —
+     verified stale Round 4 charges-enabled race finding. Shared
+     `mirrorStripeChargesEnabled()` selects the local account state, computes
+     `effectiveChargesEnabled = stripeChargesEnabled && !banned && !deletedAt`,
+     logs an ownership-violation security event when Stripe reports true for
+     an inactive local account, and expires open checkout sessions when the
+     effective state is disabled. Existing guardrail:
+     `tests/stripe-webhook-v2-route.test.mjs`.
+126. **Admin audit-log identifier retention is disclosed in the Privacy
+     Policy** — privacy documentation fix. Account deletion keeps
+     `AdminAuditLog.adminId` for permanent moderation/legal/undo audit
+     integrity while redacting/anonymizing associated profile and contact
+     metadata. `/privacy` now tells users that deleted administrator account
+     internal identifiers may remain on administrative logs for those purposes.
+     Regression coverage: `tests/launch-readiness-followups.test.mjs`.
+127. **Non-listing sitemap entries are chunked instead of silently truncated**
+     — SEO correctness fix. `/sitemap_index.xml` now counts seller, customer
+     photo, blog post, commission, and listing row sources; `/sitemap/0.xml`
+     contains only static/metro/category/index routes, while each large dynamic
+     source gets first-class chunks through `sitemapChunkForId()`. This closes
+     the Round 4 #632/#82/#2468 concern that non-listing routes could be packed
+     into chunk `0` and sliced at 50,000 entries. Regression coverage:
+     `tests/sitemap-index.test.mjs` and `tests/sitemap-entry-limit.test.mjs`.
+128. **Runtime currency fallbacks use `DEFAULT_CURRENCY`** — cleanup and
+     future-proofing fix. Application pages, API routes, client components,
+     anonymous-cart snapshots, and Stripe webhook state now import the shared
+     `DEFAULT_CURRENCY` constant instead of scattering raw `"usd"` fallbacks.
+     Schema defaults, migrations, and test fixtures remain literal by design.
+     Regression coverage: `tests/money.test.mjs`.
+129. **Obsolete root Prisma demo seed scripts removed** — repo hygiene and
+     typecheck-integrity fix. `prisma/seed.ts` and `prisma/seed-bulk.ts` were
+     stale, destructive/demo-only scripts excluded from TypeScript checking and
+     no longer referenced by package scripts. They were removed, their env flags
+     were dropped from `.env.example`, and `tsconfig.json` no longer carries
+     per-file exclusions for them. The supported seed path remains
+     `npm run seed:metros`. Regression coverage:
+     `tests/verified-audit-followups.test.mjs`.

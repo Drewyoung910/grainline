@@ -1,3 +1,5 @@
+import { DEFAULT_CURRENCY } from "@/lib/money";
+
 export const ANONYMOUS_CART_KEY = "grainline_anonymous_cart";
 
 export type AnonymousCartSnapshot = {
@@ -73,7 +75,7 @@ function sanitizeSnapshot(snapshot: unknown): AnonymousCartSnapshot | null {
     ? data.variantLabels.filter((label): label is string => typeof label === "string" && label.trim() !== "").slice(0, 30)
     : [];
   const listingType = typeof data.listingType === "string" ? data.listingType : null;
-  const currency = typeof data.currency === "string" && data.currency.trim() ? data.currency.trim().toLowerCase() : "usd";
+  const currency = typeof data.currency === "string" && data.currency.trim() ? data.currency.trim().toLowerCase() : DEFAULT_CURRENCY;
   const maxQuantity = Number.isInteger(data.maxQuantity) ? Math.max(0, Number(data.maxQuantity)) : null;
   const offersGiftWrapping = typeof data.offersGiftWrapping === "boolean" ? data.offersGiftWrapping : null;
   const giftWrappingPriceCents = Number.isInteger(data.giftWrappingPriceCents)

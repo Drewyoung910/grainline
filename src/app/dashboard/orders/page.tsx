@@ -7,11 +7,12 @@ import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -78,7 +79,7 @@ export default async function OrdersPage() {
         <>
           <ul className="space-y-4">
           {orders.map((o) => {
-            const currency = o.currency ?? "usd";
+            const currency = o.currency ?? DEFAULT_CURRENCY;
             const itemsSubtotal =
               o.itemsSubtotalCents && o.itemsSubtotalCents > 0
                 ? o.itemsSubtotalCents

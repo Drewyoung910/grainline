@@ -8,10 +8,14 @@ import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisib
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { publicListingPath, publicSellerPath, publicSellerShopPath } from "@/lib/publicPaths";
 import { openCommissionWhere } from "@/lib/commissionExpiry";
+import {
+  SITEMAP_ENTRY_LIMIT,
+  sitemapChunkCount,
+  sitemapChunkForId,
+} from "@/lib/sitemapIndex";
+import { sitemapSourceCounts } from "@/lib/sitemapSourceCounts";
 
 const BASE_URL = "https://thegrainline.com";
-const SITEMAP_ENTRY_LIMIT = 50_000;
-const SITEMAP_CHUNK_SIZE = 5_000;
 const STATIC_ROUTE_LAST_MODIFIED = new Date("2026-04-30T00:00:00.000Z");
 const BLOG_TYPE_SITEMAP_FILTERS = [
   BlogPostType.GIFT_GUIDE,
@@ -20,24 +24,106 @@ const BLOG_TYPE_SITEMAP_FILTERS = [
   BlogPostType.WOOD_EDUCATION,
 ] as const;
 
-function limitSitemapEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
-  return entries.slice(0, SITEMAP_ENTRY_LIMIT);
-}
-
 export async function generateSitemaps() {
-  const listingCount = await prisma.listing.count({ where: publicListingWhere() });
-  const listingChunks = Math.ceil(listingCount / SITEMAP_CHUNK_SIZE);
-  return Array.from({ length: listingChunks + 1 }, (_, id) => ({ id }));
+  const chunkCount = sitemapChunkCount(await sitemapSourceCounts());
+  return Array.from({ length: chunkCount }, (_, id) => ({ id }));
 }
 
 export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise<MetadataRoute.Sitemap> {
   if (id > 0) {
+    const chunk = sitemapChunkForId(id, await sitemapSourceCounts());
+    if (!chunk || chunk.kind === "base") return [];
+
+    if (chunk.kind === "sellers") {
+      const sellers = await prisma.sellerProfile.findMany({
+        where: activeSellerProfileWhere({
+          listings: { some: publicListingWhere() },
+        }),
+        select: { id: true, displayName: true, updatedAt: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        skip: chunk.rowSkip,
+        take: chunk.rowTake,
+      });
+
+      return sellers.flatMap((s) => [
+        {
+          url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}`,
+          lastModified: s.updatedAt,
+          changeFrequency: "monthly" as const,
+          priority: 0.6,
+        },
+        {
+          url: `${BASE_URL}${publicSellerShopPath(s.id, s.displayName)}`,
+          lastModified: s.updatedAt,
+          changeFrequency: "monthly" as const,
+          priority: 0.6,
+        },
+      ]);
+    }
+
+    if (chunk.kind === "customerPhotos") {
+      const sellers = await prisma.sellerProfile.findMany({
+        where: activeSellerProfileWhere({
+          listings: {
+            some: publicListingDetailWhere({
+              reviews: { some: { photos: { some: {} } } },
+            }),
+          },
+        }),
+        select: { id: true, displayName: true, updatedAt: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        skip: chunk.rowSkip,
+        take: chunk.rowTake,
+      });
+
+      return sellers.map((s) => ({
+        url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}/customer-photos`,
+        lastModified: s.updatedAt,
+        changeFrequency: "weekly",
+        priority: 0.4,
+      }));
+    }
+
+    if (chunk.kind === "blogPosts") {
+      const blogPosts = await prisma.blogPost.findMany({
+        where: publicBlogPostWhere(),
+        select: { slug: true, updatedAt: true },
+        orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+        skip: chunk.rowSkip,
+        take: chunk.rowTake,
+      });
+
+      return blogPosts.map((p) => ({
+        url: `${BASE_URL}/blog/${p.slug}`,
+        lastModified: p.updatedAt,
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      }));
+    }
+
+    if (chunk.kind === "commissions") {
+      const openCommissions = await prisma.commissionRequest.findMany({
+        where: openCommissionWhere(),
+        select: { id: true, updatedAt: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        skip: chunk.rowSkip,
+        take: chunk.rowTake,
+      });
+
+      return openCommissions.map((c) => ({
+        url: `${BASE_URL}/commission/${c.id}`,
+        lastModified: c.updatedAt,
+        changeFrequency: "weekly" as const,
+        priority: 0.5,
+      }));
+    }
+
     const listings = await prisma.listing.findMany({
       where: publicListingWhere(),
       select: { id: true, title: true, updatedAt: true },
       orderBy: { id: "asc" },
-      skip: (id - 1) * SITEMAP_CHUNK_SIZE,
-      take: SITEMAP_CHUNK_SIZE,
+      skip: chunk.rowSkip,
+      take: chunk.rowTake,
     });
 
     return listings.map((l) => ({
@@ -64,39 +150,17 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     { url: `${BASE_URL}/map`, lastModified: STATIC_ROUTE_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.5 },
   ];
 
-  const [sellers, sellersWithCustomerPhotos, blogPosts, openCommissions] = await Promise.all([
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        listings: { some: publicListingWhere() },
-      }),
-      select: { id: true, displayName: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-      take: SITEMAP_ENTRY_LIMIT,
-    }),
-    prisma.sellerProfile.findMany({
-      where: activeSellerProfileWhere({
-        listings: {
-          some: publicListingDetailWhere({
-            reviews: { some: { photos: { some: {} } } },
-          }),
-        },
-      }),
-      select: { id: true, displayName: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-      take: SITEMAP_ENTRY_LIMIT,
-    }),
-    prisma.blogPost.findMany({
+  const [latestBlogPost, latestBlogPostsByType] = await Promise.all([
+    prisma.blogPost.findFirst({
       where: publicBlogPostWhere(),
-      select: { slug: true, publishedAt: true, updatedAt: true, type: true },
-      orderBy: { publishedAt: "desc" },
-      take: SITEMAP_ENTRY_LIMIT,
+      select: { updatedAt: true },
+      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
     }),
-    prisma.commissionRequest.findMany({
-      where: openCommissionWhere(),
-      select: { id: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-      take: SITEMAP_ENTRY_LIMIT,
-    }),
+    Promise.all(BLOG_TYPE_SITEMAP_FILTERS.map((type) => prisma.blogPost.findFirst({
+      where: publicBlogPostWhere({ type }),
+      select: { type: true, updatedAt: true },
+      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+    }))),
   ]);
 
   // ---------------------------------------------------------------------------
@@ -182,63 +246,23 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Build route arrays
-  // ---------------------------------------------------------------------------
-  const sellerRoutes: MetadataRoute.Sitemap = sellers.flatMap((s) => [
-    {
-      url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}`,
-      lastModified: s.updatedAt,
-      changeFrequency: "monthly" as const,
-      priority: 0.6,
-    },
-    {
-      url: `${BASE_URL}${publicSellerShopPath(s.id, s.displayName)}`,
-      lastModified: s.updatedAt,
-      changeFrequency: "monthly" as const,
-      priority: 0.6,
-    },
-  ]);
-
-  const customerPhotoRoutes: MetadataRoute.Sitemap = sellersWithCustomerPhotos.map((s) => ({
-    url: `${BASE_URL}${publicSellerPath(s.id, s.displayName)}/customer-photos`,
-    lastModified: s.updatedAt,
-    changeFrequency: "weekly",
-    priority: 0.4,
-  }));
-
-  const blogRoutes: MetadataRoute.Sitemap = blogPosts.map((p) => ({
-    url: `${BASE_URL}/blog/${p.slug}`,
-    lastModified: p.updatedAt,
-    changeFrequency: "weekly" as const,
-    priority: 0.7,
-  }));
-
   const blogIndexRoute: MetadataRoute.Sitemap = [
     {
       url: `${BASE_URL}/blog`,
-      lastModified: blogPosts[0]?.updatedAt ?? STATIC_ROUTE_LAST_MODIFIED,
+      lastModified: latestBlogPost?.updatedAt ?? STATIC_ROUTE_LAST_MODIFIED,
       changeFrequency: "daily",
       priority: 0.8,
     },
   ];
-  const blogTypeRoutes: MetadataRoute.Sitemap = BLOG_TYPE_SITEMAP_FILTERS.flatMap((type) => {
-    const latestForType = blogPosts.find((post) => post.type === type);
+  const blogTypeRoutes: MetadataRoute.Sitemap = latestBlogPostsByType.flatMap((latestForType) => {
     if (!latestForType) return [];
     return [{
-      url: `${BASE_URL}/blog?type=${encodeURIComponent(type)}`,
+      url: `${BASE_URL}/blog?type=${encodeURIComponent(latestForType.type)}`,
       lastModified: latestForType.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.7,
     }];
   });
-
-  const commissionRoutes: MetadataRoute.Sitemap = openCommissions.map((c) => ({
-    url: `${BASE_URL}/commission/${c.id}`,
-    lastModified: c.updatedAt,
-    changeFrequency: "weekly" as const,
-    priority: 0.5,
-  }));
 
   // Metro browse + makers: major metro = 0.8/0.7, child metro = 0.6/0.5
   const metroRoutes: MetadataRoute.Sitemap = metrosWithListings.flatMap((m) => {
@@ -277,16 +301,12 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     priority: !m.parentMetroId ? 0.7 : 0.5,
   }));
 
-  return limitSitemapEntries([
+  return [
     ...staticRoutes,
     ...blogIndexRoute,
     ...blogTypeRoutes,
-    ...sellerRoutes,
-    ...customerPhotoRoutes,
-    ...blogRoutes,
-    ...commissionRoutes,
     ...metroRoutes,
     ...metroCategoryRoutes,
     ...metroCommissionRoutes,
-  ]);
+  ].slice(0, SITEMAP_ENTRY_LIMIT);
 }

@@ -1,7 +1,7 @@
 // src/components/SellerRefundPanel.tsx
 "use client";
 import * as React from "react";
-import { parseMoneyInputToCents } from "@/lib/money";
+import { DEFAULT_CURRENCY, parseMoneyInputToCents } from "@/lib/money";
 
 type Props = {
   orderId: string;
@@ -13,7 +13,7 @@ type Props = {
 
 const REFUND_LOCK_SENTINEL = "pending";
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),

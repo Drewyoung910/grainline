@@ -12,6 +12,7 @@ import {
 } from "@/lib/messageBodies";
 import { isTerminalMessageStreamStatus, messageStreamStatusMessage } from "@/lib/messageStreamState";
 import { publicListingPath } from "@/lib/publicPaths";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 import { isTrustedMediaUrl } from "@/lib/urlValidation";
 
 type Msg = {
@@ -379,7 +380,7 @@ export default function ThreadMessages({
                   {link.priceCents != null && (
                     <p className="text-sm text-neutral-600">
                       ${(link.priceCents / 100).toFixed(2)}{" "}
-                      {(link.currency ?? "usd").toUpperCase()}
+                      {(link.currency ?? DEFAULT_CURRENCY).toUpperCase()}
                     </p>
                   )}
                   {link.listingId && (

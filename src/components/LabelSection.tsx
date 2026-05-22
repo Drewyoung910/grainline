@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { DEFAULT_CURRENCY } from "@/lib/money";
 
 type Rate = {
   label: string;
@@ -22,7 +23,7 @@ export type LabelSectionProps = {
   currency: string;
 };
 
-function fmtMoney(cents: number, currency = "usd") {
+function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
