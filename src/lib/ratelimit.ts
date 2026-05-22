@@ -387,6 +387,13 @@ export const unsubscribeRatelimit = new Ratelimit({
   prefix: "rl:unsubscribe",
 });
 
+export const unsubscribeEmailRatelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(1, "60 s"),
+  analytics: true,
+  prefix: "rl:unsubscribe-email",
+});
+
 // CSP reports are unauthenticated browser telemetry. Keep enough signal for
 // real violations while dropping flood/noise before it reaches Sentry.
 export const cspReportRatelimit = new Ratelimit({

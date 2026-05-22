@@ -31,7 +31,8 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     const urlValidation = source("src/lib/urlValidation.ts");
     assert.match(urlValidation, /export function isFirstPartyMediaUrl/);
     assert.match(urlValidation, /LEGACY_MEDIA_ORIGINS/);
-    assert.match(source("src/lib/email.ts"), /isR2PublicUrl/);
+    assert.match(source("src/lib/email.ts"), /isFirstPartyMediaUrl/);
+    assert.doesNotMatch(source("src/lib/email.ts"), /isR2PublicUrl/);
     assert.match(source("src/lib/ai-review.ts"), /isR2PublicUrl/);
   });
 
@@ -85,5 +86,21 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
     assert.doesNotMatch(getHandler, /unsubscribeEmail/);
     assert.match(postHandler, /unsubscribeEmail\(email\)/);
     assert.match(route, /List-Unsubscribe=One-Click|response=html|Confirm unsubscribe/);
+  });
+
+  it("rate-limits unsubscribe POST by signed email as well as IP", () => {
+    const route = source("src/app/api/email/unsubscribe/route.ts");
+    const ratelimit = source("src/lib/ratelimit.ts");
+    const postHandler = route.slice(route.indexOf("async function handlePost"), route.indexOf("export async function POST"));
+
+    assert.match(ratelimit, /export const unsubscribeEmailRatelimit/);
+    assert.match(ratelimit, /prefix: "rl:unsubscribe-email"/);
+    assert.match(postHandler, /hashEmailForTelemetry\(email\) \?\? email/);
+    assert.match(postHandler, /safeRateLimit\(unsubscribeEmailRatelimit, emailRateKey\)/);
+    assert.ok(
+      postHandler.indexOf("safeRateLimit(unsubscribeEmailRatelimit, emailRateKey)") <
+        postHandler.indexOf("await unsubscribeEmail(email)"),
+      "per-email unsubscribe limit should run before mutation",
+    );
   });
 });

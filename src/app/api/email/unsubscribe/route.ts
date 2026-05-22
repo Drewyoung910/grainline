@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { unsubscribeEmail, verifyUnsubscribeToken } from "@/lib/unsubscribe";
-import { getIP, rateLimitResponse, safeRateLimit, unsubscribeRatelimit } from "@/lib/ratelimit";
+import {
+  getIP,
+  rateLimitResponse,
+  safeRateLimit,
+  unsubscribeEmailRatelimit,
+  unsubscribeRatelimit,
+} from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
@@ -128,6 +134,18 @@ async function handlePost(req: NextRequest) {
   if ("response" in validated) return validated.response;
 
   const { email } = validated;
+  const emailRateKey = hashEmailForTelemetry(email) ?? email;
+  const emailRate = await safeRateLimit(unsubscribeEmailRatelimit, emailRateKey);
+  if (!emailRate.success) {
+    if (mode === "html") {
+      return htmlResponse(
+        "Too many requests",
+        "Please wait a moment before trying this unsubscribe link again.",
+        429,
+      );
+    }
+    return rateLimitResponse(emailRate.reset, "Too many unsubscribe attempts for this email.");
+  }
 
   try {
     const result = await unsubscribeEmail(email);

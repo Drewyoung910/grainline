@@ -1,7 +1,7 @@
 // src/lib/email.ts
 import { Resend } from "resend";
 import * as Sentry from "@sentry/nextjs";
-import { isR2PublicUrl } from "@/lib/urlValidation";
+import { isFirstPartyMediaUrl } from "@/lib/urlValidation";
 import { prisma } from "@/lib/db";
 import { buildUnsubscribeUrl } from "@/lib/unsubscribe";
 import { isEmailSuppressed, normalizeEmailAddress } from "@/lib/emailSuppression";
@@ -45,7 +45,7 @@ function safeSubject(s: string) {
 
 /** Validate and escape a URL for use in img src attributes */
 function safeImgUrl(url: string | undefined | null): string | null {
-  if (!url || !isR2PublicUrl(url)) return null;
+  if (!url || !isFirstPartyMediaUrl(url)) return null;
   return url.replace(/"/g, "%22");
 }
 

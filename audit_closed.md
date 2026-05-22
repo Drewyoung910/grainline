@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 184.
-- Verified code/feature fix commits since 2026-05-13: 160.
+- Verified hardening/doc commits since 2026-05-13: 186.
+- Verified code/feature fix commits since 2026-05-13: 162.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 144 verified closed items in the 2026-05-14
+- Most recent reported pass total: 146 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -850,3 +850,13 @@ Last updated: 2026-05-21
     calling `sendNewMessageEmail`, preventing concurrent duplicate message
     emails. Regression coverage:
     `tests/custom-order-admin-thread-followups.test.mjs`.
+57. **Grainline-branded email images accepted legacy UploadThing origins** —
+    code fix. Email `<img>` URL validation now uses first-party media origins
+    only, so old UploadThing URLs are omitted from rendered emails instead of
+    being embedded if legacy tenancy changes. Regression coverage:
+    `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
+58. **One-click unsubscribe had only IP-level mutation throttling** — code fix.
+    `POST /api/email/unsubscribe` now adds a per-signed-email hash throttle
+    before mutation while preserving RFC 8058 one-click POST support and the
+    non-mutating GET confirmation page. Regression coverage:
+    `tests/pr-i-media-upload-unsubscribe-followups.test.mjs`.
