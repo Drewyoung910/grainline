@@ -968,3 +968,29 @@ Last updated: 2026-05-21
     (dev make-order production gate), and #354 (saved-search amplification)
     are already fixed on current `main` with existing guardrails covering the
     relevant behavior. No code changes were needed for those five claims.
+84. **Existing-listing photo manifest conflicts fail cleanly** — storage
+    hardening fix. Existing-listing photo uploads/re-crops remain staged until
+    Save, and the Save-time transaction now checks `photo.updateMany().count`
+    for each retained photo id. If a concurrent cleanup removed a row after the
+    edit page loaded, the action returns a refresh error and best-effort deletes
+    newly submitted R2 URLs instead of silently leaking an uploaded object.
+    Regression coverage: `tests/r56-r67-small-fixes.test.mjs`.
+85. **JSON-LD script embedding guardrail tightened** — rendering security
+    fix. `safeJsonLd()` still escapes `<` for script-breakout protection and
+    now also escapes bidi/line-separator controls so structured-data payloads
+    cannot hide confusing directional text in embedded JSON. Regression
+    coverage: `tests/rendering-security.test.mjs`.
+86. **Round 2 race/test-gap claims re-verified against current main** —
+    stale/closed audit sweep. Claude #418 (blog slug P2002), #424 (cart update
+    P2025 after checkout cleanup), #428 (JSON-LD escape test), #429 (block
+    helper test), #430 (Shippo carrier/local-pickup quote state), #433
+    (rate-limit fail-open/fail-closed policy), and the Sentry follow-up claims
+    for notification P2002/cart-add P2002/Googlebot Stripe.js noise are already
+    fixed or covered on current `main`.
+87. **AI review response normalization is directly tested** — guardrail fix.
+    The OpenAI listing-moderation response normalizer now lives in
+    `src/lib/aiReviewResultState.ts`, where malformed provider responses can be
+    unit-tested without Prisma/OpenAI. Missing or wrong-shaped responses fail
+    closed with `approved: false`, confidence `0`, bounded text, and padded
+    fallback alt text. Regression coverage:
+    `tests/ai-review-result-state.test.mjs`.

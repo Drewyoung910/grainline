@@ -16,9 +16,17 @@ function sourceFiles() {
 
 describe("rendering security guardrails", () => {
   it("escapes JSON-LD script breakouts", () => {
-    const serialized = safeJsonLd({ name: "</script><script>alert(1)</script>" });
+    const serialized = safeJsonLd({
+      name: "</script><script>alert(1)</script>",
+      commentStart: "<!--",
+      cdataEnd: "]]>",
+      bidi: "safe\u202Egpj.exe",
+    });
     assert.doesNotMatch(serialized, /<\/script/i);
     assert.match(serialized, /\\u003c\/script/);
+    assert.match(serialized, /\\u003c!--/);
+    assert.match(serialized, /]]>/);
+    assert.match(serialized, /safe\\u202egpj\.exe/i);
   });
 
   it("keeps blog markdown behind sanitize-html with narrow schemes and image filtering", () => {

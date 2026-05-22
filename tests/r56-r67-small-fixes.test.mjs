@@ -41,6 +41,17 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     assert.doesNotMatch(editPhotoGrid, /onReorder/);
   });
 
+  it("keeps existing-listing photo writes behind Save and cleans up vanished-row conflicts", () => {
+    const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+
+    assert.match(editPage, /class ListingPhotoConflictError extends Error/);
+    assert.match(editPage, /const submittedNewPhotoUrls = new Set<string>\(\)/);
+    assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
+    assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
+    assert.match(editPage, /deleteR2ObjectByUrl\(url\)\.catch/);
+    assert.match(editPage, /return \{ ok: false, error: error\.message \}/);
+  });
+
   it("keeps minor UI and config cleanup from drifting back", () => {
     assert.doesNotMatch(source("src/components/BuyNowCheckoutModal.tsx"), /bg-stone-50/);
     assert.match(source("src/components/BlogCopyLinkButton.tsx"), /Could not copy the link/);

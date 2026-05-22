@@ -20,7 +20,8 @@ describe("guild and listing-edit audit follow-ups", () => {
   it("keeps listing edit row and variant replacement in one transaction", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
-    assert.match(editPage, /const updatedListing = await prisma\.\$transaction\(async \(tx\) => \{/);
+    assert.match(editPage, /let updatedListing: \{ title: string; updatedAt: Date \}/);
+    assert.match(editPage, /updatedListing = await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(editPage, /await tx\.listing\.update\(/);
     assert.match(editPage, /await tx\.listingVariantGroup\.deleteMany/);
     assert.match(editPage, /await tx\.listingVariantGroup\.create/);

@@ -89,6 +89,13 @@ type PhotoManifestItem = {
   altText: string | null;
 };
 
+class ListingPhotoConflictError extends Error {
+  constructor() {
+    super("Listing photos changed. Refresh and try again.");
+    this.name = "ListingPhotoConflictError";
+  }
+}
+
 function parsePhotoManifestField(
   value: FormDataEntryValue | null,
   existingPhotos: ExistingPhotoForManifest[],
@@ -291,6 +298,15 @@ async function updateListing(
   const retainedUrls = new Set(
     photoManifest.photos.flatMap((photo) => [photo.url, photo.originalUrl].filter((url): url is string => Boolean(url))),
   );
+  const existingPhotoUrls = new Set(
+    listing.photos.flatMap((photo) => [photo.url, photo.originalUrl].filter((url): url is string => Boolean(url))),
+  );
+  const submittedNewPhotoUrls = new Set<string>();
+  for (const photo of photoManifest.photos) {
+    for (const url of [photo.url, photo.originalUrl].filter((value): value is string => Boolean(value))) {
+      if (!existingPhotoUrls.has(url)) submittedNewPhotoUrls.add(url);
+    }
+  }
   const r2CleanupUrls = new Set<string>();
   for (const existingPhoto of listing.photos) {
     const nextPhoto = nextPhotosById.get(existingPhoto.id);
@@ -335,91 +351,109 @@ async function updateListing(
   // Save isn't possible because Save is the only way to commit edits.
   const wasActive = listing.status === ListingStatus.ACTIVE;
 
-  const updatedListing = await prisma.$transaction(async (tx) => {
-    const updated = await tx.listing.update({
-      where: { id: listingId },
-      data: {
-        title,
-        description,
-        priceCents,
-        ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
-        tags,
-        metaDescription,
-        materials,
-        productLengthIn,
-        productWidthIn,
-        productHeightIn,
-        packagedLengthCm,
-        packagedWidthCm,
-        packagedHeightCm,
-        packagedWeightGrams,
-        category,
-        listingType,
-        stockQuantity,
-        shipsWithinDays,
-        processingTimeMinDays,
-        processingTimeMaxDays,
-      },
-      select: { title: true, updatedAt: true },
-    });
-
-    // Update variants with the listing row so failures cannot leave mixed old/new state.
-    await tx.listingVariantGroup.deleteMany({ where: { listingId } });
-    for (let gi = 0; gi < variantGroups.length; gi++) {
-      const g = variantGroups[gi];
-      if (!g.name || g.options.length === 0) continue;
-      await tx.listingVariantGroup.create({
+  let updatedListing: { title: string; updatedAt: Date };
+  try {
+    updatedListing = await prisma.$transaction(async (tx) => {
+      const updated = await tx.listing.update({
+        where: { id: listingId },
         data: {
-          listingId,
-          name: g.name,
-          sortOrder: gi,
-          options: {
-            create: g.options.filter((o) => o.label).map((o, oi) => ({
-              label: o.label,
-              priceAdjustCents: o.priceAdjustCents,
-              sortOrder: oi,
-              inStock: o.inStock,
-            })),
-          },
+          title,
+          description,
+          priceCents,
+          ...(priceValueChanged || variantsChanged ? { priceVersion: { increment: 1 } } : {}),
+          tags,
+          metaDescription,
+          materials,
+          productLengthIn,
+          productWidthIn,
+          productHeightIn,
+          packagedLengthCm,
+          packagedWidthCm,
+          packagedHeightCm,
+          packagedWeightGrams,
+          category,
+          listingType,
+          stockQuantity,
+          shipsWithinDays,
+          processingTimeMinDays,
+          processingTimeMaxDays,
         },
+        select: { title: true, updatedAt: true },
       });
-    }
 
-    const retainedPhotoIds = photoManifest.photos
-      .map((photo) => photo.id)
-      .filter((id): id is string => Boolean(id));
-    await tx.photo.deleteMany({
-      where: retainedPhotoIds.length
-        ? { listingId, id: { notIn: retainedPhotoIds } }
-        : { listingId },
-    });
-    for (let index = 0; index < photoManifest.photos.length; index++) {
-      const photo = photoManifest.photos[index];
-      if (photo.id) {
-        await tx.photo.updateMany({
-          where: { id: photo.id, listingId },
-          data: {
-            url: photo.url,
-            originalUrl: photo.originalUrl ?? photo.url,
-            altText: photo.altText,
-            sortOrder: index,
-          },
-        });
-      } else {
-        await tx.photo.create({
+      // Update variants with the listing row so failures cannot leave mixed old/new state.
+      await tx.listingVariantGroup.deleteMany({ where: { listingId } });
+      for (let gi = 0; gi < variantGroups.length; gi++) {
+        const g = variantGroups[gi];
+        if (!g.name || g.options.length === 0) continue;
+        await tx.listingVariantGroup.create({
           data: {
             listingId,
-            url: photo.url,
-            originalUrl: photo.originalUrl ?? photo.url,
-            altText: photo.altText,
-            sortOrder: index,
+            name: g.name,
+            sortOrder: gi,
+            options: {
+              create: g.options.filter((o) => o.label).map((o, oi) => ({
+                label: o.label,
+                priceAdjustCents: o.priceAdjustCents,
+                sortOrder: oi,
+                inStock: o.inStock,
+              })),
+            },
           },
         });
       }
-    }
 
-    return updated;
-  });
+      const retainedPhotoIds = photoManifest.photos
+        .map((photo) => photo.id)
+        .filter((id): id is string => Boolean(id));
+      await tx.photo.deleteMany({
+        where: retainedPhotoIds.length
+          ? { listingId, id: { notIn: retainedPhotoIds } }
+          : { listingId },
+      });
+      for (let index = 0; index < photoManifest.photos.length; index++) {
+        const photo = photoManifest.photos[index];
+        if (photo.id) {
+          const updatedPhoto = await tx.photo.updateMany({
+            where: { id: photo.id, listingId },
+            data: {
+              url: photo.url,
+              originalUrl: photo.originalUrl ?? photo.url,
+              altText: photo.altText,
+              sortOrder: index,
+            },
+          });
+          if (updatedPhoto.count === 0) {
+            throw new ListingPhotoConflictError();
+          }
+        } else {
+          await tx.photo.create({
+            data: {
+              listingId,
+              url: photo.url,
+              originalUrl: photo.originalUrl ?? photo.url,
+              altText: photo.altText,
+              sortOrder: index,
+            },
+          });
+        }
+      }
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof ListingPhotoConflictError) {
+      await Promise.all(
+        Array.from(submittedNewPhotoUrls).map((url) =>
+          deleteR2ObjectByUrl(url).catch((cleanupError) => {
+            console.error("[listing photo conflict] R2 cleanup failed:", cleanupError);
+          }),
+        ),
+      );
+      return { ok: false, error: error.message };
+    }
+    throw error;
+  }
 
   // Save on an ACTIVE listing routes edited text/price/variant/photo content
   // through AI re-review. Photo changes are staged in the edit form and are
