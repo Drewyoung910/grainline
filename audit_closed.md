@@ -1163,3 +1163,26 @@ Last updated: 2026-05-21
      `pruneEmailOutboxRetention()` deletes terminal `SENT`/`SKIPPED`/`DEAD`
      rows after the documented 30-day retention window. Existing guardrail:
      `tests/email-outbox-retention.test.mjs`.
+115. **Data tables have captions and scoped headers** — accessibility fix.
+     Seller-fee, admin case/order/review/audit/user, and seller analytics
+     tables now include screen-reader captions and `scope="col"` on all header
+     cells, with hidden text for action columns. Regression coverage:
+     `tests/accessibility-followups.test.mjs`.
+116. **Resend webhook stored-error sanitization was already closed** —
+     verified stale observability finding. `markWebhookFailed()` writes
+     `sanitizeEmailOutboxError(err)` to `ResendWebhookEvent.lastError`, keeping
+     raw provider errors out of durable webhook state.
+117. **Stripe completed-checkout emails already have outbox fallback** —
+     verified stale email-delivery finding. Time-critical order confirmation
+     and first-sale emails call `sendOrderTransactionalEmailWithFallback()`,
+     direct-send first, then enqueue deterministic `EmailOutbox` fallback on
+     direct-send failure without blocking the Stripe webhook response.
+118. **Email outbox HTML is bounded at write and schema layers** — verified
+     stale storage finding. `enqueueEmailOutbox()` truncates rendered HTML to
+     200,000 characters, and `EmailOutbox.html` is bounded by
+     `@db.VarChar(200000)`.
+119. **Email outbox error sanitization redacts Stripe IDs and cuids** —
+     verified stale observability finding. `sanitizeEmailOutboxError()` redacts
+     emails, URLs, provider tokens, common Stripe IDs, cuids, and long hex
+     tokens before console/lastError storage. Existing guardrail:
+     `tests/email-outbox-sanitize.test.mjs`.

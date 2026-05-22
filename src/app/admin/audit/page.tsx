@@ -107,14 +107,15 @@ export default async function AdminAuditPage({
 
       <div className="border border-neutral-200 bg-white overflow-x-auto">
         <table className="w-full text-sm">
+          <caption className="sr-only">Admin audit log entries</caption>
           <thead className="border-b border-neutral-200 bg-neutral-50">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Action</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Admin</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Target</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Reason</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Time</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Undo</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Action</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Admin</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Target</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Reason</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Time</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Undo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">

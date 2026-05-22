@@ -64,16 +64,17 @@ export default async function FlaggedOrdersPage({
         <>
           <div className="rounded-xl border border-neutral-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
+              <caption className="sr-only">Orders needing staff reconciliation</caption>
               <thead className="border-b border-neutral-100 bg-neutral-50 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-neutral-500">Order</th>
-                  <th className="px-4 py-3 font-medium text-neutral-500">Buyer</th>
-                  <th className="px-4 py-3 font-medium text-neutral-500">Seller</th>
-                  <th className="px-4 py-3 font-medium text-neutral-500 text-right">Total</th>
-                  <th className="px-4 py-3 font-medium text-neutral-500 text-right">Quoted Ship</th>
-                  <th className="px-4 py-3 font-medium text-neutral-500 text-right">Actual Ship</th>
-                  <th className="px-4 py-3 font-medium text-neutral-500">Mismatch Note</th>
-                  <th className="px-4 py-3" />
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Order</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Buyer</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Seller</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500 text-right">Total</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500 text-right">Quoted Ship</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500 text-right">Actual Ship</th>
+                  <th scope="col" className="px-4 py-3 font-medium text-neutral-500">Mismatch Note</th>
+                  <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">

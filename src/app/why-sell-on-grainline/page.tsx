@@ -71,13 +71,14 @@ export default async function WhySellOnGrainlinePage() {
         <div className="card-section overflow-hidden bg-white">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
+              <caption className="sr-only">Comparison of Grainline fees with other marketplace fee structures</caption>
               <thead>
                 <tr className="bg-amber-50 border-b border-stone-200">
-                  <th className="text-left p-4 font-semibold text-neutral-900 min-w-[160px]">Platform</th>
-                  <th className="text-left p-4 font-semibold text-neutral-900">Platform fee</th>
-                  <th className="text-left p-4 font-semibold text-neutral-900">Listing fees</th>
-                  <th className="text-left p-4 font-semibold text-neutral-900">Mandatory ads</th>
-                  <th className="text-left p-4 font-semibold text-neutral-900">Charges shipping?</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900 min-w-[160px]">Platform</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Platform fee</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Listing fees</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Mandatory ads</th>
+                  <th scope="col" className="text-left p-4 font-semibold text-neutral-900">Charges shipping?</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">

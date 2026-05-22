@@ -224,4 +224,26 @@ describe("accessibility follow-ups", () => {
     assert.match(layout, /text-stone-100/);
     assert.doesNotMatch(layout, /text-stone-300\/60/);
   });
+
+  it("keeps data tables captioned and column headers scoped", () => {
+    const tableFiles = [
+      "src/app/why-sell-on-grainline/page.tsx",
+      "src/app/admin/cases/page.tsx",
+      "src/app/admin/flagged/page.tsx",
+      "src/app/admin/audit/page.tsx",
+      "src/app/admin/users/page.tsx",
+      "src/app/admin/orders/page.tsx",
+      "src/app/dashboard/analytics/page.tsx",
+    ];
+
+    for (const path of tableFiles) {
+      const text = source(path);
+      const tableCount = (text.match(/<table\b/g) ?? []).length;
+      const captionCount = (text.match(/<caption\b/g) ?? []).length;
+
+      assert.ok(tableCount > 0, `${path} should contain a table`);
+      assert.equal(captionCount, tableCount, `${path} should caption every table`);
+      assert.doesNotMatch(text, /<th\b(?![^>]*\bscope=)/, `${path} should scope every table header`);
+    }
+  });
 });

@@ -120,13 +120,14 @@ export default async function AdminUsersPage({
       {/* Users table */}
       <div className="border border-neutral-200 bg-white overflow-x-auto">
         <table className="w-full text-sm">
+          <caption className="sr-only">Admin user management list</caption>
           <thead className="border-b border-neutral-200 bg-neutral-50">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">User</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Role</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Joined</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Status</th>
-              <th className="text-left px-4 py-3 font-medium text-neutral-500">Action</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">User</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Role</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Joined</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Status</th>
+              <th scope="col" className="text-left px-4 py-3 font-medium text-neutral-500">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">

@@ -961,15 +961,16 @@ function RecentSales() {
       ) : (
         <div className="card-section overflow-x-auto">
           <table className="w-full text-sm">
+            <caption className="sr-only">Recent completed sales</caption>
             <thead className="bg-stone-50 border-b border-neutral-100">
               <tr>
-                <th className="text-left px-4 py-2 font-medium text-neutral-600">Date</th>
-                <th className="text-left px-4 py-2 font-medium text-neutral-600">Item</th>
-                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden sm:table-cell">
+                <th scope="col" className="text-left px-4 py-2 font-medium text-neutral-600">Date</th>
+                <th scope="col" className="text-left px-4 py-2 font-medium text-neutral-600">Item</th>
+                <th scope="col" className="text-left px-4 py-2 font-medium text-neutral-600 hidden sm:table-cell">
                   Buyer
                 </th>
-                <th className="text-right px-4 py-2 font-medium text-neutral-600">Amount</th>
-                <th className="text-left px-4 py-2 font-medium text-neutral-600 hidden md:table-cell">
+                <th scope="col" className="text-right px-4 py-2 font-medium text-neutral-600">Amount</th>
+                <th scope="col" className="text-left px-4 py-2 font-medium text-neutral-600 hidden md:table-cell">
                   Status
                 </th>
               </tr>
