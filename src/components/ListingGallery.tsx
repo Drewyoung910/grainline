@@ -244,7 +244,7 @@ export default function ListingGallery({
             className="absolute right-[calc(1rem+env(safe-area-inset-right))] top-[calc(1rem+env(safe-area-inset-top))] z-10 inline-flex min-h-11 min-w-11 items-center justify-center text-2xl font-light text-white hover:text-neutral-300"
             aria-label="Close"
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
 
           {photos.length > 1 && (

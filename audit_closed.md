@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-21
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 197.
-- Verified code/feature fix commits since 2026-05-13: 173.
+- Verified hardening/doc commits since 2026-05-13: 203.
+- Verified code/feature fix commits since 2026-05-13: 179.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 157 verified closed items in the 2026-05-14
+- Most recent reported pass total: 163 verified closed items in the 2026-05-14
   active tracker below, plus forty-seven stale/false-positive claims verified
   clean.
 
@@ -905,3 +905,26 @@ Last updated: 2026-05-21
     accessibility fix. Category, ships-within, minimum rating, and sort controls
     now use explicit labels tied to input/select ids. Regression coverage:
     `tests/accessibility-followups.test.mjs`.
+70. **Block/report dropdown form lacked labels** — accessibility fix. Report
+    reason and details controls now have explicit labels/ids while preserving
+    the compact dropdown layout. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+71. **Address autocomplete lacked combobox/listbox semantics** — accessibility
+    fix. Address search now exposes combobox state, a listbox of options, and
+    Arrow/Enter/Escape keyboard handling. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+72. **PDF attachment links did not announce new-tab behavior** — accessibility
+    fix. Message PDF chips now include SR-only "in a new tab" copy alongside
+    the visible "Open" affordance. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+73. **FavoriteButton tap target was below the 44px polish target** —
+    accessibility polish. Favorite buttons now use `p-2.5` while keeping the
+    same visual placement. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+74. **Decorative close glyphs were announced despite labeled buttons** —
+    accessibility polish. Image lightbox and listing-gallery close glyphs are
+    now hidden from assistive tech while the buttons keep their accessible
+    labels. Regression coverage: `tests/accessibility-followups.test.mjs`.
+75. **Homepage scroll indicator SVG was decorative but exposed** —
+    accessibility polish. The scroll chevron is now `aria-hidden`. Regression
+    coverage: `tests/accessibility-followups.test.mjs`.

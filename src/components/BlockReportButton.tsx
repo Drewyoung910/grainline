@@ -183,8 +183,9 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
               <div className="px-4 py-3 text-sm text-green-600">Report submitted ✓</div>
             ) : (
               <div className="p-3 space-y-2">
-                <p className="text-xs font-medium text-neutral-700">Why are you reporting?</p>
+                <label htmlFor="report-reason" className="text-xs font-medium text-neutral-700">Why are you reporting?</label>
                 <select
+                  id="report-reason"
                   value={reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
                   className="w-full border border-neutral-200 rounded px-2 py-1 text-xs"
@@ -193,7 +194,9 @@ export default function BlockReportButton({ targetUserId, targetName, initialBlo
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>
+                <label htmlFor="report-details" className="sr-only">Additional report details</label>
                 <textarea
+                  id="report-details"
                   rows={2}
                   placeholder="Additional details (optional)"
                   value={reportDetails}

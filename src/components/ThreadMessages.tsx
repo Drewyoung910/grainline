@@ -57,7 +57,7 @@ function PdfChip({ url, name }: { url: string; name?: string | null }) {
         <path d="M14 2v6h6" fill="#fff" opacity="0.6" />
       </svg>
       <span className="truncate max-w-[220px]">{name ?? "Document.pdf"}</span>
-      <span className="text-xs text-neutral-500">Open</span>
+      <span className="text-xs text-neutral-500">Open<span className="sr-only"> in a new tab</span></span>
     </a>
   );
 }

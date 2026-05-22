@@ -138,4 +138,37 @@ describe("accessibility follow-ups", () => {
     assert.match(variantEditor, /htmlFor=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-price`\}/);
     assert.match(variantEditor, /id=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-price`\}/);
   });
+
+  it("labels report forms and address autocomplete listboxes", () => {
+    const report = source("src/components/BlockReportButton.tsx");
+    const address = source("src/components/AddressAutocomplete.tsx");
+
+    assert.match(report, /htmlFor="report-reason"/);
+    assert.match(report, /id="report-reason"/);
+    assert.match(report, /htmlFor="report-details"/);
+    assert.match(report, /id="report-details"/);
+    assert.match(address, /role="combobox"/);
+    assert.match(address, /aria-autocomplete="list"/);
+    assert.match(address, /aria-expanded=\{open\}/);
+    assert.match(address, /aria-controls=\{listboxId\}/);
+    assert.match(address, /role="listbox"/);
+    assert.match(address, /role="option"/);
+    assert.match(address, /aria-selected=\{activeIndex === index\}/);
+    assert.match(address, /ArrowDown/);
+    assert.match(address, /ArrowUp/);
+  });
+
+  it("keeps compact visual controls accessible without noisy glyphs", () => {
+    const thread = source("src/components/ThreadMessages.tsx");
+    const favorite = source("src/components/FavoriteButton.tsx");
+    const imageLightbox = source("src/components/ImageLightbox.tsx");
+    const listingGallery = source("src/components/ListingGallery.tsx");
+    const home = source("src/app/page.tsx");
+
+    assert.match(thread, /Open<span className="sr-only"> in a new tab<\/span>/);
+    assert.match(favorite, /p-2\.5/);
+    assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
+    assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);
+    assert.match(home, /<svg aria-hidden="true" width="24" height="24"/);
+  });
 });
