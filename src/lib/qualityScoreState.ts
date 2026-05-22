@@ -11,16 +11,22 @@ export const QUALITY_SCORE_PENALTIES = {
 
 const NON_PENALTY_AI_REVIEW_FLAGS = new Set(["pending-ai-review"]);
 
+export function normalizeQualityScoreAIReviewFlags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((flag): flag is string => typeof flag === "string")
+    .map((flag) => flag.trim())
+    .filter((flag) => flag && !NON_PENALTY_AI_REVIEW_FLAGS.has(flag));
+}
+
 export function qualityPenaltyForListing(input: {
   descLength: number | null | undefined;
   photoCount: number | null | undefined;
-  aiReviewFlags: string[] | null | undefined;
+  aiReviewFlags: unknown;
 }) {
   const descLength = Math.max(0, input.descLength ?? 0);
   const photoCount = Math.max(0, input.photoCount ?? 0);
-  const flags = (input.aiReviewFlags ?? [])
-    .map((flag) => flag.trim())
-    .filter((flag) => flag && !NON_PENALTY_AI_REVIEW_FLAGS.has(flag));
+  const flags = normalizeQualityScoreAIReviewFlags(input.aiReviewFlags);
 
   let penalty = 0;
   if (descLength === 0) {

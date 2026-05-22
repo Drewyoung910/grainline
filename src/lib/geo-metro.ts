@@ -141,7 +141,7 @@ export async function findOrCreateMetro(
       },
     });
 
-    console.log(`[geo-metro] Auto-created metro: ${slug} (${geo.city}, ${geo.state})`);
+    console.log("[geo-metro] Auto-created metro");
 
     return { metroId: metro.id, cityMetroId: null };
   } catch {

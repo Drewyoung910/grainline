@@ -1008,3 +1008,20 @@ Last updated: 2026-05-21
     notification/email/webhook retention cleanup under the generic
     `cron_notification_prune` source. Regression coverage:
     `tests/retention-and-ops-followups.test.mjs`.
+90. **Auto-created metro logs no longer include locality detail** — privacy
+    polish. `findOrCreateMetro()` still logs that a metro was created, but it
+    no longer emits the slug/city/state derived from a seller pickup location,
+    avoiding log-timing correlation between onboarding requests and seller
+    geography. Regression coverage: `tests/geo-metro-privacy.test.mjs`.
+91. **Non-listing sitemap chunk cannot exceed the XML entry limit** — SEO
+    guardrail fix. `/sitemap/0.xml` now passes the combined static,
+    seller/shop/customer-photo, blog, commission, metro, and metro-category
+    route set through `limitSitemapEntries()` so it never emits more than
+    50,000 URLs. Listing routes remain chunked separately at 5,000 per sitemap.
+    Regression coverage: `tests/sitemap-entry-limit.test.mjs`.
+92. **Quality-score AI flags tolerate malformed row data** — cron reliability
+    fix. `qualityPenaltyForListing()` now normalizes `aiReviewFlags` through
+    `normalizeQualityScoreAIReviewFlags()`, ignoring non-string array members
+    and non-array values before applying moderation penalties. The daily
+    quality-score cron no longer depends on every raw-SQL flag value being a
+    clean string. Regression coverage: `tests/quality-score-state.test.mjs`.

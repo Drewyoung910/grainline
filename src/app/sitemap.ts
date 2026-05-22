@@ -20,6 +20,10 @@ const BLOG_TYPE_SITEMAP_FILTERS = [
   BlogPostType.WOOD_EDUCATION,
 ] as const;
 
+function limitSitemapEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
+  return entries.slice(0, SITEMAP_ENTRY_LIMIT);
+}
+
 export async function generateSitemaps() {
   const listingCount = await prisma.listing.count({ where: publicListingWhere() });
   const listingChunks = Math.ceil(listingCount / SITEMAP_CHUNK_SIZE);
@@ -273,7 +277,7 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     priority: !m.parentMetroId ? 0.7 : 0.5,
   }));
 
-  return [
+  return limitSitemapEntries([
     ...staticRoutes,
     ...blogIndexRoute,
     ...blogTypeRoutes,
@@ -284,5 +288,5 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     ...metroRoutes,
     ...metroCategoryRoutes,
     ...metroCommissionRoutes,
-  ];
+  ]);
 }
