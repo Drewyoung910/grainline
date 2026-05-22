@@ -710,23 +710,24 @@ export default async function EditListingPage(props: {
             Keep these in lockstep so the create and edit flows feel like
             the same form. */}
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
-          <InputCharCounter name="title" maxLength={100} defaultValue={listing.title} required />
+          <label htmlFor="listing-title" className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
+          <InputCharCounter id="listing-title" name="title" maxLength={100} defaultValue={listing.title} required />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
-          <CharCounter name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
+          <label htmlFor="listing-description" className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
+          <CharCounter id="listing-description" name="description" maxLength={2000} rows={4} defaultValue={listing.description ?? ""} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
+          <label htmlFor="listing-meta-description" className="block text-sm font-medium text-neutral-700 mb-1">
             Meta description
             <span className="text-neutral-500 ml-1 font-normal">
               — helps your listing rank in search results
             </span>
           </label>
           <CharCounter
+            id="listing-meta-description"
             name="metaDescription"
             maxLength={160}
             rows={2}

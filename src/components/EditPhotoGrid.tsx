@@ -294,6 +294,7 @@ export default function EditPhotoGrid({
               className="w-full aspect-[4/5] object-cover rounded-md"
             />
             <textarea
+              aria-label={`Alt text for photo ${altModalIdx + 1}`}
               value={altTexts[photos[altModalIdx].id] ?? ""}
               onChange={(e) =>
                 setAltTexts((prev) => ({

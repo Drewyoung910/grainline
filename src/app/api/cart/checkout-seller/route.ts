@@ -22,6 +22,7 @@ import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
+import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -47,7 +48,7 @@ const CheckoutSellerSchema = z.object({
     amountCents: z.number().int().min(0),
     displayName: z.string().min(1).max(100),
     carrier: z.string().max(100),
-    estDays: z.number().int().nullable(),
+    estDays: z.number().int().min(1).max(SHIPPING_ESTIMATED_DAYS_MAX).nullable(),
     token: z.string().min(1),
     expiresAt: z.number().int().min(0),
   }),

@@ -433,8 +433,9 @@ export default async function ProfilePage({
           <h2 className="border-b border-neutral-100 pb-2 text-lg font-semibold font-display">Your Story</h2>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Bio</label>
+            <label htmlFor="seller-bio" className="block text-sm font-medium mb-1">Bio</label>
             <CharCounter
+              id="seller-bio"
               name="bio"
               maxLength={500}
               rows={4}
@@ -455,8 +456,9 @@ export default async function ProfilePage({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Story</label>
+            <label htmlFor="seller-story" className="block text-sm font-medium mb-1">Story</label>
             <CharCounter
+              id="seller-story"
               name="storyBody"
               maxLength={2000}
               rows={8}

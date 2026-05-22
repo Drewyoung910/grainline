@@ -16,9 +16,11 @@ const {
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
   payoutFailureState,
+  parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
   retrievedStripeEventMatchesSignedEnvelope,
+  SHIPPING_ESTIMATED_DAYS_MAX,
 } = await import("../src/lib/stripeWebhookState.ts");
 
 function seller(overrides = {}) {
@@ -87,6 +89,15 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(parsePositiveInt("0", 7), 7);
     assert.equal(parsePositiveInt("1.5", 7), 7);
     assert.equal(parsePositiveInt("abc", 7), 7);
+  });
+
+  it("parses bounded positive integer metadata with a fallback", () => {
+    assert.equal(parseBoundedPositiveInt("3", 7, SHIPPING_ESTIMATED_DAYS_MAX), 3);
+    assert.equal(parseBoundedPositiveInt(60, 7, SHIPPING_ESTIMATED_DAYS_MAX), 60);
+    assert.equal(parseBoundedPositiveInt("61", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+    assert.equal(parseBoundedPositiveInt("0", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+    assert.equal(parseBoundedPositiveInt("1.5", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
+    assert.equal(parseBoundedPositiveInt("abc", 7, SHIPPING_ESTIMATED_DAYS_MAX), 7);
   });
 
   it("parses optional non-negative integer metadata", () => {

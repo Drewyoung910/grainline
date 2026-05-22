@@ -1032,3 +1032,34 @@ Last updated: 2026-05-21
     use the same single-SQL, active-public-listing threshold calculation as
     dashboard/shop listing state changes. Regression coverage:
     `tests/guild-listing-edit-followups.test.mjs`.
+94. **Checkout shipping estimated-days metadata is bounded** — defensive
+    checkout hardening fix. Both checkout routes now reject selected shipping
+    rates whose `estDays` is not a positive integer within the supported
+    60-day window, and the Stripe webhook re-bounds
+    `shipping_rate_data.metadata.estDays` before computing
+    `estimatedDeliveryDate`. Quantity parsing still uses the existing
+    positive-int fallback helper. Regression coverage:
+    `tests/checkout-est-days-bounds.test.mjs` and
+    `tests/stripe-webhook-state.test.mjs`.
+95. **Cart update preserves the cart-wide total quantity cap** — cart hardening
+    parity fix. `/api/cart/update` now recalculates projected total cart
+    quantity before increasing an existing row and rejects updates that would
+    exceed the same 200-total-item limit enforced by `/api/cart/add`. This
+    closes the remaining path where an existing cart item could be inflated
+    after the add route's distinct-row and total-quantity checks had already
+    passed. Regression coverage: `tests/order-state-followups.test.mjs`.
+96. **Accessibility guardrails extended across counters, attachments, and
+    ratings** — UI hardening fix. Shared character-counter fields now expose
+    generated IDs, connect controls to their counters with `aria-describedby`,
+    and announce changes politely. Listing photo alt-text modals now label the
+    textarea, message attachment links avoid noisy glyph-only copy and announce
+    new-tab behavior, read-only star displays expose an assistive label, and
+    low-contrast pagination/checkout divider text was raised to neutral-500 or
+    marked decorative. Regression coverage:
+    `tests/accessibility-followups.test.mjs`.
+97. **Future feed/notification timestamps no longer read as "just now"** —
+    time-label correctness fix. The account feed and notification bell now
+    validate timestamp parsing and render a calendar date for timestamps more
+    than 60 seconds in the future instead of collapsing negative deltas to
+    "just now". Regression coverage:
+    `tests/post-launch-ui-followups.test.mjs`.

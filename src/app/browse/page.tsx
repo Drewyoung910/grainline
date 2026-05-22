@@ -48,10 +48,14 @@ function uniq<T>(arr: T[]): T[] {
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
   return (
-    <span className="relative leading-none inline-block align-middle" aria-hidden>
-      <span className="text-neutral-300">★★★★★</span>
+    <span
+      className="relative leading-none inline-block align-middle"
+      role="img"
+      aria-label={`${value.toFixed(1)} out of 5 stars`}
+    >
+      <span className="text-neutral-300" aria-hidden="true">★★★★★</span>
       <span className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
-        <span className="text-amber-500">★★★★★</span>
+        <span className="text-amber-500" aria-hidden="true">★★★★★</span>
       </span>
     </span>
   );
@@ -510,7 +514,7 @@ export default async function BrowsePage({
       {clampedPage > 1 ? (
         <Link href={makePageHref(clampedPage - 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">← Prev</Link>
       ) : (
-        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-400 cursor-not-allowed">← Prev</span>
+        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">← Prev</span>
       )}
       {totalPages > 1 && (
         <span className="px-2 text-neutral-500">
@@ -520,7 +524,7 @@ export default async function BrowsePage({
       {clampedPage < totalPages ? (
         <Link href={makePageHref(clampedPage + 1)} className="rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-neutral-700 hover:bg-neutral-50 transition-colors">Next →</Link>
       ) : (
-        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-400 cursor-not-allowed">Next →</span>
+        <span className="rounded-md border border-neutral-200 bg-white/60 px-3 py-1.5 text-neutral-500 cursor-not-allowed">Next →</span>
       )}
     </nav>
   );

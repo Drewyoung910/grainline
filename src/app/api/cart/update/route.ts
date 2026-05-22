@@ -19,6 +19,7 @@ const CartUpdateSchema = z.object({
   quantity: z.number().int().min(0).max(99),
 });
 const CART_UPDATE_BODY_MAX_BYTES = 16 * 1024;
+const MAX_CART_TOTAL_QUANTITY = 200;
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,17 @@ export async function POST(req: Request) {
       if (listing?.listingType === "MADE_TO_ORDER" && quantity > 1) {
         return NextResponse.json(
           { error: "Made-to-order items can only be ordered one at a time." },
+          { status: 400 },
+        );
+      }
+      const cartStats = await prisma.cartItem.aggregate({
+        where: { cartId: cart.id },
+        _sum: { quantity: true },
+      });
+      const projectedTotalQuantity = (cartStats._sum.quantity ?? 0) - item.quantity + quantity;
+      if (projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY) {
+        return NextResponse.json(
+          { error: "Your cart can hold up to 200 total items." },
           { status: 400 },
         );
       }

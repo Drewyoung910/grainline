@@ -8,6 +8,7 @@ export type StripeRefundLike = {
 
 export const STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 24 * 60 * 60;
 export const STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 * 60;
+export const SHIPPING_ESTIMATED_DAYS_MAX = 60;
 
 export function isStaleStripeEvent(
   created: number | null | undefined,
@@ -190,6 +191,15 @@ export function latestSuccessfulRefund(refunds: StripeRefundLike[]) {
 export function parsePositiveInt(value: string | number | null | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function parseBoundedPositiveInt(
+  value: string | number | null | undefined,
+  fallback: number,
+  max: number,
+): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= max ? parsed : fallback;
 }
 
 export function parseOptionalNonNegativeInt(value: string | number | null | undefined): number | null {

@@ -142,7 +142,11 @@ export default function FeedClient() {
 }
 
 function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const date = new Date(dateStr);
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp)) return "recently";
+  const diff = Date.now() - timestamp;
+  if (diff < -60000) return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;

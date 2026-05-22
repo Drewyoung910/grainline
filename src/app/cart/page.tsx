@@ -785,7 +785,7 @@ function CartPage() {
           { key: "payment", label: "Payment" },
         ].map((s, i) => (
           <span key={s.key} className="flex items-center gap-2">
-            {i > 0 && <span className="text-neutral-400">›</span>}
+            {i > 0 && <span className="text-neutral-500" aria-hidden="true">›</span>}
             <span className={
               step === s.key
                 ? "text-neutral-900 font-semibold"

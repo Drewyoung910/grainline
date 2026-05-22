@@ -423,7 +423,12 @@ export default function ThreadMessages({
           if (file) {
             if (isImage) {
               bubble = (
-                <a href={file.url} target="_blank" rel="noopener noreferrer">
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${file.name ?? "image attachment"} in a new tab`}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={file.url}
@@ -441,8 +446,12 @@ export default function ThreadMessages({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-neutral-50"
+                  aria-label={`Open ${file.name ?? "file attachment"} in a new tab`}
                 >
-                  ⬇️ <span className="truncate max-w-[220px]">{file.name ?? "Download file"}</span>
+                  <span className="truncate max-w-[220px]">{file.name ?? "File attachment"}</span>
+                  <span className="text-xs text-neutral-500">
+                    Open<span className="sr-only"> in a new tab</span>
+                  </span>
                 </a>
               );
             } else {
@@ -450,7 +459,7 @@ export default function ThreadMessages({
             }
           } else if (isImage) {
             bubble = (
-              <a href={body} target="_blank" rel="noopener noreferrer">
+              <a href={body} target="_blank" rel="noopener noreferrer" aria-label="Open image attachment in a new tab">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={body}

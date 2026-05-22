@@ -430,6 +430,15 @@ describe("post-launch UI follow-ups", () => {
     assert.match(bell, /h-10 w-10 items-center justify-center rounded-full text-neutral-900 hover:bg-black\/10/);
   });
 
+  it("relative time labels do not render future timestamps as just now", () => {
+    for (const path of ["src/app/account/feed/FeedClient.tsx", "src/components/NotificationBell.tsx"]) {
+      const text = source(path);
+      assert.match(text, /if \(!Number\.isFinite\(timestamp\)\) return "recently"/);
+      assert.match(text, /if \(diff < -60000\) return date\.toLocaleDateString/);
+      assert.match(text, /if \(mins < 1\) return "just now"/);
+    }
+  });
+
   it("cart page has skeleton loading and friendly empty-state card", () => {
     const cart = source("src/app/cart/page.tsx");
     assert.match(cart, /CartLoadingSkeleton/);

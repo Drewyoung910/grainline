@@ -502,15 +502,16 @@ export default async function NewListingPage({
 
       <ActionForm action={createListing} className="space-y-4" preventEnterSubmit preserveOnError>
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
-          <InputCharCounter name="title" maxLength={100} required />
+          <label htmlFor="listing-title" className="block text-sm font-medium text-neutral-700 mb-1">Title</label>
+          <InputCharCounter id="listing-title" name="title" maxLength={100} required />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
+          <label htmlFor="listing-description" className="block text-sm font-medium text-neutral-700 mb-1">
             Description <span className="text-neutral-500 font-normal">(optional)</span>
           </label>
           <CharCounter
+            id="listing-description"
             name="description"
             maxLength={2000}
             rows={6}
@@ -519,13 +520,14 @@ export default async function NewListingPage({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
+          <label htmlFor="listing-meta-description" className="block text-sm font-medium text-neutral-700 mb-1">
             Meta description
             <span className="text-neutral-500 ml-1 font-normal">
               — helps your listing rank in search results
             </span>
           </label>
           <CharCounter
+            id="listing-meta-description"
             name="metaDescription"
             maxLength={160}
             rows={2}

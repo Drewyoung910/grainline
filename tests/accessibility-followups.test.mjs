@@ -139,6 +139,38 @@ describe("accessibility follow-ups", () => {
     assert.match(variantEditor, /id=\{`\$\{baseId\}-group-\$\{gi\}-option-\$\{oi\}-price`\}/);
   });
 
+  it("announces character counters and listing photo alt-text editors", () => {
+    const charCounter = source("src/components/CharCounter.tsx");
+    const photoManager = source("src/components/PhotoManager.tsx");
+    const editPhotoGrid = source("src/components/EditPhotoGrid.tsx");
+
+    assert.match(charCounter, /useId/);
+    assert.match(charCounter, /id\?: string/);
+    assert.match(charCounter, /const fieldId = id \?\? generatedId/);
+    assert.match(charCounter, /id=\{fieldId\}/);
+    assert.match(charCounter, /aria-describedby=\{counterId\}/);
+    assert.match(charCounter, /id=\{counterId\} aria-live="polite"/);
+    assert.match(source("src/app/dashboard/listings/new/page.tsx"), /htmlFor="listing-title"[\s\S]*?<InputCharCounter id="listing-title"/);
+    assert.match(source("src/app/dashboard/listings/[id]/edit/page.tsx"), /htmlFor="listing-title"[\s\S]*?<InputCharCounter id="listing-title"/);
+    assert.match(source("src/app/dashboard/profile/page.tsx"), /htmlFor="seller-bio"[\s\S]*?<CharCounter[\s\S]*?id="seller-bio"/);
+    assert.match(photoManager, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
+    assert.match(editPhotoGrid, /aria-label=\{`Alt text for photo \$\{altModalIdx \+ 1\}`\}/);
+  });
+
+  it("labels read-only star ratings for assistive technology", () => {
+    for (const path of [
+      "src/components/ReviewsSection.tsx",
+      "src/app/listing/[id]/page.tsx",
+      "src/app/page.tsx",
+      "src/app/browse/page.tsx",
+    ]) {
+      const text = source(path);
+      assert.match(text, /role="img"/);
+      assert.match(text, /aria-label=\{`\$\{value\.toFixed\(1\)\} out of 5 stars`\}/);
+      assert.match(text, /aria-hidden="true">★★★★★/);
+    }
+  });
+
   it("labels report forms and address autocomplete listboxes", () => {
     const report = source("src/components/BlockReportButton.tsx");
     const address = source("src/components/AddressAutocomplete.tsx");
@@ -166,6 +198,8 @@ describe("accessibility follow-ups", () => {
     const home = source("src/app/page.tsx");
 
     assert.match(thread, /Open<span className="sr-only"> in a new tab<\/span>/);
+    assert.match(thread, /aria-label=\{`Open \$\{file\.name \?\? "file attachment"\} in a new tab`\}/);
+    assert.doesNotMatch(thread, /⬇️/);
     assert.match(favorite, /p-2\.5/);
     assert.match(imageLightbox, /<span aria-hidden="true">✕<\/span>/);
     assert.match(listingGallery, /<span aria-hidden="true">✕<\/span>/);

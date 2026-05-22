@@ -136,7 +136,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
               ← Previous
             </Link>
           ) : (
-            <span className="rounded-md border border-neutral-200 px-4 py-2 text-neutral-400 cursor-not-allowed">← Previous</span>
+            <span className="rounded-md border border-neutral-200 px-4 py-2 text-neutral-500 cursor-not-allowed">← Previous</span>
           )}
           <span className="text-neutral-500">
             Page {page} of {totalPages}
@@ -149,7 +149,7 @@ export default async function CustomerPhotosPage({ params, searchParams }: Props
               Next →
             </Link>
           ) : (
-            <span className="rounded-md border border-neutral-200 px-4 py-2 text-neutral-400 cursor-not-allowed">Next →</span>
+            <span className="rounded-md border border-neutral-200 px-4 py-2 text-neutral-500 cursor-not-allowed">Next →</span>
           )}
         </nav>
       )}

@@ -49,9 +49,11 @@ import {
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
   payoutFailureState,
+  parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
   retrievedStripeEventMatchesSignedEnvelope,
+  SHIPPING_ESTIMATED_DAYS_MAX,
 } from "@/lib/stripeWebhookState";
 import type { FulfillmentStatus, Prisma } from "@prisma/client";
 
@@ -620,9 +622,9 @@ export async function POST(req: Request) {
         selectedRateObjectId || shippingRateObj?.metadata?.objectId || null,
       );
 
-      // estDays stored in shipping rate metadata at checkout time; default 7 if missing
+      // estDays stored in shipping rate metadata at checkout time; default 7 if missing/out-of-range
       const rawEstDays = shippingRateObj?.metadata?.estDays;
-      const estDays: number = parsePositiveInt(rawEstDays, 7);
+      const estDays: number = parseBoundedPositiveInt(rawEstDays, 7, SHIPPING_ESTIMATED_DAYS_MAX);
 
       const reviewNeeded = checkoutCompletionNeedsReview({
         quotedPostalCode: quotedShipToPostalCode,

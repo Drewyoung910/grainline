@@ -288,6 +288,7 @@ export default function PhotoManager({ max = 8 }: { max?: number }) {
               className="w-full aspect-[4/5] object-cover rounded-md"
             />
             <textarea
+              aria-label={`Alt text for photo ${altModalIdx + 1}`}
               value={photos[altModalIdx].altText}
               onChange={(e) => updateAltText(altModalIdx, e.target.value)}
               placeholder="Describe this image (e.g. 'Hand-carved walnut dining table with live edge')"

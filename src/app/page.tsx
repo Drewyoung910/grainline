@@ -33,10 +33,14 @@ import { avatarInitial } from "@/lib/avatarInitials";
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
   return (
-    <span className="relative leading-none inline-block align-middle" aria-hidden>
-      <span className="text-neutral-300">★★★★★</span>
+    <span
+      className="relative leading-none inline-block align-middle"
+      role="img"
+      aria-label={`${value.toFixed(1)} out of 5 stars`}
+    >
+      <span className="text-neutral-300" aria-hidden="true">★★★★★</span>
       <span className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>
-        <span className="text-amber-500">★★★★★</span>
+        <span className="text-amber-500" aria-hidden="true">★★★★★</span>
       </span>
     </span>
   );

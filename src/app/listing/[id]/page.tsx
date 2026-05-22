@@ -106,13 +106,17 @@ function quarterRoundStars(n: number) {
 function StarDisplay({ value }: { value: number }) {
   const q = Math.min(5, Math.max(0, Math.round(value * 4) / 4));
   return (
-    <div className="relative leading-none inline-block" aria-hidden>
-      <div className="text-neutral-300">★★★★★</div>
+    <div
+      className="relative leading-none inline-block"
+      role="img"
+      aria-label={`${value.toFixed(1)} out of 5 stars`}
+    >
+      <div className="text-neutral-300" aria-hidden="true">★★★★★</div>
       <div
         className="absolute inset-0 overflow-hidden"
         style={{ width: `${(q / 5) * 100}%` }}
       >
-        <div className="text-amber-500">★★★★★</div>
+        <div className="text-amber-500" aria-hidden="true">★★★★★</div>
       </div>
     </div>
   );

@@ -81,6 +81,14 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
   });
 
+  it("keeps cart quantity updates under the cart-wide total item cap", () => {
+    const text = source("src/app/api/cart/update/route.ts");
+    assert.match(text, /MAX_CART_TOTAL_QUANTITY = 200/);
+    assert.match(text, /prisma\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \},\s*_sum: \{ quantity: true \},\s*\}\)/s);
+    assert.match(text, /\(cartStats\._sum\.quantity \?\? 0\) - item\.quantity \+ quantity/);
+    assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
+  });
+
   it("keeps checkout stock reservation tied to live active listing ownership", () => {
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
