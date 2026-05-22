@@ -1186,3 +1186,25 @@ Last updated: 2026-05-21
      emails, URLs, provider tokens, common Stripe IDs, cuids, and long hex
      tokens before console/lastError storage. Existing guardrail:
      `tests/email-outbox-sanitize.test.mjs`.
+120. **Broad Prisma user relation selects are source-guarded** — authorization
+     and PII-overfetch guardrail. Current source has no `include: { user: true }`
+     or `select: { user: true }` relation loads, and
+     `tests/verified-audit-followups.test.mjs` now scans `src/**/*.ts(x)` so
+     future route changes must keep user relation fields explicitly narrowed.
+121. **HMAC secret rotation cadence is documented** — verified stale ASVS
+     process finding. `docs/runbook.md` now includes a Secret Rotation section
+     with 90-day hot HMAC/application-secret cadence, annual provider/webhook
+     rotation guidance, zero-downtime dual-verify preference, and emergency
+     rotation notes.
+122. **Checkout SRI omission is documented as an intentional PCI/security
+     decision** — verified stale ASVS process finding. `CLAUDE.md`,
+     `docs/security-hardening-plan.md`, and
+     `docs/checkout-script-inventory.md` document that Stripe.js must load
+     directly from `js.stripe.com`, stale SRI hashes must not be added blindly,
+     and CSP/inventory/change control are the compensating controls.
+123. **Unsubscribe email query parameter is documented as an accepted
+     one-click tradeoff** — verified stale ASVS process finding. `CLAUDE.md`
+     documents GET as confirmation-only, POST as the only mutating path,
+     signed/rate-limited unsubscribe tokens, `Referrer-Policy:
+     strict-origin-when-cross-origin`, no third-party resources on the
+     confirmation page, and no raw query/token logging.

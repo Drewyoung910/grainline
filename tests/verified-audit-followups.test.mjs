@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { describe, it } from "node:test";
 
 function source(path) {
   return readFileSync(path, "utf8");
+}
+
+function tsSourceFiles(dir) {
+  const entries = readdirSync(dir);
+  const files = [];
+  for (const entry of entries) {
+    const path = `${dir}/${entry}`;
+    const stat = statSync(path);
+    if (stat.isDirectory()) {
+      if (["node_modules", ".next", ".git"].includes(entry)) continue;
+      files.push(...tsSourceFiles(path));
+    } else if (/\.(ts|tsx)$/.test(entry)) {
+      files.push(path);
+    }
+  }
+  return files;
 }
 
 describe("verified audit follow-up guardrails", () => {
@@ -207,5 +223,14 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("src/components/UserAvatarMenu.tsx"), /Start Selling/);
     assert.match(source("src/components/Header.tsx"), /!hasSeller &&/);
     assert.match(source("src/components/Header.tsx"), /Start Selling/);
+  });
+
+  it("blocks broad Prisma user relation selects in source code", () => {
+    for (const path of tsSourceFiles("src")) {
+      const text = source(path);
+
+      assert.doesNotMatch(text, /include:\s*\{\s*user:\s*true\b/, `${path} should not include full user rows`);
+      assert.doesNotMatch(text, /select:\s*\{\s*user:\s*true\b/, `${path} should not select full user rows`);
+    }
   });
 });
