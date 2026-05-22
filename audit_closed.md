@@ -1096,3 +1096,37 @@ Last updated: 2026-05-21
      Shippo/carrier display names containing punctuation cannot shift field
      boundaries or create ambiguous token inputs. Regression coverage:
      `tests/shipping-token.test.mjs`.
+103. **Self-purchase add-then-ban checkout race was already closed** —
+     verified stale Round 4 Q finding. Single-listing checkout re-reads seller
+     orderability (`chargesEnabled`, Stripe account, vacation/order block,
+     banned/deleted user) before session creation, and the Stripe webhook
+     revalidates paid sessions before order side effects. Existing guardrails:
+     `tests/order-state-followups.test.mjs`.
+104. **Account deletion keeps Clerk-delete ordering fail-closed** — verified
+     stale Round 4 Q finding. `/api/account/delete` deletes the Clerk account
+     before anonymization and does not mutate the local DB if Clerk deletion
+     fails; if Clerk deletion succeeds but anonymization fails, the route
+     returns the terminal support-follow-up state instead of reporting a clean
+     deletion. Existing guardrails:
+     `tests/account-deletion-timeout-fix.test.mjs`.
+105. **Stripe charges-enabled backfill has a deliberate production override**
+     — verified stale Round 4 Q finding. `scripts/backfill-charges-enabled.ts`
+     supports the explicit `--force-prod` operator flag and production
+     environment checks, so the backfill is runnable when intentionally
+     invoked for live Stripe reconciliation.
+106. **Checkout transfer math no longer deducts estimated Stripe processing
+     fees from sellers** — verified stale Round 4 Q finding. Checkout seller
+     transfers use the documented platform-absorbs-Stripe-fee model: sellers
+     pay the 5% platform fee, and Stripe processing is not double-deducted
+     from `transfer_data.amount`. Existing guardrails:
+     `tests/checkout-amounts.test.mjs`.
+107. **Banned/deleted review authors render as former buyers** — verified
+     stale Round 4 Q finding. `ReviewsSection` uses the current
+     `reviewerUnavailable()` / `reviewerName()` / `reviewerInitials()` helpers
+     so public review UI does not expose banned or deleted account identity.
+108. **Account deletion scrubs order address PII** — verified stale Round 4 Q
+     finding. `accountDeletion.ts` clears buyer names/emails, shipping address
+     lines, quoted address fields, phone, gift note, and sets
+     `buyerDataPurgedAt` so order fulfillment history can remain without
+     retaining the deleted buyer's address details. Existing guardrails:
+     `tests/order-pii-retention.test.mjs`.
