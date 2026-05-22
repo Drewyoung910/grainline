@@ -18,6 +18,7 @@ import {
   stockAlertBody,
 } from "@/lib/stockMutationState";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -34,28 +35,6 @@ export const runtime = "nodejs";
 const BACK_IN_STOCK_CLAIM_BATCH_SIZE = 5000;
 const BACK_IN_STOCK_USER_LOOKUP_BATCH_SIZE = 500;
 const LISTING_STOCK_BODY_MAX_BYTES = 8 * 1024;
-
-async function syncListingsThreshold(sellerProfileId: string) {
-  const [activeCount, sp] = await Promise.all([
-    prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE" } }),
-    prisma.sellerProfile.findUnique({
-      where: { id: sellerProfileId },
-      select: { listingsBelowThresholdSince: true },
-    }),
-  ]);
-  if (!sp) return;
-  if (activeCount < 5 && !sp.listingsBelowThresholdSince) {
-    await prisma.sellerProfile.update({
-      where: { id: sellerProfileId },
-      data: { listingsBelowThresholdSince: new Date() },
-    });
-  } else if (activeCount >= 5 && sp.listingsBelowThresholdSince) {
-    await prisma.sellerProfile.update({
-      where: { id: sellerProfileId },
-      data: { listingsBelowThresholdSince: null },
-    });
-  }
-}
 
 export async function PATCH(
   req: Request,
@@ -143,7 +122,7 @@ export async function PATCH(
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // Track listingsBelowThresholdSince for Guild Member revocation check
-    await syncListingsThreshold(listing.seller.id);
+    await syncGuildMemberListingThreshold(listing.seller.id);
     if (listing.status !== updated.status) {
       revalidateListingSearchCaches();
     }

@@ -49,6 +49,7 @@ describe("guild and listing-edit audit follow-ups", () => {
     const helper = source("src/lib/guildListingThreshold.ts");
     const dashboard = source("src/app/dashboard/page.tsx");
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
+    const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
 
     assert.match(helper, /UPDATE "SellerProfile" sp/);
     assert.match(helper, /COUNT\(\*\)[\s\S]*FROM "Listing" l/);
@@ -57,5 +58,7 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(dashboard, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
+    assert.match(stockRoute, /syncGuildMemberListingThreshold\(listing\.seller\.id\)/);
+    assert.doesNotMatch(stockRoute, /activeCount < 5/);
   });
 });

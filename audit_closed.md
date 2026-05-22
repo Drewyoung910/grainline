@@ -1025,3 +1025,10 @@ Last updated: 2026-05-21
     and non-array values before applying moderation penalties. The daily
     quality-score cron no longer depends on every raw-SQL flag value being a
     clean string. Regression coverage: `tests/quality-score-state.test.mjs`.
+93. **Stock updates use the atomic Guild listing-threshold sync** — race
+    hardening fix. `/api/listings/[id]/stock` now calls the shared
+    `syncGuildMemberListingThreshold()` helper instead of its old local
+    read-then-write threshold helper, so stock-driven ACTIVE/SOLD_OUT changes
+    use the same single-SQL, active-public-listing threshold calculation as
+    dashboard/shop listing state changes. Regression coverage:
+    `tests/guild-listing-edit-followups.test.mjs`.

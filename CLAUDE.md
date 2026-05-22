@@ -530,10 +530,11 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - On revocation: sets `guildLevel = NONE`, `isVerifiedMaker = false`, sends notification + `sendGuildMemberRevokedEmail` with reason
 - Returns `{ revokedMember, errors[] }`
 
-**`listingsBelowThresholdSince` tracking** — set/cleared in three places:
-- `api/listings/[id]/stock/route.ts` — after quantity update (via `syncListingsThreshold` helper)
+**`listingsBelowThresholdSince` tracking** — set/cleared in four places:
+- `api/listings/[id]/stock/route.ts` — after quantity update (via `syncGuildMemberListingThreshold()`)
 - `dashboard/page.tsx` `setStatus()` — after hide/unhide
 - `dashboard/page.tsx` `deleteListing()` — after delete
+- `seller/[id]/shop/actions.ts` listing status actions — after publish/hide/delete
 
 **Email functions** added to `src/lib/email.ts`: `sendGuildMasterWarningEmail` (lists failed criteria), `sendGuildMasterRevokedEmail`, `sendGuildMemberRevokedEmail` (includes reason string)
 
