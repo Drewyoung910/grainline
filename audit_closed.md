@@ -1208,3 +1208,9 @@ Last updated: 2026-05-21
      signed/rate-limited unsubscribe tokens, `Referrer-Policy:
      strict-origin-when-cross-origin`, no third-party resources on the
      confirmation page, and no raw query/token logging.
+124. **Cart add cap checks are serialized inside a cart-row lock** —
+     concurrency hardening fix. `/api/cart/add` now locks the buyer's `Cart`
+     row inside a transaction before re-reading item count/quantity state and
+     creating or incrementing `CartItem`, so concurrent adds cannot slip past
+     the 50 distinct item or 200 total quantity caps. Regression coverage:
+     `tests/order-state-followups.test.mjs`.

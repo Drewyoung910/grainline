@@ -69,18 +69,20 @@ describe("order-state audit follow-up guardrails", () => {
     assert.match(text, /prisma\.cart\.upsert/);
     assert.doesNotMatch(text, /let cart = await prisma\.cart\.findUnique/);
     assert.match(text, /isUniqueConstraintError/);
-    assert.match(text, /prisma\.cartItem\.create/);
-    assert.match(text, /prisma\.cartItem\.updateMany/);
+    assert.match(text, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(text, /SELECT id FROM "Cart" WHERE id = \$\{cart\.id\} FOR UPDATE/);
+    assert.match(text, /tx\.cartItem\.create/);
+    assert.match(text, /tx\.cartItem\.updateMany/);
     assert.doesNotMatch(text, /prisma\.cartItem\.upsert/);
     assert.match(text, /quantity: \{ lte: 99 - quantity \}/);
     assert.match(text, /quantity: \{ increment: quantity \}/);
     assert.match(text, /MAX_CART_DISTINCT_ITEMS = 50/);
     assert.match(text, /MAX_CART_TOTAL_QUANTITY = 200/);
-    assert.match(text, /prisma\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \}/s);
+    assert.match(text, /tx\.cartItem\.aggregate\(\{\s*where: \{ cartId: cart\.id \}/s);
     assert.match(text, /projectedDistinctItems > MAX_CART_DISTINCT_ITEMS/);
     assert.match(text, /projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY/);
-    assert.match(text, /projectedItemQuantity > \(listing\.stockQuantity \?\? 0\)/);
-    assert.match(text, /Only \$\{listing\.stockQuantity \?\? 0\} available/);
+    assert.match(text, /projectedItemQuantity > \(listingForCart\.stockQuantity \?\? 0\)/);
+    assert.match(text, /Only \$\{listingForCart\.stockQuantity \?\? 0\} available/);
   });
 
   it("keeps cart quantity updates under the cart-wide total item cap", () => {

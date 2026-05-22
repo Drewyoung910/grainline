@@ -29,6 +29,16 @@ function isUniqueConstraintError(err: unknown) {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
+class CartAddError extends Error {
+  status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "CartAddError";
+    this.status = status;
+  }
+}
+
 // Prisma codes that indicate a transient DB-side problem (connection pool
 // exhaustion, network blip, server-closed-connection). Worth one retry
 // rather than surfacing a 500 to the buyer.
@@ -121,6 +131,7 @@ export async function POST(req: Request) {
     }
 
     const variantKey = variantResolution.variantKey;
+    const listingForCart = listing;
 
     const cart = await prisma.cart.upsert({
       where: { userId: me.id },
@@ -128,56 +139,55 @@ export async function POST(req: Request) {
       update: {},
     });
 
-    const existingCartItem = await prisma.cartItem.findUnique({
-      where: {
-        cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-      },
-      select: { quantity: true },
-    });
-    const cartStats = await prisma.cartItem.aggregate({
-      where: { cartId: cart.id },
-      _count: { id: true },
-      _sum: { quantity: true },
-    });
-    const projectedItemQuantity = listing.listingType === "MADE_TO_ORDER"
-      ? 1
-      : (existingCartItem?.quantity ?? 0) + quantity;
-    if (projectedItemQuantity > 99) {
-      return NextResponse.json({ error: "Cart quantity cannot exceed 99." }, { status: 400 });
-    }
-    if (listing.listingType === "IN_STOCK" && projectedItemQuantity > (listing.stockQuantity ?? 0)) {
-      return NextResponse.json(
-        { error: `Only ${listing.stockQuantity ?? 0} available.` },
-        { status: 400 },
-      );
-    }
-    const projectedDistinctItems = cartStats._count.id + (existingCartItem ? 0 : 1);
-    if (projectedDistinctItems > MAX_CART_DISTINCT_ITEMS) {
-      return NextResponse.json({ error: "Your cart can hold up to 50 different items." }, { status: 400 });
-    }
-    const projectedTotalQuantity =
-      (cartStats._sum.quantity ?? 0) - (existingCartItem?.quantity ?? 0) + projectedItemQuantity;
-    if (projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY) {
-      return NextResponse.json({ error: "Your cart can hold up to 200 total items." }, { status: 400 });
-    }
-
-    // Idempotent add: wrap the create-or-increment flow so transient DB
-    // errors get one retry before bubbling to a 500. The pattern is:
-    //   1. Try insert (cart + listing + variantKey is unique).
-    //   2. If unique-constraint hit, fall through to increment.
-    //   3. On any other error, retry the whole sequence once for transient
-    //      Prisma errors (timeout / connection blip), else throw.
+    // Idempotent add: lock this buyer's cart row, re-read cap state inside the
+    // transaction, then create or increment. The row lock serializes concurrent
+    // adds for one cart so distinct-item and total-quantity caps are not only
+    // best-effort prechecks.
     async function addOrIncrement() {
-      let item: Awaited<ReturnType<typeof prisma.cartItem.create>> | null = null;
-      if (listing!.listingType === "MADE_TO_ORDER") {
+      return prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Cart" WHERE id = ${cart.id} FOR UPDATE`;
+
+        const existingCartItem = await tx.cartItem.findUnique({
+          where: {
+            cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
+          },
+          select: { quantity: true },
+        });
+        const cartStats = await tx.cartItem.aggregate({
+          where: { cartId: cart.id },
+          _count: { id: true },
+          _sum: { quantity: true },
+        });
+
+        const projectedItemQuantity = listingForCart.listingType === "MADE_TO_ORDER"
+          ? 1
+          : (existingCartItem?.quantity ?? 0) + quantity;
+        if (projectedItemQuantity > 99) {
+          throw new CartAddError("Cart quantity cannot exceed 99.");
+        }
+        if (listingForCart.listingType === "IN_STOCK" && projectedItemQuantity > (listingForCart.stockQuantity ?? 0)) {
+          throw new CartAddError(`Only ${listingForCart.stockQuantity ?? 0} available.`);
+        }
+        const projectedDistinctItems = cartStats._count.id + (existingCartItem ? 0 : 1);
+        if (projectedDistinctItems > MAX_CART_DISTINCT_ITEMS) {
+          throw new CartAddError("Your cart can hold up to 50 different items.");
+        }
+        const projectedTotalQuantity =
+          (cartStats._sum.quantity ?? 0) - (existingCartItem?.quantity ?? 0) + projectedItemQuantity;
+        if (projectedTotalQuantity > MAX_CART_TOTAL_QUANTITY) {
+          throw new CartAddError("Your cart can hold up to 200 total items.");
+        }
+
+        let item: Awaited<ReturnType<typeof tx.cartItem.create>> | null = null;
+        const createQuantity = listingForCart.listingType === "MADE_TO_ORDER" ? 1 : quantity;
         try {
-          item = await prisma.cartItem.create({
+          item = await tx.cartItem.create({
             data: {
               cartId: cart.id,
               listingId,
-              quantity: 1,
+              quantity: createQuantity,
               priceCents: totalPriceCents,
-              priceVersion: listing!.priceVersion,
+              priceVersion: listingForCart.priceVersion,
               selectedVariantOptionIds,
               variantKey,
             },
@@ -188,66 +198,46 @@ export async function POST(req: Request) {
         }
         if (item) return item;
 
-        await prisma.cartItem.updateMany({
-          where: {
-            cartId: cart.id,
-            listingId,
-            variantKey,
-          },
-          data: {
-            quantity: 1,
-            priceCents: totalPriceCents,
-            priceVersion: listing!.priceVersion,
-            selectedVariantOptionIds,
-          },
-        });
-        return prisma.cartItem.findUnique({
+        if (listingForCart.listingType === "MADE_TO_ORDER") {
+          await tx.cartItem.updateMany({
+            where: {
+              cartId: cart.id,
+              listingId,
+              variantKey,
+            },
+            data: {
+              quantity: 1,
+              priceCents: totalPriceCents,
+              priceVersion: listingForCart.priceVersion,
+              selectedVariantOptionIds,
+            },
+          });
+        } else {
+          const updated = await tx.cartItem.updateMany({
+            where: {
+              cartId: cart.id,
+              listingId,
+              variantKey,
+              quantity: { lte: 99 - quantity },
+            },
+            data: {
+              quantity: { increment: quantity },
+              priceCents: totalPriceCents,
+              priceVersion: listingForCart.priceVersion,
+              selectedVariantOptionIds,
+            },
+          });
+          if (updated.count === 0) {
+            throw new CartAddError("Cart quantity cannot exceed 99.");
+          }
+        }
+
+        return tx.cartItem.findUnique({
           where: {
             cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
           },
           include: { listing: true },
         });
-      }
-      try {
-        item = await prisma.cartItem.create({
-          data: {
-            cartId: cart.id,
-            listingId,
-            quantity,
-            priceCents: totalPriceCents,
-            priceVersion: listing!.priceVersion,
-            selectedVariantOptionIds,
-            variantKey,
-          },
-          include: { listing: true },
-        });
-      } catch (err) {
-        if (!isUniqueConstraintError(err)) throw err;
-      }
-      if (item) return item;
-
-      const updated = await prisma.cartItem.updateMany({
-        where: {
-          cartId: cart.id,
-          listingId,
-          variantKey,
-          quantity: { lte: 99 - quantity },
-        },
-        data: {
-          quantity: { increment: quantity },
-          priceCents: totalPriceCents,
-          priceVersion: listing!.priceVersion,
-          selectedVariantOptionIds,
-        },
-      });
-      if (updated.count === 0) {
-        return null; // Signals the 99-cap path to the caller.
-      }
-      return prisma.cartItem.findUnique({
-        where: {
-          cartId_listingId_variantKey: { cartId: cart.id, listingId, variantKey },
-        },
-        include: { listing: true },
       });
     }
 
@@ -255,13 +245,23 @@ export async function POST(req: Request) {
     try {
       item = await addOrIncrement();
     } catch (err) {
+      if (err instanceof CartAddError) {
+        return NextResponse.json({ error: err.message }, { status: err.status });
+      }
       if (isTransientPrismaError(err)) {
         Sentry.captureMessage("Cart add: transient Prisma error, retrying once", {
           level: "warning",
           tags: { source: "cart_add_route", listingId, variantKey: variantKey || "(none)" },
           extra: { errCode: err instanceof Prisma.PrismaClientKnownRequestError ? err.code : null },
         });
-        item = await addOrIncrement();
+        try {
+          item = await addOrIncrement();
+        } catch (retryErr) {
+          if (retryErr instanceof CartAddError) {
+            return NextResponse.json({ error: retryErr.message }, { status: retryErr.status });
+          }
+          throw retryErr;
+        }
       } else {
         throw err;
       }
