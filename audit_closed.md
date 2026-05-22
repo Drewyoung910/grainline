@@ -1251,3 +1251,10 @@ Last updated: 2026-05-21
      per-file exclusions for them. The supported seed path remains
      `npm run seed:metros`. Regression coverage:
      `tests/verified-audit-followups.test.mjs`.
+130. **Direct-upload image magic-byte finding was already closed** — verified
+     stale Round 4 P-10 finding. `/api/upload/presign` rejects image content
+     types and routes images through the processed image endpoint, while
+     `uploadFileSignatureMatches()` already byte-sniffs JPEG, PNG, WebP, PDF,
+     MP4/QuickTime and rejects SVG. Existing guardrails:
+     `tests/upload-verification-token.test.mjs` and
+     `tests/upload-ux-followups.test.mjs`.

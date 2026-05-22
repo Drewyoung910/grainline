@@ -39,4 +39,19 @@ describe("AI review response normalization", () => {
       "Handmade woodworking product photo",
     ]);
   });
+
+  it("sanitizes generated bulk-review alt text before persistence", () => {
+    const result = normalizeAIReviewResult(
+      {
+        approved: true,
+        flags: [],
+        confidence: 0.9,
+        reason: "ok",
+        altTexts: ["<img src=x onerror=alert(1)> walnut bowl\u202E data:text/html"],
+      },
+      1,
+    );
+
+    assert.deepEqual(result.altTexts, ["walnut bowl text/html"]);
+  });
 });
