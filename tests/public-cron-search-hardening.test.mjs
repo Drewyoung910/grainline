@@ -72,6 +72,19 @@ describe("cron and public route hardening", () => {
     assert.doesNotMatch(route, /!process\.env\.VERCEL_ENV/);
   });
 
+  it("keeps CI on read-only repository permissions and blocking high audits", () => {
+    const workflow = source(".github/workflows/ci.yml");
+    const docs = source("CLAUDE.md");
+
+    assert.match(workflow, /permissions:\s*\n\s+contents: read/);
+    assert.match(workflow, /UPLOAD_VERIFICATION_SECRET: ci-upload-verification-secret/);
+    assert.match(workflow, /HEALTH_CHECK_TOKEN: ci-health-check-token/);
+    assert.match(workflow, /EMAIL_OUTBOX_DAILY_LIMIT: "100"/);
+    assert.match(workflow, /npm audit --audit-level=high/);
+    assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
+    assert.match(docs, /High-severity dependency advisories are blocking/);
+  });
+
   it("keeps fail-open rate limits limited to telemetry, diagnostics, and escalation routes", () => {
     const allowedFailOpenRoutes = new Set([
       "src/app/api/csp-report/route.ts",

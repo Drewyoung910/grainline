@@ -1594,3 +1594,9 @@ Last updated: 2026-05-21
      repeated whitespace, and is used by saved account shipping addresses,
      seller ship-from settings, checkout shipping payloads before Stripe
      metadata/idempotency hashing, and shipping quote Shippo destinations.
+187. **CI permissions, audit docs, and verification env tightened** — CI
+     hardening. `.github/workflows/ci.yml` now declares `permissions:
+     contents: read`, seeds deterministic CI-only upload verification,
+     health-check, and email-outbox limit env values, and CLAUDE.md now matches
+     the real blocking `npm audit --audit-level=high` CI behavior instead of
+     the old informational-audit wording.

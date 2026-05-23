@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -45,6 +48,7 @@ jobs:
       NEXT_PUBLIC_R2_PUBLIC_URL: ${{ secrets.NEXT_PUBLIC_R2_PUBLIC_URL }}
       CLOUDFLARE_R2_PUBLIC_URLS: ${{ secrets.CLOUDFLARE_R2_PUBLIC_URLS }}
       ALLOWED_R2_PUBLIC_URLS: ${{ secrets.ALLOWED_R2_PUBLIC_URLS }}
+      UPLOAD_VERIFICATION_SECRET: ci-upload-verification-secret
       # Upstash Redis
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
       UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
@@ -63,6 +67,8 @@ jobs:
       ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
       ADMIN_PIN_COOKIE_SECRET: ${{ secrets.ADMIN_PIN_COOKIE_SECRET }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      HEALTH_CHECK_TOKEN: ci-health-check-token
+      EMAIL_OUTBOX_DAILY_LIMIT: "100"
       # Sentry / app
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}

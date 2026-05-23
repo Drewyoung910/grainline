@@ -3101,7 +3101,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 
 ### Infrastructure improvements (2026-04-18)
 - **`.github/dependabot.yml`** — weekly npm security updates; minor/patch grouped into single PR; major version bumps ignored (require manual review); 10 open PR limit. Would have caught the Clerk 7.0.7 auth bypass CVE automatically.
-- **`.github/workflows/ci.yml`** — runs `prisma generate` → `npx tsc --noEmit` → `npm audit` (informational, `continue-on-error: true`) on every PR and push to main. Node 22. `prisma generate` is required before `tsc` because Prisma 7.7 changed the client generation output. Audit is informational — Dependabot PRs surface actionable fixes.
+- **`.github/workflows/ci.yml`** — runs `prisma generate` → `npx tsc --noEmit` → lint → tests → `npm audit --audit-level=high` → production build on every PR and push to main. Node 22. `prisma generate` is required before `tsc` because Prisma 7.7 changed the client generation output. High-severity dependency advisories are blocking; run `npm audit --audit-level=moderate` locally after dependency changes and fix or document any moderate advisory before pushing.
 
 ### Dependency upgrades (via Dependabot PR #2, 2026-04-18)
 - Prisma 7.6.0 → 7.7.0, Stripe SDK 19.0 → 19.3, React 19.2.4 → 19.2.5
@@ -3680,7 +3680,9 @@ export const prisma = new PrismaClient({ adapter, log: [...] })
 1. `npm ci` (clean install)
 2. `npx prisma generate` (required before tsc — Prisma 7.7 client generation)
 3. `npx tsc --noEmit` (type check — blocks PR on failure)
-4. `npm audit` (informational, `continue-on-error: true` — does not block)
+4. `npm run lint` and `npm test`
+5. `npm audit --audit-level=high` (blocking)
+6. `npm run build` (production build)
 
 **Dependabot** (`.github/dependabot.yml`): weekly PRs every Monday for npm minor/patch updates. Major version bumps are ignored (require manual review). Minor/patch updates are grouped into a single PR. Limit: 10 open PRs.
 
