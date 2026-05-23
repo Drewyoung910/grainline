@@ -1859,7 +1859,17 @@ Last updated: 2026-05-23
      `tests/account-export-payload.test.mjs`, and
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 43 findings; verified
+214. **Round 9 Guild response metrics backfill risk reduced** — code/test fix
+     for #855. `calculateSellerMetrics()` now derives buyer-initiated
+     conversations and seller replies from `Message` history instead of
+     relying on nullable `Conversation.firstResponseAt`, so legacy threads with
+     missing cached timestamps are counted from current source-of-truth data.
+     The query also replaces the prior per-conversation `JOIN LATERAL` with a
+     set-based CTE, reducing the #858 hot path shape; seeded EXPLAIN/benchmark
+     evidence remains a future performance-validation task. Guardrail:
+     `tests/guild-metrics-state.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 44 findings; verified
 stale/false-positive: 32 findings; product/design decisions deferred: 14
 findings. Remaining major categories: durable account-deletion/Stripe and audit
 redaction retry design, admin undo/ban side-effect retryability, legacy

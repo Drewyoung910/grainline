@@ -89,20 +89,48 @@ export async function calculateSellerMetrics(
       }),
 
       prisma.$queryRaw<Array<{ buyerInitiatedCount: bigint; sellerRespondedCount: bigint }>>`
-        SELECT
-          COUNT(*)::bigint AS "buyerInitiatedCount",
-          COUNT(*) FILTER (WHERE c."firstResponseAt" IS NOT NULL)::bigint AS "sellerRespondedCount"
-        FROM "Conversation" c
-        JOIN LATERAL (
-          SELECT m."senderId"
+        WITH seller_conversations AS (
+          SELECT c.id
+          FROM "Conversation" c
+          WHERE (c."userAId" = ${seller.userId} OR c."userBId" = ${seller.userId})
+            AND c."createdAt" >= ${periodStart}
+        ),
+        first_messages AS (
+          SELECT DISTINCT ON (m."conversationId")
+            m."conversationId",
+            m.id AS "firstMessageId",
+            m."senderId" AS "firstSenderId",
+            m."createdAt" AS "firstMessageAt"
           FROM "Message" m
-          WHERE m."conversationId" = c.id
-          ORDER BY m."createdAt" ASC
-          LIMIT 1
-        ) first_msg ON true
-        WHERE (c."userAId" = ${seller.userId} OR c."userBId" = ${seller.userId})
-          AND c."createdAt" >= ${periodStart}
-          AND first_msg."senderId" <> ${seller.userId}
+          JOIN seller_conversations sc ON sc.id = m."conversationId"
+          ORDER BY m."conversationId", m."createdAt" ASC, m.id ASC
+        ),
+        buyer_initiated AS (
+          SELECT
+            fm."conversationId",
+            fm."firstMessageId",
+            fm."firstMessageAt"
+          FROM first_messages fm
+          WHERE fm."firstSenderId" <> ${seller.userId}
+        ),
+        seller_responses AS (
+          SELECT DISTINCT bi."conversationId"
+          FROM buyer_initiated bi
+          JOIN "Message" reply ON reply."conversationId" = bi."conversationId"
+            AND reply."senderId" = ${seller.userId}
+            AND (
+              reply."createdAt" > bi."firstMessageAt"
+              OR (
+                reply."createdAt" = bi."firstMessageAt"
+                AND reply.id > bi."firstMessageId"
+              )
+            )
+        )
+        SELECT
+          COUNT(bi."conversationId")::bigint AS "buyerInitiatedCount",
+          COUNT(sr."conversationId")::bigint AS "sellerRespondedCount"
+        FROM buyer_initiated bi
+        LEFT JOIN seller_responses sr ON sr."conversationId" = bi."conversationId"
       `,
     ]);
 

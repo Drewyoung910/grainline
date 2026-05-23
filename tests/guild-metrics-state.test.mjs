@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -41,5 +42,16 @@ describe("Guild metrics state", () => {
     assert.equal(meetsGuildMasterRequirements(metrics({ totalSalesCents: 99_999 })).salesMet, false);
     assert.equal(meetsGuildMasterRequirements(metrics({ activeCaseCount: 1 })).casesMet, false);
     assert.equal(meetsGuildMasterRequirements(metrics({ activeCaseCount: 1 })).allMet, false);
+  });
+
+  it("derives response rate from message history instead of the cached first-response timestamp", () => {
+    const source = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
+
+    assert.doesNotMatch(source, /firstResponseAt/);
+    assert.match(source, /WITH seller_conversations AS/);
+    assert.match(source, /DISTINCT ON \(m\."conversationId"\)/);
+    assert.match(source, /seller_responses AS/);
+    assert.match(source, /reply\."senderId" = \$\{seller\.userId\}/);
+    assert.match(source, /LEFT JOIN seller_responses sr/);
   });
 });
