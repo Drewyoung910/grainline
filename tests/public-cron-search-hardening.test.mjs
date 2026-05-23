@@ -80,7 +80,6 @@ describe("cron and public route hardening", () => {
       "src/app/api/listings/[id]/click/route.ts",
       "src/app/api/listings/[id]/view/route.ts",
       "src/app/api/seller/[id]/view/route.ts",
-      "src/app/api/support/route.ts",
     ]);
 
     for (const path of apiRoutes()) {

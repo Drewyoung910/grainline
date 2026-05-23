@@ -9,7 +9,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
-import { getIP, rateLimitResponse, safeRateLimitOpen, supportRequestRatelimit } from "@/lib/ratelimit";
+import { getIP, rateLimitResponse, safeRateLimit, supportRequestRatelimit } from "@/lib/ratelimit";
 import {
   normalizeSupportRequest,
   supportRequestHtml,
@@ -22,7 +22,7 @@ import {
 const SUPPORT_REQUEST_BODY_MAX_BYTES = 24 * 1024;
 
 export async function POST(req: Request) {
-  const rate = await safeRateLimitOpen(supportRequestRatelimit, getIP(req));
+  const rate = await safeRateLimit(supportRequestRatelimit, getIP(req));
   if (!rate.success) return rateLimitResponse(rate.reset, "Too many support requests.");
 
   let body: unknown;

@@ -1305,3 +1305,35 @@ Last updated: 2026-05-21
      action error for forged statuses instead of relying on unsafe TypeScript
      casts that could bubble Prisma enum errors. Regression coverage:
      `tests/blog-action-guardrails.test.mjs`.
+139. **Similar-listing carousel respects block visibility** — verified stale
+     block-bypass chain. `/api/listings/[id]/similar` resolves the signed-in
+     user, rejects restricted accounts, loads reciprocal blocked seller IDs
+     through `getBlockedSellerProfileIdsFor()`, and excludes those sellers in
+     the raw SQL candidate query. Existing guardrail:
+     `tests/public-cron-search-hardening.test.mjs`.
+140. **Saved-search duplicates and caps are serialized** — verified stale
+     saved-search DoS chain. Saved-search POST normalizes and sorts tags,
+     runs dedup/count/create inside `withSerializableRetry()` with Prisma
+     Serializable isolation, and GET/POST/DELETE all use fail-closed
+     `savedSearchRatelimit` before current-user data reads/writes. Existing
+     guardrails: `tests/r49-account-state-routes.test.mjs` and
+     `tests/schema-hardening-followups.test.mjs`.
+141. **Verification application writes are fail-closed rate-limited** —
+     verified stale admin-queue DoS finding. `/api/verification/apply` uses
+     `verificationApplyRatelimit` through `safeRateLimit()` after seller
+     account resolution and before body parsing, eligibility checks, and
+     `MakerVerification` upsert. Existing guardrail:
+     `tests/guild-listing-edit-followups.test.mjs`.
+142. **Support intake no longer fails open on limiter outage** — hardening
+     fix. `/api/support` now uses fail-closed `safeRateLimit()` instead of
+     `safeRateLimitOpen()` before parsing, creating durable `SupportRequest`
+     rows, or sending support email. Legal data requests remain intentionally
+     fail-open as a user escalation path. Regression coverage:
+     `tests/public-cron-search-hardening.test.mjs`.
+143. **Blog notification spam/dedup chain is closed** — verified stale chain.
+     Admin comment approval side effects now run only after
+     `updateMany({ approved: false })` succeeds and pass
+     `dedupScope: commentId`; maker blog update preserves the first
+     publication timestamp and follower fanout only runs on the first-ever
+     publish, not archive/re-publish cycles. Existing guardrail:
+     `tests/blog-action-guardrails.test.mjs`.
