@@ -54,6 +54,15 @@ describe("account and privacy route observability guardrails", () => {
     assert.doesNotMatch(route, /extra: \{ email \}/);
   });
 
+  it("keeps Clerk user ids out of favorites route console telemetry", () => {
+    const route = source("src/app/api/favorites/route.ts");
+    const match = route.match(/console\.error\("POST \/api\/favorites ensureUser error:", (?<payload>\{[^}]+\})\);/);
+
+    assert.ok(match?.groups?.payload, "favorites ensureUser catch should keep explicit telemetry payload");
+    assert.equal(match.groups.payload, "{ error: (e as Error).message }");
+    assert.doesNotMatch(match.groups.payload, /userId/);
+  });
+
   it("keeps central email failure telemetry off raw recipient emails", () => {
     const email = source("src/lib/email.ts");
 

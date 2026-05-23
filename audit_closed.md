@@ -1612,3 +1612,23 @@ Last updated: 2026-05-21
      invalidating the middleware account-state cache, and now also records a
      non-blocking `TERMS_ACCEPTED` user audit row with the accepted version and
      timestamps so clickwrap acceptance has a retained compliance trail.
+190. **Favorites ensure-user failure logs no longer include Clerk user IDs** —
+     observability cleanup. `POST /api/favorites` still returns 401 if the
+     local account lookup fails, but the catch-path console telemetry now keeps
+     only the error message instead of pairing that failure with the raw Clerk
+     `userId`.
+191. **Round 5 privacy/observability cluster is stale on current main** —
+     verified audit cleanup. Current code already scrubs Sentry messages,
+     transactions, exception values, extras, contexts, tags, request URLs, and
+     query strings through `src/lib/sentryFilter.ts`; checkout and Stripe
+     webhook catch paths log sanitized errors with bounded tags; central email
+     logs and Sentry extras use hashed email telemetry; raw `[PROFANITY]`
+     match-word console lines are gone in favor of `captureProfanityFlag()`;
+     CSP reports are sanitized through `src/lib/cspReport.ts`; Resend webhook
+     `lastError` uses `sanitizeEmailOutboxError()` and suppression details keep
+     only safe event metadata plus recipient hashes; ban audit metadata stores
+     review-note hashes/lengths instead of note text; `htmlToText()` strips
+     decoded entity-encoded tags/head content; `EmailOutbox` has retention,
+     DEAD-job ops-health monitoring, bounded HTML, quota-outage retry cadence,
+     and expanded error redaction for Stripe IDs and cuids. The remaining
+     favorites Clerk-ID console leak was closed separately above.

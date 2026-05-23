@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     const accountResponse = accountAccessErrorResponse(e);
     if (accountResponse) return accountResponse;
 
-    console.error("POST /api/favorites ensureUser error:", { error: (e as Error).message, userId });
+    console.error("POST /api/favorites ensureUser error:", { error: (e as Error).message });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
