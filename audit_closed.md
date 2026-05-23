@@ -1359,3 +1359,25 @@ Last updated: 2026-05-21
      autocomplete combobox behavior, compact header controls, footer contrast,
      and data-table captions/header scopes are covered by
      `tests/accessibility-followups.test.mjs`.
+147. **Custom-order ready-link duplicate message race is serialized** —
+     verified stale duplicate-message finding. `sendCustomOrderReadyLink()`
+     takes a Postgres advisory transaction lock keyed by conversation/listing,
+     checks for an existing `custom_order_link` message, and only sends buyer
+     notification/email when the message was newly created. Existing guardrail:
+     `tests/custom-order-admin-thread-followups.test.mjs`.
+148. **Seller listing photo edits are save-staged and conflict-cleaned** —
+     verified stale photo-mutation finding. The retired
+     `/api/listings/[id]/photos` POST is gone; edit-page photos are staged in
+     the form manifest until Save, committed in the listing transaction, and
+     failed photo-row updates clean up newly submitted R2 URLs instead of
+     silently orphaning them. Existing guardrails:
+     `tests/post-launch-ui-followups.test.mjs` and
+     `tests/upload-verification-token.test.mjs`.
+149. **JSON-LD script-breakout escaping is tested** — verified stale test-gap
+     finding. `safeJsonLd()` escapes `<` and bidi/line-separator controls
+     before embedding structured data, and `tests/rendering-security.test.mjs`
+     covers crafted `</script>`, comment-start, CDATA, and bidi payloads.
+150. **Blog markdown sanitization is tested against unsafe render paths** —
+     verified stale XSS test-gap finding. Blog markdown rendering stays behind
+     `sanitize-html` with narrow URL schemes and first-party image filtering,
+     guarded by `tests/rendering-security.test.mjs`.
