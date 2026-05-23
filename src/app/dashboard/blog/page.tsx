@@ -12,7 +12,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-async function deletePost(postId: string) {
+async function archivePost(postId: string) {
   "use server";
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
@@ -28,7 +28,10 @@ async function deletePost(postId: string) {
   const post = await prisma.blogPost.findUnique({ where: { id: postId }, select: { authorId: true } });
   if (!post || post.authorId !== me.id) return;
 
-  await prisma.blogPost.delete({ where: { id: postId } });
+  await prisma.blogPost.updateMany({
+    where: { id: postId, authorId: me.id },
+    data: { status: "ARCHIVED" },
+  });
   revalidatePath("/dashboard/blog");
   revalidateBlogSearchCaches();
 }
@@ -121,12 +124,12 @@ export default async function DashboardBlogPage() {
                 >
                   Edit
                 </Link>
-                <form action={deletePost.bind(null, p.id)}>
+                <form action={archivePost.bind(null, p.id)}>
                   <ConfirmButton
-                    confirm="Delete this post?"
-                    className="text-xs rounded border border-red-200 px-2 py-1 text-red-600 hover:bg-red-50"
+                    confirm="Archive this post?"
+                    className="text-xs rounded border border-amber-200 px-2 py-1 text-amber-700 hover:bg-amber-50"
                   >
-                    Delete
+                    Archive
                   </ConfirmButton>
                 </form>
               </div>

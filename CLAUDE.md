@@ -140,7 +140,7 @@ prisma/
 - **Favorite** — saved/bookmarked listings
 - **SavedSearch** — per-user saved browse filters (query, category, minPrice, maxPrice, tags array); shown in dashboard; created via `POST /api/search/saved`
 - **MakerVerification** — `id`, `sellerProfileId` (unique), `craftDescription`, `yearsExperience`, `portfolioUrl?`, `status VerificationStatus @default(PENDING)`, `reviewedById?`, `reviewNotes?`, `appliedAt`, `reviewedAt?`; back-relations on `SellerProfile` (optional 1:1) and `User` (`verificationReviews @relation("VerificationReviews")`). `VerificationStatus` enum: `PENDING | APPROVED | REJECTED`. Migration: `20260327212938_add_maker_verification`
-- **BlogPost / BlogComment / NewsletterSubscriber** — see Blog System section below. Migrations: `20260327215946_add_blog_system`
+- **BlogPost / BlogComment / NewsletterSubscriber** — see Blog System section below. Blog dashboard post removal archives posts instead of hard-deleting them; comment/post/author retention FKs restrict direct hard-deletes, and comment parent deletion uses `onDelete: SetNull` so replies are not cascaded away. Migrations: `20260327215946_add_blog_system`, `20260523235500_retention_fk_and_schema_drift`
 - **Notification** — `id`, `userId` → `User`, `type NotificationType`, `title`, `body`, `link String?`, `read Boolean @default(false)`, `createdAt`; `@@index([userId, read])`; back-relation `notifications Notification[]` on `User`. Migration: `20260328_add_notifications` (planned; enum + model added). `createNotification(userId, type, title, body, link?)` helper in `src/lib/notifications.ts` wired in 14 places across the app.
 - **SiteConfig** — singleton (id=1) storing `fallbackShippingCents` used when Shippo returns no rates; migration `20260521161000_seed_site_config_and_fallback_cap` ensures row id=1 exists, and `safeFallbackShippingCents()` clamps values to the configured $5-$50 range before buyer-facing use
 - **Case** — buyer dispute tied 1:1 to an Order; tracks `reason`, `status`, `resolution`, Stripe refund ID, `sellerRespondBy` deadline, `discussionStartedAt`, `escalateUnlocksAt`, `buyerMarkedResolved`, `sellerMarkedResolved`
@@ -597,7 +597,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 
 ### Schema
 - **`BlogPost`** — `slug` (unique), `title`, `body`, `excerpt?`, `coverImageUrl?`, `videoUrl?`, `authorId` → `User @relation("BlogPostsAuthored")`, `authorType BlogAuthorType` (`STAFF | MAKER`), `sellerProfileId?` → `SellerProfile` (for Maker posts), `type BlogPostType` (`STANDARD | MAKER_SPOTLIGHT | BEHIND_THE_BUILD | GIFT_GUIDE | WOOD_EDUCATION`), `status BlogPostStatus` (`DRAFT | PUBLISHED | ARCHIVED`), `featuredListingIds String[]`, `tags String[]`, `metaDescription?`, `readingTimeMinutes?`, `publishedAt?`; back-relation `comments BlogComment[]`
-- **`BlogComment`** — `postId` → `BlogPost` (cascade), `authorId` → `User @relation("BlogCommentsAuthored")`, `body`, `approved Boolean @default(false)` (moderation required before appearing)
+- **`BlogComment`** — `postId` → `BlogPost` (`onDelete: Restrict`), `authorId` → `User @relation("BlogCommentsAuthored", onDelete: Restrict)`, `body`, `approved Boolean @default(false)` (moderation required before appearing)
 - **`NewsletterSubscriber`** — `email` (unique), `name?`, `subscribedAt`, `active Boolean`
 - Back-relations: `User.blogPosts`, `User.blogComments`, `SellerProfile.blogPosts`; migration `20260327215946_add_blog_system`
 
@@ -615,7 +615,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - `POST /api/blog/[slug]/comments` — auth required; creates comment with `approved: false`; accepts optional `parentId`; depth enforced server-side (level 4+ flattens to level 3 by attaching to parent's parent); sends `BLOG_COMMENT_REPLY` notification to effective parent author (if different from replier), or `NEW_BLOG_COMMENT` to post author for top-level comments
 
 ### `BlogComment` self-relation (migration `20260413191812_add_blog_comment_replies`)
-- `parentId String?`, `parent BlogComment? @relation("CommentReplies", ...)`, `replies BlogComment[] @relation("CommentReplies")`; `@@index([parentId])`
+- `parentId String?`, `parent BlogComment? @relation("CommentReplies", ..., onDelete: SetNull)`, `replies BlogComment[] @relation("CommentReplies")`; `@@index([parentId])`
 - **3-level threading** (updated 2026-04-13): depth enforced server-side only — no additional migration needed. Level 1 (root) → Level 2 (reply) → Level 3 (reply to reply). Attempts to reply at level 4+ flatten to level 3 (POST attaches to the level-2 parent instead). GET returns root comments with 2 levels of nested approved replies via `replies: { include: { replies: { ... } } }`.
 - **Avatar priority in comments** (2026-04-13): `AUTHOR_SELECT` const in `api/blog/[slug]/comments/route.ts` includes `sellerProfile: { select: { avatarImageUrl: true } }` at all 3 nesting levels; GET response mapped to add `avatarUrl = sellerProfile?.avatarImageUrl ?? imageUrl` per comment/reply/level-3-reply; `blog/[slug]/page.tsx` and `BlogReplyToggle.tsx` interfaces updated to include `sellerProfile?` on author and use `avatarUrl` for rendering
 
@@ -634,7 +634,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - **`/security` + `/.well-known/security.txt`** — public vulnerability disclosure page and RFC 9116 metadata. Both are middleware-public, terms-gate-exempt, suspended-account-exempt, and geo-block-exempt so security researchers can reach the contact path. `security.txt` points to `security@thegrainline.com` and `/security`; keep the mailbox routing verified before launch.
 
 ### Dashboard
-- **`/dashboard/blog`** — author's posts list with type/status badges, edit/delete/view actions
+- **`/dashboard/blog`** — author's posts list with type/status badges, edit/archive/view actions. Archive sets `BlogPost.status = ARCHIVED`; do not reintroduce `blogPost.delete()` from this dashboard path because comments are retained moderation/community records.
 - **`/dashboard/blog/new`** — create form via `BlogPostForm`; `createBlogPost` server action validates status through `parseCreateBlogStatus()`, generates unique slug (appends `-2`, `-3` etc. on collision), calculates reading time, sets `authorType` and `sellerProfileId`, sets `publishedAt` if PUBLISHED
 - **`/dashboard/blog/[id]/edit`** — pre-filled `BlogPostForm`; `updateBlogPost` server action validates status through `parseUpdateBlogStatus()`, sets `publishedAt` only on the first publish transition and preserves it through draft/archive/re-publish cycles. Follower fanout for `FOLLOWED_MAKER_NEW_BLOG` only runs on that first-ever publish, not on archive/re-publish.
 
@@ -1525,7 +1525,7 @@ Post-deployment bug fixes and gap fills:
 #### Schema (migration `20260331172348_commission_room`)
 - **`CommissionStatus` enum**: `OPEN | IN_PROGRESS | FULFILLED | CLOSED | EXPIRED`
 - **`CommissionRequest`** — `id`, `buyerId` → `User @relation("CommissionRequests")`, `title`, `description`, `category Category?`, `budgetMinCents?`, `budgetMaxCents?`, `timeline?`, `referenceImageUrls String[]`, `status CommissionStatus @default(OPEN)`, `interestedCount`, `expiresAt?`, `createdAt`, `updatedAt`; `@@index([buyerId])`, `@@index([status, createdAt])`, `@@index([category])`
-- **`CommissionInterest`** — `id`, `commissionRequestId`, `sellerProfileId`, `conversationId?`, `createdAt`; `@@unique([commissionRequestId, sellerProfileId])`; `@@index([sellerProfileId])`
+- **`CommissionInterest`** — `id`, `commissionRequestId`, `sellerProfileId`, `conversationId?` → `Conversation @relation("CommissionInterestConversation", onDelete: SetNull)`, `createdAt`; `@@unique([commissionRequestId, sellerProfileId])`; `@@index([sellerProfileId])`; `@@index([conversationId])`
 - **`COMMISSION_INTEREST`** added to `NotificationType` enum
 - Back-relations: `commissionRequests CommissionRequest[] @relation("CommissionRequests")` on `User`; `commissionInterests CommissionInterest[]` on `SellerProfile`
 - **Account-state cleanup**: banning or deleting a seller calls `removeSellerCommissionInterests()` inside the same transaction, deletes that seller's `CommissionInterest` rows, and recomputes each affected request's `interestedCount`. Do not leave banned/deleted sellers in public interest counts.
@@ -3122,7 +3122,7 @@ Focused audit on code paths NOT covered by the prior 44-finding audit. 6 agents 
 
 ### Known remaining items (not security-critical)
 - `defu` prototype pollution (transitive via Prisma) — build-time only, not runtime. Prisma upgraded to 7.7 but `defu` fix requires upstream `c12` update.
-- `Conversation`/`Message` lack `onDelete: Cascade` — will matter for GDPR account deletion
+- Legacy note superseded: `Conversation`/`Message` retention is now explicit, and account deletion uses anonymization/soft deletion instead of hard-deleting users.
 - `UserReport` missing `resolvedAt`/`resolvedById` fields — audit trail gap
 
 ### Post-audit review fixes (2026-04-18)
@@ -4347,7 +4347,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **Seller/listing text and numeric bounds**: seller bio, story, policies, listing descriptions, blog post bodies, seller order notes, and admin review notes are bounded both at write paths and in the database. Keep profile text writes going through `sellerProfileText.ts`, use `BLOG_BODY_MAX_CHARS` for blog writes, and keep raw CHECK constraints for Listing price/stock, order money fields, case refunds, commission budgets/radii, processing windows, seller shipping/package values, listing analytics/scores, founding-maker number, metro radius, and review ratings because Prisma does not model CHECK constraints.
 - **Guild verification text bounds**: Guild Member `craftDescription` and Guild Master `craftBusiness` narrative fields pass through `truncateText(sanitizeText(...), 500)` on dashboard and API write paths before persistence. Admin renders are React text nodes, but the write boundary still sanitizes to keep durable application text consistent with seller/listing text rules.
 - **Shipping fallback behavior**: `SiteConfig` row `id=1` must exist for fallback shipping. `safeFallbackShippingCents()` applies both the $5 floor and $50 ceiling before any fallback rate reaches checkout/quote responses, so admin config mistakes cannot create extreme buyer charges.
-- **Schema drift behavior**: `tests/schema-drift-followups.test.mjs` compares schema `onDelete` declarations to final migration-history FKs, ensures raw-managed indexes such as `BlogPost_tags_gin_idx` remain restored after drops, verifies Listing CHECK constraints are validated after their original `NOT VALID` creation, and keeps `Notification.dedupKey`'s schema default aligned with the database default. `tests/schema-numeric-index-guardrails.test.mjs` guards raw numeric CHECK constraints, verified hot-path indexes, and the distinction between normal `Order.stripeSessionId` uniqueness and the intentionally raw partial unique payment-intent/charge indexes.
+- **Schema drift and retention behavior**: `tests/schema-drift-followups.test.mjs` compares schema `onDelete` declarations to final migration-history FKs, ensures raw-managed indexes such as `BlogPost_tags_gin_idx` remain restored after drops, verifies Listing CHECK constraints are validated after their original `NOT VALID` creation, and keeps `Notification.dedupKey`'s schema default aligned with the database default. `tests/schema-numeric-index-guardrails.test.mjs` guards raw numeric CHECK constraints, verified hot-path indexes, and the distinction between normal `Order.stripeSessionId` uniqueness and the intentionally raw partial unique payment-intent/charge indexes. `tests/schema-retention-guardrails.test.mjs` guards retention FKs for listing photos/reviews, blog comments, commission requests, block/report moderation rows, order payment events, seller payout events, and optional conversation links. `Order.stripePaymentIntentId` and `Order.stripeChargeId` are intentionally not Prisma `@unique` fields; their non-null uniqueness is raw-managed through partial unique indexes, so use `findFirst` for lookups on those fields.
 - **Service worker/offline behavior**: stale manifest/icon caching was tightened; keep public asset cache changes compatible with `/offline`.
 
 ### Schema and migration additions
@@ -4360,6 +4360,7 @@ This section summarizes architecture-level changes from the reconciliation/audit
 - **`20260430183000_support_requests`**: adds `SupportRequest`, `SupportRequestKind`, and `SupportRequestStatus` for public support/legal intake, admin queue status, notification-email failure evidence, and 45-day SLA tracking.
 - **`20260505173000_schema_text_and_listing_guards`**: aligns seller/listing/blog/order text columns with UI/server limits, adds `MakerVerification.createdAt`/`updatedAt`, and adds future-write CHECK constraints for positive listing prices and non-negative stock.
 - **`20260521154500_schema_drift_and_raw_index_followups`**: re-creates `BlogPost_tags_gin_idx`, validates the Listing price/stock CHECK constraints, and aligns the `Notification.dedupKey` database default with the schema's `dbgenerated(...)` default.
+- **`20260523235500_retention_fk_and_schema_drift`**: changes verified retention-sensitive FKs away from cascades for listing photos/reviews, blog comments, commission requests, block/report moderation rows, order payment events, and seller payout events; adds the `CommissionInterest.conversationId` FK with orphan cleanup and `SET NULL`; and keeps Stripe payment-intent/charge uniqueness raw-managed as partial unique indexes rather than Prisma `@unique`.
 - **`20260523223000_schema_numeric_guards_and_indexes`**: adds validated raw CHECK constraints for money/range/count/rating invariants that Prisma cannot express and adds schema-visible indexes for verified metro, case seller, message sender, case/blog author, favorite listing, and cart-item listing query paths.
 
 ### Deleted routes/files

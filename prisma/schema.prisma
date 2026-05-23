@@ -375,7 +375,7 @@ model Listing {
 model Photo {
   id        String   @id @default(cuid())
   listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
   // Currently-displayed image (may be a re-cropped version of originalUrl)
   url       String   @db.VarChar(2048)
   // Pre-crop source preserved so re-crop can zoom back out to the full
@@ -405,7 +405,7 @@ model Favorite {
 model Review {
   id            String    @id @default(cuid())
   listingId     String
-  listing       Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing       Listing   @relation(fields: [listingId], references: [id], onDelete: Restrict)
   reviewerId    String
   reviewer      User      @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
   ratingX2      Int
@@ -433,11 +433,12 @@ model Conversation {
   userA     User      @relation("ConvoA", fields: [userAId], references: [id], onDelete: Restrict)
   userB     User      @relation("ConvoB", fields: [userBId], references: [id], onDelete: Restrict)
   messages  Message[]
+  commissionInterests CommissionInterest[] @relation("CommissionInterestConversation")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   contextListingId String?
-  contextListing   Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id])
+  contextListing   Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
   customOrderListings Listing[] @relation("ListingCustomOrderConversation")
   archivedAAt      DateTime?
   archivedBAt      DateTime?
@@ -529,8 +530,8 @@ model Order {
   shipToCountry    String? @db.VarChar(2)
 
   // Stripe references
-  stripePaymentIntentId  String? @unique(map: "Order_stripePaymentIntentId_idx") @db.VarChar(255)
-  stripeChargeId         String? @unique(map: "Order_stripeChargeId_idx") @db.VarChar(255)
+  stripePaymentIntentId  String? @db.VarChar(255)
+  stripeChargeId         String? @db.VarChar(255)
   stripeApplicationFeeId String? @db.VarChar(255)
   stripeTransferId       String? @db.VarChar(255)
 
@@ -642,7 +643,7 @@ model OrderShippingRateQuote {
 model OrderPaymentEvent {
   id               String   @id @default(cuid())
   orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
   stripeEventId    String   @unique @db.VarChar(255)
   stripeObjectId   String?  @db.VarChar(255)
   stripeObjectType String?  @db.VarChar(100)
@@ -664,7 +665,7 @@ model OrderPaymentEvent {
 model SellerPayoutEvent {
   id              String        @id @default(cuid())
   sellerProfileId String
-  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Restrict)
   stripePayoutId  String        @unique @db.VarChar(255)
   status          String        @db.VarChar(100)
   amountCents     Int?
@@ -955,13 +956,13 @@ model BlogPost {
 model BlogComment {
   id        String        @id @default(cuid())
   postId    String
-  post      BlogPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      BlogPost      @relation(fields: [postId], references: [id], onDelete: Restrict)
   authorId  String
-  author    User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+  author    User          @relation("BlogCommentsAuthored", fields: [authorId], references: [id], onDelete: Restrict)
   body      String        @db.VarChar(2000)
   approved  Boolean       @default(false)
   parentId  String?
-  parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  parent    BlogComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
   replies   BlogComment[] @relation("CommentReplies")
   createdAt DateTime      @default(now())
 
@@ -1268,7 +1269,7 @@ enum CommissionStatus {
 model CommissionRequest {
   id                 String           @id @default(cuid())
   buyerId            String
-  buyer              User             @relation("CommissionRequests", fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer              User             @relation("CommissionRequests", fields: [buyerId], references: [id], onDelete: Restrict)
   title              String           @db.VarChar(150)
   description        String           @db.VarChar(5000)
   category           Category?
@@ -1308,10 +1309,12 @@ model CommissionInterest {
   sellerProfileId     String
   sellerProfile       SellerProfile     @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
   conversationId      String?
+  conversation        Conversation?      @relation("CommissionInterestConversation", fields: [conversationId], references: [id], onDelete: SetNull)
   createdAt           DateTime          @default(now())
 
   @@unique([commissionRequestId, sellerProfileId])
   @@index([sellerProfileId])
+  @@index([conversationId])
 }
 
 model Metro {
@@ -1371,8 +1374,8 @@ model Block {
   blockedId String
   createdAt DateTime @default(now())
 
-  blocker User @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Cascade)
-  blocked User @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker User @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Restrict)
+  blocked User @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Restrict)
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
@@ -1393,8 +1396,8 @@ model UserReport {
   resolutionNote String?   @db.VarChar(500)
   createdAt      DateTime  @default(now())
 
-  reporter   User  @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
-  reported   User  @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter   User  @relation("UserReports", fields: [reporterId], references: [id], onDelete: Restrict)
+  reported   User  @relation("UserReportedBy", fields: [reportedId], references: [id], onDelete: Restrict)
   resolvedBy User? @relation("UserReportsResolved", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([reporterId])

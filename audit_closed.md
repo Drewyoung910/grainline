@@ -1930,11 +1930,31 @@ Last updated: 2026-05-23
      be negative by design and the effective-price lower bound is cross-table.
      Guardrail: `tests/schema-numeric-index-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 76 findings; verified
-stale/false-positive: 36 findings; product/design decisions deferred: 15
-findings. Remaining major categories: FK/cascade retention and schema drift
-follow-ups, durable account-deletion/Stripe and audit redaction retry design,
-admin undo/ban side-effect retryability, AI semantic invariant and
-integration-test coverage, anonymous-cart merge durability, checkout concurrency
-integration evidence, state-machine completion follow-ups, and remaining
-privacy/export retention decisions.
+219. **Round 10 retention FK and partial-unique schema drift reduced** —
+     code/test fix or verified closure for #962 through #984. Verified
+     retention-sensitive FK allegations #962-#971 were reduced by changing
+     listing photo/review, commission request, block/report moderation,
+     blog-comment, order payment-event, and seller payout-event relations away
+     from destructive cascades; dashboard blog post removal now archives posts
+     instead of hard-deleting comment trees; `BlogComment.parentId` and
+     `CommissionInterest.conversationId` use `SET NULL`, with migration cleanup
+     for orphaned commission conversation ids. #970's blocking-delete claim was
+     false because the DB already used `SET NULL`, but Prisma now declares that
+     behavior explicitly. #972, #975, #976, #977, and #978 were verified stale
+     or fixed in current schema/migration history. #974 was reduced by removing
+     Prisma `@unique` from `Order.stripePaymentIntentId` / `stripeChargeId`
+     while retaining the raw partial unique indexes and `findFirst` lookup
+     pattern. #973, #979, #980, #981, #982, #983, and #984 remain deferred
+     operational/product decisions requiring production data scans or
+     cross-surface design work before migration. Guardrail:
+     `tests/schema-retention-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 87 findings; verified
+stale/false-positive: 41 findings; product/design decisions deferred: 22
+findings. Remaining major categories: durable account-deletion/Stripe and audit
+redaction retry design, admin undo/ban side-effect retryability, AI semantic
+invariant and integration-test coverage, anonymous-cart merge durability,
+checkout concurrency integration evidence, state-machine completion follow-ups,
+JSON shape/size and email uniqueness production-scan decisions, conversation
+swapped-pair DB invariant design, and remaining privacy/export retention
+decisions.
