@@ -54,4 +54,19 @@ describe("AI review response normalization", () => {
 
     assert.deepEqual(result.altTexts, ["walnut bowl text/html"]);
   });
+
+  it("uses the canonical AI alt-text sanitizer for bulk-review alt text", () => {
+    const result = normalizeAIReviewResult(
+      {
+        approved: true,
+        flags: [],
+        confidence: 0.9,
+        reason: "ok",
+        altTexts: ["Сedar table\u202E with <svg onload=alert(1)>"],
+      },
+      1,
+    );
+
+    assert.deepEqual(result.altTexts, ["Cedar table with"]);
+  });
 });

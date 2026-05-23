@@ -18,6 +18,10 @@ describe("tag normalization", () => {
     assert.equal(normalizeTag("a".repeat(40)), "a".repeat(24));
   });
 
+  it("uses canonical user-text normalization before tag shaping", () => {
+    assert.equal(normalizeTag("Сafé\u200B Tag"), "cafe-tag");
+  });
+
   it("dedupes tags after normalization and respects the max", () => {
     assert.deepEqual(normalizeTags(["Café", "cafe", "家具", "Oak"], 3), ["cafe", "家具", "oak"]);
   });

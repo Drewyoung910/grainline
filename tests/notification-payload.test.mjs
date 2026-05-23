@@ -22,4 +22,8 @@ describe("notification payload bounds", () => {
   it("strips bidi controls before persisting notification text", () => {
     assert.equal(limitNotificationText("John\u202Egnp.exe", NOTIFICATION_TITLE_MAX_LENGTH), "Johngnp.exe");
   });
+
+  it("uses the canonical user-text normalization for notification text", () => {
+    assert.equal(limitNotificationText("Сedar\u200B alert", NOTIFICATION_TITLE_MAX_LENGTH), "Cedar alert");
+  });
 });

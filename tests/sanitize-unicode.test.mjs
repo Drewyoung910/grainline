@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const { sanitizeRichText, sanitizeText, sanitizeUserName, stripBidiControls, truncateText, truncateTextWithEllipsis } = await import("../src/lib/sanitize.ts");
@@ -66,5 +67,19 @@ describe("unicode sanitization", () => {
     const result = containsProfanity("f\u200bu\u200bc\u200bk");
     assert.equal(result.flagged, true);
     assert.deepEqual(result.matches, ["fuck"]);
+  });
+
+  it("keeps downstream text-normalization helpers on the canonical sanitizer", () => {
+    for (const path of [
+      "src/lib/aiReviewSafety.ts",
+      "src/lib/notificationPayload.ts",
+      "src/lib/profanity.ts",
+      "src/lib/tags.ts",
+    ]) {
+      const text = readFileSync(path, "utf8");
+      assert.match(text, /normalizeUserText/);
+      assert.doesNotMatch(text, /const BIDI_CONTROL_CHARS/);
+      assert.doesNotMatch(text, /const CYRILLIC_CONFUSABLES/);
+    }
   });
 });

@@ -1467,3 +1467,50 @@ Last updated: 2026-05-21
      standards-compliant one-click unsubscribe providers that POST without
      browser origin metadata. The route still requires the signed unsubscribe
      token and keeps the existing IP plus signed-email throttles.
+167. **Upload signature verification gap was already closed** — verified
+     stale audit finding. `uploadFileSignatureMatches()` checks JPEG, PNG,
+     WebP, PDF, MP4/QuickTime signatures, explicitly rejects SVG, and returns
+     false for unknown content types. Regression coverage:
+     `tests/upload-verification-token.test.mjs`.
+168. **AI prompt-injection redaction already covers common non-English and
+     model-control markers** — verified stale audit finding. The AI review
+     prompt sanitizer redacts common Spanish/French/Portuguese/CJK/Korean/
+     Russian prompt-control phrases plus ChatML, `[INST]`, and role markers.
+     Regression coverage: `tests/ai-review-safety.test.mjs`.
+169. **Bulk AI alt-text normalization now reuses the canonical sanitizer** —
+     code cleanup. `normalizeAIReviewResult()` no longer carries a separate
+     alt-text sanitizer; bulk review alt text now uses `sanitizeAIAltText()`
+     from `aiReviewSafety.ts`, keeping confusable, bidi, protocol, and tag
+     stripping behavior aligned with per-photo generated alt text.
+170. **Cart stock and quantity-cap findings were already closed** — verified
+     stale audit findings. `/api/cart/update` checks active seller state,
+     made-to-order quantity, in-stock availability, and projected total cart
+     quantity before updating an item; `/api/cart/add` locks the cart row in
+     the add transaction before checking distinct-item and total-quantity caps.
+171. **Founding Maker grant failure observability was already closed** —
+     verified stale audit finding. `maybeGrantFoundingMaker()` wraps the
+     advisory-lock assignment transaction in Sentry warning telemetry tagged
+     `source: "founding_maker_grant"` while keeping the listing transition
+     non-fatal.
+172. **EmailOutbox retention index was already present** — verified stale
+     audit finding. `EmailOutbox` has `@@index([status, updatedAt])`, matching
+     the retention query shape used by notification pruning.
+173. **Unicode/confusable normalization copies were consolidated** — code
+     cleanup. Notification payloads, profanity matching, tag normalization,
+     AI prompt-injection redaction, and AI alt-text sanitization now import the
+     canonical `normalizeUserText()` helper from `sanitize.ts` instead of
+     carrying local bidi/control/confusable regex tables that can drift.
+174. **Email/outbox audit cluster #387-406 was re-verified on current main** —
+     verified stale/accepted findings. Current code already handles Redis
+     quota blips on normal retry cadence, prunes and monitors DEAD outbox rows,
+     counts only final Resend failures with atomic failure counters, constrains
+     admin email to existing users, throttles message notification emails,
+     sanitizes plain-text email fallbacks and outbox errors, uses first-party
+     listing images in email, rejects explicit cross-origin unsubscribe POSTs,
+     adds direct-send outbox fallback for Stripe/Clerk webhook paths, dedupes
+     case-message side effects, bounds `EmailOutbox.html`, stores minimal
+     Resend suppression details, captures all settled recipient task failures,
+     returns retryable status for in-progress Resend webhook reservations, and
+     logs admin email audit targets by user ID or hashed fallback. The only
+     accepted design in this range is that outbox deduplication is scoped by
+     caller-provided `dedupKey`.

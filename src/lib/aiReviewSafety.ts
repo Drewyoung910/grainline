@@ -1,56 +1,12 @@
-const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-const ZERO_WIDTH_CHARS = /[\u200B-\u200D\uFEFF]/g;
-const NULL_BYTES = /\u0000/g;
-const CYRILLIC_CONFUSABLES: Record<string, string> = {
-  А: "A",
-  а: "a",
-  В: "B",
-  Е: "E",
-  е: "e",
-  І: "I",
-  і: "i",
-  К: "K",
-  к: "k",
-  М: "M",
-  Н: "H",
-  О: "O",
-  о: "o",
-  Р: "P",
-  р: "p",
-  С: "C",
-  с: "c",
-  Т: "T",
-  т: "t",
-  У: "Y",
-  у: "y",
-  Х: "X",
-  х: "x",
-  Ј: "J",
-  ј: "j",
-};
-const CYRILLIC_CONFUSABLE_CHARS = /[АаВЕеІіКкМНОоРрСсТтУуХхЈј]/g;
+import { normalizeUserText, truncateText } from "./sanitize.ts";
+
 const PROMPT_CONTROL_PHRASES =
   /(?:\b(ignore|disregard|forget|override|bypass|skip|ignora|ignorar|ignorez|ignorer|oublie|oublier|oubliez|omite|omitir|anula|anular|descarta|descartar|desconsidera|desconsiderar)\b|忽略|無視|무시|игнорируй|забудь)/giu;
 const MODEL_CONTROL_MARKERS =
   /(<\|im_(?:start|end)\|>|\[\/?INST\]|\b(system|assistant|developer|user|human)\s*:)/giu;
 
-function normalizeAIReviewUserText(input: string): string {
-  return input
-    .normalize("NFKC")
-    .replace(BIDI_CONTROL_CHARS, "")
-    .replace(ZERO_WIDTH_CHARS, "")
-    .replace(NULL_BYTES, "")
-    .replace(CYRILLIC_CONFUSABLE_CHARS, (char) => CYRILLIC_CONFUSABLES[char] ?? char);
-}
-
-function truncateText(input: string, maxLength: number): string {
-  const limit = Math.max(0, Math.floor(maxLength));
-  const chars = Array.from(input);
-  return chars.length <= limit ? input : chars.slice(0, limit).join("");
-}
-
 export function redactPromptInjection(value: string): string {
-  const redacted = normalizeAIReviewUserText(value)
+  const redacted = normalizeUserText(value)
     .replace(PROMPT_CONTROL_PHRASES, "[redacted-command]")
     .replace(MODEL_CONTROL_MARKERS, "[redacted-role]:")
     .replace(/\b(approved|confidence|flags)\s*[:=]/gi, "[redacted-field]=")
@@ -74,7 +30,7 @@ export function normalizeDuplicateListingTitle(title: string) {
 }
 
 export function sanitizeAIAltText(value: string): string {
-  const sanitized = normalizeAIReviewUserText(value)
+  const sanitized = normalizeUserText(value)
     .replace(/<[^>]*>/g, "")
     .replace(/javascript\s*:/gi, "")
     .replace(/\bdata\s*:/gi, "")

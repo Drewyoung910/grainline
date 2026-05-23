@@ -1,13 +1,11 @@
+import { normalizeUserText } from "./sanitize.ts";
+
 export const MAX_TAG_LENGTH = 24;
 export const DEFAULT_MAX_TAGS = 10;
 
-const BIDI_CONTROL_CHARS = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
-
 export function normalizeTag(input: string | null | undefined): string {
-  return (input ?? "")
-    .normalize("NFKC")
+  return normalizeUserText(input ?? "")
     .normalize("NFKD")
-    .replace(BIDI_CONTROL_CHARS, "")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()

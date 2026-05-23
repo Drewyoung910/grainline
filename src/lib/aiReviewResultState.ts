@@ -1,3 +1,5 @@
+import { sanitizeAIAltText } from "./aiReviewSafety.ts";
+
 export interface AIReviewResult {
   approved: boolean;
   flags: string[];
@@ -8,20 +10,6 @@ export interface AIReviewResult {
 
 function truncateText(value: string, maxLength: number) {
   return value.length > maxLength ? value.slice(0, maxLength) : value;
-}
-
-function sanitizeAIAltText(value: string): string {
-  const sanitized = value
-    .normalize("NFKC")
-    .replace(/<[^>]*>/g, "")
-    .replace(/javascript\s*:/gi, "")
-    .replace(/\bdata\s*:/gi, "")
-    .replace(/on\w+\s*=/gi, "")
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
-    .replace(/[\u200B-\u200D\uFEFF\u202A-\u202E\u2066-\u2069]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return truncateText(sanitized, 200);
 }
 
 /**
