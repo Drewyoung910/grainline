@@ -1600,3 +1600,9 @@ Last updated: 2026-05-21
      health-check, and email-outbox limit env values, and CLAUDE.md now matches
      the real blocking `npm audit --audit-level=high` CI behavior instead of
      the old informational-audit wording.
+188. **Account deletion now writes its own retained audit row** — forensic
+     hardening. `anonymizeUserAccount()` creates a `USER_ACCOUNT_DELETE`
+     `AdminAuditLog` row inside the 30s deletion transaction before the `User`
+     row is anonymized, with non-PII metadata for seller/Stripe presence and
+     Stripe reject success. The existing post-transaction audit-redaction pass
+     still marks direct account-reference logs for deletion retention.

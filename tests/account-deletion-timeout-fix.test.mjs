@@ -40,6 +40,25 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     assert.match(accountDeletion, /vacationMode: true/);
   });
 
+  it("writes a user-requested account deletion audit row before anonymization", () => {
+    const accountDeletion = source("src/lib/accountDeletion.ts");
+    const auditCreate = accountDeletion.indexOf('action: "USER_ACCOUNT_DELETE"');
+    const userRedaction = accountDeletion.indexOf("deletedEmail");
+    const transactionStart = accountDeletion.indexOf("const result = await prisma.$transaction");
+    const transactionEnd = accountDeletion.indexOf("}, { timeout: 30000, maxWait: 10000 }).catch");
+
+    assert.notEqual(auditCreate, -1);
+    assert.ok(auditCreate > transactionStart && auditCreate < transactionEnd);
+    assert.ok(auditCreate > userRedaction, "audit row should be built after deletion metadata is computed");
+    assert.match(accountDeletion, /adminId: user\.id/);
+    assert.match(accountDeletion, /targetType: "USER"/);
+    assert.match(accountDeletion, /targetId: user\.id/);
+    assert.match(accountDeletion, /reason: "User requested account deletion"/);
+    assert.match(accountDeletion, /actorKind: "user"/);
+    assert.match(accountDeletion, /hadStripeAccount: Boolean\(stripeAccountId\)/);
+    assert.match(accountDeletion, /stripeRejectSucceeded/);
+  });
+
   it("serializes account deletion anonymization before Stripe side effects", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const route = source("src/app/api/account/delete/route.ts");

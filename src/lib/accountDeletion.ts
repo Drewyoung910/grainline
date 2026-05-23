@@ -605,6 +605,23 @@ export async function anonymizeUserAccount(
       user.sellerProfile?.displayName,
     ]);
 
+    await tx.adminAuditLog.create({
+      data: {
+        adminId: user.id,
+        action: "USER_ACCOUNT_DELETE",
+        targetType: "USER",
+        targetId: user.id,
+        reason: "User requested account deletion",
+        metadata: {
+          actorKind: "user",
+          hadSellerProfile: Boolean(user.sellerProfile),
+          hadStripeAccount: Boolean(stripeAccountId),
+          stripeRejectSucceeded,
+          deletedAt: now.toISOString(),
+        },
+      },
+    });
+
     await tx.cart.deleteMany({ where: { userId: user.id } });
     await tx.favorite.deleteMany({ where: { userId: user.id } });
     await tx.savedSearch.deleteMany({ where: { userId: user.id } });
