@@ -27,6 +27,7 @@ import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
+import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -342,9 +343,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
 
     const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8
 
-    let aiStatusApplied = false
     if (shouldHold) {
-      const updated = await prisma.listing.updateMany({
+      await prisma.listing.updateMany({
         where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
         data: {
           status: ListingStatus.PENDING_REVIEW,
@@ -352,7 +352,6 @@ async function createListing(_prevState: unknown, formData: FormData) {
           aiReviewScore: aiResult.confidence,
         }
       })
-      aiStatusApplied = updated.count === 1
     } else {
       const updated = await prisma.listing.updateMany({
         where: { id: created.id, status: ListingStatus.PENDING_REVIEW },
@@ -362,8 +361,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
           aiReviewScore: aiResult.confidence,
         },
       })
-      aiStatusApplied = updated.count === 1
-      if (aiStatusApplied) {
+      if (updated.count === 1) {
         await prisma.$executeRaw`
           UPDATE "Listing"
           SET status = 'SOLD_OUT'
@@ -376,35 +374,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
       }
     }
 
-    // Backfill AI-generated alt texts on photos that don't already have seller-provided alt text
-    if (process.env.NODE_ENV !== "production") {
-      console.debug(`[ai-alt-text] AI returned ${aiResult.altTexts?.length ?? 0} alt texts for listing ${created.id}`)
-    }
-    if (aiStatusApplied && aiResult.altTexts?.length) {
-      try {
-        const photos = await prisma.photo.findMany({
-          where: { listingId: created.id },
-          orderBy: { sortOrder: 'asc' },
-          select: { id: true, altText: true },
-        })
-        let updated = 0
-        for (let i = 0; i < Math.min(photos.length, aiResult.altTexts.length); i++) {
-          if (aiResult.altTexts[i] && !photos[i].altText) {
-            const { sanitizeText: sanitizeAlt, truncateText: truncateAlt } = await import("@/lib/sanitize");
-            await prisma.photo.update({
-              where: { id: photos[i].id },
-              data: { altText: truncateAlt(sanitizeAlt(aiResult.altTexts[i]), 200) },
-            })
-            updated++
-          }
-        }
-        if (process.env.NODE_ENV !== "production") {
-          console.debug(`[ai-alt-text] Backfilled ${updated} alt texts for listing ${created.id}`)
-        }
-      } catch (e) {
-        console.error('[ai-alt-text] Backfill failed:', e instanceof Error ? e.message : e)
-      }
-    }
+    // Backfill AI-generated alt text through the shared non-fatal helper.
+    await backfillEmptyAltTexts(created.id, aiResult.altTexts);
   } catch (error) {
     console.error("[listing-create] AI review failed:", error);
     Sentry.captureException(error, {
@@ -444,7 +415,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
         await fanOutListingToFollowers({
           sellerProfileId: seller.id,
           sellerDisplayName: seller.displayName,
-          listing: { id: created.id, title: created.title, priceCents: created.priceCents },
+          listing: { id: created.id, title: created.title, priceCents: created.priceCents, currency: created.currency },
           emailDedupKey: (followerId) => `followed-listing:${created.id}:${followerId}`,
         });
       } catch (error) {

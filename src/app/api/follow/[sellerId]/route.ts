@@ -135,7 +135,7 @@ export async function POST(
 
   // Only notify the seller on a new follow; createNotification handles exact duplicate suppression.
   if (!existingFollow) {
-    const followerName = me.name ?? me.email.split("@")[0] ?? "Someone";
+    const followerName = me.name ?? "Someone";
     try {
       await createNotification({
         userId: sellerProfile.userId,

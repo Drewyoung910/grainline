@@ -38,10 +38,27 @@ export async function purgeOldFulfilledOrderBuyerPii({
         "buyerName" = NULL,
         "shipToLine1" = NULL,
         "shipToLine2" = NULL,
+        "shipToCity" = NULL,
+        "shipToState" = NULL,
+        "shipToPostalCode" = NULL,
+        "shipToCountry" = NULL,
         "quotedToLine1" = NULL,
         "quotedToLine2" = NULL,
+        "quotedToCity" = NULL,
+        "quotedToState" = NULL,
+        "quotedToPostalCode" = NULL,
+        "quotedToCountry" = NULL,
         "quotedToName" = NULL,
         "quotedToPhone" = NULL,
+        "trackingCarrier" = NULL,
+        "trackingNumber" = NULL,
+        "sellerNotes" = NULL,
+        "shippoShipmentId" = NULL,
+        "shippoRateObjectId" = NULL,
+        "shippoTransactionId" = NULL,
+        "labelUrl" = NULL,
+        "labelCarrier" = NULL,
+        "labelTrackingNumber" = NULL,
         "giftNote" = NULL,
         "buyerDataPurgedAt" = NOW()
       WHERE id IN (
@@ -56,10 +73,27 @@ export async function purgeOldFulfilledOrderBuyerPii({
             "buyerName" IS NOT NULL OR
             "shipToLine1" IS NOT NULL OR
             "shipToLine2" IS NOT NULL OR
+            "shipToCity" IS NOT NULL OR
+            "shipToState" IS NOT NULL OR
+            "shipToPostalCode" IS NOT NULL OR
+            "shipToCountry" IS NOT NULL OR
             "quotedToLine1" IS NOT NULL OR
             "quotedToLine2" IS NOT NULL OR
+            "quotedToCity" IS NOT NULL OR
+            "quotedToState" IS NOT NULL OR
+            "quotedToPostalCode" IS NOT NULL OR
+            "quotedToCountry" IS NOT NULL OR
             "quotedToName" IS NOT NULL OR
             "quotedToPhone" IS NOT NULL OR
+            "trackingCarrier" IS NOT NULL OR
+            "trackingNumber" IS NOT NULL OR
+            "sellerNotes" IS NOT NULL OR
+            "shippoShipmentId" IS NOT NULL OR
+            "shippoRateObjectId" IS NOT NULL OR
+            "shippoTransactionId" IS NOT NULL OR
+            "labelUrl" IS NOT NULL OR
+            "labelCarrier" IS NOT NULL OR
+            "labelTrackingNumber" IS NOT NULL OR
             "giftNote" IS NOT NULL
           )
         ORDER BY COALESCE("deliveredAt", "pickedUpAt") ASC

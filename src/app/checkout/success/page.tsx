@@ -8,6 +8,7 @@ import { ensureUserForPage } from "@/lib/pageAuth";
 import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { orderItemsSubtotalCents, orderTotalCents as calculateOrderTotalCents } from "@/lib/orderTotals";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -70,11 +71,7 @@ export default async function CheckoutSuccessPage({
     if (orders.length > 0) {
       const currencies = [...new Set(orders.map((order) => order.currency || DEFAULT_CURRENCY))];
       const currency = currencies[0] ?? DEFAULT_CURRENCY;
-      const totalChargedCents = orders.reduce((sum, order) => {
-        const itemsSubtotalCents =
-          order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
-        return sum + itemsSubtotalCents + (order.shippingAmountCents || 0) + (order.taxAmountCents || 0) + (order.giftWrappingPriceCents || 0);
-      }, 0);
+      const totalChargedCents = orders.reduce((sum, order) => sum + calculateOrderTotalCents(order), 0);
       const pendingCount = Math.max(0, sessionIds.length - orders.length);
       const hasMixedCurrencies = currencies.length > 1;
 
@@ -114,12 +111,11 @@ export default async function CheckoutSuccessPage({
             <div className="divide-y divide-neutral-100">
               {orders.map((order) => {
                 const orderCurrency = order.currency || currency;
-                const itemsSubtotalCents =
-                  order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+                const itemsSubtotalCents = orderItemsSubtotalCents(order);
                 const shippingAmountCents = order.shippingAmountCents || 0;
                 const taxAmountCents = order.taxAmountCents || 0;
                 const giftWrappingPriceCents = order.giftWrappingPriceCents || 0;
-                const orderTotalCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents + giftWrappingPriceCents;
+                const orderTotalCents = calculateOrderTotalCents(order, { itemsSubtotalCents });
 
                 return (
                   <div key={order.id}>
@@ -262,12 +258,11 @@ export default async function CheckoutSuccessPage({
   }
 
   const currency = order.currency || DEFAULT_CURRENCY;
-  const itemsSubtotalCents =
-    order.itemsSubtotalCents || order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+  const itemsSubtotalCents = orderItemsSubtotalCents(order);
   const shippingAmountCents = order.shippingAmountCents || 0;
   const taxAmountCents = order.taxAmountCents || 0;
   const giftWrappingPriceCents = order.giftWrappingPriceCents || 0;
-  const totalChargedCents = itemsSubtotalCents + shippingAmountCents + taxAmountCents + giftWrappingPriceCents;
+  const totalChargedCents = calculateOrderTotalCents(order, { itemsSubtotalCents });
 
   return (
     <main className="mx-auto max-w-3xl p-8 space-y-6">

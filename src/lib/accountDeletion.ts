@@ -48,6 +48,10 @@ type NotificationRedactionCandidate = {
   body: string;
 };
 
+type BodyRedactionCandidate = {
+  body: string;
+};
+
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
 
 function accountDeletionLockKey(userId: string) {
@@ -143,6 +147,16 @@ function notificationTextMatchSql(value: string) {
     lower(title) ~ ${pattern} OR
     lower(body) ~ ${pattern}
   )`;
+}
+
+function bodyTextMatchSql(value: string) {
+  const normalized = value.toLowerCase();
+  if (Array.from(normalized).length >= 3) {
+    return Prisma.sql`position(${normalized} in lower(body)) > 0`;
+  }
+
+  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
+  return Prisma.sql`lower(body) ~ ${pattern}`;
 }
 
 async function collectAuditLogsBySensitiveMetadata(
@@ -311,6 +325,148 @@ async function redactNotificationsAboutDeletedAccount(
         title: title.text,
         body: body.text,
       },
+    });
+  }
+}
+
+async function collectMessagesBySensitiveText(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const messages = new Map<string, BodyRedactionCandidate>();
+
+  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
+    const textMatchSql = bodyTextMatchSql(value);
+    let cursor: string | null = null;
+
+    for (;;) {
+      const query: Prisma.Sql = cursor
+        ? Prisma.sql`
+          SELECT id, body
+          FROM "Message"
+          WHERE id > ${cursor}
+            AND "senderId" <> ${deletedUserId}
+            AND "recipientId" = ${deletedUserId}
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `
+        : Prisma.sql`
+          SELECT id, body
+          FROM "Message"
+          WHERE "senderId" <> ${deletedUserId}
+            AND "recipientId" = ${deletedUserId}
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `;
+      const matches: { id: string; body: string }[] = await tx.$queryRaw(query);
+      matches.forEach((message) => {
+        if (!messages.has(message.id)) {
+          messages.set(message.id, { body: message.body });
+        }
+      });
+
+      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+      cursor = matches[matches.length - 1]?.id ?? null;
+      if (!cursor) break;
+    }
+  }
+
+  return messages;
+}
+
+async function redactMessagesAboutDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const messages = await collectMessagesBySensitiveText(tx, deletedUserId, sensitiveValues);
+
+  for (const [id, message] of messages) {
+    const body = redactAccountDeletionText(message.body, sensitiveValues);
+    if (!body.changed) continue;
+
+    await tx.message.update({
+      where: { id },
+      data: { body: body.text },
+    });
+  }
+}
+
+async function collectCaseMessagesBySensitiveText(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const messages = new Map<string, BodyRedactionCandidate>();
+
+  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
+    const textMatchSql = bodyTextMatchSql(value);
+    let cursor: string | null = null;
+
+    for (;;) {
+      const query: Prisma.Sql = cursor
+        ? Prisma.sql`
+          SELECT id, body
+          FROM "CaseMessage"
+          WHERE id > ${cursor}
+            AND "authorId" <> ${deletedUserId}
+            AND "caseId" IN (
+              SELECT id
+              FROM "Case"
+              WHERE "buyerId" = ${deletedUserId}
+                OR "sellerId" = ${deletedUserId}
+            )
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `
+        : Prisma.sql`
+          SELECT id, body
+          FROM "CaseMessage"
+          WHERE "authorId" <> ${deletedUserId}
+            AND "caseId" IN (
+              SELECT id
+              FROM "Case"
+              WHERE "buyerId" = ${deletedUserId}
+                OR "sellerId" = ${deletedUserId}
+            )
+            AND ${textMatchSql}
+          ORDER BY id ASC
+          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
+        `;
+      const matches: { id: string; body: string }[] = await tx.$queryRaw(query);
+      matches.forEach((message) => {
+        if (!messages.has(message.id)) {
+          messages.set(message.id, { body: message.body });
+        }
+      });
+
+      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
+      cursor = matches[matches.length - 1]?.id ?? null;
+      if (!cursor) break;
+    }
+  }
+
+  return messages;
+}
+
+async function redactCaseMessagesAboutDeletedAccount(
+  tx: Prisma.TransactionClient,
+  deletedUserId: string,
+  sensitiveValues: string[],
+) {
+  const messages = await collectCaseMessagesBySensitiveText(tx, deletedUserId, sensitiveValues);
+
+  for (const [id, message] of messages) {
+    const body = redactAccountDeletionText(message.body, sensitiveValues);
+    if (!body.changed) continue;
+
+    await tx.caseMessage.update({
+      where: { id },
+      data: { body: body.text },
     });
   }
 }
@@ -513,7 +669,7 @@ async function collectAccountDeletionMediaUrls(userId: string, clerkUserId: stri
       select: { referenceImageUrls: true },
     }),
     prisma.message.findMany({
-      where: { OR: [{ senderId: userId }, { recipientId: userId }] },
+      where: { senderId: userId },
       select: { body: true },
     }),
     prisma.blogPost.findMany({
@@ -629,6 +785,13 @@ export async function anonymizeUserAccount(
       user.clerkId,
       user.email,
       user.name,
+      user.shippingName,
+      user.shippingLine1,
+      user.shippingLine2,
+      user.shippingCity,
+      user.shippingState,
+      user.shippingPostalCode,
+      user.shippingPhone,
       user.sellerProfile?.id,
       user.sellerProfile?.displayName,
     ]);
@@ -657,16 +820,18 @@ export async function anonymizeUserAccount(
     await tx.notification.deleteMany({ where: { userId: user.id } });
     await tx.savedBlogPost.deleteMany({ where: { userId: user.id } });
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
-    await tx.block.deleteMany({ where: { blockerId: user.id } });
+    await tx.block.deleteMany({ where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] } });
     await redactNotificationsAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.message.updateMany({
       where: { senderId: user.id },
       data: { body: "[Message deleted]" },
     });
+    await redactMessagesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.caseMessage.updateMany({
       where: { authorId: user.id },
       data: { body: "[Message deleted]" },
     });
+    await redactCaseMessagesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await tx.blogComment.updateMany({
       where: { authorId: user.id },
       data: { body: "[Comment deleted]", approved: false },
@@ -689,10 +854,27 @@ export async function anonymizeUserAccount(
         buyerName: null,
         shipToLine1: null,
         shipToLine2: null,
+        shipToCity: null,
+        shipToState: null,
+        shipToPostalCode: null,
+        shipToCountry: null,
         quotedToLine1: null,
         quotedToLine2: null,
+        quotedToCity: null,
+        quotedToState: null,
+        quotedToPostalCode: null,
+        quotedToCountry: null,
         quotedToName: null,
         quotedToPhone: null,
+        trackingCarrier: null,
+        trackingNumber: null,
+        sellerNotes: null,
+        shippoShipmentId: null,
+        shippoRateObjectId: null,
+        shippoTransactionId: null,
+        labelUrl: null,
+        labelCarrier: null,
+        labelTrackingNumber: null,
         giftNote: null,
         buyerDataPurgedAt: now,
       },
@@ -788,6 +970,15 @@ export async function anonymizeUserAccount(
       });
       await tx.sellerBroadcast.deleteMany({
         where: { sellerProfileId: user.sellerProfile.id },
+      });
+      await tx.order.updateMany({
+        where: {
+          items: {
+            some: { listing: { sellerId: user.sellerProfile.id } },
+            every: { listing: { sellerId: user.sellerProfile.id } },
+          },
+        },
+        data: { sellerNotes: null },
       });
       await tx.sellerProfile.update({
         where: { id: user.sellerProfile.id },

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { markReadRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { safeNotificationPath } from "@/lib/notificationLinks";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -141,6 +142,7 @@ export default async function NotificationsPage({
         <ul className="divide-y divide-neutral-100 card-section overflow-hidden">
           {notifications.map((n) => {
             const { Icon, color } = typeIcon(n.type);
+            const path = safeNotificationPath(n.link);
             const row = (
               <li
                 key={n.id}
@@ -161,9 +163,9 @@ export default async function NotificationsPage({
               </li>
             );
 
-            if (n.link) {
+            if (path) {
               return (
-                <Link key={n.id} href={n.link} className="block hover:bg-neutral-50">
+                <Link key={n.id} href={path} className="block hover:bg-neutral-50">
                   {row}
                 </Link>
               );

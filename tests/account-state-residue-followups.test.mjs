@@ -13,7 +13,8 @@ describe("account-state residue hardening", () => {
     assert.match(reviews, /banned\?: boolean \| null/);
     assert.match(reviews, /function reviewerUnavailable/);
     assert.match(reviews, /reviewer\.deletedAt \|\| reviewer\.banned/);
-    assert.match(reviews, /reviewer: \{ select: \{ id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true \} \}/);
+    assert.match(reviews, /reviewer: \{ select: \{ id: true, name: true, imageUrl: true, banned: true, deletedAt: true \} \}/);
+    assert.doesNotMatch(reviews, /reviewer:\s*\{\s*select:\s*\{[^}]*email:\s*true/s);
     assert.match(reviews, /!reviewerUnavailable\(r\.reviewer\).*BlockReportButton/s);
     assert.doesNotMatch(reviews, /!r\.reviewer\.deletedAt && r\.reviewer\.imageUrl/);
   });

@@ -13,18 +13,21 @@ export function formatCurrencyCents(
   currency: string | null | undefined = DEFAULT_CURRENCY,
   locale: string | undefined = DEFAULT_LOCALE,
 ): string {
-  const amount = Number.isFinite(cents) ? cents / 100 : 0;
   const normalizedCurrency = normalizeCurrencyCode(currency);
   try {
-    return new Intl.NumberFormat(locale, {
+    const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: normalizedCurrency,
-    }).format(amount);
+    });
+    const fractionDigits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+    const amount = Number.isFinite(cents) ? cents / 10 ** fractionDigits : 0;
+    return formatter.format(amount);
   } catch {
-    return new Intl.NumberFormat(locale, {
+    const formatter = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: DEFAULT_CURRENCY.toUpperCase(),
-    }).format(amount);
+    });
+    return formatter.format(Number.isFinite(cents) ? cents / 100 : 0);
   }
 }
 

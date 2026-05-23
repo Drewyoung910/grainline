@@ -93,6 +93,7 @@ function queueFollowerFanoutForActiveListing(listing: {
   id: string;
   title: string;
   priceCents: number;
+  currency: string | null;
   sellerId: string;
   seller: { displayName: string | null };
 }) {

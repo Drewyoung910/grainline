@@ -1752,3 +1752,75 @@ Last updated: 2026-05-23
      Terms 33.13 now frames INFORM high-volume seller verification as an
      applicable/future workflow rather than an already-built 10-day
      recertification system, and `STRATEGY.md` tracks that workflow as unbuilt.
+
+204. **Round 9 public notification and display-name PII surfaces tightened** —
+     code fix for #795, #862, #864, and #865; #863 was verified stale after the
+     prior public SellerProfile projection pass. The dashboard notifications
+     page now runs stored links through `safeNotificationPath()` before rendering
+     a `Link`; seller auto-created display names no longer fall back to email
+     local-parts; review, message, follow-notification, and buyer case-thread
+     displays no longer select or render cross-user email fallbacks. Guardrail:
+     `tests/round9-public-pii-guardrails.test.mjs`.
+
+205. **Round 9 helper drift and money-formatting gaps closed** — code fix for
+     #796, #797, #799, and #890. New-listing AI review now uses the shared
+     `backfillEmptyAltTexts()` helper, checkout success receipts use
+     `orderItemsSubtotalCents()` / `orderTotalCents()`, follower listing emails
+     use `formatCurrencyCents()`, and the formatter now respects zero-decimal
+     currency minor units such as JPY. Guardrails:
+     `tests/round9-public-pii-guardrails.test.mjs`, `tests/money.test.mjs`.
+
+206. **Round 9 ops-health stale-running cron detection added** — code fix for
+     #806. `/api/cron/ops-health` now counts stale `CronRun.status = "RUNNING"`
+     rows older than 30 minutes, includes them in Sentry warning context, and
+     returns an unhealthy response when present. Guardrail:
+     `tests/public-cron-search-hardening.test.mjs`.
+
+207. **Round 9 cron and AI allegations verified stale on current main** —
+     verified stale/false-positive #805, #807, #808, #809, #811, #812, #818,
+     and #819. `label-clawback-retry` is already scheduled; Guild Master
+     revocation already has an atomic `guildLevel = "GUILD_MASTER"` predicate;
+     case auto-close copy is neutral; commission expiry fan-out already uses
+     bounded concurrency; listing edit/publish paths are already rate-limited;
+     AI prompt-injection redaction is multilingual with structural prompt
+     separation; fail-closed AI results include `altTexts: []`; and
+     `reviewListingWithAI()` call sites pass SellerProfile ids.
+
+208. **Round 9 account-deletion PII retention tightened** — code fix for #822,
+     #824, #829, #866, #867, #869, #870, and #872, with #823 reduced by the
+     public/cross-user display-name fixes. Buyer deletion and fulfilled-order PII
+     pruning now clear retained city/state/postal/country address snapshots,
+     tracking fields, Shippo label URLs/IDs, gift notes, and seller notes.
+     Account deletion removes block rows in both directions, redacts scoped
+     other-party message and case-message bodies that quote deleted-account
+     sensitive values, includes saved shipping fields in deletion redaction
+     needles, and narrows message media cleanup collection to sender-owned
+     messages. Guardrail:
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+209. **Round 9 account-deletion allegations verified stale or product-scoped** —
+     verified stale/false-positive #825, #828, #830, #831, and #871. Current
+     deletion redaction already handles two-character names as bounded tokens;
+     `UserReport.reason` is controlled enum input while free-text `details` is
+     cleared; first-party media cleanup already filters by deleted Clerk user key;
+     account-deletion email suppression already uses NFC normalization; and
+     seller deletion already clears public seller review replies. Larger
+     product/legal/design items remain open: durable Stripe rejection/retry
+     ordering (#820/#821/#826), account export scope (#868), and exact
+     retention policy tradeoffs where not fixed in #208.
+
+210. **Round 9 admin-audit and ban triage reviewed without code changes** —
+     verified current behavior for #832-#837, #839, #843, and #844; verified
+     stale/false-positive #840 and #845; marked #838, #841, #842, and #846 as
+     product/design decisions. Remaining actionable admin/ban category is a
+     dedicated undo/ban side-effect durability pass, especially audit failure
+     semantics, undo target-state races, order review-note restoration, and
+     Clerk sync retryability.
+
+**Running tally after this pass:** verified fixed/reduced: 29 findings; verified
+stale/false-positive: 20 findings; product/design decisions deferred: 8
+findings. Remaining major categories: durable account-deletion/Stripe and audit
+redaction retry design, admin undo/ban side-effect retryability, account export
+scope, AI semantic invariant/cross-seller duplicate policy, marketplace refund
+Stripe-status/tax reconciliation verification, metrics/Guild edge cases, and
+test-quality gaps not yet converted into behavior tests.

@@ -115,8 +115,8 @@ export default async function MessagesPage({
     orderBy: { updatedAt: "desc" },
     take: 50,
     include: {
-      userA: { select: { id: true, name: true, email: true, imageUrl: true } },
-      userB: { select: { id: true, name: true, email: true, imageUrl: true } },
+      userA: { select: { id: true, name: true, imageUrl: true } },
+      userB: { select: { id: true, name: true, imageUrl: true } },
       messages: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -295,7 +295,7 @@ export default async function MessagesPage({
           {list.map(({ c, other, latest, unreadCount, ctxThumb, seller }) => {
             // Prefer seller display name + avatar when the other party is a
             // seller. Falls back to Clerk name/imageUrl for buyer-only users.
-            const title = seller?.displayName || other?.name || other?.email || "User";
+            const title = seller?.displayName || other?.name || "User";
             const avatarUrl = seller?.avatarImageUrl || other?.imageUrl || null;
             const snippet = formatSnippet(latest?.body, latest?.kind);
             const hasTime = !!latest;

@@ -18,6 +18,11 @@ describe("money formatting", () => {
     assert.notEqual(formatCurrencyCents(12345, "eur"), "$123.45");
   });
 
+  it("formats zero-decimal currency minor units without dividing by 100", () => {
+    assert.match(formatCurrencyCents(12345, "jpy"), /12,345/);
+    assert.doesNotMatch(formatCurrencyCents(12345, "jpy"), /123\.45/);
+  });
+
   it("parses decimal money input without accepting exponent notation", () => {
     assert.equal(parseMoneyInputToCents("12"), 1200);
     assert.equal(parseMoneyInputToCents("12.3"), 1230);

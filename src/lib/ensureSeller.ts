@@ -46,7 +46,7 @@ export async function ensureSeller() {
     seller = await prisma.sellerProfile.create({
       data: {
         userId: me.id,
-        displayName: sanitizeUserName(me.name ?? me.email.split("@")[0]) || "Maker",
+        displayName: sanitizeUserName(me.name ?? "") || "Maker",
       },
     });
   }

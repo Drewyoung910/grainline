@@ -4,6 +4,7 @@ import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { publicListingPath } from "@/lib/publicPaths";
+import { formatCurrencyCents } from "@/lib/money";
 
 const FOLLOWER_FANOUT_PAGE_SIZE = 1000;
 
@@ -11,6 +12,7 @@ type ListingForFanout = {
   id: string;
   title: string;
   priceCents: number;
+  currency: string | null;
 };
 
 export async function fanOutListingToFollowers({
@@ -27,7 +29,7 @@ export async function fanOutListingToFollowers({
   const sellerDisplay = sellerDisplayName ?? "A maker you follow";
   const listingPath = publicListingPath(listing.id, listing.title);
   const listingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com"}${listingPath}`;
-  const listingPrice = `$${(listing.priceCents / 100).toFixed(2)}`;
+  const listingPrice = formatCurrencyCents(listing.priceCents, listing.currency);
   let cursor: string | undefined;
 
   while (true) {

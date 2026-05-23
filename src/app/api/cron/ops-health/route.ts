@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const FAILED_CRON_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+const STALE_CRON_RUNNING_MS = 30 * 60 * 1000;
 const STALE_EMAIL_OUTBOX_MS = 30 * 60 * 1000;
 
 export async function GET(request: Request) {
@@ -23,10 +24,12 @@ export async function GET(request: Request) {
     try {
       const now = new Date();
       const failedCronSince = new Date(now.getTime() - FAILED_CRON_LOOKBACK_MS);
+      const staleCronRunningBefore = new Date(now.getTime() - STALE_CRON_RUNNING_MS);
       const staleEmailBefore = new Date(now.getTime() - STALE_EMAIL_OUTBOX_MS);
 
       const [
         failedCronRuns,
+        staleRunningCronRuns,
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
@@ -41,6 +44,16 @@ export async function GET(request: Request) {
             jobName: { not: "ops-health" },
           },
           orderBy: { startedAt: "desc" },
+          take: 25,
+          select: { id: true, jobName: true, bucket: true, startedAt: true },
+        }),
+        prisma.cronRun.findMany({
+          where: {
+            status: "RUNNING",
+            startedAt: { lt: staleCronRunningBefore },
+            jobName: { not: "ops-health" },
+          },
+          orderBy: { startedAt: "asc" },
           take: 25,
           select: { id: true, jobName: true, bucket: true, startedAt: true },
         }),
@@ -81,6 +94,7 @@ export async function GET(request: Request) {
 
       const issues = {
         failedCronRunCount: failedCronRuns.length,
+        staleRunningCronRunCount: staleRunningCronRuns.length,
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
@@ -91,6 +105,7 @@ export async function GET(request: Request) {
 
       if (
         issues.failedCronRunCount > 0 ||
+        issues.staleRunningCronRunCount > 0 ||
         issues.staleEmailOutboxCount > 0 ||
         issues.deadEmailOutboxCount > 0 ||
         issues.overdueSupportRequestCount > 0
@@ -101,6 +116,12 @@ export async function GET(request: Request) {
           extra: {
             ...issues,
             failedCronRuns: failedCronRuns.map((run) => ({
+              id: run.id,
+              jobName: run.jobName,
+              bucket: run.bucket,
+              startedAt: run.startedAt.toISOString(),
+            })),
+            staleRunningCronRuns: staleRunningCronRuns.map((run) => ({
               id: run.id,
               jobName: run.jobName,
               bucket: run.bucket,

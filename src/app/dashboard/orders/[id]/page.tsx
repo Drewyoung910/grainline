@@ -93,7 +93,7 @@ export default async function BuyerOrderDetailPage({
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
-      buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
+      buyer: { select: { id: true, name: true, imageUrl: true } },
       items: {
         include: {
           listing: {
@@ -108,7 +108,7 @@ export default async function BuyerOrderDetailPage({
         include: {
           messages: {
             include: {
-              author: { select: { name: true, email: true, role: true } },
+              author: { select: { name: true, role: true } },
             },
             orderBy: { createdAt: "asc" },
           },
@@ -487,7 +487,7 @@ export default async function BuyerOrderDetailPage({
               <li key={msg.id} className="px-4 py-3 space-y-1">
                 <div className="flex items-center gap-2 text-xs text-neutral-500">
                   <span className="font-medium text-neutral-700">
-                    {msg.author.name ?? (msg.author.role === "EMPLOYEE" || msg.author.role === "ADMIN" ? "Grainline Staff" : msg.author.email)}
+                    {msg.author.role === "EMPLOYEE" || msg.author.role === "ADMIN" ? "Grainline Staff" : msg.author.name ?? "Participant"}
                   </span>
                   <span>·</span>
                   <span><LocalDate date={msg.createdAt} /></span>

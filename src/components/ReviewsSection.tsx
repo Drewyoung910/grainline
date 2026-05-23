@@ -31,7 +31,6 @@ function Stars({ value }: { value: number }) {
 
 type ReviewAuthorDisplay = {
   name: string | null;
-  email: string | null;
   imageUrl: string | null;
   banned?: boolean | null;
   deletedAt?: Date | null;
@@ -43,7 +42,7 @@ function reviewerUnavailable(reviewer: ReviewAuthorDisplay) {
 
 function reviewerName(reviewer: ReviewAuthorDisplay) {
   if (reviewerUnavailable(reviewer)) return "Former buyer";
-  return reviewer.name ?? reviewer.email?.split("@")[0] ?? "Buyer";
+  return reviewer.name ?? "Buyer";
 }
 
 function reviewerInitials(reviewer: ReviewAuthorDisplay) {
@@ -98,7 +97,7 @@ export default async function ReviewsSection({
     ? await prisma.review.findFirst({
       where: { listingId, reviewerId: meId },
       include: {
-          reviewer: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
+          reviewer: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
           photos: { orderBy: { sortOrder: "asc" } },
         },
       })
@@ -119,7 +118,7 @@ export default async function ReviewsSection({
   const all = await prisma.review.findMany({
     where: { listingId, ...(blockedUserIds && blockedUserIds.length > 0 ? { reviewerId: { notIn: blockedUserIds } } : {}) },
     include: {
-      reviewer: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
+      reviewer: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
       photos: { orderBy: { sortOrder: "asc" } },
     },
   });

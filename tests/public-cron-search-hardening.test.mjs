@@ -58,6 +58,9 @@ describe("cron and public route hardening", () => {
     const route = source("src/app/api/cron/ops-health/route.ts");
 
     assert.match(route, /deadEmailOutboxCount/);
+    assert.match(route, /staleRunningCronRunCount/);
+    assert.match(route, /status:\s*"RUNNING"/);
+    assert.match(route, /startedAt:\s*\{\s*lt: staleCronRunningBefore\s*\}/);
     assert.match(route, /status:\s*response\.ok \? 200 : 503/);
   });
 

@@ -46,8 +46,8 @@ export default async function ThreadPage({
   const convo = await prisma.conversation.findFirst({
     where: canStaffReviewThread ? { id } : { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     include: {
-      userA: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
-      userB: { select: { id: true, name: true, email: true, imageUrl: true, banned: true, deletedAt: true } },
+      userA: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
+      userB: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
       contextListing: {
         select: {
           id: true,
@@ -90,8 +90,8 @@ export default async function ThreadPage({
     : null;
 
   const participantLabel = isStaffReviewMode
-    ? `${convo.userA.name || convo.userA.email || "User"} ↔ ${convo.userB.name || convo.userB.email || "User"}`
-    : otherSellerProfile?.displayName || other?.name || other?.email || "User";
+    ? `${convo.userA.name || "User"} ↔ ${convo.userB.name || "User"}`
+    : otherSellerProfile?.displayName || other?.name || "User";
 
   const showCustomOrderButton = !!(isParticipant && otherSellerProfile?.acceptsCustomOrders && !otherUnavailableReason);
 
@@ -229,7 +229,7 @@ export default async function ThreadPage({
       await createNotification({
         userId: recipientId,
         type: "NEW_MESSAGE",
-        title: `${me.name ?? me.email?.split("@")[0] ?? "Someone"} sent you a message`,
+        title: `${me.name ?? "Someone"} sent you a message`,
         body: body || "Sent an attachment",
         link: `/messages/${id}`,
       });
@@ -255,7 +255,7 @@ export default async function ThreadPage({
             await sendNewMessageEmail({
               recipientEmail: recipientUser.email,
               recipientName: recipientUser.name ?? "there",
-              senderName: me.name ?? me.email?.split("@")[0] ?? "Someone",
+              senderName: me.name ?? "Someone",
               messagePreview: truncateText(body, 200),
               conversationUrl: `https://thegrainline.com/messages/${id}`,
             });
@@ -404,7 +404,7 @@ export default async function ThreadPage({
               {showCustomOrderButton && other && (
                 <ThreadCustomOrderButton
                   sellerUserId={other.id}
-                  sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
+                  sellerName={otherSellerProfile?.displayName ?? other.name ?? "Maker"}
                 />
               )}
               {isParticipant && (
@@ -442,7 +442,7 @@ export default async function ThreadPage({
               {showCustomOrderButton && other && (
                 <ThreadCustomOrderButton
                   sellerUserId={other.id}
-                  sellerName={otherSellerProfile?.displayName ?? other.name ?? other.email ?? "Maker"}
+                  sellerName={otherSellerProfile?.displayName ?? other.name ?? "Maker"}
                 />
               )}
               {isParticipant && (
