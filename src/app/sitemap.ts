@@ -1,5 +1,6 @@
 // src/app/sitemap.ts
 import { prisma } from "@/lib/db";
+import * as Sentry from "@sentry/nextjs";
 import type { MetadataRoute } from "next";
 import { BlogPostType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
@@ -23,6 +24,18 @@ const BLOG_TYPE_SITEMAP_FILTERS = [
   BlogPostType.BEHIND_THE_BUILD,
   BlogPostType.WOOD_EDUCATION,
 ] as const;
+
+function assertSitemapEntryLimit(entries: MetadataRoute.Sitemap, source: string) {
+  if (entries.length > SITEMAP_ENTRY_LIMIT) {
+    Sentry.captureMessage("Sitemap entry limit exceeded", {
+      level: "warning",
+      tags: { source: "sitemap", sitemapSource: source },
+      extra: { entryCount: entries.length, limit: SITEMAP_ENTRY_LIMIT },
+    });
+    throw new Error(`${source} sitemap has ${entries.length} entries, exceeding ${SITEMAP_ENTRY_LIMIT}`);
+  }
+  return entries;
+}
 
 export async function generateSitemaps() {
   const chunkCount = sitemapChunkCount(await sitemapSourceCounts());
@@ -301,12 +314,12 @@ export default async function sitemap({ id = 0 }: { id?: number } = {}): Promise
     priority: !m.parentMetroId ? 0.7 : 0.5,
   }));
 
-  return [
+  return assertSitemapEntryLimit([
     ...staticRoutes,
     ...blogIndexRoute,
     ...blogTypeRoutes,
     ...metroRoutes,
     ...metroCategoryRoutes,
     ...metroCommissionRoutes,
-  ].slice(0, SITEMAP_ENTRY_LIMIT);
+  ], "base");
 }

@@ -1514,3 +1514,15 @@ Last updated: 2026-05-21
      logs admin email audit targets by user ID or hashed fallback. The only
      accepted design in this range is that outbox deduplication is scoped by
      caller-provided `dedupKey`.
+175. **Stripe checkout payment-intent references use runtime narrowing** —
+     code cleanup. The remaining broad `as unknown as ExpandedPI` cast in the
+     Stripe snapshot webhook was replaced with `checkoutSessionPaymentIntentRefs()`,
+     which extracts payment intent, charge, application-fee, and transfer IDs
+     through small runtime-narrowing helpers instead of trusting an expanded
+     provider object shape inline.
+176. **Base sitemap chunk no longer silently truncates** — code fix. Large
+     dynamic sitemap sources were already chunked, but the base static/metro/
+     category/commission-city chunk still used `.slice(0, SITEMAP_ENTRY_LIMIT)`.
+     It now fails with Sentry evidence if that base chunk ever exceeds the
+     protocol limit, so future scale pressure is visible instead of quietly
+     dropping URLs.

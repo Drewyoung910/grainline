@@ -46,6 +46,17 @@ describe("Stripe webhook state helpers", () => {
     assert.equal((source.match(/as unknown as \{ shipping_details/g) ?? []).length, 0);
   });
 
+  it("keeps expanded checkout payment-intent extraction behind a runtime-narrowing helper", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+
+    assert.match(source, /function checkoutSessionPaymentIntentRefs\(session: Stripe\.Checkout\.Session\)/);
+    assert.match(source, /function objectRecord\(value: unknown\)/);
+    assert.match(source, /function stripeObjectId\(value: unknown\)/);
+    assert.match(source, /checkoutSessionPaymentIntentRefs\(s\)/);
+    assert.equal((source.match(/as unknown as ExpandedPI/g) ?? []).length, 0);
+    assert.doesNotMatch(source, /type ExpandedPI/);
+  });
+
   it("detects Stripe thin event data objects conservatively", () => {
     assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session" }), true);
     assert.equal(isLikelyThinStripeEventObject({ id: "cs_123", object: "checkout.session", livemode: true }), true);

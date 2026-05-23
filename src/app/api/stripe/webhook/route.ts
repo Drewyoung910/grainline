@@ -89,6 +89,41 @@ function checkoutSessionShippingAddress(session: Stripe.Checkout.Session) {
   return (session as Stripe.Checkout.Session & CheckoutSessionShippingDetails).shipping_details?.address ?? null;
 }
 
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function stripeObjectId(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  const record = objectRecord(value);
+  return typeof record?.id === "string" ? record.id : null;
+}
+
+function checkoutSessionPaymentIntentRefs(session: Stripe.Checkout.Session) {
+  const paymentIntent = session.payment_intent;
+  if (typeof paymentIntent === "string") {
+    return {
+      paymentIntentId: paymentIntent,
+      stripeChargeId: null,
+      stripeApplicationFeeId: null,
+      stripeTransferId: null,
+    };
+  }
+
+  const paymentIntentRecord = objectRecord(paymentIntent);
+  const chargesRecord = objectRecord(paymentIntentRecord?.charges);
+  const charge = Array.isArray(chargesRecord?.data)
+    ? objectRecord(chargesRecord.data[0])
+    : null;
+
+  return {
+    paymentIntentId: stripeObjectId(paymentIntent),
+    stripeChargeId: stripeObjectId(charge),
+    stripeApplicationFeeId: stripeObjectId(charge?.application_fee),
+    stripeTransferId: stripeObjectId(charge?.transfer),
+  };
+}
+
 const STRIPE_DISPUTE_EVENT_TYPES = new Set([
   "charge.dispute.created",
   "charge.dispute.updated",
@@ -597,20 +632,12 @@ export async function POST(req: Request) {
       const shipToCountry = sessionMeta.quotedToCountry ?? shipAddress?.country ?? "US";
 
       // Payment refs
-      type ExpandedPI = { id?: string; charges?: { data?: { id?: string; application_fee?: string | { id?: string }; transfer?: string | { id?: string } }[] } };
-      const pi = typeof s.payment_intent === "string" ? null : (s.payment_intent as unknown as ExpandedPI | null);
-      const paymentIntentId =
-        typeof s.payment_intent === "string" ? s.payment_intent : pi?.id ?? null;
-      const charge = pi?.charges?.data?.[0] ?? null;
-      const stripeChargeId = charge?.id ?? null;
-      const stripeApplicationFeeId =
-        (typeof charge?.application_fee === "string"
-          ? charge.application_fee
-          : charge?.application_fee?.id) ?? null;
-      const stripeTransferId =
-        (typeof charge?.transfer === "string"
-          ? charge.transfer
-          : charge?.transfer?.id) ?? null;
+      const {
+        paymentIntentId,
+        stripeChargeId,
+        stripeApplicationFeeId,
+        stripeTransferId,
+      } = checkoutSessionPaymentIntentRefs(s);
 
       const buyerId: string | undefined = sessionMeta.buyerId;
       // Quoted snapshot from metadata (typed on-site)

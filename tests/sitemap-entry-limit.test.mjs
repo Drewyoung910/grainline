@@ -7,7 +7,10 @@ const source = readFileSync("src/app/sitemap.ts", "utf8");
 describe("sitemap entry limit guardrails", () => {
   it("keeps the static base chunk bounded without packing dynamic row sources into it", () => {
     assert.match(source, /SITEMAP_ENTRY_LIMIT/);
-    assert.match(source, /\]\.slice\(0, SITEMAP_ENTRY_LIMIT\)/);
+    assert.match(source, /function assertSitemapEntryLimit/);
+    assert.match(source, /Sitemap entry limit exceeded/);
+    assert.match(source, /assertSitemapEntryLimit\(\[/);
+    assert.doesNotMatch(source, /\]\.slice\(0, SITEMAP_ENTRY_LIMIT\)/);
     assert.doesNotMatch(source, /function limitSitemapEntries/);
     assert.doesNotMatch(source, /\.\.\.sellerRoutes/);
     assert.doesNotMatch(source, /\.\.\.customerPhotoRoutes/);
