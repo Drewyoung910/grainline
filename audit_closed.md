@@ -1545,3 +1545,26 @@ Last updated: 2026-05-21
      HTML strip; it runs generated alt text through `sanitizeText()` before
      control-character cleanup and truncation, keeping AI alt-text persistence
      aligned with the shared user-text sanitizer.
+180. **Vacation-mode enable confirmation is already cancellable from the
+     toggle** — verified stale UX finding. `VacationModeForm` keeps a
+     separate `pendingEnable` state while the warning is open; toggling off or
+     pressing Cancel clears the warning without saving, and the Save button is
+     disabled while confirmation is pending. Regression coverage:
+     `tests/seller-ops-hardening.test.mjs`.
+181. **Production Sentry noise cluster was already covered** — verified
+     stale findings. Bot-only Stripe.js load failures are dropped by
+     `beforeSend()` without hiding real buyer checkout failures, notification
+     `P2002` collisions return the existing deduped notification when
+     possible, and cart-add `P2002` collisions are handled inside the cart-row
+     lock transaction. Regression coverage spans `tests/sentry-filter.test.mjs`,
+     `tests/social-interaction-hardening.test.mjs`, and
+     `tests/order-state-followups.test.mjs`.
+182. **Round 4 fixed-not-logged checkout/account items were verified on
+     current main** — verified stale/logging cleanup. Checkout preflight uses
+     `sellerOrderBlockReason()` for seller orderability, account deletion
+     deletes the Clerk user before local anonymization under the deletion lock,
+     the production charges-enabled backfill requires `--force-prod`, seller
+     transfers retain only the 5% platform fee without subtracting estimated
+     Stripe processing fees, deleted/banned reviewers render as "Former buyer,"
+     and account deletion scrubs shipping/gift-note buyer PII with
+     `buyerDataPurgedAt`.
