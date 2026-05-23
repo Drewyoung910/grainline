@@ -1722,3 +1722,33 @@ Last updated: 2026-05-23
      pure fail-closed helper; and quality-score formula boundaries now test
      discovery-bump decay plus Bayesian dampening so one lucky view cannot
      outrank sustained engagement without an explicit formula change.
+200. **Round 8 fulfillment fraud-chain blockers tightened** — code fix for
+     #737-#739. Manual seller shipping now requires both a supported carrier
+     and a valid tracking number; seller-side delivery marking for shipped
+     orders is disabled in favor of buyer confirmation through
+     `/api/orders/[id]/confirm-delivery`; and account deletion now blocks open
+     fulfillment plus recent terminal `DELIVERED`/`PICKED_UP` orders inside the
+     30-day case window unless a refund exists.
+201. **Round 8 public seller-profile projection and structured-data privacy
+     tightened** — code fix for #740, #764, #776, #777-#779, #783, and #784.
+     Listing detail, browse, and public seller profile pages now use narrow
+     `SellerProfile` selects instead of full public RSC includes, listing detail
+     no longer selects or falls back to seller email for display/URLs/JSON-LD,
+     seller JSON-LD emits precise geo only for explicit public opt-in without a
+     privacy radius, listing JSON-LD review snippets filter blocked and inactive
+     reviewers, and seller customer-photo queries filter blocked/inactive
+     reviewers without exposing `reviewerId`.
+202. **Round 8 similar-listing rate-limit finding is stale on current main** —
+     verified stale #741. `/api/listings/[id]/similar` already calls
+     `safeRateLimit(searchRatelimit, getIP(req))` before loading the listing or
+     running the raw similarity SQL, and existing read-rate-limit guardrails
+     assert that public Prisma/raw-SQL search reads fail closed.
+203. **Round 8 privacy/terms compliance wording truth-matched to current
+     implementation** — docs fix for #750-#754, with adjacent #755/#758/#759
+     cleanup. The Privacy Policy no longer claims implemented GPC persistence,
+     three-year message deletion, commission-request one-year deletion, or
+     automated seller analytics/Guild export fields that the code does not yet
+     provide; it now names OpenFreeMap and Cloudflare Email Routing accurately.
+     Terms 33.13 now frames INFORM high-volume seller verification as an
+     applicable/future workflow rather than an already-built 10-day
+     recertification system, and `STRATEGY.md` tracks that workflow as unbuilt.

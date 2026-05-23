@@ -1918,17 +1918,18 @@ export default function TermsPage() {
 
           <h3 className="text-base font-semibold mt-6 mb-2">33.13 INFORM Consumers Act</h3>
           <p>
-            Grainline complies with the Integrity, Notification, and Fairness in Online Retail
-            Marketplaces for Consumers Act (INFORM Consumers Act). Makers who meet the threshold of a
+            Grainline intends to comply with the Integrity, Notification, and Fairness in Online
+            Retail Marketplaces for Consumers Act (INFORM Consumers Act) to the extent it applies to
+            Grainline, its Makers, and its stage of operations. Makers who meet the threshold of a
             &quot;high-volume third party seller&quot; as defined by the Act (200 or more discrete
             sales or transactions and $5,000 or more in gross revenues in any continuous 12-month
-            period) are required to provide Grainline with accurate identification, contact, and bank
-            account information as specified by the Act. Grainline will verify this information within
-            10 days of receipt and require annual recertification. Grainline will disclose seller
-            contact information on product listing pages as required by the Act for qualifying
-            high-volume sellers. Failure to provide or maintain accurate information may result in
-            account suspension. Consumers may report suspicious marketplace activity using the
-            reporting mechanism available on product listing pages or by contacting
+            period) may be required to provide Grainline with accurate identification, contact, and
+            bank account information as specified by the Act. Grainline may use Stripe Connect
+            onboarding information and may require additional verification, recertification, or
+            buyer-facing disclosures when legally required or when Grainline activates a high-volume
+            seller verification program. Failure to provide or maintain accurate information may
+            result in account suspension. Consumers may report suspicious marketplace activity using
+            the reporting mechanism available on product listing pages or by contacting
             legal@thegrainline.com.
           </p>
         </section>

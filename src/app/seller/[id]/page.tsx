@@ -98,9 +98,46 @@ export default async function SellerPublicPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { id: sellerId },
-    include: {
-      user: { select: { id: true, clerkId: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
-      faqs: { orderBy: { sortOrder: "asc" } },
+    select: {
+      id: true,
+      userId: true,
+      displayName: true,
+      bio: true,
+      city: true,
+      state: true,
+      lat: true,
+      lng: true,
+      createdAt: true,
+      radiusMeters: true,
+      publicMapOptIn: true,
+      tagline: true,
+      bannerImageUrl: true,
+      avatarImageUrl: true,
+      workshopImageUrl: true,
+      storyTitle: true,
+      storyBody: true,
+      instagramUrl: true,
+      facebookUrl: true,
+      pinterestUrl: true,
+      tiktokUrl: true,
+      websiteUrl: true,
+      yearsInBusiness: true,
+      acceptsCustomOrders: true,
+      acceptingNewOrders: true,
+      returnPolicy: true,
+      customOrderPolicy: true,
+      shippingPolicy: true,
+      featuredListingIds: true,
+      galleryImageUrls: true,
+      galleryAltTexts: true,
+      guildLevel: true,
+      vacationMode: true,
+      vacationReturnDate: true,
+      vacationMessage: true,
+      isFoundingMaker: true,
+      foundingMakerNumber: true,
+      user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
+      faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
     },
@@ -237,18 +274,30 @@ export default async function SellerPublicPage({
       LIMIT 8
     `,
     prisma.reviewPhoto.findMany({
-      where: { review: { listing: publicListingDetailWhere({ sellerId: seller.id }) } },
+      where: {
+        review: {
+          listing: publicListingDetailWhere({ sellerId: seller.id }),
+          reviewer: { banned: false, deletedAt: null },
+          ...(blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {}),
+        },
+      },
       orderBy: { review: { createdAt: "desc" } },
       take: 12,
       select: {
         id: true,
         url: true,
         altText: true,
-        review: { select: { listingId: true, reviewerId: true, listing: { select: { title: true } } } },
+        review: { select: { listingId: true, reviewer: { select: { id: true } }, listing: { select: { title: true } } } },
       },
     }),
     prisma.reviewPhoto.count({
-      where: { review: { listing: publicListingDetailWhere({ sellerId: seller.id }) } },
+      where: {
+        review: {
+          listing: publicListingDetailWhere({ sellerId: seller.id }),
+          reviewer: { banned: false, deletedAt: null },
+          ...(blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {}),
+        },
+      },
     }),
   ]);
 
@@ -268,7 +317,7 @@ export default async function SellerPublicPage({
   const memberSinceYear = seller.createdAt.getFullYear();
   const isNewSeller = soldCount === 0 && (shopRating?.count ?? 0) === 0;
 
-  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewerId)).size;
+  const customerPhotoReviewerCount = new Set(customerPhotos.map((p) => p.review.reviewer.id)).size;
 
   // ── JSON-LD ─────────────────────────────────────────────────────────────────
   const hasStructuredAddress = Boolean(cityState);
@@ -288,7 +337,7 @@ export default async function SellerPublicPage({
           },
         }
       : {}),
-    ...(hasStructuredAddress && lat != null && lng != null
+    ...(hasStructuredAddress && seller.publicMapOptIn && !radiusMeters && lat != null && lng != null
       ? { geo: { "@type": "GeoCoordinates", latitude: lat, longitude: lng } }
       : {}),
   };

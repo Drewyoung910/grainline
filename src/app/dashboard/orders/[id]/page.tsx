@@ -10,6 +10,7 @@ import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
 import { ArrowLeft, Truck, Gift } from "@/components/icons";
 import OrderTimeline from "@/components/OrderTimeline";
+import ConfirmButton from "@/components/ConfirmButton";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
 import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
@@ -448,6 +449,27 @@ export default async function BuyerOrderDetailPage({
           ) : null}
         </section>
       ) : null}
+
+      {method === "SHIPPING" && status === "SHIPPED" && !activeCase && !hasRefund && (
+        <section className="card-section bg-white px-4 py-3 text-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-medium text-neutral-800">Received your order?</div>
+              <div className="mt-0.5 text-neutral-600">
+                Confirm delivery once the piece is in your hands.
+              </div>
+            </div>
+            <form method="post" action={`/api/orders/${order.id}/confirm-delivery`}>
+              <ConfirmButton
+                confirm="Confirm that you received this order?"
+                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+              >
+                Confirm delivery
+              </ConfirmButton>
+            </form>
+          </div>
+        </section>
+      )}
 
       {/* ── Case section ── */}
       {activeCase ? (

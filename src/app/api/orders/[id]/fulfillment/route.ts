@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
-import { sendOrderShipped, sendReadyForPickup, sendOrderDelivered } from "@/lib/email";
+import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
@@ -25,6 +25,7 @@ export const preferredRegion = "iad1";
 
 const VALID_TRACKING_CARRIERS = new Set(["UPS", "USPS", "FedEx", "DHL", "Other"]);
 const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
+const BUYER_DELIVERY_CONFIRMATION_ERROR = "Buyers confirm delivery for shipped orders.";
 const ACTIVE_CASE_STATUSES = [
   CaseStatus.OPEN,
   CaseStatus.IN_DISCUSSION,
@@ -180,6 +181,12 @@ export async function POST(
         { status: 400 },
       );
     }
+    if (action === "delivered") {
+      return NextResponse.json(
+        { error: BUYER_DELIVERY_CONFIRMATION_ERROR },
+        { status: 400 },
+      );
+    }
 
     const data: Record<string, unknown> = {};
     const now = new Date();
@@ -195,23 +202,28 @@ export async function POST(
         data.fulfillmentStatus = "PICKED_UP";
         data.pickedUpAt = now;
         break;
-      case "shipped":
+      case "shipped": {
+        const trackingCarrier = payload.trackingCarrier?.trim() ?? "";
+        const trackingNumber = payload.trackingNumber?.trim() ?? "";
+        if (!trackingCarrier) {
+          return NextResponse.json({ error: "Tracking carrier is required." }, { status: 400 });
+        }
+        if (!VALID_TRACKING_CARRIERS.has(trackingCarrier)) {
+          return NextResponse.json({ error: "Unsupported tracking carrier." }, { status: 400 });
+        }
+        if (!trackingNumber) {
+          return NextResponse.json({ error: "Tracking number is required." }, { status: 400 });
+        }
+        if (!TRACKING_NUMBER_RE.test(trackingNumber)) {
+          return NextResponse.json({ error: "Invalid tracking number." }, { status: 400 });
+        }
         data.fulfillmentMethod = "SHIPPING";
         data.fulfillmentStatus = "SHIPPED";
         data.shippedAt = now;
-        if (payload.trackingCarrier && !VALID_TRACKING_CARRIERS.has(payload.trackingCarrier)) {
-          return NextResponse.json({ error: "Unsupported tracking carrier." }, { status: 400 });
-        }
-        if (payload.trackingNumber && !TRACKING_NUMBER_RE.test(payload.trackingNumber.trim())) {
-          return NextResponse.json({ error: "Invalid tracking number." }, { status: 400 });
-        }
-        if (payload.trackingCarrier) data.trackingCarrier = payload.trackingCarrier;
-        if (payload.trackingNumber) data.trackingNumber = payload.trackingNumber.trim();
+        data.trackingCarrier = trackingCarrier;
+        data.trackingNumber = trackingNumber;
         break;
-      case "delivered":
-        data.fulfillmentStatus = "DELIVERED";
-        data.deliveredAt = now;
-        break;
+      }
       case "update_notes":
         data.sellerNotes = payload.sellerNotes ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null : null;
         break;
@@ -256,8 +268,8 @@ export async function POST(
     const buyerEmail = updated.buyer?.email;
 
     if (action === "shipped") {
-      const carrier = payload.trackingCarrier ?? null;
-      const trackingNumber = payload.trackingNumber ?? null;
+      const carrier = typeof data.trackingCarrier === "string" ? data.trackingCarrier : null;
+      const trackingNumber = typeof data.trackingNumber === "string" ? data.trackingNumber : null;
       if (updated.buyerId) {
         await notifyBuyer(id, updated.buyerId, {
           userId: updated.buyerId,
@@ -274,28 +286,6 @@ export async function POST(
             buyer: { name: updated.buyer?.name, email: buyerEmail },
             carrier,
             trackingNumber,
-          });
-        } catch (error) {
-          captureFulfillmentEmailFailure(error, id, action);
-        }
-      }
-    }
-
-    if (action === "delivered") {
-      if (updated.buyerId) {
-        await notifyBuyer(id, updated.buyerId, {
-          userId: updated.buyerId,
-          type: "ORDER_DELIVERED",
-          title: "Your piece has been delivered!",
-          body: "Enjoy your new piece — leave a review to help other buyers",
-          link: `/dashboard/orders/${id}`,
-        });
-      }
-      if (buyerEmail) {
-        try {
-          await sendOrderDelivered({
-            order: { id },
-            buyer: { name: updated.buyer?.name, email: buyerEmail },
           });
         } catch (error) {
           captureFulfillmentEmailFailure(error, id, action);

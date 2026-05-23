@@ -658,6 +658,7 @@ export default async function SellerOrderDetailPage({
                   <div className="flex flex-wrap gap-2">
                     <select
                       name="trackingCarrier"
+                      required
                       className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                       defaultValue=""
                     >
@@ -671,6 +672,7 @@ export default async function SellerOrderDetailPage({
                     <input
                       name="trackingNumber"
                       placeholder="Tracking number"
+                      required
                       className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm"
                     />
                     <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
@@ -683,12 +685,9 @@ export default async function SellerOrderDetailPage({
           )}
 
           {method === "SHIPPING" && status === "SHIPPED" && (
-            <form method="post" action={`/api/orders/${order.id}/fulfillment`} className="flex gap-2">
-              <input type="hidden" name="action" value="delivered" />
-              <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                Mark delivered
-              </button>
-            </form>
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+              Waiting for buyer delivery confirmation. If tracking shows a problem, contact the buyer or support.
+            </div>
           )}
         </section>
       )}

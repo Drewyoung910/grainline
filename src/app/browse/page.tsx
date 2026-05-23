@@ -72,7 +72,13 @@ async function fetchListings(where: Prisma.ListingWhereInput, orderBy: Prisma.Li
     include: {
       photos: { take: 2, orderBy: { sortOrder: "asc" }, select: { url: true, altText: true } },
       seller: {
-        include: {
+        select: {
+          displayName: true,
+          avatarImageUrl: true,
+          guildLevel: true,
+          city: true,
+          state: true,
+          acceptingNewOrders: true,
           user: { select: { imageUrl: true } },
         },
       },

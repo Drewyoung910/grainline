@@ -370,11 +370,16 @@ export default function PrivacyPage() {
               <a href="https://nominatim.org" target="_blank" rel="noopener noreferrer" className="underline">nominatim.org</a>
             </li>
             <li>
-              <strong>OpenStreetMap Tile Servers</strong> — Map display. When you view the Makers
-              Map, your browser loads map images directly from OpenStreetMap&apos;s tile servers.
-              OpenStreetMap receives your IP address and standard browser information in connection
-              with serving map tiles.{" "}
-              <a href="https://www.openstreetmap.org/privacy" target="_blank" rel="noopener noreferrer" className="underline">openstreetmap.org/privacy</a>
+              <strong>OpenFreeMap</strong> — Map tile delivery for OpenStreetMap data. When you view
+              the Makers Map, your browser loads map images from OpenFreeMap. OpenFreeMap receives
+              your IP address and standard browser information in connection with serving map tiles.{" "}
+              <a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer" className="underline">openfreemap.org</a>
+            </li>
+            <li>
+              <strong>Cloudflare Email Routing</strong> — Email routing for Grainline contact
+              addresses such as legal, support, abuse, and hello inboxes. Cloudflare may process
+              message headers and contents when routing email sent to those addresses.{" "}
+              <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="underline">cloudflare.com/privacypolicy</a>
             </li>
             <li>
               <strong>UptimeRobot</strong> — Platform availability monitoring. UptimeRobot makes
@@ -561,10 +566,11 @@ export default function PrivacyPage() {
           </p>
           <p className="mt-3">
             Global Privacy Control (GPC) is a separate browser signal recognized by certain state
-            privacy laws, including those in Colorado, Maryland, and Minnesota. We honor GPC signals
-            as valid opt-out requests where required by applicable law. If we detect a GPC signal from
-            your browser, we will treat it as a request to opt out of any sale or sharing of personal
-            information, to the extent applicable.
+            privacy laws. Grainline does not sell personal information, share personal information for
+            cross-context behavioral advertising, or run third-party behavioral advertising, so the
+            current Platform does not require a separate sale/sharing opt-out toggle for GPC to change.
+            If Grainline adds any feature that would involve sale or sharing of personal information,
+            we will honor applicable GPC opt-out requirements before enabling that feature.
           </p>
           <p className="mt-3">
             Regardless of DNT or GPC settings, we do not engage in cross-site tracking, third-party
@@ -577,9 +583,10 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-semibold mb-4">6. Data Retention</h2>
           <ul className="list-disc pl-6 space-y-3">
             <li>
-              <strong>Account data.</strong> Retained while your account is active plus 30 days after
-              a deletion request is processed. Upon account deletion, personal data is anonymized
-              within 30 days except where retention is legally required.
+              <strong>Account data.</strong> Retained while your account is active. Upon account
+              deletion, active application personal data is anonymized immediately where the automated
+              deletion workflow can process it, except where retention is legally required or manual
+              support follow-up is needed to complete an interrupted deletion.
             </li>
             <li>
               <strong>Transaction records.</strong> Order and payment records are retained for a
@@ -599,15 +606,15 @@ export default function PrivacyPage() {
               7 years as required by federal tax law.
             </li>
             <li>
-              <strong>Messages.</strong> Messages between users are retained for <strong>3 years</strong>{" "}
-              then deleted, unless the messages are subject to an open case, legal hold, or fraud
-              investigation. After account deletion, messages may be retained in anonymized form
-              for safety and fraud prevention for the remainder of the 3-year period.
+              <strong>Messages.</strong> Messages between users are retained while the related
+              accounts, conversations, cases, legal holds, or fraud-prevention needs remain active.
+              After account deletion, messages may be retained in anonymized form for safety, dispute,
+              and fraud-prevention purposes.
             </li>
             <li>
               <strong>Notification data.</strong> Read notifications are automatically deleted after
-              <strong> 90 days</strong>. Unread notifications are retained until read or until
-              account deletion.
+              <strong> 90 days</strong>. Unread notifications are automatically deleted after
+              <strong> 365 days</strong> or upon account deletion, whichever happens first.
             </li>
             <li>
               <strong>Legal holds.</strong> If your information is subject to a legal hold, dispute,
@@ -630,8 +637,9 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Commission Requests.</strong> Commission Request data (descriptions, reference
-              images, interest records) is retained for the lifetime of the request plus 1 year after
-              the request is closed, fulfilled, or expired.
+              images, interest records) is retained while the request exists and as needed for safety,
+              dispute handling, legal compliance, and marketplace integrity. Account deletion removes
+              or anonymizes the requester&apos;s personal data where legally permitted.
             </li>
             <li>
               <strong>Following data.</strong> Records of which Makers you follow are retained while
@@ -663,14 +671,14 @@ export default function PrivacyPage() {
             <li>
               <strong>Data portability.</strong> Request an export of your personal data in a
               commonly used, machine-readable format. Signed-in users can download an automated
-              account export from Account settings. Other verified privacy-rights requests are
-              reviewed through Grainline&apos;s privacy request process and fulfilled within the
-              timeframe required by applicable law. Exports typically include your account
-              information, transaction history, messages, reviews, and listing data in JSON format.
-              For Makers, data exports may also include listing data, order fulfillment history,
-              seller analytics (views, clicks, conversion data), and Guild program data. Customer
-              personal data (buyer names, addresses) is not included in seller data exports except
-              as required by applicable law.
+              account export from Account settings. The automated export includes account
+              information, transaction history, messages, cases, reviews, listings, saved items,
+              follows, notifications, and other account-linked records in JSON format. Maker exports
+              include shop profile data, listing data, seller-side order fulfillment history, and
+              commission-interest records. Additional verified privacy-rights requests are reviewed
+              through Grainline&apos;s privacy request process and fulfilled within the timeframe
+              required by applicable law. Customer personal data (buyer names, addresses) is not
+              included in seller data exports except as required by applicable law.
             </li>
             <li>
               <strong>Opt out of marketing.</strong> Opt out of marketing emails at any time by

@@ -147,9 +147,57 @@ export default async function ListingPage({
 
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      metaDescription: true,
+      priceCents: true,
+      currency: true,
+      status: true,
+      isPrivate: true,
+      reservedForUserId: true,
+      listingType: true,
+      stockQuantity: true,
+      shipsWithinDays: true,
+      processingTimeMinDays: true,
+      processingTimeMaxDays: true,
+      category: true,
+      tags: true,
+      materials: true,
+      productLengthIn: true,
+      productWidthIn: true,
+      productHeightIn: true,
+      sellerId: true,
       photos: { orderBy: { sortOrder: "asc" } },
-      seller: { include: { user: { select: { id: true, clerkId: true, email: true, imageUrl: true, banned: true, deletedAt: true } } } },
+      seller: {
+        select: {
+          id: true,
+          userId: true,
+          displayName: true,
+          city: true,
+          state: true,
+          lat: true,
+          lng: true,
+          radiusMeters: true,
+          chargesEnabled: true,
+          stripeAccountVersion: true,
+          vacationMode: true,
+          acceptingNewOrders: true,
+          acceptsCustomOrders: true,
+          offersGiftWrapping: true,
+          giftWrappingPriceCents: true,
+          returnPolicy: true,
+          shippingPolicy: true,
+          customOrderPolicy: true,
+          tagline: true,
+          avatarImageUrl: true,
+          guildLevel: true,
+          isFoundingMaker: true,
+          foundingMakerNumber: true,
+          user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
+        },
+      },
       metro: { select: { slug: true, name: true, state: true } },
       cityMetro: { select: { slug: true, name: true, state: true } },
       variantGroups: {
@@ -180,6 +228,8 @@ export default async function ListingPage({
     listing.status === "SOLD_OUT" ||
     (listing.listingType === "IN_STOCK" && (listing.stockQuantity ?? 0) <= 0);
   const canSubscribeForStockNotification = listing.listingType === "IN_STOCK" && isOutOfStock;
+  const blockedReviewerFilter =
+    blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {};
 
   const [
     ratingAgg,
@@ -211,7 +261,11 @@ export default async function ListingPage({
       },
     }),
     prisma.review.findMany({
-      where: { listingId },
+      where: {
+        listingId,
+        reviewer: { banned: false, deletedAt: null },
+        ...blockedReviewerFilter,
+      },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -262,8 +316,7 @@ export default async function ListingPage({
   const isFavorited = favoriteRow !== null;
   const isNotified = stockNotificationRow !== null;
 
-  const sellerName =
-    listing.seller.displayName ?? listing.seller.user?.email ?? "Maker";
+  const sellerName = listing.seller.displayName ?? "Maker";
   const sellerHref = publicSellerPath(listing.sellerId, sellerName);
   const sellerAvatar = listing.seller.avatarImageUrl ?? listing.seller.user?.imageUrl ?? null;
 
@@ -298,6 +351,7 @@ export default async function ListingPage({
     !isOwnListing &&
     !isOutOfStock &&
     !reservedForOther &&
+    listing.seller.chargesEnabled &&
     listing.seller.acceptingNewOrders !== false;
 
   // Processing time label

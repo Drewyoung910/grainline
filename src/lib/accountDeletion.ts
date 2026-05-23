@@ -21,6 +21,7 @@ import {
 import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 
 const ACTIVE_FULFILLMENT_STATUSES = ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] as const;
+export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = 30;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
@@ -51,6 +52,32 @@ type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAu
 
 function accountDeletionLockKey(userId: string) {
   return `account-delete:${userId}`;
+}
+
+function accountDeletionFulfillmentBlockerWhere(now = new Date()): Prisma.OrderWhereInput {
+  const terminalCutoff = new Date(
+    now.getTime() - ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS * 24 * 60 * 60 * 1000,
+  );
+
+  return {
+    OR: [
+      { fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] } },
+      {
+        fulfillmentStatus: "DELIVERED",
+        OR: [
+          { deliveredAt: null },
+          { deliveredAt: { gte: terminalCutoff } },
+        ],
+      },
+      {
+        fulfillmentStatus: "PICKED_UP",
+        OR: [
+          { pickedUpAt: null },
+          { pickedUpAt: { gte: terminalCutoff } },
+        ],
+      },
+    ],
+  };
 }
 
 export async function acquireAccountDeletionLock(userId: string): Promise<AccountDeletionLock | null> {
@@ -342,12 +369,13 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
     where: { userId },
     select: { id: true },
   });
+  const fulfillmentBlockerWhere = accountDeletionFulfillmentBlockerWhere();
 
   const [buyerOrders, sellerOrders, openCases, activeCommissions] = await Promise.all([
     prisma.order.count({
       where: {
         buyerId: userId,
-        fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
+        ...fulfillmentBlockerWhere,
         sellerRefundId: null,
         paymentEvents: { none: blockingRefundLedgerWhere() },
       },
@@ -355,7 +383,7 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
     seller
       ? prisma.order.count({
           where: {
-            fulfillmentStatus: { in: [...ACTIVE_FULFILLMENT_STATUSES] },
+            ...fulfillmentBlockerWhere,
             sellerRefundId: null,
             paymentEvents: { none: blockingRefundLedgerWhere() },
             items: {
@@ -384,14 +412,14 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
     blockers.push({
       code: "buyer_orders",
       count: buyerOrders,
-      message: "You have buyer orders that are still open. Wait until delivery/pickup or refund before deleting your account.",
+      message: "You have buyer orders that are still open or within the case window. Wait until the case window closes or a refund is issued before deleting your account.",
     });
   }
   if (sellerOrders > 0) {
     blockers.push({
       code: "seller_orders",
       count: sellerOrders,
-      message: "You have sales that are still open. Fulfill or refund them before deleting your account.",
+      message: "You have sales that are still open or within the case window. Fulfill, refund, or wait until the case window closes before deleting your account.",
     });
   }
   if (openCases > 0) {

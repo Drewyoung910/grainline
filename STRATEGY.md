@@ -4,6 +4,13 @@ Operational notes and strategic direction. CLAUDE.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Compliance systems to build before scale
+
+Do not market these as fully implemented until the workflows exist in code and have attorney review.
+
+- **INFORM Consumers Act high-volume seller workflow.** Current Stripe Connect onboarding collects baseline identity and payout information, but Grainline has not built a dedicated high-volume seller threshold tracker, 10-day verification queue, annual recertification flow, or buyer-facing disclosure/reporting workflow. Build before marketplace volume makes the INFORM workflow legally operationally relevant.
+- **Privacy-control expansion.** Current product does not sell/share personal information or run third-party behavioral advertising, so GPC does not change current behavior. If that changes, add first-class `Sec-GPC` handling and persistence before enabling the feature.
+
 ### `/why-grainline` and `/why-sell-on-grainline` SHIPPED (2026-05-12)
 
 Both landing pages are live.
