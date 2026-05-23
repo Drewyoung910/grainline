@@ -47,8 +47,9 @@ export async function GET(request: NextRequest) {
 }
 
 async function runGuildMemberCheckCron() {
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   let revokedMember = 0;
   const errors: Array<{ sellerId: string; code: string }> = [];
@@ -63,7 +64,7 @@ async function runGuildMemberCheckCron() {
       const results = await Promise.all(
         batch.map(async (seller) => {
           try {
-            return await checkGuildMemberSeller(seller, ninetyDaysAgo, thirtyDaysAgo);
+            return await checkGuildMemberSeller(seller, ninetyDaysAgo, thirtyDaysAgo, now);
           } catch (err) {
             const code = getErrorCode(err);
             errors.push({ sellerId: seller.id, code });
@@ -106,7 +107,8 @@ type GuildMemberSeller = Awaited<ReturnType<typeof fetchGuildMemberBatch>>[numbe
 async function checkGuildMemberSeller(
   seller: GuildMemberSeller,
   ninetyDaysAgo: Date,
-  thirtyDaysAgo: Date
+  thirtyDaysAgo: Date,
+  now: Date,
 ): Promise<number> {
   // Check 1: unresolved case older than 90 days
   const unresolvedCaseGuard: GuildMemberRevocationGuard = {
@@ -119,7 +121,7 @@ async function checkGuildMemberSeller(
   });
 
   if (longCase) {
-    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.", unresolvedCaseGuard);
+    return revokeMember(seller, "An unresolved dispute has been open for over 90 days.", unresolvedCaseGuard, now);
   }
 
   // Check 2: active listings below 5 for 30+ consecutive days
@@ -135,6 +137,7 @@ async function checkGuildMemberSeller(
       seller,
       "Your shop has had fewer than 5 active listings for over 30 consecutive days.",
       listingThresholdGuard,
+      now,
     );
   }
 
@@ -145,6 +148,7 @@ async function revokeMember(
   seller: { id: string; userId: string; user: { name?: string | null; email?: string | null } | null },
   reason: string,
   guard: GuildMemberRevocationGuard,
+  now: Date,
 ): Promise<number> {
   const revoked = await prisma.$transaction(async (tx) => {
     const updated = await tx.sellerProfile.updateMany({
@@ -159,7 +163,7 @@ async function revokeMember(
     if (updated.count === 0) return false;
     await tx.makerVerification.updateMany({
       where: { sellerProfileId: seller.id },
-      data: { status: "REJECTED", reviewNotes: reason },
+      data: { status: "REJECTED", reviewedAt: now, reviewNotes: reason },
     });
     return true;
   });

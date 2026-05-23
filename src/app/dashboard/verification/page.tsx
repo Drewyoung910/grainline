@@ -7,6 +7,10 @@ import GuildBadge from "@/components/GuildBadge";
 import { calculateSellerMetrics, meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS } from "@/lib/metrics";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { safeRateLimit, verificationApplyRatelimit } from "@/lib/ratelimit";
+import {
+  guildMasterApplicationBlockReason,
+  guildMemberApplicationBlockReason,
+} from "@/lib/guildApplicationState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -127,6 +131,11 @@ export default async function VerificationPage() {
   const isMemberActive = guildLevel === "GUILD_MEMBER" || guildLevel === "GUILD_MASTER";
   const isMemberPending = !isMemberActive && verification?.status === "PENDING";
   const isMemberRejected = !isMemberActive && !isMemberPending && verification?.status === "REJECTED";
+  const memberApplicationBlockReason = guildMemberApplicationBlockReason({
+    guildLevel,
+    verificationStatus: verification?.status,
+    reviewedAt: verification?.reviewedAt,
+  });
 
   // ── Section B state (only relevant if at least GUILD_MEMBER) ──────────────
   const showSectionB = isMemberActive;
@@ -134,6 +143,11 @@ export default async function VerificationPage() {
   const isMasterPending = !isMasterActive && verification?.status === "GUILD_MASTER_PENDING";
   const isMasterRejected =
     !isMasterActive && !isMasterPending && verification?.status === "GUILD_MASTER_REJECTED";
+  const masterApplicationBlockReason = guildMasterApplicationBlockReason({
+    guildLevel,
+    verificationStatus: verification?.status,
+    reviewedAt: verification?.reviewedAt,
+  });
 
   // ── Guild Master metrics (only fetch when section B is visible) ───────────
   let masterMetrics = null;
@@ -197,11 +211,18 @@ export default async function VerificationPage() {
       select: {
         userId: true,
         guildLevel: true,
-        makerVerification: { select: { status: true } },
+        makerVerification: { select: { status: true, reviewedAt: true } },
         user: { select: { createdAt: true } },
       },
     });
-    if (!current || current.guildLevel !== "NONE" || current.makerVerification?.status === "PENDING") {
+    if (
+      !current ||
+      guildMemberApplicationBlockReason({
+        guildLevel: current.guildLevel,
+        verificationStatus: current.makerVerification?.status,
+        reviewedAt: current.makerVerification?.reviewedAt,
+      })
+    ) {
       redirect("/dashboard/verification");
     }
     const eligibility = await getGuildMemberEligibility({
@@ -255,10 +276,17 @@ export default async function VerificationPage() {
       where: { id: s.id },
       select: {
         guildLevel: true,
-        makerVerification: { select: { status: true } },
+        makerVerification: { select: { status: true, reviewedAt: true } },
       },
     });
-    if (!current || current.guildLevel !== "GUILD_MEMBER" || current.makerVerification?.status === "GUILD_MASTER_PENDING") {
+    if (
+      !current ||
+      guildMasterApplicationBlockReason({
+        guildLevel: current.guildLevel,
+        verificationStatus: current.makerVerification?.status,
+        reviewedAt: current.makerVerification?.reviewedAt,
+      })
+    ) {
       redirect("/dashboard/verification");
     }
     const metrics = await calculateSellerMetrics(s.id);
@@ -358,6 +386,11 @@ export default async function VerificationPage() {
                 Your Guild badge was revoked. You can re-apply when you meet all requirements.
               </div>
             )}
+            {isMemberRejected && memberApplicationBlockReason && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {memberApplicationBlockReason}
+              </div>
+            )}
 
             {/* ── Eligibility checklist ── */}
             <div className="card-section p-5 space-y-3">
@@ -413,7 +446,7 @@ export default async function VerificationPage() {
               )}
             </div>
 
-            {allCriteriaMet && (
+            {allCriteriaMet && !memberApplicationBlockReason && (
               <form action={applyForGuildMember} className="space-y-5 card-section p-6">
                 <div className="space-y-1.5">
                   <label htmlFor="craftDescription" className="block text-sm font-medium">
@@ -683,10 +716,15 @@ export default async function VerificationPage() {
                   Your previous Guild Master application was not approved. You may reapply once you meet all requirements.
                 </div>
               )}
+              {isMasterRejected && masterApplicationBlockReason && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {masterApplicationBlockReason}
+                </div>
+              )}
 
               {masterCriteria && !masterCriteria.allMet && null /* form hidden until requirements met */}
 
-              {(!masterCriteria || masterCriteria.allMet) && (
+              {(!masterCriteria || masterCriteria.allMet) && !masterApplicationBlockReason && (
               <form action={applyForGuildMaster} className="space-y-5 card-section p-6">
                 <div className="space-y-1.5">
                   <label htmlFor="craftBusiness" className="block text-sm font-medium">

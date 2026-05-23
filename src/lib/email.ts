@@ -821,7 +821,7 @@ export async function sendGuildMasterRevokedEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Master badge has been revoked.</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong> — you can reapply for Guild Master once your metrics are back above the required thresholds.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;">Your metrics fell below Guild Master requirements for two consecutive monthly reviews. Your <strong>Guild Member badge remains active</strong> — you can reapply for Guild Master once your metrics are back above the required thresholds and the reapplication window reopens.</p>
     ${btn("View your verification status", dashUrl)}
   `;
 
@@ -843,7 +843,7 @@ export async function sendGuildMemberRevokedEmail(opts: {
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your Guild Member badge has been revoked.</p>
     <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 16px;"><strong>Reason:</strong> ${esc(reason)}</p>
-    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">You may reapply for the Guild Member badge once the issue has been resolved.</p>
+    <p style="font-size:14px;line-height:1.6;color:#6B6A66;margin:0 0 20px;">You may reapply for the Guild Member badge once the issue has been resolved and the reapplication window reopens.</p>
     ${btn("View verification requirements", dashUrl)}
   `;
 

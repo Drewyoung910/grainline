@@ -572,10 +572,10 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
     await tx.makerVerification.updateMany({
       where: { sellerProfileId },
       data: {
-        status: "APPROVED",
+        status: "GUILD_MASTER_REJECTED",
         reviewedById: me.id,
         reviewedAt: revokedAt,
-        reviewNotes: null,
+        reviewNotes: "Guild Master badge revoked by Grainline staff.",
       },
     });
     return true;

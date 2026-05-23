@@ -46,9 +46,14 @@ export async function POST(
         return NextResponse.json({ error: "Forbidden." }, { status: 403 });
       }
 
-      // Escalate OPEN cases past their seller response deadline
+      // Escalate cases whose response/discussion windows have expired.
       const result = await prisma.case.updateMany({
-        where: { status: "OPEN", sellerRespondBy: { lt: now } },
+        where: {
+          OR: [
+            { status: "OPEN", sellerRespondBy: { lt: now } },
+            { status: "IN_DISCUSSION", escalateUnlocksAt: { lt: now } },
+          ],
+        },
         data: { status: "UNDER_REVIEW" },
       });
       escalated = result.count;

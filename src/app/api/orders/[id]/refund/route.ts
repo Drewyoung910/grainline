@@ -289,9 +289,9 @@ export async function POST(
           });
         }
 
-        if (existingCase && existingCase.status !== "RESOLVED" && existingCase.status !== "CLOSED") {
-          await tx.case.update({
-            where: { id: existingCase.id },
+        if (existingCase) {
+          await tx.case.updateMany({
+            where: { id: existingCase.id, status: { notIn: ["RESOLVED", "CLOSED"] } },
             data: {
               status: "RESOLVED",
               resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",

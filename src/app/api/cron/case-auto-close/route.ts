@@ -12,6 +12,7 @@ export const maxDuration = 60;
 const CASE_AUTO_CLOSE_BATCH_SIZE = 100;
 const CASE_AUTO_CLOSE_MAX_BATCHES = 5;
 const CASE_AUTO_CLOSE_RECORD_CONCURRENCY = 5;
+const STALE_DISCUSSION_DAYS = 30;
 
 type CaseAutoCloseRecord = {
   id: string;
@@ -42,10 +43,14 @@ export async function GET(req: Request) {
       let stalePendingClosed = 0;
       let abandonedOpen = 0;
       let abandonedEscalated = 0;
+      let staleDiscussion = 0;
+      let staleDiscussionEscalated = 0;
       let stalePendingCloseBatches = 0;
       let abandonedOpenBatches = 0;
+      let staleDiscussionBatches = 0;
       let stalePendingCloseHasMore = false;
       let abandonedOpenHasMore = false;
+      let staleDiscussionHasMore = false;
       const failures: Array<{ caseId: string; action: "close" | "escalate"; code: string }> = [];
 
     async function closePendingCase(c: CaseAutoCloseRecord) {
@@ -174,16 +179,86 @@ export async function GET(req: Request) {
       if (batch === CASE_AUTO_CLOSE_MAX_BATCHES - 1) abandonedOpenHasMore = true;
     }
 
+    // Escalate IN_DISCUSSION cases that have stalled for 30+ days. A seller
+    // reply moves OPEN cases into discussion; without this, either party can
+    // abandon the thread indefinitely after the first response.
+    const discussionCutoff = new Date(Date.now() - STALE_DISCUSSION_DAYS * 24 * 60 * 60 * 1000);
+    async function escalateStaleDiscussionCase(c: CaseAutoCloseRecord) {
+      try {
+        const updated = await prisma.case.updateMany({
+          where: { id: c.id, status: "IN_DISCUSSION", updatedAt: { lt: discussionCutoff } },
+          data: { status: "UNDER_REVIEW" },
+        });
+        if (updated.count === 0) return;
+
+        const notifications: Array<() => Promise<unknown>> = [];
+        if (c.buyerId) {
+          const buyerId = c.buyerId;
+          notifications.push(() => createNotification({
+            userId: buyerId,
+            type: "CASE_MESSAGE",
+            title: "Case under review",
+            body: "This case has been inactive, so Grainline staff will review it.",
+            link: `/dashboard/orders/${c.orderId}`,
+            dedupScope: c.id,
+          }));
+        }
+        notifications.push(() => createNotification({
+          userId: c.sellerId,
+          type: "CASE_MESSAGE",
+          title: "Case escalated",
+          body: "This case was escalated to Grainline staff after the discussion stalled.",
+          link: `/dashboard/sales/${c.orderId}`,
+          dedupScope: c.id,
+        }));
+        await mapWithConcurrency(notifications, 2, (send) => send());
+        staleDiscussionEscalated++;
+        closed++;
+      } catch (error) {
+        const code = cronErrorCode(error);
+        failures.push({ caseId: c.id, action: "escalate", code });
+        Sentry.captureException(error, {
+          tags: { source: "cron_case_auto_close_record", action: "escalate", code },
+          extra: { caseId: c.id },
+        });
+      }
+    }
+
+    const checkedDiscussionCaseIds = new Set<string>();
+    for (let batch = 0; batch < CASE_AUTO_CLOSE_MAX_BATCHES; batch++) {
+      const staleDiscussionCases = await prisma.case.findMany({
+        where: {
+          status: "IN_DISCUSSION",
+          updatedAt: { lt: discussionCutoff },
+          ...(checkedDiscussionCaseIds.size ? { id: { notIn: [...checkedDiscussionCaseIds] } } : {}),
+        },
+        orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+        take: CASE_AUTO_CLOSE_BATCH_SIZE,
+        select: { id: true, buyerId: true, sellerId: true, orderId: true },
+      });
+      if (staleDiscussionCases.length === 0) break;
+      staleDiscussionBatches++;
+      staleDiscussion += staleDiscussionCases.length;
+      for (const c of staleDiscussionCases) checkedDiscussionCaseIds.add(c.id);
+      await mapWithConcurrency(staleDiscussionCases, CASE_AUTO_CLOSE_RECORD_CONCURRENCY, escalateStaleDiscussionCase);
+      if (staleDiscussionCases.length < CASE_AUTO_CLOSE_BATCH_SIZE) break;
+      if (batch === CASE_AUTO_CLOSE_MAX_BATCHES - 1) staleDiscussionHasMore = true;
+    }
+
     const response = {
       closed,
       stalePendingClose,
       stalePendingClosed,
       abandonedOpen,
       abandonedEscalated,
+      staleDiscussion,
+      staleDiscussionEscalated,
       stalePendingCloseBatches,
       abandonedOpenBatches,
+      staleDiscussionBatches,
       stalePendingCloseHasMore,
       abandonedOpenHasMore,
+      staleDiscussionHasMore,
       failures,
     };
     await completeCronRun(cronRun, response);

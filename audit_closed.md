@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 207.
-- Verified code/feature fix commits since 2026-05-13: 183.
+- Verified hardening/doc commits since 2026-05-13: 208.
+- Verified code/feature fix commits since 2026-05-13: 184.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 122 verified fixed/reduced findings,
-  48 verified stale/false-positive findings, and 32 deferred/manual findings
+- Most recent reported pass tally: 133 verified fixed/reduced findings,
+  51 verified stale/false-positive findings, and 43 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -1974,13 +1974,32 @@ Last updated: 2026-05-23
      `tests/email-delivery-guardrails.test.mjs` and
      `tests/cache-invalidation-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 122 findings;
-verified stale/false-positive: 48 findings; product/design decisions deferred:
-32 findings. Remaining major categories: durable account-deletion/Stripe and
+221. **Round 10 state-machine transition risks reduced** — code/test fix or
+     verified closure for #1037 through #1061. Immediate Guild Member and Guild
+     Master reapplication after rejection/revocation now goes through a
+     30-day helper-enforced cooldown; Guild Master revocation keeps the seller
+     at Guild Member while recording `GUILD_MASTER_REJECTED` so the cooldown
+     applies. Admin listing undo now parses malformed rollback metadata
+     fail-closed to non-public state and uses current listing-state
+     `updateMany` guards before restoring REMOVE_LISTING/HOLD_LISTING rows.
+     Case automation now escalates stale IN_DISCUSSION cases, bulk escalation
+     covers expired discussion windows, seller refunds and Stripe dispute case
+     updates use active-case compare-and-swap guards, manual mark-shipped is
+     blocked after a Grainline label purchase, admin listing approval fans out
+     followed-maker listing notifications only after an actual pending-to-active
+     transition, and case mark-resolved notifies the counterparty on
+     pending-close/final resolution. Verified stale/false-positive or
+     intentional: #1039, #1053, and #1060. Deferred product/system-audit work:
+     #1049, #1050, #1051, #1052, #1054, #1055, #1056, #1057, #1058, #1059,
+     and #1061. Guardrail: `tests/round10-state-machine-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 133 findings;
+verified stale/false-positive: 51 findings; product/design decisions deferred:
+43 findings. Remaining major categories: durable account-deletion/Stripe and
 audit redaction retry design, admin undo/ban side-effect retryability, AI
 semantic invariant and integration-test coverage, anonymous-cart merge
-durability, checkout concurrency integration evidence, Round 10 state-machine
-completion follow-ups (#1037-#1061), JSON shape/size and email uniqueness
-production-scan decisions, conversation swapped-pair DB invariant design, email
-outbox retention/versioning/per-recipient quota design, and remaining
-privacy/export retention decisions.
+durability, checkout concurrency integration evidence, Round 10 deferred
+system-audit and state-machine product designs, JSON shape/size and email
+uniqueness production-scan decisions, conversation swapped-pair DB invariant
+design, email outbox retention/versioning/per-recipient quota design, and
+remaining privacy/export retention decisions.

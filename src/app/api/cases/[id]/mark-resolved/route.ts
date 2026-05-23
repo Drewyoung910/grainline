@@ -5,13 +5,55 @@
 // Note: a cron job should auto-close PENDING_CLOSE cases with no new messages after 48h.
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { caseActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { caseResolutionMessage, isResolvableCaseStatus } from "@/lib/caseActionState";
+import { createNotification } from "@/lib/notifications";
 
 export const runtime = "nodejs";
+
+async function notifyCounterpartyOfResolutionMark({
+  caseId,
+  orderId,
+  actorId,
+  buyerId,
+  sellerId,
+  status,
+}: {
+  caseId: string;
+  orderId: string;
+  actorId: string;
+  buyerId: string | null;
+  sellerId: string;
+  status: string;
+}) {
+  const recipientId = actorId === buyerId ? sellerId : buyerId;
+  if (!recipientId) return;
+  const recipientIsBuyer = recipientId === buyerId;
+  const resolved = status === "RESOLVED";
+
+  try {
+    await createNotification({
+      userId: recipientId,
+      type: resolved ? "CASE_RESOLVED" : "CASE_MESSAGE",
+      title: resolved ? "Case resolved" : "Case marked resolved",
+      body: resolved
+        ? "The case was resolved after both parties confirmed."
+        : "The other party marked this case resolved. Confirm resolution or continue the discussion.",
+      link: recipientIsBuyer ? `/dashboard/orders/${orderId}` : `/dashboard/sales/${orderId}`,
+      dedupScope: `${caseId}:${status}:${actorId}`,
+    });
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "case_mark_resolved_notification" },
+      extra: { caseId, orderId, recipientId, status },
+    });
+  }
+}
 
 export async function POST(
   req: Request,
@@ -33,6 +75,7 @@ export async function POST(
         status: true,
         buyerId: true,
         sellerId: true,
+        orderId: true,
         buyerMarkedResolved: true,
         sellerMarkedResolved: true,
       },
@@ -108,6 +151,14 @@ export async function POST(
     }
 
     const message = caseResolutionMessage(updated.status);
+    await notifyCounterpartyOfResolutionMark({
+      caseId: caseRecord.id,
+      orderId: caseRecord.orderId,
+      actorId: me.id,
+      buyerId: caseRecord.buyerId,
+      sellerId: caseRecord.sellerId,
+      status: updated.status,
+    });
 
     return NextResponse.json({ ok: true, ...updated, message });
   } catch (err) {

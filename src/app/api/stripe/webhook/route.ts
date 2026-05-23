@@ -1645,8 +1645,8 @@ export async function POST(req: Request) {
                 dispute,
               });
               if (caseAction.action === "update") {
-                await tx.case.update({
-                  where: { id: caseAction.caseId },
+                await tx.case.updateMany({
+                  where: { id: caseAction.caseId, status: { notIn: ["RESOLVED", "CLOSED"] } },
                   data: { status: caseAction.status },
                 });
               } else if (caseAction.action === "create") {

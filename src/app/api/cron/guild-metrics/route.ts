@@ -248,7 +248,11 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     if (updated.count === 0) return false;
     await tx.makerVerification.updateMany({
       where: { sellerProfileId: seller.id },
-      data: { status: "GUILD_MASTER_REJECTED", reviewNotes: "Metrics fell below requirements for two consecutive months." },
+      data: {
+        status: "GUILD_MASTER_REJECTED",
+        reviewedAt: now,
+        reviewNotes: "Metrics fell below requirements for two consecutive months.",
+      },
     });
     return true;
   });

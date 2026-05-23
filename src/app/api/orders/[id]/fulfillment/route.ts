@@ -9,7 +9,7 @@ import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ra
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { assertContentLengthUnder, isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { CaseStatus, type FulfillmentStatus } from "@prisma/client";
+import { CaseStatus, LabelStatus, type FulfillmentStatus, type Prisma } from "@prisma/client";
 import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 
@@ -157,6 +157,12 @@ export async function POST(
         { status: 400 },
       );
     }
+    if (action === "shipped" && authz.order.labelStatus === "PURCHASED") {
+      return NextResponse.json(
+        { error: "A Grainline shipping label has already been purchased for this order." },
+        { status: 409 },
+      );
+    }
 
     // Prevent backwards state transitions
     const validTransitions: Partial<Record<typeof action, FulfillmentStatus[]>> = {
@@ -237,20 +243,28 @@ export async function POST(
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
 
+    const orderWhereAnd: Prisma.OrderWhereInput[] = [];
+    if (action === "shipped") {
+      orderWhereAnd.push({
+        OR: [{ labelStatus: null }, { labelStatus: { not: LabelStatus.PURCHASED } }],
+      });
+    }
+    if (action !== "update_notes") {
+      orderWhereAnd.push({
+        OR: [
+          { case: { is: null } },
+          { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
+        ],
+      });
+    }
+
     const updatedCount = await prisma.order.updateMany({
       where: {
         id,
         sellerRefundId: null,
         paymentEvents: { none: blockingRefundLedgerWhere() },
         ...(allowed ? { fulfillmentStatus: { in: allowed } } : {}),
-        ...(action !== "update_notes"
-          ? {
-              OR: [
-                { case: { is: null } },
-                { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
-              ],
-            }
-          : {}),
+        ...(orderWhereAnd.length ? { AND: orderWhereAnd } : {}),
       },
       data,
     });

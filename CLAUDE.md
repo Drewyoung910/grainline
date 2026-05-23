@@ -203,6 +203,8 @@ These fields are written to `Order` after checkout completes (via the Stripe web
 5. **Label purchase** — calls `POST /transactions/` on Shippo with `{ rate, label_file_type: "PDF", async: false }`. On success, writes all label fields to the Order and sets `fulfillmentStatus = SHIPPED`.
 6. **Stripe clawback** — calls `stripe.transfers.createReversal(order.stripeTransferId, { amount: labelCostCents })` to deduct the label cost from the seller's payout. Wrapped in try/catch so a Stripe failure doesn't roll back a successful label purchase.
 
+Manual "Mark as Shipped" fulfillment must reject orders whose `labelStatus = PURCHASED`, and its final `order.updateMany` predicate must keep that label-status guard so a manual tracking submit cannot race a Grainline label purchase.
+
 ### LabelSection UI (`src/components/LabelSection.tsx`)
 
 Client component rendered in the seller order detail page (`src/app/dashboard/sales/[orderId]/page.tsx`) for non-pickup shipping orders. Three render states:
@@ -221,8 +223,8 @@ Five API routes handle the full case lifecycle:
 |---|---|---|
 | `POST /api/cases` | Buyer | Opens a case. Validates buyer owns order, delivery date is in the past, no existing case. Sets `sellerRespondBy` to 48h from now. Creates Case + initial CaseMessage. Duplicate-submit `P2002` races return `409` instead of a generic 500. |
 | `POST /api/cases/[id]/messages` | Buyer, seller, or staff | Adds a message to the thread. Blocks on RESOLVED/CLOSED cases. When seller posts first reply on OPEN case: sets `IN_DISCUSSION`, `discussionStartedAt`, `escalateUnlocksAt = now + 48h`. |
-| `POST /api/cases/[id]/escalate` | Buyer/seller (if `escalateUnlocksAt` past) or staff/CRON_SECRET | `id="all"` bulk-escalates OPEN cases past `sellerRespondBy` (staff/cron only). Single ID: buyer/seller may escalate after `escalateUnlocksAt`; sets `UNDER_REVIEW`. |
-| `POST /api/cases/[id]/mark-resolved` | Buyer or seller | Marks their side resolved. First call → `PENDING_CLOSE`. Both calls → `RESOLVED` with `DISMISSED`. |
+| `POST /api/cases/[id]/escalate` | Buyer/seller (if `escalateUnlocksAt` past) or staff/CRON_SECRET | `id="all"` bulk-escalates OPEN cases past `sellerRespondBy` and IN_DISCUSSION cases past `escalateUnlocksAt` (staff/cron only). Single ID: buyer/seller may escalate after `escalateUnlocksAt`; sets `UNDER_REVIEW`. |
+| `POST /api/cases/[id]/mark-resolved` | Buyer or seller | Marks their side resolved. First call → `PENDING_CLOSE`; both calls → `RESOLVED` with `DISMISSED`. The route notifies the counterparty on both the pending-close and final-resolved transitions. |
 | `POST /api/cases/[id]/resolve` | EMPLOYEE or ADMIN | Accepts `resolution` + optional `refundAmountCents`. Issues Stripe refund (full with `reason: "fraudulent"`, partial by amount). Stamps `stripeRefundId`, sets case RESOLVED, flags order `reviewNeeded`. |
 
 ### Seller self-service refund
@@ -245,7 +247,7 @@ Five API routes handle the full case lifecycle:
 
 `OPEN` → (seller replies) → `IN_DISCUSSION` → (one party marks resolved) → `PENDING_CLOSE` → (other party confirms) → `RESOLVED`
 
-Either party may escalate to `UNDER_REVIEW` once `escalateUnlocksAt` (48h after discussion starts) has passed. Staff/cron may escalate at any time.
+Either party may escalate to `UNDER_REVIEW` once `escalateUnlocksAt` (48h after discussion starts) has passed. Staff/cron may escalate at any time. `case-auto-close` escalates OPEN cases after the seller-response grace period and IN_DISCUSSION cases that have stalled for 30+ days; do not leave discussion cases without a terminal/escalation path.
 
 Listing type and availability is surfaced on listing pages: green "In Stock (N available)" badge for IN_STOCK with quantity > 0, red "Out of Stock" badge (buy buttons disabled) for IN_STOCK with quantity = 0 or status SOLD_OUT, "Made to order — ships in X–Y days" (or plain "Made to order") for MADE_TO_ORDER. Sellers set it via `ListingTypeFields` client component (`src/components/ListingTypeFields.tsx`) in the create/edit listing forms. `ProcessingTimeFields.tsx` has been replaced.
 
@@ -498,8 +500,8 @@ LaurelWreathIcon and HammerChiselIcon default sizes both bumped to 32.
 
 ### Seller dashboard (`/dashboard/verification`)
 Two sections:
-- **Section A (Guild Member)**: Active (green) if `guildLevel !== NONE`; Under Review (amber) if `status === PENDING`; **eligibility checklist** otherwise showing ✓/✗ for each requirement (active listings ≥ 5, completed sales ≥ $250, account age ≥ 30 days, no cases open > 60 days) + profile completeness as ○ recommendation; application form shown only when all 4 criteria met
-- **Section B (Guild Master)**: Only shown if `isMemberActive`; Active (indigo) if `guildLevel === GUILD_MASTER`; Under Review if `status === GUILD_MASTER_PENDING`; application form otherwise (business description, portfolio, standards checkbox)
+- **Section A (Guild Member)**: Active (green) if `guildLevel !== NONE`; Under Review (amber) if `status === PENDING`; **eligibility checklist** otherwise showing ✓/✗ for each requirement (active listings ≥ 5, completed sales ≥ $250, account age ≥ 30 days, no cases open > 60 days) + profile completeness as ○ recommendation; application form shown only when all 4 criteria met and no 30-day rejected/revoked reapplication cooldown is active
+- **Section B (Guild Master)**: Only shown if `isMemberActive`; Active (indigo) if `guildLevel === GUILD_MASTER`; Under Review if `status === GUILD_MASTER_PENDING`; application form otherwise (business description, portfolio, standards checkbox), except while a 30-day Guild Master rejected/revoked cooldown is active
 - `applyForGuildMaster` server action updates `MakerVerification.status = GUILD_MASTER_PENDING` and `SellerProfile.guildMasterAppliedAt` in a `$transaction`
 
 ### Admin queue (`/admin/verification`)
@@ -507,11 +509,11 @@ Four sections:
 1. **Guild Member Applications** (PENDING) — visual 8-item review checklist (profile photo, bio, listings, policies, no red flags, craft description authenticity, portfolio check, sales requirement); functional **admin override checkbox** ("Override $250 sales requirement"); `approveGuildMember(formData)` reads `verificationId` + `adminOverride` from form; when override checked, sets `reviewNotes = "Admin override: $250 sales requirement waived"` on approval; Reject with notes
 2. **Guild Master Applications** (GUILD_MASTER_PENDING) — Approve (sets `guildLevel = GUILD_MASTER`, `guildMasterApprovedAt`) / Reject (sets `guildMasterReviewNotes`)
 3. **Active Guild Members** — Revoke Badge (sets `guildLevel = NONE`, `isVerifiedMaker = false`)
-4. **Active Guild Masters** — Revoke Guild Master (sets `guildLevel = GUILD_MEMBER`)
+4. **Active Guild Masters** — Revoke Guild Master (sets `guildLevel = GUILD_MEMBER` and `MakerVerification.status = GUILD_MASTER_REJECTED` so the Guild Master reapplication cooldown applies)
 - All approve/reject send `VERIFICATION_APPROVED` / `VERIFICATION_REJECTED` notifications and emails
 
 ### API route (`/api/verification/apply`)
-Server-side eligibility enforcement mirrors dashboard check — returns 400 with specific error messages if any of the 4 criteria fail (e.g. "You need $X more in sales").
+Server-side eligibility enforcement mirrors dashboard check — returns 400 with specific error messages if any of the 4 criteria fail (e.g. "You need $X more in sales") and 409 when current Guild state or the rejected/revoked cooldown blocks a new application. Use `guildApplicationState.ts` for Guild Member/Master reapplication rules.
 
 ### Terms page Section 19.2
 Updated to remove "identity verification" language; now lists: completed profile, ≥5 active listings, $250 in completed sales, good account standing, reviewed by Grainline staff.
@@ -558,13 +560,13 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 - Processes in pages of 50 with concurrency 3
 - Guild Master pass: resets `consecutiveMetricFailures = 0`, clears `metricWarningSentAt`
 - Guild Master fail (1st time): increments `consecutiveMetricFailures = 1`, sets `metricWarningSentAt`, sends `VERIFICATION_REJECTED` notification + `sendGuildMasterWarningEmail` listing which criteria failed
-- Guild Master fail (2nd consecutive): recalculates metrics immediately before revocation and clears the warning state if the seller recovered; otherwise revokes to `GUILD_MEMBER` only if `metricWarningSentAt` is at least 30 days old. The DB update also guards `metricWarningSentAt <= now - 30 days` so short-month monthly cron runs cannot revoke before the promised warning window. Revocation resets counters and sends notification + `sendGuildMasterRevokedEmail`.
+- Guild Master fail (2nd consecutive): recalculates metrics immediately before revocation and clears the warning state if the seller recovered; otherwise revokes to `GUILD_MEMBER` only if `metricWarningSentAt` is at least 30 days old. The DB update also guards `metricWarningSentAt <= now - 30 days` so short-month monthly cron runs cannot revoke before the promised warning window. Revocation resets counters, stamps `MakerVerification.status = GUILD_MASTER_REJECTED` + `reviewedAt`, and sends notification + `sendGuildMasterRevokedEmail`.
 - Guild Member sellers: just updates `lastMetricCheckAt` (revocation handled by daily cron)
 - Returns `{ processed, warned, revokedMaster, errors[] }`
 
 **`src/app/api/cron/guild-member-check/route.ts`** — daily Guild Member revocation:
 - Two checks per seller: (1) case `OPEN | IN_DISCUSSION | PENDING_CLOSE` with `createdAt < 90 days ago`; (2) `listingsBelowThresholdSince < 30 days ago`
-- On revocation: sets `guildLevel = NONE`, `isVerifiedMaker = false`, sends notification + `sendGuildMemberRevokedEmail` with reason
+- On revocation: sets `guildLevel = NONE`, `isVerifiedMaker = false`, stamps `MakerVerification.status = REJECTED` + `reviewedAt` for the reapplication cooldown, sends notification + `sendGuildMemberRevokedEmail` with reason
 - Returns `{ revokedMember, errors[] }`
 
 **`listingsBelowThresholdSince` tracking** — set/cleared in four places:
@@ -582,7 +584,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 **Remaining infrastructure step:** Add `CRON_SECRET` env var to Vercel (generate with `openssl rand -hex 32`). Both cron routes return 401 without it.
 
 **Guild system additions (complete — 2026-04-01):**
-- **Reapplication after revocation** — `dashboard/verification/page.tsx`: sellers with `guildLevel === "NONE"` and no pending application see the eligibility checklist and form (upsert action handles both first-time and re-applications). Guild Master: added rejection notice when `isMasterRejected && !guildMasterReviewNotes`.
+- **Reapplication after revocation** — `guildApplicationState.ts` enforces a 30-day cooldown after Guild Member rejection/revocation and Guild Master rejection/revocation. `dashboard/verification/page.tsx` hides the reapplication forms and shows the cooldown message while active; `/api/verification/apply` returns 409 for blocked Guild Member applications. Guild Master revocation sets `MakerVerification.status = GUILD_MASTER_REJECTED` while keeping `guildLevel = GUILD_MEMBER`.
 - **Admin reinstatement** — `admin/verification/page.tsx`: `reinstateGuildMember` sets `guildLevel = "GUILD_MEMBER"`, `isVerifiedMaker = true`, logs `REINSTATE_GUILD_MEMBER` audit entry, sends the seller a `VERIFICATION_APPROVED` notification, and re-checks current Guild Member good-standing blockers before writing: target user is not banned/deleted, no unresolved case older than 90 days (including `UNDER_REVIEW`), and at least 5 active public listings. New "Revoked Guild Members" section shows sellers with `guildMemberApprovedAt` set but `guildLevel = "NONE"`. Revoke/reinstate forms use `ActionForm` and return `ActionState` errors so stale-state races surface to admins instead of silently no-oping.
 - **Admin feature maker** — `admin/verification/page.tsx`: `FeatureMakerButton` client component (`src/components/admin/FeatureMakerButton.tsx`) on Active Guild Member and Guild Master rows. `featureMaker` server action gates writes through `activeSellerProfileWhere({ guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] } })` so banned/deleted, vacation-mode, Stripe-disabled, unsupported-account-version, or non-Guild sellers cannot be manually spotlighted. On success it sets `featuredUntil = now + 7 days`, logs `FEATURE_MAKER` to AdminAuditLog, revalidates `/admin/verification` and `/`. `unfeatureMaker` clears `featuredUntil`, logs `UNFEATURE_MAKER`. `SellerProfile.featuredUntil DateTime?` — migration `20260414002700_add_seller_featured_until`.
 
@@ -766,6 +768,7 @@ Both routes protected by `Authorization: Bearer CRON_SECRET` header.
 | `api/orders/[id]/refund/route.ts` | `sendRefundIssued` — always |
 | `api/clerk/webhook/route.ts` | `sendWelcomeBuyer` (user.created) — always |
 | `dashboard/listings/new/page.tsx` | `sendFirstListingCongrats` (always, if count=1); `sendNewListingFromFollowedMakerEmail` per follower (respects `EMAIL_FOLLOWED_MAKER_NEW_LISTING`) |
+| `api/admin/listings/[id]/review/route.ts` | admin approve → `fanOutListingToFollowers` after the listing is actually moved from PENDING_REVIEW to ACTIVE; keep the non-blocking Sentry-captured fanout and stable `admin-approved-listing:*` dedup keys |
 | `messages/[id]/page.tsx` | `sendNewMessageEmail` (respects `EMAIL_NEW_MESSAGE`, 5-min atomic per-conversation throttle) |
 | `api/reviews/route.ts` | `sendNewReviewEmail` (respects `EMAIL_NEW_REVIEW`) |
 
@@ -1729,7 +1732,7 @@ Nine bugs fixed across listing page, commission room, and seller profile.
 Full audit trail for admin actions with 24-hour undo window. Fields: `action` (string enum like `BAN_USER`, `APPROVE_LISTING`, etc.), `targetType`, `targetId`, `reason?`, `metadata Json`, `undone Boolean`, `undoneAt?`, `undoneBy?`, `undoneReason?`. Migration: `20260401011017_ban_audit_ai_review_snapshot`.
 
 ### Utilities (`src/lib/`)
-- **`audit.ts`** — `logAdminAction(...)` upserts an `AdminAuditLog` row; `undoAdminAction({ logId, adminId, reason })` validates 24h window, performs action-specific rollback (BAN_USER → unban + restore Stripe/vacation; REMOVE_LISTING/HOLD_LISTING → restore `metadata.previousStatus` when present), marks log undone, creates `UNDO_*` audit entry
+- **`audit.ts`** — `logAdminAction(...)` upserts an `AdminAuditLog` row; `undoAdminAction({ logId, adminId, reason })` validates 24h window, performs action-specific rollback (BAN_USER → unban + restore Stripe/vacation; REMOVE_LISTING/HOLD_LISTING → restore `metadata.previousStatus` only through `adminListingUndoState.ts` fail-closed metadata parsing and current listing-state `updateMany` guards), marks log undone, creates `UNDO_*` audit entry
 - **`ban.ts`** — `banUser({ userId, adminId, reason })`: sets banned fields, calls `sellerProfile.updateMany({ chargesEnabled: false, vacationMode: true })`, removes the seller's commission interests and recomputes affected `interestedCount` values, closes open commission requests, invalidates listing/blog search caches, logs `BAN_USER` action; `BAN_USER` audit metadata stores previous order review-note hash/length only, never the raw admin-written review note text; `unbanUser(...)`: clears banned fields, restores Stripe if account exists, invalidates listing/blog search caches, logs `UNBAN_USER`
 
 ### API routes

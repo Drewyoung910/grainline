@@ -1,7 +1,7 @@
-import { ListingStatus } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from './db'
 import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
+import { listingUndoCurrentStatusWhere, listingUndoDataFromMetadata } from './adminListingUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
@@ -171,28 +171,11 @@ export async function undoAdminAction({
         break
       case 'REMOVE_LISTING':
       case 'HOLD_LISTING': {
-        const previousStatus =
-          typeof metadata.previousStatus === 'string' &&
-          Object.values(ListingStatus).includes(metadata.previousStatus as ListingStatus)
-            ? metadata.previousStatus as ListingStatus
-            : ListingStatus.ACTIVE
-        const listingData: {
-          status: ListingStatus
-          isPrivate?: boolean
-          rejectionReason?: string | null
-        } = { status: previousStatus }
-        if (typeof metadata.previousIsPrivate === 'boolean') {
-          listingData.isPrivate = metadata.previousIsPrivate
-        }
-        if (typeof metadata.previousRejectionReason === 'string') {
-          listingData.rejectionReason = metadata.previousRejectionReason
-        } else if ('previousRejectionReason' in metadata) {
-          listingData.rejectionReason = null
-        }
-        await tx.listing.update({
-          where: { id: log.targetId },
-          data: listingData
+        const updated = await tx.listing.updateMany({
+          where: listingUndoCurrentStatusWhere(log.action, log.targetId),
+          data: listingUndoDataFromMetadata(metadata)
         })
+        if (updated.count === 0) throw new Error('Listing changed before undo could be applied')
         break
       }
       default:

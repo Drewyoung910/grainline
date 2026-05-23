@@ -10,6 +10,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { guildMemberApplicationBlockReason } from "@/lib/guildApplicationState";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -73,11 +74,24 @@ export async function POST(req: Request) {
 
     const sellerData = await prisma.sellerProfile.findUnique({
       where: { id: seller.id },
-      select: { userId: true, user: { select: { createdAt: true } } },
+      select: {
+        userId: true,
+        guildLevel: true,
+        makerVerification: { select: { status: true, reviewedAt: true } },
+        user: { select: { createdAt: true } },
+      },
     });
 
     if (!sellerData) {
       return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
+    }
+    const applicationBlockReason = guildMemberApplicationBlockReason({
+      guildLevel: sellerData.guildLevel,
+      verificationStatus: sellerData.makerVerification?.status,
+      reviewedAt: sellerData.makerVerification?.reviewedAt,
+    });
+    if (applicationBlockReason) {
+      return NextResponse.json({ error: applicationBlockReason }, { status: 409 });
     }
 
     const [activeListings, salesRows, longCaseCount] = await Promise.all([

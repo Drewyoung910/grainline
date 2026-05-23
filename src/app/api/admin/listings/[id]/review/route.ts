@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server'
 import * as Sentry from '@sentry/nextjs'
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { logAdminAction } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
@@ -10,6 +10,7 @@ import { syncGuildMemberListingThreshold } from '@/lib/guildListingThreshold'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from '@/lib/searchCache'
+import { fanOutListingToFollowers } from '@/lib/followerListingNotifications'
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -45,6 +46,32 @@ async function syncGuildThresholdAfterAdminReview(listingId: string, sellerId: s
       extra: { listingId, sellerId },
     })
   }
+}
+
+function queueAdminApprovedListingFollowerFanout(listing: {
+  id: string
+  title: string
+  priceCents: number
+  currency: string | null
+  sellerId: string
+  seller: { displayName: string | null }
+}) {
+  after(async () => {
+    try {
+      await fanOutListingToFollowers({
+        sellerProfileId: listing.sellerId,
+        sellerDisplayName: listing.seller.displayName,
+        listing,
+        emailDedupKey: (followerId) => `admin-approved-listing:${listing.id}:${followerId}`,
+      })
+    } catch (error) {
+      Sentry.captureException(error, {
+        level: 'warning',
+        tags: { source: 'admin_listing_review_follower_fanout' },
+        extra: { listingId: listing.id, sellerProfileId: listing.sellerId },
+      })
+    }
+  })
 }
 
 export async function PATCH(
@@ -183,6 +210,7 @@ export async function PATCH(
         extra: { listingId: id, sellerUserId: listing.seller.userId, action },
       })
     })
+    queueAdminApprovedListingFollowerFanout(listing)
     if (listing.customOrderConversationId && listing.reservedForUserId) {
       await sendCustomOrderReadyLink({
         conversationId: listing.customOrderConversationId,
