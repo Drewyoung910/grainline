@@ -1,5 +1,5 @@
 // src/app/api/listings/recently-viewed/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
@@ -7,10 +7,11 @@ import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimit(searchRatelimit, `recently-viewed:${getIP(req)}`);
-  if (!success) return rateLimitResponse(reset, "Too many recently viewed requests.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many recently viewed requests."));
 
   const idsParam = req.nextUrl.searchParams.get("ids") ?? "";
   const ids = idsParam
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     .slice(0, 10);
 
   if (ids.length === 0) {
-    return NextResponse.json({ listings: [] });
+    return privateJson({ listings: [] });
   }
 
   const { userId } = await auth();
@@ -73,5 +74,5 @@ export async function GET(req: NextRequest) {
     sellerAvatarImageUrl: r.seller.avatarImageUrl ?? r.seller.user?.imageUrl ?? null,
   }));
 
-  return NextResponse.json({ listings, ids: ordered.map((r) => r.id) });
+  return privateJson({ listings, ids: ordered.map((r) => r.id) });
 }

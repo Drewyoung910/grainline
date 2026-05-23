@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { CATEGORY_LABELS, CATEGORY_VALUES } from "@/lib/categories";
 import { searchRatelimit, getIP, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
@@ -14,14 +14,15 @@ import {
 } from "@/lib/searchSuggestionState";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export async function GET(req: NextRequest) {
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
   if (!success) {
-    return rateLimitResponse(reset, "Too many searches.");
+    return privateResponse(rateLimitResponse(reset, "Too many searches."));
   }
   const q = normalizeSearchSuggestionQuery(req.nextUrl.searchParams.get("q"));
-  if (q.length < 2) return NextResponse.json({ suggestions: [] });
+  if (q.length < 2) return privateJson({ suggestions: [] });
 
   const { userId } = await auth();
   let meDbId: string | null = null;
@@ -185,7 +186,7 @@ export async function GET(req: NextRequest) {
     blogs.push({ slug: b.slug, title: b.title });
   }
 
-  return NextResponse.json({
+  return privateJson({
     suggestions: suggestions.slice(0, 8),
     blogs,
     categories: matchingCategoryValues.map((v) => ({

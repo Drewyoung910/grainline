@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { notificationReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
@@ -25,10 +25,10 @@ function pruneReadNotificationsHourly() {
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(notificationReadRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many notification reads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many notification reads."));
 
   pruneReadNotificationsHourly();
 
@@ -37,7 +37,7 @@ export async function GET() {
     me = await ensureUserByClerkId(userId);
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
@@ -51,5 +51,5 @@ export async function GET() {
     prisma.notification.count({ where: { userId: me.id, read: false } }),
   ]);
 
-  return NextResponse.json({ notifications, unreadCount });
+  return privateJson({ notifications, unreadCount });
 }

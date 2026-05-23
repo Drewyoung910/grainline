@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { accountAccessErrorPayload } from "@/lib/accountAccessError";
+import { privateJson } from "./privateResponse.ts";
 
 export function accountAccessErrorResponse(error: unknown) {
   const payload = accountAccessErrorPayload(error);
   if (!payload) return null;
-  return NextResponse.json(payload.body, { status: payload.status });
+  return privateJson(payload.body, { status: payload.status });
 }

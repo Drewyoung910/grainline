@@ -1,11 +1,11 @@
 // src/app/api/listings/[id]/similar/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
@@ -38,7 +38,7 @@ export async function GET(
 ) {
   try {
     const rate = await safeRateLimit(searchRatelimit, getIP(req));
-    if (!rate.success) return rateLimitResponse(rate.reset, "Too many similar-listing requests.");
+    if (!rate.success) return privateResponse(rateLimitResponse(rate.reset, "Too many similar-listing requests."));
 
     const { id } = await params;
 
@@ -46,7 +46,7 @@ export async function GET(
       where: publicListingWhere({ id }),
       select: { category: true, tags: true, priceCents: true, title: true, sellerId: true },
     });
-    if (!listing) return NextResponse.json({ listings: [] });
+    if (!listing) return privateJson({ listings: [] });
 
     const { category, tags, priceCents, title, sellerId } = listing;
     const { userId } = await auth();
@@ -57,7 +57,7 @@ export async function GET(
         select: { id: true, banned: true, deletedAt: true },
       });
       if (me?.banned || me?.deletedAt) {
-        return NextResponse.json({ error: "Account restricted" }, { status: 403 });
+        return privateJson({ error: "Account restricted" }, { status: 403 });
       }
       if (me) {
         blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
@@ -143,7 +143,7 @@ export async function GET(
     const TARGET = 12;
     const results = scored.slice(0, TARGET);
 
-    return NextResponse.json({
+    return privateJson({
       listings: results.map((r) => ({
         id: r.id,
         title: r.title,
@@ -169,6 +169,6 @@ export async function GET(
     });
   } catch (err) {
     console.error("GET /api/listings/[id]/similar error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

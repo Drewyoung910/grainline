@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { shippingAddressRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { sanitizeAddressField, sanitizeAddressName, sanitizeOptionalAddressField } from "@/lib/addressFields";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -33,7 +33,7 @@ const SHIPPING_ADDRESS_BODY_MAX_BYTES = 24 * 1024;
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     user = await ensureUserByClerkId(userId);
@@ -44,7 +44,7 @@ export async function GET() {
   }
 
   const { success, reset } = await safeRateLimit(shippingAddressRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many requests.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
   const me = await prisma.user.findUnique({
     where: { id: user.id },
@@ -58,9 +58,9 @@ export async function GET() {
       shippingPhone: true,
     },
   });
-  if (!me) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (!me) return privateJson({ error: "User not found" }, { status: 404 });
 
-  return NextResponse.json({
+  return privateJson({
     name: me.shippingName ?? null,
     line1: me.shippingLine1 ?? null,
     line2: me.shippingLine2 ?? null,
@@ -73,7 +73,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   let user: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     user = await ensureUserByClerkId(userId);
@@ -84,20 +84,20 @@ export async function PUT(req: Request) {
   }
 
   const { success, reset } = await safeRateLimit(shippingAddressRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many requests.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many requests."));
 
   let body;
   try {
     body = AddressSchema.parse(await readBoundedJson(req, SHIPPING_ADDRESS_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
@@ -115,5 +115,5 @@ export async function PUT(req: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

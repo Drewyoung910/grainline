@@ -3,10 +3,11 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { privateJson } from "@/lib/privateResponse";
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return Response.json({ role: null, hasSeller: false, name: null, imageUrl: null, avatarImageUrl: null });
+  if (!userId) return privateJson({ role: null, hasSeller: false, name: null, imageUrl: null, avatarImageUrl: null });
 
   let user;
   try {
@@ -22,7 +23,7 @@ export async function GET() {
     select: { id: true, avatarImageUrl: true },
   });
 
-  return Response.json({
+  return privateJson({
     role: user.role,
     hasSeller: !!sellerProfile,
     name: user.name,

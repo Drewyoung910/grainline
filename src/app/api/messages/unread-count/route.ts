@@ -1,14 +1,14 @@
 // src/app/api/messages/unread-count/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
+import { privateJson } from "@/lib/privateResponse";
 
 export async function GET() {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ count: 0 });
+    if (!userId) return privateJson({ count: 0 });
 
     let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
     try {
@@ -23,9 +23,9 @@ export async function GET() {
       where: { recipientId: me.id, readAt: null },
     });
 
-    return NextResponse.json({ count });
+    return privateJson({ count });
   } catch {
     // Don’t explode the header—just show 0 on error
-    return NextResponse.json({ count: 0 });
+    return privateJson({ count: 0 });
   }
 }

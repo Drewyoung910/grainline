@@ -17,6 +17,7 @@ import {
   isRequestBodyTooLargeError,
   readBoundedJson,
 } from "@/lib/requestBody";
+import { privateJson } from "@/lib/privateResponse";
 import { z } from "zod";
 
 const BroadcastSchema = z.object({
@@ -190,20 +191,20 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, banned: true, deletedAt: true },
   });
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (me.banned || me.deletedAt) return NextResponse.json({ error: "Account is suspended" }, { status: 403 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
+  if (me.banned || me.deletedAt) return privateJson({ error: "Account is suspended" }, { status: 403 });
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
     select: { id: true },
   });
-  if (!seller) return NextResponse.json({ error: "No seller profile" }, { status: 403 });
+  if (!seller) return privateJson({ error: "No seller profile" }, { status: 403 });
 
   const url = new URL(req.url);
   const page = parseBoundedPositiveIntParam(url.searchParams.get("page"), 1, 1000);
@@ -220,5 +221,5 @@ export async function GET(req: NextRequest) {
     prisma.sellerBroadcast.count({ where: { sellerProfileId: seller.id } }),
   ]);
 
-  return NextResponse.json({ broadcasts, total, page, pageSize });
+  return privateJson({ broadcasts, total, page, pageSize });
 }

@@ -20,7 +20,8 @@ describe("account export download format", () => {
     assert.deepEqual(headers, {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": 'attachment; filename="grainline-account-export-user_123-2026-04-29.json"',
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store, max-age=0",
+      Vary: "Cookie",
     });
   });
 
@@ -32,7 +33,8 @@ describe("account export download format", () => {
     );
 
     assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
-    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("cache-control"), "private, no-store, max-age=0");
+    assert.equal(response.headers.get("vary"), "Cookie");
     assert.equal(
       response.headers.get("content-disposition"),
       'attachment; filename="grainline-account-export-user_123-2026-04-28.json"',

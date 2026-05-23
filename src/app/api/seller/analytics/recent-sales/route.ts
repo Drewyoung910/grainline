@@ -1,29 +1,29 @@
 // src/app/api/seller/analytics/recent-sales/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
 
     const { success, reset } = await safeRateLimit(sellerAnalyticsRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many analytics requests.");
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many analytics requests."));
 
     const me = await ensureUserByClerkId(userId);
     const sellerProfile = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
       select: { id: true, onboardingComplete: true, chargesEnabled: true },
     });
-    if (!sellerProfile) return NextResponse.json({ error: "Seller profile not found" }, { status: 404 });
+    if (!sellerProfile) return privateJson({ error: "Seller profile not found" }, { status: 404 });
     if (!sellerProfile.onboardingComplete) {
-      return NextResponse.json(
+      return privateJson(
         {
           error: sellerProfile.chargesEnabled
             ? "Finish setup to start accepting orders."
@@ -64,12 +64,12 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ sales });
+    return privateJson({ sales });
   } catch (err) {
     const accountResponse = accountAccessErrorResponse(err);
     if (accountResponse) return accountResponse;
 
     console.error("GET /api/seller/analytics/recent-sales error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

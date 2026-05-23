@@ -9,6 +9,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { followRatelimit, getIP, rateLimitResponse, safeRateLimit, searchRatelimit } from "@/lib/ratelimit";
 import { logSecurityEvent } from "@/lib/security";
 import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 async function getFollowerCount(sellerProfileId: string) {
   return prisma.follow.count({ where: { sellerProfileId } });
@@ -22,20 +23,20 @@ export async function GET(
   const { sellerId } = await params;
 
   const { success, reset } = await safeRateLimit(searchRatelimit, getIP(req));
-  if (!success) return rateLimitResponse(reset, "Too many follow reads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many follow reads."));
 
   // sellerId here is the SellerProfile.id (not userId)
   const sellerProfile = await prisma.sellerProfile.findFirst({
     where: visibleSellerProfileWhere({ id: sellerId }),
     select: { id: true },
   });
-  if (!sellerProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!sellerProfile) return privateJson({ error: "Not found" }, { status: 404 });
 
   const followerCount = await getFollowerCount(sellerProfile.id);
 
   const { userId } = await auth();
   if (!userId) {
-    return NextResponse.json({ following: false, followerCount });
+    return privateJson({ following: false, followerCount });
   }
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
@@ -52,7 +53,7 @@ export async function GET(
     select: { id: true },
   });
 
-  return NextResponse.json({ following: !!existing, followerCount });
+  return privateJson({ following: !!existing, followerCount });
 }
 
 // POST — follow

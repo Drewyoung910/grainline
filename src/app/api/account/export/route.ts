@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
 import { prisma } from "@/lib/db";
@@ -8,6 +7,7 @@ import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export const runtime = "nodejs";
 
@@ -523,11 +523,11 @@ async function handleExport(method: "GET" | "POST") {
   let exportUserId: string | null = null;
   try {
     const user = await ensureUser();
-    if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    if (!user) return privateJson({ error: "Sign in required" }, { status: 401 });
     exportUserId = user.id;
 
     const rate = await safeRateLimit(accountExportRatelimit, user.id);
-    if (!rate.success) return rateLimitResponse(rate.reset, "Too many account export requests.");
+    if (!rate.success) return privateResponse(rateLimitResponse(rate.reset, "Too many account export requests."));
 
     const payload = await buildExport(user);
     const auditLogId = await logUserAuditAction({
@@ -544,7 +544,7 @@ async function handleExport(method: "GET" | "POST") {
         tags: { source: "account_export_audit_log" },
         extra: { userId: user.id, method },
       });
-      return NextResponse.json(
+      return privateJson(
         { error: "Could not record account export audit trail. Please try again." },
         { status: 503 },
       );
@@ -553,7 +553,7 @@ async function handleExport(method: "GET" | "POST") {
     return jsonDownload(payload, user.id);
   } catch (error) {
     if (isAccountAccessError(error)) {
-      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+      return privateJson({ error: error.message, code: error.code }, { status: error.status });
     }
     console.error("account export failed", error);
     Sentry.captureException(error, {
@@ -561,7 +561,7 @@ async function handleExport(method: "GET" | "POST") {
       tags: { source: "account_export" },
       extra: { userId: exportUserId, method },
     });
-    return NextResponse.json({ error: "Could not generate account export" }, { status: 500 });
+    return privateJson({ error: "Could not generate account export" }, { status: 500 });
   }
 }
 

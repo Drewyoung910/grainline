@@ -1,3 +1,5 @@
+import { PRIVATE_JSON_CACHE_CONTROL, PRIVATE_JSON_VARY } from "./privateResponse.ts";
+
 export function accountExportFilename(userId: string, now = new Date()) {
   const date = now.toISOString().slice(0, 10);
   return `grainline-account-export-${userId}-${date}.json`;
@@ -7,7 +9,8 @@ export function accountExportHeaders(userId: string, now = new Date()) {
   return {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Disposition": `attachment; filename="${accountExportFilename(userId, now)}"`,
-    "Cache-Control": "no-store",
+    "Cache-Control": PRIVATE_JSON_CACHE_CONTROL,
+    Vary: PRIVATE_JSON_VARY,
   };
 }
 

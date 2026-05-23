@@ -1884,11 +1884,24 @@ Last updated: 2026-05-23
      `tests/stripe-redirect-state.test.mjs`, and
      `tests/request-origin-guard.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 50 findings; verified
+216. **Round 10 auth-aware API cache headers hardened** — code/test fix for
+     #897, #898, #1028, and #1035. User-specific and auth-varying JSON routes
+     now use `privateJson()` or `privateResponse()` so responses explicitly set
+     `Cache-Control: private, no-store, max-age=0` and `Vary: Cookie` while
+     preserving headers such as `Retry-After` and account-export
+     `Content-Disposition`. The pass also covered adjacent auth-varying GET
+     routes that were not in the raw Claude list, including saved searches,
+     saved-blog/follow state, saved shipping address, seller broadcast history,
+     search suggestions, similar-items personalization, account export, and
+     message streams. Guardrails:
+     `tests/private-json-cache-headers.test.mjs` and the updated account export
+     header assertions in `tests/account-export-format.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 54 findings; verified
 stale/false-positive: 32 findings; product/design decisions deferred: 14
-findings. Remaining major categories: Round 10 private-cache response headers,
-schema CHECK/index hardening, durable account-deletion/Stripe and audit
-redaction retry design, admin undo/ban side-effect retryability, AI semantic
-invariant and integration-test coverage, anonymous-cart merge durability,
-checkout concurrency integration evidence, and remaining privacy/export
-retention decisions.
+findings. Remaining major categories: Round 10 client-side async races and
+Buy Now rollback cleanup, schema CHECK/index hardening, durable
+account-deletion/Stripe and audit redaction retry design, admin undo/ban
+side-effect retryability, AI semantic invariant and integration-test coverage,
+anonymous-cart merge durability, checkout concurrency integration evidence, and
+remaining privacy/export retention decisions.

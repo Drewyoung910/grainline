@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { Category, ListingType, Prisma } from "@prisma/client";
@@ -15,6 +15,7 @@ import {
   readBoundedJson,
 } from "@/lib/requestBody";
 import { withSerializableRetry } from "@/lib/transactionRetry";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 const SavedSearchSchema = z.object({
   q: z.string().max(200).optional().nullable(),
@@ -54,27 +55,27 @@ function normalizeSavedSearchTags(tags: string[] | undefined) {
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many saved-search actions."));
 
   const userResult = await getDbUserResult();
   if (userResult.response) return userResult.response;
   const me = userResult.me;
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   let searchParsed;
   try {
     searchParsed = SavedSearchSchema.parse(await readBoundedJson(req, SAVED_SEARCH_BODY_MAX_BYTES));
   } catch (e) {
     if (isRequestBodyTooLargeError(e)) {
-      return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      return privateJson({ error: "Request body too large" }, { status: 413 });
     }
     if (isInvalidJsonBodyError(e)) {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return privateJson({ error: "Invalid JSON" }, { status: 400 });
     }
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
+      return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
     }
     throw e;
   }
@@ -98,10 +99,10 @@ export async function POST(req: NextRequest) {
   const normalizedSort = sort ?? null;
 
   if (normalizedMin !== null && normalizedMax !== null && normalizedMin > normalizedMax) {
-    return NextResponse.json({ error: "Minimum price cannot exceed maximum price" }, { status: 400 });
+    return privateJson({ error: "Minimum price cannot exceed maximum price" }, { status: 400 });
   }
   if ((normalizedLat === null) !== (normalizedLng === null) || ((normalizedLat !== null || normalizedLng !== null) && normalizedRadius === null)) {
-    return NextResponse.json({ error: "Location searches require latitude, longitude, and radius" }, { status: 400 });
+    return privateJson({ error: "Location searches require latitude, longitude, and radius" }, { status: 400 });
   }
   const hasMeaningfulCriteria =
     normalizedQuery !== null ||
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
     normalizedMax !== null ||
     normalizedTags.length > 0;
   if (!hasMeaningfulCriteria) {
-    return NextResponse.json({ error: "Choose at least one search term or filter before saving." }, { status: 400 });
+    return privateJson({ error: "Choose at least one search term or filter before saving." }, { status: 400 });
   }
 
   const result = await withSerializableRetry(() =>
@@ -165,45 +166,45 @@ export async function POST(req: NextRequest) {
   );
 
   if ("error" in result) {
-    return NextResponse.json({ error: "You can save up to 25 searches. Delete one before saving another." }, { status: 400 });
+    return privateJson({ error: "You can save up to 25 searches. Delete one before saving another." }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, id: result.id, existing: result.existing });
+  return privateJson({ ok: true, id: result.id, existing: result.existing });
 }
 
 export async function GET() {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many saved-search actions."));
 
   const userResult = await getDbUserResult();
   if (userResult.response) return userResult.response;
   const me = userResult.me;
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const searches = await prisma.savedSearch.findMany({
     where: { userId: me.id },
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json({ searches });
+  return privateJson({ searches });
 }
 
 export async function DELETE(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
   const { success, reset } = await safeRateLimit(savedSearchRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many saved-search actions.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many saved-search actions."));
 
   const userResult = await getDbUserResult();
   if (userResult.response) return userResult.response;
   const me = userResult.me;
-  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!me) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const id = req.nextUrl.searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  if (!id) return privateJson({ error: "Missing id" }, { status: 400 });
 
   await prisma.savedSearch.deleteMany({ where: { id, userId: me.id } });
-  return NextResponse.json({ ok: true });
+  return privateJson({ ok: true });
 }

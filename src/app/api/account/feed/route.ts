@@ -1,5 +1,5 @@
 // src/app/api/account/feed/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
@@ -16,6 +16,7 @@ import {
 import { accountFeedRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 const MAX_FOLLOWED_SELLERS_FOR_FEED = 1000;
 
@@ -48,7 +49,7 @@ export type FeedItem = {
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rate = await safeRateLimit(accountFeedRatelimit, me.id);
-  if (!rate.success) return rateLimitResponse(rate.reset, "Too many feed requests.");
+  if (!rate.success) return privateResponse(rateLimitResponse(rate.reset, "Too many feed requests."));
 
   const url = new URL(req.url);
   const cursor = url.searchParams.get("cursor");
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
       rawSellerIds.length > 0 && blockedSellerIds.length > 0
         ? "All followed makers are currently blocked."
         : undefined;
-    return NextResponse.json({ items: [], nextCursor: null, hasMore: false, message });
+    return privateJson({ items: [], nextCursor: null, hasMore: false, message });
   }
 
   const visibleSellers = await prisma.sellerProfile.findMany({
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
   const visibleSellerIds = visibleSellers.map((seller) => seller.id);
 
   if (visibleSellerIds.length === 0) {
-    return NextResponse.json({
+    return privateJson({
       items: [],
       nextCursor: null,
       hasMore: false,
@@ -254,5 +255,5 @@ export async function GET(req: NextRequest) {
   const pageItems = merged.slice(0, limit);
   const nextCursor = hasMore && pageItems.length > 0 ? buildAccountFeedCursor(pageItems[pageItems.length - 1]) : null;
 
-  return NextResponse.json({ items: pageItems, nextCursor, hasMore });
+  return privateJson({ items: pageItems, nextCursor, hasMore });
 }

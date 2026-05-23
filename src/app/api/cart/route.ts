@@ -1,5 +1,4 @@
 // src/app/api/cart/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
@@ -7,6 +6,7 @@ import { resolveListingVariantSelection } from "@/lib/listingVariants";
 import { cartItemExceedsLiveStock } from "@/lib/stockMutationState";
 import { cartReadRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -14,10 +14,10 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    if (!userId) return privateJson({ error: "Sign in required" }, { status: 401 });
 
     const { success, reset } = await safeRateLimit(cartReadRatelimit, userId);
-    if (!success) return rateLimitResponse(reset, "Too many cart reads.");
+    if (!success) return privateResponse(rateLimitResponse(reset, "Too many cart reads."));
 
     const me = await ensureUserByClerkId(userId);
 
@@ -137,13 +137,13 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ items });
+    return privateJson({ items });
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     console.error("GET /api/cart error:", err);
     Sentry.captureException(err, { tags: { source: "cart_route", route: "/api/cart" } });
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

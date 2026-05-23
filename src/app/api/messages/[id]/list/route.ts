@@ -1,10 +1,10 @@
 // src/app/api/messages/[id]/list/route.ts
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { parseTimestampMsParam } from "@/lib/queryParams";
 import { messageListRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
+import { privateJson, privateResponse } from "@/lib/privateResponse";
 
 export async function GET(
   req: Request,
@@ -13,17 +13,17 @@ export async function GET(
   const { id } = await params;
 
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!userId) return privateJson({ ok: false }, { status: 401 });
 
   const { success, reset } = await safeRateLimit(messageListRatelimit, userId);
-  if (!success) return rateLimitResponse(reset, "Too many message reads.");
+  if (!success) return privateResponse(rateLimitResponse(reset, "Too many message reads."));
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     me = await ensureUserByClerkId(userId);
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
@@ -33,7 +33,7 @@ export async function GET(
     where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     select: { id: true },
   });
-  if (!belongs) return NextResponse.json({ ok: false }, { status: 403 });
+  if (!belongs) return privateJson({ ok: false }, { status: 403 });
 
   const url = new URL(req.url);
   const sinceMs = parseTimestampMsParam(url.searchParams.get("since"));
@@ -57,5 +57,5 @@ export async function GET(
     },
   });
 
-  return NextResponse.json({ ok: true, messages });
+  return privateJson({ ok: true, messages });
 }

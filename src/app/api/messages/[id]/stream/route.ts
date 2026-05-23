@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { messageStreamRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { parseTimestampMsParam } from "@/lib/queryParams";
+import { privateJson } from "@/lib/privateResponse";
 import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
@@ -14,17 +15,17 @@ export async function GET(
 ) {
   const { id } = await params;
   const { userId } = await auth();
-  if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
   const { success } = await safeRateLimit(messageStreamRatelimit, userId);
-  if (!success) return Response.json({ error: "Too many requests" }, { status: 429 });
+  if (!success) return privateJson({ error: "Too many requests" }, { status: 429 });
 
   let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
   try {
     me = await ensureUserByClerkId(userId);
   } catch (err) {
     if (isAccountAccessError(err)) {
-      return Response.json({ error: err.message, code: err.code }, { status: err.status });
+      return privateJson({ error: err.message, code: err.code }, { status: err.status });
     }
     throw err;
   }
@@ -33,7 +34,7 @@ export async function GET(
     where: { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
     select: { id: true },
   });
-  if (!allowed) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!allowed) return privateJson({ error: "Forbidden" }, { status: 403 });
 
   const url = new URL(req.url);
   let since = parseTimestampMsParam(url.searchParams.get("since")) ?? 0;
@@ -114,7 +115,8 @@ export async function GET(
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
+      "Cache-Control": "private, no-store, no-cache, no-transform, max-age=0",
+      Vary: "Cookie",
       Connection: "keep-alive",
     },
   });
