@@ -1568,3 +1568,17 @@ Last updated: 2026-05-21
      Stripe processing fees, deleted/banned reviewers render as "Former buyer,"
      and account deletion scrubs shipping/gift-note buyer PII with
      `buyerDataPurgedAt`.
+183. **Label-cost clawback failures now have durable retry state** — code fix.
+     Shippo label purchase still succeeds independently from Stripe transfer
+     reversal, but successful reversals now record `Order.labelClawbackStatus =
+     "REVERSED"` and the Stripe reversal ID. Missing transfer IDs go to
+     `"MANUAL_REVIEW"`. Stripe reversal failures go to `"RETRY_PENDING"` with
+     retry counters/timestamps, and `/api/cron/label-clawback-retry` retries
+     them with stable Stripe idempotency keys before final manual review.
+184. **Shippo label double-purchase finding is stale on current main** —
+     verified audit cleanup. The label route already claims the order through
+     an atomic SQL `UPDATE "Order" SET "labelStatus" = 'PURCHASED'` guarded by
+     `fulfillmentStatus = 'PENDING'`, no purchased label, no refund lock, and
+     no refund ledger before calling Shippo. A concurrent request cannot pass
+     that row-level update after the first claim commits. Regression source
+     coverage lives in `tests/verified-audit-followups.test.mjs`.

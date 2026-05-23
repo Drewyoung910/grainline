@@ -3,8 +3,12 @@ import { describe, it } from "node:test";
 
 const {
   appendLabelClawbackReviewNote,
+  labelClawbackBackoffMs,
   labelClawbackErrorMessage,
+  labelClawbackIdempotencyKey,
+  labelClawbackNextAttemptAt,
   labelClawbackReviewNote,
+  labelClawbackStatusAfterFailure,
 } = await import("../src/lib/labelClawbackState.ts");
 
 describe("label clawback reconciliation state", () => {
@@ -53,5 +57,35 @@ describe("label clawback reconciliation state", () => {
 
     assert.equal(message.length <= 500, true);
     assert.match(message, /\.\.\.$/);
+  });
+
+  it("uses a stable Stripe idempotency key for initial and retry reversals", () => {
+    assert.equal(
+      labelClawbackIdempotencyKey({
+        orderId: "ord_1",
+        shippoTransactionId: "shippo_txn_1",
+        shippoRateObjectId: "rate_1",
+        amountCents: 1299,
+      }),
+      "label-cost:ord_1:shippo_txn_1:1299",
+    );
+    assert.equal(
+      labelClawbackIdempotencyKey({
+        orderId: "ord_1",
+        shippoRateObjectId: "rate_1",
+        amountCents: 1299,
+      }),
+      "label-cost:ord_1:rate_1:1299",
+    );
+  });
+
+  it("backs off failed clawback retries before manual review", () => {
+    const now = new Date("2026-05-23T12:00:00.000Z");
+
+    assert.equal(labelClawbackBackoffMs(1), 15 * 60 * 1000);
+    assert.equal(labelClawbackNextAttemptAt(2, now)?.toISOString(), "2026-05-23T13:00:00.000Z");
+    assert.equal(labelClawbackStatusAfterFailure(4), "RETRY_PENDING");
+    assert.equal(labelClawbackStatusAfterFailure(5), "MANUAL_REVIEW");
+    assert.equal(labelClawbackNextAttemptAt(5, now), null);
   });
 });

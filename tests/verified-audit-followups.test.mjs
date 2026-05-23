@@ -150,11 +150,22 @@ describe("verified audit follow-up guardrails", () => {
 
   it("marks label-cost clawback failures for durable admin reconciliation", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    assert.match(labelRoute, /Atomic double-check to prevent concurrent label purchases/);
+    assert.match(labelRoute, /UPDATE "Order" SET "labelStatus" = 'PURCHASED'/);
+    assert.match(labelRoute, /"fulfillmentStatus" = 'PENDING'/);
     assert.match(labelRoute, /markLabelClawbackForReview/);
+    assert.match(labelRoute, /recordSuccessfulLabelClawback/);
+    assert.match(labelRoute, /labelClawbackIdempotencyKey/);
     assert.match(labelRoute, /reason: "missing_transfer"/);
     assert.match(labelRoute, /reason: "stripe_reversal_failed"/);
-    assert.match(labelRoute, /reviewNeeded: true/);
+    const retryLib = source("src/lib/labelClawbackRetry.ts");
+    assert.match(retryLib, /reviewNeeded: true/);
+    assert.match(retryLib, /labelClawbackStatus: "RETRYING"/);
+    assert.match(retryLib, /labelClawbackStatusAfterFailure/);
     assert.match(source("src/lib/labelClawbackState.ts"), /Staff must retry or manually reconcile/);
+    assert.match(source("src/app/api/cron/label-clawback-retry/route.ts"), /processLabelClawbackRetryBatch/);
+    assert.match(source("vercel.json"), /\/api\/cron\/label-clawback-retry/);
+    assert.match(source("prisma/schema.prisma"), /labelClawbackStatus/);
   });
 
   it("keeps public middleware scoped to actual public seller and cron-auth surfaces", () => {

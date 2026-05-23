@@ -592,6 +592,12 @@ model Order {
   labelPurchasedAt    DateTime?
   labelCostCents      Int?
   labelStatus         LabelStatus?
+  labelClawbackStatus        String?   @db.VarChar(50)
+  labelClawbackReversalId    String?   @db.VarChar(255)
+  labelClawbackRetryCount    Int       @default(0)
+  labelClawbackLastAttemptAt DateTime?
+  labelClawbackNextAttemptAt DateTime?
+  labelClawbackResolvedAt    DateTime?
 
   // Gift options
   giftNote               String?   @db.VarChar(500)
@@ -609,6 +615,7 @@ model Order {
   @@index([fulfillmentStatus])
   @@index([fulfillmentStatus, createdAt])
   @@index([sellerRefundId, sellerRefundLockedAt])
+  @@index([labelClawbackStatus, labelClawbackNextAttemptAt])
   @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
 }
 

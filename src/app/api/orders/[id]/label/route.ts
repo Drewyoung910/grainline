@@ -6,12 +6,8 @@ import { stripe } from "@/lib/stripe";
 import { shippoRequest, shippoRatesMultiPiece } from "@/lib/shippo";
 import { labelPurchaseRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
-import {
-  appendLabelClawbackReviewNote,
-  labelClawbackErrorMessage,
-  labelClawbackReviewNote,
-  type LabelClawbackFailureReason,
-} from "@/lib/labelClawbackState";
+import { labelClawbackErrorMessage, labelClawbackIdempotencyKey } from "@/lib/labelClawbackState";
+import { markLabelClawbackForReview, recordSuccessfulLabelClawback } from "@/lib/labelClawbackRetry";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -78,28 +74,6 @@ function prioritizeAndTrim(rates: LiveRate[], max = 4): LiveRate[] {
     if (out.length >= max) break;
   }
   return out.map(({ __boost, ...rest }) => rest);
-}
-
-async function markLabelClawbackForReview(opts: {
-  orderId: string;
-  existingReviewNote?: string | null;
-  amountCents: number;
-  reason: LabelClawbackFailureReason;
-  shippoTransactionId?: string | null;
-  stripeTransferId?: string | null;
-  errorMessage?: string | null;
-}) {
-  const note = appendLabelClawbackReviewNote(
-    opts.existingReviewNote,
-    labelClawbackReviewNote(opts),
-  );
-  return prisma.order.update({
-    where: { id: opts.orderId },
-    data: {
-      reviewNeeded: true,
-      reviewNote: note,
-    },
-  });
 }
 
 async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
@@ -474,11 +448,20 @@ export async function POST(
         });
       } else {
         try {
-          await stripe.transfers.createReversal(order.stripeTransferId, {
+          const reversal = await stripe.transfers.createReversal(order.stripeTransferId, {
             amount: labelCostCents,
             metadata: { orderId: id, reason: "label_cost_deduction" },
           }, {
-            idempotencyKey: `label-cost:${id}:${txn.object_id ?? effectiveRateObjectId}:${labelCostCents}`,
+            idempotencyKey: labelClawbackIdempotencyKey({
+              orderId: id,
+              shippoTransactionId: txn.object_id,
+              shippoRateObjectId: effectiveRateObjectId,
+              amountCents: labelCostCents,
+            }),
+          });
+          updated = await recordSuccessfulLabelClawback({
+            orderId: id,
+            reversalId: reversal.id,
           });
         } catch (stripeErr) {
           console.warn(`Stripe label cost clawback failed for order ${id}:`, stripeErr);
