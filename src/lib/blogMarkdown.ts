@@ -1,7 +1,7 @@
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
-import { isR2PublicUrl } from "./urlValidation";
-import { truncateText } from "./sanitize";
+import { isR2PublicUrl } from "./urlValidation.ts";
+import { truncateText } from "./sanitize.ts";
 
 export const MAX_RENDERED_BLOG_MARKDOWN_CHARS = 200_000;
 
