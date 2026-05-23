@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { blockedUserIdsFromRows, sellerProfileIdsFromRows } from "./blockFilterState.ts";
 
 export async function getBlockedUserIdsFor(meId: string | null): Promise<Set<string>> {
   if (!meId) return new Set();
@@ -20,10 +21,7 @@ export async function getBlockedUserIdsFor(meId: string | null): Promise<Set<str
       select: { blockerId: true },
     }),
   ]);
-  const ids = new Set<string>();
-  for (const block of blockedByMe) ids.add(block.blockedId);
-  for (const block of blockingMe) ids.add(block.blockerId);
-  return ids;
+  return blockedUserIdsFromRows({ blockedByMe, blockingMe });
 }
 
 export async function getBlockedSellerProfileIdsFor(meId: string | null): Promise<string[]> {
@@ -33,7 +31,7 @@ export async function getBlockedSellerProfileIdsFor(meId: string | null): Promis
     where: { userId: { in: [...blockedUserIds] } },
     select: { id: true },
   });
-  return sellers.map(s => s.id);
+  return sellerProfileIdsFromRows(sellers);
 }
 
 /**
@@ -51,5 +49,5 @@ export async function getBlockedIdsFor(meId: string | null): Promise<{
     where: { userId: { in: [...blockedUserIds] } },
     select: { id: true },
   });
-  return { blockedUserIds, blockedSellerIds: sellers.map(s => s.id) };
+  return { blockedUserIds, blockedSellerIds: sellerProfileIdsFromRows(sellers) };
 }

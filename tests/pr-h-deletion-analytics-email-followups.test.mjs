@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+const {
+  emailPreferenceLookupFailureAllowsSend,
+} = await import("../src/lib/notificationPreferenceState.ts");
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
@@ -34,8 +38,9 @@ describe("PR H account deletion, analytics, and email follow-ups", () => {
     const notifications = source("src/lib/notifications.ts");
     const email = source("src/lib/email.ts");
 
+    assert.equal(emailPreferenceLookupFailureAllowsSend(), false);
     assert.match(notifications, /failClosed: true/);
-    assert.match(notifications, /return false/);
+    assert.match(notifications, /return emailPreferenceLookupFailureAllowsSend\(\)/);
     assert.doesNotMatch(notifications, /return fallbackEnabled/);
     assert.match(email, /inactive-account lookup failed; skipping send/);
     assert.match(email, /throw err/);

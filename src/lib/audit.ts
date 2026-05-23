@@ -1,7 +1,7 @@
 import { ListingStatus } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import { prisma } from './db'
-import { adminUndoActorBlockReason } from './adminAuditUndoState'
+import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
@@ -87,8 +87,8 @@ export async function undoAdminAction({
   const log = await prisma.adminAuditLog.findUnique({ where: { id: logId } })
   if (!log) throw new Error('Action not found')
   if (log.undone) throw new Error('Already undone')
-  const hoursAgo = (Date.now() - log.createdAt.getTime()) / 3600000
-  if (hoursAgo > 24) throw new Error('Undo window expired (24 hours)')
+  const windowBlockReason = adminUndoWindowBlockReason({ createdAt: log.createdAt })
+  if (windowBlockReason) throw new Error(windowBlockReason)
   if (!isUndoableAdminAction(log.action)) throw new Error(`Action '${log.action}' cannot be undone`)
   const actorBlockReason = adminUndoActorBlockReason({
     actionAdminId: log.adminId,

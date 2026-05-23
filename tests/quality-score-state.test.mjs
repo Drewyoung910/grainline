@@ -6,6 +6,39 @@ const {
   normalizeQualityScoreAIReviewFlags,
   qualityPenaltyForListing,
 } = await import("../src/lib/qualityScoreState.ts");
+const {
+  scoreQualityRow,
+} = await import("../src/lib/qualityScoreFormula.ts");
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function qualityRow(overrides = {}) {
+  const now = Date.parse("2026-05-23T12:00:00.000Z");
+  return {
+    id: "listing_1",
+    sellerId: "seller_1",
+    viewCount: 100,
+    clickCount: 10,
+    favCount: 10n,
+    orderCount: 5n,
+    photoCount: 4n,
+    hasAltText: true,
+    descLength: 220,
+    aiReviewFlags: [],
+    createdAt: new Date(now - 10 * DAY_MS),
+    sellerCreatedAt: new Date(now - 20 * DAY_MS),
+    guildLevel: "NONE",
+    sellerAvgRating: 4.8,
+    sellerReviewCount: 0n,
+    ...overrides,
+  };
+}
+
+const globalMeans = {
+  avgConversion: 0.02,
+  avgCtr: 0.08,
+  avgRating: 4.5,
+};
 
 describe("quality score penalties", () => {
   it("penalizes missing listing content that would otherwise ride discovery boosts", () => {
@@ -53,5 +86,25 @@ describe("quality score penalties", () => {
       }),
       QUALITY_SCORE_PENALTIES.moderationFlags,
     );
+  });
+
+  it("scores quality rows across discovery-bump boundaries", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const day1 = scoreQualityRow(qualityRow({ createdAt: new Date(now - 1 * DAY_MS) }), globalMeans, now);
+    const day14 = scoreQualityRow(qualityRow({ createdAt: new Date(now - 14 * DAY_MS) }), globalMeans, now);
+    const day30 = scoreQualityRow(qualityRow({ createdAt: new Date(now - 30 * DAY_MS) }), globalMeans, now);
+    const day31 = scoreQualityRow(qualityRow({ createdAt: new Date(now - 31 * DAY_MS) }), globalMeans, now);
+
+    assert.ok(day1 > day30, "fresh listings should receive the full early discovery bump");
+    assert.ok(day14 > day30, "day-14 listings should still receive the full early discovery bump");
+    assert.ok(day30 > day31, "day-30 listings retain only the tail of the decaying discovery bump");
+  });
+
+  it("dampens sparse engagement instead of over-trusting tiny samples", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const sparse = scoreQualityRow(qualityRow({ viewCount: 1, clickCount: 1, orderCount: 1n }), globalMeans, now);
+    const mature = scoreQualityRow(qualityRow({ viewCount: 200, clickCount: 60, orderCount: 30n }), globalMeans, now);
+
+    assert.ok(sparse < mature, "one lucky view should not outrank sustained engagement");
   });
 });

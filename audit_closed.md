@@ -1677,3 +1677,48 @@ Last updated: 2026-05-23
      body/plain-text rendering strips bidi/zero-width/null controls; and
      shipping address fields use single-line normalization before persistence or
      carrier/Stripe payload use.
+196. **Payment/webhook race cluster is stale on current main** — verified audit
+     cleanup. Stripe capability mirroring suppresses `chargesEnabled` when the
+     local seller user is banned or deleted; account deletion clears Stripe
+     account references and forces `chargesEnabled=false`/`vacationMode=true`;
+     both Stripe webhook routes return retryable `503` with `Retry-After` while
+     a duplicate event is already in progress; account deletion takes the Redis
+     `account-delete:${userId}` lock before Clerk deletion/anonymization;
+     custom-order ready links use an advisory transaction lock; blog comment
+     approval side effects run only after `updateMany({ approved: false })`;
+     blog create retries `P2002` slug collisions; and message `firstResponseAt`
+     is set with a null precondition. The remaining partial-refund accounting
+     question is downgraded to a Stripe test-mode reconciliation proof, not a
+     confirmed exploit.
+197. **Round Q stale "still open" rows rechecked against current main** —
+     verified audit cleanup. Non-listing sitemap sources are chunked through
+     `sitemapChunkForId()`; Stripe checkout shipping address access is behind
+     `checkoutSessionShippingAddress()` with no `as unknown as` casts; seller
+     partial refunds support explicit bounded stock restoration; middleware uses
+     the Redis account-state cache; runtime currency fallbacks use
+     `DEFAULT_CURRENCY`; label clawback has durable retry state plus cron; the
+     Privacy Policy discloses retained internal admin audit identifiers; and the
+     old root `prisma/seed.ts`/`seed-bulk.ts` files no longer exist. Still-open
+     product/ops items from the same section remain open: tag/author routes,
+     high-traffic raw `<img>` migration, tax reconciliation monitoring,
+     display-name confusable search, and optional observability helper work.
+198. **Additional test-gap and accessibility/persona findings are stale on
+     current main** — verified audit cleanup. `safeJsonLd()` has script-breakout
+     tests; rate-limit fail-open/fail-closed behavior is tested through
+     `limitWithFailurePolicy`; blog markdown sanitizer tests now execute hostile
+     payloads; `VariantSelector`, `OpenCaseForm`, `ShippingAddressForm`,
+     `AdminEmailForm`, `ImageCropModal`, and map widgets have the documented
+     accessibility semantics and guardrail tests; banned reviewers render as
+     unavailable/former buyers; ban/unban invalidates listing/blog search
+     caches; email outbox rechecks inactive recipients before send even without
+     a preference key; saved-search tags are sorted before dedup; and newsletter
+     signup NFC-normalizes emails while returning the same success shape for
+     suppressed and newly subscribed addresses.
+199. **Behavioral guardrail tests added for four previously source-only
+     contracts** — test hardening. `adminUndoWindowBlockReason()` now gives the
+     24-hour audit undo window a pure tested boundary; block filtering now tests
+     both-direction set construction and seller-id mapping through
+     `blockFilterState.ts`; email preference lookup failures now route through a
+     pure fail-closed helper; and quality-score formula boundaries now test
+     discovery-bump decay plus Bayesian dampening so one lucky view cannot
+     outrank sustained engagement without an explicit formula change.

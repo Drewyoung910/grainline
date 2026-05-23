@@ -10,6 +10,7 @@ import {
 } from "@/lib/notificationPayload";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
 import { emailPreferenceDefaultEnabled } from "@/lib/notificationEmailPreferences";
+import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
 
 export {
   VALID_EMAIL_PREFERENCE_KEYS,
@@ -47,7 +48,7 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
       tags: { source: "email_preference_check" },
       extra: { userId, prefKey, failClosed: true },
     });
-    return false;
+    return emailPreferenceLookupFailureAllowsSend();
   }
 }
 

@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+const {
+  blockedUserIdsFromRows,
+  sellerProfileIdsFromRows,
+} = await import("../src/lib/blockFilterState.ts");
+
 function source(path) {
   return readFileSync(path, "utf8");
 }
@@ -14,8 +19,12 @@ describe("block filter guardrails", () => {
     assert.match(blocks, /blockedId: meId/);
     assert.match(blocks, /blocker: \{ deletedAt: null \}/);
     assert.match(blocks, /blocked: \{ deletedAt: null \}/);
-    assert.match(blocks, /for \(const block of blockedByMe\) ids\.add\(block\.blockedId\)/);
-    assert.match(blocks, /for \(const block of blockingMe\) ids\.add\(block\.blockerId\)/);
+    const blocked = blockedUserIdsFromRows({
+      blockedByMe: [{ blockedId: "user_b" }, { blockedId: "user_c" }],
+      blockingMe: [{ blockerId: "user_d" }, { blockerId: "user_b" }],
+    });
+
+    assert.deepEqual([...blocked].sort(), ["user_b", "user_c", "user_d"]);
   });
 
   it("derives blocked seller profile ids from blocked user ids", () => {
@@ -23,8 +32,12 @@ describe("block filter guardrails", () => {
 
     assert.match(blocks, /getBlockedSellerProfileIdsFor/);
     assert.match(blocks, /userId: \{ in: \[\.\.\.blockedUserIds\] \}/);
-    assert.match(blocks, /return sellers\.map\(s => s\.id\)/);
+    assert.match(blocks, /sellerProfileIdsFromRows\(sellers\)/);
     assert.match(blocks, /getBlockedIdsFor/);
-    assert.match(blocks, /return \{ blockedUserIds, blockedSellerIds: sellers\.map\(s => s\.id\) \}/);
+    assert.match(blocks, /blockedSellerIds: sellerProfileIdsFromRows\(sellers\)/);
+    assert.deepEqual(sellerProfileIdsFromRows([{ id: "seller_1" }, { id: "seller_2" }]), [
+      "seller_1",
+      "seller_2",
+    ]);
   });
 });
