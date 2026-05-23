@@ -65,6 +65,7 @@ export async function POST(request: Request) {
   }
 
   let recipientEmail: string;
+  let recipientUserId: string | null = body.userId ?? null;
 
   if (body.userId) {
     const recipient = await prisma.user.findUnique({
@@ -80,7 +81,26 @@ export async function POST(request: Request) {
     }
     recipientEmail = recipient.email;
   } else if (body.email) {
-    recipientEmail = body.email;
+    const normalizedInputEmail = normalizeEmailAddress(body.email);
+    if (!normalizedInputEmail) {
+      return NextResponse.json({ error: "Invalid recipient email" }, { status: 400 });
+    }
+    const recipient = await prisma.user.findUnique({
+      where: { email: normalizedInputEmail },
+      select: { id: true, email: true, name: true, banned: true, deletedAt: true },
+    });
+    if (!recipient?.email) {
+      return NextResponse.json(
+        { error: "Admin email can only be sent to an existing Grainline user." },
+        { status: 404 },
+      );
+    }
+    const inactiveReason = inactiveAdminEmailRecipientReason(recipient);
+    if (inactiveReason) {
+      return NextResponse.json({ error: inactiveReason }, { status: 409 });
+    }
+    recipientEmail = recipient.email;
+    recipientUserId = recipient.id;
   } else {
     return NextResponse.json({ error: "Either userId or email is required" }, { status: 400 });
   }
@@ -137,14 +157,14 @@ export async function POST(request: Request) {
     Sentry.captureException(err, {
       level: "warning",
       tags: { source: "admin_email_send" },
-      extra: { targetUserId: body.userId ?? null, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
+      extra: { targetUserId: recipientUserId, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
     });
     return NextResponse.json({ error: "Email send failed" }, { status: 500 });
   }
 
-  if (body.userId) {
+  if (recipientUserId) {
     await createNotification({
-      userId: body.userId,
+      userId: recipientUserId,
       type: "ACCOUNT_WARNING",
       title: sanitizedSubject,
       body: truncateText(sanitizedBody.replace(/\s+/g, " ").trim(), 500) || "Message from the Grainline team.",
@@ -153,18 +173,18 @@ export async function POST(request: Request) {
       Sentry.captureException(error, {
         level: "warning",
         tags: { source: "admin_email_notification" },
-        extra: { targetUserId: body.userId },
+        extra: { targetUserId: recipientUserId },
       });
     });
   }
 
   // Audit log
   try {
-    const auditTargetId = body.userId ?? `email:${hashEmailForTelemetry(normalizedRecipientEmail) ?? "unknown"}`;
+    const auditTargetId = recipientUserId ?? `email:${hashEmailForTelemetry(normalizedRecipientEmail) ?? "unknown"}`;
     await logAdminAction({
       adminId: admin.id,
       action: "SEND_EMAIL",
-      targetType: body.userId ? "USER" : "EMAIL",
+      targetType: recipientUserId ? "USER" : "EMAIL",
       targetId: auditTargetId,
       reason: sanitizedSubject,
       metadata: {},
@@ -173,7 +193,7 @@ export async function POST(request: Request) {
     Sentry.captureException(error, {
       level: "warning",
       tags: { source: "admin_email_audit_log" },
-      extra: { targetUserId: body.userId ?? null, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
+      extra: { targetUserId: recipientUserId, emailHash: hashEmailForTelemetry(normalizedRecipientEmail) },
     });
   }
 

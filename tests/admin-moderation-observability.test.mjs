@@ -79,8 +79,8 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(emailRoute, /source: "admin_email_send"/);
     assert.match(emailRoute, /source: "admin_email_notification"/);
     assert.match(emailRoute, /source: "admin_email_audit_log"/);
-    assert.match(emailRoute, /const auditTargetId = body\.userId \?\? `email:\$\{hashEmailForTelemetry\(normalizedRecipientEmail\) \?\? "unknown"\}`/);
-    assert.match(emailRoute, /targetType: body\.userId \? "USER" : "EMAIL"/);
+    assert.match(emailRoute, /const auditTargetId = recipientUserId \?\? `email:\$\{hashEmailForTelemetry\(normalizedRecipientEmail\) \?\? "unknown"\}`/);
+    assert.match(emailRoute, /targetType: recipientUserId \? "USER" : "EMAIL"/);
     assert.match(emailRoute, /targetId: auditTargetId/);
     assert.doesNotMatch(emailRoute, /targetId: normalizedRecipientEmail/);
     assert.doesNotMatch(emailRoute, /catch \{\s*\/\* non-fatal \*\/\s*\}/);

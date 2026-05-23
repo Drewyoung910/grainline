@@ -3,7 +3,13 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
-import { sendWelcomeBuyer, sendWelcomeSeller } from "@/lib/email";
+import {
+  renderWelcomeBuyerEmail,
+  renderWelcomeSellerEmail,
+  sendRenderedEmail,
+  type QueuedRenderedEmail,
+} from "@/lib/email";
+import { enqueueEmailOutbox } from "@/lib/emailOutbox";
 import { prisma } from "@/lib/db";
 import { anonymizeUserAccountByClerkId } from "@/lib/accountDeletion";
 import {
@@ -52,6 +58,20 @@ function isUniqueViolation(err: unknown) {
 function errorMessage(err: unknown) {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+async function enqueueWelcomeFallbackEmail(
+  email: QueuedRenderedEmail,
+  dedupKey: string,
+  userId: string,
+) {
+  await enqueueEmailOutbox({
+    to: email.to,
+    subject: email.subject,
+    html: email.html,
+    dedupKey,
+    userId,
+  });
 }
 
 async function reserveClerkWebhookEvent(svixId: string, type: string): Promise<"process" | "processed" | "in_progress"> {
@@ -290,22 +310,41 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      try {
-        await sendWelcomeBuyer({ user: { name, email: welcomeEmail } });
-        const sellerProfile = await prisma.sellerProfile.findUnique({
-          where: { userId: user.id },
-          select: { displayName: true },
-        });
-        if (sellerProfile) {
-          await sendWelcomeSeller({
+      const sellerProfile = await prisma.sellerProfile.findUnique({
+        where: { userId: user.id },
+        select: { displayName: true },
+      });
+      const buyerWelcomeEmail = renderWelcomeBuyerEmail({ user: { name, email: welcomeEmail } });
+      const sellerWelcomeEmail = sellerProfile
+        ? renderWelcomeSellerEmail({
             seller: { displayName: sellerProfile.displayName, email: welcomeEmail },
-          });
+          })
+        : null;
+
+      try {
+        await sendRenderedEmail(buyerWelcomeEmail, { throwOnFailure: true });
+        if (sellerWelcomeEmail) {
+          await sendRenderedEmail(sellerWelcomeEmail, { throwOnFailure: true });
         }
       } catch (error) {
         Sentry.captureException(error, {
           tags: { source: "clerk_webhook_welcome_email" },
           extra: { svixId, clerkId: id, userId: user.id },
         });
+        await enqueueWelcomeFallbackEmail(buyerWelcomeEmail, `welcome-buyer:${user.id}`, user.id).catch((enqueueError) => {
+          Sentry.captureException(enqueueError, {
+            tags: { source: "clerk_webhook_welcome_email_outbox" },
+            extra: { svixId, clerkId: id, userId: user.id, kind: "buyer" },
+          });
+        });
+        if (sellerWelcomeEmail) {
+          await enqueueWelcomeFallbackEmail(sellerWelcomeEmail, `welcome-seller:${user.id}`, user.id).catch((enqueueError) => {
+            Sentry.captureException(enqueueError, {
+              tags: { source: "clerk_webhook_welcome_email_outbox" },
+              extra: { svixId, clerkId: id, userId: user.id, kind: "seller" },
+            });
+          });
+        }
       }
     }
 

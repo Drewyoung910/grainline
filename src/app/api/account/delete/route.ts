@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUser } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { anonymizeUserAccount, getAccountDeletionBlockers } from "@/lib/accountDeletion";
+import {
+  acquireAccountDeletionLock,
+  anonymizeUserAccount,
+  getAccountDeletionBlockers,
+  releaseAccountDeletionLock,
+} from "@/lib/accountDeletion";
 import { accountDeletionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 
 export async function POST() {
@@ -31,9 +36,17 @@ export async function POST() {
     );
   }
 
+  const deletionLock = await acquireAccountDeletionLock(me.id);
+  if (!deletionLock) {
+    return NextResponse.json({
+      error: "Account deletion is already in progress. Please wait a moment.",
+    }, { status: 409 });
+  }
+
   try {
     await (await clerkClient()).users.deleteUser(clerkId);
   } catch (error) {
+    await releaseAccountDeletionLock(deletionLock);
     Sentry.captureException(error, { tags: { source: "account_delete_clerk" }, extra: { dbUserId: me.id } });
     return NextResponse.json({
       error: "Account deletion is temporarily unavailable. Please try again.",
@@ -41,7 +54,7 @@ export async function POST() {
   }
 
   try {
-    const anonymized = await anonymizeUserAccount(me.id);
+    const anonymized = await anonymizeUserAccount(me.id, { lockAlreadyAcquired: true });
     if ("inProgress" in anonymized && anonymized.inProgress) {
       return NextResponse.json({
         error: "Account deletion is already in progress. Please wait a moment.",

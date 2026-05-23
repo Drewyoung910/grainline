@@ -88,4 +88,17 @@ describe("admin server action guardrails", () => {
       );
     }
   });
+
+  it("does not allow admin email to become an arbitrary external sender", () => {
+    const route = source("src/app/api/admin/email/route.ts");
+    const usersPage = source("src/app/admin/users/page.tsx");
+
+    assert.match(route, /Admin email can only be sent to an existing Grainline user/);
+    assert.match(route, /where: \{ email: normalizedInputEmail \}/);
+    assert.match(route, /recipientUserId = recipient\.id/);
+    assert.match(route, /userId: recipientUserId/);
+    assert.match(usersPage, /No Grainline user exists for/);
+    assert.match(usersPage, /support mailbox for external replies/);
+    assert.doesNotMatch(usersPage, /<AdminEmailForm\s+defaultTo=\{emailParam\}/);
+  });
 });

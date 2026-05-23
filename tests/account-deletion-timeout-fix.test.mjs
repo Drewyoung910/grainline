@@ -44,15 +44,25 @@ describe("account deletion timeout and terminal UX guardrails", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const route = source("src/app/api/account/delete/route.ts");
 
-    assert.match(accountDeletion, /const deletionLockKey = `account-delete:\$\{userId\}`/);
-    assert.match(accountDeletion, /redis\.set\(deletionLockKey, "1", \{\s*nx: true,\s*ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS/s);
+    assert.match(accountDeletion, /function accountDeletionLockKey\(userId: string\)/);
+    assert.match(accountDeletion, /return `account-delete:\$\{userId\}`/);
+    assert.match(accountDeletion, /export async function acquireAccountDeletionLock/);
+    assert.match(accountDeletion, /redis\.set\(key, "1", \{\s*nx: true,\s*ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS/s);
     const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
     assert.ok(
-      accountDeletion.indexOf("const lockResult = await redis.set", anonymizeStart) <
+      accountDeletion.indexOf("await acquireAccountDeletionLock(userId)", anonymizeStart) <
         accountDeletion.indexOf("rejectConnectedStripeAccount(", anonymizeStart),
       "account deletion lock must be acquired before Stripe account rejection",
     );
     assert.match(accountDeletion, /source: "account_delete_lock_release"/);
+    assert.match(route, /const deletionLock = await acquireAccountDeletionLock\(me\.id\)/);
+    assert.ok(
+      route.indexOf("const deletionLock = await acquireAccountDeletionLock(me.id)") <
+        route.indexOf("users.deleteUser(clerkId)"),
+      "account deletion route must acquire the lock before deleting the Clerk user",
+    );
+    assert.match(route, /releaseAccountDeletionLock\(deletionLock\)/);
+    assert.match(route, /anonymizeUserAccount\(me\.id, \{ lockAlreadyAcquired: true \}\)/);
     assert.match(route, /"inProgress" in anonymized && anonymized\.inProgress/);
     assert.match(route, /status: 409/);
   });

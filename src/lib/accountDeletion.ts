@@ -25,6 +25,11 @@ const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_LOCK_TTL_SECONDS = 120;
 
+export type AccountDeletionLock = {
+  key: string;
+  userId: string;
+};
+
 export type AccountDeletionBlocker = {
   code: "buyer_orders" | "seller_orders" | "open_cases" | "active_commissions";
   count: number;
@@ -42,6 +47,29 @@ type NotificationRedactionCandidate = {
 };
 
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
+
+function accountDeletionLockKey(userId: string) {
+  return `account-delete:${userId}`;
+}
+
+export async function acquireAccountDeletionLock(userId: string): Promise<AccountDeletionLock | null> {
+  const key = accountDeletionLockKey(userId);
+  const lockResult = await redis.set(key, "1", {
+    nx: true,
+    ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS,
+  });
+  return lockResult === "OK" ? { key, userId } : null;
+}
+
+export async function releaseAccountDeletionLock(lock: AccountDeletionLock) {
+  await redis.del(lock.key).catch((error) => {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "account_delete_lock_release" },
+      extra: { userId: lock.userId },
+    });
+  });
+}
 
 function mergeAuditLogRedactionCandidate(
   candidates: Map<string, AuditLogRedactionCandidate>,
@@ -516,15 +544,15 @@ function revalidateDeletedAccountSearchCaches(userId: string) {
   }
 }
 
-export async function anonymizeUserAccount(userId: string) {
-  const deletionLockKey = `account-delete:${userId}`;
-  const lockResult = await redis.set(deletionLockKey, "1", {
-    nx: true,
-    ex: ACCOUNT_DELETION_LOCK_TTL_SECONDS,
-  });
-  if (lockResult !== "OK") {
-    return { ok: false, alreadyDeleted: false, inProgress: true };
-  }
+export async function anonymizeUserAccount(
+  userId: string,
+  options: { lockAlreadyAcquired?: boolean } = {},
+) {
+  const deletionLockKey = accountDeletionLockKey(userId);
+  const lock = options.lockAlreadyAcquired
+    ? { key: deletionLockKey, userId }
+    : await acquireAccountDeletionLock(userId);
+  if (!lock) return { ok: false, alreadyDeleted: false, inProgress: true };
 
   try {
   const account = await prisma.user.findUnique({
@@ -878,13 +906,7 @@ export async function anonymizeUserAccount(userId: string) {
 
   return { ok: result.ok, alreadyDeleted: result.alreadyDeleted };
   } finally {
-    await redis.del(deletionLockKey).catch((error) => {
-      Sentry.captureException(error, {
-        level: "warning",
-        tags: { source: "account_delete_lock_release" },
-        extra: { userId },
-      });
-    });
+    await releaseAccountDeletionLock(lock);
   }
 }
 

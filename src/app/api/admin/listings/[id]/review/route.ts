@@ -6,6 +6,7 @@ import { logAdminAction } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
+import { syncGuildMemberListingThreshold } from '@/lib/guildListingThreshold'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
 import { revalidateListingSearchCaches } from '@/lib/searchCache'
@@ -32,6 +33,18 @@ function sellerUnavailableReason(seller: {
   if (!seller.chargesEnabled) return 'Seller payouts are not connected.'
   if (seller.vacationMode) return 'Seller is in vacation mode.'
   return null
+}
+
+async function syncGuildThresholdAfterAdminReview(listingId: string, sellerId: string, source: string) {
+  try {
+    await syncGuildMemberListingThreshold(sellerId)
+  } catch (error) {
+    Sentry.captureException(error, {
+      level: 'warning',
+      tags: { source },
+      extra: { listingId, sellerId },
+    })
+  }
 }
 
 export async function PATCH(
@@ -138,6 +151,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
+    await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
     // First active listing for this seller might earn the Founding Maker badge.
     try {
       await maybeGrantFoundingMaker(listing.sellerId)
@@ -187,6 +201,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
+    await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_reject_guild_threshold')
     await logAdminAction({
       adminId: admin.id,
       action: 'REJECT_LISTING',

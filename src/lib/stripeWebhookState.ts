@@ -1,4 +1,4 @@
-import { DEFAULT_CURRENCY } from "@/lib/money";
+import { DEFAULT_CURRENCY } from "./money.ts";
 
 export type StripeRefundLike = {
   id?: string;

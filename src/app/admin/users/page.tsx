@@ -85,10 +85,10 @@ export default async function AdminUsersPage({
               defaultOpen
             />
           ) : (
-            <AdminEmailForm
-              defaultTo={emailParam}
-              defaultOpen
-            />
+            <p className="text-sm text-neutral-700">
+              No Grainline user exists for <span className="font-medium">{emailParam}</span>. Use the
+              support mailbox for external replies.
+            </p>
           )}
         </div>
       )}

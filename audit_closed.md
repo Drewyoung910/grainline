@@ -1430,3 +1430,34 @@ Last updated: 2026-05-21
      stale Shippo quote test-gap finding. `tests/shipping-quote-state.test.mjs`
      covers fallback shipping clamps, exact preferred-carrier matching, and
      same-currency carrier-filter behavior.
+160. **Admin email is constrained to existing Grainline users** — code fix.
+     The admin email API no longer sends to arbitrary raw email addresses; an
+     email payload is treated only as a lookup key for an existing `User`, and
+     the admin users page now tells staff to use the support mailbox for
+     external replies.
+161. **Case message double-submit side effects are serialized** — code fix.
+     Case-message POSTs now take a short advisory lock keyed by case, author,
+     and sanitized body, return the recent matching message for duplicate
+     submits, and skip duplicate notification/email side effects.
+162. **Admin listing actions resync Guild listing thresholds** — code fix.
+     Admin listing removal and successful review approve/reject paths now call
+     `syncGuildMemberListingThreshold()` with Sentry-captured best-effort
+     errors so derived Guild eligibility state does not go stale after staff
+     moderation actions.
+163. **Account deletion locks before Clerk deletion** — code fix. The account
+     deletion route now acquires the same Redis `account-delete:${userId}` lock
+     before deleting the Clerk user, releases it if Clerk deletion fails, and
+     passes the already-held lock into anonymization. This prevents
+     double-submit/race retries from deleting the Clerk session before the
+     server can return an in-progress response.
+164. **Clerk welcome emails have outbox fallback** — code fix. The Clerk
+     `user.created` webhook now renders buyer/seller welcome emails, attempts
+     direct `sendRenderedEmail(..., { throwOnFailure: true })`, and enqueues
+     idempotent email-outbox fallbacks if the direct send fails before marking
+     the webhook processed.
+165. **Node strip-types tests no longer depend on path aliases** — CI fix.
+     Directly imported helper modules (`anonymousCart.ts` and
+     `stripeWebhookState.ts`) now use relative `.ts` imports for shared money
+     helpers, and `tsconfig.json` enables `allowImportingTsExtensions` under
+     the existing no-emit setup so Node's test runner does not need a
+     Next/tsconfig path resolver.

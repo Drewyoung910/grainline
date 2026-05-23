@@ -1,10 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { after } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
+import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
 
 export async function DELETE(
   _request: Request,
@@ -60,6 +62,14 @@ export async function DELETE(
       previousIsPrivate: listing.isPrivate,
       previousRejectionReason: listing.rejectionReason,
     },
+  });
+
+  await syncGuildMemberListingThreshold(listing.sellerId).catch((error) => {
+    Sentry.captureException(error, {
+      level: "warning",
+      tags: { source: "admin_listing_remove_guild_threshold" },
+      extra: { listingId: id, sellerId: listing.sellerId },
+    });
   });
 
   after(async () => {

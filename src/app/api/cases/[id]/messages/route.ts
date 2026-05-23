@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
+import { createHash } from "crypto";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
@@ -25,6 +26,7 @@ const CaseMessageSchema = z.object({
   body: z.string().min(1).max(5000),
 });
 const CASE_MESSAGE_BODY_MAX_BYTES = 24 * 1024;
+const CASE_MESSAGE_DEDUP_WINDOW_MS = 30_000;
 
 export const runtime = "nodejs";
 
@@ -101,18 +103,51 @@ export async function POST(
       caseUpdates.escalateUnlocksAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
     }
 
-    const message = await prisma.$transaction(async (tx) => {
+    const duplicateCutoff = new Date(now.getTime() - CASE_MESSAGE_DEDUP_WINDOW_MS);
+    const duplicateKey = createHash("sha256")
+      .update(`${id}:${me.id}:${messageBody}`)
+      .digest("hex");
+
+    const messageResult = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`case-message:${duplicateKey}`})::bigint)`;
+
+      const duplicate = await tx.caseMessage.findFirst({
+        where: {
+          caseId: id,
+          authorId: me.id,
+          body: messageBody,
+          createdAt: { gte: duplicateCutoff },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (duplicate) return { message: duplicate, duplicate: true as const };
+
       const updated = await tx.case.updateMany({
         where: { id, status: caseRecord.status },
         data: caseUpdates,
       });
       if (updated.count === 0) {
+        const statusRaceDuplicate = await tx.caseMessage.findFirst({
+          where: {
+            caseId: id,
+            authorId: me.id,
+            body: messageBody,
+            createdAt: { gte: duplicateCutoff },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        if (statusRaceDuplicate) return { message: statusRaceDuplicate, duplicate: true as const };
         throw new Error("CASE_STATUS_CHANGED");
       }
-      return tx.caseMessage.create({
+      const message = await tx.caseMessage.create({
         data: { caseId: id, authorId: me.id, body: messageBody },
       });
+      return { message, duplicate: false as const };
     });
+    if (messageResult.duplicate) {
+      return NextResponse.json(messageResult.message, { status: 200 });
+    }
+    const message = messageResult.message;
 
     // Notify the appropriate party/parties
     const senderName = me.name ?? me.email?.split("@")[0] ?? "Someone";

@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
 
 const { shouldRevokeSessionsForClerkEmailChange } = await import("../src/lib/clerkSessionSecurity.ts");
 const { normalizeClerkWebhookEmail, resolveClerkWebhookPrimaryEmail, shouldReserveClerkWelcomeEmail } = await import(
@@ -135,5 +140,18 @@ describe("Clerk webhook welcome email reservation", () => {
       }),
       false,
     );
+  });
+
+  it("falls back to the durable email outbox if direct welcome sends fail", () => {
+    const route = source("src/app/api/clerk/webhook/route.ts");
+    const email = source("src/lib/email.ts");
+
+    assert.match(email, /export function renderWelcomeBuyerEmail/);
+    assert.match(email, /export function renderWelcomeSellerEmail/);
+    assert.match(route, /sendRenderedEmail\(buyerWelcomeEmail, \{ throwOnFailure: true \}\)/);
+    assert.match(route, /sendRenderedEmail\(sellerWelcomeEmail, \{ throwOnFailure: true \}\)/);
+    assert.match(route, /enqueueWelcomeFallbackEmail\(buyerWelcomeEmail, `welcome-buyer:\$\{user\.id\}`, user\.id\)/);
+    assert.match(route, /enqueueWelcomeFallbackEmail\(sellerWelcomeEmail, `welcome-seller:\$\{user\.id\}`, user\.id\)/);
+    assert.match(route, /source: "clerk_webhook_welcome_email_outbox"/);
   });
 });

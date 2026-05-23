@@ -152,6 +152,7 @@ type RenderedEmail = {
   subject: string;
   html: string;
 };
+export type QueuedRenderedEmail = RenderedEmail;
 
 async function findInactiveEmailAccount(recipient: string, subject: string) {
   const emailHash = hashEmailForTelemetry(recipient);
@@ -604,9 +605,9 @@ export async function sendRefundIssued(opts: {
 
 // ─── Lifecycle emails ─────────────────────────────────────────────────────────
 
-export async function sendWelcomeBuyer(opts: {
+export function renderWelcomeBuyerEmail(opts: {
   user: { name?: string | null; email: string };
-}) {
+}): RenderedEmail {
   const { user } = opts;
   const name = user.name || "there";
   const mapUrl = `${APP_URL}/map`;
@@ -623,12 +624,20 @@ export async function sendWelcomeBuyer(opts: {
     ${btn("Find makers near you", mapUrl)}
   `;
 
-  await send(user.email, "Welcome to Grainline!", baseTemplate("Welcome to Grainline", body));
+  return {
+    to: user.email,
+    subject: "Welcome to Grainline!",
+    html: baseTemplate("Welcome to Grainline", body),
+  };
 }
 
-export async function sendWelcomeSeller(opts: {
+export async function sendWelcomeBuyer(opts: Parameters<typeof renderWelcomeBuyerEmail>[0]) {
+  await sendRenderedEmail(renderWelcomeBuyerEmail(opts));
+}
+
+export function renderWelcomeSellerEmail(opts: {
   seller: { displayName?: string | null; email: string };
-}) {
+}): RenderedEmail {
   const { seller } = opts;
   const name = seller.displayName || "there";
   const profileUrl = `${APP_URL}/dashboard/profile`;
@@ -644,7 +653,15 @@ export async function sendWelcomeSeller(opts: {
     ${btn("Complete your profile", profileUrl)}
   `;
 
-  await send(seller.email, "Welcome to Grainline - let's set up your shop!", baseTemplate("Welcome, Maker!", body));
+  return {
+    to: seller.email,
+    subject: "Welcome to Grainline - let's set up your shop!",
+    html: baseTemplate("Welcome, Maker!", body),
+  };
+}
+
+export async function sendWelcomeSeller(opts: Parameters<typeof renderWelcomeSellerEmail>[0]) {
+  await sendRenderedEmail(renderWelcomeSellerEmail(opts));
 }
 
 export function renderFirstListingCongratsEmail(opts: {

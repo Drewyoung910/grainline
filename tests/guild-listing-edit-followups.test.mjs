@@ -50,6 +50,8 @@ describe("guild and listing-edit audit follow-ups", () => {
     const dashboard = source("src/app/dashboard/page.tsx");
     const shopActions = source("src/app/seller/[id]/shop/actions.ts");
     const stockRoute = source("src/app/api/listings/[id]/stock/route.ts");
+    const adminRemoveRoute = source("src/app/api/admin/listings/[id]/route.ts");
+    const adminReviewRoute = source("src/app/api/admin/listings/[id]/review/route.ts");
 
     assert.match(helper, /UPDATE "SellerProfile" sp/);
     assert.match(helper, /COUNT\(\*\)[\s\S]*FROM "Listing" l/);
@@ -59,6 +61,9 @@ describe("guild and listing-edit audit follow-ups", () => {
     assert.match(shopActions, /syncGuildMemberListingThreshold\(sellerId\)/);
     assert.match(shopActions, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
     assert.match(stockRoute, /syncGuildMemberListingThreshold\(listing\.seller\.id\)/);
+    assert.match(adminRemoveRoute, /syncGuildMemberListingThreshold\(listing\.sellerId\)/);
+    assert.match(adminReviewRoute, /syncGuildThresholdAfterAdminReview\(id, listing\.sellerId, 'admin_listing_approve_guild_threshold'\)/);
+    assert.match(adminReviewRoute, /syncGuildThresholdAfterAdminReview\(id, listing\.sellerId, 'admin_listing_reject_guild_threshold'\)/);
     assert.doesNotMatch(stockRoute, /activeCount < 5/);
   });
 });
