@@ -2,9 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
+import dynamic from "next/dynamic";
 import { useToast } from "@/components/Toast";
-import BuyNowCheckoutModal from "./BuyNowCheckoutModal";
 import { signUpPathForRedirect } from "@/lib/internalReturnUrl";
+
+const BuyNowCheckoutModal = dynamic(() => import("./BuyNowCheckoutModal"), {
+  ssr: false,
+});
 
 type Props = {
   listingId: string;
@@ -75,21 +79,23 @@ export default function BuyNowButton({
         {children ?? "Buy now"}
       </button>
 
-      <BuyNowCheckoutModal
-        listingId={listingId}
-        listingTitle={listingTitle}
-        listingImageUrl={listingImageUrl}
-        sellerName={sellerName}
-        sellerId={sellerId}
-        priceCents={priceCents}
-        quantity={quantity}
-        offersGiftWrapping={offersGiftWrapping}
-        giftWrappingPriceCents={giftWrappingPriceCents}
-        selectedVariantOptionIds={selectedVariantOptionIds}
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        isSignedIn={isSignedIn ?? false}
-      />
+      {isOpen && (
+        <BuyNowCheckoutModal
+          listingId={listingId}
+          listingTitle={listingTitle}
+          listingImageUrl={listingImageUrl}
+          sellerName={sellerName}
+          sellerId={sellerId}
+          priceCents={priceCents}
+          quantity={quantity}
+          offersGiftWrapping={offersGiftWrapping}
+          giftWrappingPriceCents={giftWrappingPriceCents}
+          selectedVariantOptionIds={selectedVariantOptionIds}
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          isSignedIn={isSignedIn ?? false}
+        />
+      )}
     </>
   );
 }

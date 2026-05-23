@@ -1258,3 +1258,9 @@ Last updated: 2026-05-21
      MP4/QuickTime and rejects SVG. Existing guardrails:
      `tests/upload-verification-token.test.mjs` and
      `tests/upload-ux-followups.test.mjs`.
+131. **Listing pages lazy-load Stripe checkout modal code** — production
+     Sentry noise fix. `BuyNowButton` no longer statically imports or mounts
+     `BuyNowCheckoutModal` while closed, so listing-page crawls do not eagerly
+     pull the Embedded Checkout/Stripe.js path. Stripe code still loads when a
+     signed-in buyer opens Buy Now. Regression coverage:
+     `tests/verified-audit-followups.test.mjs`.

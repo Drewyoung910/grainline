@@ -33,6 +33,16 @@ describe("verified audit follow-up guardrails", () => {
     assert.match(source("package.json"), /"seed:metros"/);
   });
 
+  it("keeps Stripe checkout code lazy-loaded off listing page crawls", () => {
+    const buyNowButton = source("src/components/BuyNowButton.tsx");
+
+    assert.match(buyNowButton, /dynamic\(\(\) => import\("\.\/BuyNowCheckoutModal"\),/);
+    assert.doesNotMatch(buyNowButton, /import BuyNowCheckoutModal from "\.\/BuyNowCheckoutModal"/);
+    assert.match(buyNowButton, /\{isOpen && \(/);
+    assert.match(source("src/components/EmbeddedCheckoutPanel.tsx"), /loadStripe/);
+  });
+
+
   it("validates new message recipients and listing context before creating a conversation", () => {
     const text = source("src/app/messages/new/page.tsx");
     assert.match(text, /canStartConversationWith/);
