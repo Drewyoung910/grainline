@@ -70,6 +70,10 @@ describe("AI review safety helpers", () => {
       sanitizeAIAltText("<img src=x onerror=alert(1)> walnut bowl\u202E data:text/html"),
       "walnut bowl text/html",
     );
+
+    const text = readFileSync("src/lib/aiReviewSafety.ts", "utf8");
+    assert.match(text, /sanitizeText\(value\)/);
+    assert.doesNotMatch(text, /<\[\^>\]\*>/);
   });
 
   it("normalizes duplicate listing titles across punctuation, emoji, and spacing", () => {

@@ -1540,3 +1540,8 @@ Last updated: 2026-05-21
      admin undo-ban, and account deletion. Cached missing users use an
      explicit `{ exists: false }` sentinel so Redis misses cannot be treated
      as a clean account state.
+179. **AI alt-text HTML stripping now uses the canonical sanitizer** — code
+     cleanup. `sanitizeAIAltText()` no longer carries a local regex-based
+     HTML strip; it runs generated alt text through `sanitizeText()` before
+     control-character cleanup and truncation, keeping AI alt-text persistence
+     aligned with the shared user-text sanitizer.

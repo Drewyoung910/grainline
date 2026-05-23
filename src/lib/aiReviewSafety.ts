@@ -1,4 +1,4 @@
-import { normalizeUserText, truncateText } from "./sanitize.ts";
+import { normalizeUserText, sanitizeText, truncateText } from "./sanitize.ts";
 
 const PROMPT_CONTROL_PHRASES =
   /(?:\b(ignore|disregard|forget|override|bypass|skip|ignora|ignorar|ignorez|ignorer|oublie|oublier|oubliez|omite|omitir|anula|anular|descarta|descartar|desconsidera|desconsiderar)\b|忽略|無視|무시|игнорируй|забудь)/giu;
@@ -30,11 +30,7 @@ export function normalizeDuplicateListingTitle(title: string) {
 }
 
 export function sanitizeAIAltText(value: string): string {
-  const sanitized = normalizeUserText(value)
-    .replace(/<[^>]*>/g, "")
-    .replace(/javascript\s*:/gi, "")
-    .replace(/\bdata\s*:/gi, "")
-    .replace(/on\w+\s*=/gi, "")
+  const sanitized = sanitizeText(value)
     .replace(/[\u0000-\u001F\u007F]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

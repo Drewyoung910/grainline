@@ -35,7 +35,7 @@ describe("AI review response normalization", () => {
     assert.equal(result.confidence, 1);
     assert.ok(result.reason.length <= 500);
     assert.deepEqual(result.altTexts, [
-      "alert(1) walnut table",
+      "walnut table",
       "Handmade woodworking product photo",
     ]);
   });
