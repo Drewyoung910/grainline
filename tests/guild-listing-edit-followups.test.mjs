@@ -31,14 +31,16 @@ describe("guild and listing-edit audit follow-ups", () => {
 
   it("keeps Guild case metrics and reinstatement checks on active unresolved cases", () => {
     const metrics = source("src/lib/metrics.ts");
+    const metricsState = source("src/lib/metricsState.ts");
     const revocationState = source("src/lib/guildMemberRevocationState.ts");
     const adminVerification = source("src/app/admin/verification/page.tsx");
 
     assert.match(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \}/);
     assert.doesNotMatch(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*createdAt: \{ gte: periodStart \}/);
-    assert.match(metrics, /export const METRICS_PERIOD_DAYS_PER_MONTH = 30/);
+    assert.match(metrics, /from "@\/lib\/metricsState"/);
+    assert.match(metricsState, /export const METRICS_PERIOD_DAYS_PER_MONTH = 30/);
     assert.match(metrics, /metricsPeriodStart\(new Date\(\), periodMonths\)/);
-    assert.doesNotMatch(metrics, /setMonth\(/);
+    assert.doesNotMatch(metricsState, /setMonth\(/);
     assert.match(revocationState, /CaseStatus\.UNDER_REVIEW/);
     assert.match(adminVerification, /guildMemberRevocationCaseWhere/);
     assert.match(adminVerification, /caseCreatedBefore: ninetyDaysAgo/);

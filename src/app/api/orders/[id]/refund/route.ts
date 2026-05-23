@@ -259,7 +259,10 @@ export async function POST(
       const transferNote = refund.usedPlatformOnly
         ? " Seller Stripe account is disconnected; transfer reversal must be reconciled manually."
         : "";
-      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}`;
+      const statusNote = refund.requiresManualFollowUp
+        ? ` Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}.`
+        : "";
+      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of $${(refundAmountCents / 100).toFixed(2)} via ${refundSummary}.${transferNote}${statusNote}`;
 
       await prisma.$transaction(async (tx) => {
         const orderUpdate = await tx.order.updateMany({
@@ -333,7 +336,7 @@ export async function POST(
             sellerRefundAmountCents: refundAmountCents,
             sellerRefundLockedAt: null,
             reviewNeeded: true,
-            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} succeeded, but follow-up DB work failed. Manual reconciliation required.`,
+            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`,
           },
         }).catch((dbError) => {
           Sentry.captureException(dbError, {

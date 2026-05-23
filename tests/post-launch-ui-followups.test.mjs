@@ -295,7 +295,8 @@ describe("post-launch UI follow-ups", () => {
     const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
-    assert.match(helper, /altText: cleaned/);
+    assert.match(helper, /planPhotoAltTextBackfill\(photos, altTexts\)/);
+    assert.match(helper, /data: \{ altText: update\.altText \}/);
     assert.match(helper, /\.findMany\(/);
     assert.match(publishActions, /import \{ backfillEmptyAltTexts \}/);
     assert.match(publishActions, /backfillEmptyAltTexts\(listing\.id, aiResult\.altTexts\)/);

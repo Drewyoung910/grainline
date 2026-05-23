@@ -65,7 +65,17 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
     FROM "Listing" l
     JOIN "SellerProfile" sp ON sp.id = l."sellerId"
     LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS cnt FROM "Favorite" f WHERE f."listingId" = l.id
+      SELECT COUNT(*) AS cnt
+      FROM "Favorite" f
+      JOIN "User" fu ON fu.id = f."userId"
+      WHERE f."listingId" = l.id
+        AND fu.banned = false
+        AND fu."deletedAt" IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "Block" b
+          WHERE (b."blockerId" = fu.id AND b."blockedId" = sp."userId")
+             OR (b."blockerId" = sp."userId" AND b."blockedId" = fu.id)
+        )
     ) fav ON true
     LEFT JOIN LATERAL (
       SELECT COUNT(*) AS cnt
@@ -77,6 +87,12 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
           SELECT 1 FROM "OrderPaymentEvent" ope
           WHERE ope."orderId" = o.id
             AND ope."eventType" = 'REFUND'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM "OrderPaymentEvent" ope
+          WHERE ope."orderId" = o.id
+            AND ope."eventType" = 'DISPUTE'
+            AND (ope.status IS NULL OR LOWER(ope.status) NOT IN ('won', 'lost', 'warning_closed'))
         )
     ) ord ON true
     LEFT JOIN LATERAL (

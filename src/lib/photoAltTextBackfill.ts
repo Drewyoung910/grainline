@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db";
-import { sanitizeText, truncateText } from "@/lib/sanitize";
+import { planPhotoAltTextBackfill } from "@/lib/photoAltTextBackfillState";
+
+export {
+  planPhotoAltTextBackfill,
+  type PhotoAltTextBackfillPhoto,
+} from "@/lib/photoAltTextBackfillState";
 
 /**
  * Backfill empty Photo.altText with AI-generated alt texts.
@@ -22,21 +27,12 @@ export async function backfillEmptyAltTexts(
       orderBy: { sortOrder: "asc" },
       select: { id: true, altText: true },
     });
-    const updates: Array<Promise<unknown>> = [];
-    for (let i = 0; i < Math.min(photos.length, altTexts.length); i++) {
-      const aiText = altTexts[i];
-      if (aiText && !photos[i].altText) {
-        const cleaned = truncateText(sanitizeText(aiText), 200);
-        if (cleaned) {
-          updates.push(
-            prisma.photo.update({
-              where: { id: photos[i].id },
-              data: { altText: cleaned },
-            }),
-          );
-        }
-      }
-    }
+    const updates = planPhotoAltTextBackfill(photos, altTexts).map((update) =>
+      prisma.photo.update({
+        where: { id: update.id },
+        data: { altText: update.altText },
+      }),
+    );
     await Promise.all(updates);
   } catch (e) {
     if (process.env.NODE_ENV !== "production") {

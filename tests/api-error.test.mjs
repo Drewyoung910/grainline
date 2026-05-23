@@ -27,4 +27,18 @@ describe("api error messages", () => {
     });
     assert.equal(await readApiErrorMessage(response, "Fallback"), "Too many requests. Try again in a moment.");
   });
+
+  it("handles the shared rateLimitResponse payload shape", async () => {
+    const response = new Response(JSON.stringify({
+      error: "Too many requests. Try again in 2 minutes.",
+      code: "RATE_LIMITED",
+      retryAfterSeconds: 120,
+      retryAt: "2026-05-23T12:02:00.000Z",
+    }), {
+      status: 429,
+      headers: { "Retry-After": "120" },
+    });
+
+    assert.equal(await readApiErrorMessage(response, "Fallback"), "Too many requests. Try again in 2 minutes.");
+  });
 });

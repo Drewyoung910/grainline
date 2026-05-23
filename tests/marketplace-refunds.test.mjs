@@ -29,6 +29,8 @@ describe("marketplace refunds", () => {
     assert.deepEqual(result, {
       primaryRefundId: "re_full",
       refundIds: ["re_full"],
+      refundStatuses: [null],
+      requiresManualFollowUp: false,
       sellerPortionCents: 10_500,
       taxAmountCents: 825,
       usedPlatformOnly: false,
@@ -58,6 +60,8 @@ describe("marketplace refunds", () => {
     assert.deepEqual(result, {
       primaryRefundId: "re_full",
       refundIds: ["re_full"],
+      refundStatuses: [null],
+      requiresManualFollowUp: false,
       sellerPortionCents: 11_000,
       taxAmountCents: 825,
       usedPlatformOnly: false,
@@ -87,6 +91,8 @@ describe("marketplace refunds", () => {
     assert.deepEqual(result, {
       primaryRefundId: "re_platform",
       refundIds: ["re_platform"],
+      refundStatuses: [null],
+      requiresManualFollowUp: false,
       sellerPortionCents: 0,
       taxAmountCents: 825,
       usedPlatformOnly: true,
@@ -120,6 +126,8 @@ describe("marketplace refunds", () => {
     assert.deepEqual(result, {
       primaryRefundId: "re_partial",
       refundIds: ["re_partial"],
+      refundStatuses: [null],
+      requiresManualFollowUp: false,
       sellerPortionCents: 1_200,
       taxAmountCents: 0,
       usedPlatformOnly: false,
@@ -154,6 +162,8 @@ describe("marketplace refunds", () => {
     assert.deepEqual(result, {
       primaryRefundId: "re_tax_only",
       refundIds: ["re_tax_only"],
+      refundStatuses: [null],
+      requiresManualFollowUp: false,
       sellerPortionCents: 0,
       taxAmountCents: 825,
       usedPlatformOnly: false,
@@ -195,5 +205,33 @@ describe("marketplace refunds", () => {
       /Refund amount exceeds order total/,
     );
     assert.equal(calls, 0);
+  });
+
+  it("does not treat immediately failed Stripe refund responses as issued refunds", async () => {
+    await assert.rejects(
+      () =>
+        createMarketplaceRefundWithCreator(baseOpts(), async () => {
+          return { id: "re_failed", status: "failed" };
+        }),
+      /returned failed status/,
+    );
+
+    await assert.rejects(
+      () =>
+        createMarketplaceRefundWithCreator(baseOpts(), async () => {
+          return { id: "re_canceled", status: "canceled" };
+        }),
+      /returned canceled status/,
+    );
+  });
+
+  it("surfaces pending Stripe refund statuses for manual follow-up without dropping the refund id", async () => {
+    const result = await createMarketplaceRefundWithCreator(baseOpts(), async () => {
+      return { id: "re_pending", status: "pending" };
+    });
+
+    assert.equal(result.primaryRefundId, "re_pending");
+    assert.deepEqual(result.refundStatuses, ["pending"]);
+    assert.equal(result.requiresManualFollowUp, true);
   });
 });

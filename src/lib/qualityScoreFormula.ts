@@ -25,6 +25,12 @@ export interface QualityScoreGlobalMeans {
 }
 
 const DAMPENING_C = 50;
+export const MAX_QUALITY_SCORE = 1.2;
+
+function clampQualityScore(score: number) {
+  if (!Number.isFinite(score)) return 0;
+  return Math.min(MAX_QUALITY_SCORE, Math.max(0, score));
+}
 
 export function scoreQualityRow(
   row: ListingQualityScoreRow,
@@ -96,5 +102,5 @@ export function scoreQualityRow(
     aiReviewFlags: row.aiReviewFlags,
   });
 
-  return Math.max(0, score - penalty);
+  return clampQualityScore(score - penalty);
 }

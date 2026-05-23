@@ -7,6 +7,7 @@ const {
   qualityPenaltyForListing,
 } = await import("../src/lib/qualityScoreState.ts");
 const {
+  MAX_QUALITY_SCORE,
   scoreQualityRow,
 } = await import("../src/lib/qualityScoreFormula.ts");
 
@@ -106,5 +107,50 @@ describe("quality score penalties", () => {
     const mature = scoreQualityRow(qualityRow({ viewCount: 200, clickCount: 60, orderCount: 30n }), globalMeans, now);
 
     assert.ok(sparse < mature, "one lucky view should not outrank sustained engagement");
+  });
+
+  it("orders Guild boosts and new-seller bumps without changing the base formula", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const baseline = scoreQualityRow(qualityRow({
+      createdAt: new Date(now - 40 * DAY_MS),
+      sellerCreatedAt: new Date(now - 40 * DAY_MS),
+      sellerReviewCount: 5n,
+    }), globalMeans, now);
+    const guildMember = scoreQualityRow(qualityRow({
+      createdAt: new Date(now - 40 * DAY_MS),
+      sellerCreatedAt: new Date(now - 40 * DAY_MS),
+      sellerReviewCount: 5n,
+      guildLevel: "GUILD_MEMBER",
+    }), globalMeans, now);
+    const guildMaster = scoreQualityRow(qualityRow({
+      createdAt: new Date(now - 40 * DAY_MS),
+      sellerCreatedAt: new Date(now - 40 * DAY_MS),
+      sellerReviewCount: 5n,
+      guildLevel: "GUILD_MASTER",
+    }), globalMeans, now);
+    const newSeller = scoreQualityRow(qualityRow({
+      createdAt: new Date(now - 40 * DAY_MS),
+      sellerCreatedAt: new Date(now - 20 * DAY_MS),
+      sellerReviewCount: 0n,
+    }), globalMeans, now);
+
+    assert.ok(guildMember > baseline, "Guild Member should add a smaller trust boost");
+    assert.ok(guildMaster > guildMember, "Guild Master should outrank Guild Member when other signals match");
+    assert.ok(newSeller > baseline, "new zero-review sellers should receive the documented starter bump");
+  });
+
+  it("bounds quality scores to finite values", () => {
+    const now = Date.parse("2026-05-23T12:00:00.000Z");
+    const overloaded = scoreQualityRow(qualityRow({
+      viewCount: 100,
+      clickCount: 500,
+      orderCount: 500n,
+      favCount: 5_000n,
+      guildLevel: "GUILD_MASTER",
+    }), globalMeans, now);
+    const invalid = scoreQualityRow(qualityRow(), { ...globalMeans, avgConversion: Number.NaN }, now);
+
+    assert.equal(overloaded, MAX_QUALITY_SCORE);
+    assert.equal(invalid, 0);
   });
 });

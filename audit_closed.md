@@ -1817,10 +1817,38 @@ Last updated: 2026-05-23
      semantics, undo target-state races, order review-note restoration, and
      Clerk sync retryability.
 
-**Running tally after this pass:** verified fixed/reduced: 29 findings; verified
-stale/false-positive: 20 findings; product/design decisions deferred: 8
+211. **Round 9 refund, metrics, ranking, and test-quality gaps reduced** —
+     code/test fix for #847, #848, #851, #859, #884, #885, #893, and #894.
+     `createMarketplaceRefund()` now rejects immediately failed/canceled Stripe
+     refund responses and carries pending/requires_action statuses into manual
+     order review notes without dropping the refund id. Guild metrics threshold
+     state and AI alt-text backfill planning now have direct pure tests.
+     Quality-score inputs no longer count favorites from banned/deleted or
+     mutually blocked users, order/conversion counts exclude open Stripe
+     disputes, and final scores are finite and capped at the documented maximum.
+     Rate-limit API error parsing now covers the shared `RATE_LIMITED` payload
+     shape. Guardrails: `tests/marketplace-refunds.test.mjs`,
+     `tests/guild-metrics-state.test.mjs`,
+     `tests/photo-alt-text-backfill.test.mjs`,
+     `tests/quality-score-state.test.mjs`,
+     `tests/quality-score-query-guardrails.test.mjs`, and
+     `tests/api-error.test.mjs`.
+
+212. **Round 9 metrics/rendering/utility allegations verified stale or
+     product-scoped** — verified stale/false-positive #850, #853, #854, #856,
+     #861, #881, #882, #883, #886, #891, and #892; #890 was already closed in
+     entry #205. Marked #849, #852, #857, #858, #860, and #880 as
+     product/performance/retention decisions rather than current-code defects.
+     Still-open high-risk items from this slice are legacy conversation
+     response backfill/performance (#855/#858), account export/deletion privacy
+     scope (#873-#879), AI fail-closed integration regression coverage (#887),
+     checkout concurrency integration coverage (#888), and anonymous-cart merge
+     loss behavior (#889).
+
+**Running tally after this pass:** verified fixed/reduced: 37 findings; verified
+stale/false-positive: 31 findings; product/design decisions deferred: 14
 findings. Remaining major categories: durable account-deletion/Stripe and audit
 redaction retry design, admin undo/ban side-effect retryability, account export
-scope, AI semantic invariant/cross-seller duplicate policy, marketplace refund
-Stripe-status/tax reconciliation verification, metrics/Guild edge cases, and
-test-quality gaps not yet converted into behavior tests.
+scope, legacy message-response metrics/backfill, AI semantic invariant and
+integration-test coverage, anonymous-cart merge durability, checkout concurrency
+integration evidence, and remaining privacy/export omissions.

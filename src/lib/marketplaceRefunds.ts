@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
 
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL";
-type CreatedRefund = Pick<Stripe.Refund, "id">;
+type CreatedRefund = Pick<Stripe.Refund, "id" | "status">;
 type RefundCreator = (
   params: Stripe.RefundCreateParams,
   requestOptions: { idempotencyKey: string },
@@ -19,6 +19,16 @@ type MarketplaceRefundOptions = {
   idempotencyKeyBase: string;
   reason?: Stripe.RefundCreateParams.Reason;
 };
+
+function assertCreatedRefundUsable(refund: CreatedRefund) {
+  if (refund.status === "failed" || refund.status === "canceled") {
+    throw new Error(`Stripe refund ${refund.id} returned ${refund.status} status.`);
+  }
+}
+
+function refundNeedsManualFollowUp(refund: CreatedRefund) {
+  return refund.status === "pending" || refund.status === "requires_action";
+}
 
 export async function createMarketplaceRefundWithCreator(
   opts: MarketplaceRefundOptions,
@@ -43,6 +53,7 @@ export async function createMarketplaceRefundWithCreator(
     const refund = await createStripeRefund(params, {
       idempotencyKey: `${opts.idempotencyKeyBase}:${suffix}`,
     });
+    assertCreatedRefundUsable(refund);
     return refund;
   };
 
@@ -58,6 +69,8 @@ export async function createMarketplaceRefundWithCreator(
     return {
       primaryRefundId: refund.id,
       refundIds: [refund.id],
+      refundStatuses: [refund.status ?? null],
+      requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents: 0,
       taxAmountCents,
       usedPlatformOnly: true,
@@ -77,6 +90,8 @@ export async function createMarketplaceRefundWithCreator(
     return {
       primaryRefundId: refund.id,
       refundIds: [refund.id],
+      refundStatuses: [refund.status ?? null],
+      requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents: 0,
       taxAmountCents,
       usedPlatformOnly: false,
@@ -97,6 +112,8 @@ export async function createMarketplaceRefundWithCreator(
     return {
       primaryRefundId: refund.id,
       refundIds: [refund.id],
+      refundStatuses: [refund.status ?? null],
+      requiresManualFollowUp: refundNeedsManualFollowUp(refund),
       sellerPortionCents,
       taxAmountCents,
       usedPlatformOnly: false,
@@ -116,6 +133,8 @@ export async function createMarketplaceRefundWithCreator(
   return {
     primaryRefundId: refund.id,
     refundIds: [refund.id],
+    refundStatuses: [refund.status ?? null],
+    requiresManualFollowUp: refundNeedsManualFollowUp(refund),
     sellerPortionCents: opts.amountCents,
     taxAmountCents: 0,
     usedPlatformOnly: false,

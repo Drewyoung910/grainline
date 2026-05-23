@@ -192,6 +192,9 @@ export async function POST(
             ? `Stripe refunds ${stripeRefundIds.join(", ")}`
             : `Stripe refund ${stripeRefundId}`,
           refund.usedPlatformOnly ? "seller Stripe account disconnected; transfer reversal requires manual reconciliation" : null,
+          refund.requiresManualFollowUp
+            ? `Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}`
+            : null,
         ].filter(Boolean).join("; ");
       } catch (stripeErr) {
         await prisma.order.updateMany({
@@ -291,7 +294,7 @@ export async function POST(
             sellerRefundAmountCents: refundAmountForOrder,
             sellerRefundLockedAt: null,
             reviewNeeded: true,
-            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} succeeded, but case resolution DB work failed. Manual reconciliation required.`,
+            reviewNote: `ORPHANED REFUND: Stripe refund(s) ${stripeRefundIds.join(", ")} were created, but case resolution DB work failed. Manual reconciliation required.`,
           },
         }).catch((reviewUpdateError) => {
           Sentry.captureException(reviewUpdateError, {
