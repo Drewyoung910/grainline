@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
+  configuredEmailOutboxDailyRecipientSendLimit,
   configuredEmailOutboxDailySendLimit,
   emailOutboxDailyQuotaKey,
   emailOutboxDailyQuotaTtlSeconds,
+  emailOutboxRecipientDailyQuotaKey,
   reserveEmailOutboxDailySendAllowance,
+  reserveEmailOutboxRecipientDailySendAllowance,
 } = await import("../src/lib/emailOutboxQuota.ts");
+
+function source(path) {
+  return readFileSync(path, "utf8");
+}
 
 describe("email outbox daily quota", () => {
   const now = new Date("2026-04-28T23:59:30.000Z");
@@ -20,6 +28,9 @@ describe("email outbox daily quota", () => {
     assert.equal(configuredEmailOutboxDailySendLimit("2500"), 2500);
     assert.equal(configuredEmailOutboxDailySendLimit("0"), 3000);
     assert.equal(configuredEmailOutboxDailySendLimit("not-a-number"), 3000);
+    assert.equal(configuredEmailOutboxDailyRecipientSendLimit("25"), 25);
+    assert.equal(configuredEmailOutboxDailyRecipientSendLimit("0"), 20);
+    assert.equal(configuredEmailOutboxDailyRecipientSendLimit("not-a-number"), 20);
   });
 
   it("does not call Redis when no allowance is requested", async () => {
@@ -98,5 +109,41 @@ describe("email outbox daily quota", () => {
     assert.equal(quota.counterAvailable, false);
     assert.equal(seen.length, 1);
     assert.match(seen[0], /redis down/);
+  });
+
+  it("uses a hashed recipient quota key without raw email addresses", async () => {
+    const key = emailOutboxRecipientDailyQuotaKey("sha256:abc123", now);
+
+    assert.equal(key, "email-outbox:sent:2026-04-28:recipient:sha256:abc123");
+    assert.doesNotMatch(key, /@/);
+  });
+
+  it("reserves per-recipient allowance through the same atomic counter", async () => {
+    const quota = await reserveEmailOutboxRecipientDailySendAllowance({
+      recipientHash: "sha256:abc123",
+      requested: 2,
+      now,
+      limit: 3,
+      counter: async ({ key, requested, limit, ttlSeconds }) => {
+        assert.equal(key, "email-outbox:sent:2026-04-28:recipient:sha256:abc123");
+        assert.equal(requested, 2);
+        assert.equal(limit, 3);
+        assert.equal(ttlSeconds, 3630);
+        return 1;
+      },
+    });
+
+    assert.equal(quota.allowed, 1);
+    assert.equal(quota.limit, 3);
+  });
+
+  it("checks hashed recipient quota before the global outbox quota in the drain path", () => {
+    const outbox = source("src/lib/emailOutbox.ts");
+
+    assert.match(outbox, /recipientDailySendAllowanceScript/);
+    assert.match(outbox, /hashEmailForTelemetry\(recipientEmail\) \?\? "unknown"/);
+    assert.match(outbox, /reserveRecipientDailySendAllowance\(job\.recipientEmail, 1, quotaCheckedAt\)[\s\S]*reserveDailySendAllowance\(1, quotaCheckedAt\)/);
+    assert.match(outbox, /email_outbox_recipient_quota/);
+    assert.match(outbox, /Daily per-recipient email outbox send cap reached/);
   });
 });

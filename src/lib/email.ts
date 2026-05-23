@@ -89,13 +89,22 @@ function fmtDate(d: Date | string | null | undefined): string {
   return new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
+function normalizeTrackingCarrier(carrier: string | null | undefined) {
+  const normalized = normalizeUserText(carrier ?? "").trim().toUpperCase();
+  if (normalized === "UPS") return "UPS";
+  if (normalized === "USPS") return "USPS";
+  if (normalized === "FEDEX") return "FEDEX";
+  if (normalized === "DHL") return "DHL";
+  return null;
+}
+
 function trackingUrl(carrier: string | null | undefined, trackingNumber: string): string {
-  const c = (carrier || "").toLowerCase();
-  if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${encodeURIComponent(trackingNumber)}`;
-  if (c.includes("usps")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(trackingNumber)}`;
-  if (c.includes("fedex")) return `https://www.fedex.com/apps/fedextrack/?trknbr=${encodeURIComponent(trackingNumber)}`;
-  if (c.includes("dhl")) return `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(trackingNumber)}`;
-  return `https://www.google.com/search?q=${encodeURIComponent((carrier ?? "") + " tracking " + trackingNumber)}`;
+  const normalizedCarrier = normalizeTrackingCarrier(carrier);
+  if (normalizedCarrier === "UPS") return `https://www.ups.com/track?tracknum=${encodeURIComponent(trackingNumber)}`;
+  if (normalizedCarrier === "USPS") return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(trackingNumber)}`;
+  if (normalizedCarrier === "FEDEX") return `https://www.fedex.com/apps/fedextrack/?trknbr=${encodeURIComponent(trackingNumber)}`;
+  if (normalizedCarrier === "DHL") return `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(trackingNumber)}`;
+  return `https://www.google.com/search?q=${encodeURIComponent(`tracking ${trackingNumber}`)}`;
 }
 
 function btn(label: string, url: string): string {

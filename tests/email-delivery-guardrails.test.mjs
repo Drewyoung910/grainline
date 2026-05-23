@@ -77,4 +77,14 @@ describe("email delivery guardrails", () => {
     assert.match(email, /: "Included"/);
     assert.match(webhook, /giftWrapping: order\.giftWrapping/);
   });
+
+  it("validates tracking carriers before building email deep links", () => {
+    const email = source("src/lib/email.ts");
+
+    assert.match(email, /function normalizeTrackingCarrier/);
+    assert.match(email, /normalized === "UPS"/);
+    assert.match(email, /normalizedCarrier === "USPS"/);
+    assert.doesNotMatch(functionBody(email, "sendOrderShipped"), /\.includes\("ups"\)/);
+    assert.match(email, /encodeURIComponent\(`tracking \$\{trackingNumber\}`\)/);
+  });
 });

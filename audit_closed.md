@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 208.
-- Verified code/feature fix commits since 2026-05-13: 184.
+- Verified hardening/doc commits since 2026-05-13: 209.
+- Verified code/feature fix commits since 2026-05-13: 185.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 133 verified fixed/reduced findings,
-  51 verified stale/false-positive findings, and 43 deferred/manual findings
+- Most recent reported pass tally: 135 verified fixed/reduced findings,
+  52 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -1993,13 +1993,26 @@ Last updated: 2026-05-23
      #1049, #1050, #1051, #1052, #1054, #1055, #1056, #1057, #1058, #1059,
      and #1061. Guardrail: `tests/round10-state-machine-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 133 findings;
-verified stale/false-positive: 51 findings; product/design decisions deferred:
-43 findings. Remaining major categories: durable account-deletion/Stripe and
+222. **Round 10 email outbox quota and tracking-link risks reduced** —
+     code/test fix or verified closure for #1003, #1004, and #1006. Email
+     tracking links now choose carrier-specific URLs only after strict carrier
+     normalization for `UPS`, `USPS`, `FEDEX`, or `DHL`; unknown carrier text is
+     no longer interpolated into external tracking URLs. The queued-email
+     outbox now reserves from a hashed per-recipient UTC daily cap before the
+     global daily cap, fails closed when that counter is unavailable, and
+     records a distinct per-recipient quota deferral for ops triage. #1004 was
+     verified stale because `formatCurrencyCents()` already normalizes
+     currency codes and falls back safely when `Intl.NumberFormat` rejects a
+     malformed value. Guardrails: `tests/email-delivery-guardrails.test.mjs`
+     and `tests/email-outbox-quota.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 135 findings;
+verified stale/false-positive: 52 findings; product/design decisions deferred:
+41 findings. Remaining major categories: durable account-deletion/Stripe and
 audit redaction retry design, admin undo/ban side-effect retryability, AI
 semantic invariant and integration-test coverage, anonymous-cart merge
 durability, checkout concurrency integration evidence, Round 10 deferred
 system-audit and state-machine product designs, JSON shape/size and email
 uniqueness production-scan decisions, conversation swapped-pair DB invariant
-design, email outbox retention/versioning/per-recipient quota design, and
-remaining privacy/export retention decisions.
+design, email outbox retention/versioning design, and remaining privacy/export
+retention decisions.

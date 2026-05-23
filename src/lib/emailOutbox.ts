@@ -17,13 +17,16 @@ import {
 import {
   EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT,
   reserveEmailOutboxDailySendAllowance,
+  reserveEmailOutboxRecipientDailySendAllowance,
 } from "@/lib/emailOutboxQuota";
 import { isValidEmailPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_CONCURRENCY = 2;
 export const EMAIL_OUTBOX_HTML_MAX_CHARS = 200_000;
 const dailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
+const recipientDailySendAllowanceScript = redis.createScript<number>(EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT);
 
 export type QueuedEmail = {
   to: string;
@@ -49,6 +52,21 @@ async function reserveDailySendAllowance(requested: number, now: Date) {
       ),
     onCounterError: (error) =>
       Sentry.captureException(error, { tags: { source: "email_outbox_daily_quota" } }),
+  });
+}
+
+async function reserveRecipientDailySendAllowance(recipientEmail: string, requested: number, now: Date) {
+  return reserveEmailOutboxRecipientDailySendAllowance({
+    recipientHash: hashEmailForTelemetry(recipientEmail) ?? "unknown",
+    requested,
+    now,
+    counter: ({ key, requested: requestedCount, limit, ttlSeconds }) =>
+      recipientDailySendAllowanceScript.eval(
+        [key],
+        [String(requestedCount), String(limit), String(ttlSeconds)],
+      ),
+    onCounterError: (error) =>
+      Sentry.captureException(error, { tags: { source: "email_outbox_recipient_quota" } }),
   });
 }
 
@@ -204,6 +222,42 @@ export async function processEmailOutboxBatch({
       }
 
       const quotaCheckedAt = new Date();
+      const recipientQuota = await reserveRecipientDailySendAllowance(job.recipientEmail, 1, quotaCheckedAt);
+      if (recipientQuota.allowed < 1) {
+        const deferral = emailOutboxQuotaDeferralState({
+          counterAvailable: recipientQuota.counterAvailable,
+          resetAt: recipientQuota.resetAt,
+          attempts,
+          now: quotaCheckedAt,
+        });
+        await prisma.emailOutbox.update({
+          where: { id: job.id },
+          data: {
+            status: "PENDING",
+            attempts: deferral.attempts,
+            nextAttemptAt: deferral.nextAttemptAt,
+            lastError: recipientQuota.counterAvailable
+              ? `Daily per-recipient email outbox send cap reached (${recipientQuota.limit}/recipient/day)`
+              : "Daily per-recipient email outbox send cap unavailable",
+          },
+        });
+        capped += 1;
+        Sentry.captureMessage(recipientQuota.counterAvailable
+          ? "Email outbox recipient daily send cap reached"
+          : "Email outbox recipient daily send cap unavailable", {
+          level: "warning",
+          tags: { source: "email_outbox_recipient_quota" },
+          extra: {
+            emailOutboxId: job.id,
+            limit: recipientQuota.limit,
+            nextAttemptAt: deferral.nextAttemptAt.toISOString(),
+            resetAt: recipientQuota.resetAt.toISOString(),
+            counterAvailable: recipientQuota.counterAvailable,
+          },
+        });
+        return;
+      }
+
       const quota = await reserveDailySendAllowance(1, quotaCheckedAt);
       if (quota.allowed < 1) {
         const deferral = emailOutboxQuotaDeferralState({

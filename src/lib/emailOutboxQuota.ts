@@ -1,4 +1,5 @@
 export const DEFAULT_EMAIL_OUTBOX_DAILY_SEND_LIMIT = 3000;
+export const DEFAULT_EMAIL_OUTBOX_DAILY_RECIPIENT_SEND_LIMIT = 20;
 
 export const EMAIL_OUTBOX_DAILY_ALLOWANCE_SCRIPT = `
 local current = tonumber(redis.call("GET", KEYS[1]) or "0")
@@ -47,12 +48,25 @@ export function configuredEmailOutboxDailySendLimit(value = process.env.EMAIL_OU
   return DEFAULT_EMAIL_OUTBOX_DAILY_SEND_LIMIT;
 }
 
+export function configuredEmailOutboxDailyRecipientSendLimit(
+  value = process.env.EMAIL_OUTBOX_DAILY_RECIPIENT_LIMIT,
+) {
+  const parsed = Number.parseInt(value ?? "", 10);
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return DEFAULT_EMAIL_OUTBOX_DAILY_RECIPIENT_SEND_LIMIT;
+}
+
 export function nextUtcMidnight(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1));
 }
 
 export function emailOutboxDailyQuotaKey(date: Date) {
   return `email-outbox:sent:${date.toISOString().slice(0, 10)}`;
+}
+
+export function emailOutboxRecipientDailyQuotaKey(recipientHash: string, date: Date) {
+  const safeHash = recipientHash.replace(/[^a-zA-Z0-9:._-]/g, "_");
+  return `email-outbox:sent:${date.toISOString().slice(0, 10)}:recipient:${safeHash}`;
 }
 
 export function emailOutboxDailyQuotaTtlSeconds(now: Date, resetAt = nextUtcMidnight(now)) {
@@ -79,6 +93,40 @@ export async function reserveEmailOutboxDailySendAllowance({
   try {
     const reserved = await counter({
       key: emailOutboxDailyQuotaKey(now),
+      requested: normalizedRequested,
+      limit,
+      ttlSeconds: emailOutboxDailyQuotaTtlSeconds(now, resetAt),
+    });
+    const allowed = Math.max(0, Math.min(normalizedRequested, Math.floor(Number(reserved) || 0)));
+    return { allowed, limit, resetAt, counterAvailable: true };
+  } catch (error) {
+    onCounterError?.(error);
+    return { allowed: 0, limit, resetAt, counterAvailable: false };
+  }
+}
+
+export async function reserveEmailOutboxRecipientDailySendAllowance({
+  recipientHash,
+  requested,
+  now,
+  counter,
+  limit = configuredEmailOutboxDailyRecipientSendLimit(),
+  onCounterError,
+}: {
+  recipientHash: string;
+  requested: number;
+  now: Date;
+  counter: EmailOutboxQuotaCounter;
+  limit?: number;
+  onCounterError?: (error: unknown) => void;
+}): Promise<EmailOutboxDailyAllowance> {
+  const resetAt = nextUtcMidnight(now);
+  const normalizedRequested = Math.max(0, Math.floor(requested));
+  if (normalizedRequested === 0) return { allowed: 0, limit, resetAt, counterAvailable: true };
+
+  try {
+    const reserved = await counter({
+      key: emailOutboxRecipientDailyQuotaKey(recipientHash, now),
       requested: normalizedRequested,
       limit,
       ttlSeconds: emailOutboxDailyQuotaTtlSeconds(now, resetAt),
