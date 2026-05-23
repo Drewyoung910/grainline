@@ -45,6 +45,8 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   const [popularLoaded, setPopularLoaded] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsAbortRef = React.useRef<AbortController | null>(null);
+  const suggestionsRequestRef = React.useRef(0);
 
   // Sync input value when URL q param changes (back/forward nav)
   React.useEffect(() => {
@@ -78,6 +80,7 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
   React.useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      suggestionsAbortRef.current?.abort();
     };
   }, []);
 
@@ -87,8 +90,10 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
     setValue(v);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    suggestionsAbortRef.current?.abort();
 
     if (q.length < 2) {
+      suggestionsRequestRef.current += 1;
       setSuggestions([]);
       setBlogs([]);
       setCategories([]);
@@ -98,9 +103,16 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
     }
 
     debounceRef.current = setTimeout(async () => {
+      const requestId = suggestionsRequestRef.current + 1;
+      suggestionsRequestRef.current = requestId;
+      const controller = new AbortController();
+      suggestionsAbortRef.current = controller;
       try {
-        const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/search/suggestions?q=${encodeURIComponent(q)}`, {
+          signal: controller.signal,
+        });
         const data: SuggestionsResponse = await res.json();
+        if (controller.signal.aborted || requestId !== suggestionsRequestRef.current) return;
         const suggs = data.suggestions ?? [];
         const blogResults = data.blogs ?? [];
         const cats = data.categories ?? [];
@@ -109,12 +121,18 @@ export default function SearchBar({ variant = "default" }: { variant?: "default"
         setCategories(cats);
         setOpen(suggs.length > 0 || blogResults.length > 0 || cats.length > 0);
         setActiveIndex(-1);
-      } catch {
+      } catch (error) {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+        if (requestId !== suggestionsRequestRef.current) return;
         setSuggestions([]);
         setBlogs([]);
         setCategories([]);
         setOpen(false);
         setActiveIndex(-1);
+      } finally {
+        if (suggestionsAbortRef.current === controller) {
+          suggestionsAbortRef.current = null;
+        }
       }
     }, 300);
   }

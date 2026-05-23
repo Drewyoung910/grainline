@@ -19,7 +19,8 @@ const ENDPOINT = "messageAny" as const;
 
 export default function MessageComposer({
   placeholder = "Write a message…",
-}: { placeholder?: string }) {
+  successEventFormId,
+}: { placeholder?: string; successEventFormId?: string }) {
   const [value, setValue] = React.useState("");
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const taRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -32,7 +33,11 @@ export default function MessageComposer({
 
   // Clear after successful submit (make sure ActionForm dispatches `actionform:ok`)
   React.useEffect(() => {
-    const onOk = () => {
+    const onOk = (event: Event) => {
+      if (successEventFormId) {
+        const formId = event instanceof CustomEvent ? event.detail?.formId : null;
+        if (formId !== successEventFormId) return;
+      }
       setValue("");
       setAttachments([]);
       if (taRef.current) {
@@ -42,7 +47,7 @@ export default function MessageComposer({
     };
     document.addEventListener("actionform:ok", onOk);
     return () => document.removeEventListener("actionform:ok", onOk);
-  }, []);
+  }, [successEventFormId]);
 
   const extractUrl = (x: unknown): string | null => uploadedFileUrl(x) || null;
 
@@ -210,6 +215,5 @@ export default function MessageComposer({
     </div>
   );
 }
-
 
 

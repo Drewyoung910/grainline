@@ -61,22 +61,25 @@ export default function ActionForm({
 
   useEffect(() => {
     if (state?.ok) {
-      // NEW: tell listeners (MessageComposer) that the action succeeded
-      document.dispatchEvent(new CustomEvent("actionform:ok"));
+      const formId = formRef.current?.id || id || null;
+      document.dispatchEvent(new CustomEvent("actionform:ok", {
+        detail: { formId },
+      }));
 
       setShow(true);
       const t = setTimeout(() => setShow(false), 1800);
       return () => clearTimeout(t);
     }
-  }, [state]);
+  }, [id, state]);
 
   useEffect(() => {
     if (!preserveOnError || !state?.error || !lastSubmissionRef.current || !formRef.current) return;
+    const formId = formRef.current.id || id || null;
     restoreFormValues(formRef.current, lastSubmissionRef.current);
     document.dispatchEvent(new CustomEvent("actionform:error", {
-      detail: { values: Object.fromEntries(lastSubmissionRef.current) },
+      detail: { formId, values: Object.fromEntries(lastSubmissionRef.current) },
     }));
-  }, [preserveOnError, state]);
+  }, [id, preserveOnError, state]);
 
   function handleSubmitCapture(event: React.FormEvent<HTMLFormElement>) {
     if (!preserveOnError) return;

@@ -32,6 +32,12 @@ export default function Header() {
   const [unreadNotifCount, setUnreadNotifCount] = React.useState(0);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const drawerRef = React.useRef<HTMLDivElement>(null);
+  const cartCountRequestRef = React.useRef(0);
+  const cartCountAbortRef = React.useRef<AbortController | null>(null);
+  const notifCountRequestRef = React.useRef(0);
+  const notifCountAbortRef = React.useRef<AbortController | null>(null);
+  const loadAllRequestRef = React.useRef(0);
+  const loadAllAbortRef = React.useRef<AbortController | null>(null);
 
   useDialogFocus(drawerOpen, drawerRef, () => setDrawerOpen(false));
   useBodyScrollLock(drawerOpen);
@@ -55,39 +61,72 @@ export default function Header() {
   }, []);
 
   const loadCartCount = React.useCallback(async () => {
+    cartCountAbortRef.current?.abort();
+    const requestId = cartCountRequestRef.current + 1;
+    cartCountRequestRef.current = requestId;
+    const controller = new AbortController();
+    cartCountAbortRef.current = controller;
     try {
-      const res = await fetch("/api/cart", { cache: "no-store" });
+      const res = await fetch("/api/cart", { cache: "no-store", signal: controller.signal });
+      if (requestId !== cartCountRequestRef.current || controller.signal.aborted) return;
       if (!res.ok) {
         setCartCount(0);
         return;
       }
       const data = await res.json().catch(() => ({ items: [] as Array<{ quantity?: number }> }));
+      if (requestId !== cartCountRequestRef.current || controller.signal.aborted) return;
       const items: Array<{ quantity?: number }> = data?.items ?? [];
       const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
       setCartCount(total);
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+      if (requestId !== cartCountRequestRef.current) return;
       setCartCount(0);
+    } finally {
+      if (cartCountAbortRef.current === controller) {
+        cartCountAbortRef.current = null;
+      }
     }
   }, []);
 
   const loadAnonymousCartCount = React.useCallback(() => {
+    cartCountAbortRef.current?.abort();
+    cartCountRequestRef.current += 1;
     setCartCount(anonymousCartCount());
   }, []);
 
   const loadNotifCount = React.useCallback(async () => {
+    notifCountAbortRef.current?.abort();
+    const requestId = notifCountRequestRef.current + 1;
+    notifCountRequestRef.current = requestId;
+    const controller = new AbortController();
+    notifCountAbortRef.current = controller;
     try {
-      const res = await fetch("/api/notifications", { cache: "no-store" });
+      const res = await fetch("/api/notifications", { cache: "no-store", signal: controller.signal });
+      if (requestId !== notifCountRequestRef.current || controller.signal.aborted) return;
       if (!res.ok) return;
       const data = await res.json();
+      if (requestId !== notifCountRequestRef.current || controller.signal.aborted) return;
       setUnreadNotifCount(data.unreadCount ?? 0);
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
       // signed out or error — leave at 0
+    } finally {
+      if (notifCountAbortRef.current === controller) {
+        notifCountAbortRef.current = null;
+      }
     }
   }, []);
 
   const loadAll = React.useCallback(async () => {
+    loadAllAbortRef.current?.abort();
+    const requestId = loadAllRequestRef.current + 1;
+    loadAllRequestRef.current = requestId;
+    const controller = new AbortController();
+    loadAllAbortRef.current = controller;
     try {
-      const res = await fetch("/api/me", { cache: "no-store" });
+      const res = await fetch("/api/me", { cache: "no-store", signal: controller.signal });
+      if (requestId !== loadAllRequestRef.current || controller.signal.aborted) return;
       if (!res.ok) {
         setRole(null);
         setHasSeller(false);
@@ -100,6 +139,7 @@ export default function Header() {
         return;
       }
       const data = await res.json().catch(() => ({ role: null, hasSeller: false }));
+      if (requestId !== loadAllRequestRef.current || controller.signal.aborted) return;
       setRole(data?.role ?? null);
       setHasSeller(data?.hasSeller ?? false);
       setName(data?.name ?? null);
@@ -109,16 +149,30 @@ export default function Header() {
       // Only fetch cart and notifications when signed in
       loadCartCount();
       loadNotifCount();
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
+      if (requestId !== loadAllRequestRef.current) return;
       setRole(null);
       setHasSeller(false);
       setIsLoggedIn(false);
+    } finally {
+      if (loadAllAbortRef.current === controller) {
+        loadAllAbortRef.current = null;
+      }
     }
   }, [loadAnonymousCartCount, loadCartCount, loadNotifCount]);
 
   React.useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  React.useEffect(() => {
+    return () => {
+      loadAllAbortRef.current?.abort();
+      cartCountAbortRef.current?.abort();
+      notifCountAbortRef.current?.abort();
+    };
+  }, []);
 
   React.useEffect(() => {
     const onUpdated = () => {

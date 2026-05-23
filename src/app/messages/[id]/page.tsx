@@ -335,6 +335,7 @@ export default async function ThreadPage({
   const ctxImg = ctx?.photos?.[0]?.url ?? null;
   const archivedForMe =
     isParticipant ? (convo.userAId === me.id ? convo.archivedAAt : convo.archivedBAt) ?? null : null;
+  const messageComposerFormId = `message-composer-${convo.id}`;
 
   return (
     <main className="bg-[#F7F5F0] min-h-[100svh]">
@@ -491,13 +492,14 @@ export default async function ThreadPage({
             meId={me.id}
             initial={messages}
             otherUser={{ imageUrl: other?.imageUrl, avatarImageUrl: otherSellerProfile?.avatarImageUrl, name: other?.name }}
+            refreshEventFormId={messageComposerFormId}
           />
         </div>
 
         {/* Sticky composer at the bottom edge — rounded top on desktop only */}
         {isParticipant && !otherUnavailableReason ? (
-          <ActionForm action={sendMessage}>
-            <MessageComposer />
+          <ActionForm id={messageComposerFormId} action={sendMessage}>
+            <MessageComposer successEventFormId={messageComposerFormId} />
           </ActionForm>
         ) : null}
       </div>

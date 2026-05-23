@@ -38,7 +38,8 @@ describe("verified audit follow-up guardrails", () => {
 
     assert.match(buyNowButton, /dynamic\(\(\) => import\("\.\/BuyNowCheckoutModal"\),/);
     assert.doesNotMatch(buyNowButton, /import BuyNowCheckoutModal from "\.\/BuyNowCheckoutModal"/);
-    assert.match(buyNowButton, /\{isOpen && \(/);
+    assert.match(buyNowButton, /const \[hasOpened, setHasOpened\]/);
+    assert.match(buyNowButton, /\{hasOpened && \(/);
     assert.match(source("src/components/EmbeddedCheckoutPanel.tsx"), /loadStripe/);
   });
 

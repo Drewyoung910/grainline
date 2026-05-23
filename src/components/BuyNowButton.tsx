@@ -44,6 +44,7 @@ export default function BuyNowButton({
   children,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
   const openedFromRedirect = useRef(false);
   const { isSignedIn, isLoaded } = useUser();
   const { toast } = useToast();
@@ -52,6 +53,7 @@ export default function BuyNowButton({
     if (!autoOpen || openedFromRedirect.current || !isLoaded || !isSignedIn) return;
     if (variantRequired && selectedVariantOptionIds.length === 0) return;
     openedFromRedirect.current = true;
+    setHasOpened(true);
     setIsOpen(true);
   }, [autoOpen, isLoaded, isSignedIn, selectedVariantOptionIds.length, variantRequired]);
 
@@ -69,6 +71,7 @@ export default function BuyNowButton({
             window.location.href = signUpPathForRedirect(window.location.pathname + window.location.search);
             return;
           }
+          setHasOpened(true);
           setIsOpen(true);
         }}
         className={
@@ -79,7 +82,7 @@ export default function BuyNowButton({
         {children ?? "Buy now"}
       </button>
 
-      {isOpen && (
+      {hasOpened && (
         <BuyNowCheckoutModal
           listingId={listingId}
           listingTitle={listingTitle}

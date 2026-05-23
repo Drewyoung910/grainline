@@ -28,11 +28,12 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
   const [loading, setLoading] = useState(isSignedIn);
   const [saving, setSaving] = useState(false);
 
-  const loadSavedAddress = useCallback(async () => {
+  const loadSavedAddress = useCallback(async (signal: AbortSignal) => {
     try {
-      const res = await fetch("/api/account/shipping-address", { cache: "no-store" });
+      const res = await fetch("/api/account/shipping-address", { cache: "no-store", signal });
       if (!res.ok) return;
       const data = await res.json();
+      if (signal.aborted) return;
       if (data.name) setName(data.name);
       if (data.line1) setLine1(data.line1);
       if (data.line2) setLine2(data.line2);
@@ -40,15 +41,22 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
       if (data.state) setState(data.state);
       if (data.postalCode) setPostalCode(data.postalCode);
       if (data.phone) setPhone(data.phone);
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       // silent — form starts empty
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (isSignedIn) loadSavedAddress();
+    if (!isSignedIn) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    void loadSavedAddress(controller.signal);
+    return () => controller.abort();
   }, [isSignedIn, loadSavedAddress]);
 
   function validate(): FieldErrors {

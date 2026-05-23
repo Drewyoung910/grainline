@@ -26,20 +26,34 @@ export default function RecentlyViewed() {
       setLoading(false);
       return;
     }
-    fetch(`/api/listings/recently-viewed?ids=${ids.join(",")}`)
+    const controller = new AbortController();
+    let active = true;
+
+    fetch(`/api/listings/recently-viewed?ids=${ids.join(",")}`, {
+      signal: controller.signal,
+    })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(data?.error || "Could not load recently viewed listings.");
         return data;
       })
       .then((data) => {
+        if (!active || controller.signal.aborted) return;
         const nextListings = (data.listings ?? []).slice(0, 6);
         setListings(nextListings);
       })
       .catch((error) => {
+        if (!active || (error instanceof DOMException && error.name === "AbortError")) return;
         toast(error instanceof Error ? error.message : "Could not load recently viewed listings.", "error");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active && !controller.signal.aborted) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [toast]);
 
   if (!loading && listings.length === 0) return null;

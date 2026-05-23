@@ -69,12 +69,14 @@ export default function ThreadMessages({
   initial,
   otherUser,
   height = "60vh",
+  refreshEventFormId,
 }: {
   convoId: string;
   meId: string;
   initial: Msg[];
   otherUser?: OtherUser | null;
   height?: number | string;
+  refreshEventFormId?: string;
 }) {
   const [msgs, setMsgs] = React.useState<Msg[]>(initial || []);
   const [streamError, setStreamError] = React.useState<string | null>(null);
@@ -122,13 +124,25 @@ export default function ThreadMessages({
   // so the sent message appears within a few hundred ms instead of waiting
   // for the next 3s poll or SSE push.
   React.useEffect(() => {
-    const onOk = async () => {
+    let active = true;
+    let controller: AbortController | null = null;
+
+    const onOk = async (event: Event) => {
+      if (refreshEventFormId) {
+        const formId = event instanceof CustomEvent ? event.detail?.formId : null;
+        if (formId !== refreshEventFormId) return;
+      }
+      controller?.abort();
+      const currentController = new AbortController();
+      controller = currentController;
       try {
         const u = new URL(`/api/messages/${convoId}/list`, window.location.origin);
         if (lastTsRef.current) u.searchParams.set("since", String(lastTsRef.current));
-        const res = await fetch(u.toString(), { cache: "no-store" });
+        const res = await fetch(u.toString(), { cache: "no-store", signal: currentController.signal });
+        if (!active || currentController.signal.aborted) return;
         if (!res.ok) return;
         const data = await res.json();
+        if (!active || currentController.signal.aborted) return;
         const fresh: Msg[] = Array.isArray(data?.messages) ? data.messages : [];
         if (fresh.length) {
           setMsgs((prev) => {
@@ -138,17 +152,23 @@ export default function ThreadMessages({
             return merged;
           });
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         // Polling will catch up on the next tick.
       }
       setTimeout(() => {
+        if (!active) return;
         const el = boxRef.current;
         if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       }, 200);
     };
     document.addEventListener("actionform:ok", onOk);
-    return () => document.removeEventListener("actionform:ok", onOk);
-  }, [convoId]);
+    return () => {
+      active = false;
+      controller?.abort();
+      document.removeEventListener("actionform:ok", onOk);
+    };
+  }, [convoId, refreshEventFormId]);
 
   React.useEffect(() => {
     let closed = false;

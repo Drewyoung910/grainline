@@ -1897,11 +1897,24 @@ Last updated: 2026-05-23
      `tests/private-json-cache-headers.test.mjs` and the updated account export
      header assertions in `tests/account-export-format.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 54 findings; verified
+217. **Round 10 client async race and cleanup risks reduced** — code/test fix
+     for #908, #909, #910, #911, #912, #913, and #914. Search suggestions and
+     header account/cart/notification loaders now abort stale requests and
+     ignore older responses. Recently viewed and saved-address fetches abort on
+     cleanup and avoid unmounted state/toast updates. Buy Now checkout stays
+     mounted after first open, invalidates stale session-creation responses on
+     close/unmount, and rolls back any stale Stripe session id returned to the
+     client unless checkout completed. ActionForm success/error events now carry
+     `formId`, and message-thread refresh plus composer clearing filter to the
+     message composer form so unrelated archive/profile forms cannot clear
+     drafts or trigger thread fetches.
+     Guardrail: `tests/client-async-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 61 findings; verified
 stale/false-positive: 32 findings; product/design decisions deferred: 14
-findings. Remaining major categories: Round 10 client-side async races and
-Buy Now rollback cleanup, schema CHECK/index hardening, durable
+findings. Remaining major categories: schema CHECK/index hardening, durable
 account-deletion/Stripe and audit redaction retry design, admin undo/ban
 side-effect retryability, AI semantic invariant and integration-test coverage,
-anonymous-cart merge durability, checkout concurrency integration evidence, and
-remaining privacy/export retention decisions.
+anonymous-cart merge durability, checkout concurrency integration evidence,
+state-machine completion follow-ups, and remaining privacy/export retention
+decisions.

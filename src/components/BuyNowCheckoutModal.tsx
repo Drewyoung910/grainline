@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import ShippingAddressForm from "./ShippingAddressForm";
@@ -87,28 +87,67 @@ export default function BuyNowCheckoutModal({
   const [creatingSession, setCreatingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const createSessionRequestRef = useRef(0);
+  const completedRef = useRef(false);
+  const isOpenRef = useRef(isOpen);
+  const mountedRef = useRef(true);
+  const sessionIdRef = useRef<string | null>(null);
 
   useDialogFocus(isOpen, dialogRef, onClose);
   useBodyScrollLock(isOpen);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  const resetCheckoutState = useCallback(({ rollback }: { rollback: boolean }) => {
+    createSessionRequestRef.current += 1;
+
+    const currentSessionId = sessionIdRef.current;
+    if (rollback && !completedRef.current && currentSessionId) {
+      void rollbackCheckoutSessions([currentSessionId]);
+    }
+    sessionIdRef.current = null;
+
+    setClientSecret(null);
+    setSessionId(null);
+    setSelectedRate(null);
+    setCreatingSession(false);
+    setError(null);
+    setStep((currentStep) => (currentStep === "payment" ? "shipping" : currentStep));
+  }, []);
 
   // Reset payment/rate state when modal closes. Shipping rates are signed and
   // short-lived, so preserving selectedRate across re-open can create HMAC
   // failures even when the address did not change.
   useEffect(() => {
     if (!isOpen) {
-      if (sessionId) void rollbackCheckoutSessions([sessionId]);
-      setClientSecret(null);
-      setSessionId(null);
-      setSelectedRate(null);
-      setCreatingSession(false);
-      setError(null);
-      if (step === "payment") setStep("shipping");
+      resetCheckoutState({ rollback: true });
+    } else {
+      completedRef.current = false;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, resetCheckoutState]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      createSessionRequestRef.current += 1;
+      const currentSessionId = sessionIdRef.current;
+      if (!completedRef.current && currentSessionId) {
+        void rollbackCheckoutSessions([currentSessionId]);
+      }
+      sessionIdRef.current = null;
+    };
+  }, []);
 
   async function handleProceedToPayment() {
     if (!shippingAddress || !selectedRate) return;
+    const requestId = createSessionRequestRef.current + 1;
+    createSessionRequestRef.current = requestId;
     setCreatingSession(true);
     setError(null);
     try {
@@ -134,13 +173,30 @@ export default function BuyNowCheckoutModal({
       if (!nextClientSecret || !nextSessionId) {
         throw new Error("Failed to create payment session");
       }
+      if (!mountedRef.current || !isOpenRef.current || requestId !== createSessionRequestRef.current) {
+        await rollbackCheckoutSessions([nextSessionId]);
+        return;
+      }
+      sessionIdRef.current = nextSessionId;
       setClientSecret(nextClientSecret);
       setSessionId(nextSessionId);
       setStep("payment");
     } catch (e) {
+      if (
+        !mountedRef.current ||
+        !isOpenRef.current ||
+        requestId !== createSessionRequestRef.current ||
+        (e instanceof DOMException && e.name === "AbortError")
+      ) return;
       setError((e as Error).message);
     } finally {
-      setCreatingSession(false);
+      if (
+        mountedRef.current &&
+        isOpenRef.current &&
+        requestId === createSessionRequestRef.current
+      ) {
+        setCreatingSession(false);
+      }
     }
   }
 
@@ -375,6 +431,8 @@ export default function BuyNowCheckoutModal({
               currentIndex={1}
               totalCount={1}
               onComplete={() => {
+                completedRef.current = true;
+                sessionIdRef.current = null;
                 router.push(
                   `/checkout/success?session_id=${sessionId}`,
                 );
