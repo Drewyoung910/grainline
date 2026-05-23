@@ -181,6 +181,11 @@ type RefundStockRestoreItem = {
   listing: { listingType: string | null | undefined };
 };
 
+export type RequestedRefundStockRestore = {
+  listingId: string;
+  quantity: number;
+};
+
 export function refundStockRestoreQuantities(items: RefundStockRestoreItem[]) {
   const quantitiesByListing = new Map<string, number>();
 
@@ -196,6 +201,45 @@ export function refundStockRestoreQuantities(items: RefundStockRestoreItem[]) {
     listingId,
     quantity,
   }));
+}
+
+export function requestedRefundStockRestoreQuantities(
+  items: RefundStockRestoreItem[],
+  requestedRestores: RequestedRefundStockRestore[],
+) {
+  const restorableQuantities = new Map(
+    refundStockRestoreQuantities(items).map((restore) => [restore.listingId, restore.quantity]),
+  );
+  const requestedQuantities = new Map<string, number>();
+
+  for (const restore of requestedRestores) {
+    const maxQuantity = restorableQuantities.get(restore.listingId);
+    if (!maxQuantity) {
+      return {
+        ok: false as const,
+        error: "Stock can only be restored for in-stock listings in this order.",
+      };
+    }
+    requestedQuantities.set(
+      restore.listingId,
+      (requestedQuantities.get(restore.listingId) ?? 0) + restore.quantity,
+    );
+    const requestedQuantity = requestedQuantities.get(restore.listingId) ?? 0;
+    if (requestedQuantity > maxQuantity) {
+      return {
+        ok: false as const,
+        error: `Cannot restore more than ${maxQuantity} purchased for this listing.`,
+      };
+    }
+  }
+
+  return {
+    ok: true as const,
+    restores: [...requestedQuantities.entries()].map(([listingId, quantity]) => ({
+      listingId,
+      quantity,
+    })),
+  };
 }
 
 export function refundMayRestoreStock(order: { fulfillmentStatus?: string | null | undefined }) {

@@ -16,6 +16,7 @@ const {
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundMayRestoreStock,
+  requestedRefundStockRestoreQuantities,
   refundStockRestoreQuantities,
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
@@ -234,6 +235,30 @@ describe("refund route state", () => {
         { listingId: "listing_3", quantity: 0, listing: { listingType: "IN_STOCK" } },
       ]),
       [{ listingId: "listing_1", quantity: 3 }],
+    );
+  });
+
+  it("validates requested partial-refund stock restoration against purchased in-stock quantities", () => {
+    const items = [
+      { listingId: "listing_1", quantity: 1, listing: { listingType: "IN_STOCK" } },
+      { listingId: "listing_1", quantity: 2, listing: { listingType: "IN_STOCK" } },
+      { listingId: "listing_2", quantity: 1, listing: { listingType: "MADE_TO_ORDER" } },
+    ];
+
+    assert.deepEqual(
+      requestedRefundStockRestoreQuantities(items, [
+        { listingId: "listing_1", quantity: 1 },
+        { listingId: "listing_1", quantity: 2 },
+      ]),
+      { ok: true, restores: [{ listingId: "listing_1", quantity: 3 }] },
+    );
+    assert.deepEqual(
+      requestedRefundStockRestoreQuantities(items, [{ listingId: "listing_1", quantity: 4 }]),
+      { ok: false, error: "Cannot restore more than 3 purchased for this listing." },
+    );
+    assert.deepEqual(
+      requestedRefundStockRestoreQuantities(items, [{ listingId: "listing_2", quantity: 1 }]),
+      { ok: false, error: "Stock can only be restored for in-stock listings in this order." },
     );
   });
 

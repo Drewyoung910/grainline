@@ -9,9 +9,17 @@ type Props = {
   orderTotalCents: number;
   alreadyRefundedId: string | null;
   alreadyRefundedCents: number | null;
+  restorableItems?: RestorableRefundItem[];
+  canRestoreStock?: boolean;
 };
 
 const REFUND_LOCK_SENTINEL = "pending";
+
+type RestorableRefundItem = {
+  listingId: string;
+  title: string;
+  quantity: number;
+};
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return (cents / 100).toLocaleString("en-US", {
@@ -20,16 +28,26 @@ function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   });
 }
 
+function parseRestoreQuantity(value: string) {
+  if (!value.trim()) return 0;
+  const quantity = Number(value);
+  if (!Number.isInteger(quantity) || quantity < 0) return null;
+  return quantity;
+}
+
 export default function SellerRefundPanel({
   orderId,
   currency,
   orderTotalCents,
   alreadyRefundedId,
   alreadyRefundedCents,
+  restorableItems = [],
+  canRestoreStock = false,
 }: Props) {
   const effectiveMax = orderTotalCents;
   const [mode, setMode] = React.useState<"idle" | "full" | "partial">("idle");
   const [partialAmount, setPartialAmount] = React.useState("");
+  const [restoreQuantities, setRestoreQuantities] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ refundAmountCents: number } | null>(null);
@@ -82,13 +100,33 @@ export default function SellerRefundPanel({
       }
     }
 
+    const restoreStock: Array<{ listingId: string; quantity: number }> = [];
+    if (type === "PARTIAL" && canRestoreStock) {
+      for (const item of restorableItems) {
+        const quantity = parseRestoreQuantity(restoreQuantities[item.listingId] ?? "");
+        if (quantity === null) {
+          setError("Restore quantities must be whole numbers.");
+          return;
+        }
+        if (quantity > item.quantity) {
+          setError(`You can restore up to ${item.quantity} for ${item.title}.`);
+          return;
+        }
+        if (quantity > 0) restoreStock.push({ listingId: item.listingId, quantity });
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/orders/${orderId}/refund`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type, ...(amountCents != null ? { amountCents } : {}) }),
+        body: JSON.stringify({
+          type,
+          ...(amountCents != null ? { amountCents } : {}),
+          ...(restoreStock.length > 0 ? { restoreStock } : {}),
+        }),
       });
       let data: Record<string, unknown> | null = null;
       try {
@@ -105,6 +143,7 @@ export default function SellerRefundPanel({
       }
       setResult({ refundAmountCents: (data as Record<string, number>).refundAmountCents });
       setMode("idle");
+      setRestoreQuantities({});
     } catch (e) {
       setError((e as Error).message || "Something went wrong. Please try again.");
     } finally {
@@ -149,6 +188,11 @@ export default function SellerRefundPanel({
             Refund{" "}
             <span className="font-medium">{fmtMoney(effectiveMax, currency)}</span> to the buyer?
           </p>
+          {canRestoreStock && restorableItems.length > 0 && (
+            <p className="text-xs text-neutral-500">
+              Eligible in-stock items are returned to inventory automatically before handoff.
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => submit("FULL")}
@@ -188,6 +232,41 @@ export default function SellerRefundPanel({
           <p className="text-xs text-neutral-500">
             Tax is refunded automatically by Stripe in proportion to the refund amount.
           </p>
+          {canRestoreStock && restorableItems.length > 0 && (
+            <div className="rounded-md border border-neutral-200 bg-[#F7F5F0] p-3 text-sm">
+              <div className="font-medium text-neutral-800">Restore inventory (optional)</div>
+              <p className="mt-1 text-xs text-neutral-500">
+                Use only when the buyer is no longer receiving these in-stock items.
+              </p>
+              <div className="mt-3 space-y-2">
+                {restorableItems.map((item) => (
+                  <label key={item.listingId} className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 flex-1 truncate text-neutral-700">
+                      {item.title}
+                      <span className="ml-1 text-xs text-neutral-500">(max {item.quantity})</span>
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={item.quantity}
+                      step={1}
+                      value={restoreQuantities[item.listingId] ?? ""}
+                      onChange={(e) => {
+                        setRestoreQuantities((current) => ({
+                          ...current,
+                          [item.listingId]: e.target.value,
+                        }));
+                        setError(null);
+                      }}
+                      placeholder="0"
+                      className="w-20 rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => submit("PARTIAL")}

@@ -1526,3 +1526,9 @@ Last updated: 2026-05-21
      It now fails with Sentry evidence if that base chunk ever exceeds the
      protocol limit, so future scale pressure is visible instead of quietly
      dropping URLs.
+177. **Partial seller refunds can explicitly restore purchased stock** — code
+     fix. Seller-initiated partial refunds now expose an optional restore
+     inventory control in `SellerRefundPanel`, send a bounded `restoreStock`
+     array, validate requested quantities against the order's purchased
+     in-stock items, reject restoration after shipped/delivered/picked-up
+     states, and keep full-refund stock restoration automatic.

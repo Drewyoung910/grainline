@@ -14,7 +14,7 @@ import LocalDate from "@/components/LocalDate";
 import OrderTimeline from "@/components/OrderTimeline";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import type { Metadata } from "next";
@@ -153,6 +153,20 @@ export default async function SellerOrderDetailPage({
   const now = new Date();
   const sellerRefundPending = order.sellerRefundId === "pending";
   const sellerRefundIssued = !!order.sellerRefundId && !sellerRefundPending;
+  const restorableRefundItems = Array.from(
+    myItems.reduce((items, item) => {
+      if (item.listing.listingType !== "IN_STOCK" || item.quantity <= 0) return items;
+      const existing = items.get(item.listingId);
+      items.set(item.listingId, {
+        listingId: item.listingId,
+        title: item.listing.title,
+        quantity: (existing?.quantity ?? 0) + item.quantity,
+      });
+      return items;
+    }, new Map<string, { listingId: string; title: string; quantity: number }>())
+      .values(),
+  );
+  const canRestoreRefundStock = refundMayRestoreStock(order);
 
   const refundCents =
     (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
@@ -571,6 +585,8 @@ export default async function SellerOrderDetailPage({
           orderTotalCents={orderTotal}
           alreadyRefundedId={null}
           alreadyRefundedCents={null}
+          restorableItems={restorableRefundItems}
+          canRestoreStock={canRestoreRefundStock}
         />
       )}
       {order.sellerRefundId && (

@@ -35,6 +35,22 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /manualStripeReconciliationNeeded: true/);
   });
 
+  it("allows partial refunds to restore only explicitly requested purchased stock", () => {
+    const route = source("src/app/api/orders/[id]/refund/route.ts");
+    const panel = source("src/components/SellerRefundPanel.tsx");
+    const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
+
+    assert.match(route, /restoreStock: z\.array/);
+    assert.match(route, /requestedRefundStockRestoreQuantities\(myItems, requestedStockRestores\)/);
+    assert.match(route, /Full refunds restore eligible stock automatically/);
+    assert.match(route, /Stock cannot be restored after this order has shipped or been picked up/);
+    assert.match(route, /: partialStockRestores/);
+    assert.match(panel, /Restore inventory \(optional\)/);
+    assert.match(panel, /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/);
+    assert.match(salesPage, /restorableRefundItems/);
+    assert.match(salesPage, /canRestoreStock=\{canRestoreRefundStock\}/);
+  });
+
   it("sanitizes Stripe webhook console error output before logging", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
 

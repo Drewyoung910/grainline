@@ -23,6 +23,7 @@ import {
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundMayRestoreStock,
+  requestedRefundStockRestoreQuantities,
   refundStockRestoreQuantities,
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
@@ -38,6 +39,10 @@ import * as Sentry from "@sentry/nextjs";
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
   amountCents: z.number().int().positive().optional().nullable(),
+  restoreStock: z.array(z.object({
+    listingId: z.string().min(1),
+    quantity: z.number().int().positive().max(99),
+  })).max(50).optional(),
 });
 const REFUND_BODY_MAX_BYTES = 16 * 1024;
 
@@ -78,6 +83,14 @@ export async function POST(
 
     const type: "FULL" | "PARTIAL" = refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";
     const amountCents: number | null = refundParsed.amountCents ?? null;
+    const requestedStockRestores = refundParsed.restoreStock ?? [];
+
+    if (type === "FULL" && requestedStockRestores.length > 0) {
+      return NextResponse.json(
+        { error: "Full refunds restore eligible stock automatically. Use restoreStock only for partial refunds." },
+        { status: 400 },
+      );
+    }
 
     if (partialRefundInputError(type, amountCents)) {
       return NextResponse.json(
@@ -115,6 +128,21 @@ export async function POST(
     const allItemsBelongToSeller = order.items.length > 0 && order.items.every((it) => it.listing.sellerId === seller.id);
     if (!allItemsBelongToSeller) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     const myItems = order.items;
+
+    let partialStockRestores: Array<{ listingId: string; quantity: number }> = [];
+    if (type === "PARTIAL" && requestedStockRestores.length > 0) {
+      if (!refundMayRestoreStock(order)) {
+        return NextResponse.json(
+          { error: "Stock cannot be restored after this order has shipped or been picked up." },
+          { status: 400 },
+        );
+      }
+      const restoreValidation = requestedRefundStockRestoreQuantities(myItems, requestedStockRestores);
+      if (!restoreValidation.ok) {
+        return NextResponse.json({ error: restoreValidation.error }, { status: 400 });
+      }
+      partialStockRestores = restoreValidation.restores;
+    }
 
     const staleLocksReleased = await releaseStaleRefundLocks(orderId);
     const orderForRefundState = {
@@ -213,7 +241,9 @@ export async function POST(
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
 
-      const stockRestores = type === "FULL" && refundMayRestoreStock(order) ? refundStockRestoreQuantities(myItems) : [];
+      const stockRestores = type === "FULL" && refundMayRestoreStock(order)
+        ? refundStockRestoreQuantities(myItems)
+        : partialStockRestores;
       const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
       // Resolve any open case on this order
