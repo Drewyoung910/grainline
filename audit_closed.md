@@ -19,7 +19,7 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-21
+Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
 - Verified hardening/doc commits since 2026-05-13: 206.
@@ -1632,3 +1632,48 @@ Last updated: 2026-05-21
      DEAD-job ops-health monitoring, bounded HTML, quota-outage retry cadence,
      and expanded error redaction for Stripe IDs and cuids. The remaining
      favorites Clerk-ID console leak was closed separately above.
+192. **Round 2 race/TOCTOU priority cluster is stale on current main** —
+     verified audit cleanup. The sampled race findings from the raw Round 2
+     list are already guarded: create-time listing AI review only writes while
+     `status = PENDING_REVIEW`, Guild listing-threshold sync uses one SQL
+     `CASE`/`COUNT` update, saved searches run dedup/count/create inside
+     `withSerializableRetry()`, custom-order ready links take an advisory
+     transaction lock before creating the durable message, blog comment approval
+     side effects run only after `updateMany({ approved: false })`, review/case
+     duplicate creates return friendly 409s on `P2002`, review unvotes and cart
+     updates use `deleteMany`/`updateMany`, message `firstResponseAt` is
+     null-preconditioned, edit-photo conflict cleanup deletes new uploaded R2
+     URLs, follow rechecks block state after insert and deletes the row on a
+     race, Stripe webhooks return retryable 503 while an event is in progress,
+     and account deletion uses the Redis deletion lock before Clerk deletion.
+193. **Round 2 accessibility launch-blocker cluster is stale on current main**
+     — verified audit cleanup. The current code already has VariantSelector
+     radiogroup/radio semantics with roving Arrow-key handling, OpenCaseForm
+     labels and alert-linked errors, ShippingAddressForm `aria-invalid` and
+     `aria-describedby` errors, AdminEmailForm labels and close-button name,
+     ImageCropModal dialog semantics/focus/scroll-lock/Escape handling, and
+     labelled map widgets with screen-reader summaries. Existing regression
+     coverage lives in `tests/accessibility-followups.test.mjs`,
+     `tests/review-vote-visibility.test.mjs`, and related a11y guardrail tests.
+194. **Round 2 adversarial-persona cleanup cluster is stale on current main**
+     — verified audit cleanup. Banned/deleted reviewers render as "Former
+     buyer"; seller ban/account deletion cleanup removes commission interests,
+     seller metrics, seller rating summaries, stale reports, and seller review
+     replies; Clerk `user.created` clears only account-deletion email
+     suppressions for re-signups; sensitive Guild reinstatement/feature actions
+     require `ADMIN`; report resolution reasons are required and persisted; and
+     banned users remain blocked from Stripe dashboard links, messages,
+     fulfillment, and label flows through `ensureUserByClerkId()`/account-state
+     checks.
+195. **Round 3 Unicode/email-normalization root-cause cluster is stale on
+     current main** — verified audit cleanup. `src/lib/sanitize.ts` is now the
+     single canonical sanitizer for NFKC normalization, U+061C/bidi stripping,
+     zero-width removal, null-byte removal, Cyrillic-confusable folding, HTML
+     stripping, dangerous protocol removal, and code-point-safe truncation.
+     Email writers/readers now align on NFC/lowercase normalization through
+     `normalizeEmailAddress()` or equivalent helpers; newsletter and unsubscribe
+     flows normalize consistently; profanity, AI-review, notification payload,
+     support request, and tag helpers delegate to canonical normalization; email
+     body/plain-text rendering strips bidi/zero-width/null controls; and
+     shipping address fields use single-line normalization before persistence or
+     carrier/Stripe payload use.
