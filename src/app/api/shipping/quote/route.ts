@@ -14,6 +14,7 @@ import {
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
+import { sanitizeAddressField, sanitizeOptionalAddressField } from "@/lib/addressFields";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -203,14 +204,17 @@ export async function POST(req: Request) {
     // toPostal is required by the Zod schema — the HMAC signing
     // below uses this exact value, and it must match what the
     // checkout route receives in body.shippingAddress.postalCode.
+    const sanitizedToCity = sanitizeOptionalAddressField(body.toCity, 100);
+    const sanitizedToState = sanitizeOptionalAddressField(body.toState, 50);
+    const sanitizedToCountry = sanitizeOptionalAddressField(body.toCountry, 2);
     const shipTo = {
-      name: body.toName || undefined,
-      line1: body.toLine1 || undefined,
-      line2: body.toLine2 || undefined,
-      postal: body.toPostal,
-      state: body.toState || "NY",
-      city: body.toCity || "New York",
-      country: body.toCountry || "US",
+      name: sanitizeOptionalAddressField(body.toName, 100) || undefined,
+      line1: sanitizeOptionalAddressField(body.toLine1, 200) || undefined,
+      line2: sanitizeOptionalAddressField(body.toLine2, 200) || undefined,
+      postal: sanitizeAddressField(body.toPostal, 20),
+      state: sanitizedToState || "NY",
+      city: sanitizedToCity || "New York",
+      country: sanitizedToCountry?.toUpperCase() || "US",
     };
 
     if (mode === "cart") {

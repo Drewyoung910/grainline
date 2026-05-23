@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { shippingAddressRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
-import { sanitizeText, sanitizeUserName } from "@/lib/sanitize";
+import { sanitizeAddressField, sanitizeAddressName, sanitizeOptionalAddressField } from "@/lib/addressFields";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -30,13 +30,6 @@ const AddressSchema = z.object({
   phone: z.string().max(20).optional().nullable(),
 });
 const SHIPPING_ADDRESS_BODY_MAX_BYTES = 24 * 1024;
-
-function sanitizeAddressLine(value: string) {
-  return sanitizeText(value)
-    .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 export async function GET() {
   const { userId } = await auth();
@@ -112,13 +105,13 @@ export async function PUT(req: Request) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      shippingName: sanitizeUserName(body.name),
-      shippingLine1: sanitizeAddressLine(body.line1),
-      shippingLine2: body.line2 ? sanitizeAddressLine(body.line2) || null : null,
-      shippingCity: sanitizeAddressLine(body.city),
+      shippingName: sanitizeAddressName(body.name),
+      shippingLine1: sanitizeAddressField(body.line1, 200),
+      shippingLine2: sanitizeOptionalAddressField(body.line2, 200),
+      shippingCity: sanitizeAddressField(body.city, 100),
       shippingState: body.state.toUpperCase(),
       shippingPostalCode: body.postalCode,
-      shippingPhone: body.phone ? sanitizeAddressLine(body.phone) || null : null,
+      shippingPhone: sanitizeOptionalAddressField(body.phone, 20),
     },
   });
 

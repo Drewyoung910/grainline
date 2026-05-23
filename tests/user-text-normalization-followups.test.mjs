@@ -6,6 +6,11 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
+const {
+  normalizeCheckoutShippingAddress,
+  sanitizeAddressField,
+} = await import("../src/lib/addressFields.ts");
+
 describe("user text normalization followups", () => {
   it("sanitizes free-form message and case text before persistence", () => {
     const messages = source("src/app/messages/[id]/page.tsx");
@@ -36,10 +41,38 @@ describe("user text normalization followups", () => {
 
   it("keeps shipping address fields single-line after sanitization", () => {
     const route = source("src/app/api/account/shipping-address/route.ts");
+    const seller = source("src/app/dashboard/seller/page.tsx");
+    const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
+    const checkoutSingle = source("src/app/api/cart/checkout/single/route.ts");
+    const quote = source("src/app/api/shipping/quote/route.ts");
 
-    assert.match(route, /function sanitizeAddressLine/);
-    assert.match(route, /replace\(\s*\/\[\\r\\n\\u0085\\u2028\\u2029\]\+\/g,\s*" "\s*\)/);
-    assert.match(route, /shippingLine1: sanitizeAddressLine\(body\.line1\)/);
+    assert.equal(sanitizeAddressField("123 Main\nFake Line 2\u2028Suite", 200), "123 Main Fake Line 2 Suite");
+    assert.deepEqual(
+      normalizeCheckoutShippingAddress({
+        name: "Buyer\nName",
+        line1: "123 Main\nFake Line",
+        line2: "\u2028Apt 2",
+        city: "Austin\nTX",
+        state: "tx",
+        postalCode: "78701",
+        phone: "555\n1212",
+      }),
+      {
+        name: "Buyer Name",
+        line1: "123 Main Fake Line",
+        line2: "Apt 2",
+        city: "Austin TX",
+        state: "TX",
+        postalCode: "78701",
+        phone: "555 1212",
+      },
+    );
+
+    assert.match(route, /shippingLine1: sanitizeAddressField\(body\.line1, 200\)/);
+    assert.match(seller, /shipFromLine1[\s\S]*sanitizeAddressField\(rawShipFromLine1, 200\)/);
+    assert.match(checkoutSeller, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
+    assert.match(checkoutSingle, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
+    assert.match(quote, /sanitizeOptionalAddressField\(body\.toLine1, 200\)/);
   });
 
   it("sanitizes Guild verification application narrative text", () => {

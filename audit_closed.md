@@ -1582,3 +1582,15 @@ Last updated: 2026-05-21
      no refund ledger before calling Shippo. A concurrent request cannot pass
      that row-level update after the first claim commits. Regression source
      coverage lives in `tests/verified-audit-followups.test.mjs`.
+185. **Dev make-order production-gate finding is stale on current main** —
+     verified audit cleanup. `/api/dev/make-order` is gated by a positive local
+     development check: `NODE_ENV === "development"`, `VERCEL !== "1"`,
+     `VERCEL_ENV === undefined`, and `ENABLE_DEV_MAKE_ORDER === "true"`.
+     `tests/public-cron-search-hardening.test.mjs` already blocks the old
+     fragile `NODE_ENV !== "production"` / `!VERCEL_ENV` style.
+186. **Shipping and ship-from address fields now share single-line
+     normalization** — code hardening. `src/lib/addressFields.ts` centralizes
+     address/name/phone cleanup, collapses CR/LF/Unicode line separators and
+     repeated whitespace, and is used by saved account shipping addresses,
+     seller ship-from settings, checkout shipping payloads before Stripe
+     metadata/idempotency hashing, and shipping quote Shippo destinations.

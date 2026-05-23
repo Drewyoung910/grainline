@@ -25,6 +25,7 @@ import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
 import { SHIPPING_ESTIMATED_DAYS_MAX } from "@/lib/stripeWebhookState";
+import { normalizeCheckoutShippingAddress } from "@/lib/addressFields";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -95,6 +96,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Invalid input", details: e.issues }, { status: 400 });
       }
       throw e;
+    }
+    const shippingAddress = normalizeCheckoutShippingAddress(body.shippingAddress);
+    if (!shippingAddress.name || !shippingAddress.line1 || !shippingAddress.city) {
+      return NextResponse.json({ error: "Shipping address is incomplete." }, { status: 400 });
     }
 
     const listing = await prisma.listing.findUnique({
@@ -197,7 +202,7 @@ export async function POST(req: Request) {
         estDays: body.selectedRate.estDays,
         contextId,
         buyerId: me.id,
-        buyerPostal: body.shippingAddress.postalCode,
+        buyerPostal: shippingAddress.postalCode,
       },
       body.selectedRate.token,
       body.selectedRate.expiresAt,
@@ -273,7 +278,7 @@ export async function POST(req: Request) {
       quantity: body.quantity,
       variantKey: variantResolution.variantKey,
       unitPriceCents,
-      shippingAddress: body.shippingAddress,
+      shippingAddress,
       selectedRate: {
         objectId: body.selectedRate.objectId,
         amountCents: shippingAmountCents,
@@ -416,14 +421,14 @@ export async function POST(req: Request) {
       buyerId: me.id,
       taxRetainedAtCreation: "true",
       selectedRateObjectId: body.selectedRate.objectId,
-      quotedToName: body.shippingAddress.name,
-      quotedToLine1: body.shippingAddress.line1,
-      quotedToLine2: body.shippingAddress.line2 ?? "",
-      quotedToCity: body.shippingAddress.city,
-      quotedToState: body.shippingAddress.state,
-      quotedToPostalCode: body.shippingAddress.postalCode,
+      quotedToName: shippingAddress.name,
+      quotedToLine1: shippingAddress.line1,
+      quotedToLine2: shippingAddress.line2 ?? "",
+      quotedToCity: shippingAddress.city,
+      quotedToState: shippingAddress.state,
+      quotedToPostalCode: shippingAddress.postalCode,
       quotedToCountry: "US",
-      quotedToPhone: body.shippingAddress.phone ?? "",
+      quotedToPhone: shippingAddress.phone ?? "",
       quotedShippingAmountCents: String(shippingAmountCents),
       giftNote: body.giftNote ? truncateText(sanitizeText(body.giftNote), 200) : "",
       giftWrapping: body.giftWrapping ? "true" : "false",
