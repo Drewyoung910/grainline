@@ -1416,3 +1416,17 @@ Last updated: 2026-05-21
      the user ID; ad-hoc recipient sends log a hashed email target ID and
      Sentry telemetry uses hashed recipient context. Existing guardrail:
      `tests/admin-moderation-observability.test.mjs`.
+157. **Rate-limit failure policy is unit-tested** — verified stale test-gap
+     finding. `limitWithFailurePolicy()` is covered for fail-closed protected
+     writes/expensive reads and fail-open telemetry/diagnostic paths, while the
+     public route sweep constrains where `safeRateLimitOpen()` may appear.
+     Existing guardrails: `tests/ratelimit-policy.test.mjs` and
+     `tests/public-cron-search-hardening.test.mjs`.
+158. **Block helper query-shape coverage exists** — verified stale test-gap
+     finding. `tests/block-filter-guardrails.test.mjs` guards reciprocal block
+     lookup, deleted-participant exclusions, and blocked seller-profile ID
+     derivation.
+159. **Shipping quote behavior is covered by state-helper tests** — verified
+     stale Shippo quote test-gap finding. `tests/shipping-quote-state.test.mjs`
+     covers fallback shipping clamps, exact preferred-carrier matching, and
+     same-currency carrier-filter behavior.
