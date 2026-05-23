@@ -72,4 +72,17 @@ describe("terms acceptance enforcement", () => {
     assert.match(form, /window\.location\.assign\(redirectUrl\)/);
     assert.doesNotMatch(page + form, /onClose|setOpen|Dialog|Modal|dismiss/i);
   });
+
+  it("leaves a retained user audit trail when durable terms are accepted", () => {
+    const route = source("src/app/api/account/accept-terms/route.ts");
+
+    assert.match(route, /import \{ logUserAuditAction \} from "@\/lib\/audit"/);
+    assert.match(route, /await logUserAuditAction\(\{/);
+    assert.match(route, /action: "TERMS_ACCEPTED"/);
+    assert.match(route, /targetType: "USER"/);
+    assert.match(route, /termsVersion: user\.termsVersion/);
+    assert.match(route, /termsAcceptedAt: user\.termsAcceptedAt\?\.toISOString\(\) \?\? acceptedAt\.toISOString\(\)/);
+    assert.match(route, /ageAttestedAt: user\.ageAttestedAt\?\.toISOString\(\) \?\? null/);
+    assert.match(route, /route: "\/api\/account\/accept-terms"/);
+  });
 });

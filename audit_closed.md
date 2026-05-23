@@ -1606,3 +1606,9 @@ Last updated: 2026-05-21
      row is anonymized, with non-PII metadata for seller/Stripe presence and
      Stripe reject success. The existing post-transaction audit-redaction pass
      still marks direct account-reference logs for deletion retention.
+189. **Terms acceptance now writes a retained audit row** — forensic
+     hardening. `POST /api/account/accept-terms` still writes durable
+     `User.termsAcceptedAt`, `termsVersion`, and `ageAttestedAt` before
+     invalidating the middleware account-state cache, and now also records a
+     non-blocking `TERMS_ACCEPTED` user audit row with the accepted version and
+     timestamps so clickwrap acceptance has a retained compliance trail.

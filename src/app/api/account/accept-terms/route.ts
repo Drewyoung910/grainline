@@ -8,6 +8,7 @@ import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/li
 import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/termsAcceptance";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
+import { logUserAuditAction } from "@/lib/audit";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
@@ -62,6 +63,18 @@ export async function POST(req: Request) {
     },
   });
   await invalidateAccountStateCache(userId, "accept_terms_account_state_cache_invalidate");
+  await logUserAuditAction({
+    actorId: me.id,
+    action: "TERMS_ACCEPTED",
+    targetType: "USER",
+    targetId: me.id,
+    metadata: {
+      termsVersion: user.termsVersion,
+      termsAcceptedAt: user.termsAcceptedAt?.toISOString() ?? acceptedAt.toISOString(),
+      ageAttestedAt: user.ageAttestedAt?.toISOString() ?? null,
+      route: "/api/account/accept-terms",
+    },
+  });
 
   return NextResponse.json({
     ok: true,
