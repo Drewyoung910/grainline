@@ -103,4 +103,19 @@ describe("PR I media, upload, and unsubscribe follow-ups", () => {
       "per-email unsubscribe limit should run before mutation",
     );
   });
+
+  it("rejects explicit cross-origin unsubscribe POSTs while preserving one-click providers", () => {
+    const route = source("src/app/api/email/unsubscribe/route.ts");
+    const security = source("src/lib/security.ts");
+    const postHandler = route.slice(route.indexOf("async function handlePost"), route.indexOf("export async function POST"));
+
+    assert.match(route, /function getExplicitCrossOriginPostRejection/);
+    assert.match(route, /req\.headers\.get\("origin"\)/);
+    assert.match(route, /req\.headers\.get\("referer"\)/);
+    assert.match(route, /if \(!originHeader && !refererHeader\) return null/);
+    assert.match(postHandler, /getExplicitCrossOriginPostRejection\(req\)/);
+    assert.match(postHandler, /logSecurityEvent\("origin_rejected"/);
+    assert.match(postHandler, /status: 403/);
+    assert.match(security, /origin_rejected/);
+  });
 });

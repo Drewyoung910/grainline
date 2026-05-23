@@ -18,6 +18,7 @@ const UNSUBSCRIBE_JSON_BODY_MAX_BYTES = 8 * 1024;
 const UNSUBSCRIBE_FORM_BODY_MAX_BYTES = 8 * 1024;
 
 type UnsubscribeParams = { email: string | null; token: string | null; issuedAt: string | null };
+type CrossOriginRejection = { header: "origin" | "referer"; value: string; expectedOrigin: string };
 
 function escapeHtml(value: string): string {
   return value
@@ -54,6 +55,42 @@ function confirmationResponse(email: string, token: string, issuedAt: string) {
 function wantsHtmlResponse(req: NextRequest): boolean {
   const url = new URL(req.url);
   return url.searchParams.get("response") === "html";
+}
+
+function requestOrigin(req: NextRequest): string {
+  return new URL(req.url).origin;
+}
+
+function headerOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getExplicitCrossOriginPostRejection(req: NextRequest): CrossOriginRejection | null {
+  const expectedOrigin = requestOrigin(req);
+  const originHeader = req.headers.get("origin");
+  const refererHeader = req.headers.get("referer");
+
+  // RFC 8058 one-click unsubscribe providers often POST server-to-server with
+  // no browser Origin/Referer. Absence is allowed; explicit cross-origin
+  // browser headers are rejected.
+  if (!originHeader && !refererHeader) return null;
+
+  if (originHeader && originHeader !== expectedOrigin) {
+    return { header: "origin", value: originHeader, expectedOrigin };
+  }
+
+  if (refererHeader) {
+    const refererOrigin = headerOrigin(refererHeader);
+    if (refererOrigin !== expectedOrigin) {
+      return { header: "referer", value: refererHeader, expectedOrigin };
+    }
+  }
+
+  return null;
 }
 
 async function readUnsubscribeParams(req: NextRequest): Promise<UnsubscribeParams> {
@@ -119,6 +156,23 @@ async function validateUnsubscribeRequest(req: NextRequest, mode: "json" | "html
 
 async function handlePost(req: NextRequest) {
   const mode = wantsHtmlResponse(req) ? "html" : "json";
+  const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
+  if (crossOriginRejection) {
+    logSecurityEvent("origin_rejected", {
+      ip: getIP(req),
+      route: "/api/email/unsubscribe",
+      reason: "explicit cross-origin unsubscribe POST rejected",
+      method: req.method,
+      header: crossOriginRejection.header,
+      headerOrigin: headerOrigin(crossOriginRejection.value),
+      expectedOrigin: crossOriginRejection.expectedOrigin,
+    });
+    if (mode === "html") {
+      return htmlResponse("Invalid unsubscribe request", "This unsubscribe request could not be verified.", 403);
+    }
+    return NextResponse.json({ ok: false, error: "Invalid unsubscribe request" }, { status: 403 });
+  }
+
   let validated: Awaited<ReturnType<typeof validateUnsubscribeRequest>>;
   try {
     validated = await validateUnsubscribeRequest(req, mode);

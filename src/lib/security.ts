@@ -38,6 +38,12 @@
  *    — Same as view tracking above. Analytics-only increment. No sensitive
  *      mutation; CSRF not a concern.
  *
+ * 7. POST /api/email/unsubscribe
+ *    — Mutates only through a signed unsubscribe token. It rate-limits by IP
+ *      and signed email hash, rejects explicit cross-origin Origin/Referer
+ *      headers, and still allows absent origin headers for RFC 8058
+ *      List-Unsubscribe one-click providers.
+ *
  * All other POST/PATCH/DELETE routes call auth() from @clerk/nextjs/server and
  * return 401 before touching any data if no valid Clerk session is present.
  */
@@ -50,7 +56,8 @@ export type SecurityEventType =
   | "invalid_input"
   | "account_state_violation"
   | "auth_challenge_failed"
-  | "token_rejected";
+  | "token_rejected"
+  | "origin_rejected";
 
 export function logSecurityEvent(
   event: SecurityEventType,
@@ -74,7 +81,8 @@ export function logSecurityEvent(
     event === "spam_attempt" ||
     event === "account_state_violation" ||
     event === "auth_challenge_failed" ||
-    event === "token_rejected"
+    event === "token_rejected" ||
+    event === "origin_rejected"
   ) {
     Sentry.captureEvent({
       message: `Security alert: ${event}`,

@@ -1461,3 +1461,9 @@ Last updated: 2026-05-21
      helpers, and `tsconfig.json` enables `allowImportingTsExtensions` under
      the existing no-emit setup so Node's test runner does not need a
      Next/tsconfig path resolver.
+166. **Unsubscribe POST rejects explicit cross-origin browser requests** —
+     code fix. `POST /api/email/unsubscribe` now rejects explicit Origin or
+     Referer headers that do not match the request origin while preserving
+     standards-compliant one-click unsubscribe providers that POST without
+     browser origin metadata. The route still requires the signed unsubscribe
+     token and keeps the existing IP plus signed-email throttles.
