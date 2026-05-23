@@ -6,6 +6,41 @@ Completed audit/fix pass history lives in `CLOSED_AUDIT_HISTORY.md`. Keep curren
 
 Strategic roadmap, recruitment playbooks, referral system phasing, and "things not to do" live in `STRATEGY.md`. CLAUDE.md is the codebase contract; STRATEGY.md is what hasn't been built yet and why. Update STRATEGY.md after any session that produces a strategic decision.
 
+## Codex Operating Discipline
+
+These rules exist to survive context compaction and multi-agent handoffs. Read this section before long audit, security, or launch-hardening work.
+
+### Source of truth
+
+- Work from `/Users/drewyoung/grainline` on `main` unless Drew explicitly says otherwise.
+- Treat Claude/other-agent findings as allegations, not facts. Verify each one against current `main` before fixing or closing it.
+- Do not commit raw Claude audit imports. `audit_open_findings.md` can contain unvetted findings; move only verified fixes or verified-stale findings into `audit_closed.md`.
+- Keep a running tally after each pass: verified real fixed, verified stale/false-positive closed, deferred/manual, and remaining unvetted.
+- If another worktree such as `.claude/worktrees/sleepy-hypatia-*` appears, compare it to main only when needed; do not assume it is current.
+
+### Agent use
+
+- Use sub-agents only when Drew explicitly authorizes agent/delegation work in the current context.
+- Best use: parallel read-only audits, independent verification of specific findings, or code edits with disjoint file ownership.
+- Avoid agent code edits on shared/high-conflict files unless the task has a clear owner and write set.
+- Tell worker agents they are not alone in the codebase, must not revert others' changes, and must list changed files.
+- Do not let sub-agents commit, push, deploy, or mark audit items closed. The parent Codex reviews every diff, checks logic, updates docs, runs the relevant tests, then commits.
+- If agents produce noisy or conflicting changes, stop delegation and return to a single-threaded pass until the tree is green again.
+
+### Pass sizing and verification
+
+- Bigger passes are acceptable when the scope is cohesive, but never commit known-broken code.
+- Run focused tests after meaningful code changes in the touched area. Batch expensive full checks (`npm test`, `npm run lint`, `npm run build`) for the end of a cohesive pass when the user asks for speed, but always run them before a production deploy or broad merge.
+- If CI or Vercel fails, stop broadening scope and fix the build first. Do not continue piling new fixes on top of a red pipeline.
+- For docs-only audit closure, `git diff --check` is usually enough before commit.
+- Security fixes need tests where practical. If a security property cannot be tested locally, document the manual verification or runtime dependency.
+
+### Security posture
+
+- Avoid false-confidence language. Say "verified in code", "covered by test", "manual dashboard check required", or "not proven" as appropriate.
+- Prefer defense-in-depth changes that reduce blast radius without creating launch risk: ownership checks, idempotency, bounded inputs, retention, privacy-safe logs, webhook replay handling, and explicit tests.
+- RLS is a separate architecture project, not a drive-by patch. If pursued, design it table-by-table with Prisma behavior tests and rollback instructions.
+
 ## Design System
 
 Visual standards for all UI work on this codebase. Do not deviate without explicit instruction.
