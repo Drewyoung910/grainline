@@ -63,6 +63,20 @@ describe("blog dashboard action guardrails", () => {
     assert.doesNotMatch(editPage, /else if \(newStatus !== "PUBLISHED"\) \{\s*publishedAt = null/);
   });
 
+  it("validates blog status input instead of relying on enum casts", () => {
+    const helper = source("src/lib/blogStatusInput.ts");
+    const newPage = source("src/app/dashboard/blog/new/page.tsx");
+    const editPage = source("src/app/dashboard/blog/[id]/edit/page.tsx");
+
+    assert.match(helper, /CREATE_STATUSES/);
+    assert.match(helper, /UPDATE_STATUSES/);
+    assert.match(helper, /allowed\.has\(status as BlogPostStatus\)/);
+    assert.match(newPage, /parseCreateBlogStatus\(formData\.get\("status"\)\)/);
+    assert.match(editPage, /parseUpdateBlogStatus\(formData\.get\("status"\)\)/);
+    assert.doesNotMatch(newPage, /formData\.get\("status"\) as/);
+    assert.doesNotMatch(editPage, /formData\.get\("status"\) as/);
+  });
+
   it("retries create-time blog slug collisions instead of surfacing P2002", () => {
     const newPage = source("src/app/dashboard/blog/new/page.tsx");
 

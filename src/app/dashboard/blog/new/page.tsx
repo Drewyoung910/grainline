@@ -14,6 +14,7 @@ import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
+import { parseCreateBlogStatus } from "@/lib/blogStatusInput";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -72,7 +73,8 @@ export default async function NewBlogPostPage() {
       };
     }
     const type = (formData.get("type") as BlogPostType) ?? "STANDARD";
-    const status = (formData.get("status") as "DRAFT" | "PUBLISHED") ?? "DRAFT";
+    const status = parseCreateBlogStatus(formData.get("status"));
+    if (!status) return { ok: false, error: "That blog status is not available." };
     const tagsRaw = String(formData.get("tags") ?? "").trim();
     const tags = tagsRaw ? normalizeTags(tagsRaw.split(",")) : [];
     const featuredListingIds = formData.getAll("featuredListingIds").map(String).filter(Boolean);

@@ -1264,3 +1264,44 @@ Last updated: 2026-05-21
      pull the Embedded Checkout/Stripe.js path. Stripe code still loads when a
      signed-in buyer opens Buy Now. Regression coverage:
      `tests/verified-audit-followups.test.mjs`.
+132. **Notification duplicate-create races are idempotent** — verified stale
+     production Sentry finding. `createNotification()` treats Prisma `P2002`
+     from the `Notification(userId,type,dedupKey)` unique constraint as a
+     dedup collision, returns the existing notification when available, and
+     never lets duplicate notification inserts break the primary follow/comment
+     mutation. Existing guardrail: `tests/social-interaction-hardening.test.mjs`.
+133. **Founding Maker grant failures are observable** — verified stale Round 4
+     P-8 finding. `maybeGrantFoundingMaker()` keeps the badge grant
+     non-blocking, but production failures are captured to Sentry at warning
+     level with `source: founding_maker_grant` and bounded seller-profile
+     context. Existing guardrail: `tests/post-launch-ui-followups.test.mjs`.
+134. **Sentry event messages and exception values are PII-scrubbed** —
+     verified stale observability finding. `beforeSend()` redacts top-level
+     `event.message`, transactions, request URLs/query strings, nested
+     exception values, stack-frame vars, extras, contexts, tags, headers,
+     cookies, and user metadata before upload. Existing guardrail:
+     `tests/sentry-filter.test.mjs`.
+135. **Email inactive-account lookup logs are sanitized** — verified stale
+     email observability finding. `findInactiveEmailAccount()` logs sanitized
+     error text through `sanitizeEmailOutboxError()` and sends only hashed
+     recipient telemetry to Sentry. Existing guardrail:
+     `tests/account-privacy-observability.test.mjs`.
+136. **Dead email-outbox jobs are monitored and retained intentionally** —
+     verified stale outbox retention finding. `ops-health` includes
+     `deadEmailOutboxCount`; `notification-prune` calls the shared
+     `pruneEmailOutboxRetention()` path so dead-letter accumulation is visible
+     and retained/deleted under the documented outbox retention rules.
+     Existing guardrails: `tests/email-outbox-retention.test.mjs` and
+     `tests/retention-and-ops-followups.test.mjs`.
+137. **Resend transient failures no longer auto-suppress on delayed delivery**
+     — verified stale notification DoS finding. Resend webhook handling only
+     counts `email.failed` as transient failure evidence, ignores
+     `email.delivery_delayed` for suppression, and requires five failures in
+     the rolling window before suppressing. Existing guardrail:
+     `tests/account-privacy-observability.test.mjs`.
+138. **Blog status input is validated before Prisma enum writes** — hardening
+     fix. Blog create/edit server actions now parse status through
+     `parseCreateBlogStatus()` / `parseUpdateBlogStatus()` and return a clean
+     action error for forged statuses instead of relying on unsafe TypeScript
+     casts that could bubble Prisma enum errors. Regression coverage:
+     `tests/blog-action-guardrails.test.mjs`.

@@ -458,7 +458,8 @@ describe("post-launch UI follow-ups", () => {
     assert.match(customerPhotosPage, /publicListingDetailWhere\(\{ sellerId: seller\.id \}\)/);
     assert.doesNotMatch(customerPhotosPage, /review: \{ listing: \{ sellerId: seller\.id \} \}/);
     assert.match(sitemap, /publicListingDetailWhere\(\{\s*reviews: \{ some: \{ photos: \{ some: \{\} \} \} \},\s*\}\)/s);
-    assert.match(sitemap, /\.\.\.customerPhotoRoutes/);
+    assert.match(sitemap, /chunk\.kind === "customerPhotos"/);
+    assert.match(sitemap, /publicSellerPath\(s\.id, s\.displayName\)}\/customer-photos/);
   });
 
   it("serializes Founding Maker number assignment instead of relying on bounded retries", () => {
