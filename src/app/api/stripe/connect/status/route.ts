@@ -6,6 +6,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { isSupportedStripeConnectAccountVersion } from "@/lib/stripeConnectV2";
 import { rateLimitResponse, safeRateLimit, stripeConnectRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 
 export async function GET() {
   const { userId } = await auth();
@@ -44,6 +45,7 @@ export async function GET() {
       where: { id: seller.id },
       data: { chargesEnabled },
     });
+    revalidatePublicSellerVisibilityCaches();
   }
 
   return privateJson({ hasStripeAccount: true, chargesEnabled });

@@ -9,7 +9,7 @@ import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
 import { syncGuildMemberListingThreshold } from '@/lib/guildListingThreshold'
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from '@/lib/ratelimit'
 import { publicListingPath } from '@/lib/publicPaths'
-import { revalidateListingSearchCaches } from '@/lib/searchCache'
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from '@/lib/searchCache'
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -151,6 +151,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
+    revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_approve_guild_threshold')
     // First active listing for this seller might earn the Founding Maker badge.
     try {
@@ -201,6 +202,7 @@ export async function PATCH(
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
     }
     revalidateListingSearchCaches()
+    revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_reject_guild_threshold')
     await logAdminAction({
       adminId: admin.id,

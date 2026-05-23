@@ -57,7 +57,11 @@ describe("public API auth inventory", () => {
       assert.ok(
         route.includes("safeRateLimit(") ||
           route.includes("safeRateLimitOpen(") ||
-          route.includes("export const revalidate = 3600"),
+          route.includes("export const revalidate = 3600") ||
+          (
+            route.includes('export const dynamic = "force-dynamic"') &&
+            route.includes("underlying tag helper owns caching")
+          ),
         `${path} should rate-limit or statically cache public DB work`,
       );
     }

@@ -5,7 +5,7 @@ import { mapWithConcurrency } from "@/lib/concurrency";
 import { accountDeletionMediaUrlsForCleanup } from "@/lib/urlValidation";
 import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
-import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
@@ -733,8 +733,7 @@ function mediaUrlHost(url: string) {
 
 function revalidateDeletedAccountSearchCaches(userId: string) {
   try {
-    revalidateListingSearchCaches();
-    revalidateBlogSearchCaches();
+    revalidatePublicSellerVisibilityCaches();
   } catch (error) {
     Sentry.captureException(error, {
       level: "warning",

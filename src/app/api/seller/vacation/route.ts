@@ -7,6 +7,7 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { z } from "zod";
 import { rateLimitResponse, safeRateLimit, vacationRatelimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   isInvalidJsonBodyError,
   isRequestBodyTooLargeError,
@@ -70,6 +71,7 @@ export async function POST(req: Request) {
       where: { id: seller.id },
       data: { vacationMode, vacationReturnDate, vacationMessage },
     });
+    revalidatePublicSellerVisibilityCaches();
 
     if (vacationMode) {
       after(() =>

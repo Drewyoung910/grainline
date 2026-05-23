@@ -14,6 +14,7 @@ import {
 } from "@/lib/stripeConnectV2";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
 import { z } from "zod";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 
 const ConnectCreateSchema = z.object({
   returnUrl: z.string().min(1).max(500).optional().nullable(),
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
       id: true,
       stripeAccountId: true,
       stripeAccountVersion: true,
+      chargesEnabled: true,
       shipFromCountry: true,
       user: { select: { email: true } },
     },
@@ -79,6 +81,9 @@ export async function POST(req: Request) {
         stripeControllerType: STRIPE_CONNECT_CONTROLLER_SUMMARY,
       },
     });
+    if (seller.chargesEnabled) {
+      revalidatePublicSellerVisibilityCaches();
+    }
     accountId = account.id;
   } else if (!isSupportedStripeConnectAccountVersion(seller.stripeAccountVersion)) {
     return NextResponse.json(
@@ -89,10 +94,14 @@ export async function POST(req: Request) {
     // Refresh charges_enabled status from Stripe
     try {
       const account = await stripe.accounts.retrieve(accountId);
-      await prisma.sellerProfile.update({
-        where: { id: seller.id },
-        data: { chargesEnabled: account.charges_enabled ?? false },
-      });
+      const chargesEnabled = account.charges_enabled ?? false;
+      if (chargesEnabled !== seller.chargesEnabled) {
+        await prisma.sellerProfile.update({
+          where: { id: seller.id },
+          data: { chargesEnabled },
+        });
+        revalidatePublicSellerVisibilityCaches();
+      }
     } catch {
       // Non-fatal — continue to return the account link
     }

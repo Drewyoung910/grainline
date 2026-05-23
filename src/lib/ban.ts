@@ -7,7 +7,7 @@ import { createNotification } from './notifications'
 import { blockingRefundLedgerWhere } from './refundRouteState'
 import { truncateText } from './sanitize'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
-import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from './searchCache'
+import { revalidatePublicSellerVisibilityCaches } from './searchCache'
 import { invalidateAccountStateCache } from './accountStateCache'
 import * as Sentry from '@sentry/nextjs'
 
@@ -91,8 +91,7 @@ async function notifyBuyersOfBannedSellerOrders(
 
 function revalidateAccountStateSearchCaches(source: string, userId: string) {
   try {
-    revalidateListingSearchCaches()
-    revalidateBlogSearchCaches()
+    revalidatePublicSellerVisibilityCaches()
   } catch (error) {
     Sentry.captureException(error, {
       level: 'warning',

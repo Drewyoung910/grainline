@@ -29,6 +29,7 @@ import { getPopularListingTags } from "@/lib/popularTags";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
 import { publicListingPath, publicSellerPath } from "@/lib/publicPaths";
 import { avatarInitial } from "@/lib/avatarInitials";
+import { HOME_FEATURED_MAKER_CACHE_TAG } from "@/lib/searchCache";
 
 function StarsInline({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, (value / 5) * 100));
@@ -154,7 +155,7 @@ const getFeaturedMakers = unstable_cache(async (): Promise<FeaturedMaker[]> => {
   }
 
   return picked;
-}, ["home-featured-makers-v2"], { revalidate: 3600, tags: ["home-featured-maker"] });
+}, ["home-featured-makers-v2"], { revalidate: 300, tags: [HOME_FEATURED_MAKER_CACHE_TAG] });
 
 const featuredListingSelect = {
   id: true,
@@ -170,8 +171,9 @@ type FeaturedMakerWithListings = {
   listings: FeaturedListing[];
 };
 
-async function getFeaturedMakerBlock(): Promise<FeaturedMakerWithListings[]> {
-  const makers = await getFeaturedMakers();
+async function getFeaturedMakerBlock(blockedSellerIds: string[] = []): Promise<FeaturedMakerWithListings[]> {
+  const blocked = new Set(blockedSellerIds);
+  const makers = (await getFeaturedMakers()).filter((maker) => !blocked.has(maker.id));
   if (makers.length === 0) return [];
 
   return Promise.all(
@@ -366,7 +368,7 @@ export default async function HomePage() {
         },
       },
     }),
-    getFeaturedMakerBlock(),
+    getFeaturedMakerBlock(blockedSellerIds),
   ]);
 
   const [activeListingsCount, sellersCount, ordersCount, membersCount] = statsResults;

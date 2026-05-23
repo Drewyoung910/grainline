@@ -38,6 +38,7 @@ import {
 } from "@/lib/checkoutStockRestore";
 import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
@@ -346,6 +347,7 @@ export async function POST(req: Request) {
         itemsSubtotalCents: true,
         shippingAmountCents: true,
         taxAmountCents: true,
+        giftWrapping: true,
         giftWrappingPriceCents: true,
         currency: true,
         estimatedDeliveryDate: true,
@@ -444,6 +446,7 @@ export async function POST(req: Request) {
       itemsSubtotalCents: order.itemsSubtotalCents,
       shippingAmountCents: order.shippingAmountCents,
       taxAmountCents: order.taxAmountCents,
+      giftWrapping: order.giftWrapping,
       giftWrappingPriceCents: order.giftWrappingPriceCents,
       currency: order.currency,
       estimatedDeliveryDate: order.estimatedDeliveryDate,
@@ -1735,6 +1738,7 @@ export async function POST(req: Request) {
             },
           });
           if (affectedSellerIds.length > 0) {
+            revalidatePublicSellerVisibilityCaches();
             await prisma.order.updateMany({
               where: {
                 reviewNeeded: false,

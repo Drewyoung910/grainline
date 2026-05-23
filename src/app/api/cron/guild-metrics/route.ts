@@ -19,6 +19,7 @@ import {
 import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5-minute limit for large seller sets
@@ -252,6 +253,7 @@ async function processGuildSeller(seller: GuildSeller): Promise<{
     return true;
   });
   if (!revoked) return { processed: 1, warned: 0, revokedMaster: 0 };
+  revalidateFeaturedMakerCaches();
 
   await createNotification({
     userId: seller.userId,

@@ -20,6 +20,7 @@ import { maybeGrantFoundingMaker } from "@/lib/foundingMaker";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
+import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 
 const REPUBLISH_NOTIFY_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -58,6 +59,8 @@ async function getOwnedListing(listingId: string): Promise<OwnedListingResult> {
 }
 
 function revalidateListingSurfaces(listingId: string, sellerId: string) {
+  revalidateListingSearchCaches();
+  revalidateFeaturedMakerCaches();
   revalidatePath(`/seller/${sellerId}/shop`);
   revalidatePath(`/seller/${sellerId}`);
   revalidatePath(`/listing/${listingId}`);

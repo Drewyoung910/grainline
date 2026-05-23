@@ -18,7 +18,9 @@ import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
 const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
-const UNSUBSCRIBE_URL_PLACEHOLDER = "__GRAINLINE_UNSUBSCRIBE_URL__";
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@thegrainline.com";
+const EMAIL_REPLY_TO = normalizeEmailAddress(process.env.EMAIL_REPLY_TO || SUPPORT_EMAIL) ?? SUPPORT_EMAIL;
+const UNSUBSCRIBE_HREF_PLACEHOLDER = "https://grainline.invalid/unsubscribe-placeholder-75f8c4d9";
 
 if (!process.env.RESEND_API_KEY) {
   console.warn("[email] RESEND_API_KEY is not set. Emails will be logged but not sent.");
@@ -41,6 +43,35 @@ function safeSubject(s: string) {
     .replace(/[\r\n]+/g, " ")
     .replace(/[\x00-\x1F\x7F<>"'&]/g, "")
     .trim();
+}
+
+function truncateSubjectText(s: string, maxLength: number) {
+  return safeSubject(truncateTextWithEllipsis(s, maxLength));
+}
+
+function shortId(id: string | null | undefined) {
+  const normalized = safeSubject(id ?? "");
+  return normalized ? normalized.slice(-6).toUpperCase() : "";
+}
+
+function orderSubjectSuffix(orderId: string) {
+  const id = shortId(orderId);
+  return id ? ` (Order #${id})` : "";
+}
+
+function escapeUrlAttribute(url: string) {
+  return url.replace(/"/g, "%22");
+}
+
+function unsubscribeFallbackUrl() {
+  return new URL("/unsubscribe", APP_URL).toString();
+}
+
+function injectUnsubscribeHref(html: string, unsubscribeUrl: string) {
+  return html.replaceAll(
+    `href="${UNSUBSCRIBE_HREF_PLACEHOLDER}"`,
+    `href="${escapeUrlAttribute(unsubscribeUrl)}"`,
+  );
 }
 
 /** Validate and escape a URL for use in img src attributes */
@@ -72,6 +103,7 @@ function btn(label: string, url: string): string {
 }
 
 function baseTemplate(title: string, body: string): string {
+  const year = new Date().getFullYear();
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -93,10 +125,12 @@ function baseTemplate(title: string, body: string): string {
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 16px;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-top:1px solid #E2E0DC;padding:20px 0 48px;">
     <tr><td style="font-size:11px;color:#9D9C97;line-height:1.6;">
-      © 2026 Grainline LLC &nbsp;·&nbsp;
+      © ${year} Grainline LLC &nbsp;·&nbsp;
       <a href="${APP_URL}" style="color:#9D9C97;text-decoration:none;">thegrainline.com</a>
       &nbsp;·&nbsp;
-      <a href="${UNSUBSCRIBE_URL_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">Unsubscribe</a>
+      <a href="${UNSUBSCRIBE_HREF_PLACEHOLDER}" style="color:#9D9C97;text-decoration:none;">Unsubscribe</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:${SUPPORT_EMAIL}" style="color:#9D9C97;text-decoration:none;">${SUPPORT_EMAIL}</a>
       <br/>
       <span style="font-size:10px;">5900 Balcones Drive STE 100, Austin, TX 78731</span>
     </td></tr>
@@ -130,16 +164,26 @@ function totalsTable(order: {
   itemsSubtotalCents: number;
   shippingAmountCents: number;
   taxAmountCents: number;
+  giftWrapping?: boolean | null;
   giftWrappingPriceCents?: number | null;
   currency?: string | null;
 }): string {
   const giftWrappingPriceCents = order.giftWrappingPriceCents ?? 0;
   const total = orderTotalCents(order);
+  const shippingRow = order.shippingAmountCents > 0
+    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>`
+    : "";
+  const taxRow = order.taxAmountCents > 0
+    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>`
+    : "";
+  const giftWrappingRow = order.giftWrapping || giftWrappingPriceCents > 0
+    ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${giftWrappingPriceCents > 0 ? fmtCents(giftWrappingPriceCents, order.currency) : "Included"}</td></tr>`
+    : "";
   return `<table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
     <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Subtotal</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.itemsSubtotalCents, order.currency)}</td></tr>
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Shipping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.shippingAmountCents, order.currency)}</td></tr>
-    <tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Tax</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(order.taxAmountCents, order.currency)}</td></tr>
-    ${giftWrappingPriceCents > 0 ? `<tr><td style="font-size:12px;color:#9D9C97;padding:3px 0;">Gift wrapping</td><td style="font-size:12px;color:#9D9C97;text-align:right;">${fmtCents(giftWrappingPriceCents, order.currency)}</td></tr>` : ""}
+    ${shippingRow}
+    ${taxRow}
+    ${giftWrappingRow}
     <tr>
       <td style="font-size:15px;font-weight:700;color:#1C1C1A;padding:10px 0 3px;border-top:1px solid #E2E0DC;">Total</td>
       <td style="font-size:15px;font-weight:700;color:#1C1C1A;text-align:right;padding:10px 0 3px;border-top:1px solid #E2E0DC;">${fmtCents(total, order.currency)}</td>
@@ -191,9 +235,19 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
   const emailHash = hashEmailForTelemetry(recipient);
 
   const unsubscribeUrl = buildUnsubscribeUrl(recipient);
-  const htmlForRecipient = html.replaceAll(UNSUBSCRIBE_URL_PLACEHOLDER, unsubscribeUrl ?? `${APP_URL}/unsubscribe`);
+  const htmlForRecipient = injectUnsubscribeHref(html, unsubscribeUrl ?? unsubscribeFallbackUrl());
   if (!HAS_RESEND) {
     console.log("[email:dev]", { emailHash, subjectLength: sanitizedSubject.length });
+    return;
+  }
+  if (!unsubscribeUrl) {
+    const err = new Error("One-click unsubscribe URL unavailable for configured email send");
+    Sentry.captureException(err, {
+      level: "error",
+      tags: { source: "email_send", reason: "missing_one_click_unsubscribe" },
+      extra: { emailHash, subjectLength: sanitizedSubject.length },
+    });
+    if (opts.throwOnFailure) throw err;
     return;
   }
   try {
@@ -213,16 +267,13 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
           from: process.env.EMAIL_FROM!,
           to: recipient,
           subject: sanitizedSubject,
+          replyTo: EMAIL_REPLY_TO,
           html: htmlForRecipient,
           text: htmlToText(htmlForRecipient),
-          ...(unsubscribeUrl
-            ? {
-                headers: {
-                  "List-Unsubscribe": `<${unsubscribeUrl}>`,
-                  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                },
-              }
-            : {}),
+          headers: {
+            "List-Unsubscribe": `<${unsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         }),
       {
         onRetry: (err, attempt, delayMs) => {
@@ -256,6 +307,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     itemsSubtotalCents: number;
     shippingAmountCents: number;
     taxAmountCents: number;
+    giftWrapping?: boolean | null;
     giftWrappingPriceCents?: number | null;
     currency?: string | null;
     estimatedDeliveryDate?: Date | null;
@@ -281,14 +333,16 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, your order from <strong>${esc(sellerName)}</strong> is being prepared.</p>
     ${itemTable(items, order.currency)}
     ${totalsTable(order)}
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
     ${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
     ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
+    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>
     ${btn("View your order", orderUrl)}
   `;
 
   return {
     to: buyer.email,
-    subject: "Your order is confirmed!",
+    subject: `Your Grainline order is confirmed${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("Order Confirmed", body),
   };
 }
@@ -303,6 +357,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
     itemsSubtotalCents: number;
     shippingAmountCents: number;
     taxAmountCents: number;
+    giftWrapping?: boolean | null;
     giftWrappingPriceCents?: number | null;
     currency?: string | null;
     processingDeadline?: Date | null;
@@ -318,6 +373,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> just purchased from your shop!</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
     ${itemTable(items, order.currency)}
     ${totalsTable(order)}
     ${order.processingDeadline ? `<p style="font-size:13px;color:#6B6A66;margin:8px 0 16px;"><strong>Ship by:</strong> ${fmtDate(order.processingDeadline)}</p>` : ""}
@@ -326,7 +382,7 @@ export function renderOrderConfirmedSellerEmail(opts: {
 
   return {
     to: seller.email,
-    subject: "Congrats! You made a sale!",
+    subject: `New sale on Grainline${orderSubjectSuffix(order.id)}`,
     html: baseTemplate("New Sale!", body),
   };
 }
@@ -359,7 +415,7 @@ export async function sendOrderShipped(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, "Your piece is on its way!", baseTemplate("Your order has shipped", body));
+  await send(buyer.email, `Your piece is on its way${orderSubjectSuffix(order.id)}`, baseTemplate("Your order has shipped", body));
 }
 
 export async function sendReadyForPickup(opts: {
@@ -378,7 +434,7 @@ export async function sendReadyForPickup(opts: {
     ${btn("View order details", orderUrl)}
   `;
 
-  await send(buyer.email, "Your order is ready for pickup!", baseTemplate("Ready for Pickup", body));
+  await send(buyer.email, `Your order is ready for pickup${orderSubjectSuffix(order.id)}`, baseTemplate("Ready for Pickup", body));
 }
 
 export async function sendOrderDelivered(opts: {
@@ -395,7 +451,7 @@ export async function sendOrderDelivered(opts: {
     ${btn("View order & leave a review", orderUrl)}
   `;
 
-  await send(buyer.email, "Your piece has been delivered!", baseTemplate("Order Delivered", body));
+  await send(buyer.email, `Your piece has been delivered${orderSubjectSuffix(order.id)}`, baseTemplate("Order Delivered", body));
 }
 
 export async function sendCaseOpened(opts: {
@@ -404,20 +460,19 @@ export async function sendCaseOpened(opts: {
   buyer: { name?: string | null };
   caseDescription: string;
 }) {
-  const { orderId, seller, buyer, caseDescription } = opts;
+  const { orderId, seller, buyer } = opts;
   const sellerName = seller.name || "there";
   const buyerName = buyer.name || "A buyer";
   const orderUrl = `${APP_URL}/dashboard/sales/${orderId}`;
-  const snippet = truncateTextWithEllipsis(caseDescription, 150);
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> has opened a case regarding their order.</p>
-    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;">${esc(snippet)}</blockquote>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyerName)}</strong> has opened a case regarding order <strong>#${esc(shortId(orderId))}</strong>.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">The buyer's case details are available in Grainline so the thread stays attached to the order record.</p>
     <p style="font-size:13px;color:#9D9C97;margin:0 0 16px;">You have 48 hours to respond before this is escalated to Grainline staff.</p>
     ${btn("Respond to case", orderUrl)}
   `;
 
-  await send(seller.email, "A buyer opened a case on your order", baseTemplate("Case Opened", body));
+  await send(seller.email, `A buyer opened a case${orderSubjectSuffix(orderId)}`, baseTemplate("Case Opened", body));
 }
 
 export async function sendCaseMessage(opts: {
@@ -427,14 +482,13 @@ export async function sendCaseMessage(opts: {
   caseLink: string;
   messageSnippet: string;
 }) {
-  const { recipientName, recipientEmail, senderName, caseLink, messageSnippet } = opts;
+  const { recipientName, recipientEmail, senderName, caseLink } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
-  const snippet = truncateTextWithEllipsis(messageSnippet, 150);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent a message in your case.</p>
-    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;">${esc(snippet)}</blockquote>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read and reply in the case thread.</p>
     ${btn("View conversation", caseLink)}
   `;
 
@@ -465,7 +519,7 @@ export async function sendCaseResolved(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, resolutionCopy.emailSubject, baseTemplate(resolutionCopy.emailHeading, body));
+  await send(buyer.email, `${resolutionCopy.emailSubject}${orderSubjectSuffix(orderId)}`, baseTemplate(resolutionCopy.emailHeading, body));
 }
 
 export async function sendCustomOrderRequest(opts: {
@@ -474,15 +528,14 @@ export async function sendCustomOrderRequest(opts: {
   description: string;
   conversationId: string;
 }) {
-  const { seller, buyerName, description, conversationId } = opts;
+  const { seller, buyerName, conversationId } = opts;
   const sellerName = seller.displayName || "there";
   const buyer = buyerName || "A buyer";
   const convoUrl = `${APP_URL}/messages/${conversationId}`;
-  const snippet = truncateTextWithEllipsis(description, 200);
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(sellerName)}, <strong>${esc(buyer)}</strong> wants a custom piece!</p>
-    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;">${esc(snippet)}</blockquote>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">The request details are available in Messages so replies and any private listing stay in one thread.</p>
     ${btn("View request", convoUrl)}
   `;
 
@@ -509,7 +562,7 @@ export async function sendCustomOrderReady(opts: {
     ${btn("Purchase your piece", listingUrl)}
   `;
 
-  await send(buyer.email, "Your custom piece is ready to purchase!", baseTemplate("Your Custom Piece is Ready", body));
+  await send(buyer.email, `Your custom piece is ready: ${truncateSubjectText(listingTitle, 40)}`, baseTemplate("Your Custom Piece is Ready", body));
 }
 
 export function renderBackInStockEmail(opts: {
@@ -529,7 +582,7 @@ export function renderBackInStockEmail(opts: {
 
   return {
     to: buyer.email,
-    subject: `${safeSubject(listingTitle)} is back in stock!`,
+    subject: `${truncateSubjectText(listingTitle, 50)} is back in stock!`,
     html: baseTemplate("Back in Stock", body),
   };
 }
@@ -600,7 +653,7 @@ export async function sendRefundIssued(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, "Your refund has been issued", baseTemplate("Refund Issued", body));
+  await send(buyer.email, `Your refund has been issued${orderSubjectSuffix(orderId)}`, baseTemplate("Refund Issued", body));
 }
 
 // ─── Lifecycle emails ─────────────────────────────────────────────────────────
@@ -754,7 +807,7 @@ export async function sendGuildMasterWarningEmail(opts: {
 
   await send(
     seller.email,
-    "Your Guild Master status is at risk — Grainline",
+    "Your Guild Master status is at risk - Grainline",
     baseTemplate("Guild Master Status at Risk", body)
   );
 }
@@ -774,7 +827,7 @@ export async function sendGuildMasterRevokedEmail(opts: {
 
   await send(
     seller.email,
-    "Guild Master badge update — Grainline",
+    "Guild Master badge update - Grainline",
     baseTemplate("Guild Master Badge Revoked", body)
   );
 }
@@ -796,7 +849,7 @@ export async function sendGuildMemberRevokedEmail(opts: {
 
   await send(
     seller.email,
-    "Guild Member badge update — Grainline",
+    "Guild Member badge update - Grainline",
     baseTemplate("Guild Member Badge Revoked", body)
   );
 }
@@ -820,6 +873,7 @@ export function renderNewListingFromFollowedMakerEmail(opts: {
 
   const body = `
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">${esc(makerName)} just posted a new piece on Grainline.</p>
+    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">You're receiving this because you follow ${esc(makerName)} on Grainline.</p>
     ${imageSection}
     <p style="font-size:17px;font-weight:600;color:#1C1C1A;margin:0 0 4px;">${esc(listingTitle)}</p>
     <p style="font-size:15px;color:#6B6A66;margin:0 0 20px;">${esc(listingPrice)}</p>
@@ -852,14 +906,13 @@ export async function sendNewMessageEmail(opts: {
   messagePreview: string;
   conversationUrl: string;
 }) {
-  const { recipientEmail, recipientName, senderName, messagePreview, conversationUrl } = opts;
+  const { recipientEmail, recipientName, senderName, conversationUrl } = opts;
   const name = recipientName || "there";
   const sender = senderName || "Someone";
-  const preview = truncateTextWithEllipsis(messagePreview, 200);
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent you a message:</p>
-    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;font-style:italic;">${esc(preview)}</blockquote>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(sender)}</strong> sent you a message on Grainline.</p>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open the conversation to read and reply.</p>
     ${btn("View Conversation", conversationUrl)}
   `;
 
@@ -875,16 +928,15 @@ export async function sendNewReviewEmail(opts: {
   reviewPreview: string;
   reviewUrl: string;
 }) {
-  const { sellerEmail, sellerName, buyerName, listingTitle, rating, reviewPreview, reviewUrl } = opts;
+  const { sellerEmail, sellerName, buyerName, listingTitle, rating, reviewUrl } = opts;
   const name = sellerName || "there";
   const buyer = buyerName || "A buyer";
   const ratingDisplay = Number.isInteger(rating) ? `${rating}` : rating.toFixed(1);
-  const preview = truncateTextWithEllipsis(reviewPreview, 200);
 
   const body = `
-    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(buyer)}</strong> left a review on <strong>${esc(listingTitle)}</strong>:</p>
+    <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Hi ${esc(name)}, <strong>${esc(buyer)}</strong> left a review on <strong>${esc(listingTitle)}</strong>.</p>
     <p style="font-size:18px;font-weight:600;margin:0 0 8px;">${esc(ratingDisplay)} out of 5 stars</p>
-    <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #E2E0DC;background:#F5F4F0;font-size:13px;color:#6B6A66;font-style:italic;">${esc(preview)}</blockquote>
+    <p style="font-size:13px;color:#6B6A66;margin:0 0 16px;">Open Grainline to read the full review and reply from your dashboard.</p>
     ${btn("View Review", reviewUrl)}
   `;
 

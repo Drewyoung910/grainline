@@ -138,7 +138,7 @@ export async function POST(request: Request) {
         <p style="color:#3D3D3A;font-size:15px;line-height:1.7;margin:0;">${escapedBody}</p>
       </div>
       <div style="padding:16px 28px;border-top:1px solid #E5E2DC;">
-        <p style="color:#9CA3AF;font-size:12px;line-height:1.6;margin:0;">This message was sent by the Grainline team · <a href="${APP_URL}" style="color:#9CA3AF;">thegrainline.com</a><br/>Grainline LLC, 5900 Balcones Drive STE 100, Austin, TX 78731</p>
+        <p style="color:#9CA3AF;font-size:12px;line-height:1.6;margin:0;">This message was sent by the Grainline team · <a href="${APP_URL}" style="color:#9CA3AF;">thegrainline.com</a> · <a href="${APP_URL}/unsubscribe" style="color:#9CA3AF;">Unsubscribe</a> · <a href="mailto:support@thegrainline.com" style="color:#9CA3AF;">support@thegrainline.com</a><br/>Grainline LLC, 5900 Balcones Drive STE 100, Austin, TX 78731</p>
       </div>
     </div>
   `;

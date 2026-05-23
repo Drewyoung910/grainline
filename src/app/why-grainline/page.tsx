@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://thegrainline.com/why-grainline" },
 };
 
+export const revalidate = 300;
+
 export default async function WhyGrainlinePage() {
   const [listingCount, sellerCount, foundingCount] = await Promise.all([
     prisma.listing.count({ where: publicListingWhere() }),

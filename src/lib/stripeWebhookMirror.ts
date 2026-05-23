@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { logSecurityEvent } from "@/lib/security";
 import { expireOpenCheckoutSessionsForSeller } from "@/lib/checkoutSessionExpiry";
+import { revalidatePublicSellerVisibilityCaches } from "@/lib/searchCache";
 
 export async function mirrorStripeChargesEnabled({
   accountId,
@@ -31,6 +32,7 @@ export async function mirrorStripeChargesEnabled({
     where: { id: seller.id },
     data: { chargesEnabled: effectiveChargesEnabled },
   });
+  revalidatePublicSellerVisibilityCaches();
 
   if (!effectiveChargesEnabled) {
     logSecurityEvent("ownership_violation", {

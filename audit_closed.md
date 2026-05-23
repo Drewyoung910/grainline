@@ -22,12 +22,12 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 206.
-- Verified code/feature fix commits since 2026-05-13: 182.
+- Verified hardening/doc commits since 2026-05-13: 207.
+- Verified code/feature fix commits since 2026-05-13: 183.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass total: 166 verified closed items in the 2026-05-14
-  active tracker below, plus forty-seven stale/false-positive claims verified
-  clean.
+- Most recent reported pass tally: 122 verified fixed/reduced findings,
+  48 verified stale/false-positive findings, and 32 deferred/manual findings
+  in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
 
@@ -1949,12 +1949,38 @@ Last updated: 2026-05-23
      cross-surface design work before migration. Guardrail:
      `tests/schema-retention-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 87 findings; verified
-stale/false-positive: 41 findings; product/design decisions deferred: 22
-findings. Remaining major categories: durable account-deletion/Stripe and audit
-redaction retry design, admin undo/ban side-effect retryability, AI semantic
-invariant and integration-test coverage, anonymous-cart merge durability,
-checkout concurrency integration evidence, state-machine completion follow-ups,
-JSON shape/size and email uniqueness production-scan decisions, conversation
-swapped-pair DB invariant design, and remaining privacy/export retention
-decisions.
+220. **Round 10 email and public cache visibility risks reduced** —
+     code/test fix or verified closure for #985 through #1036. Email delivery
+     now sets a central Reply-To, refuses live Resend sends when a one-click
+     unsubscribe URL cannot be generated, replaces unsubscribe links only in
+     the footer href placeholder, and adds support contact/footer/current-year
+     copy. Privacy-sensitive user-authored previews were removed from case,
+     private-message, custom-order, and review notification emails, and order,
+     case, refund, custom-order, back-in-stock, and Guild subjects were made
+     easier to reconcile without non-ASCII subject punctuation. Buyer receipts
+     now include order context, multi-seller checkout context, and free gift
+     wrap visibility while hiding zero shipping/tax rows. Homepage featured
+     makers are filtered against viewer block state after the global cache read,
+     `home-featured-maker` staleness was reduced to 5 minutes, and public seller
+     visibility cache invalidation is centralized for ban/unban, account
+     deletion, Stripe Connect/webhook changes, deauthorization, vacation mode,
+     seller shop listing actions, admin listing review, and Guild revocation
+     crons. Popular tag API routes no longer add a second route-level ISR layer
+     over tagged `unstable_cache`, and `/why-grainline` now revalidates its DB
+     counters every 5 minutes. Verified stale/false-positive: #995 as mostly
+     false for current namespaced outbox keys, #1000, #1004, #1011, #1028,
+     #1034, and #1035. Deferred/product/ops decisions: #993, #1003, #1005,
+     #1006, #1007, #1009, #1010, #1026, #1030, and #1033. Guardrails:
+     `tests/email-delivery-guardrails.test.mjs` and
+     `tests/cache-invalidation-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 122 findings;
+verified stale/false-positive: 48 findings; product/design decisions deferred:
+32 findings. Remaining major categories: durable account-deletion/Stripe and
+audit redaction retry design, admin undo/ban side-effect retryability, AI
+semantic invariant and integration-test coverage, anonymous-cart merge
+durability, checkout concurrency integration evidence, Round 10 state-machine
+completion follow-ups (#1037-#1061), JSON shape/size and email uniqueness
+production-scan decisions, conversation swapped-pair DB invariant design, email
+outbox retention/versioning/per-recipient quota design, and remaining
+privacy/export retention decisions.

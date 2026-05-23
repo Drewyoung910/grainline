@@ -17,6 +17,7 @@ import {
   guildMemberRevocationSellerWhere,
   type GuildMemberRevocationGuard,
 } from "@/lib/guildMemberRevocationState";
+import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -163,6 +164,7 @@ async function revokeMember(
     return true;
   });
   if (!revoked) return 0;
+  revalidateFeaturedMakerCaches();
 
   await createNotification({
     userId: seller.userId,

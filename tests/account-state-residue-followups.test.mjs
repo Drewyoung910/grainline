@@ -33,15 +33,15 @@ describe("account-state residue hardening", () => {
     assert.match(deletion, /removeSellerCommissionInterests\(tx, user\.sellerProfile\.id\)/);
   });
 
-  it("invalidates listing and blog search caches when account state removes public content", () => {
+  it("invalidates public seller visibility caches when account state removes public content", () => {
     const ban = source("src/lib/ban.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const blogIndex = source("src/app/dashboard/blog/page.tsx");
 
-    assert.match(ban, /revalidateListingSearchCaches/);
-    assert.match(ban, /revalidateBlogSearchCaches/);
+    assert.match(ban, /revalidatePublicSellerVisibilityCaches/);
     assert.match(ban, /revalidateAccountStateSearchCaches\('ban_user_search_cache_revalidate', userId\)/);
     assert.match(ban, /revalidateAccountStateSearchCaches\('unban_user_search_cache_revalidate', userId\)/);
+    assert.match(deletion, /revalidatePublicSellerVisibilityCaches/);
     assert.match(deletion, /revalidateDeletedAccountSearchCaches\(userId\)/);
     assert.match(blogIndex, /revalidateBlogSearchCaches\(\)/);
   });
