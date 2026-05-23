@@ -1337,3 +1337,25 @@ Last updated: 2026-05-21
      publication timestamp and follower fanout only runs on the first-ever
      publish, not archive/re-publish cycles. Existing guardrail:
      `tests/blog-action-guardrails.test.mjs`.
+144. **Duplicate-submit race UX paths return friendly conflicts** — verified
+     stale concurrency findings. Review creation catches duplicate `P2002` and
+     returns 409 "Already reviewed"; case creation catches duplicate order case
+     `P2002` and returns 409; review helpful-vote unvote uses `deleteMany`;
+     cart update/delete uses `updateMany`/`deleteMany` and returns 409 when the
+     cart item changed under it. Existing guardrails:
+     `tests/social-interaction-hardening.test.mjs`,
+     `tests/case-create-state.test.mjs`, and
+     `tests/order-state-followups.test.mjs`.
+145. **Message first-response timestamp is null-preconditioned** — verified
+     stale metric-drift finding. Message thread replies set
+     `Conversation.firstResponseAt` with `updateMany({ where: { id,
+     firstResponseAt: null } })`, so parallel replies cannot overwrite the
+     first recorded response time. Existing guardrail:
+     `tests/custom-order-admin-thread-followups.test.mjs`.
+146. **Accessibility audit cluster is guarded** — verified stale WCAG findings.
+     Variant selectors, listing-type controls, case forms, checkout address
+     errors, shipping-rate fieldsets, blog/review composition, admin email,
+     image crop modal dialog behavior, maps/text alternatives, address
+     autocomplete combobox behavior, compact header controls, footer contrast,
+     and data-table captions/header scopes are covered by
+     `tests/accessibility-followups.test.mjs`.
