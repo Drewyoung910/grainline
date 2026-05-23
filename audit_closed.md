@@ -1381,3 +1381,38 @@ Last updated: 2026-05-21
      verified stale XSS test-gap finding. Blog markdown rendering stays behind
      `sanitize-html` with narrow URL schemes and first-party image filtering,
      guarded by `tests/rendering-security.test.mjs`.
+151. **Email outbox quota-counter outages use retry cadence** — verified stale
+     outbox delay finding. When the daily quota Redis counter is unavailable,
+     `emailOutboxQuotaDeferralState()` schedules the job through the normal
+     retry delay instead of deferring every queued email until UTC midnight;
+     true quota exhaustion still waits for the daily reset. Existing guardrail:
+     `tests/email-outbox-state.test.mjs`.
+152. **Email-outbox errors redact Stripe IDs and cuids** — verified stale
+     telemetry finding. `sanitizeEmailOutboxError()` redacts emails, URLs,
+     Stripe-like IDs, Svix/webhook/API tokens, cuids, and long hex strings
+     before persisting `lastError` or logging sanitized email failures.
+     Existing guardrail: `tests/email-outbox-sanitize.test.mjs`.
+153. **Resend webhook transient failure handling is retryable and bounded** —
+     verified stale Resend webhook cluster. In-progress duplicate deliveries
+     return 503 with `Retry-After`; suppression writes use minimal safe details
+     instead of the full provider payload; transient failure counts are updated
+     atomically; and per-recipient task failures are captured via
+     `Promise.allSettled()` before retrying the webhook. Existing guardrails:
+     `tests/account-privacy-observability.test.mjs` and
+     `tests/resend-webhook-config.test.mjs`.
+154. **Order-confirmation direct sends have outbox fallback** — verified stale
+     transactional-email reliability finding. Stripe webhook order emails send
+     immediately through `sendRenderedEmail(..., { throwOnFailure: true })`,
+     then enqueue an idempotent outbox fallback if direct send fails, without
+     blocking webhook success. Existing guardrail:
+     `tests/post-launch-ui-followups.test.mjs`.
+155. **Plain-text email fallback strips decoded HTML-like tags** — verified
+     stale email text finding. `htmlToText()` removes `<head>`, style/script
+     blocks, and tags both before and after entity decoding so encoded
+     `<script>` text cannot reappear in the plain-text part. Existing guardrail:
+     `tests/email-text.test.mjs`.
+156. **Admin email audit logs do not store ad-hoc recipient emails verbatim** —
+     verified stale compliance finding. Admin email sends to known users log
+     the user ID; ad-hoc recipient sends log a hashed email target ID and
+     Sentry telemetry uses hashed recipient context. Existing guardrail:
+     `tests/admin-moderation-observability.test.mjs`.
