@@ -7,6 +7,7 @@ import { accountExportJsonResponse } from "@/lib/accountExportFormat";
 import { buildAccountExportPayload } from "@/lib/accountExportPayload";
 import { resolvedInterestedCount } from "@/lib/commissionInterestCount";
 import { logUserAuditAction } from "@/lib/audit";
+import { normalizeEmailAddress } from "@/lib/emailSuppression";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,7 @@ function jsonDownload(data: unknown, userId: string) {
 }
 
 async function buildExport(user: NonNullable<ExportableUser>) {
+  const accountEmail = normalizeEmailAddress(user.email ?? "") ?? user.email?.trim().toLowerCase() ?? null;
   const sellerProfile = await prisma.sellerProfile.findUnique({
     where: { userId: user.id },
     select: {
@@ -64,6 +66,17 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     commissionRequestRows,
     commissionInterests,
     notifications,
+    blocks,
+    userReportsSubmitted,
+    userReportsReceived,
+    supportRequests,
+    emailSuppressions,
+    stockNotifications,
+    makerVerification,
+    sellerFaqs,
+    newsletterSubscriptions,
+    sellerBroadcasts,
+    reviewVotes,
   ] = await Promise.all([
     sellerProfile
       ? prisma.listing.findMany({
@@ -83,7 +96,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             tags: true,
             createdAt: true,
             updatedAt: true,
-            photos: { orderBy: { sortOrder: "asc" }, select: { url: true, altText: true, sortOrder: true } },
+            photos: { orderBy: { sortOrder: "asc" }, select: { url: true, originalUrl: true, altText: true, sortOrder: true } },
             variantGroups: {
               orderBy: { sortOrder: "asc" },
               select: {
@@ -146,6 +159,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             status: true,
             reason: true,
             description: true,
+            metadata: true,
             createdAt: true,
           },
         },
@@ -197,6 +211,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
                 status: true,
                 reason: true,
                 description: true,
+                metadata: true,
                 createdAt: true,
               },
             },
@@ -349,6 +364,119 @@ async function buildExport(user: NonNullable<ExportableUser>) {
       orderBy: { createdAt: "desc" },
       select: { id: true, type: true, title: true, body: true, link: true, read: true, createdAt: true },
     }),
+    prisma.block.findMany({
+      where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+      orderBy: { createdAt: "desc" },
+      select: { blockerId: true, blockedId: true, createdAt: true },
+    }),
+    prisma.userReport.findMany({
+      where: { reporterId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        reportedId: true,
+        reason: true,
+        details: true,
+        targetType: true,
+        targetId: true,
+        resolved: true,
+        resolvedAt: true,
+        resolutionNote: true,
+        createdAt: true,
+      },
+    }),
+    prisma.userReport.findMany({
+      where: { reportedId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        reason: true,
+        targetType: true,
+        targetId: true,
+        resolved: true,
+        resolvedAt: true,
+        resolutionNote: true,
+        createdAt: true,
+      },
+    }),
+    accountEmail
+      ? prisma.supportRequest.findMany({
+          where: { email: accountEmail },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            kind: true,
+            status: true,
+            name: true,
+            email: true,
+            topic: true,
+            orderId: true,
+            message: true,
+            slaDueAt: true,
+            emailSentAt: true,
+            closedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : [],
+    accountEmail
+      ? prisma.emailSuppression.findMany({
+          where: { email: accountEmail },
+          orderBy: { createdAt: "desc" },
+          select: { email: true, reason: true, source: true, details: true, createdAt: true, updatedAt: true },
+        })
+      : [],
+    prisma.stockNotification.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { listingId: true, createdAt: true, listing: { select: { title: true, status: true } } },
+    }),
+    sellerProfile
+      ? prisma.makerVerification.findUnique({
+          where: { sellerProfileId: sellerProfile.id },
+          select: {
+            id: true,
+            sellerProfileId: true,
+            craftDescription: true,
+            guildMasterCraftBusiness: true,
+            yearsExperience: true,
+            portfolioUrl: true,
+            status: true,
+            reviewNotes: true,
+            appliedAt: true,
+            reviewedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : null,
+    sellerProfile
+      ? prisma.sellerFaq.findMany({
+          where: { sellerProfileId: sellerProfile.id },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, question: true, answer: true, sortOrder: true, createdAt: true },
+        })
+      : [],
+    accountEmail
+      ? prisma.newsletterSubscriber.findMany({
+          where: { email: accountEmail },
+          orderBy: { subscribedAt: "desc" },
+          select: { id: true, email: true, name: true, subscribedAt: true, active: true },
+        })
+      : [],
+    sellerProfile
+      ? prisma.sellerBroadcast.findMany({
+          where: { sellerProfileId: sellerProfile.id },
+          orderBy: { sentAt: "desc" },
+          select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
+        })
+      : [],
+    prisma.reviewVote.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { reviewId: true, value: true, createdAt: true, review: { select: { listingId: true } } },
+    }),
   ]);
   const commissionRequests = commissionRequestRows.map(({ _count, ...request }) => ({
     ...request,
@@ -377,6 +505,17 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     commissionRequests,
     commissionInterests,
     notifications,
+    blocks,
+    userReportsSubmitted,
+    userReportsReceived,
+    supportRequests,
+    emailSuppressions,
+    stockNotifications,
+    makerVerification,
+    sellerFaqs,
+    newsletterSubscriptions,
+    sellerBroadcasts,
+    reviewVotes,
   });
 }
 

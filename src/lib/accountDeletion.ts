@@ -40,6 +40,7 @@ export type AccountDeletionBlocker = {
 
 type AuditLogRedactionCandidate = {
   metadata: Prisma.JsonValue;
+  reason: string | null;
   directAccountReference: boolean;
 };
 
@@ -107,11 +108,13 @@ function mergeAuditLogRedactionCandidate(
   candidates: Map<string, AuditLogRedactionCandidate>,
   id: string,
   metadata: Prisma.JsonValue,
+  reason: string | null,
   directAccountReference: boolean,
 ) {
   const existing = candidates.get(id);
   candidates.set(id, {
     metadata: existing?.metadata ?? metadata,
+    reason: existing?.reason ?? reason,
     directAccountReference: Boolean(existing?.directAccountReference || directAccountReference),
   });
 }
@@ -171,22 +174,28 @@ async function collectAuditLogsBySensitiveMetadata(
     for (;;) {
       const query: Prisma.Sql = cursor
         ? Prisma.sql`
-          SELECT id, metadata
+          SELECT id, metadata, reason
           FROM "AdminAuditLog"
           WHERE id > ${cursor}
-            AND position(${normalized} in lower(metadata::text)) > 0
+            AND (
+              position(${normalized} in lower(metadata::text)) > 0 OR
+              position(${normalized} in lower(COALESCE(reason, ''))) > 0
+            )
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `
         : Prisma.sql`
-          SELECT id, metadata
+          SELECT id, metadata, reason
           FROM "AdminAuditLog"
-          WHERE position(${normalized} in lower(metadata::text)) > 0
+          WHERE (
+            position(${normalized} in lower(metadata::text)) > 0 OR
+            position(${normalized} in lower(COALESCE(reason, ''))) > 0
+          )
           ORDER BY id ASC
           LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
         `;
-      const matches: { id: string; metadata: Prisma.JsonValue }[] = await db.$queryRaw(query);
-      matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, false));
+      const matches: { id: string; metadata: Prisma.JsonValue; reason: string | null }[] = await db.$queryRaw(query);
+      matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, log.reason, false));
 
       if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
       cursor = matches[matches.length - 1]?.id ?? null;
@@ -212,13 +221,13 @@ async function collectAuditLogsByAccountReference(
   for (;;) {
     const matches = await db.adminAuditLog.findMany({
       where,
-      select: { id: true, metadata: true },
+      select: { id: true, metadata: true, reason: true },
       orderBy: { id: "asc" },
       take: ACCOUNT_DELETION_REDACTION_BATCH_SIZE,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, true));
+    matches.forEach((log) => mergeAuditLogRedactionCandidate(candidates, log.id, log.metadata, log.reason, true));
 
     if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
     cursor = matches[matches.length - 1]?.id;
@@ -249,11 +258,17 @@ async function redactAdminAuditLogsForAccountDeletion({
     const marked = candidate.directAccountReference
       ? markAccountDeletionAuditMetadata(redacted.metadata)
       : { metadata: redacted.metadata, changed: false };
+    const reason = candidate.reason
+      ? redactAccountDeletionText(candidate.reason, sensitiveValues)
+      : { text: null, changed: false };
 
-    if (!redacted.changed && !marked.changed) continue;
+    if (!redacted.changed && !marked.changed && !reason.changed) continue;
     await db.adminAuditLog.update({
       where: { id },
-      data: { metadata: marked.metadata as Prisma.InputJsonValue },
+      data: {
+        metadata: marked.metadata as Prisma.InputJsonValue,
+        ...(reason.changed ? { reason: reason.text } : {}),
+      },
     });
   }
 }
@@ -893,6 +908,21 @@ export async function anonymizeUserAccount(
       },
     });
     const suppressionEmail = normalizeEmailAddress(user.email) ?? user.email.trim().toLowerCase();
+    await tx.emailOutbox.updateMany({
+      where: {
+        OR: [{ userId: user.id }, { recipientEmail: suppressionEmail }],
+        sentAt: null,
+        status: { in: ["PENDING", "PROCESSING"] },
+      },
+      data: {
+        status: "SKIPPED",
+        subject: "Email skipped after account deletion",
+        html: "[Email removed after account deletion]",
+        nextAttemptAt: null,
+        sentAt: now,
+        lastError: "Skipped because the recipient account was deleted.",
+      },
+    });
     await tx.newsletterSubscriber.deleteMany({
       where: { email: suppressionEmail },
     });
@@ -1037,6 +1067,7 @@ export async function anonymizeUserAccount(
           shippingPolicy: null,
           featuredListingIds: [],
           galleryImageUrls: [],
+          galleryAltTexts: [],
           vacationMode: true,
           vacationReturnDate: null,
           vacationMessage: null,

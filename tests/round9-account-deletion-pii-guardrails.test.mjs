@@ -74,4 +74,23 @@ describe("Round 9 account deletion PII guardrails", () => {
       assert.match(deletion, new RegExp(`user\\.${field}`), `sensitive values must include ${field}`);
     }
   });
+
+  it("scrubs seller gallery alt text and pending outbox content on account deletion", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /galleryImageUrls: \[\]/);
+    assert.match(deletion, /galleryAltTexts: \[\]/);
+    assert.match(deletion, /tx\.emailOutbox\.updateMany\(\{/);
+    assert.match(deletion, /OR: \[\{ userId: user\.id \}, \{ recipientEmail: suppressionEmail \}\]/);
+    assert.match(deletion, /status: "SKIPPED"/);
+    assert.match(deletion, /html: "\[Email removed after account deletion\]"/);
+  });
+
+  it("redacts account identifiers from admin audit reasons as well as metadata", () => {
+    const deletion = source("src/lib/accountDeletion.ts");
+
+    assert.match(deletion, /COALESCE\(reason, ''\)/);
+    assert.match(deletion, /redactAccountDeletionText\(candidate\.reason, sensitiveValues\)/);
+    assert.match(deletion, /reason\.changed \? \{ reason: reason\.text \} : \{\}/);
+  });
 });

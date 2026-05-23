@@ -38,6 +38,17 @@ type AccountExportCollections = {
   commissionRequests: unknown[];
   commissionInterests: unknown[];
   notifications: unknown[];
+  blocks: unknown[];
+  userReportsSubmitted: unknown[];
+  userReportsReceived: unknown[];
+  supportRequests: unknown[];
+  emailSuppressions: unknown[];
+  stockNotifications: unknown[];
+  makerVerification: unknown;
+  sellerFaqs: unknown[];
+  newsletterSubscriptions: unknown[];
+  sellerBroadcasts: unknown[];
+  reviewVotes: unknown[];
 };
 
 export function buildAccountExportPayload(
@@ -85,5 +96,16 @@ export function buildAccountExportPayload(
     commissionRequests: data.commissionRequests,
     commissionInterests: data.commissionInterests,
     notifications: data.notifications,
+    blocks: data.blocks,
+    userReportsSubmitted: data.userReportsSubmitted,
+    userReportsReceived: data.userReportsReceived,
+    supportRequests: data.supportRequests,
+    emailSuppressions: data.emailSuppressions,
+    stockNotifications: data.stockNotifications,
+    makerVerification: data.makerVerification,
+    sellerFaqs: data.sellerFaqs,
+    newsletterSubscriptions: data.newsletterSubscriptions,
+    sellerBroadcasts: data.sellerBroadcasts,
+    reviewVotes: data.reviewVotes,
   };
 }

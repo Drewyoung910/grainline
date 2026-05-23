@@ -1839,16 +1839,30 @@ Last updated: 2026-05-23
      #861, #881, #882, #883, #886, #891, and #892; #890 was already closed in
      entry #205. Marked #849, #852, #857, #858, #860, and #880 as
      product/performance/retention decisions rather than current-code defects.
-     Still-open high-risk items from this slice are legacy conversation
-     response backfill/performance (#855/#858), account export/deletion privacy
-     scope (#873-#879), AI fail-closed integration regression coverage (#887),
-     checkout concurrency integration coverage (#888), and anonymous-cart merge
-     loss behavior (#889).
+     Still-open high-risk items from this slice after the metrics/ranking pass
+     were legacy conversation response backfill/performance (#855/#858),
+     account export/deletion privacy scope (#873-#879), AI fail-closed
+     integration regression coverage (#887), checkout concurrency integration
+     coverage (#888), and anonymous-cart merge loss behavior (#889).
 
-**Running tally after this pass:** verified fixed/reduced: 37 findings; verified
-stale/false-positive: 31 findings; product/design decisions deferred: 14
+213. **Round 9 account export and deletion privacy omissions reduced** —
+     code/test fix for #873, #874, #875, #876, #878, and #879; verified
+     stale/false-positive #877. Account export now includes seller listing
+     `Photo.originalUrl`, order payment-event metadata, seller broadcasts, and
+     explicit sections for blocks, submitted/received reports, support/data
+     requests, email suppressions, stock notifications, maker verification,
+     seller FAQs, newsletter subscriptions, and review votes. Account deletion
+     now clears parallel `SellerProfile.galleryAltTexts`, skips and scrubs
+     unsent `EmailOutbox` rows for the deleted user/email, and redacts
+     `AdminAuditLog.reason` text alongside metadata. Guardrails:
+     `tests/account-export-privacy.test.mjs`,
+     `tests/account-export-payload.test.mjs`, and
+     `tests/round9-account-deletion-pii-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 43 findings; verified
+stale/false-positive: 32 findings; product/design decisions deferred: 14
 findings. Remaining major categories: durable account-deletion/Stripe and audit
-redaction retry design, admin undo/ban side-effect retryability, account export
-scope, legacy message-response metrics/backfill, AI semantic invariant and
-integration-test coverage, anonymous-cart merge durability, checkout concurrency
-integration evidence, and remaining privacy/export omissions.
+redaction retry design, admin undo/ban side-effect retryability, legacy
+message-response metrics/backfill, AI semantic invariant and integration-test
+coverage, anonymous-cart merge durability, checkout concurrency integration
+evidence, and remaining privacy/export retention decisions.

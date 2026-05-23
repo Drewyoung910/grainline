@@ -47,6 +47,17 @@ function collections(overrides = {}) {
     commissionRequests: [],
     commissionInterests: [],
     notifications: [],
+    blocks: [],
+    userReportsSubmitted: [],
+    userReportsReceived: [],
+    supportRequests: [],
+    emailSuppressions: [],
+    stockNotifications: [],
+    makerVerification: null,
+    sellerFaqs: [],
+    newsletterSubscriptions: [],
+    sellerBroadcasts: [],
+    reviewVotes: [],
     ...overrides,
   };
 }
@@ -84,6 +95,17 @@ describe("account export payload", () => {
       "commissionRequests",
       "commissionInterests",
       "notifications",
+      "blocks",
+      "userReportsSubmitted",
+      "userReportsReceived",
+      "supportRequests",
+      "emailSuppressions",
+      "stockNotifications",
+      "makerVerification",
+      "sellerFaqs",
+      "newsletterSubscriptions",
+      "sellerBroadcasts",
+      "reviewVotes",
     ]);
     assert.equal(payload.generatedAt, "2026-04-28T12:00:00.000Z");
     assert.deepEqual(payload.buyerOrders, [{ id: "order_1" }]);
@@ -127,7 +149,9 @@ describe("account export payload", () => {
 
     assert.equal(payload.sellerProfile, null);
     assert.equal(payload.cart, null);
+    assert.equal(payload.makerVerification, null);
     assert.deepEqual(payload.listings, []);
     assert.deepEqual(payload.savedSearches, []);
+    assert.deepEqual(payload.sellerBroadcasts, []);
   });
 });
