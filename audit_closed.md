@@ -1910,11 +1910,31 @@ Last updated: 2026-05-23
      drafts or trigger thread fetches.
      Guardrail: `tests/client-async-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 61 findings; verified
-stale/false-positive: 32 findings; product/design decisions deferred: 14
-findings. Remaining major categories: schema CHECK/index hardening, durable
-account-deletion/Stripe and audit redaction retry design, admin undo/ban
-side-effect retryability, AI semantic invariant and integration-test coverage,
-anonymous-cart merge durability, checkout concurrency integration evidence,
-state-machine completion follow-ups, and remaining privacy/export retention
-decisions.
+218. **Round 10 schema numeric and index guardrails hardened** — code/test fix
+     or verified closure for #942 through #961. #942 was stale because
+     `20260521154500_schema_drift_and_raw_index_followups` already validates
+     the prior Listing price/stock CHECK constraints. New migration
+     `20260523223000_schema_numeric_guards_and_indexes` adds validated raw
+     CHECK constraints for order money fields, case refund non-negativity,
+     commission budget ordering/ranges, listing processing windows,
+     IN_STOCK non-null stock, seller shipping/package ranges, listing
+     analytics/score ranges, Founding Maker numbers, radius bounds, and review
+     rating bounds, reducing #943, #944, #946, #947, #948, #949, #950, #951,
+     #952, and #953. It also adds schema-visible indexes for the verified hot
+     query paths in #955, the seller-case subset of #957, the message/case/blog
+     author subset of #958, plus #959 and #960. #954 and #956 were verified
+     not hot enough for current traffic, and #961 was false as written:
+     `Order.stripeSessionId` remains a normal nullable unique; the partial
+     unique drift risk belongs to the separate payment-intent/charge indexes.
+     #945 remains a product/data-model decision because variant adjustments can
+     be negative by design and the effective-price lower bound is cross-table.
+     Guardrail: `tests/schema-numeric-index-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 76 findings; verified
+stale/false-positive: 36 findings; product/design decisions deferred: 15
+findings. Remaining major categories: FK/cascade retention and schema drift
+follow-ups, durable account-deletion/Stripe and audit redaction retry design,
+admin undo/ban side-effect retryability, AI semantic invariant and
+integration-test coverage, anonymous-cart merge durability, checkout concurrency
+integration evidence, state-machine completion follow-ups, and remaining
+privacy/export retention decisions.

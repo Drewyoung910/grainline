@@ -255,6 +255,8 @@ model SellerProfile {
 
   @@index([featuredUntil])
   @@index([guildLevel, chargesEnabled, vacationMode])
+  @@index([metroId])
+  @@index([cityMetroId])
 }
 
 model SellerFaq {
@@ -366,6 +368,8 @@ model Listing {
   @@index([qualityScore])
   @@index([sellerId, updatedAt])
   @@index([customOrderConversationId])
+  @@index([metroId])
+  @@index([cityMetroId])
 }
 
 model Photo {
@@ -395,6 +399,7 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@id([userId, listingId])
+  @@index([listingId])
 }
 
 model Review {
@@ -461,6 +466,7 @@ model Message {
 
   @@index([conversationId])
   @@index([conversationId, createdAt])
+  @@index([senderId])
   @@index([recipientId, readAt])
 }
 
@@ -715,6 +721,7 @@ model CartItem {
 
   @@unique([cartId, listingId, variantKey])
   @@index([cartId])
+  @@index([listingId])
 }
 
 model ListingVariantGroup {
@@ -808,6 +815,7 @@ model Case {
   updatedAt            DateTime        @updatedAt
 
   @@index([buyerId])
+  @@index([sellerId])
   @@index([status, createdAt])
 }
 
@@ -822,6 +830,7 @@ model CaseMessage {
 
   @@index([caseId])
   @@index([caseId, createdAt])
+  @@index([authorId])
 }
 
 model SavedSearch {
@@ -958,6 +967,7 @@ model BlogComment {
 
   @@index([postId])
   @@index([postId, createdAt])
+  @@index([authorId])
   @@index([parentId])
 }
 
@@ -1287,6 +1297,8 @@ model CommissionRequest {
   @@index([buyerId])
   @@index([status, createdAt])
   @@index([category])
+  @@index([metroId])
+  @@index([cityMetroId])
 }
 
 model CommissionInterest {
