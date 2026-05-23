@@ -3,10 +3,10 @@
 import { useUser } from "@clerk/nextjs";
 import * as React from "react";
 import {
-  clearRecentlyViewed,
   RECENTLY_VIEWED_USER_STORAGE_KEY,
   recentlyViewedAuthTransition,
 } from "@/lib/recentlyViewed";
+import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 
 export default function RecentlyViewedAuthBoundary() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -18,7 +18,7 @@ export default function RecentlyViewedAuthBoundary() {
     try {
       const previousUserId = window.localStorage.getItem(RECENTLY_VIEWED_USER_STORAGE_KEY);
       const transition = recentlyViewedAuthTransition({ previousUserId, currentUserId });
-      if (transition.shouldClear) clearRecentlyViewed();
+      if (transition.shouldClear) clearSignedOutLocalAccountState();
 
       if (transition.nextUserId) {
         window.localStorage.setItem(RECENTLY_VIEWED_USER_STORAGE_KEY, transition.nextUserId);
@@ -26,7 +26,7 @@ export default function RecentlyViewedAuthBoundary() {
         window.localStorage.removeItem(RECENTLY_VIEWED_USER_STORAGE_KEY);
       }
     } catch {
-      if (!currentUserId) clearRecentlyViewed();
+      if (!currentUserId) clearSignedOutLocalAccountState();
     }
   }, [isLoaded, isSignedIn, user?.id]);
 

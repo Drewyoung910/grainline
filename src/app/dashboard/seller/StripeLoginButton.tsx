@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { safeStripeRedirectUrl } from "@/lib/stripeRedirect";
 
 export default function StripeLoginButton({ hasStripeAccount }: { hasStripeAccount: boolean }) {
   const [loading, setLoading] = React.useState(false);
@@ -20,8 +21,9 @@ export default function StripeLoginButton({ hasStripeAccount }: { hasStripeAccou
     try {
       const res = await fetch("/api/stripe/connect/login-link", { method: "POST" });
       const data = await res.json();
-      if (data.url) {
-        window.open(data.url, "_blank");
+      const redirectUrl = safeStripeRedirectUrl(data.url);
+      if (redirectUrl) {
+        window.open(redirectUrl, "_blank", "noopener,noreferrer");
       } else {
         setError("Could not generate Stripe link. Try again.");
       }

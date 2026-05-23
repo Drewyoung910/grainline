@@ -94,7 +94,7 @@ describe("account deletion timeout and terminal UX guardrails", () => {
 
     assert.match(route, /clerkSessionDeleted: true/);
     assert.match(button, /data\.clerkSessionDeleted/);
-    assert.match(button, /clearRecentlyViewed\(\)/);
+    assert.match(button, /clearSignedOutLocalAccountState\(\)/);
     assert.match(button, /signOut\(\{ redirectUrl: "\/account\/deleted\?status=support" \}\)/);
     assert.match(button, /signOut\(\{ redirectUrl: "\/account\/deleted" \}\)/);
     assert.match(deletedPage, /robots: \{ index: false, follow: false \}/);

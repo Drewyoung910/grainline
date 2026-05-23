@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProfileAvatarUploader from "@/components/ProfileAvatarUploader";
 import { Store } from "@/components/icons";
+import { safeStripeRedirectUrl } from "@/lib/stripeRedirect";
 import { saveStep1, saveStep2, advanceStep, completeOnboarding } from "./actions";
 
 interface Props {
@@ -187,8 +188,9 @@ export default function OnboardingWizard({
         body: JSON.stringify({ returnUrl: "/dashboard/onboarding?stripe_return=1" }),
       });
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      const redirectUrl = safeStripeRedirectUrl(data.url);
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
         return;
       }
       setActionError(typeof data.error === "string" ? data.error : "We couldn't start Stripe setup. Please try again.");

@@ -1869,10 +1869,26 @@ Last updated: 2026-05-23
      evidence remains a future performance-validation task. Guardrail:
      `tests/guild-metrics-state.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 44 findings; verified
+215. **Round 10 client session and Stripe redirect risks reduced** —
+     code/test fix for #902, #903, #904, #905, #906, and #907.
+     Sign-out, account deletion sign-out, and Clerk user-switch transitions now
+     clear recently viewed state, anonymous cart rows, and cart checkout
+     session state through `clearSignedOutLocalAccountState()`. Cart checkout
+     no longer persists Stripe `clientSecret` values to browser storage and
+     clears legacy `grainline_checkouts` entries on cart mount. Stripe Connect
+     client navigation now passes server-returned URLs through
+     `safeStripeRedirectUrl()` and opens dashboard links with
+     `noopener,noreferrer`. Seller fulfillment POSTs reject explicit
+     cross-origin browser headers before auth, form parsing, or mutation work.
+     Guardrails: `tests/local-account-state.test.mjs`,
+     `tests/stripe-redirect-state.test.mjs`, and
+     `tests/request-origin-guard.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 50 findings; verified
 stale/false-positive: 32 findings; product/design decisions deferred: 14
-findings. Remaining major categories: durable account-deletion/Stripe and audit
-redaction retry design, admin undo/ban side-effect retryability, legacy
-message-response metrics/backfill, AI semantic invariant and integration-test
-coverage, anonymous-cart merge durability, checkout concurrency integration
-evidence, and remaining privacy/export retention decisions.
+findings. Remaining major categories: Round 10 private-cache response headers,
+schema CHECK/index hardening, durable account-deletion/Stripe and audit
+redaction retry design, admin undo/ban side-effect retryability, AI semantic
+invariant and integration-test coverage, anonymous-cart merge durability,
+checkout concurrency integration evidence, and remaining privacy/export
+retention decisions.

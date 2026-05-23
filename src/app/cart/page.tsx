@@ -17,6 +17,14 @@ import {
   writeAnonymousCartItems,
   type AnonymousCartItem,
 } from "@/lib/anonymousCart";
+import {
+  CART_ADDRESS_KEY,
+  CART_RATES_KEY,
+  clearCartCheckoutSecrets,
+  clearCartSessionStorage,
+  readCartSessionJson,
+  writeCartSessionJson,
+} from "@/lib/cartSessionStorage";
 import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
@@ -127,44 +135,8 @@ type ClientSecretEntry = {
   sessionId: string;
 };
 
-const CART_ADDRESS_KEY = "grainline_cart_shipping_address";
-const CART_RATES_KEY = "grainline_cart_selected_rates";
-const CART_CHECKOUTS_KEY = "grainline_checkouts";
-
-function readSessionJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = sessionStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeSessionJson(key: string, value: unknown) {
-  try {
-    sessionStorage.setItem(key, JSON.stringify(value));
-  } catch { /* non-fatal */ }
-}
-
-function clearCheckoutStorage({ includeAddress = false }: { includeAddress?: boolean } = {}) {
-  try {
-    sessionStorage.removeItem(CART_CHECKOUTS_KEY);
-    sessionStorage.removeItem(CART_RATES_KEY);
-    if (includeAddress) sessionStorage.removeItem(CART_ADDRESS_KEY);
-  } catch { /* non-fatal */ }
-}
-
 function sessionIdFromClientSecret(secret: string) {
   return secret.includes("_secret_") ? secret.split("_secret_")[0] : "";
-}
-
-function normalizeClientSecrets(entries: ClientSecretEntry[]) {
-  return entries.flatMap((entry) => {
-    const sessionId = entry.sessionId || sessionIdFromClientSecret(entry.secret);
-    if (!entry.sellerId || !entry.sellerName || !entry.secret || !sessionId) return [];
-    return [{ ...entry, sessionId }];
-  });
 }
 
 function cartItemsFromAnonymous(items: AnonymousCartItem[]): CartItem[] {
@@ -292,19 +264,14 @@ function CartPage() {
 
   // Mount-time URL restoration
   React.useEffect(() => {
-    const storedAddress = readSessionJson<ShippingAddress | null>(CART_ADDRESS_KEY, null);
-    const storedSecrets = readSessionJson<ClientSecretEntry[]>(CART_CHECKOUTS_KEY, []);
-    const normalizedStoredSecrets = normalizeClientSecrets(storedSecrets);
-    const storedRatesRaw = readSessionJson<Record<string, SelectedShippingRate>>(CART_RATES_KEY, {});
+    const storedAddress = readCartSessionJson<ShippingAddress | null>(CART_ADDRESS_KEY, null);
+    const storedRatesRaw = readCartSessionJson<Record<string, SelectedShippingRate>>(CART_RATES_KEY, {});
+    clearCartCheckoutSecrets();
     const validStoredRates = Object.fromEntries(
       Object.entries(storedRatesRaw).filter(([, rate]) => rate.expiresAt > Date.now() + 5000),
     );
 
     if (storedAddress) setShippingAddress(storedAddress);
-    if (normalizedStoredSecrets.length > 0) {
-      setClientSecrets(normalizedStoredSecrets);
-      writeSessionJson(CART_CHECKOUTS_KEY, normalizedStoredSecrets);
-    }
     if (Object.keys(validStoredRates).length > 0) setSelectedRates(validStoredRates);
 
     const urlStep = searchParams.get("step");
@@ -319,10 +286,6 @@ function CartPage() {
       }
     } else if (urlStep === "payment") {
       if (storedAddress) {
-        if (normalizedStoredSecrets.length > 0) {
-          setStep("payment");
-          return;
-        }
         setStep("shipping");
         router.replace("/cart?step=shipping", { scroll: false });
       } else {
@@ -407,7 +370,7 @@ function CartPage() {
       }
       setItems(cartItemsFromAnonymous(result.items));
       notifyCartUpdated();
-      clearCheckoutStorage();
+      clearCartSessionStorage();
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
@@ -425,7 +388,7 @@ function CartPage() {
       await load();
       notifyCartUpdated();
       // Reset checkout state on cart change
-      clearCheckoutStorage();
+      clearCartSessionStorage();
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
@@ -450,7 +413,7 @@ function CartPage() {
       }
       await load();
       notifyCartUpdated();
-      clearCheckoutStorage();
+      clearCartSessionStorage();
       setSelectedRates({});
       setClientSecrets([]);
       setCurrentPaymentIndex(0);
@@ -719,7 +682,7 @@ function CartPage() {
         if (!res.ok) {
           if (data?.code === "PRICE_CHANGED") {
             await load();
-            clearCheckoutStorage();
+            clearCartSessionStorage();
             setSelectedRates({});
             setClientSecrets([]);
             setCurrentPaymentIndex(0);
@@ -744,13 +707,12 @@ function CartPage() {
 
       setClientSecrets(secrets);
       setCurrentPaymentIndex(0);
-      writeSessionJson(CART_CHECKOUTS_KEY, secrets);
       setStep("payment");
       router.replace("/cart?step=payment", { scroll: false });
     } catch (e) {
       if (openedSessionIds.length > 0) {
         await rollbackCheckoutSessions(openedSessionIds);
-        clearCheckoutStorage();
+        clearCartSessionStorage();
         setClientSecrets([]);
         setCurrentPaymentIndex(0);
       }
@@ -765,7 +727,7 @@ function CartPage() {
     setRollingBackCheckout(true);
     setError(null);
     await rollbackCheckoutSessions(clientSecrets.map((entry) => entry.sessionId));
-    clearCheckoutStorage();
+    clearCartSessionStorage();
     setClientSecrets([]);
     setCurrentPaymentIndex(0);
     setStep("shipping");
@@ -891,8 +853,8 @@ function CartPage() {
             }}
             onConfirm={(address) => {
               setShippingAddress(address);
-              writeSessionJson(CART_ADDRESS_KEY, address);
-              clearCheckoutStorage();
+              writeCartSessionJson(CART_ADDRESS_KEY, address);
+              clearCartSessionStorage();
               setSelectedRates({});
               setClientSecrets([]);
               setStep("shipping");
@@ -917,7 +879,7 @@ function CartPage() {
             <button
               onClick={() => {
                 setSelectedRates({});
-                clearCheckoutStorage();
+                clearCartSessionStorage();
                 setStep("address");
                 router.replace("/cart?step=address", { scroll: false });
               }}
@@ -943,7 +905,7 @@ function CartPage() {
                       const next = { ...prev };
                       if (rate) next[g.sellerId] = rate;
                       else delete next[g.sellerId];
-                      writeSessionJson(CART_RATES_KEY, next);
+                      writeCartSessionJson(CART_RATES_KEY, next);
                       return next;
                     })
                   }
@@ -1001,7 +963,7 @@ function CartPage() {
               <button
                 onClick={() => {
                   setSelectedRates({});
-                  clearCheckoutStorage();
+                  clearCartSessionStorage();
                   setStep("address");
                   router.replace("/cart?step=address", { scroll: false });
                 }}
@@ -1040,7 +1002,7 @@ function CartPage() {
                   setCurrentPaymentIndex((prev) => prev + 1);
                 } else {
                   // All payments complete — clean up and redirect
-                  clearCheckoutStorage({ includeAddress: true });
+                  clearCartSessionStorage({ includeAddress: true });
                   const sessionIds = clientSecrets.map((entry) => entry.sessionId);
                   const params = new URLSearchParams({
                     session_id: sessionIds[sessionIds.length - 1],

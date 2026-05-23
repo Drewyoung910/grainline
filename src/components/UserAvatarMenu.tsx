@@ -5,7 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { clearRecentlyViewed } from "@/lib/recentlyViewed";
+import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 import { avatarInitial } from "@/lib/avatarInitials";
 
 interface Props {
@@ -173,7 +173,7 @@ export default function UserAvatarMenu({ name, imageUrl, avatarImageUrl, role, h
               type="button"
               onClick={async () => {
                 setOpen(false);
-                clearRecentlyViewed();
+                clearSignedOutLocalAccountState();
                 await signOut({ redirectUrl: "/" });
               }}
               className="flex w-full items-center px-4 py-2.5 text-sm text-neutral-800 hover:bg-neutral-50"

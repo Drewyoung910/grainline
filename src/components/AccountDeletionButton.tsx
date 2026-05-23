@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useToast } from "@/components/Toast";
-import { clearRecentlyViewed } from "@/lib/recentlyViewed";
+import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 
 type Blocker = {
   code: string;
@@ -40,7 +40,7 @@ export function AccountDeletionButton() {
         setBlockers(data.blockers ?? []);
         if (data.clerkSessionDeleted) {
           toast(data.error ?? "Account deletion needs manual support follow-up.", "error");
-          clearRecentlyViewed();
+          clearSignedOutLocalAccountState();
           await signOut({ redirectUrl: "/account/deleted?status=support" });
           return;
         }
@@ -49,7 +49,7 @@ export function AccountDeletionButton() {
       }
 
       toast(data.warning ?? "Account deleted.", data.warning ? "info" : "success");
-      clearRecentlyViewed();
+      clearSignedOutLocalAccountState();
       await signOut({ redirectUrl: "/account/deleted" });
     } catch {
       toast("Network error. Please try again.", "error");

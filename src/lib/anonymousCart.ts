@@ -32,7 +32,7 @@ export type AnonymousCartItemInput = {
   snapshot: AnonymousCartSnapshot;
 };
 
-type CartStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export type CartStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 const MAX_ANONYMOUS_CART_LINES = 100;
 const MAX_CART_QUANTITY = 99;

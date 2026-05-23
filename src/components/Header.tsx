@@ -13,7 +13,7 @@ import { MessageCircle, ShoppingBag, Menu, X, Search, Rss, User } from "@/compon
 import { anonymousCartCount } from "@/lib/anonymousCart";
 import { subscribeCartUpdated } from "@/lib/cartEvents";
 import { useBodyScrollLock, useDialogFocus } from "@/lib/dialogFocus";
-import { clearRecentlyViewed } from "@/lib/recentlyViewed";
+import { clearSignedOutLocalAccountState } from "@/lib/localAccountState";
 import { avatarInitial } from "@/lib/avatarInitials";
 
 export default function Header() {
@@ -471,7 +471,7 @@ export default function Header() {
                   type="button"
                   onClick={async () => {
                     setDrawerOpen(false);
-                    clearRecentlyViewed();
+                    clearSignedOutLocalAccountState();
                     await signOut({ redirectUrl: "/" });
                   }}
                   className="flex w-full items-center gap-3 px-0 py-2.5 text-sm text-red-600 hover:text-red-700 min-h-[44px]"

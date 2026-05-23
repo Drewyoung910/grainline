@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { safeStripeRedirectUrl } from "@/lib/stripeRedirect";
 
 export default function StripeConnectButton() {
   const [loading, setLoading] = React.useState(false);
@@ -15,8 +16,9 @@ export default function StripeConnectButton() {
         body: JSON.stringify({ returnUrl: "/dashboard/seller?stripe_return=1" }),
       });
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      const redirectUrl = safeStripeRedirectUrl(data.url);
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
       } else {
         setError("Could not start Stripe setup. Try again.");
       }
