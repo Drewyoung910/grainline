@@ -8,6 +8,7 @@ import { blockingRefundLedgerWhere } from './refundRouteState'
 import { truncateText } from './sanitize'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
 import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from './searchCache'
+import { invalidateAccountStateCache } from './accountStateCache'
 import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
@@ -202,6 +203,7 @@ export async function banUser({ userId, adminId, reason }: {
     }
   })
 
+  await invalidateAccountStateCache(clerkSync.clerkId, 'ban_user_account_state_cache_invalidate')
   revalidateAccountStateSearchCaches('ban_user_search_cache_revalidate', userId)
 
   if (clerkSync.sellerCheckoutExpiry) {
@@ -329,6 +331,7 @@ export async function unbanUser({ userId, adminId, reason }: {
     return { clerkId: previousUser.clerkId, sellerRestoreWarning }
   })
 
+  await invalidateAccountStateCache(clerkSync.clerkId, 'unban_user_account_state_cache_invalidate')
   revalidateAccountStateSearchCaches('unban_user_search_cache_revalidate', userId)
 
   try {

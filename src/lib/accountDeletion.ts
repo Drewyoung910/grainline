@@ -7,6 +7,7 @@ import { redis } from "@/lib/ratelimit";
 import { removeSellerCommissionInterests } from "@/lib/commissionInterestCleanup";
 import { revalidateBlogSearchCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
+import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import {
   Prisma,
   EmailSuppressionReason,
@@ -869,6 +870,7 @@ export async function anonymizeUserAccount(
   });
 
   if (!result.alreadyDeleted) {
+    await invalidateAccountStateCache(account.clerkId, "account_delete_account_state_cache_invalidate");
     revalidateDeletedAccountSearchCaches(userId);
 
     try {

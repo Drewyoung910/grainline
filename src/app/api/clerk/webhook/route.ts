@@ -22,6 +22,7 @@ import { revokeClerkUserSessions } from "@/lib/clerkUserLifecycle";
 import { normalizeEmailAddress } from "@/lib/emailSuppression";
 import { sanitizeUserName, truncateText } from "@/lib/sanitize";
 import { isRequestBodyTooLargeError, readBoundedText } from "@/lib/requestBody";
+import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 import * as Sentry from "@sentry/nextjs";
 
 interface ClerkUserEvent {
@@ -286,6 +287,7 @@ export async function POST(req: Request) {
           ...(termsVersion ? { termsVersion } : {}),
         },
       });
+      await invalidateAccountStateCache(id, "clerk_webhook_terms_account_state_cache_invalidate");
     }
 
     if (

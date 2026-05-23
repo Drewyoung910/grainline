@@ -9,6 +9,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { normalizeRequestId, requestHeadersWithRequestId, REQUEST_ID_HEADER } from "@/lib/requestId";
 import { shouldRequireTermsAcceptance } from "@/lib/termsAcceptance";
+import { getCachedAccountStateForMiddleware } from "@/lib/accountStateCache";
 
 const isPublic = createRouteMatcher([
   "/",
@@ -253,16 +254,19 @@ export default clerkMiddleware(async (auth, req) => {
   } | null = null;
 
   if (userId && (!isSuspendedAccountAllowed(req) || !isTermsAcceptanceAllowed(req))) {
-    account = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: {
-        banned: true,
-        deletedAt: true,
-        termsAcceptedAt: true,
-        termsVersion: true,
-        ageAttestedAt: true,
-      },
-    });
+    account = await getCachedAccountStateForMiddleware(
+      userId,
+      () => prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: {
+          banned: true,
+          deletedAt: true,
+          termsAcceptedAt: true,
+          termsVersion: true,
+          ageAttestedAt: true,
+        },
+      }),
+    );
   }
 
   if (userId && !isSuspendedAccountAllowed(req)) {

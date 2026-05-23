@@ -1532,3 +1532,11 @@ Last updated: 2026-05-21
      array, validate requested quantities against the order's purchased
      in-stock items, reject restoration after shipped/delivered/picked-up
      states, and keep full-refund stock restoration automatic.
+178. **Middleware account-state checks now use a short Redis cache with safe
+     invalidation** — code fix. Middleware now reads ban/deletion/Terms/age
+     state through a 60-second Redis cache that falls back to the database on
+     cache miss, malformed cache data, or Redis errors. Cache invalidation is
+     wired into terms acceptance, Clerk terms metadata writes, ban/unban,
+     admin undo-ban, and account deletion. Cached missing users use an
+     explicit `{ exists: false }` sentinel so Redis misses cannot be treated
+     as a clean account state.

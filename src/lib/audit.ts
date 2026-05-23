@@ -5,6 +5,7 @@ import { adminUndoActorBlockReason } from './adminAuditUndoState'
 import { readBanAuditMetadata } from './banAuditMetadata'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
+import { invalidateAccountStateCache } from './accountStateCache'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
@@ -211,6 +212,7 @@ export async function undoAdminAction({
   })
 
   if (log.action === 'BAN_USER' && clerkUnbanTarget?.clerkId) {
+    await invalidateAccountStateCache(clerkUnbanTarget.clerkId, 'admin_undo_ban_account_state_cache_invalidate')
     try {
       await unbanClerkUser(clerkUnbanTarget.clerkId)
       await logAdminAction({

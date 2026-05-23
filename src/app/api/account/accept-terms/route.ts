@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { safeRateLimit, termsAcceptanceRatelimit, rateLimitResponse } from "@/lib/ratelimit";
 import { CURRENT_TERMS_VERSION, currentTermsAcceptanceUpdate } from "@/lib/termsAcceptance";
 import { isRequestBodyTooLargeError, readOptionalBoundedJson } from "@/lib/requestBody";
+import { invalidateAccountStateCache } from "@/lib/accountStateCache";
 
 const AcceptTermsSchema = z.object({
   termsAccepted: z.literal(true),
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
       ageAttestedAt: true,
     },
   });
+  await invalidateAccountStateCache(userId, "accept_terms_account_state_cache_invalidate");
 
   return NextResponse.json({
     ok: true,
