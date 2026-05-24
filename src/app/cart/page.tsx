@@ -25,6 +25,7 @@ import {
   readCartSessionJson,
   writeCartSessionJson,
 } from "@/lib/cartSessionStorage";
+import { mergeAnonymousCartItemsToAccount } from "@/lib/anonymousCartMerge";
 import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
 import { publicListingPath } from "@/lib/publicPaths";
@@ -177,14 +178,9 @@ async function mergeAnonymousCartIntoAccount(items: AnonymousCartItem[]): Promis
   retryableFailure: boolean;
   errors: string[];
 }> {
-  let mergedCount = 0;
-  let rejectedCount = 0;
-  let retryableFailure = false;
-  const errors: string[] = [];
-  const retryableItems: AnonymousCartItem[] = [];
-
-  for (const item of items) {
-    try {
+  const result = await mergeAnonymousCartItemsToAccount(
+    items,
+    async (item) => {
       const res = await fetch("/api/cart/add", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -196,31 +192,19 @@ async function mergeAnonymousCartIntoAccount(items: AnonymousCartItem[]): Promis
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 401) {
-          retryableFailure = true;
-          retryableItems.push(item);
-          errors.push("Sign in again to restore your saved cart.");
-          continue;
-        }
-        rejectedCount += 1;
-        errors.push(data?.error || `${item.snapshot.title} could not be added to your cart.`);
-        continue;
+        return { ok: false, status: res.status, error: data?.error };
       }
-      mergedCount += 1;
-    } catch {
-      retryableFailure = true;
-      retryableItems.push(item);
-      errors.push("Saved cart items could not be restored right now.");
-    }
-  }
+      return { ok: true };
+    },
+  );
 
-  if (retryableFailure) {
-    writeAnonymousCartItems(retryableItems);
+  if (result.remainingItems.length > 0) {
+    writeAnonymousCartItems(result.remainingItems);
   } else {
     clearAnonymousCart();
   }
 
-  return { mergedCount, rejectedCount, retryableFailure, errors: [...new Set(errors)].slice(0, 3) };
+  return result;
 }
 
 async function rollbackCheckoutSessions(sessionIds: string[]) {

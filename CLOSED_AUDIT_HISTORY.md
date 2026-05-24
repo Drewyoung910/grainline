@@ -2,6 +2,13 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Anonymous Cart Merge Durability Pass (2026-05-24)
+
+- Extracted anonymous-cart sign-in merge outcome handling into `src/lib/anonymousCartMerge.ts`.
+- Merge now removes only successfully merged or terminally rejected anonymous-cart lines; retryable auth, rate-limit, conflict, network, and 5xx failures remain in local storage for a later retry.
+- Signed-out/sign-out cross-account leakage findings remain closed through `clearSignedOutLocalAccountState()`; this pass targeted partial-merge data loss and regression coverage.
+- Guardrail coverage: `tests/anonymous-cart-merge.test.mjs`.
+
 ## Round 11 Verification Follow-up Pass (2026-05-24)
 
 - Buyer order confirmations now show the multi-seller separate-order disclaimer only when checkout metadata records a multi-seller cart flow.

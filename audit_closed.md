@@ -2125,12 +2125,23 @@ Last updated: 2026-05-24
      `tests/schema-numeric-index-guardrails.test.mjs`, and
      `tests/schema-retention-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 157 findings;
+230. **Anonymous-cart merge durability reduced** — code/test fix for #771 and
+     #889. Sign-in merge now uses a tested helper that classifies auth,
+     rate-limit, conflict, network, and 5xx add failures as retryable and keeps
+     only those failed anonymous-cart lines in browser storage for a later
+     retry. Successfully merged lines and terminally rejected lines are removed,
+     so a partial server-side merge can no longer clear retryable local cart
+     data. Verified stale/false-positive from the same sweep: #902, #903, and
+     #906 remained closed by the prior client-session pass. #774 remains a
+     performance/bulk-endpoint decision rather than the durability fix in this
+     pass. Guardrail: `tests/anonymous-cart-merge.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 159 findings;
 verified stale/false-positive: 58 findings; product/design decisions deferred:
 41 findings. Remaining major categories: AI full-workflow integration evidence,
-anonymous-cart merge durability, checkout concurrency integration evidence,
-Round 10 deferred system-audit and state-machine product designs, JSON
-shape/size and email uniqueness production-scan decisions, conversation
-swapped-pair DB invariant design, email outbox retention/versioning design,
-account export/legal retention scope, and remaining privacy/export retention
-decisions.
+checkout concurrency integration evidence, Round 10 deferred system-audit and
+state-machine product designs, JSON shape/size and email uniqueness
+production-scan decisions, conversation swapped-pair DB invariant design,
+email outbox retention/versioning design, account export/legal retention scope,
+remaining privacy/export retention decisions, and anonymous-cart merge
+bulk/performance design.
