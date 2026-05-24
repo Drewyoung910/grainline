@@ -16,6 +16,7 @@ describe("admin audit durability", () => {
     assert.match(audit, /throw new AdminAuditLogError\(\)/);
     assert.doesNotMatch(audit, /return ''/);
     assert.match(audit, /Cannot automatically undo this ban because its audit metadata is incomplete/);
+    assert.match(audit, /source: 'admin_undo_stripe_account_verify'/);
   });
 
   it("co-commits high-risk admin mutations with their audit rows", () => {

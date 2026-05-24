@@ -278,6 +278,11 @@ export async function undoAdminAction({
           )
         } catch (err) {
           console.error('Failed to verify Stripe account during admin undo:', err)
+          Sentry.captureException(err, {
+            level: 'warning',
+            tags: { source: 'admin_undo_stripe_account_verify' },
+            extra: { logId, adminId, targetId: log.targetId, sellerProfileId: seller.id },
+          })
         }
         sellerRestore = { id: seller.id, chargesEnabled, vacationMode: !chargesEnabled }
       }

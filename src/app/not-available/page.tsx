@@ -20,12 +20,12 @@ export default function NotAvailablePage() {
           Not available in your region
         </h1>
         <p className='text-neutral-500 text-sm leading-relaxed mb-6'>
-          Grainline is currently only available in the United States and Canada.
+          Grainline is currently only available in the United States.
           We are a local handmade woodworking marketplace focused on connecting
-          buyers and makers in North America.
+          buyers and makers across the US.
         </p>
         <p className='text-neutral-500 text-xs'>
-          Are you a US or Canadian maker or buyer? Make sure you are not using a VPN.
+          Are you a US maker or buyer? Make sure you are not using a VPN.
         </p>
       </div>
     </main>

@@ -73,6 +73,7 @@ describe("Round 8 public profile privacy guardrails", () => {
 describe("Round 8 compliance copy guardrails", () => {
   it("does not claim unimplemented retention, GPC, or INFORM workflows as currently built", () => {
     const privacy = source("src/app/privacy/page.tsx");
+    const notAvailable = source("src/app/not-available/page.tsx");
     const terms = source("src/app/terms/page.tsx");
     const strategy = source("STRATEGY.md");
 
@@ -82,8 +83,13 @@ describe("Round 8 compliance copy guardrails", () => {
     assert.doesNotMatch(privacy, /seller analytics \(views, clicks, conversion data\), and Guild program data/);
     assert.match(privacy, /OpenFreeMap/);
     assert.match(privacy, /Cloudflare Email Routing/);
+    assert.doesNotMatch(notAvailable, /United States and Canada/);
+    assert.doesNotMatch(notAvailable, /Canadian maker or buyer/);
+    assert.match(notAvailable, /only available in the United States/);
 
     assert.doesNotMatch(terms, /Grainline will verify this information within\s*10 days/);
+    assert.doesNotMatch(terms, /currently 3 years/);
+    assert.match(terms, /retained according to the\s+retention practices described in the Privacy Policy/);
     assert.match(terms, /may require additional verification, recertification, or\s*buyer-facing disclosures/);
     assert.match(strategy, /INFORM Consumers Act high-volume seller workflow/);
     assert.match(strategy, /has not built a dedicated high-volume seller threshold tracker/);

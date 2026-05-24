@@ -2283,7 +2283,26 @@ Last updated: 2026-05-24
      `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
      `tests/order-seller-route-ownership.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 190 findings;
+238. **Residual observability and US-only copy pass reduced** — code/test fix
+     for #752, adjacent #756, and residual #1098 subpaths. Terms messaging
+     retention copy now defers to the current Privacy Policy instead of a
+     nonexistent fixed three-year message-prune workflow, and `/not-available`
+     now matches the US-only product/legal boundary instead of saying United
+     States and Canada. The Round 13 #1098 observability sweep was re-verified
+     read-only: notification, email, AI review main/duplicate-check, Founding
+     Maker, photo-alt backfill, vacation, and seller analytics paths already
+     had Sentry evidence on current `main`; two narrow residuals remained and
+     are now covered. Admin ban undo captures Stripe account verification
+     failures with bounded IDs, and the unused `generateAltText()` helper no
+     longer has a bare silent catch. Upload findings #1095, #1096, and #1099,
+     plus compliance findings #750, #751, #753, and #754, were re-verified
+     current/stale or deferred/product-tracked and not double-counted because
+     earlier passes already closed or truth-matched them. Guardrails:
+     `tests/admin-audit-durability.test.mjs`,
+     `tests/review-report-observability.test.mjs`, and
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 191 findings;
 verified stale/false-positive: 73 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,

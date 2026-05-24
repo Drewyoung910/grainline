@@ -392,7 +392,11 @@ export async function generateAltText(imageUrl: string): Promise<string | null> 
     const text = data.choices?.[0]?.message?.content?.trim() ?? null;
     if (!text) return null;
     return sanitizeAIAltText(text) || null;
-  } catch {
+  } catch (error) {
+    Sentry.captureException?.(error, {
+      level: "warning",
+      tags: { source: "ai_alt_text_generate" },
+    });
     return null;
   }
 }

@@ -54,6 +54,8 @@ describe("review/report/favorite observability hardening", () => {
 
     assert.match(aiReview, /source: "ai_review_duplicate_check"/);
     assert.match(aiReview, /source: "ai_review"/);
+    assert.match(aiReview, /source: "ai_alt_text_generate"/);
+    assert.doesNotMatch(aiReview, /catch \{\s*return null;\s*\}/);
     assert.match(altText, /source: "photo_alt_text_backfill"/);
     assert.match(analytics, /source: "seller_analytics"/);
     assert.match(recentSales, /source: "seller_analytics_recent_sales"/);

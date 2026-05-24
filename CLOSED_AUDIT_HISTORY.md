@@ -2,6 +2,15 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Residual Observability and US-Only Copy Pass (2026-05-24)
+
+- Terms messaging retention copy now defers to the current Privacy Policy instead of a nonexistent fixed three-year message-prune workflow.
+- `/not-available` now matches the US-only product/legal boundary instead of telling blocked visitors the service is available in Canada.
+- Admin ban undo now captures Stripe account verification failures with bounded Sentry context before falling back to a disabled seller restore state.
+- The unused `generateAltText()` helper no longer has a bare silent catch; failures are warning-level Sentry captures without image URL payloads.
+- Re-verified stale/current in the same sweep: processed image upload size/signature/Sharp guardrails and the Round 8 compliance-copy items for GPC, INFORM, commission retention, seller export wording, OpenFreeMap, Cloudflare Email Routing, and immediate account deletion wording were already current on `main` or explicitly product-tracked.
+- Guardrail coverage: `tests/admin-audit-durability.test.mjs`, `tests/review-report-observability.test.mjs`, and `tests/round8-fulfillment-privacy-guardrails.test.mjs`.
+
 ## Checkout Privacy, Variant Price, Env, and Seller Perf Pass (2026-05-24)
 
 - Cart checkout no longer persists full shipping address or selected rates in `sessionStorage`; legacy cart session address/rate/secrets are cleared by default, and mounted cart state listens for local account-state cleanup so a same-tab auth switch drops in-memory address/rate/payment state.
