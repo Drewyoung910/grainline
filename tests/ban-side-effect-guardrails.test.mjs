@@ -35,6 +35,7 @@ describe("ban side-effect guardrails", () => {
     assert.match(audit, /UNDO_BAN_USER_CLERK_SYNC_FAILED/);
     assert.match(audit, /if \(log\.undone\) \{\s*if \(await retryUndoBanClerkSyncIfPending\(log, adminId\)\) return/s);
     assert.match(audit, /Cannot retry Clerk unban because the account is currently banned/);
+    assert.match(audit, /banned: true,\s+deletedAt: null,\s+\.\.\.\(appliedBannedAt \? \{ bannedAt: appliedBannedAt \} : \{\}\)/s);
     assert.match(audit, /source: 'undo_ban_user_clerk_sync_retry'/);
     assert.match(audit, /retry: true/);
   });

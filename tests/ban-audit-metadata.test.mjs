@@ -27,6 +27,8 @@ describe("ban audit metadata", () => {
     });
 
     assert.deepEqual(metadata, {
+      appliedBannedAt: null,
+      externalSyncVersion: 1,
       previousSellerProfile: {
         id: "seller_123",
         chargesEnabled: true,
@@ -74,6 +76,8 @@ describe("ban audit metadata", () => {
     });
 
     assert.deepEqual(metadata, {
+      appliedBannedAt: null,
+      externalSyncVersion: null,
       previousSellerProfile: {
         id: "seller_123",
         chargesEnabled: false,
@@ -114,11 +118,15 @@ describe("ban audit metadata", () => {
 
   it("falls back to empty metadata for legacy audit rows", () => {
     assert.deepEqual(readBanAuditMetadata(null), {
+      appliedBannedAt: null,
+      externalSyncVersion: null,
       previousSellerProfile: null,
       previousCommissionRequests: [],
       flaggedOpenOrders: [],
     });
     assert.deepEqual(readBanAuditMetadata({ previousSellerProfile: { id: "seller_123" } }), {
+      appliedBannedAt: null,
+      externalSyncVersion: null,
       previousSellerProfile: null,
       previousCommissionRequests: [],
       flaggedOpenOrders: [],

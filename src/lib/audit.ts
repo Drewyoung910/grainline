@@ -56,6 +56,12 @@ function originalActionIdFromMetadata(metadata: unknown) {
     : null
 }
 
+function dateFromMetadata(value: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 async function retryUndoBanClerkSyncIfPending(log: {
   id: string;
   action: string;
@@ -256,14 +262,21 @@ export async function undoAdminAction({
     if (locked.count === 0) throw new Error('Already undone (concurrent request)')
 
     switch (log.action) {
-      case 'BAN_USER':
-        await tx.user.update({
-          where: { id: log.targetId },
+      case 'BAN_USER': {
+        const appliedBannedAt = dateFromMetadata(banMetadata?.appliedBannedAt ?? null)
+        const unbanned = await tx.user.updateMany({
+          where: {
+            id: log.targetId,
+            banned: true,
+            deletedAt: null,
+            ...(appliedBannedAt ? { bannedAt: appliedBannedAt } : {}),
+          },
           data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
         })
+        if (unbanned.count !== 1) throw new Error('User ban state changed before undo could be applied')
         if (sellerRestore) {
-          await tx.sellerProfile.update({
-            where: { id: sellerRestore.id },
+          await tx.sellerProfile.updateMany({
+            where: { id: sellerRestore.id, userId: log.targetId },
             data: {
               chargesEnabled: sellerRestore.chargesEnabled,
               vacationMode: sellerRestore.vacationMode,
@@ -284,6 +297,7 @@ export async function undoAdminAction({
           await restoreBannedSellerOrderReviewState(tx, banMetadata.flaggedOpenOrders)
         }
         break
+      }
       case 'REMOVE_LISTING':
       case 'HOLD_LISTING': {
         const updated = await tx.listing.updateMany({

@@ -42,6 +42,10 @@
       "schedule": "10,40 * * * *"
     },
     {
+      "path": "/api/cron/ban-side-effects",
+      "schedule": "20,50 * * * *"
+    },
+    {
       "path": "/api/cron/label-clawback-retry",
       "schedule": "*/30 * * * *"
     },

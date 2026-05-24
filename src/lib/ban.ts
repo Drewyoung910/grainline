@@ -40,6 +40,7 @@ async function logClerkSyncResult({
   adminId,
   action,
   targetId,
+  originalActionId,
   metadata,
 }: {
   adminId: string
@@ -50,6 +51,7 @@ async function logClerkSyncResult({
     | 'UNBAN_USER_CLERK_SYNC'
     | 'UNBAN_USER_CLERK_SYNC_FAILED'
   targetId: string
+  originalActionId?: string
   metadata: Record<string, unknown>
 }) {
   try {
@@ -59,7 +61,10 @@ async function logClerkSyncResult({
         action,
         targetType: 'USER',
         targetId,
-        metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
+        metadata: {
+          ...(originalActionId ? { originalActionId } : {}),
+          ...metadata,
+        } as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
       },
     })
   } catch (error) {
@@ -184,9 +189,10 @@ export async function banUser({ userId, adminId, reason }: {
           },
         })
       : []
+    const bannedAt = new Date()
     const banResult = await tx.user.updateMany({
       where: { id: userId, role: { not: "ADMIN" } },
-      data: { banned: true, bannedAt: new Date(), banReason: reason, bannedBy: adminId }
+      data: { banned: true, bannedAt, banReason: reason, bannedBy: adminId }
     })
     if (banResult.count !== 1) throw new BanUserPolicyError("Cannot ban admin accounts");
     await tx.sellerProfile.updateMany({
@@ -222,7 +228,7 @@ export async function banUser({ userId, adminId, reason }: {
         },
       })
     }
-    await tx.adminAuditLog.create({
+    const banAuditLog = await tx.adminAuditLog.create({
       data: {
         adminId,
         action: 'BAN_USER',
@@ -234,6 +240,7 @@ export async function banUser({ userId, adminId, reason }: {
             sellerProfile,
             commissionRequests,
             openOrders: flaggedOpenOrders,
+            appliedBannedAt: bannedAt,
           }),
           removedCommissionInterestRequestIds,
         },
@@ -241,6 +248,7 @@ export async function banUser({ userId, adminId, reason }: {
     })
     return {
       clerkId: target.clerkId,
+      banAuditLogId: banAuditLog.id,
       sellerCheckoutExpiry: sellerProfile?.stripeAccountId
         ? { sellerId: sellerProfile.id, stripeAccountId: sellerProfile.stripeAccountId }
         : null,
@@ -264,6 +272,7 @@ export async function banUser({ userId, adminId, reason }: {
         adminId,
         action: 'BAN_USER_CHECKOUT_SESSIONS_EXPIRED',
         targetId: userId,
+        originalActionId: clerkSync.banAuditLogId,
         metadata: {
           ...clerkSync.sellerCheckoutExpiry,
           ...expiryResult,
@@ -285,6 +294,7 @@ export async function banUser({ userId, adminId, reason }: {
       adminId,
       action: 'BAN_USER_CLERK_SYNC',
       targetId: userId,
+      originalActionId: clerkSync.banAuditLogId,
       metadata: {
         clerkUserId: clerkSync.clerkId,
         revokedSessionCount: result.revokedSessionCount,
@@ -299,6 +309,7 @@ export async function banUser({ userId, adminId, reason }: {
       adminId,
       action: 'BAN_USER_CLERK_SYNC_FAILED',
       targetId: userId,
+      originalActionId: clerkSync.banAuditLogId,
       metadata: {
         clerkUserId: clerkSync.clerkId,
         error: error instanceof Error ? error.message : String(error),

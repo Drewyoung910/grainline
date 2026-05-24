@@ -32,6 +32,8 @@ export type BanOpenOrderInput = {
 };
 
 export type BanAuditMetadata = {
+  appliedBannedAt: string | null;
+  externalSyncVersion: number | null;
   previousSellerProfile: BanSellerProfileSnapshot | null;
   previousCommissionRequests: BanCommissionRequestSnapshot[];
   flaggedOpenOrders: BanOpenOrderSnapshot[];
@@ -98,12 +100,18 @@ export function buildBanAuditMetadata({
   sellerProfile,
   commissionRequests,
   openOrders = [],
+  appliedBannedAt,
+  externalSyncVersion = 1,
 }: {
   sellerProfile: BanSellerProfileSnapshot | null;
   commissionRequests: BanCommissionRequestSnapshot[];
   openOrders?: BanOpenOrderInput[];
+  appliedBannedAt?: Date;
+  externalSyncVersion?: number;
 }): BanAuditMetadata {
   return {
+    appliedBannedAt: appliedBannedAt?.toISOString() ?? null,
+    externalSyncVersion,
     previousSellerProfile: sellerProfile
       ? {
           id: sellerProfile.id,
@@ -127,10 +135,21 @@ export function buildBanAuditMetadata({
 
 export function readBanAuditMetadata(metadata: unknown): BanAuditMetadata {
   if (!isRecord(metadata)) {
-    return { previousSellerProfile: null, previousCommissionRequests: [], flaggedOpenOrders: [] };
+    return {
+      appliedBannedAt: null,
+      externalSyncVersion: null,
+      previousSellerProfile: null,
+      previousCommissionRequests: [],
+      flaggedOpenOrders: [],
+    };
   }
 
   return {
+    appliedBannedAt: typeof metadata.appliedBannedAt === "string" ? metadata.appliedBannedAt : null,
+    externalSyncVersion:
+      typeof metadata.externalSyncVersion === "number" && Number.isSafeInteger(metadata.externalSyncVersion)
+        ? metadata.externalSyncVersion
+        : null,
     previousSellerProfile: readSellerProfileSnapshot(metadata.previousSellerProfile),
     previousCommissionRequests: readCommissionRequestSnapshots(metadata.previousCommissionRequests),
     flaggedOpenOrders: readOpenOrderSnapshots(metadata.flaggedOpenOrders),

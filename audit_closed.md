@@ -22,10 +22,10 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 212.
-- Verified code/feature fix commits since 2026-05-13: 188.
+- Verified hardening/doc commits since 2026-05-13: 213.
+- Verified code/feature fix commits since 2026-05-13: 189.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 147 verified fixed/reduced findings,
+- Most recent reported pass tally: 150 verified fixed/reduced findings,
   56 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -2059,14 +2059,29 @@ Last updated: 2026-05-23
      `tests/admin-audit-undo-state.test.mjs`, and
      `tests/round10-state-machine-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 147 findings;
+226. **Round 9 ban external-sync repair reduced** — code/test fix for #833,
+     #839, and the remaining retry portion of #836. Modern `BAN_USER` audit
+     rows now store the exact `appliedBannedAt` used on the `User` row plus
+     `externalSyncVersion: 1`, and BAN undo uses that timestamp in an
+     `updateMany` guard before clearing ban fields so a later ban is not
+     silently undone. Ban side-effect audit logs now include `originalActionId`,
+     and `/api/cron/ban-side-effects` retries recent modern BAN_USER rows whose
+     Clerk ban/session sync is missing or last failed. The repair path also
+     retries checkout-session expiry and logs retry outcomes. Remaining admin
+     audit items: #832 audit-log failure semantics, legacy Stripe/Clerk fallback
+     races from #834/#242, and #844 batched open-order review updates.
+     Guardrails: `tests/ban-side-effect-repair.test.mjs`,
+     `tests/ban-side-effect-guardrails.test.mjs`,
+     `tests/ban-audit-metadata.test.mjs`, `tests/cron-auth.test.mjs`,
+     `tests/cron-run.test.mjs`, and `tests/public-cron-search-hardening.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 150 findings;
 verified stale/false-positive: 56 findings; product/design decisions deferred:
 41 findings. Remaining major categories: admin audit logging durability,
-full ban/Clerk process-kill retryability, admin undo target-state races,
-batched open-order ban review updates, AI full-workflow integration evidence,
-anonymous-cart merge durability, checkout concurrency integration evidence,
-Round 10 deferred system-audit and state-machine product designs, JSON
-shape/size and email uniqueness production-scan decisions, conversation
-swapped-pair DB invariant design, email outbox retention/versioning design,
-account export/legal retention scope, and remaining privacy/export retention
-decisions.
+legacy ban undo fallback races, batched open-order ban review updates, AI
+full-workflow integration evidence, anonymous-cart merge durability, checkout
+concurrency integration evidence, Round 10 deferred system-audit and
+state-machine product designs, JSON shape/size and email uniqueness
+production-scan decisions, conversation swapped-pair DB invariant design, email
+outbox retention/versioning design, account export/legal retention scope, and
+remaining privacy/export retention decisions.
