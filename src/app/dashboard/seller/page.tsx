@@ -15,7 +15,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 import StripeLoginButton from "./StripeLoginButton";
 import StripeConnectButton from "./StripeConnectButton";
 import { NotificationToggle } from "@/components/NotificationToggle";
-import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import { sanitizeText } from "@/lib/sanitize";
 import { sanitizeAddressField, sanitizeAddressName, sanitizeOptionalAddressField } from "@/lib/addressFields";
 import { ensureUser, isAccountAccessError } from "@/lib/ensureUser";
@@ -208,7 +208,7 @@ export default async function SellerSettingsPage({
     }
   }
 
-  const prefs = (userRow?.notificationPreferences as Record<string, boolean>) ?? {};
+  const prefs = normalizeNotificationPreferences(userRow?.notificationPreferences);
   const SELLER_DEFAULT_OFF: NotificationPreferenceKey[] = ["NEW_FAVORITE", "NEW_BLOG_COMMENT", "BLOG_COMMENT_REPLY", "EMAIL_NEW_FOLLOWER"];
   function isEnabled(type: NotificationPreferenceKey) {
     if (SELLER_DEFAULT_OFF.includes(type)) return prefs[type] === true;

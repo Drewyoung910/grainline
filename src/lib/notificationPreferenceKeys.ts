@@ -32,9 +32,27 @@ export const VALID_PREFERENCE_KEYS = [
 export type InAppNotificationPreferenceKey = (typeof VALID_IN_APP_PREFERENCE_KEYS)[number];
 export type EmailNotificationPreferenceKey = (typeof VALID_EMAIL_PREFERENCE_KEYS)[number];
 export type NotificationPreferenceKey = (typeof VALID_PREFERENCE_KEYS)[number];
+export type NotificationPreferences = Partial<Record<NotificationPreferenceKey, boolean>>;
 
+const VALID_PREFERENCE_KEY_SET = new Set<string>(VALID_PREFERENCE_KEYS);
 const VALID_EMAIL_PREFERENCE_KEY_SET = new Set<string>(VALID_EMAIL_PREFERENCE_KEYS);
+
+export function isValidPreferenceKey(key: string | null | undefined): key is NotificationPreferenceKey {
+  return typeof key === "string" && VALID_PREFERENCE_KEY_SET.has(key);
+}
 
 export function isValidEmailPreferenceKey(key: string | null | undefined) {
   return typeof key === "string" && VALID_EMAIL_PREFERENCE_KEY_SET.has(key);
+}
+
+export function normalizeNotificationPreferences(value: unknown): NotificationPreferences {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const preferences: NotificationPreferences = {};
+  for (const [key, enabled] of Object.entries(value)) {
+    if (isValidPreferenceKey(key) && typeof enabled === "boolean") {
+      preferences[key] = enabled;
+    }
+  }
+  return preferences;
 }

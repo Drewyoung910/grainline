@@ -1,6 +1,9 @@
+import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "./notificationPreferenceKeys.ts";
+
 export function isInAppNotificationEnabled(
-  preferences: Record<string, boolean> | null | undefined,
+  preferences: unknown,
   type: string,
 ): boolean {
-  return preferences?.[type] !== false;
+  const normalized = normalizeNotificationPreferences(preferences);
+  return normalized[type as NotificationPreferenceKey] !== false;
 }

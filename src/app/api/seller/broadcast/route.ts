@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
   });
   const notificationFollowers = followers.filter((f) =>
     isInAppNotificationEnabled(
-      (f.follower.notificationPreferences as Record<string, boolean> | null) ?? null,
+      f.follower.notificationPreferences,
       "SELLER_BROADCAST",
     ),
   );

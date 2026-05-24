@@ -1,6 +1,6 @@
 import { EmailSuppressionReason } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { VALID_EMAIL_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
+import { normalizeNotificationPreferences, VALID_EMAIL_PREFERENCE_KEYS } from "@/lib/notificationPreferenceKeys";
 import { normalizeUnsubscribeEmail } from "@/lib/unsubscribeToken";
 
 export {
@@ -32,9 +32,7 @@ export async function unsubscribeEmail(email: string): Promise<{ ok: boolean; us
     });
 
     if (user) {
-      const preferences = {
-        ...((user.notificationPreferences as Record<string, boolean>) ?? {}),
-      };
+      const preferences = normalizeNotificationPreferences(user.notificationPreferences);
       for (const key of EMAIL_PREFS_TO_DISABLE) {
         preferences[key] = false;
       }

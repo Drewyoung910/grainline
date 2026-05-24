@@ -9,7 +9,7 @@ import {
   limitNotificationText,
 } from "@/lib/notificationPayload";
 import { isInAppNotificationEnabled } from "@/lib/notificationDeliveryPreferences";
-import { emailPreferenceDefaultEnabled } from "@/lib/notificationEmailPreferences";
+import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
 
 export {
@@ -37,11 +37,7 @@ export async function shouldSendEmail(userId: string, prefKey: string): Promise<
       select: { notificationPreferences: true, banned: true, deletedAt: true },
     });
     if (!user || user.banned || user.deletedAt) return false; // don't email suspended/deleted users
-    const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
-    if (!emailPreferenceDefaultEnabled(prefKey)) {
-      return prefs[prefKey] === true;
-    }
-    return prefs[prefKey] !== false;
+    return isEmailNotificationEnabled(user.notificationPreferences, prefKey);
   } catch (e) {
     console.error("Failed to check email preference:", e);
     Sentry.captureException(e, {
@@ -75,8 +71,7 @@ export async function createNotification({
     });
     if (!user || user.banned || user.deletedAt) return null;
 
-    const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
-    if (!isInAppNotificationEnabled(prefs, type)) return null;
+    if (!isInAppNotificationEnabled(user.notificationPreferences, type)) return null;
 
     const notificationTitle = limitNotificationText(title, NOTIFICATION_TITLE_MAX_LENGTH);
     const notificationBody = limitNotificationText(body, NOTIFICATION_BODY_MAX_LENGTH);

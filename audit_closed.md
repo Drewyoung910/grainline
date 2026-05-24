@@ -2159,7 +2159,20 @@ Last updated: 2026-05-24
      contains swapped duplicates. Guardrail:
      `tests/conversation-pair-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 161 findings;
+233. **Notification preference runtime shape reduced** — code/test fix for
+     #256 and partial runtime reduction for #979. `User.notificationPreferences`
+     reads now pass through `normalizeNotificationPreferences()`, which keeps
+     only known preference keys with boolean values. In-app notification
+     delivery, email preference checks, unsubscribe writes, broadcast follower
+     filtering, and settings rendering no longer trust raw
+     `Record<string, boolean>` casts, so malformed string/number/array values
+     do not silently alter delivery behavior. #979 remains open for any
+     database-level JSON CHECK, production data scan, and broader JSON/TEXT
+     size policy. Guardrails: `tests/notification-preference-keys.test.mjs`,
+     `tests/notification-delivery-preferences.test.mjs`, and
+     `tests/notification-email-preferences.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 162 findings;
 verified stale/false-positive: 58 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,

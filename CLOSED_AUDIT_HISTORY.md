@@ -2,6 +2,13 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Notification Preference Runtime Shape Pass (2026-05-24)
+
+- Added `normalizeNotificationPreferences()` as the shared runtime boundary for `User.notificationPreferences` JSON. It preserves only known preference keys with boolean values.
+- In-app notification delivery, email preference checks, unsubscribe writes, seller broadcast follower filtering, and preference UI rendering now use the normalized shape instead of trusting `Record<string, boolean>` casts.
+- This reduces current reader-side risk from malformed JSON values; a database-level JSON CHECK, historical data scan, and broader JSON/TEXT size policy remain separate product/ops decisions.
+- Guardrail coverage: `tests/notification-preference-keys.test.mjs`, `tests/notification-delivery-preferences.test.mjs`, and `tests/notification-email-preferences.test.mjs`.
+
 ## Conversation Pair Invariant Pass (2026-05-24)
 
 - Added a raw-managed unique expression index on `Conversation` unordered participant pairs (`LEAST(userAId,userBId)`, `GREATEST(userAId,userBId)`) while keeping the Prisma-visible ordered unique key used by app upserts.

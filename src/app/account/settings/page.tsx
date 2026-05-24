@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { NotificationToggle } from "@/components/NotificationToggle";
 import { AccountDeletionButton } from "@/components/AccountDeletionButton";
-import type { NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
+import { normalizeNotificationPreferences, type NotificationPreferenceKey } from "@/lib/notificationPreferenceKeys";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -34,7 +34,7 @@ export default async function AccountSettingsPage() {
     },
   });
 
-  const prefs = (user?.notificationPreferences as Record<string, boolean>) ?? {};
+  const prefs = normalizeNotificationPreferences(user?.notificationPreferences);
   const hasSeller = !!user?.sellerProfile;
 
   function isEnabled(type: NotificationPreferenceKey) {

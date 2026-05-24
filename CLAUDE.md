@@ -2927,10 +2927,10 @@ US only (Canada removed to align with Terms of Service Section 31). Implemented 
 Sellers and buyers can control which in-site notifications they receive.
 
 ### Schema
-- **`User.notificationPreferences Json @default("{}")`** — stores a `Record<string, boolean>` where `false` means opted out. Migration: `20260401003152_notification_preferences`
+- **`User.notificationPreferences Json @default("{}")`** — stores preference booleans keyed by `VALID_PREFERENCE_KEYS`; `false` means opted out for default-on notifications, and default-off notifications require explicit `true`. Migration: `20260401003152_notification_preferences`. Readers must normalize through `normalizeNotificationPreferences()` before checking values; do not cast raw JSON to `Record<string, boolean>`.
 
 ### `createNotification` — preference check
-Before inserting a notification, fetches the recipient's `notificationPreferences` and returns `null` (skips create) if `prefs[type] === false`. Never throws — preference failures don't break the main flow.
+Before inserting a notification, fetches the recipient's `notificationPreferences`, normalizes to known boolean keys, and returns `null` (skips create) if the normalized in-app value is `false`. Never throws — preference failures don't break the main flow.
 
 ### Settings page (`/account/settings`)
 - Server component; auth required
