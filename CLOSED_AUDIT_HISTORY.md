@@ -2,6 +2,14 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Round 11 Verification Follow-up Pass (2026-05-24)
+
+- Buyer order confirmations now show the multi-seller separate-order disclaimer only when checkout metadata records a multi-seller cart flow.
+- The numeric-guard migration now normalizes malformed historical listing processing windows before validating the processing-days check constraint.
+- Prisma schema comments and guardrail coverage now document that `Order.stripePaymentIntentId` and `Order.stripeChargeId` are raw-managed partial unique indexes, not plain Prisma `@unique` fields.
+- Verified false/stale: `Order.platformFeeCents` is not a persisted column in current schema, and `tests/round10-state-machine-guardrails.test.mjs` exists.
+- Guardrail coverage: `tests/email-delivery-guardrails.test.mjs`, `tests/schema-numeric-index-guardrails.test.mjs`, and `tests/schema-retention-guardrails.test.mjs`.
+
 ## Admin Audit Durability Pass (2026-05-24)
 
 - Added strict transactional admin audit logging via `logAdminActionOrThrow({ client: tx, ... })` while preserving best-effort `logAdminAction()` for non-blocking evidence.

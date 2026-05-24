@@ -139,6 +139,7 @@ export async function POST(req: Request) {
     });
     if (!cart) return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
 
+    const cartSellerCount = new Set(cart.items.map((it) => it.listing.sellerId)).size;
     const sellerItems = cart.items.filter((it) => it.listing.sellerId === sellerId);
     if (sellerItems.length === 0) {
       return NextResponse.json({ error: "No items for this seller" }, { status: 400 });
@@ -522,6 +523,8 @@ export async function POST(req: Request) {
       giftNote: giftNote ?? "",
       giftWrapping: giftWrapping ? "true" : "false",
       giftWrappingPriceCents: giftWrapping && giftWrappingPriceCents > 0 ? String(giftWrappingPriceCents) : "",
+      cartSellerCount: String(cartSellerCount),
+      multiSellerCheckout: cartSellerCount > 1 ? "true" : "false",
       checkoutLockKey: checkoutLockKeyValue,
       ...(reservedStockMetadata.length <= 500 ? { reservedStock: reservedStockMetadata } : {}),
     };

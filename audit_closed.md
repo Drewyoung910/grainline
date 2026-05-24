@@ -2107,8 +2107,26 @@ Last updated: 2026-05-24
      `tests/ban-audit-metadata.test.mjs`, and
      `tests/ban-side-effect-repair.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 154 findings;
-verified stale/false-positive: 56 findings; product/design decisions deferred:
+229. **Round 11 verification follow-ups reduced** — code/test fix or verified
+     closure for #1077, #1078, #1079, #1080, and #1081. Buyer order
+     confirmation emails now show the multi-seller "separate order" context
+     only when the cart checkout session metadata records multiple sellers;
+     single-listing checkout and one-seller carts omit the disclaimer. The
+     numeric-guard migration now normalizes malformed historical listing
+     processing windows before validating `Listing_processing_days_valid_chk`.
+     Stripe `stripePaymentIntentId` and `stripeChargeId` remain raw-managed
+     partial unique indexes with an explicit schema warning and guardrail test.
+     #1077 was verified false-positive because current `Order` has no persisted
+     `platformFeeCents` column to constrain, and #1081 was verified stale
+     because `tests/round10-state-machine-guardrails.test.mjs` exists. The
+     Round 11 #1075/#1076 claims were also verified already fixed by the prior
+     ban side-effect pass and were not double-counted here. Guardrails:
+     `tests/email-delivery-guardrails.test.mjs`,
+     `tests/schema-numeric-index-guardrails.test.mjs`, and
+     `tests/schema-retention-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 157 findings;
+verified stale/false-positive: 58 findings; product/design decisions deferred:
 41 findings. Remaining major categories: AI full-workflow integration evidence,
 anonymous-cart merge durability, checkout concurrency integration evidence,
 Round 10 deferred system-audit and state-machine product designs, JSON

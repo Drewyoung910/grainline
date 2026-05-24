@@ -47,10 +47,20 @@ describe("schema numeric and index guardrails", () => {
 
     assert.match(migration, /SET "stockQuantity" = 0[\s\S]*"listingType" = 'IN_STOCK'[\s\S]*"stockQuantity" IS NULL/);
     assert.match(migration, /"budgetMinCents" <= "budgetMaxCents"/);
+    assert.match(migration, /SET[\s\S]*"processingTimeMinDays" = CASE[\s\S]*"processingTimeMinDays" < 1 THEN 1[\s\S]*"processingTimeMaxDays" > 365 THEN 365/);
+    assert.match(migration, /SET "processingTimeMaxDays" = "processingTimeMinDays"[\s\S]*"processingTimeMinDays" > "processingTimeMaxDays"/);
     assert.match(migration, /"processingTimeMinDays" <= "processingTimeMaxDays"/);
     assert.match(migration, /"qualityScore" <= 1\.2/);
     assert.match(migration, /"aiReviewScore" >= 0 AND "aiReviewScore" <= 1/);
     assert.match(migration, /"ratingX2" >= 2 AND "ratingX2" <= 10/);
+  });
+
+  it("does not require an Order platformFeeCents constraint when no such column is persisted", () => {
+    const schema = source("prisma/schema.prisma");
+    const migration = source(migrationPath);
+
+    assert.doesNotMatch(modelBlock(schema, "Order"), /platformFeeCents/);
+    assert.doesNotMatch(migration, /Order_platformFeeCents/);
   });
 
   it("keeps verified hot-path indexes visible in schema and migration history", () => {

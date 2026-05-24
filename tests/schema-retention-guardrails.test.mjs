@@ -78,6 +78,7 @@ describe("schema retention guardrails", () => {
     const paymentIntentLine = schema.match(/stripePaymentIntentId\s+String\?[^\n]*/)?.[0] ?? "";
     const chargeLine = schema.match(/stripeChargeId\s+String\?[^\n]*/)?.[0] ?? "";
 
+    assert.match(schema, /raw-managed partial unique indexes[\s\S]*do not replace them with plain @unique/);
     assert.doesNotMatch(paymentIntentLine, /@unique/);
     assert.doesNotMatch(chargeLine, /@unique/);
     assert.match(paymentIntentMigration, /"Order_stripePaymentIntentId_idx"[\s\S]*WHERE "stripePaymentIntentId" IS NOT NULL/);

@@ -73,6 +73,32 @@ CHECK (
 ) NOT VALID;
 ALTER TABLE "CommissionRequest" VALIDATE CONSTRAINT "CommissionRequest_budget_valid_chk";
 
+-- Normalize malformed historical processing windows before validating the
+-- stricter listing invariant. App writes already reject these states, but older
+-- rows can predate that validation.
+UPDATE "Listing"
+SET
+  "processingTimeMinDays" = CASE
+    WHEN "processingTimeMinDays" IS NULL THEN NULL
+    WHEN "processingTimeMinDays" < 1 THEN 1
+    WHEN "processingTimeMinDays" > 365 THEN 365
+    ELSE "processingTimeMinDays"
+  END,
+  "processingTimeMaxDays" = CASE
+    WHEN "processingTimeMaxDays" IS NULL THEN NULL
+    WHEN "processingTimeMaxDays" < 1 THEN 1
+    WHEN "processingTimeMaxDays" > 365 THEN 365
+    ELSE "processingTimeMaxDays"
+  END
+WHERE ("processingTimeMinDays" IS NOT NULL AND ("processingTimeMinDays" < 1 OR "processingTimeMinDays" > 365))
+   OR ("processingTimeMaxDays" IS NOT NULL AND ("processingTimeMaxDays" < 1 OR "processingTimeMaxDays" > 365));
+
+UPDATE "Listing"
+SET "processingTimeMaxDays" = "processingTimeMinDays"
+WHERE "processingTimeMinDays" IS NOT NULL
+  AND "processingTimeMaxDays" IS NOT NULL
+  AND "processingTimeMinDays" > "processingTimeMaxDays";
+
 ALTER TABLE "Listing" DROP CONSTRAINT IF EXISTS "Listing_processing_days_valid_chk";
 ALTER TABLE "Listing"
 ADD CONSTRAINT "Listing_processing_days_valid_chk"

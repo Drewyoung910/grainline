@@ -529,7 +529,9 @@ model Order {
   shipToPostalCode String? @db.VarChar(20)
   shipToCountry    String? @db.VarChar(2)
 
-  // Stripe references
+  // Stripe references. stripePaymentIntentId and stripeChargeId are enforced by
+  // raw-managed partial unique indexes in migrations because Prisma cannot
+  // model `WHERE ... IS NOT NULL`; do not replace them with plain @unique.
   stripePaymentIntentId  String? @db.VarChar(255)
   stripeChargeId         String? @db.VarChar(255)
   stripeApplicationFeeId String? @db.VarChar(255)

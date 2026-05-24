@@ -68,14 +68,22 @@ describe("email delivery guardrails", () => {
   it("keeps order receipts easier to reconcile without noisy zero rows", () => {
     const email = source("src/lib/email.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
 
     assert.match(email, /orderSubjectSuffix\(order\.id\)/);
     assert.match(email, /each maker is handled as a separate order/);
+    assert.match(email, /multiSellerCheckout\?: boolean/);
+    assert.match(email, /opts\.multiSellerCheckout \? `<p[\s\S]*?each maker is handled as a separate order/);
     assert.match(email, /order\.shippingAmountCents > 0/);
     assert.match(email, /order\.taxAmountCents > 0/);
     assert.match(email, /order\.giftWrapping \|\| giftWrappingPriceCents > 0/);
     assert.match(email, /: "Included"/);
+    assert.match(checkoutSeller, /cartSellerCount = new Set\(cart\.items\.map/);
+    assert.match(checkoutSeller, /multiSellerCheckout: cartSellerCount > 1 \? "true" : "false"/);
     assert.match(webhook, /giftWrapping: order\.giftWrapping/);
+    assert.match(webhook, /initialMultiSellerCheckout =[\s\S]*?initialSessionMeta\.multiSellerCheckout === "true" \|\| initialCartSellerCount > 1/);
+    assert.match(webhook, /multiSellerCheckout = sessionMeta\.multiSellerCheckout === "true" \|\| cartSellerCount > 1/);
+    assert.match(webhook, /renderOrderConfirmedBuyerEmail\(\{[\s\S]*?multiSellerCheckout: opts\.multiSellerCheckout === true/);
   });
 
   it("validates tracking carriers before building email deep links", () => {

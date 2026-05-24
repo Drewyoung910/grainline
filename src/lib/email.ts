@@ -328,6 +328,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
   buyer: { name?: string | null; email: string };
   seller: { displayName?: string | null };
   items: { title: string; quantity: number; priceCents: number }[];
+  multiSellerCheckout?: boolean;
 }) {
   const { order, buyer, seller, items } = opts;
   const name = buyer.name || "there";
@@ -345,7 +346,7 @@ export function renderOrderConfirmedBuyerEmail(opts: {
     <p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Order:</strong> #${esc(shortId(order.id))}</p>
     ${address ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 8px;"><strong>Shipping to:</strong> ${esc(address)}</p>` : ""}
     ${order.estimatedDeliveryDate ? `<p style="font-size:13px;color:#6B6A66;margin:0 0 16px;"><strong>Estimated delivery:</strong> ${fmtDate(order.estimatedDeliveryDate)}</p>` : ""}
-    <p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>
+    ${opts.multiSellerCheckout ? `<p style="font-size:12px;color:#9D9C97;margin:0 0 16px;">If you checked out with pieces from more than one maker, each maker is handled as a separate order.</p>` : ""}
     ${btn("View your order", orderUrl)}
   `;
 

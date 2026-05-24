@@ -3572,7 +3572,7 @@ Terms page (`/terms`) reflects 5% in sections 4.5 and 6.2.
 - **`generateMetadata`** returns `robots: { index: false, follow: false }` for non-connected seller listings — prevents Google from indexing them
 - **All public surfaces filter `chargesEnabled: true`**: browse, homepage, similar items, search suggestions (Prisma + raw SQL), sitemap — listings from non-connected sellers are completely private to the seller only
 
-Cart checkout supports multi-seller orders (splits into separate Stripe sessions per seller) and single-item buy-now.
+Cart checkout supports multi-seller orders (splits into separate Stripe sessions per seller) and single-item buy-now. Multi-seller receipt copy is driven by checkout session metadata (`cartSellerCount` / `multiSellerCheckout`) and should not be shown on one-seller cart or buy-now confirmations.
 
 ## Shipping
 

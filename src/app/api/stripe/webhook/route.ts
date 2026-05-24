@@ -338,7 +338,10 @@ export async function POST(req: Request) {
     });
   }
 
-  async function enqueueOrderPostPaymentSideEffects(orderId: string) {
+  async function enqueueOrderPostPaymentSideEffects(
+    orderId: string,
+    opts: { multiSellerCheckout?: boolean } = {},
+  ) {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
@@ -464,6 +467,7 @@ export async function POST(req: Request) {
           buyer: { name: order.buyer.name, email: order.buyer.email },
           seller: { displayName: sellerName },
           items: emailItems,
+          multiSellerCheckout: opts.multiSellerCheckout === true,
         }),
         dedupKey: `order-confirmed-buyer:${order.id}`,
         userId: order.buyerId,
@@ -581,6 +585,10 @@ export async function POST(req: Request) {
       const session = event.data.object as StripeSession;
       const sessionId: string = session.id;
       let checkoutLockKey = session.metadata?.checkoutLockKey;
+      const initialSessionMeta = (session.metadata ?? {}) as Record<string, string | undefined>;
+      const initialCartSellerCount = parseOptionalNonNegativeInt(initialSessionMeta.cartSellerCount) ?? 0;
+      const initialMultiSellerCheckout =
+        initialSessionMeta.multiSellerCheckout === "true" || initialCartSellerCount > 1;
 
       return processIdempotentEvent(async () => {
 
@@ -591,7 +599,9 @@ export async function POST(req: Request) {
       });
       if (already) {
         await releaseCheckoutLock(checkoutLockKey, sessionId);
-        await enqueueOrderPostPaymentSideEffects(already.id);
+        await enqueueOrderPostPaymentSideEffects(already.id, {
+          multiSellerCheckout: initialMultiSellerCheckout,
+        });
         return NextResponse.json({ ok: true });
       }
 
@@ -656,6 +666,8 @@ export async function POST(req: Request) {
       const giftWrapping: boolean = sessionMeta.giftWrapping === "true";
       const giftWrappingPriceCentsRaw = sessionMeta.giftWrappingPriceCents ? parseInt(sessionMeta.giftWrappingPriceCents, 10) : null;
       const giftWrappingPriceCents: number | null = giftWrappingPriceCentsRaw != null && Number.isFinite(giftWrappingPriceCentsRaw) ? giftWrappingPriceCentsRaw : null;
+      const cartSellerCount = parseOptionalNonNegativeInt(sessionMeta.cartSellerCount) ?? 0;
+      const multiSellerCheckout = sessionMeta.multiSellerCheckout === "true" || cartSellerCount > 1;
 
       // Shippo IDs from metadata / selected shipping rate
       const shippoShipmentId: string | null = sessionMeta.shippoShipmentId || null;
@@ -1212,7 +1224,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        await enqueueOrderPostPaymentSideEffects(createdCartOrder.id);
+        await enqueueOrderPostPaymentSideEffects(createdCartOrder.id, { multiSellerCheckout });
 
         return NextResponse.json({ ok: true });
       }
@@ -1471,7 +1483,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id);
+        await enqueueOrderPostPaymentSideEffects(createdSingleOrder.id, { multiSellerCheckout });
 
         return NextResponse.json({ ok: true });
       }
