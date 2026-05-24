@@ -25,8 +25,8 @@ Last updated: 2026-05-24
 - Verified hardening/doc commits since 2026-05-13: 215.
 - Verified code/feature fix commits since 2026-05-13: 191.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 175 verified fixed/reduced findings,
-  74 verified stale/false-positive findings, and 41 deferred/manual findings
+- Most recent reported pass tally: 190 verified fixed/reduced findings,
+  73 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -2252,8 +2252,39 @@ Last updated: 2026-05-24
      `tests/pr-h-deletion-analytics-email-followups.test.mjs`, and
      `tests/post-launch-ui-followups.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 184 findings;
-verified stale/false-positive: 74 findings; product/design decisions deferred:
+237. **Checkout privacy, variant price, env, and seller-page perf pass
+     reduced** — code/test fix for #903, #945, and #1108-#1111. #903 was
+     reclassified from the earlier stale bucket after read-only re-verification
+     found the sign-out/user-switch storage cleanup was current but full
+     shipping addresses and selected rates were still persisted in
+     `sessionStorage`; the cart page now keeps checkout address/rate state
+     in memory only, clears legacy cart session storage by default, and drops
+     in-memory checkout state when local account state is cleared. Variant
+     option adjustments now use shared normalization/range/final-unit-price
+     validation, create/edit listing actions reject option sets that can
+     produce sub-cent or over-$100,000 final prices, `cart/update` rejects
+     negative recalculated variant prices before persisting cart snapshots, and
+     a raw DB CHECK bounds stored `ListingVariantOption.priceAdjustCents`.
+     Critical production env reads now go through `requiredProductionEnv()` so
+     missing production `DATABASE_URL`, R2, Redis, Shippo, and `EMAIL_FROM`
+     config fails at module load instead of first user traffic. Seller profile
+     metadata/page rendering now shares a React `cache()` seller loader and
+     groups independent seller-page queries in one `Promise.all` batch. Read-
+     only agent re-verification in the same sweep confirmed #902, #904, #905,
+     #942, #943, #962, #965, and #966 were stale/fixed on current `main`; those
+     previously closed items were not double-counted. #973 remains a live-data
+     audit question, and #974 remains intentionally raw-managed partial-index
+     behavior. Guardrails: `tests/local-account-state.test.mjs`,
+     `tests/listing-variants.test.mjs`,
+     `tests/schema-numeric-index-guardrails.test.mjs`,
+     `tests/env-validation.test.mjs`,
+     `tests/seller-page-performance.test.mjs`,
+     `tests/observability-cleanup-followups.test.mjs`,
+     `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and
+     `tests/order-seller-route-ownership.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 190 findings;
+verified stale/false-positive: 73 findings; product/design decisions deferred:
 41 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
@@ -2261,6 +2292,6 @@ retention/quota/versioning design, refund accounting runtime proof and refund
 attempt persistence semantics, founding-maker/quality-score consistency,
 case/message state-policy decisions, account export/legal retention scope,
 remaining privacy/export retention decisions, anonymous-cart merge
-bulk/performance design, and cross-seller AI duplicate-detection product
-design, plus CSP `unsafe-eval` rollout monitoring and dependency hygiene
-cleanup.
+bulk/performance design, broader React `cache()` opportunities beyond the
+seller page, cross-seller AI duplicate-detection product design, CSP
+`unsafe-eval` rollout monitoring, and dependency hygiene cleanup.

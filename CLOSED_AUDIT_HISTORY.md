@@ -2,6 +2,15 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Checkout Privacy, Variant Price, Env, and Seller Perf Pass (2026-05-24)
+
+- Cart checkout no longer persists full shipping address or selected rates in `sessionStorage`; legacy cart session address/rate/secrets are cleared by default, and mounted cart state listens for local account-state cleanup so a same-tab auth switch drops in-memory address/rate/payment state.
+- Listing variants now share price-adjustment normalization and validation. Create/edit listing actions reject option sets that can produce a final unit price below $0.01 or above $100,000, cart update rejects invalid recalculated prices before persisting cart snapshots, and `ListingVariantOption.priceAdjustCents` has a raw DB range CHECK.
+- Critical production env reads now go through `requiredProductionEnv()` for database, R2, Redis, Shippo, and `EMAIL_FROM` configuration, so production missing-config failures happen at module load rather than first customer traffic.
+- Public seller profile metadata/page rendering shares a React `cache()` seller loader and batches independent seller-page queries with `Promise.all`.
+- Verified stale/current from the same read-only agent sweep: anonymous-cart account switching, Stripe redirect allowlisting, fulfillment origin guardrails, schema listing checks, order money checks, and retention FKs were already current. `#973` remains a live-data audit question, and Stripe payment-intent/charge partial uniqueness remains raw-managed by design.
+- Guardrail coverage: `tests/local-account-state.test.mjs`, `tests/listing-variants.test.mjs`, `tests/schema-numeric-index-guardrails.test.mjs`, `tests/env-validation.test.mjs`, `tests/seller-page-performance.test.mjs`, `tests/observability-cleanup-followups.test.mjs`, `tests/round8-fulfillment-privacy-guardrails.test.mjs`, and `tests/order-seller-route-ownership.test.mjs`.
+
 ## Analytics, Cache, Geo, and Upload Guardrails Pass (2026-05-24)
 
 - Analytics bot filtering now treats missing/blank user agents and common non-browser clients as non-human traffic before incrementing listing click/view or seller profile view counters.

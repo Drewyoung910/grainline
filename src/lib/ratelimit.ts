@@ -2,10 +2,11 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
 import { limitWithFailurePolicy } from "@/lib/ratelimitPolicy";
+import { requiredProductionEnv } from "@/lib/env";
 
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  url: requiredProductionEnv("UPSTASH_REDIS_REST_URL"),
+  token: requiredProductionEnv("UPSTASH_REDIS_REST_TOKEN"),
 });
 
 // For public endpoints — limit by IP

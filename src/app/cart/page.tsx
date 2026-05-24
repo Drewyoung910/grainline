@@ -18,13 +18,9 @@ import {
   type AnonymousCartItem,
 } from "@/lib/anonymousCart";
 import {
-  CART_ADDRESS_KEY,
-  CART_RATES_KEY,
-  clearCartCheckoutSecrets,
   clearCartSessionStorage,
-  readCartSessionJson,
-  writeCartSessionJson,
 } from "@/lib/cartSessionStorage";
+import { LOCAL_ACCOUNT_STATE_CLEARED_EVENT } from "@/lib/localAccountState";
 import { mergeAnonymousCartItemsToAccount } from "@/lib/anonymousCartMerge";
 import { notifyCartUpdated } from "@/lib/cartEvents";
 import { signInPathForRedirect } from "@/lib/internalReturnUrl";
@@ -248,36 +244,32 @@ function CartPage() {
 
   // Mount-time URL restoration
   React.useEffect(() => {
-    const storedAddress = readCartSessionJson<ShippingAddress | null>(CART_ADDRESS_KEY, null);
-    const storedRatesRaw = readCartSessionJson<Record<string, SelectedShippingRate>>(CART_RATES_KEY, {});
-    clearCartCheckoutSecrets();
-    const validStoredRates = Object.fromEntries(
-      Object.entries(storedRatesRaw).filter(([, rate]) => rate.expiresAt > Date.now() + 5000),
-    );
-
-    if (storedAddress) setShippingAddress(storedAddress);
-    if (Object.keys(validStoredRates).length > 0) setSelectedRates(validStoredRates);
+    clearCartSessionStorage({ includeAddress: true });
 
     const urlStep = searchParams.get("step");
     if (urlStep === "address") {
       setStep("address");
     } else if (urlStep === "shipping") {
-      if (storedAddress) {
-        setStep("shipping");
-      } else {
-        setStep("address");
-        router.replace("/cart?step=address", { scroll: false });
-      }
+      setStep("address");
+      router.replace("/cart?step=address", { scroll: false });
     } else if (urlStep === "payment") {
-      if (storedAddress) {
-        setStep("shipping");
-        router.replace("/cart?step=shipping", { scroll: false });
-      } else {
-        setStep("address");
-        router.replace("/cart?step=address", { scroll: false });
-      }
+      setStep("address");
+      router.replace("/cart?step=address", { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    function handleLocalAccountStateCleared() {
+      setShippingAddress(null);
+      setSelectedRates({});
+      setClientSecrets([]);
+      setCurrentPaymentIndex(0);
+      setStep("review");
+    }
+
+    window.addEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
+    return () => window.removeEventListener(LOCAL_ACCOUNT_STATE_CLEARED_EVENT, handleLocalAccountStateCleared);
   }, []);
 
   // Safety guards
@@ -837,8 +829,7 @@ function CartPage() {
             }}
             onConfirm={(address) => {
               setShippingAddress(address);
-              writeCartSessionJson(CART_ADDRESS_KEY, address);
-              clearCartSessionStorage();
+              clearCartSessionStorage({ includeAddress: true });
               setSelectedRates({});
               setClientSecrets([]);
               setStep("shipping");
@@ -889,7 +880,6 @@ function CartPage() {
                       const next = { ...prev };
                       if (rate) next[g.sellerId] = rate;
                       else delete next[g.sellerId];
-                      writeCartSessionJson(CART_RATES_KEY, next);
                       return next;
                     })
                   }

@@ -26,6 +26,10 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { parseJsonArrayField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
+import {
+  normalizeVariantPriceAdjustCents,
+  validateVariantGroupsForBasePrice,
+} from "@/lib/listingVariants";
 import { revalidateListingSearchCaches } from "@/lib/searchCache";
 import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
@@ -178,7 +182,7 @@ async function createListing(_prevState: unknown, formData: FormData) {
           name: truncateText(sanitizeText(String(g.name ?? "")), 50),
           options: (Array.isArray(g.options) ? g.options : []).slice(0, 10).map((o: Record<string, unknown>) => ({
             label: truncateText(sanitizeText(String(o.label ?? "")), 50),
-            priceAdjustCents: Math.round(Number(o.priceAdjustCents) || 0),
+            priceAdjustCents: normalizeVariantPriceAdjustCents(o.priceAdjustCents),
             inStock: Boolean(o.inStock ?? true),
           })),
         })).filter((g) => g.name && g.options.some((o) => o.label));
@@ -191,6 +195,8 @@ async function createListing(_prevState: unknown, formData: FormData) {
   }
   if (priceCents < 0) return { ok: false, error: "Price cannot be negative." };
   if (priceCents > 10000000) return { ok: false, error: "Price cannot exceed $100,000." };
+  const variantPriceError = validateVariantGroupsForBasePrice(variantGroups, priceCents);
+  if (variantPriceError) return { ok: false, error: variantPriceError };
   if (listingType === "IN_STOCK" && stockQuantity === null) {
     return { ok: false, error: "In-stock listings need a stock quantity greater than zero." };
   }

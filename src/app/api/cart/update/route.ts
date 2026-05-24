@@ -134,6 +134,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: variantResolution.error }, { status: 400 });
       }
       livePriceCents = listing.priceCents + variantResolution.variantAdjustCents;
+      if (livePriceCents < 1) {
+        return NextResponse.json({ error: "Variant selection results in an invalid price." }, { status: 400 });
+      }
       livePriceVersion = listing.priceVersion;
     }
 

@@ -747,7 +747,7 @@ model ListingVariantOption {
   groupId          String
   group            ListingVariantGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   label            String              @db.VarChar(100) // seller-defined: "Large", "Walnut", "Dark Stain", etc.
-  priceAdjustCents Int                 @default(0) // +5000 = +$50, -2000 = -$20, 0 = no change
+  priceAdjustCents Int                 @default(0) // +5000 = +$50, -2000 = -$20, 0 = no change; DB CHECK bounds each option to +/- $100,000 and app validation bounds final unit price
   sortOrder        Int                 @default(0)
   inStock          Boolean             @default(true)
 

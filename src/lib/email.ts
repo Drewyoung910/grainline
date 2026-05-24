@@ -14,8 +14,10 @@ import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { hashEmailForTelemetry } from "@/lib/privacyTelemetry";
+import { requiredProductionEnv } from "@/lib/env";
 
-const HAS_RESEND = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
+const EMAIL_FROM = requiredProductionEnv("EMAIL_FROM");
+const HAS_RESEND = !!process.env.RESEND_API_KEY && !!EMAIL_FROM;
 const resend = HAS_RESEND ? new Resend(process.env.RESEND_API_KEY) : null;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://thegrainline.com";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@thegrainline.com";
@@ -273,7 +275,7 @@ async function send(to: string, subject: string, html: string, opts: { throwOnFa
     await sendEmailWithRetry(
       () =>
         resend!.emails.send({
-          from: process.env.EMAIL_FROM!,
+          from: EMAIL_FROM,
           to: recipient,
           subject: sanitizedSubject,
           replyTo: EMAIL_REPLY_TO,

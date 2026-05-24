@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { resolveListingVariantSelection } = await import("../src/lib/listingVariants.ts");
+const {
+  MAX_VARIANT_PRICE_ADJUST_CENTS,
+  MIN_VARIANT_PRICE_ADJUST_CENTS,
+  normalizeVariantPriceAdjustCents,
+  resolveListingVariantSelection,
+  validateVariantGroupsForBasePrice,
+  validateVariantPriceAdjustCents,
+} = await import("../src/lib/listingVariants.ts");
 
 const variantGroups = [
   {
@@ -21,6 +29,10 @@ const variantGroups = [
     ],
   },
 ];
+
+function source(path) {
+  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+}
 
 describe("listing variant selection", () => {
   it("resolves selected variants with stable key, total adjustment, and snapshot", () => {
@@ -62,5 +74,56 @@ describe("listing variant selection", () => {
       ok: false,
       error: 'Option "Waxed" is out of stock.',
     });
+  });
+
+  it("bounds variant adjustments and possible final prices", () => {
+    assert.equal(normalizeVariantPriceAdjustCents("12.6"), 13);
+    assert.equal(
+      validateVariantPriceAdjustCents(MIN_VARIANT_PRICE_ADJUST_CENTS - 1),
+      "Variant price adjustments cannot exceed $100,000.",
+    );
+    assert.equal(
+      validateVariantPriceAdjustCents(MAX_VARIANT_PRICE_ADJUST_CENTS + 1),
+      "Variant price adjustments cannot exceed $100,000.",
+    );
+    assert.equal(validateVariantPriceAdjustCents(500), null);
+
+    assert.equal(
+      validateVariantGroupsForBasePrice([
+        { options: [{ label: "Free", priceAdjustCents: -5000 }] },
+      ], 5000),
+      "Variant price adjustments cannot reduce the final price below $0.01.",
+    );
+    assert.equal(
+      validateVariantGroupsForBasePrice([
+        { options: [{ label: "Premium", priceAdjustCents: 10_000_000 }] },
+      ], 1),
+      "Variant price adjustments cannot raise the final price above $100,000.",
+    );
+    assert.equal(
+      validateVariantGroupsForBasePrice([
+        { options: [{ label: "Small", priceAdjustCents: -100 }, { label: "Large", priceAdjustCents: 500 }] },
+        { options: [{ label: "Raw", priceAdjustCents: 0 }, { label: "Waxed", priceAdjustCents: 250 }] },
+      ], 1000),
+      null,
+    );
+  });
+
+  it("checks invalid recalculated variant prices before persisting cart snapshots", () => {
+    const cartUpdate = source("src/app/api/cart/update/route.ts");
+    assert.ok(
+      cartUpdate.indexOf("if (livePriceCents < 1)") > cartUpdate.indexOf("livePriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
+    );
+    assert.ok(
+      cartUpdate.indexOf("if (livePriceCents < 1)") < cartUpdate.indexOf("prisma.cartItem.updateMany"),
+    );
+
+    const checkoutSeller = source("src/app/api/cart/checkout-seller/route.ts");
+    assert.ok(
+      checkoutSeller.indexOf("if (unitPriceCents < 1)") > checkoutSeller.indexOf("const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents"),
+    );
+    assert.ok(
+      checkoutSeller.indexOf("if (unitPriceCents < 1)") < checkoutSeller.indexOf("prisma.cartItem.update({"),
+    );
   });
 });

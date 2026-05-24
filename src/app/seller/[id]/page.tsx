@@ -1,6 +1,7 @@
 // src/app/seller/[id]/page.tsx
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
+import { cache } from "react";
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { safeJsonLd } from "@/lib/json-ld";
@@ -26,10 +27,75 @@ import LocalDate from "@/components/LocalDate";
 import MediaImage from "@/components/MediaImage";
 import { publicBlogPostWhere } from "@/lib/blogVisibility";
 import { publicListingDetailWhere, publicListingWhere } from "@/lib/listingVisibility";
-import { visibleSellerProfileWhere } from "@/lib/sellerVisibility";
+import { isSupportedStripeAccountVersion } from "@/lib/sellerVisibility";
 import { extractRouteId, publicSellerPath, publicSellerShopPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
+
+const getSellerProfileForPublicPage = cache(async (sellerId: string) =>
+  prisma.sellerProfile.findUnique({
+    where: { id: sellerId },
+    select: {
+      id: true,
+      userId: true,
+      displayName: true,
+      bio: true,
+      city: true,
+      state: true,
+      lat: true,
+      lng: true,
+      createdAt: true,
+      radiusMeters: true,
+      publicMapOptIn: true,
+      tagline: true,
+      bannerImageUrl: true,
+      avatarImageUrl: true,
+      workshopImageUrl: true,
+      storyTitle: true,
+      storyBody: true,
+      instagramUrl: true,
+      facebookUrl: true,
+      pinterestUrl: true,
+      tiktokUrl: true,
+      websiteUrl: true,
+      yearsInBusiness: true,
+      acceptsCustomOrders: true,
+      acceptingNewOrders: true,
+      returnPolicy: true,
+      customOrderPolicy: true,
+      shippingPolicy: true,
+      featuredListingIds: true,
+      galleryImageUrls: true,
+      galleryAltTexts: true,
+      guildLevel: true,
+      vacationMode: true,
+      vacationReturnDate: true,
+      vacationMessage: true,
+      isFoundingMaker: true,
+      foundingMakerNumber: true,
+      chargesEnabled: true,
+      stripeAccountVersion: true,
+      user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
+      faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
+      metro: { select: { slug: true, name: true, state: true } },
+      cityMetro: { select: { slug: true, name: true, state: true } },
+    },
+  })
+);
+
+type PublicSellerProfile = NonNullable<Awaited<ReturnType<typeof getSellerProfileForPublicPage>>>;
+
+function sellerIsPubliclyVisible(
+  seller: Awaited<ReturnType<typeof getSellerProfileForPublicPage>>,
+): seller is PublicSellerProfile {
+  return Boolean(
+    seller &&
+      seller.chargesEnabled &&
+      isSupportedStripeAccountVersion(seller.stripeAccountVersion) &&
+      !seller.user?.banned &&
+      !seller.user?.deletedAt,
+  );
+}
 
 export async function generateMetadata({
   params,
@@ -38,18 +104,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sellerId = extractRouteId(id);
-  const seller = await prisma.sellerProfile.findFirst({
-    where: visibleSellerProfileWhere({ id: sellerId }),
-    select: {
-      displayName: true,
-      bio: true,
-      tagline: true,
-      bannerImageUrl: true,
-      avatarImageUrl: true,
-      user: { select: { imageUrl: true, banned: true, deletedAt: true } },
-    },
-  });
-  if (!seller) return {};
+  const seller = await getSellerProfileForPublicPage(sellerId);
+  if (!sellerIsPubliclyVisible(seller)) return {};
 
   const name = seller.displayName ?? "Maker";
   const title = `${name} — Handmade Woodworking on Grainline`;
@@ -96,70 +152,23 @@ export default async function SellerPublicPage({
   const { id } = await params;
   const sellerId = extractRouteId(id);
 
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { id: sellerId },
-    select: {
-      id: true,
-      userId: true,
-      displayName: true,
-      bio: true,
-      city: true,
-      state: true,
-      lat: true,
-      lng: true,
-      createdAt: true,
-      radiusMeters: true,
-      publicMapOptIn: true,
-      tagline: true,
-      bannerImageUrl: true,
-      avatarImageUrl: true,
-      workshopImageUrl: true,
-      storyTitle: true,
-      storyBody: true,
-      instagramUrl: true,
-      facebookUrl: true,
-      pinterestUrl: true,
-      tiktokUrl: true,
-      websiteUrl: true,
-      yearsInBusiness: true,
-      acceptsCustomOrders: true,
-      acceptingNewOrders: true,
-      returnPolicy: true,
-      customOrderPolicy: true,
-      shippingPolicy: true,
-      featuredListingIds: true,
-      galleryImageUrls: true,
-      galleryAltTexts: true,
-      guildLevel: true,
-      vacationMode: true,
-      vacationReturnDate: true,
-      vacationMessage: true,
-      isFoundingMaker: true,
-      foundingMakerNumber: true,
-      user: { select: { id: true, clerkId: true, imageUrl: true, banned: true, deletedAt: true } },
-      faqs: { orderBy: { sortOrder: "asc" }, select: { id: true, question: true, answer: true } },
-      metro: { select: { slug: true, name: true, state: true } },
-      cityMetro: { select: { slug: true, name: true, state: true } },
-    },
-  });
+  const [seller, authResult] = await Promise.all([
+    getSellerProfileForPublicPage(sellerId),
+    auth(),
+  ]);
 
   if (!seller) return notFound();
   if (seller.user?.banned || seller.user?.deletedAt) return notFound();
 
   // Current viewer
-  const { userId } = await auth();
+  const { userId } = authResult;
   let meId: string | null = null;
   if (userId) {
     const me = await prisma.user.findUnique({ where: { clerkId: userId }, select: { id: true } });
     meId = me?.id ?? null;
   }
   const isOwner = !!userId && seller.user?.clerkId === userId;
-  if (!isOwner) {
-    const isVisibleSeller = await prisma.sellerProfile.count({
-      where: visibleSellerProfileWhere({ id: seller.id }),
-    });
-    if (!isVisibleSeller) return notFound();
-  }
+  if (!isOwner && !sellerIsPubliclyVisible(seller)) return notFound();
 
   // Block check — return 404 if the viewer has blocked or been blocked by the seller
   const blockedUserIds = await getBlockedUserIdsFor(meId);
@@ -171,17 +180,6 @@ export default async function SellerPublicPage({
     permanentRedirect(publicSellerPath(seller.id, seller.displayName));
   }
 
-  // Follow data
-  const [followerCount, isFollowing] = await Promise.all([
-    prisma.follow.count({ where: { sellerProfileId: seller.id } }),
-    meId
-      ? prisma.follow.findUnique({
-          where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: seller.id } },
-          select: { id: true },
-        }).then((r) => r !== null)
-      : Promise.resolve(false),
-  ]);
-
   // Ensure numbers (handle Prisma Decimal/null)
   const lat = seller.lat != null ? Number(seller.lat) : null;
   const lng = seller.lng != null ? Number(seller.lng) : null;
@@ -190,63 +188,45 @@ export default async function SellerPublicPage({
 
   const cityState = [seller.city, seller.state].filter(Boolean).join(", ");
 
-  // Fetch most recent broadcast (shown as "Latest Update" if < 30 days old)
-  const latestBroadcast = await prisma.sellerBroadcast.findFirst({
-    where: { sellerProfileId: seller.id },
-    orderBy: { sentAt: "desc" },
-    select: { message: true, sentAt: true, imageUrl: true },
-  });
-  const broadcastAgeDays = latestBroadcast
-    ? (Date.now() - latestBroadcast.sentAt.getTime()) / (1000 * 60 * 60 * 24)
-    : null;
-
-  // Fetch published blog posts by this seller
-  const sellerBlogPosts = await prisma.blogPost.findMany({
-    where: publicBlogPostWhere({ sellerProfileId: seller.id }),
-    orderBy: { publishedAt: "desc" },
-    take: 3,
-    select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },
-  });
-
-  // Fetch all listings (capped — very large shops use the /seller/[id]/shop paginated page)
-  const listings = await prisma.listing.findMany({
-    where: publicListingWhere({ sellerId: seller.id }),
-    include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
-  });
-
-  // Fetch featured listings in order
-  let featuredListings: typeof listings = [];
-  if (seller.featuredListingIds && seller.featuredListingIds.length > 0) {
-    const featuredById = new Map(
-      listings
-        .filter((l) => seller.featuredListingIds.includes(l.id))
-        .map((l) => [l.id, l])
-    );
-    featuredListings = seller.featuredListingIds
-      .map((fid) => featuredById.get(fid))
-      .filter((l): l is (typeof listings)[0] => l !== undefined);
-  }
-
-  // ── Seller-wide rating (across ALL their listings, including private) ───────
-  const listingIds = listings.map((l) => l.id);
-
-  // Saved set for current viewer
-  const savedSet = new Set<string>();
-  if (meId && listingIds.length > 0) {
-    const favs = await prisma.favorite.findMany({
-      where: { userId: meId, listingId: { in: listingIds } },
-      select: { listingId: true },
-    });
-    for (const f of favs) savedSet.add(f.listingId);
-  }
-
-  const sellerRatingMap = await getSellerRatingMap([seller.id]);
-  const shopRating = sellerRatingMap.get(seller.id) ?? null;
-
-  // ── Stat band data ─────────────────────────────────────────────────────────
-  const [soldCount, recentShipped, tagRows, customerPhotos, customerPhotoTotal] = await Promise.all([
+  const [
+    [followerCount, isFollowing],
+    latestBroadcast,
+    sellerBlogPosts,
+    listings,
+    sellerRatingMap,
+    soldCount,
+    recentShipped,
+    tagRows,
+    customerPhotos,
+    customerPhotoTotal,
+  ] = await Promise.all([
+    Promise.all([
+      prisma.follow.count({ where: { sellerProfileId: seller.id } }),
+      meId
+        ? prisma.follow.findUnique({
+            where: { followerId_sellerProfileId: { followerId: meId, sellerProfileId: seller.id } },
+            select: { id: true },
+          }).then((r) => r !== null)
+        : Promise.resolve(false),
+    ]),
+    prisma.sellerBroadcast.findFirst({
+      where: { sellerProfileId: seller.id },
+      orderBy: { sentAt: "desc" },
+      select: { message: true, sentAt: true, imageUrl: true },
+    }),
+    prisma.blogPost.findMany({
+      where: publicBlogPostWhere({ sellerProfileId: seller.id }),
+      orderBy: { publishedAt: "desc" },
+      take: 3,
+      select: { slug: true, title: true, excerpt: true, coverImageUrl: true, publishedAt: true, type: true },
+    }),
+    prisma.listing.findMany({
+      where: publicListingWhere({ sellerId: seller.id }),
+      include: { photos: { orderBy: { sortOrder: "asc" }, take: 1 } },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    }),
+    getSellerRatingMap([seller.id]),
     prisma.orderItem.count({
       where: { listing: { sellerId: seller.id }, order: { paidAt: { not: null } } },
     }),
@@ -300,6 +280,38 @@ export default async function SellerPublicPage({
       },
     }),
   ]);
+
+  const broadcastAgeDays = latestBroadcast
+    ? (Date.now() - latestBroadcast.sentAt.getTime()) / (1000 * 60 * 60 * 24)
+    : null;
+
+  // Fetch featured listings in order
+  let featuredListings: typeof listings = [];
+  if (seller.featuredListingIds && seller.featuredListingIds.length > 0) {
+    const featuredById = new Map(
+      listings
+        .filter((l) => seller.featuredListingIds.includes(l.id))
+        .map((l) => [l.id, l])
+    );
+    featuredListings = seller.featuredListingIds
+      .map((fid) => featuredById.get(fid))
+      .filter((l): l is (typeof listings)[0] => l !== undefined);
+  }
+
+  // ── Seller-wide rating (across ALL their listings, including private) ───────
+  const listingIds = listings.map((l) => l.id);
+
+  // Saved set for current viewer
+  const savedSet = new Set<string>();
+  if (meId && listingIds.length > 0) {
+    const favs = await prisma.favorite.findMany({
+      where: { userId: meId, listingId: { in: listingIds } },
+      select: { listingId: true },
+    });
+    for (const f of favs) savedSet.add(f.listingId);
+  }
+
+  const shopRating = sellerRatingMap.get(seller.id) ?? null;
 
   const avgShipDays = recentShipped.length >= 3
     ? Math.max(

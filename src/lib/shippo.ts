@@ -1,8 +1,9 @@
 // src/lib/shippo.ts
 import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 import { readResponseTextWithTimeout } from "@/lib/responseText";
+import { requiredProductionEnv } from "@/lib/env";
 
-const SHIPPO_API_KEY = process.env.SHIPPO_API_KEY!;
+const SHIPPO_API_KEY = requiredProductionEnv("SHIPPO_API_KEY");
 const SHIPPO_BASE = "https://api.goshippo.com";
 
 type Address = {

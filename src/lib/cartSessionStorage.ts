@@ -42,7 +42,7 @@ export function writeCartSessionJson(
 }
 
 export function clearCartSessionStorage({
-  includeAddress = false,
+  includeAddress = true,
   storage = getBrowserSessionStorage(),
 }: {
   includeAddress?: boolean;

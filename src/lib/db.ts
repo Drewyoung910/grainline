@@ -2,6 +2,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { normalizeRuntimeDatabaseUrl } from "@/lib/databaseUrl";
+import { requiredProductionEnv } from "@/lib/env";
 
 // avoid creating multiple clients in dev (Next hot reload)
 const globalForPrisma = globalThis as unknown as {
@@ -10,7 +11,7 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
-    connectionString: normalizeRuntimeDatabaseUrl(process.env.DATABASE_URL!),
+    connectionString: normalizeRuntimeDatabaseUrl(requiredProductionEnv("DATABASE_URL")),
   });
   return new PrismaClient({
     adapter,

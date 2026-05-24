@@ -11,6 +11,11 @@ type VariantGroup = {
   options: VariantOption[];
 };
 
+export const MIN_VARIANT_PRICE_ADJUST_CENTS = -10_000_000;
+export const MAX_VARIANT_PRICE_ADJUST_CENTS = 10_000_000;
+export const MIN_VARIANT_UNIT_PRICE_CENTS = 1;
+export const MAX_VARIANT_UNIT_PRICE_CENTS = 10_000_000;
+
 export type SelectedVariantSnapshot = {
   groupName: string;
   optionLabel: string;
@@ -104,4 +109,54 @@ export function resolveListingVariantSelection(
     selectedVariantLabels,
     selectedVariantsSnapshot,
   };
+}
+
+export function normalizeVariantPriceAdjustCents(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.round(parsed);
+}
+
+export function validateVariantPriceAdjustCents(value: number): string | null {
+  if (!Number.isSafeInteger(value)) {
+    return "Variant price adjustments must be whole cents.";
+  }
+  if (value < MIN_VARIANT_PRICE_ADJUST_CENTS || value > MAX_VARIANT_PRICE_ADJUST_CENTS) {
+    return "Variant price adjustments cannot exceed $100,000.";
+  }
+  return null;
+}
+
+export function validateVariantGroupsForBasePrice(
+  variantGroups: Array<{ options: Array<{ label: string; priceAdjustCents: number }> }>,
+  basePriceCents: number,
+): string | null {
+  for (const group of variantGroups) {
+    for (const option of group.options) {
+      if (!option.label) continue;
+      const priceAdjustError = validateVariantPriceAdjustCents(option.priceAdjustCents);
+      if (priceAdjustError) return priceAdjustError;
+    }
+  }
+
+  const groupsWithOptions = variantGroups
+    .map((group) => group.options.filter((option) => option.label))
+    .filter((options) => options.length > 0);
+  if (groupsWithOptions.length === 0) return null;
+
+  const minAdjustCents = groupsWithOptions.reduce(
+    (sum, options) => sum + Math.min(...options.map((option) => option.priceAdjustCents)),
+    0,
+  );
+  const maxAdjustCents = groupsWithOptions.reduce(
+    (sum, options) => sum + Math.max(...options.map((option) => option.priceAdjustCents)),
+    0,
+  );
+  if (basePriceCents + minAdjustCents < MIN_VARIANT_UNIT_PRICE_CENTS) {
+    return "Variant price adjustments cannot reduce the final price below $0.01.";
+  }
+  if (basePriceCents + maxAdjustCents > MAX_VARIANT_UNIT_PRICE_CENTS) {
+    return "Variant price adjustments cannot raise the final price above $100,000.";
+  }
+  return null;
 }

@@ -263,6 +263,12 @@ export async function POST(req: Request) {
       }
 
       const unitPriceCents = item.listing.priceCents + variantResolution.variantAdjustCents;
+      if (unitPriceCents < 1) {
+        return NextResponse.json(
+          { error: `"${item.listing.title}" has an invalid variant price.` },
+          { status: 400 },
+        );
+      }
       if (unitPriceCents !== item.priceCents || item.priceVersion !== item.listing.priceVersion) {
         await prisma.cartItem.update({
           where: { id: item.id },
@@ -285,13 +291,6 @@ export async function POST(req: Request) {
           { status: 409 },
         );
       }
-      if (unitPriceCents < 1) {
-        return NextResponse.json(
-          { error: `"${item.listing.title}" has an invalid variant price.` },
-          { status: 400 },
-        );
-      }
-
       resolvedSellerItems.push({
         ...item,
         unitPriceCents,

@@ -44,7 +44,7 @@ const snapshot = {
 };
 
 describe("local account state cleanup", () => {
-  it("clears checkout secrets and rates while preserving address by default", () => {
+  it("clears legacy checkout session state and address by default", () => {
     const storage = memoryStorage();
     writeCartSessionJson(CART_ADDRESS_KEY, { line1: "1 Main" }, storage);
     writeCartSessionJson(CART_CHECKOUTS_KEY, [{ secret: "cs_test_secret_x" }], storage);
@@ -52,7 +52,7 @@ describe("local account state cleanup", () => {
 
     assert.equal(clearCartSessionStorage({ storage }), true);
 
-    assert.deepEqual(readCartSessionJson(CART_ADDRESS_KEY, null, storage), { line1: "1 Main" });
+    assert.equal(storage.getItem(CART_ADDRESS_KEY), null);
     assert.equal(storage.getItem(CART_CHECKOUTS_KEY), null);
     assert.equal(storage.getItem(CART_RATES_KEY), null);
   });
@@ -82,7 +82,18 @@ describe("local account state cleanup", () => {
     assert.doesNotMatch(cartPage, /readCartSessionJson<ClientSecretEntry/);
     assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_CHECKOUTS_KEY/);
     assert.doesNotMatch(cartPage, /sessionStorage\.setItem\(CART_CHECKOUTS_KEY/);
-    assert.match(cartPage, /clearCartCheckoutSecrets\(\)/);
+    assert.match(cartPage, /clearCartSessionStorage\(\{ includeAddress: true \}\)/);
+  });
+
+  it("does not persist checkout address or selected rates from the cart page", () => {
+    const cartPage = readFileSync(new URL("../src/app/cart/page.tsx", import.meta.url), "utf8");
+
+    assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_ADDRESS_KEY/);
+    assert.doesNotMatch(cartPage, /writeCartSessionJson\(CART_RATES_KEY/);
+    assert.doesNotMatch(cartPage, /readCartSessionJson<ShippingAddress/);
+    assert.doesNotMatch(cartPage, /readCartSessionJson<Record<string, SelectedShippingRate>>/);
+    assert.match(cartPage, /LOCAL_ACCOUNT_STATE_CLEARED_EVENT/);
+    assert.match(cartPage, /setShippingAddress\(null\)/);
   });
 
   it("clears cart session state when the authenticated browser user changes", () => {

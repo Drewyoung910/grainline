@@ -14,9 +14,12 @@ function modelBlock(schema, modelName) {
 
 describe("schema numeric and index guardrails", () => {
   const migrationPath = "prisma/migrations/20260523223000_schema_numeric_guards_and_indexes/migration.sql";
+  const variantMigrationPath = "prisma/migrations/20260524090000_listing_variant_price_adjust_guard/migration.sql";
 
   it("adds and validates database numeric guardrails for money, scores, dates, and ranges", () => {
     const migration = source(migrationPath);
+    const variantMigration = source(variantMigrationPath);
+    const numericMigrations = `${migration}\n${variantMigration}`;
 
     for (const constraint of [
       "Order_itemsSubtotalCents_non_negative_chk",
@@ -35,14 +38,15 @@ describe("schema numeric and index guardrails", () => {
       "SellerProfile_default_pkg_non_negative_chk",
       "Listing_analytics_non_negative_chk",
       "Listing_scores_range_chk",
+      "ListingVariantOption_price_adjust_range_chk",
       "SellerProfile_founding_maker_number_range_chk",
       "SellerProfile_radiusMeters_range_chk",
       "CommissionRequest_radiusMeters_range_chk",
       "Metro_radiusMiles_range_chk",
       "Review_ratingX2_range_chk",
     ]) {
-      assert.match(migration, new RegExp(`ADD CONSTRAINT "${constraint}"`));
-      assert.match(migration, new RegExp(`VALIDATE CONSTRAINT "${constraint}"`));
+      assert.match(numericMigrations, new RegExp(`ADD CONSTRAINT "${constraint}"`));
+      assert.match(numericMigrations, new RegExp(`VALIDATE CONSTRAINT "${constraint}"`));
     }
 
     assert.match(migration, /SET "stockQuantity" = 0[\s\S]*"listingType" = 'IN_STOCK'[\s\S]*"stockQuantity" IS NULL/);
@@ -52,6 +56,7 @@ describe("schema numeric and index guardrails", () => {
     assert.match(migration, /"processingTimeMinDays" <= "processingTimeMaxDays"/);
     assert.match(migration, /"qualityScore" <= 1\.2/);
     assert.match(migration, /"aiReviewScore" >= 0 AND "aiReviewScore" <= 1/);
+    assert.match(variantMigration, /"priceAdjustCents" >= -10000000 AND "priceAdjustCents" <= 10000000/);
     assert.match(migration, /"ratingX2" >= 2 AND "ratingX2" <= 10/);
   });
 

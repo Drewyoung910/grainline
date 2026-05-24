@@ -1,16 +1,21 @@
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { requiredProductionEnv } from "./env.ts";
+
+const R2_ACCOUNT_ID = requiredProductionEnv("CLOUDFLARE_R2_ACCOUNT_ID");
+const R2_ACCESS_KEY_ID = requiredProductionEnv("CLOUDFLARE_R2_ACCESS_KEY_ID");
+const R2_SECRET_ACCESS_KEY = requiredProductionEnv("CLOUDFLARE_R2_SECRET_ACCESS_KEY");
 
 export const r2 = new S3Client({
   region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
 });
 
-export const R2_BUCKET = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
-export const R2_PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL!;
+export const R2_BUCKET = requiredProductionEnv("CLOUDFLARE_R2_BUCKET_NAME");
+export const R2_PUBLIC_URL = requiredProductionEnv("CLOUDFLARE_R2_PUBLIC_URL");
 
 function configuredR2PublicBases(): URL[] {
   return [

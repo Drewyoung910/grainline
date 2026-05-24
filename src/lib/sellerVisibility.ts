@@ -1,6 +1,10 @@
 import { Prisma } from "@prisma/client";
 
-const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
+export const SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION = "v2";
+
+export function isSupportedStripeAccountVersion(version: string | null | undefined) {
+  return version == null || version === SUPPORTED_STRIPE_CONNECT_ACCOUNT_VERSION;
+}
 
 function supportedStripeAccountVersionWhere() {
   return {
