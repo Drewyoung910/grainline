@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { CommissionStatus } from "@prisma/client";
+import { reviewNoteSnapshot } from "./banOrderReviewState.ts";
 
 const COMMISSION_STATUSES = new Set<string>(Object.values(CommissionStatus));
 
@@ -20,6 +20,7 @@ export type BanOpenOrderSnapshot = {
   previousReviewNeeded: boolean;
   previousReviewNoteHash: string | null;
   previousReviewNoteLength: number;
+  addedReviewNote?: boolean;
 };
 
 export type BanOpenOrderInput = {
@@ -27,6 +28,7 @@ export type BanOpenOrderInput = {
   buyerId: string | null;
   previousReviewNeeded: boolean;
   previousReviewNote?: string | null;
+  addedReviewNote?: boolean;
 };
 
 export type BanAuditMetadata = {
@@ -80,22 +82,16 @@ function readOpenOrderSnapshots(value: unknown): BanOpenOrderSnapshot[] {
       typeof item.previousReviewNoteLength === "number" && Number.isSafeInteger(item.previousReviewNoteLength)
         ? item.previousReviewNoteLength
         : legacySnapshot.previousReviewNoteLength;
+    const addedReviewNote = typeof item.addedReviewNote === "boolean" ? item.addedReviewNote : undefined;
     return [{
       id: item.id,
       buyerId: item.buyerId,
       previousReviewNeeded: item.previousReviewNeeded,
       previousReviewNoteHash,
       previousReviewNoteLength,
+      ...(addedReviewNote !== undefined ? { addedReviewNote } : {}),
     }];
   });
-}
-
-function reviewNoteSnapshot(note: string | null) {
-  if (!note) return { previousReviewNoteHash: null, previousReviewNoteLength: 0 };
-  return {
-    previousReviewNoteHash: createHash("sha256").update(note).digest("hex"),
-    previousReviewNoteLength: Array.from(note).length,
-  };
 }
 
 export function buildBanAuditMetadata({
@@ -123,6 +119,7 @@ export function buildBanAuditMetadata({
       id: order.id,
       buyerId: order.buyerId,
       previousReviewNeeded: order.previousReviewNeeded,
+      ...(typeof order.addedReviewNote === "boolean" ? { addedReviewNote: order.addedReviewNote } : {}),
       ...reviewNoteSnapshot(order.previousReviewNote ?? null),
     })),
   };

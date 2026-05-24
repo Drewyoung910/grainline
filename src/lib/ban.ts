@@ -1,18 +1,23 @@
 import { prisma } from './db'
 import { stripe } from './stripe'
+import type { Prisma } from '@prisma/client'
 import { buildBanAuditMetadata } from './banAuditMetadata'
 import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecycle'
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { blockingRefundLedgerWhere } from './refundRouteState'
-import { truncateText } from './sanitize'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
 import { revalidatePublicSellerVisibilityCaches } from './searchCache'
 import { invalidateAccountStateCache } from './accountStateCache'
+import {
+  appendBannedSellerReviewNote,
+  restoreOrderReviewStateAfterBan,
+} from './banOrderReviewState'
+import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
 import * as Sentry from '@sentry/nextjs'
 
 const OPEN_SELLER_ORDER_STATUSES = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED'] as const
-const BANNED_SELLER_REVIEW_NOTE = 'Seller account was banned after payment. Staff must review fulfillment and refund options before further action.'
+const BANNED_BUYER_COMMISSION_STATUSES = ['OPEN', 'IN_PROGRESS'] as const
 
 export class BanUserPolicyError extends Error {
   status: number;
@@ -65,28 +70,66 @@ async function logClerkSyncResult({
   }
 }
 
-function appendBanReviewNote(existing: string | null) {
-  if (!existing) return BANNED_SELLER_REVIEW_NOTE
-  if (existing.includes(BANNED_SELLER_REVIEW_NOTE)) return existing
-  return truncateText(`${existing}\n\n${BANNED_SELLER_REVIEW_NOTE}`, 5000)
-}
-
 async function notifyBuyersOfBannedSellerOrders(
   orders: Array<{ id: string; buyerId: string | null }>,
 ) {
-  await Promise.all(
-    orders
-      .filter((order): order is { id: string; buyerId: string } => Boolean(order.buyerId))
-      .map((order) =>
-        createNotification({
-          userId: order.buyerId,
-          type: 'ACCOUNT_WARNING',
-          title: 'Order under support review',
-          body: 'The maker is currently unavailable. Grainline staff will review the order and next steps.',
-          link: `/dashboard/orders/${order.id}`,
-        }),
-      ),
+  const notifiableOrders = orders.filter((order): order is { id: string; buyerId: string } => Boolean(order.buyerId))
+  const results = await Promise.allSettled(
+    notifiableOrders.map((order) =>
+      createNotification({
+        userId: order.buyerId,
+        type: 'ACCOUNT_WARNING',
+        title: 'Order under support review',
+        body: 'The maker is currently unavailable. Grainline staff will review the order and next steps.',
+        link: `/dashboard/orders/${order.id}`,
+      }),
+    ),
   )
+
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') return
+    Sentry.captureException(result.reason, {
+      tags: { source: 'ban_user_buyer_notification' },
+      extra: {
+        orderId: notifiableOrders[index]?.id,
+        buyerId: notifiableOrders[index]?.buyerId,
+      },
+    })
+  })
+}
+
+async function restoreBannedSellerOrderReviewState(
+  tx: Pick<Prisma.TransactionClient, 'order'>,
+  snapshots: BanOpenOrderSnapshot[],
+) {
+  if (snapshots.length === 0) return 0
+  const currentOrders = await tx.order.findMany({
+    where: { id: { in: snapshots.map((snapshot) => snapshot.id) } },
+    select: { id: true, reviewNeeded: true, reviewNote: true },
+  })
+  const currentById = new Map(currentOrders.map((order) => [order.id, order]))
+
+  let restored = 0
+  for (const snapshot of snapshots) {
+    const current = currentById.get(snapshot.id)
+    if (!current) continue
+    const restoration = restoreOrderReviewStateAfterBan({
+      currentReviewNeeded: current.reviewNeeded,
+      currentReviewNote: current.reviewNote,
+      snapshot,
+    })
+    if (!restoration) continue
+    const updated = await tx.order.updateMany({
+      where: {
+        id: snapshot.id,
+        reviewNeeded: current.reviewNeeded,
+        reviewNote: current.reviewNote,
+      },
+      data: restoration,
+    })
+    restored += updated.count
+  }
+  return restored
 }
 
 function revalidateAccountStateSearchCaches(source: string, userId: string) {
@@ -118,7 +161,7 @@ export async function banUser({ userId, adminId, reason }: {
         select: { id: true, chargesEnabled: true, vacationMode: true, stripeAccountId: true },
       }),
       tx.commissionRequest.findMany({
-        where: { buyerId: userId, status: 'OPEN' },
+        where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
         select: { id: true, status: true },
       }),
     ])
@@ -155,16 +198,27 @@ export async function banUser({ userId, adminId, reason }: {
       const cleanup = await removeSellerCommissionInterests(tx, sellerProfile.id)
       removedCommissionInterestRequestIds = cleanup.commissionRequestIds
     }
+    const flaggedOpenOrders = openSellerOrders.map((order) => {
+      const reviewNoteState = appendBannedSellerReviewNote(order.reviewNote)
+      return {
+        id: order.id,
+        buyerId: order.buyerId,
+        previousReviewNeeded: order.reviewNeeded,
+        previousReviewNote: order.reviewNote,
+        reviewNote: reviewNoteState.reviewNote,
+        addedReviewNote: reviewNoteState.addedReviewNote,
+      }
+    })
     await tx.commissionRequest.updateMany({
-      where: { buyerId: userId, status: 'OPEN' },
+      where: { buyerId: userId, status: { in: [...BANNED_BUYER_COMMISSION_STATUSES] } },
       data: { status: 'CLOSED' }
     })
-    for (const order of openSellerOrders) {
+    for (const order of flaggedOpenOrders) {
       await tx.order.update({
         where: { id: order.id },
         data: {
           reviewNeeded: true,
-          reviewNote: appendBanReviewNote(order.reviewNote),
+          reviewNote: order.reviewNote,
         },
       })
     }
@@ -179,12 +233,7 @@ export async function banUser({ userId, adminId, reason }: {
           ...buildBanAuditMetadata({
             sellerProfile,
             commissionRequests,
-            openOrders: openSellerOrders.map((order) => ({
-              id: order.id,
-              buyerId: order.buyerId,
-              previousReviewNeeded: order.reviewNeeded,
-              previousReviewNote: order.reviewNote,
-            })),
+            openOrders: flaggedOpenOrders,
           }),
           removedCommissionInterestRequestIds,
         },
@@ -195,7 +244,7 @@ export async function banUser({ userId, adminId, reason }: {
       sellerCheckoutExpiry: sellerProfile?.stripeAccountId
         ? { sellerId: sellerProfile.id, stripeAccountId: sellerProfile.stripeAccountId }
         : null,
-      flaggedOpenOrders: openSellerOrders.map((order) => ({
+      flaggedOpenOrders: flaggedOpenOrders.map((order) => ({
         id: order.id,
         buyerId: order.buyerId,
       })),
@@ -206,19 +255,26 @@ export async function banUser({ userId, adminId, reason }: {
   revalidateAccountStateSearchCaches('ban_user_search_cache_revalidate', userId)
 
   if (clerkSync.sellerCheckoutExpiry) {
-    const expiryResult = await expireOpenCheckoutSessionsForSeller({
-      ...clerkSync.sellerCheckoutExpiry,
-      source: 'ban_user',
-    })
-    await logClerkSyncResult({
-      adminId,
-      action: 'BAN_USER_CHECKOUT_SESSIONS_EXPIRED',
-      targetId: userId,
-      metadata: {
+    try {
+      const expiryResult = await expireOpenCheckoutSessionsForSeller({
         ...clerkSync.sellerCheckoutExpiry,
-        ...expiryResult,
-      },
-    })
+        source: 'ban_user',
+      })
+      await logClerkSyncResult({
+        adminId,
+        action: 'BAN_USER_CHECKOUT_SESSIONS_EXPIRED',
+        targetId: userId,
+        metadata: {
+          ...clerkSync.sellerCheckoutExpiry,
+          ...expiryResult,
+        },
+      })
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { source: 'ban_user_checkout_session_expiry' },
+        extra: { userId, adminId, ...clerkSync.sellerCheckoutExpiry },
+      })
+    }
   }
 
   await notifyBuyersOfBannedSellerOrders(clerkSync.flaggedOpenOrders)
@@ -280,7 +336,7 @@ export async function unbanUser({ userId, adminId, reason }: {
     }
   }
   const clerkSync = await prisma.$transaction(async (tx) => {
-    const [previousUser, previousSellerProfile] = await Promise.all([
+    const [previousUser, previousSellerProfile, latestBanLog] = await Promise.all([
       tx.user.findUnique({
         where: { id: userId },
         select: { clerkId: true, banned: true, bannedAt: true, banReason: true, bannedBy: true },
@@ -289,8 +345,18 @@ export async function unbanUser({ userId, adminId, reason }: {
         where: { userId },
         select: { id: true, chargesEnabled: true, vacationMode: true },
       }),
+      tx.adminAuditLog.findFirst({
+        where: { action: 'BAN_USER', targetType: 'USER', targetId: userId },
+        orderBy: { createdAt: 'desc' },
+        select: { metadata: true },
+      }),
     ])
     if (!previousUser) throw new BanUserPolicyError("User not found", 404)
+    const banMetadata = readBanAuditMetadata(latestBanLog?.metadata)
+    const restoredFlaggedOrderReviews = await restoreBannedSellerOrderReviewState(
+      tx,
+      banMetadata.flaggedOpenOrders,
+    )
     await tx.user.update({
       where: { id: userId },
       data: { banned: false, bannedAt: null, banReason: null, bannedBy: null }
@@ -321,6 +387,7 @@ export async function unbanUser({ userId, adminId, reason }: {
               }
             : null,
           previousSellerProfile,
+          restoredFlaggedOrderReviews,
           restoredSellerProfile: sellerRestore,
           sellerRestoreWarning,
           sellerRestoreError,

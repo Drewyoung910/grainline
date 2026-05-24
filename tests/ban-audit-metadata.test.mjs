@@ -20,8 +20,8 @@ describe("ban audit metadata", () => {
           id: "order_1",
           buyerId: "buyer_1",
           previousReviewNeeded: false,
-          previousReviewNoteHash: null,
-          previousReviewNoteLength: 0,
+          previousReviewNote: null,
+          addedReviewNote: true,
         },
       ],
     });
@@ -43,6 +43,7 @@ describe("ban audit metadata", () => {
           previousReviewNeeded: false,
           previousReviewNoteHash: null,
           previousReviewNoteLength: 0,
+          addedReviewNote: true,
         },
       ],
     });
@@ -66,6 +67,7 @@ describe("ban audit metadata", () => {
           buyerId: null,
           previousReviewNeeded: true,
           previousReviewNote: "Already flagged",
+          addedReviewNote: true,
         },
         { id: "order_2", buyerId: 123, previousReviewNeeded: false, previousReviewNote: null },
       ],
@@ -85,6 +87,7 @@ describe("ban audit metadata", () => {
           previousReviewNeeded: true,
           previousReviewNoteHash: "018c721c15e35e4408b533754eb1ad743d20aef6e3a748dfffc5213fa4df5edb",
           previousReviewNoteLength: 15,
+          addedReviewNote: true,
         },
       ],
     });

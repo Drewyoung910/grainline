@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 211.
-- Verified code/feature fix commits since 2026-05-13: 187.
+- Verified hardening/doc commits since 2026-05-13: 212.
+- Verified code/feature fix commits since 2026-05-13: 188.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 141 verified fixed/reduced findings,
-  53 verified stale/false-positive findings, and 41 deferred/manual findings
+- Most recent reported pass tally: 147 verified fixed/reduced findings,
+  56 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -2039,12 +2039,34 @@ Last updated: 2026-05-23
      `tests/stripe-connect-v2.test.mjs`, and
      `tests/round9-account-deletion-pii-guardrails.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 141 findings;
-verified stale/false-positive: 53 findings; product/design decisions deferred:
-41 findings. Remaining major categories: admin undo/ban side-effect
-retryability, AI full-workflow integration evidence, anonymous-cart merge
-durability, checkout concurrency integration evidence, Round 10 deferred
-system-audit and state-machine product designs, JSON shape/size and email
-uniqueness production-scan decisions, conversation swapped-pair DB invariant
-design, email outbox retention/versioning design, account export/legal
-retention scope, and remaining privacy/export retention decisions.
+225. **Round 9 ban and undo side-effect pass reduced** — code/test fix for
+     #835, #836, #840/#1075, #841/#1076, #843, and #845. Buyer warning
+     notifications now use all-settled handling with Sentry evidence, checkout
+     session expiry failures no longer block Clerk session revocation, buyer
+     commission bans close both `OPEN` and `IN_PROGRESS` requests, and unban /
+     BAN_USER undo restores ban-added order review markers only when the current
+     note still matches the captured hash/length snapshot. BAN_USER undo can
+     now retry a failed post-commit Clerk unban sync for an already-undone audit
+     row when the latest related sync log is `UNDO_BAN_USER_CLERK_SYNC_FAILED`.
+     Verified stale/false-positive in current behavior: #837/#1040 (listing
+     undo no longer defaults to ACTIVE) and #1042 (listing undo uses current
+     state `updateMany` guards). #839 is reduced but not fully closed because a
+     process kill between the local ban transaction and Clerk sync still lacks a
+     durable retry queue; #832-#834 and #844 remain for a later admin-audit
+     durability pass. Guardrails: `tests/ban-order-review-state.test.mjs`,
+     `tests/ban-side-effect-guardrails.test.mjs`,
+     `tests/ban-audit-metadata.test.mjs`,
+     `tests/admin-audit-undo-state.test.mjs`, and
+     `tests/round10-state-machine-guardrails.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 147 findings;
+verified stale/false-positive: 56 findings; product/design decisions deferred:
+41 findings. Remaining major categories: admin audit logging durability,
+full ban/Clerk process-kill retryability, admin undo target-state races,
+batched open-order ban review updates, AI full-workflow integration evidence,
+anonymous-cart merge durability, checkout concurrency integration evidence,
+Round 10 deferred system-audit and state-machine product designs, JSON
+shape/size and email uniqueness production-scan decisions, conversation
+swapped-pair DB invariant design, email outbox retention/versioning design,
+account export/legal retention scope, and remaining privacy/export retention
+decisions.

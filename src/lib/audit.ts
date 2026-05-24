@@ -1,8 +1,10 @@
 import * as Sentry from '@sentry/nextjs'
+import type { Prisma } from '@prisma/client'
 import { prisma } from './db'
 import { adminUndoActorBlockReason, adminUndoWindowBlockReason } from './adminAuditUndoState'
 import { listingUndoCurrentStatusWhere, listingUndoDataFromMetadata } from './adminListingUndoState'
-import { readBanAuditMetadata } from './banAuditMetadata'
+import { readBanAuditMetadata, type BanOpenOrderSnapshot } from './banAuditMetadata'
+import { restoreOrderReviewStateAfterBan } from './banOrderReviewState'
 import { unbanClerkUser } from './clerkUserLifecycle'
 import { sanitizeText, truncateText } from './sanitize'
 import { invalidateAccountStateCache } from './accountStateCache'
@@ -11,6 +13,113 @@ export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTI
 
 export function isUndoableAdminAction(action: string): boolean {
   return (UNDOABLE_ADMIN_ACTIONS as readonly string[]).includes(action)
+}
+
+async function restoreBannedSellerOrderReviewState(
+  tx: Pick<Prisma.TransactionClient, 'order'>,
+  snapshots: BanOpenOrderSnapshot[],
+) {
+  if (snapshots.length === 0) return 0
+  const currentOrders = await tx.order.findMany({
+    where: { id: { in: snapshots.map((snapshot) => snapshot.id) } },
+    select: { id: true, reviewNeeded: true, reviewNote: true },
+  })
+  const currentById = new Map(currentOrders.map((order) => [order.id, order]))
+
+  let restored = 0
+  for (const snapshot of snapshots) {
+    const current = currentById.get(snapshot.id)
+    if (!current) continue
+    const restoration = restoreOrderReviewStateAfterBan({
+      currentReviewNeeded: current.reviewNeeded,
+      currentReviewNote: current.reviewNote,
+      snapshot,
+    })
+    if (!restoration) continue
+    const updated = await tx.order.updateMany({
+      where: {
+        id: snapshot.id,
+        reviewNeeded: current.reviewNeeded,
+        reviewNote: current.reviewNote,
+      },
+      data: restoration,
+    })
+    restored += updated.count
+  }
+  return restored
+}
+
+function originalActionIdFromMetadata(metadata: unknown) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  return typeof (metadata as Record<string, unknown>).originalActionId === 'string'
+    ? (metadata as Record<string, unknown>).originalActionId as string
+    : null
+}
+
+async function retryUndoBanClerkSyncIfPending(log: {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+}, adminId: string) {
+  if (log.action !== 'BAN_USER') return false
+
+  const syncLogs = await prisma.adminAuditLog.findMany({
+    where: {
+      action: { in: ['UNDO_BAN_USER_CLERK_SYNC', 'UNDO_BAN_USER_CLERK_SYNC_FAILED'] },
+      targetType: log.targetType,
+      targetId: log.targetId,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 25,
+    select: { action: true, metadata: true },
+  })
+  const latestRelatedSyncLog = syncLogs.find((syncLog) => originalActionIdFromMetadata(syncLog.metadata) === log.id)
+  if (!latestRelatedSyncLog || latestRelatedSyncLog.action !== 'UNDO_BAN_USER_CLERK_SYNC_FAILED') {
+    return false
+  }
+
+  const clerkUnbanTarget = await prisma.user.findUnique({
+    where: { id: log.targetId },
+    select: { clerkId: true, banned: true, deletedAt: true },
+  })
+  if (!clerkUnbanTarget) throw new Error('Undo target user not found')
+  if (clerkUnbanTarget.deletedAt) throw new Error('Undo target account has been deleted')
+  if (clerkUnbanTarget.banned) {
+    throw new Error('Cannot retry Clerk unban because the account is currently banned')
+  }
+
+  await invalidateAccountStateCache(clerkUnbanTarget.clerkId, 'admin_undo_ban_account_state_cache_invalidate')
+  try {
+    await unbanClerkUser(clerkUnbanTarget.clerkId)
+    await logAdminAction({
+      adminId,
+      action: 'UNDO_BAN_USER_CLERK_SYNC',
+      targetType: log.targetType,
+      targetId: log.targetId,
+      metadata: { originalActionId: log.id, clerkUserId: clerkUnbanTarget.clerkId, retry: true },
+    })
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { source: 'undo_ban_user_clerk_sync_retry' },
+      extra: { logId: log.id, adminId, targetId: log.targetId, clerkUserId: clerkUnbanTarget.clerkId },
+    })
+    await logAdminAction({
+      adminId,
+      action: 'UNDO_BAN_USER_CLERK_SYNC_FAILED',
+      targetType: log.targetType,
+      targetId: log.targetId,
+      metadata: {
+        originalActionId: log.id,
+        clerkUserId: clerkUnbanTarget.clerkId,
+        retry: true,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    })
+    throw new Error('Database undo already succeeded, but Clerk still could not be unbanned. Retry the undo or contact support.')
+  }
+
+  return true
 }
 
 export async function logAdminAction({
@@ -86,15 +195,18 @@ export async function undoAdminAction({
 }) {
   const log = await prisma.adminAuditLog.findUnique({ where: { id: logId } })
   if (!log) throw new Error('Action not found')
-  if (log.undone) throw new Error('Already undone')
-  const windowBlockReason = adminUndoWindowBlockReason({ createdAt: log.createdAt })
-  if (windowBlockReason) throw new Error(windowBlockReason)
   if (!isUndoableAdminAction(log.action)) throw new Error(`Action '${log.action}' cannot be undone`)
   const actorBlockReason = adminUndoActorBlockReason({
     actionAdminId: log.adminId,
     actingAdminId: adminId,
   })
   if (actorBlockReason) throw new Error(actorBlockReason)
+  if (log.undone) {
+    if (await retryUndoBanClerkSyncIfPending(log, adminId)) return
+    throw new Error('Already undone')
+  }
+  const windowBlockReason = adminUndoWindowBlockReason({ createdAt: log.createdAt })
+  if (windowBlockReason) throw new Error(windowBlockReason)
 
   const metadata = (log.metadata && typeof log.metadata === 'object' && !Array.isArray(log.metadata))
     ? log.metadata as Record<string, unknown>
@@ -167,6 +279,9 @@ export async function undoAdminAction({
               })
             )
           )
+        }
+        if (banMetadata?.flaggedOpenOrders.length) {
+          await restoreBannedSellerOrderReviewState(tx, banMetadata.flaggedOpenOrders)
         }
         break
       case 'REMOVE_LISTING':
