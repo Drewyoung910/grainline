@@ -82,7 +82,7 @@ export default function AdminPinGate({
   if (verified) return <>{children}</>;
 
   async function handleVerify() {
-    if (locked) return;
+    if (loading || locked || pin.length < 4) return;
     setError(null);
     setLoading(true);
     try {
@@ -127,6 +127,7 @@ export default function AdminPinGate({
         <input
           type="password"
           inputMode="numeric"
+          autoComplete="off"
           maxLength={6}
           value={pin}
           onChange={(e) => {
@@ -134,7 +135,9 @@ export default function AdminPinGate({
             setError(null);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && pin.length >= 4) handleVerify();
+            if (e.key === "Enter" && !loading && !locked && pin.length >= 4) {
+              void handleVerify();
+            }
           }}
           placeholder="------"
           disabled={locked}

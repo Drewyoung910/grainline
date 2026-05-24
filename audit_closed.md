@@ -2327,7 +2327,19 @@ Last updated: 2026-05-24
      address/quote-review order. Guardrails:
      `tests/payment-side-effect-observability.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 196 findings;
+240. **Client-side persistence and PIN guardrails reduced** — code/test fix for
+     #915, #916, and #917. Signed-in checkout address saves now fail visibly
+     and stop before advancing if `/api/account/shipping-address` returns a
+     non-2xx response or throws; shoppers can explicitly uncheck address saving
+     to continue without implying persistence succeeded. Recently-viewed
+     cookies now include `Secure` on HTTPS while preserving local HTTP
+     development behavior. The admin PIN gate now blocks loading-state
+     double-submit paths, rejects too-short Enter submits at the handler
+     boundary, and opts the PIN input out of browser autocomplete. Guardrails:
+     `tests/client-async-guardrails.test.mjs` and
+     `tests/recently-viewed.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 199 findings;
 verified stale/false-positive: 74 findings; product/design decisions deferred:
 42 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
@@ -2338,4 +2350,5 @@ case/message state-policy decisions, account export/legal retention scope,
 remaining privacy/export retention decisions, anonymous-cart merge
 bulk/performance design, broader React `cache()` opportunities beyond the
 seller page, cross-seller AI duplicate-detection product design, CSP
-`unsafe-eval` rollout monitoring, and dependency hygiene cleanup.
+`unsafe-eval` rollout monitoring, cart/listing checkout and public-visibility
+follow-ups, and dependency hygiene cleanup.

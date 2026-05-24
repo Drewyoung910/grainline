@@ -32,6 +32,18 @@ describe("client async guardrails", () => {
     assert.match(shippingAddressForm, /if \(!signal\.aborted\) setLoading\(false\)/);
   });
 
+  it("does not claim a signed-in shipping address was saved when the save request fails", () => {
+    const shippingAddressForm = source("src/components/ShippingAddressForm.tsx");
+
+    assert.match(shippingAddressForm, /const \[saveError, setSaveError\]/);
+    assert.match(shippingAddressForm, /const res = await fetch\("\/api\/account\/shipping-address"/);
+    assert.match(shippingAddressForm, /if \(!res\.ok\) \{/);
+    assert.match(shippingAddressForm, /setSaveError\("We couldn't save this address/);
+    assert.match(shippingAddressForm, /if \(!res\.ok\) \{[\s\S]*?setSaveError[\s\S]*?return;\s*\}/);
+    assert.match(shippingAddressForm, /catch \(err\) \{[\s\S]*?setSaveError[\s\S]*?return;\s*\}/);
+    assert.match(shippingAddressForm, /role="alert"/);
+  });
+
   it("prevents stale header count and identity fetches from winning", () => {
     const header = source("src/components/Header.tsx");
 
@@ -80,5 +92,14 @@ describe("client async guardrails", () => {
     assert.match(composer, /if \(formId !== successEventFormId\) return/);
     assert.match(threadMessages, /refreshEventFormId/);
     assert.match(threadMessages, /if \(formId !== refreshEventFormId\) return/);
+  });
+
+  it("keeps the admin PIN input out of autocomplete and blocks double-submit while loading", () => {
+    const pinGate = source("src/components/AdminPinGate.tsx");
+
+    assert.match(pinGate, /if \(loading \|\| locked \|\| pin\.length < 4\) return/);
+    assert.match(pinGate, /autoComplete="off"/);
+    assert.match(pinGate, /e\.key === "Enter" && !loading && !locked && pin\.length >= 4/);
+    assert.match(pinGate, /void handleVerify\(\)/);
   });
 });

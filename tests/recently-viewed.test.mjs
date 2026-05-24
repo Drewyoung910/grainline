@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-const { normalizeRecentlyViewedIds, recentlyViewedAuthTransition } = await import("../src/lib/recentlyViewed.ts");
+const {
+  normalizeRecentlyViewedIds,
+  recentlyViewedAuthTransition,
+  recentlyViewedCookieAttributes,
+} = await import("../src/lib/recentlyViewed.ts");
 
 describe("recently viewed cookie helpers", () => {
   it("keeps only unique non-empty string listing ids", () => {
@@ -32,5 +36,10 @@ describe("recently viewed cookie helpers", () => {
       recentlyViewedAuthTransition({ previousUserId: null, currentUserId: "user_a" }),
       { shouldClear: false, nextUserId: "user_a" },
     );
+  });
+
+  it("marks recently viewed cookies Secure on HTTPS while preserving local HTTP development", () => {
+    assert.equal(recentlyViewedCookieAttributes("https:"), "path=/; SameSite=Lax; Secure");
+    assert.equal(recentlyViewedCookieAttributes("http:"), "path=/; SameSite=Lax");
   });
 });

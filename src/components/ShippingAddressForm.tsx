@@ -25,6 +25,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
   const [phone, setPhone] = useState("");
   const [saveAddress, setSaveAddress] = useState(true);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(isSignedIn);
   const [saving, setSaving] = useState(false);
 
@@ -73,6 +74,7 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
     e.preventDefault();
     const fieldErrors = validate();
     setErrors(fieldErrors);
+    setSaveError(null);
     if (Object.keys(fieldErrors).length > 0) return;
 
     const address: ShippingAddress = {
@@ -88,13 +90,19 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
     if (isSignedIn && saveAddress) {
       setSaving(true);
       try {
-        await fetch("/api/account/shipping-address", {
+        const res = await fetch("/api/account/shipping-address", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(address),
         });
+        if (!res.ok) {
+          setSaveError("We couldn't save this address. Try again or uncheck save to continue.");
+          return;
+        }
       } catch (err) {
         console.error("Failed to save shipping address:", err);
+        setSaveError("We couldn't save this address. Try again or uncheck save to continue.");
+        return;
       } finally {
         setSaving(false);
       }
@@ -248,11 +256,19 @@ export default function ShippingAddressForm({ onConfirm, onBack, isSignedIn }: P
           <input
             type="checkbox"
             checked={saveAddress}
-            onChange={(e) => setSaveAddress(e.target.checked)}
+            onChange={(e) => {
+              setSaveAddress(e.target.checked);
+              if (!e.target.checked) setSaveError(null);
+            }}
             className="h-4 w-4 rounded border-neutral-300 text-neutral-900 accent-neutral-900 focus:ring-neutral-300"
           />
           Save this address for future orders
         </label>
+      )}
+      {saveError && (
+        <p id="sa-save-error" role="alert" className="text-sm text-red-600">
+          {saveError}
+        </p>
       )}
 
       {/* Buttons */}
