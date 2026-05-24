@@ -125,7 +125,8 @@ export async function reviewListingWithAI(listing: {
         approved: false,
         flags: ['duplicate-listing', 'possible-spam'],
         confidence: 0.95,
-        reason: 'Seller has already posted 2+ listings with this same normalized title in the last 7 days'
+        reason: 'Seller has already posted 2+ listings with this same normalized title in the last 7 days',
+        altTexts: [],
       }
     }
   } catch (error) {
@@ -218,16 +219,19 @@ Flag listings with low-quality descriptions:
 - Description provides no useful information about the product (materials, dimensions, process, intended use)
 
 For low-quality descriptions:
-- If listing is otherwise legitimate and from a NEW seller (0-2 listings): APPROVE but include flag "low-quality-description"
+- If listing is otherwise legitimate and from a NEW seller (0-2 listings): set approved=false and include flag "low-quality-description" so staff can spot-check before publication
 - If seller has 3+ listings AND description is very low quality: REJECT with reason "Description too brief — please describe materials, dimensions, and any unique features"
 - If description is completely missing: REJECT regardless of seller experience
 
 A good description for a handmade item should be at least 50 characters and mention something specific about the product.
 
 LENIENCY FOR NEW SELLERS:
-- Sellers with 0-2 listings get benefit of doubt on borderline TEXT cases (not image violations)
+- Sellers with 0-2 listings get benefit of doubt on borderline TEXT cases through staff review instead of automatic public approval
 - Always reject clear violations regardless of seller experience
 - After 3+ listings, apply standard strictness
+
+DECISION CONSISTENCY:
+If you return any flag, approved must be false. Never return approved=true with a non-empty flags array.
 
 ALT TEXT GENERATION (REQUIRED):
 You MUST generate an "altTexts" array in your JSON response. For each image provided, write a brief SEO-friendly alt text (10-20 words) describing the item shown. Focus on materials, colors, wood species, and the type of woodworking piece. Example: "Hand-carved walnut cutting board with live edge and mineral oil finish". Always include exactly one alt text per image. If no images are provided, return "altTexts": [].

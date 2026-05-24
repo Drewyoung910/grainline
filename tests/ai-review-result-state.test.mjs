@@ -20,7 +20,7 @@ describe("AI review response normalization", () => {
   it("bounds strings, clamps confidence, and pads missing alt text", () => {
     const result = normalizeAIReviewResult(
       {
-        approved: true,
+        approved: false,
         flags: ["x".repeat(200), 7, "ok"],
         confidence: 7,
         reason: `  ${"Needs review ".repeat(80)}  `,
@@ -29,7 +29,7 @@ describe("AI review response normalization", () => {
       2,
     );
 
-    assert.equal(result.approved, true);
+    assert.equal(result.approved, false);
     assert.equal(result.flags.length, 2);
     assert.equal(result.flags[0].length, 80);
     assert.equal(result.confidence, 1);
@@ -38,6 +38,39 @@ describe("AI review response normalization", () => {
       "walnut table",
       "Handmade woodworking product photo",
     ]);
+  });
+
+  it("fails closed for semantically contradictory moderation decisions", () => {
+    const result = normalizeAIReviewResult(
+      {
+        approved: true,
+        flags: ["counterfeit"],
+        confidence: 0.95,
+        reason: "Counterfeit branded item",
+        altTexts: [],
+      },
+      0,
+    );
+
+    assert.equal(result.approved, false);
+    assert.deepEqual(result.flags, ["semantic-ai-review-mismatch", "counterfeit"]);
+    assert.equal(result.confidence, 0.95);
+  });
+
+  it("adds a hold flag when the model rejects without a usable flag", () => {
+    const result = normalizeAIReviewResult(
+      {
+        approved: false,
+        flags: [],
+        confidence: 0.91,
+        reason: "Rejected",
+        altTexts: [],
+      },
+      0,
+    );
+
+    assert.equal(result.approved, false);
+    assert.deepEqual(result.flags, ["ai-review-held"]);
   });
 
   it("sanitizes generated bulk-review alt text before persistence", () => {

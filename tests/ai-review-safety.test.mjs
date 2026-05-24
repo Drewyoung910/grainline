@@ -65,6 +65,12 @@ describe("AI review safety helpers", () => {
     assert.equal(filterAIReviewImageUrls(urls, () => true).length, 10);
   });
 
+  it("keeps duplicate auto-rejects on the full AI review result shape", () => {
+    const text = readFileSync("src/lib/ai-review.ts", "utf8");
+    assert.match(text, /flags: \['duplicate-listing', 'possible-spam'\]/);
+    assert.match(text, /altTexts: \[\]/);
+  });
+
   it("sanitizes generated alt text before persistence", () => {
     assert.equal(
       sanitizeAIAltText("<img src=x onerror=alert(1)> walnut bowl\u202E data:text/html"),

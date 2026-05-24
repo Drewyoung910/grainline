@@ -20,6 +20,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { parseJsonArrayField, parseJsonObjectField } from "@/lib/formJson";
 import { parseMoneyInputToCents } from "@/lib/money";
 import { listingCreateRatelimit, safeRateLimit } from "@/lib/ratelimit";
+import { backfillEmptyAltTexts } from "@/lib/photoAltTextBackfill";
 
 // unit converters
 const inToCm = (v: number) => Math.round((v * 2.54 + Number.EPSILON) * 100) / 100;
@@ -196,25 +197,7 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
   }));
   const shouldHold = !aiResult.approved || aiResult.flags.length > 0 || aiResult.confidence < 0.8;
 
-  if (aiResult.altTexts?.length) {
-    try {
-      const photos = await prisma.photo.findMany({
-        where: { listingId: created.id },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, altText: true },
-      });
-      for (let i = 0; i < Math.min(photos.length, aiResult.altTexts.length); i++) {
-        if (aiResult.altTexts[i] && !photos[i].altText) {
-          await prisma.photo.update({
-            where: { id: photos[i].id },
-            data: { altText: truncateText(sanitizeText(aiResult.altTexts[i]), 200) },
-          });
-        }
-      }
-    } catch (e) {
-      console.error("[custom-listing] AI alt-text backfill failed:", e);
-    }
-  }
+  await backfillEmptyAltTexts(created.id, aiResult.altTexts);
 
   if (shouldHold) {
     const held = await prisma.listing.updateMany({

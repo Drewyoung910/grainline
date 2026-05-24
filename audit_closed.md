@@ -22,11 +22,11 @@ deferred, stale, and open findings for traceability.
 Last updated: 2026-05-23
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 209.
-- Verified code/feature fix commits since 2026-05-13: 185.
+- Verified hardening/doc commits since 2026-05-13: 210.
+- Verified code/feature fix commits since 2026-05-13: 186.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 135 verified fixed/reduced findings,
-  52 verified stale/false-positive findings, and 41 deferred/manual findings
+- Most recent reported pass tally: 138 verified fixed/reduced findings,
+  53 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
 ## 2026-05-14 Active Tracker
@@ -2006,13 +2006,30 @@ Last updated: 2026-05-23
      malformed value. Guardrails: `tests/email-delivery-guardrails.test.mjs`
      and `tests/email-outbox-quota.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 135 findings;
-verified stale/false-positive: 52 findings; product/design decisions deferred:
+223. **Round 9 AI review semantic and doc-drift risks reduced** — code/test
+     fix or verified closure for #813, #815, #816, and #817. AI review result
+     normalization now fail-closes semantic contradictions such as
+     `approved: true` with non-empty `flags`, and fills an explicit hold flag
+     when a rejection comes back without a usable reason flag. The moderation
+     prompt now states the same decision invariant so model output and local
+     normalization agree; same-seller duplicate auto-rejects also return the
+     full AI result shape with `altTexts: []`, and custom listing creation now
+     uses the shared alt-text backfill helper. The AI behavior contract now
+     matches current code for the 10-photo listing cap, current caller set,
+     same-seller seven-day duplicate window, and max-token behavior; #816 was
+     verified stale because current code already uses `gpt-4o-mini`,
+     temperature `0.1`, and max `700` tokens. Guardrails:
+     `tests/ai-review-result-state.test.mjs`,
+     `tests/ai-review-safety.test.mjs`, and
+     `tests/post-launch-ui-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 138 findings;
+verified stale/false-positive: 53 findings; product/design decisions deferred:
 41 findings. Remaining major categories: durable account-deletion/Stripe and
 audit redaction retry design, admin undo/ban side-effect retryability, AI
-semantic invariant and integration-test coverage, anonymous-cart merge
-durability, checkout concurrency integration evidence, Round 10 deferred
-system-audit and state-machine product designs, JSON shape/size and email
-uniqueness production-scan decisions, conversation swapped-pair DB invariant
-design, email outbox retention/versioning design, and remaining privacy/export
-retention decisions.
+full-workflow integration evidence, anonymous-cart merge durability, checkout
+concurrency integration evidence, Round 10 deferred system-audit and
+state-machine product designs, JSON shape/size and email uniqueness
+production-scan decisions, conversation swapped-pair DB invariant design, email
+outbox retention/versioning design, and remaining privacy/export retention
+decisions.

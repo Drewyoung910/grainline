@@ -14,10 +14,10 @@ function truncateText(value: string, maxLength: number) {
 
 /**
  * Converts the model response into the only shape callers are allowed to trust.
- * Missing or malformed moderation decisions fail closed, free-form strings are
- * bounded before persistence, confidence is clamped to 0..1, and alt text is
- * padded to the reviewed image count so photo backfill code cannot drift by
- * array index.
+ * Missing, malformed, or semantically contradictory moderation decisions fail
+ * closed, free-form strings are bounded before persistence, confidence is
+ * clamped to 0..1, and alt text is padded to the reviewed image count so photo
+ * backfill code cannot drift by array index.
  */
 export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number): AIReviewResult {
   const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
@@ -27,6 +27,8 @@ export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number):
   const rawConfidence = typeof value.confidence === "number" && Number.isFinite(value.confidence)
     ? value.confidence
     : 0;
+  const confidence = Math.max(0, Math.min(1, rawConfidence));
+  const approved = typeof value.approved === "boolean" ? value.approved : false;
   const altTexts = Array.isArray(value.altTexts)
     ? value.altTexts
         .filter((alt): alt is string => typeof alt === "string")
@@ -38,10 +40,22 @@ export function normalizeAIReviewResult(raw: unknown, expectedAltTexts: number):
     altTexts.push("Handmade woodworking product photo");
   }
 
+  let normalizedApproved = approved;
+  if (normalizedApproved && flags.length > 0) {
+    normalizedApproved = false;
+    if (!flags.includes("semantic-ai-review-mismatch")) {
+      flags.unshift("semantic-ai-review-mismatch");
+      flags.length = Math.min(flags.length, 20);
+    }
+  }
+  if (!normalizedApproved && flags.length === 0) {
+    flags.push("ai-review-held");
+  }
+
   return {
-    approved: typeof value.approved === "boolean" ? value.approved : false,
+    approved: normalizedApproved,
     flags,
-    confidence: Math.max(0, Math.min(1, rawConfidence)),
+    confidence,
     reason: typeof value.reason === "string" && value.reason.trim()
       ? truncateText(value.reason.replace(/\s+/g, " ").trim(), 500)
       : "AI review returned an invalid response",

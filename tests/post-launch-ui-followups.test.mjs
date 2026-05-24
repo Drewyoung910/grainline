@@ -292,6 +292,7 @@ describe("post-launch UI follow-ups", () => {
     const publishActions = source("src/app/seller/[id]/shop/actions.ts");
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const newPage = source("src/app/dashboard/listings/new/page.tsx");
+    const customPage = source("src/app/dashboard/listings/custom/page.tsx");
     const addPhotosRoute = source("src/app/api/listings/[id]/photos/route.ts");
 
     assert.match(helper, /export async function backfillEmptyAltTexts/);
@@ -309,6 +310,9 @@ describe("post-launch UI follow-ups", () => {
     assert.match(editPage, /photoManifestJson/);
     assert.match(editPage, /tx\.photo\.create/);
     assert.match(editPage, /tx\.photo\.updateMany/);
+    assert.match(customPage, /import \{ backfillEmptyAltTexts \}/);
+    assert.match(customPage, /backfillEmptyAltTexts\(created\.id, aiResult\.altTexts\)/);
+    assert.doesNotMatch(customPage, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
     assert.doesNotMatch(addPhotosRoute, /reviewListingWithAI/);
     assert.doesNotMatch(addPhotosRoute, /listingPhotoAiRatelimit/);
     assert.doesNotMatch(addPhotosRoute, /status: ListingStatus\.PENDING_REVIEW/);
