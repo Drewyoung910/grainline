@@ -2339,9 +2339,34 @@ Last updated: 2026-05-24
      `tests/client-async-guardrails.test.mjs` and
      `tests/recently-viewed.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 199 findings;
-verified stale/false-positive: 74 findings; product/design decisions deferred:
-42 findings. Remaining major categories: checkout concurrency integration
+241. **Checkout snapshot and listing visibility follow-ups reduced** —
+     code/test fix for #775, #780, #782, and #791, plus verified closure for
+     #772, #781, #794, and #773. Embedded Stripe checkout now has a runtime
+     missing-key guard instead of a non-null env assertion. Cart and
+     single-listing webhook order snapshots now store the Stripe-paid unit
+     price, keeping `OrderItem.priceCents` and `listingSnapshot.priceCents`
+     aligned when live listing prices drift before webhook finalization.
+     Listing detail related-work queries now reuse `publicListingWhere()`, and
+     listing-specific rating aggregates now share the same visible-review
+     predicate as JSON-LD review snippets. #772 was stale because current cart
+     payment state is not restored from session storage after refresh;
+     `?step=payment` is forced back out unless fresh in-memory secrets exist.
+     #781 was stale because `canBuy` already checks `seller.chargesEnabled`.
+     #794 was a stale documentation conflict rather than a code bug: seller
+     cart cleanup intentionally runs inside the locked order-creation
+     transaction, and `CLAUDE.md` now matches that behavior. #773 remains a
+     product/design choice for partial multi-seller checkout continuation
+     because current all-or-rollback behavior prevents orphan checkout
+     sessions and stock reservations but does not offer a "continue with
+     available sellers" flow. #774 was already tracked as a bulk-merge
+     performance design decision in pass 230 and was not double-counted here.
+     Guardrails: `tests/checkout-script-inventory.test.mjs`,
+     `tests/stripe-webhook-cart-finalization.test.mjs`, and
+     `tests/public-visibility-followups.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 203 findings;
+verified stale/false-positive: 77 findings; product/design decisions deferred:
+43 findings. Remaining major categories: checkout concurrency integration
 evidence, Round 10 deferred system-audit and state-machine product designs,
 JSON shape/size and email uniqueness production-scan decisions, email outbox
 retention/quota/versioning design, refund accounting runtime proof and refund
@@ -2350,5 +2375,5 @@ case/message state-policy decisions, account export/legal retention scope,
 remaining privacy/export retention decisions, anonymous-cart merge
 bulk/performance design, broader React `cache()` opportunities beyond the
 seller page, cross-seller AI duplicate-detection product design, CSP
-`unsafe-eval` rollout monitoring, cart/listing checkout and public-visibility
-follow-ups, and dependency hygiene cleanup.
+`unsafe-eval` rollout monitoring, partial multi-seller checkout continuation
+design, and dependency hygiene cleanup.

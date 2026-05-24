@@ -3,7 +3,8 @@
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 type Props = {
   clientSecret: string;
@@ -14,6 +15,14 @@ type Props = {
 };
 
 export default function EmbeddedCheckoutPanel({ clientSecret, onComplete, sellerName, currentIndex, totalCount }: Props) {
+  if (!stripePromise) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+        Checkout is unavailable right now. Please try again later.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="pb-3 border-b border-neutral-100">

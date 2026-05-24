@@ -1345,7 +1345,7 @@ export async function POST(req: Request) {
                 listingSnapshot: {
                   title: snapshotText(listing.title, 200),
                   description: snapshotText(listing.description, 5000),
-                  priceCents: listing.priceCents,
+                  priceCents: orderPriceCents,
                   imageUrls: listing.photos?.map((p: { url: string }) => p.url) ?? [],
                   category: listing.category ?? null,
                   tags: listing.tags ?? [],
@@ -1476,6 +1476,7 @@ export async function POST(req: Request) {
           const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
           return product?.metadata?.listingId === listingId;
         });
+        const singleOrderPriceCents = singlePaidLine?.price?.unit_amount ?? price;
         const singlePriceDrift = checkoutPriceDriftState({
           stripeUnitAmountCents: singlePaidLine?.price?.unit_amount ?? null,
           expectedUnitAmountCents: priceCentsFromMeta,
@@ -1583,11 +1584,11 @@ export async function POST(req: Request) {
                 create: [{
                   listingId,
                   quantity,
-                  priceCents: price,
+                  priceCents: singleOrderPriceCents,
                   listingSnapshot: {
                     title: snapshotText(listingData?.title, 200),
                     description: snapshotText(listingData?.description, 5000),
-                    priceCents: listingData?.priceCents ?? price,
+                    priceCents: singleOrderPriceCents,
                     imageUrls: listingData?.photos?.map((p: { url: string }) => p.url) ?? [],
                     category: listingData?.category ?? null,
                     tags: listingData?.tags ?? [],

@@ -20,6 +20,16 @@ describe("public visibility follow-ups", () => {
     assert.doesNotMatch(favoritesRoute, /favorite\.upsert\(\{[\s\S]*create: \{ userId: me\.id, listingId \}[\s\S]*findUnique\(\{[\s\S]*where: \{ id: listingId \}/);
   });
 
+  it("keeps listing detail related listings and review aggregates on public visibility filters", () => {
+    const listingPage = read("src/app/listing/[id]/page.tsx");
+
+    assert.match(listingPage, /import \{ canViewListingDetail, isPublicListingDetail, publicListingWhere \}/);
+    assert.match(listingPage, /const visibleListingReviewWhere = \{[\s\S]*?reviewer: \{ banned: false, deletedAt: null \},[\s\S]*?\.\.\.blockedReviewerFilter,/);
+    assert.match(listingPage, /prisma\.review\.aggregate\(\{\s*where: visibleListingReviewWhere,/);
+    assert.match(listingPage, /prisma\.review\.findMany\(\{\s*where: visibleListingReviewWhere,/);
+    assert.match(listingPage, /prisma\.listing\.findMany\(\{\s*where: publicListingWhere\(\{\s*sellerId: listing\.sellerId,\s*id: \{ not: listing\.id \},\s*\}\),/);
+  });
+
   it("allows sellers to clear their workshop gallery explicitly", () => {
     const uploader = read("src/components/GalleryUploader.tsx");
     const profilePage = read("src/app/dashboard/profile/page.tsx");

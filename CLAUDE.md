@@ -3490,7 +3490,7 @@ Stripe Connect is used so sellers receive payouts directly. Stripe webhook handl
 - `checkout-seller` route rewritten: new payload schema (`shippingAddress` + `selectedRate` objects), `ui_mode: "embedded"`, returns `clientSecret`, explicit `transfer_data.amount` excludes tax (items + shipping + giftwrap - 5% fee), `on_behalf_of` intentionally deferred (fee allocation decision pending Terms update), `automatic_tax` with `liability: { type: "self" }`
 - Shipping rate HMACs are bound to the authenticated buyer ID, checkout context, postal code, amount, carrier/service labels, and expiry. Cart quote requests reject mismatched `cartId` + `sellerId` combinations.
 - `shipping_address_collection` removed from checkout-seller — address collected in cart UI
-- Webhook: `reverseTaxIfNeeded` removed (no longer needed — explicit `transfer_data.amount` retains tax on platform automatically). Address now read from session metadata with fallback to Stripe fields for legacy sessions. Per-seller cart cleanup added AFTER `$transaction` (non-fatal).
+- Webhook: `reverseTaxIfNeeded` removed (no longer needed — explicit `transfer_data.amount` retains tax on platform automatically). Address now read from session metadata with fallback to Stripe fields for legacy sessions. Per-seller cart cleanup runs inside the locked order-creation transaction so order creation and seller-scoped cart cleanup commit atomically.
 - CSP updated: `checkout.stripe.com` added to `frame-src` and `connect-src` (required for embedded checkout iframe)
 - Quote route: falls back to cart lookup by `userId` when `cartId` absent; now returns Shippo `objectId` per rate
 - `ShippingRateSelector`: real `objectId` preferred, `AbortController` on fetch, `useCallback` removed

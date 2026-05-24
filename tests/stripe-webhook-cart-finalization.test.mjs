@@ -28,6 +28,24 @@ describe("Stripe cart checkout webhook finalization", () => {
     );
   });
 
+  it("stores paid unit prices in order snapshots instead of mutable listing prices", () => {
+    assert.match(
+      webhookSource,
+      /priceCents: orderPriceCents,\s+listingSnapshot: \{[\s\S]*?priceCents: orderPriceCents,/,
+      "cart item snapshots must preserve the Stripe-paid unit price",
+    );
+    assert.match(
+      webhookSource,
+      /const singleOrderPriceCents = singlePaidLine\?\.price\?\.unit_amount \?\? price;/,
+      "single-listing checkout must prefer the Stripe-paid unit price",
+    );
+    assert.match(
+      webhookSource,
+      /priceCents: singleOrderPriceCents,\s+listingSnapshot: \{[\s\S]*?priceCents: singleOrderPriceCents,/,
+      "single-listing snapshots must preserve the charged unit price",
+    );
+  });
+
   it("revalidates seller and listing eligibility inside the checkout transaction", () => {
     assert.match(
       webhookSource,

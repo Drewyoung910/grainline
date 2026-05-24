@@ -12,7 +12,7 @@ describe("checkout script inventory", () => {
     const embeddedCheckout = source("src/components/EmbeddedCheckoutPanel.tsx");
 
     assert.match(embeddedCheckout, /import \{ loadStripe \} from "@stripe\/stripe-js"/);
-    assert.match(embeddedCheckout, /const stripePromise = loadStripe/);
+    assert.match(embeddedCheckout, /const stripePromise = stripePublishableKey \? loadStripe\(stripePublishableKey\) : null/);
     assert.match(embeddedCheckout, /<EmbeddedCheckoutProvider/);
     assert.match(embeddedCheckout, /<EmbeddedCheckout \/>/);
 
@@ -20,6 +20,15 @@ describe("checkout script inventory", () => {
     assert.match(doc, /src\/components\/EmbeddedCheckoutPanel\.tsx/);
     assert.match(doc, /Do not self-host or bundle/);
     assert.match(doc, /Do not add stale SRI hashes/);
+  });
+
+  it("guards embedded checkout when the Stripe publishable key is missing", () => {
+    const embeddedCheckout = source("src/components/EmbeddedCheckoutPanel.tsx");
+
+    assert.match(embeddedCheckout, /const stripePublishableKey = process\.env\.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY/);
+    assert.doesNotMatch(embeddedCheckout, /NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!/);
+    assert.match(embeddedCheckout, /if \(!stripePromise\) \{/);
+    assert.match(embeddedCheckout, /role="alert"/);
   });
 
   it("documents covered checkout surfaces and change-control rules", () => {

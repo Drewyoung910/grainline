@@ -22,7 +22,7 @@ import ListingGallery from "@/components/ListingGallery";
 import DescriptionExpander from "@/components/DescriptionExpander";
 import BlockReportButton from "@/components/BlockReportButton";
 import { Hammer } from "@/components/icons";
-import { canViewListingDetail, isPublicListingDetail } from "@/lib/listingVisibility";
+import { canViewListingDetail, isPublicListingDetail, publicListingWhere } from "@/lib/listingVisibility";
 import { extractRouteId, publicListingPath, publicSellerPath, routeSegmentWithSlug } from "@/lib/publicPaths";
 import { truncateText } from "@/lib/sanitize";
 import { getSellerRatingMap } from "@/lib/sellerRatingSummary";
@@ -230,6 +230,11 @@ export default async function ListingPage({
   const canSubscribeForStockNotification = listing.listingType === "IN_STOCK" && isOutOfStock;
   const blockedReviewerFilter =
     blockedUserIds.size > 0 ? { reviewerId: { notIn: [...blockedUserIds] } } : {};
+  const visibleListingReviewWhere = {
+    listingId,
+    reviewer: { banned: false, deletedAt: null },
+    ...blockedReviewerFilter,
+  };
 
   const [
     ratingAgg,
@@ -242,18 +247,16 @@ export default async function ListingPage({
     stockNotificationRow,
   ] = await Promise.all([
     prisma.review.aggregate({
-      where: { listingId },
+      where: visibleListingReviewWhere,
       _avg: { ratingX2: true },
       _count: { _all: true },
     }),
     getSellerRatingMap([listing.sellerId]),
     prisma.listing.findMany({
-      where: {
+      where: publicListingWhere({
         sellerId: listing.sellerId,
-        status: "ACTIVE",
-        isPrivate: false,
         id: { not: listing.id },
-      },
+      }),
       orderBy: { qualityScore: "desc" },
       take: 4,
       include: {
@@ -261,11 +264,7 @@ export default async function ListingPage({
       },
     }),
     prisma.review.findMany({
-      where: {
-        listingId,
-        reviewer: { banned: false, deletedAt: null },
-        ...blockedReviewerFilter,
-      },
+      where: visibleListingReviewWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
