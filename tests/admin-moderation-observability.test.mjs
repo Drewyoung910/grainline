@@ -40,11 +40,11 @@ describe("admin moderation hardening follow-ups", () => {
     assert.match(reviewRoute, /currentListing\.status === 'ACTIVE' &&\s*!\s*currentUnavailableReason/s);
     assert.ok(
       reviewRoute.indexOf("const unavailableReason = sellerUnavailableReason(listing.seller)") <
-        reviewRoute.indexOf("await prisma.listing.updateMany"),
+        reviewRoute.indexOf("const approved = await prisma.$transaction"),
       "seller orderability should be checked before ACTIVE approval mutation",
     );
     assert.ok(
-      reviewRoute.indexOf("await prisma.listing.updateMany") <
+      reviewRoute.indexOf("const approved = await prisma.$transaction") <
         reviewRoute.indexOf("await maybeGrantFoundingMaker(listing.sellerId)"),
       "Founding Maker grant should only run after guarded ACTIVE mutation succeeds",
     );

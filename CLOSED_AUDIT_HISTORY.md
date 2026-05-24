@@ -2,6 +2,13 @@
 
 Historical audit and fix-pass logs moved out of `CLAUDE.md` so project instructions stay focused on current architecture and behavior contracts. `audit_open_findings.md` remains the source of truth for individual findings.
 
+## Admin Audit Durability Pass (2026-05-24)
+
+- Added strict transactional admin audit logging via `logAdminActionOrThrow({ client: tx, ... })` while preserving best-effort `logAdminAction()` for non-blocking evidence.
+- Co-committed audit rows with listing removal/review, admin order review actions, support/report resolution, admin review deletion, blog/broadcast deletes, and Guild verification state changes.
+- BAN undo now fails closed for legacy or malformed `BAN_USER` audit rows without `metadata.appliedBannedAt`; staff should use the explicit unban workflow for manual current-state unbans.
+- Guardrail coverage: `tests/admin-audit-durability.test.mjs`, `tests/admin-moderation-observability.test.mjs`, `tests/admin-action-guardrails.test.mjs`, `tests/admin-audit-undo-state.test.mjs`, `tests/ban-side-effect-guardrails.test.mjs`, and `tests/ban-audit-metadata.test.mjs`.
+
 ## Security + Financial Audit Fixes (2026-04-23)
 
 ### Review fulfillment gate

@@ -11,6 +11,24 @@ import { invalidateAccountStateCache } from './accountStateCache'
 
 export const UNDOABLE_ADMIN_ACTIONS = ['BAN_USER', 'REMOVE_LISTING', 'HOLD_LISTING'] as const
 
+type AdminAuditLogClient = Pick<Prisma.TransactionClient, 'adminAuditLog'>
+
+type AdminAuditLogInput = {
+  adminId: string
+  action: string
+  targetType: string
+  targetId: string
+  reason?: string
+  metadata?: Record<string, unknown>
+}
+
+export class AdminAuditLogError extends Error {
+  constructor(message = 'Admin audit log failed') {
+    super(message)
+    this.name = 'AdminAuditLogError'
+  }
+}
+
 export function isUndoableAdminAction(action: string): boolean {
   return (UNDOABLE_ADMIN_ACTIONS as readonly string[]).includes(action)
 }
@@ -128,40 +146,54 @@ async function retryUndoBanClerkSyncIfPending(log: {
   return true
 }
 
-export async function logAdminAction({
+async function createAdminAuditLog({
+  client = prisma,
   adminId,
   action,
   targetType,
   targetId,
   reason,
   metadata = {},
-}: {
-  adminId: string
-  action: string
-  targetType: string
-  targetId: string
-  reason?: string
-  metadata?: Record<string, unknown>
-}): Promise<string> {
+}: AdminAuditLogInput & { client?: AdminAuditLogClient }): Promise<string> {
+  const log = await client.adminAuditLog.create({
+    data: {
+      adminId,
+      action,
+      targetType,
+      targetId,
+      reason: reason ? truncateText(sanitizeText(reason), 500) || null : undefined,
+      metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
+    }
+  })
+  return log.id
+}
+
+function captureAdminAuditLogFailure(
+  error: unknown,
+  { adminId, action, targetType, targetId }: AdminAuditLogInput,
+) {
+  console.error('Audit log failed:', error)
+  Sentry.captureException(error, {
+    tags: { source: 'audit_log', action },
+    extra: { adminId, targetType, targetId },
+  })
+}
+
+export async function logAdminAction(input: AdminAuditLogInput): Promise<string | null> {
   try {
-    const log = await prisma.adminAuditLog.create({
-      data: {
-        adminId,
-        action,
-        targetType,
-        targetId,
-        reason: reason ? truncateText(sanitizeText(reason), 500) || null : undefined,
-        metadata: metadata as Parameters<typeof prisma.adminAuditLog.create>[0]['data']['metadata'],
-      }
-    })
-    return log.id
+    return await createAdminAuditLog(input)
   } catch (error) {
-    console.error('Audit log failed:', error)
-    Sentry.captureException(error, {
-      tags: { source: 'audit_log', action },
-      extra: { adminId, targetType, targetId },
-    })
-    return ''
+    captureAdminAuditLogFailure(error, input)
+    return null
+  }
+}
+
+export async function logAdminActionOrThrow(input: AdminAuditLogInput & { client?: AdminAuditLogClient }): Promise<string> {
+  try {
+    return await createAdminAuditLog(input)
+  } catch (error) {
+    captureAdminAuditLogFailure(error, input)
+    throw new AdminAuditLogError()
   }
 }
 
@@ -179,7 +211,7 @@ export async function logUserAuditAction({
   targetId: string
   reason?: string
   metadata?: Record<string, unknown>
-}): Promise<string> {
+}): Promise<string | null> {
   return logAdminAction({
     adminId: actorId,
     action,
@@ -218,6 +250,12 @@ export async function undoAdminAction({
     ? log.metadata as Record<string, unknown>
     : {}
   const banMetadata = log.action === 'BAN_USER' ? readBanAuditMetadata(metadata) : null
+  const appliedBannedAt = log.action === 'BAN_USER'
+    ? dateFromMetadata(banMetadata?.appliedBannedAt ?? null)
+    : null
+  if (log.action === 'BAN_USER' && !appliedBannedAt) {
+    throw new Error('Cannot automatically undo this ban because its audit metadata is incomplete. Use the manual unban workflow.')
+  }
 
   let sellerRestore: { id: string; chargesEnabled: boolean; vacationMode: boolean } | null = null
   if (log.action === 'BAN_USER') {
@@ -263,7 +301,6 @@ export async function undoAdminAction({
 
     switch (log.action) {
       case 'BAN_USER': {
-        const appliedBannedAt = dateFromMetadata(banMetadata?.appliedBannedAt ?? null)
         const unbanned = await tx.user.updateMany({
           where: {
             id: log.targetId,

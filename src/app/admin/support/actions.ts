@@ -3,7 +3,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
 export type SupportRequestActionState = { ok: boolean; error?: string };
@@ -48,25 +48,29 @@ export async function setSupportRequestStatus(
     }
 
     const admin = await requireAdmin();
-    const updated = await prisma.supportRequest.updateMany({
-      where: { id: requestId },
-      data: {
-        status,
-        closedAt: status === "CLOSED" ? new Date() : null,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.supportRequest.updateMany({
+        where: { id: requestId },
+        data: {
+          status,
+          closedAt: status === "CLOSED" ? new Date() : null,
+        },
+      });
+      if (result.count === 0) return result;
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: admin.id,
+        action: "UPDATE_SUPPORT_REQUEST",
+        targetType: "SUPPORT_REQUEST",
+        targetId: requestId,
+        metadata: { status },
+      });
+      return result;
     });
 
     if (updated.count === 0) {
       return { ok: false, error: "Request no longer exists." };
     }
-
-    await logAdminAction({
-      adminId: admin.id,
-      action: "UPDATE_SUPPORT_REQUEST",
-      targetType: "SUPPORT_REQUEST",
-      targetId: requestId,
-      metadata: { status },
-    });
 
     revalidatePath("/admin/support");
     return { ok: true };

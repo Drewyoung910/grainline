@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import DeleteBroadcastButton from "./DeleteBroadcastButton";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -23,19 +23,22 @@ async function deleteBroadcast(formData: FormData) {
 
   const id = String(formData.get("id") ?? "");
   if (id) {
-    const deleted = await prisma.sellerBroadcast.delete({
-      where: { id },
-      select: { id: true, sellerProfileId: true, recipientCount: true },
-    });
-    await logAdminAction({
-      adminId: user.id,
-      action: "DELETE_BROADCAST",
-      targetType: "SELLER_BROADCAST",
-      targetId: deleted.id,
-      metadata: {
-        sellerProfileId: deleted.sellerProfileId,
-        recipientCount: deleted.recipientCount,
-      },
+    await prisma.$transaction(async (tx) => {
+      const deleted = await tx.sellerBroadcast.delete({
+        where: { id },
+        select: { id: true, sellerProfileId: true, recipientCount: true },
+      });
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: user.id,
+        action: "DELETE_BROADCAST",
+        targetType: "SELLER_BROADCAST",
+        targetId: deleted.id,
+        metadata: {
+          sellerProfileId: deleted.sellerProfileId,
+          recipientCount: deleted.recipientCount,
+        },
+      });
     });
   }
   revalidatePath("/admin/broadcasts");

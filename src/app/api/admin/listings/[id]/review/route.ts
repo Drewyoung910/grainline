@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import * as Sentry from '@sentry/nextjs'
 import { after, NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { logAdminAction } from '@/lib/audit'
+import { logAdminActionOrThrow } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { sendCustomOrderReadyLink } from '@/lib/customOrderReadyLink'
 import { maybeGrantFoundingMaker } from '@/lib/foundingMaker'
@@ -129,17 +129,29 @@ export async function PATCH(
       return NextResponse.json({ error: unavailableReason }, { status: 409 })
     }
 
-    const approved = await prisma.listing.updateMany({
-      where: {
-        id,
-        status: 'PENDING_REVIEW',
-        seller: {
-          chargesEnabled: true,
-          vacationMode: false,
-          user: { banned: false, deletedAt: null },
+    const approved = await prisma.$transaction(async (tx) => {
+      const updated = await tx.listing.updateMany({
+        where: {
+          id,
+          status: 'PENDING_REVIEW',
+          seller: {
+            chargesEnabled: true,
+            vacationMode: false,
+            user: { banned: false, deletedAt: null },
+          },
         },
-      },
-      data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
+        data: { status: 'ACTIVE', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: null }
+      })
+      if (updated.count === 0) return updated
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: admin.id,
+        action: 'APPROVE_LISTING',
+        targetType: 'LISTING',
+        targetId: id,
+        reason: reason || 'Approved',
+      })
+      return updated
     })
     if (approved.count === 0) {
       const currentListing = await prisma.listing.findUnique({
@@ -190,13 +202,6 @@ export async function PATCH(
         extra: { listingId: id, sellerId: listing.sellerId },
       })
     }
-    await logAdminAction({
-      adminId: admin.id,
-      action: 'APPROVE_LISTING',
-      targetType: 'LISTING',
-      targetId: id,
-      reason: reason || 'Approved',
-    })
     await createNotification({
       userId: listing.seller.userId,
       type: 'LISTING_APPROVED',
@@ -222,9 +227,21 @@ export async function PATCH(
     }
   } else if (action === 'reject') {
     if (!reason?.trim()) return NextResponse.json({ error: 'Reason required for rejection' }, { status: 400 })
-    const rejected = await prisma.listing.updateMany({
-      where: { id, status: 'PENDING_REVIEW' },
-      data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: reason }
+    const rejected = await prisma.$transaction(async (tx) => {
+      const updated = await tx.listing.updateMany({
+        where: { id, status: 'PENDING_REVIEW' },
+        data: { status: 'REJECTED', reviewedByAdmin: true, reviewedAt: new Date(), rejectionReason: reason }
+      })
+      if (updated.count === 0) return updated
+      await logAdminActionOrThrow({
+        client: tx,
+        adminId: admin.id,
+        action: 'REJECT_LISTING',
+        targetType: 'LISTING',
+        targetId: id,
+        reason,
+      })
+      return updated
     })
     if (rejected.count === 0) {
       return NextResponse.json({ ok: true, skipped: true, reason: 'Listing is no longer pending review.' })
@@ -232,13 +249,6 @@ export async function PATCH(
     revalidateListingSearchCaches()
     revalidateFeaturedMakerCaches()
     await syncGuildThresholdAfterAdminReview(id, listing.sellerId, 'admin_listing_reject_guild_threshold')
-    await logAdminAction({
-      adminId: admin.id,
-      action: 'REJECT_LISTING',
-      targetType: 'LISTING',
-      targetId: id,
-      reason,
-    })
     await createNotification({
       userId: listing.seller.userId,
       type: 'LISTING_REJECTED',

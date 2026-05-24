@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { syncGuildMemberListingThreshold } from "@/lib/guildListingThreshold";
@@ -36,32 +36,32 @@ export async function DELETE(
   // Staff removal should not be reversible by the seller. Use REJECTED rather
   // than HIDDEN, and clear buyer-facing references that would otherwise point
   // at a removed listing.
-  await prisma.$transaction([
-    prisma.favorite.deleteMany({ where: { listingId: id } }),
-    prisma.stockNotification.deleteMany({ where: { listingId: id } }),
-    prisma.cartItem.deleteMany({ where: { listingId: id } }),
-    prisma.listing.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.favorite.deleteMany({ where: { listingId: id } });
+    await tx.stockNotification.deleteMany({ where: { listingId: id } });
+    await tx.cartItem.deleteMany({ where: { listingId: id } });
+    await tx.listing.update({
       where: { id },
       data: {
         status: "REJECTED",
         isPrivate: true,
         rejectionReason: "Removed by Grainline staff.",
       },
-    }),
-  ]);
-
-  await logAdminAction({
-    adminId: admin.id,
-    action: "REMOVE_LISTING",
-    targetType: "Listing",
-    targetId: id,
-    metadata: {
-      title: listing.title,
-      sellerId: listing.sellerId,
-      previousStatus: listing.status,
-      previousIsPrivate: listing.isPrivate,
-      previousRejectionReason: listing.rejectionReason,
-    },
+    });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: admin.id,
+      action: "REMOVE_LISTING",
+      targetType: "Listing",
+      targetId: id,
+      metadata: {
+        title: listing.title,
+        sellerId: listing.sellerId,
+        previousStatus: listing.status,
+        previousIsPrivate: listing.isPrivate,
+        previousRejectionReason: listing.rejectionReason,
+      },
+    });
   });
 
   await syncGuildMemberListingThreshold(listing.sellerId).catch((error) => {

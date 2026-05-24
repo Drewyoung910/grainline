@@ -14,7 +14,7 @@ import {
 import { meetsGuildMasterRequirements, GUILD_MASTER_REQUIREMENTS, type SellerMetricsResult } from "@/lib/metrics";
 import { SELLER_METRICS_MAX_AGE_MS, isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { FeatureMakerButton } from "@/components/admin/FeatureMakerButton";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminAction, logAdminActionOrThrow } from "@/lib/audit";
 import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
@@ -217,6 +217,13 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
         guildMemberApprovedAt: approvedAt,
       },
     });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "APPROVE_GUILD_MEMBER",
+      targetType: "SELLER_PROFILE",
+      targetId: verificationId,
+    });
     return true;
   });
   if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
@@ -246,8 +253,6 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     }
   }
 
-  await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId });
-
   revalidatePath("/admin/verification");
   return { ok: true };
 }
@@ -269,14 +274,26 @@ async function rejectGuildMember(formData: FormData) {
   });
   if (!verification || verification.status !== "PENDING") return;
 
-  const rejected = await prisma.makerVerification.updateMany({
-    where: { id: verificationId, status: "PENDING" },
-    data: {
-      status: "REJECTED",
-      reviewedById: me.id,
-      reviewedAt: new Date(),
-      reviewNotes,
-    },
+  const rejected = await prisma.$transaction(async (tx) => {
+    const updated = await tx.makerVerification.updateMany({
+      where: { id: verificationId, status: "PENDING" },
+      data: {
+        status: "REJECTED",
+        reviewedById: me.id,
+        reviewedAt: new Date(),
+        reviewNotes,
+      },
+    });
+    if (updated.count === 0) return updated;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REJECT_GUILD_MEMBER",
+      targetType: "SELLER_PROFILE",
+      targetId: verificationId,
+      reason: reviewNotes ?? undefined,
+    });
+    return updated;
   });
   if (rejected.count === 0) return;
 
@@ -306,8 +323,6 @@ async function rejectGuildMember(formData: FormData) {
       });
     }
   }
-
-  await logAdminAction({ adminId: me.id, action: "REJECT_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: verificationId, reason: reviewNotes ?? undefined });
 
   revalidatePath("/admin/verification");
 }
@@ -347,6 +362,13 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
         reviewNotes: "Guild Member badge revoked by Grainline staff.",
       },
     });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REVOKE_GUILD_MEMBER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
     return true;
   });
   if (!revoked) return { ok: false, error: "Guild Member badge was already changed. Refresh this page." };
@@ -373,8 +395,6 @@ async function revokeMember(_prevState: unknown, formData: FormData): Promise<Ac
       });
     }
   }
-
-  await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MEMBER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
   revalidatePath("/admin/verification");
   return { ok: true };
@@ -459,6 +479,13 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
       where: { id: verification.sellerProfileId },
       data: { guildLevel: "GUILD_MASTER", guildMasterApprovedAt: approvedAt },
     });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "APPROVE_GUILD_MASTER",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+    });
     return true;
   });
   if (!approved) return { ok: false, error: "Application changed while approving. Refresh and try again." };
@@ -487,8 +514,6 @@ async function approveGuildMaster(_prevState: unknown, formData: FormData): Prom
       });
     }
   }
-
-  await logAdminAction({ adminId: me.id, action: "APPROVE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: verification.sellerProfileId });
 
   revalidatePath("/admin/verification");
   return { ok: true };
@@ -523,6 +548,14 @@ async function rejectGuildMaster(formData: FormData) {
       where: { id: verification.sellerProfileId },
       data: { guildMasterReviewNotes: reviewNotes },
     });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REJECT_GUILD_MASTER",
+      targetType: "SELLER_PROFILE",
+      targetId: verification.sellerProfileId,
+      reason: reviewNotes ?? undefined,
+    });
     return true;
   });
   if (!rejected) return;
@@ -536,8 +569,6 @@ async function rejectGuildMaster(formData: FormData) {
       link: "/dashboard/verification",
     });
   }
-
-  await logAdminAction({ adminId: me.id, action: "REJECT_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: verification?.sellerProfileId ?? verificationId, reason: reviewNotes ?? undefined });
 
   revalidatePath("/admin/verification");
 }
@@ -578,6 +609,13 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
         reviewNotes: "Guild Master badge revoked by Grainline staff.",
       },
     });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REVOKE_GUILD_MASTER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
     return true;
   });
   if (!revoked) return { ok: false, error: "Guild Master badge was already changed. Refresh this page." };
@@ -603,8 +641,6 @@ async function revokeMaster(_prevState: unknown, formData: FormData): Promise<Ac
       });
     }
   }
-
-  await logAdminAction({ adminId: me.id, action: "REVOKE_GUILD_MASTER", targetType: "SELLER_PROFILE", targetId: sellerProfileId });
 
   revalidatePath("/admin/verification");
   return { ok: true };
@@ -670,6 +706,13 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
         reviewNotes: null,
       },
     });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "REINSTATE_GUILD_MEMBER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
     return seller;
   });
   if (!reinstatedSeller) {
@@ -687,13 +730,6 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
     link: publicSellerPath(sellerProfileId, reinstatedSeller.displayName),
   });
 
-  await logAdminAction({
-    adminId: me.id,
-    action: "REINSTATE_GUILD_MEMBER",
-    targetType: "SELLER_PROFILE",
-    targetId: sellerProfileId,
-  });
-
   revalidatePath("/admin/verification");
   return { ok: true };
 }
@@ -709,22 +745,26 @@ async function featureMaker(sellerProfileId: string) {
   if (ownSeller?.id === sellerProfileId) return;
 
   const now = new Date();
-  const result = await prisma.sellerProfile.updateMany({
-    where: activeSellerProfileWhere({
-      id: sellerProfileId,
-      guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
-      OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
-    }),
-    data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: activeSellerProfileWhere({
+        id: sellerProfileId,
+        guildLevel: { in: ["GUILD_MEMBER", "GUILD_MASTER"] },
+        OR: [{ featuredUntil: null }, { featuredUntil: { lte: now } }],
+      }),
+      data: { featuredUntil: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
+    });
+    if (updated.count === 0) return updated;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "FEATURE_MAKER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
+    return updated;
   });
   if (result.count === 0) return;
-
-  await logAdminAction({
-    adminId: me.id,
-    action: "FEATURE_MAKER",
-    targetType: "SELLER_PROFILE",
-    targetId: sellerProfileId,
-  });
 
   revalidatePath("/admin/verification");
   revalidatePath("/");
@@ -735,18 +775,22 @@ async function unfeatureMaker(sellerProfileId: string) {
   "use server";
   const me = await requireAdminOnly();
 
-  const result = await prisma.sellerProfile.updateMany({
-    where: { id: sellerProfileId, featuredUntil: { not: null } },
-    data: { featuredUntil: null },
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.sellerProfile.updateMany({
+      where: { id: sellerProfileId, featuredUntil: { not: null } },
+      data: { featuredUntil: null },
+    });
+    if (updated.count === 0) return updated;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "UNFEATURE_MAKER",
+      targetType: "SELLER_PROFILE",
+      targetId: sellerProfileId,
+    });
+    return updated;
   });
   if (result.count === 0) return;
-
-  await logAdminAction({
-    adminId: me.id,
-    action: "UNFEATURE_MAKER",
-    targetType: "SELLER_PROFILE",
-    targetId: sellerProfileId,
-  });
 
   revalidatePath("/admin/verification");
   revalidatePath("/");

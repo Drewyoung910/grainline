@@ -7,7 +7,7 @@ import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
 import { BLOG_TYPE_LABELS, BLOG_TYPE_COLORS } from "@/lib/blog";
 import { createNotification } from "@/lib/notifications";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
 
@@ -27,18 +27,22 @@ async function requireAdmin() {
 async function approveComment(commentId: string) {
   "use server";
   const me = await requireAdmin();
-  const approved = await prisma.blogComment.updateMany({
-    where: { id: commentId, approved: false },
-    data: { approved: true },
+  const approved = await prisma.$transaction(async (tx) => {
+    const result = await tx.blogComment.updateMany({
+      where: { id: commentId, approved: false },
+      data: { approved: true },
+    });
+    if (result.count !== 1) return result;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "APPROVE_BLOG_COMMENT",
+      targetType: "BLOG_COMMENT",
+      targetId: commentId,
+    });
+    return result;
   });
   if (approved.count !== 1) return;
-
-  await logAdminAction({
-    adminId: me.id,
-    action: "APPROVE_BLOG_COMMENT",
-    targetType: "BLOG_COMMENT",
-    targetId: commentId,
-  });
 
   // Send notification now that the comment is approved
   try {
@@ -98,16 +102,19 @@ async function approveComment(commentId: string) {
 async function deleteComment(commentId: string) {
   "use server";
   const me = await requireAdmin();
-  const deleted = await prisma.blogComment.delete({
-    where: { id: commentId },
-    select: { id: true, postId: true, authorId: true },
-  });
-  await logAdminAction({
-    adminId: me.id,
-    action: "DELETE_BLOG_COMMENT",
-    targetType: "BLOG_COMMENT",
-    targetId: deleted.id,
-    metadata: { postId: deleted.postId, authorId: deleted.authorId },
+  await prisma.$transaction(async (tx) => {
+    const deleted = await tx.blogComment.delete({
+      where: { id: commentId },
+      select: { id: true, postId: true, authorId: true },
+    });
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: me.id,
+      action: "DELETE_BLOG_COMMENT",
+      targetType: "BLOG_COMMENT",
+      targetId: deleted.id,
+      metadata: { postId: deleted.postId, authorId: deleted.authorId },
+    });
   });
   revalidatePath("/admin/blog");
 }

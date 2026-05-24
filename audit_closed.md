@@ -19,13 +19,13 @@ deferred, stale, and open findings for traceability.
 
 ## Active Hardening Program Counter
 
-Last updated: 2026-05-23
+Last updated: 2026-05-24
 
 - Raw Claude/new-audit candidate total: pending triage.
-- Verified hardening/doc commits since 2026-05-13: 213.
-- Verified code/feature fix commits since 2026-05-13: 189.
+- Verified hardening/doc commits since 2026-05-13: 214.
+- Verified code/feature fix commits since 2026-05-13: 190.
 - Verified docs/audit-only commits since 2026-05-13: 9.
-- Most recent reported pass tally: 150 verified fixed/reduced findings,
+- Most recent reported pass tally: 153 verified fixed/reduced findings,
   56 verified stale/false-positive findings, and 41 deferred/manual findings
   in the 2026-05-14 active tracker below.
 
@@ -2075,12 +2075,30 @@ Last updated: 2026-05-23
      `tests/ban-audit-metadata.test.mjs`, `tests/cron-auth.test.mjs`,
      `tests/cron-run.test.mjs`, and `tests/public-cron-search-hardening.test.mjs`.
 
-**Running tally after this pass:** verified fixed/reduced: 150 findings;
+227. **Round 9 admin audit durability and legacy BAN undo reduced** —
+     code/test fix for #832 and the legacy undo portions of #834/#242. Best-
+     effort `logAdminAction()` now returns `string | null` instead of an empty
+     string on failure, while `logAdminActionOrThrow({ client: tx, ... })`
+     gives mutation code a strict transactional path. Listing removal/review,
+     admin order review actions, support/report resolution, admin review
+     deletion, blog/broadcast deletes, and Guild verification state changes now
+     co-commit their audit row with the state mutation. BAN undo also fails
+     closed for legacy/malformed `BAN_USER` logs that lack
+     `metadata.appliedBannedAt`; staff must use the explicit unban workflow for
+     current-state manual unbans. Remaining admin-adjacent item verified current
+     but not fixed in this pass: #844 batched open-order ban review updates.
+     Guardrails: `tests/admin-audit-durability.test.mjs`,
+     `tests/admin-moderation-observability.test.mjs`,
+     `tests/admin-action-guardrails.test.mjs`,
+     `tests/admin-audit-undo-state.test.mjs`,
+     `tests/ban-side-effect-guardrails.test.mjs`, and
+     `tests/ban-audit-metadata.test.mjs`.
+
+**Running tally after this pass:** verified fixed/reduced: 153 findings;
 verified stale/false-positive: 56 findings; product/design decisions deferred:
-41 findings. Remaining major categories: admin audit logging durability,
-legacy ban undo fallback races, batched open-order ban review updates, AI
-full-workflow integration evidence, anonymous-cart merge durability, checkout
-concurrency integration evidence, Round 10 deferred system-audit and
+41 findings. Remaining major categories: batched open-order ban review updates,
+AI full-workflow integration evidence, anonymous-cart merge durability,
+checkout concurrency integration evidence, Round 10 deferred system-audit and
 state-machine product designs, JSON shape/size and email uniqueness
 production-scan decisions, conversation swapped-pair DB invariant design, email
 outbox retention/versioning design, account export/legal retention scope, and

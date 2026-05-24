@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { adminActionRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
 import {
   isInvalidJsonBodyError,
@@ -55,21 +55,25 @@ export async function POST(
     return NextResponse.json({ error: "Resolution reason is required." }, { status: 400 });
   }
 
-  const updated = await prisma.userReport.updateMany({
-    where: { id, resolved: false },
-    data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id, resolutionNote },
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.userReport.updateMany({
+      where: { id, resolved: false },
+      data: { resolved: true, resolvedAt: new Date(), resolvedById: admin.id, resolutionNote },
+    });
+    if (result.count === 0) return result;
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: admin.id,
+      action: "RESOLVE_REPORT",
+      targetType: "UserReport",
+      targetId: id,
+      metadata: { resolutionNote },
+    });
+    return result;
   });
   if (updated.count === 0) {
     return NextResponse.json({ error: "Report is already resolved or no longer exists." }, { status: 404 });
   }
-
-  await logAdminAction({
-    adminId: admin.id,
-    action: "RESOLVE_REPORT",
-    targetType: "UserReport",
-    targetId: id,
-    metadata: { resolutionNote },
-  });
 
   return NextResponse.json({ ok: true });
 }

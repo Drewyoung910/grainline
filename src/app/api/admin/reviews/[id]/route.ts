@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
-import { logAdminAction } from "@/lib/audit";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -82,17 +82,17 @@ export async function DELETE(
   await prisma.$transaction(async (tx) => {
     await tx.review.delete({ where: { id } });
     await refreshSellerRatingSummary(review.listing.sellerId, tx);
+    await logAdminActionOrThrow({
+      client: tx,
+      adminId: admin.id,
+      action: "DELETE_REVIEW",
+      targetType: "Review",
+      targetId: id,
+      metadata: { listingId: review.listingId, reviewerId: review.reviewerId },
+    });
   });
   const cleanupResults = await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
   captureAdminReviewPhotoCleanupFailures({ results: cleanupResults, photos, reviewId: id });
-
-  await logAdminAction({
-    adminId: admin.id,
-    action: "DELETE_REVIEW",
-    targetType: "Review",
-    targetId: id,
-    metadata: { listingId: review.listingId, reviewerId: review.reviewerId },
-  });
 
   return NextResponse.json({ ok: true });
 }
